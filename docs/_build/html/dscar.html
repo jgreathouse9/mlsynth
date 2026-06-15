@@ -1,0 +1,1683 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Dynamic Synthetic Control for Auto-Regressive processes (DSCAR) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'dscar';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Synthetic Difference-in-Differences (SDID)" href="sdid.html" />
+    <link rel="prev" title="Factor Model Approach (FMA)" href="fma.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/dscar.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-method">When to Use This Method</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-per-period-matching-vs-fixed-trajectory-sc">Dynamic per-period matching vs. fixed-trajectory SC</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-dscar-when">Reach for DSCAR when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-dscar-when">Do not use DSCAR when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#method">Method</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions">Assumptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.dscar">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.dscar.DSCAR"><code class="docutils literal notranslate"><span class="pre">DSCAR</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.dscar.DSCAR.fit"><code class="docutils literal notranslate"><span class="pre">DSCAR.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig"><code class="docutils literal notranslate"><span class="pre">DSCARConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.el_tolerance"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.el_tolerance</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.exog_covariates"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.exog_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.fdr_alpha"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.fdr_alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.lagged_outcome"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.lagged_outcome</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.model_config"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.placebo_reps"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.placebo_reps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.seed"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.seed</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.dscar_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.setup.prepare_dsc_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_dsc_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.weights.solve_dsc_weights"><code class="docutils literal notranslate"><span class="pre">solve_dsc_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.weights.variable_importance"><code class="docutils literal notranslate"><span class="pre">variable_importance()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.pipeline.run_dsc"><code class="docutils literal notranslate"><span class="pre">run_dsc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.inference.fdr_unconfoundedness_test"><code class="docutils literal notranslate"><span class="pre">fdr_unconfoundedness_test()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.inference.normalised_placebo_test"><code class="docutils literal notranslate"><span class="pre">normalised_placebo_test()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit"><code class="docutils literal notranslate"><span class="pre">DSCARFit</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.Y0_hat"><code class="docutils literal notranslate"><span class="pre">DSCARFit.Y0_hat</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.Y_treated_mean"><code class="docutils literal notranslate"><span class="pre">DSCARFit.Y_treated_mean</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.att"><code class="docutils literal notranslate"><span class="pre">DSCARFit.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.att_relative"><code class="docutils literal notranslate"><span class="pre">DSCARFit.att_relative</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.gap"><code class="docutils literal notranslate"><span class="pre">DSCARFit.gap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.n_exact_matched_periods"><code class="docutils literal notranslate"><span class="pre">DSCARFit.n_exact_matched_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.placebo_atts"><code class="docutils literal notranslate"><span class="pre">DSCARFit.placebo_atts</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_min_pvalue_adj"><code class="docutils literal notranslate"><span class="pre">DSCARFit.pre_period_min_pvalue_adj</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_pvalues"><code class="docutils literal notranslate"><span class="pre">DSCARFit.pre_period_pvalues</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.se"><code class="docutils literal notranslate"><span class="pre">DSCARFit.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.v_diagonal"><code class="docutils literal notranslate"><span class="pre">DSCARFit.v_diagonal</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.weights"><code class="docutils literal notranslate"><span class="pre">DSCARFit.weights</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs"><code class="docutils literal notranslate"><span class="pre">DSCARInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.N"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T0"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T1"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.T1</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.X"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y_lag1"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.Y_lag1</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.donor_labels"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.donor_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.n_treated"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.n_treated</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.treated_labels"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.treated_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.var_names"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.var_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.y_name"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.y_name</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults"><code class="docutils literal notranslate"><span class="pre">DSCARResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.att"><code class="docutils literal notranslate"><span class="pre">DSCARResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.att_relative"><code class="docutils literal notranslate"><span class="pre">DSCARResults.att_relative</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.counterfactual"><code class="docutils literal notranslate"><span class="pre">DSCARResults.counterfactual</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.fit"><code class="docutils literal notranslate"><span class="pre">DSCARResults.fit</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.gap"><code class="docutils literal notranslate"><span class="pre">DSCARResults.gap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.inputs"><code class="docutils literal notranslate"><span class="pre">DSCARResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.method"><code class="docutils literal notranslate"><span class="pre">DSCARResults.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.se"><code class="docutils literal notranslate"><span class="pre">DSCARResults.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.weights"><code class="docutils literal notranslate"><span class="pre">DSCARResults.weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-replication-beijing-pm2-5-air-pollution-alerts">Empirical replication: Beijing PM2.5 air-pollution alerts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="dynamic-synthetic-control-for-auto-regressive-processes-dscar">
+<h1>Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)<a class="headerlink" href="#dynamic-synthetic-control-for-auto-regressive-processes-dscar" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>DSCAR is mlsynth’s implementation of the Dynamic Synthetic Control
+method of Zheng &amp; Chen (2024). DSCAR extends classical Abadie-Diamond-
+Hainmueller (2010) synthetic control to settings with:</p>
+<ul class="simple">
+<li><p>time-varying confounders <span class="math notranslate nohighlight">\(\mathbf{x}_{it}\)</span> (e.g., meteorological
+variables in an air-pollution panel),</p></li>
+<li><p>an explicit auto-regressive outcome model <span class="math notranslate nohighlight">\(y_{it}^N =
+\delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it} + \rho_t y_{i, t-1}^N +
+\varepsilon_{it}\)</span>,</p></li>
+<li><p>spatial dependence in the residuals <span class="math notranslate nohighlight">\(\varepsilon_{it}\)</span>, and</p></li>
+<li><p>multiple treated units sharing a common intervention time.</p></li>
+</ul>
+<p>The matching weights are time-varying – computed afresh at every
+post-period via empirical-likelihood maximisation under per-period
+matching constraints (equations 2.7-2.9 of the paper). This is
+different from the L2 simplex weight typical of mlsynth’s other
+estimators; the EL formulation lets DSCAR attain <em>exact</em> covariate
+matches as <span class="math notranslate nohighlight">\(N_{co}, N_{tr} \to \infty\)</span> with <span class="math notranslate nohighlight">\(T\)</span> fixed.</p>
+<p>The acronym <code class="docutils literal notranslate"><span class="pre">DSCAR</span></code> is used in mlsynth to distinguish this estimator
+from the Distributional Synthetic Control of Gunsilius (2023),
+which ships under <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.DSC</span></code>.</p>
+</section>
+<section id="when-to-use-this-method">
+<h2>When to Use This Method<a class="headerlink" href="#when-to-use-this-method" title="Link to this heading">#</a></h2>
+<p>The motivating problem in Zheng &amp; Chen (2024) is an air-pollution
+alert: a city authority orders mandatory emission cuts when bad air is
+forecast, and you want to know whether the alert actually lowered
+pollution at the affected monitoring stations. Three features of that
+data break the classical synthetic-control toolkit, and they recur far
+beyond air quality – in marketing panels from wearables and loyalty
+apps, in clinical monitoring, in any micro-level spatio-temporal study:</p>
+<ul class="simple">
+<li><p>Time-varying confounders. The thing that drives the outcome
+(meteorology for pollution, weather/promotions for sales, vitals for
+health) <em>moves every period</em>. Classical SC matches on time-<em>invariant</em>
+covariates plus the whole pre-treatment outcome trajectory; it has no
+natural way to match a confounder that is a different value at every
+<span class="math notranslate nohighlight">\(t\)</span>.</p></li>
+<li><p>Autoregressive outcomes. Hourly pollutant concentrations, daily
+prices, and weekly sales carry the previous period forward
+(<span class="math notranslate nohighlight">\(y_{it}^N = \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it} +
+\rho_t y_{i,t-1}^N + \varepsilon_{it}\)</span>). The lagged outcome is itself a
+confounder that has to be matched.</p></li>
+<li><p>Many units, short panel, spatial dependence. Micro-level studies
+have <em>lots</em> of units (dozens to hundreds of stations) observed over a
+<em>short</em> window, and neighbouring units’ shocks are correlated. Classical
+SC’s consistency needs the pre-period <span class="math notranslate nohighlight">\(T_0 \to \infty\)</span>; here
+<span class="math notranslate nohighlight">\(T_0\)</span> is small and what grows is the number of units.</p></li>
+</ul>
+<p>DSCAR (Zheng &amp; Chen’s Dynamic Synthetic Control) is built for exactly
+this regime. Instead of one fixed weight vector matched on the full
+<span class="math notranslate nohighlight">\((p + T_0)\)</span>-dimensional pre-trajectory, it constructs a fresh
+weight vector at every post-period that matches only the <em>current</em>
+confounder state and <em>one</em> lagged outcome – a <span class="math notranslate nohighlight">\((p+1)\)</span>-dimensional
+match. Two consequences follow, and they are the reasons to reach for it:</p>
+<ol class="arabic simple">
+<li><p>Matching becomes feasible. A low-dimensional per-period match is
+far easier to satisfy <em>exactly</em> than SC’s full-trajectory match; the
+paper proves the exact match is attained with probability approaching
+one. The weights are pinned down by empirical-likelihood
+maximisation (<span class="math notranslate nohighlight">\(\max \prod_i w_{it}\)</span> under the matching
+constraints), which guarantees a unique solution and lets the
+authors characterise the weights’ asymptotic order – the lever behind
+the consistency proof.</p></li>
+<li><p>The asymptotics run in <span class="math notranslate nohighlight">\(N\)</span>, not <span class="math notranslate nohighlight">\(T_0\)</span>. <span class="math notranslate nohighlight">\(\tau_t\)</span>
+is consistent as <span class="math notranslate nohighlight">\(N_{tr}, N_{co} \to \infty\)</span> with <span class="math notranslate nohighlight">\(T\)</span>
+<em>fixed</em>, in marked contrast to Abadie et al. (2010), which needs
+<span class="math notranslate nohighlight">\(T_0 \to \infty\)</span>. This is what makes DSCAR a <em>micro-data</em>
+estimator: it naturally handles multiple treated units sharing a
+common intervention time and spatially dependent outcomes and
+errors.</p></li>
+</ol>
+<p>DSCAR also turns the unconfoundedness assumption from an article of faith
+into something testable. Because <span class="math notranslate nohighlight">\(y_{it} = y_{it}^N\)</span> for every
+unit before treatment, you can run the estimator on the pre-period and
+check whether the pseudo-effects are zero (Section 3.1; with an FDR
+correction across periods). A non-zero pre-period effect flags a
+misspecified model – a cue to change covariates or add higher-order
+lags. For post-period significance, the paper supplies a normalised
+placebo test that rescales each control’s placebo path, addressing the
+asymmetry that ordinary placebo tests ignore when treated and control
+units have different error variances.</p>
+<section id="dynamic-per-period-matching-vs-fixed-trajectory-sc">
+<h3>Dynamic per-period matching vs. fixed-trajectory SC<a class="headerlink" href="#dynamic-per-period-matching-vs-fixed-trajectory-sc" title="Link to this heading">#</a></h3>
+<p>Both methods build a counterfactual from a weighted average of controls;
+the difference is <em>what</em> gets matched and <em>when</em>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 35.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>Classical SC (ADH 2010)</p></th>
+<th class="head"><p>DSCAR (Zheng &amp; Chen 2024)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Weights</p></td>
+<td><p>one vector, constant in time</p></td>
+<td><p>re-solved every post-period</p></td>
+</tr>
+<tr class="row-odd"><td><p>Match target</p></td>
+<td><p>time-invariant covariates + full <span class="math notranslate nohighlight">\(T_0\)</span> outcome path</p></td>
+<td><p>current confounder state + one lagged outcome</p></td>
+</tr>
+<tr class="row-even"><td><p>Confounders</p></td>
+<td><p>time-invariant</p></td>
+<td><p>time-varying</p></td>
+</tr>
+<tr class="row-odd"><td><p>Outcome model</p></td>
+<td><p>factor model <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t^\top \boldsymbol{\xi}_i\)</span></p></td>
+<td><p>autoregressive <span class="math notranslate nohighlight">\(\rho_t y_{i,t-1}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>Treated units</p></td>
+<td><p>typically one</p></td>
+<td><p>many, common timing</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cross-unit dependence</p></td>
+<td><p>independent donors</p></td>
+<td><p>spatial dependence allowed</p></td>
+</tr>
+<tr class="row-even"><td><p>Consistency regime</p></td>
+<td><p><span class="math notranslate nohighlight">\(T_0 \to \infty\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(N_{tr}, N_{co} \to \infty\)</span>, <span class="math notranslate nohighlight">\(T\)</span> fixed</p></td>
+</tr>
+<tr class="row-odd"><td><p>Weight solver</p></td>
+<td><p>quadratic program (may be non-unique)</p></td>
+<td><p>empirical likelihood (unique)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="reach-for-dscar-when">
+<h3>Reach for DSCAR when<a class="headerlink" href="#reach-for-dscar-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The outcome is strongly autocorrelated – hourly pollutant
+concentrations, daily prices, weekly sales – so an AR(1) (or AR(<span class="math notranslate nohighlight">\(k\)</span>))
+structure is a defensible model of the untreated path.</p></li>
+<li><p>You have time-varying covariates you want to match period-by-period,
+not a static covariate snapshot.</p></li>
+<li><p>You are in the high-<span class="math notranslate nohighlight">\(N\)</span>, moderate-<span class="math notranslate nohighlight">\(T\)</span> micro-panel regime
+(e.g., 50-100 monitoring stations or stores × 50-100 periods), possibly
+with many treated units that all switch at a common time.</p></li>
+<li><p>Outcomes and shocks are spatially dependent across units (nearby
+stations, neighbouring stores) – DSCAR’s theory accommodates this where
+classic placebo inference does not.</p></li>
+<li><p>You want to test unconfoundedness / model specification on the
+pre-period rather than assume it, and you want a placebo test that is
+normalised to handle treated/control variance asymmetry.</p></li>
+</ul>
+</section>
+<section id="do-not-use-dscar-when">
+<h3>Do not use DSCAR when<a class="headerlink" href="#do-not-use-dscar-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>You have a single treated aggregate unit, a long pre-period, and no
+time-varying confounders – the canonical Prop 99 / Basque setting.
+Classic SC and its mlsynth refinements (<a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>, <a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a>,
+<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>) are faster, simpler, and give an interpretable convex-weight
+story. DSCAR’s per-period EL refinement is overkill when the covariate
+trajectory does not matter.</p></li>
+<li><p>The outcome is not autoregressive and has no time-varying
+confounders. The AR matching constraint (2.9) buys you nothing; use a
+factor-model estimator (<a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a>) or classic SC.</p></li>
+<li><p>The panel is small in <span class="math notranslate nohighlight">\(N\)</span> (a handful of units). DSCAR’s
+consistency runs in <span class="math notranslate nohighlight">\(N\)</span>; with few units the asymptotics do not
+engage and the per-period match is noisy. Prefer <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a> or
+<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>, whose theory tolerates a long-<span class="math notranslate nohighlight">\(T_0\)</span>, small-<span class="math notranslate nohighlight">\(N\)</span>
+panel.</p></li>
+<li><p>The treatment moves the confounders (Assumption 3 is violated –
+e.g., the alert itself changes the meteorology you match on). DSCAR is
+then biased; you need a method that models the confounder response, or a
+proximal/IV design (<a class="reference internal" href="proximal.html"><span class="doc">Proximal Inference Synthetic Control (PROXIMAL)</span></a>, <a class="reference internal" href="siv.html"><span class="doc">Synthetic IV</span></a>).</p></li>
+<li><p>You need distributional effects (quantiles, Lorenz, tails) rather
+than the mean ATT – use <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a> (Distributional Synthetic Control),
+which ships separately as <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.DSC</span></code>.</p></li>
+<li><p>There is interference between treated and control units beyond the
+modelled spatial error dependence (treatment spillovers onto the donor
+pool). Use <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a> or <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>.</p></li>
+</ul>
+</section>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<p>Let <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> index all <span class="math notranslate nohighlight">\(N\)</span> units.
+Because DSCAR is a multi-treated estimator, there is no single distinguished
+treated unit: write <span class="math notranslate nohighlight">\(\mathcal{N}_1\)</span> for the treated set (cardinality
+<span class="math notranslate nohighlight">\(N_{tr}\)</span>) and the donor pool <span class="math notranslate nohighlight">\(\mathcal{N}_0 \coloneqq \mathcal{N}
+\setminus \mathcal{N}_1\)</span> (cardinality <span class="math notranslate nohighlight">\(N_{co}\)</span>), with generic unit index
+<span class="math notranslate nohighlight">\(i\)</span>. Time runs over <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span>,
+1-indexed; every treated unit shares a common intervention that takes effect
+after period <span class="math notranslate nohighlight">\(T_0\)</span>, splitting <span class="math notranslate nohighlight">\(\mathcal{T}\)</span> into the pre-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> (of length
+<span class="math notranslate nohighlight">\(T_0\)</span>) and the post-period <span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in
+\mathcal{T} : t &gt; T_0\}\)</span>.</p>
+<p>The observed scalar outcome of unit <span class="math notranslate nohighlight">\(i\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> is
+<span class="math notranslate nohighlight">\(y_{it}\)</span>, with treatment dummy <span class="math notranslate nohighlight">\(d_{it}\)</span>; under Abadie’s potential-
+outcome superscripts <span class="math notranslate nohighlight">\(y_{it}^N\)</span> is the no-intervention outcome and
+<span class="math notranslate nohighlight">\(y_{it}^I\)</span> the outcome under the intervention, so <span class="math notranslate nohighlight">\(y_{it} = y_{it}^N
++ (y_{it}^I - y_{it}^N)\,d_{it}\)</span>. The no-intervention path follows the
+auto-regressive model</p>
+<div class="math notranslate nohighlight">
+\[y_{it}^N = \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it}
++ \rho_t\, y_{i, t-1}^N + \varepsilon_{it},\]</div>
+<p>with a per-period intercept <span class="math notranslate nohighlight">\(\delta_t\)</span>, time-varying confounders
+<span class="math notranslate nohighlight">\(\mathbf{x}_{it} \in \mathbb{R}^p\)</span> carrying coefficients
+<span class="math notranslate nohighlight">\(\boldsymbol{\beta}_t\)</span>, autoregressive coefficient <span class="math notranslate nohighlight">\(\rho_t\)</span>, and
+(possibly spatially dependent) errors <span class="math notranslate nohighlight">\(\varepsilon_{it}\)</span>. The per-period
+donor weights are <span class="math notranslate nohighlight">\(\mathbf{w}_t = (w_{it})_{i \in \mathcal{N}_0}\)</span>, on the
+simplex <span class="math notranslate nohighlight">\(\Delta^{N_{co}} \coloneqq \{\mathbf{w} \in
+\mathbb{R}_{\ge 0}^{N_{co}} : \|\mathbf{w}\|_1 = 1\}\)</span>, with optimiser
+<span class="math notranslate nohighlight">\(\mathbf{w}_t^\ast\)</span>. The per-period treatment effect is <span class="math notranslate nohighlight">\(\tau_t\)</span> (it
+estimates the treated-group mean of <span class="math notranslate nohighlight">\(y_{it}^I - y_{it}^N\)</span>) and the headline
+ATT is <span class="math notranslate nohighlight">\(\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in
+\mathcal{T}_2} \tau_t\)</span>.</p>
+</section>
+<section id="method">
+<h2>Method<a class="headerlink" href="#method" title="Link to this heading">#</a></h2>
+<p>The estimator works in three steps. Given a panel of <span class="math notranslate nohighlight">\(N\)</span> units
+over <span class="math notranslate nohighlight">\(T\)</span> periods, <span class="math notranslate nohighlight">\(N_{tr}\)</span> of which are directly treated
+starting after <span class="math notranslate nohighlight">\(T_0\)</span>:</p>
+<ol class="arabic">
+<li><p>Variable-importance matrix <span class="math notranslate nohighlight">\(\mathbf{V}_t\)</span>. For each <span class="math notranslate nohighlight">\(t\)</span>, fit an
+OLS of <span class="math notranslate nohighlight">\(\mathbf{y}_t\)</span> on <span class="math notranslate nohighlight">\((\mathbf{y}_{t-1}, \mathbf{x}_t)\)</span> across
+the cross-section (full panel for <span class="math notranslate nohighlight">\(t \leq T_0\)</span>, donors only for
+<span class="math notranslate nohighlight">\(t &gt; T_0\)</span>), and set <span class="math notranslate nohighlight">\(\mathbf{V}_t = \operatorname{diag}(|\text{coefficients}|)\)</span>.
+This is the per-period analogue of the SCM <span class="math notranslate nohighlight">\(\mathbf{V}\)</span> matrix.</p></li>
+<li><p>Per-period EL weights <span class="math notranslate nohighlight">\(\mathbf{w}_t^\ast\)</span>. Solve the convex QP</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{w}_t^\ast \in
+\operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_{co}}}
+(\mathbf{Z}_{1t} - \mathbf{Z}_{0t}\mathbf{w})^\top
+\mathbf{V}_t (\mathbf{Z}_{1t} - \mathbf{Z}_{0t}\mathbf{w}),\]</div>
+<p>over the simplex <span class="math notranslate nohighlight">\(\Delta^{N_{co}}\)</span>
+(<span class="math notranslate nohighlight">\(\mathbf{1}^\top\mathbf{w} = 1\)</span>, <span class="math notranslate nohighlight">\(0 \le w_i \le 1\)</span>), where
+<span class="math notranslate nohighlight">\(\mathbf{Z}_{1t}\)</span> is the treated-mean covariate target at
+<span class="math notranslate nohighlight">\(t\)</span> (and the lagged outcome) and <span class="math notranslate nohighlight">\(\mathbf{Z}_{0t}\)</span> are the
+donor-side analogues. When the QP residual is small enough
+(default <span class="math notranslate nohighlight">\(\leq 0.01\)</span> mean absolute), refine by maximising
+<span class="math notranslate nohighlight">\(\prod_i w_i\)</span> subject to the same matching constraints –
+this is the empirical-likelihood step that gives DSCAR its
+asymptotic-theory guarantees (Theorem 1 of the paper).</p>
+</li>
+<li><p>Dynamic matching of the lag. For <span class="math notranslate nohighlight">\(t &gt; T_0 + 1\)</span>, the
+treated-side lagged-outcome target is the previously-estimated
+counterfactual <span class="math notranslate nohighlight">\(\widehat{\mu}_{t-1}^N\)</span>, not the observed
+treated outcome (which carries the treatment). This recursion makes
+the bias term in equation (2.11) stochastically small.</p></li>
+</ol>
+<p>The per-period treatment effect is</p>
+<div class="math notranslate nohighlight">
+\[\tau_t = \bar{y}_{\mathcal{N}_1, t} - \sum_{i \in \mathcal{N}_0}
+w_{i, t}^\ast\, y_{i, t}, \qquad t &gt; T_0,\]</div>
+<p>where <span class="math notranslate nohighlight">\(\bar{y}_{\mathcal{N}_1, t} \coloneqq N_{tr}^{-1} \sum_{i \in
+\mathcal{N}_1} y_{i, t}\)</span> is the treated-group mean, and the headline ATT
+<span class="math notranslate nohighlight">\(\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in \mathcal{T}_2}
+\tau_t\)</span> is the post-period mean of <span class="math notranslate nohighlight">\(\tau_t\)</span>.</p>
+</section>
+<section id="assumptions">
+<h2>Assumptions<a class="headerlink" href="#assumptions" title="Link to this heading">#</a></h2>
+<p>The Zheng &amp; Chen (2024) consistency theorem requires the following.</p>
+<ol class="arabic">
+<li><p>Consistency (SUTVA). The observed outcome is the relevant potential
+outcome: <span class="math notranslate nohighlight">\(y_{it} = d_{it}\, y_{it}^I + (1 - d_{it})\, y_{it}^N\)</span> for all
+<span class="math notranslate nohighlight">\(i, t\)</span>.</p>
+<p><em>Remark.</em> This is the standard no-interference / single-version-of-treatment
+condition: each unit’s observed outcome equals its own potential outcome under
+the treatment it actually received, so there is a well-defined <span class="math notranslate nohighlight">\(y_{it}^N\)</span>
+to reconstruct.</p>
+</li>
+<li><p>Unconfoundedness: <span class="math notranslate nohighlight">\(\mathbb{E}[y_{it}^N \mid y_{i, t-1}^N,
+\mathbf{x}_{it}, d_i = 1] = \mathbb{E}[y_{it}^N \mid y_{i, t-1}^N,
+\mathbf{x}_{it}, d_i = 0]\)</span>.</p>
+<p><em>Remark.</em> Once you condition on the lagged outcome and the current
+confounders, treated and control units share the same no-intervention
+conditional mean. This is what licenses borrowing the donors’ dynamics to
+impute the treated counterfactual, and – because <span class="math notranslate nohighlight">\(y_{it} = y_{it}^N\)</span>
+before <span class="math notranslate nohighlight">\(T_0\)</span> – it is testable on the pre-period rather than merely
+assumed.</p>
+</li>
+<li><p>Unaffected confounders: <span class="math notranslate nohighlight">\(\mathbf{x}_{it} = \mathbf{x}_{it}^N =
+\mathbf{x}_{it}^I\)</span> – the treatment does not move the confounders.</p>
+<p><em>Remark.</em> The match is on confounders that the intervention leaves alone. If
+the treatment itself shifts <span class="math notranslate nohighlight">\(\mathbf{x}_{it}\)</span> (e.g. an alert that
+changes the meteorology you match on), the matched target is contaminated and
+DSCAR is biased – the regime flagged under <em>Do not use DSCAR when</em>.</p>
+</li>
+<li><p>Treatment-overlap: <span class="math notranslate nohighlight">\(\mathbb{P}(d_i = 1 \mid \mathbf{x}_{it},
+y_{i, t-1}^N) &lt; 1\)</span> with probability one.</p>
+<p><em>Remark.</em> No covariate / lag configuration is treated with certainty, so for
+every treated profile there is positive probability of a comparable control –
+the support needed for the per-period donor match to exist.</p>
+</li>
+</ol>
+<p>For inference (Section 3 of the paper), additional finite-moment and
+positive-definite-covariance conditions on <span class="math notranslate nohighlight">\(\varepsilon_{it}\)</span>
+are required.</p>
+<p>Theorem 1 (consistency). Under Assumptions 1-7 and the linear
+model <span class="math notranslate nohighlight">\(y_{it}^N = \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it} +
+\rho_t\, y_{i, t-1}^N + \varepsilon_{it}\)</span>, the DSCAR per-period effect
+<span class="math notranslate nohighlight">\(\tau_t\)</span> converges in probability to the true per-period treatment
+effect as both <span class="math notranslate nohighlight">\(N_{tr}, N_{co} \to \infty\)</span> with <span class="math notranslate nohighlight">\(T\)</span> fixed. The
+asymptotic regime is in marked contrast with Abadie et al. (2010),
+which requires <span class="math notranslate nohighlight">\(T_0 \to \infty\)</span>.</p>
+</section>
+<section id="module-mlsynth.estimators.dscar">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.dscar" title="Link to this heading">#</a></h2>
+<p>Dynamic Synthetic Control for Auto-Regressive processes (DSCAR).</p>
+<p>Zheng, X., &amp; Chen, S. X. (2024). <em>Dynamic synthetic control method for
+evaluating treatment effects in auto-regressive processes.</em> Journal of
+the Royal Statistical Society Series B, 86(1):155-176.</p>
+<p>DSCAR extends Abadie-Diamond-Hainmueller (2010) to panels with
+time-varying confounders, spatial dependence in the residuals, and an
+auto-regressive outcome model. The matching weights are computed
+<strong>per post-period</strong> via empirical likelihood (equations 2.7-2.9 of the
+paper), so the synthetic control tracks both the current covariate
+state and the previous-period potential outcome.</p>
+<p>Public API: <code class="docutils literal notranslate"><span class="pre">DSCAR(config).fit()</span> <span class="pre">-&gt;</span> <span class="pre">DSCARResults</span></code>.</p>
+<p>(The acronym <code class="docutils literal notranslate"><span class="pre">DSCAR</span></code> is used in mlsynth to distinguish this method
+from the Distributional Synthetic Control of Gunsilius (2023), which
+ships under <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.DSC</span></code>.)</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.dscar.DSCAR">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.dscar.</span></span><span class="sig-name descname"><span class="pre">DSCAR</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.DSCARConfig" title="mlsynth.utils.dscar_helpers.config.DSCARConfig"><span class="pre">DSCARConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.dscar.DSCAR" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Dynamic Synthetic Control for Auto-Regressive processes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>DSCARConfig or dict</em>) – See <a class="reference internal" href="#mlsynth.config_models.DSCARConfig" title="mlsynth.config_models.DSCARConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.DSCARConfig</span></code></a>.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.dscar.DSCAR.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults" title="mlsynth.utils.dscar_helpers.structures.DSCARResults"><span class="pre">DSCARResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.dscar.DSCAR.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">DSCARConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exog_covariates:</span> <span class="pre">~typing.List[str]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lagged_outcome:</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">placebo_reps:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">el_tolerance:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fdr_alpha:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.DSCARConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Dynamic Synthetic Control AR (DSCAR) estimator.</p>
+<p>Zheng &amp; Chen (2024), JRSS-B 86(1):155-176, “Dynamic synthetic
+control method for evaluating treatment effects in auto-regressive
+processes.” Extends Abadie-Diamond-Hainmueller (2010) to settings
+with time-varying confounders, an auto-regressive outcome, spatial
+dependence in the residuals, and possibly multiple treated units
+that all turn on at a common intervention time.</p>
+<p>The DSC weights are computed <strong>per post-period</strong> via empirical-
+likelihood maximisation under per-period matching constraints
+(equations 2.7-2.9 of the paper), allowing exact matches as
+<span class="math notranslate nohighlight">\(N_{co}, N_{tr} \to \infty\)</span> with <span class="math notranslate nohighlight">\(T\)</span> fixed – the
+asymptotic regime that suits a typical air-pollution / hourly
+panel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>exog_covariates</strong> (<em>list of str, optional</em>) – Time-varying exogenous covariate columns to include in the
+per-period matching. <code class="docutils literal notranslate"><span class="pre">None</span></code> skips the covariate match (DSC
+then matches on the lagged outcome only).</p></li>
+<li><p><strong>lagged_outcome</strong> (<em>str, optional</em>) – Column name supplying the externally-computed
+<span class="math notranslate nohighlight">\(Y_{i, t-1}\)</span> value at the <strong>first</strong> sample period. For
+later periods the lag is read off the panel itself. <code class="docutils literal notranslate"><span class="pre">None</span></code>
+drops the lag constraint at <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code>.</p></li>
+<li><p><strong>placebo_reps</strong> (<em>int</em>) – Number of normalised-placebo replications for the SE on the
+DSC ATT (Section 3.2). <code class="docutils literal notranslate"><span class="pre">0</span></code> (default) skips placebo inference.</p></li>
+<li><p><strong>el_tolerance</strong> (<em>float</em>) – Threshold for the QP residual <code class="docutils literal notranslate"><span class="pre">mean|Z_1</span> <span class="pre">-</span> <span class="pre">Z_0</span> <span class="pre">w|</span></code> at which
+the EL refinement step is attempted; matches the R reference’s
+default <code class="docutils literal notranslate"><span class="pre">0.01</span></code>. Smaller values fall back to QP weights more
+often.</p></li>
+<li><p><strong>fdr_alpha</strong> (<em>float</em>) – Significance level for the BY-adjusted pre-period
+unconfoundedness test (Section 3.1).</p></li>
+<li><p><strong>seed</strong> (<em>int</em>) – RNG seed for the placebo draw.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>Zheng, X., &amp; Chen, S. X. (2024). <em>Dynamic synthetic control method
+for evaluating treatment effects in auto-regressive processes.</em>
+Journal of the Royal Statistical Society Series B, 86(1):155-176.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.el_tolerance">
+<span class="sig-name descname"><span class="pre">el_tolerance</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.el_tolerance" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.exog_covariates">
+<span class="sig-name descname"><span class="pre">exog_covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.exog_covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.fdr_alpha">
+<span class="sig-name descname"><span class="pre">fdr_alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.fdr_alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.lagged_outcome">
+<span class="sig-name descname"><span class="pre">lagged_outcome</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.lagged_outcome" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.placebo_reps">
+<span class="sig-name descname"><span class="pre">placebo_reps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.placebo_reps" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.DSCARConfig.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.DSCARConfig.seed" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mlsynth.utils.dscar_helpers.setup">
+<span id="helper-modules"></span><h2>Helper Modules<a class="headerlink" href="#module-mlsynth.utils.dscar_helpers.setup" title="Link to this heading">#</a></h2>
+<p>Panel reshape for the Dynamic Synthetic Control estimator.</p>
+<p>DSC operates on a long-format panel with a treated indicator, an
+optional lagged-outcome column (<code class="docutils literal notranslate"><span class="pre">pm25_lag1</span></code> in the paper’s air-
+pollution example), and one or more time-varying exogenous covariates.</p>
+<p>This module:</p>
+<ol class="arabic simple">
+<li><p>Validates the columns the user named in <code class="xref py py-class docutils literal notranslate"><span class="pre">DSCARConfig</span></code>.</p></li>
+<li><p>Pivots to wide format <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> with treated units first.</p></li>
+<li><p>Constructs the one-period-lag outcome cube <code class="docutils literal notranslate"><span class="pre">Y_lag1</span></code> – using the
+user-provided lag column for <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code> and <code class="docutils literal notranslate"><span class="pre">Y[:,</span> <span class="pre">t</span> <span class="pre">-</span> <span class="pre">1]</span></code> for later
+periods.</p></li>
+<li><p>Stacks the exogenous covariates into an <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T,</span> <span class="pre">p)</span></code> cube.</p></li>
+</ol>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.setup.prepare_dsc_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_dsc_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exog_covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lagged_outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="mlsynth.utils.dscar_helpers.structures.DSCARInputs"><span class="pre">DSCARInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.setup.prepare_dsc_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot a long-format panel into the inputs DSC consumes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pandas.DataFrame</em>) – Long-format panel with one row per unit-time.</p></li>
+<li><p><strong>outcome, treat, unitid, time</strong> (<em>str</em>) – Column names. <code class="docutils literal notranslate"><span class="pre">treat</span></code> should be <code class="docutils literal notranslate"><span class="pre">1</span></code> at every row where the
+unit is part of the directly-treated group (regardless of pre /
+post timing); the per-row pre/post split is inferred from the
+first period at which any <code class="docutils literal notranslate"><span class="pre">treat</span> <span class="pre">==</span> <span class="pre">1</span></code> row appears.</p></li>
+<li><p><strong>exog_covariates</strong> (<em>sequence of str, optional</em>) – Time-varying exogenous covariate columns. When <code class="docutils literal notranslate"><span class="pre">None</span></code> the
+DSC matching uses only the lagged outcome.</p></li>
+<li><p><strong>lagged_outcome</strong> (<em>str, optional</em>) – Column carrying the externally-supplied <code class="docutils literal notranslate"><span class="pre">Y_{t-1}</span></code> at the
+first sample period. When <code class="docutils literal notranslate"><span class="pre">None</span></code>, the lag for <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code> is
+<code class="docutils literal notranslate"><span class="pre">NaN</span></code> for every unit and the corresponding matching
+constraint is dropped at <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>DSCARInputs</em></p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.dscar_helpers.weights">Per-period weight solver for Dynamic Synthetic Control.</p>
+<p>Implements equations (2.7) and (2.17-2.18) of Zheng &amp; Chen (2024):</p>
+<ol class="arabic">
+<li><p><strong>QP step</strong> (the convex-hull feasibility check). Solve</p>
+<div class="math notranslate nohighlight">
+\[\min_w  (Z_1 - Z_0 w)' V (Z_1 - Z_0 w) + \big( \sum_i w_i - 1 \big)^2
+\qquad
+\text{s.t.}  \sum w_i = 1,\ 0 \le w_i \le 1.\]</div>
+<p>This always has a solution and gives a feasible starting point.</p>
+</li>
+<li><p><strong>EL refinement</strong> (the empirical-likelihood step). When the QP
+solution has mean <code class="docutils literal notranslate"><span class="pre">|Z_1</span> <span class="pre">-</span> <span class="pre">Z_0</span> <span class="pre">w|</span> <span class="pre">&lt;=</span> <span class="pre">eps</span></code>, refine by</p>
+<div class="math notranslate nohighlight">
+\[\max_w  \prod_i w_i
+\qquad
+\text{s.t.}  Z_0 w = Z_1,\ \sum w_i = 1,\ 0 \le w_i \le 1.\]</div>
+<p>This is the empirical-likelihood maximisation that gives DSC its
+asymptotic-theory guarantees (Theorem 1 of the paper). When the EL
+step diverges, fail open: use the QP solution.</p>
+</li>
+</ol>
+<p>The R reference (<code class="docutils literal notranslate"><span class="pre">Dynamic_Synthetic_Control_new.R</span></code>) uses
+<code class="docutils literal notranslate"><span class="pre">LowRankQP</span></code> for step 1 and <code class="docutils literal notranslate"><span class="pre">NlcOptim::solnl</span></code> for step 2; we
+mirror those with cvxpy and <code class="docutils literal notranslate"><span class="pre">scipy.optimize.minimize</span></code> respectively.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.weights.solve_dsc_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">solve_dsc_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Z1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Z0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_diag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">el_tolerance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.01</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">bool</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.weights.solve_dsc_weights" title="Link to this definition">#</a></dt>
+<dd><p>One-period DSC weight solve: QP feasibility + EL refinement.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Z1</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">k</span></code> treated targets (per-period covariates + lagged
+outcome).</p></li>
+<li><p><strong>Z0</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(k,</span> <span class="pre">N_co)</span></code> donor targets.</p></li>
+<li><p><strong>V_diag</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">k</span></code> variable-importance diagonal for the QP.</p></li>
+<li><p><strong>el_tolerance</strong> (<em>float</em>) – Maximum mean absolute mismatch <code class="docutils literal notranslate"><span class="pre">|Z_1</span> <span class="pre">-</span> <span class="pre">Z_0</span> <span class="pre">w|</span></code> at which the
+EL refinement step is attempted. (R reference uses <code class="docutils literal notranslate"><span class="pre">0.01</span></code>.)
+When the QP residual exceeds this, the EL step is skipped and
+the QP weights are returned.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>weights</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">N_co</span></code> simplex weight vector.</p></li>
+<li><p><strong>used_el</strong> (<em>bool</em>) – <code class="docutils literal notranslate"><span class="pre">True</span></code> if EL refinement succeeded and was used; <code class="docutils literal notranslate"><span class="pre">False</span></code>
+otherwise (QP fallback).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.weights.variable_importance">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">variable_importance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y_lag1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.weights.variable_importance" title="Link to this definition">#</a></dt>
+<dd><p>Per-period OLS-coefficient magnitudes used as the V diagonal.</p>
+<p>For each time <code class="docutils literal notranslate"><span class="pre">t</span></code> in <code class="docutils literal notranslate"><span class="pre">1..T</span></code>, regress <code class="docutils literal notranslate"><span class="pre">Y[:,</span> <span class="pre">t]</span></code> on
+<code class="docutils literal notranslate"><span class="pre">[Y_lag1[:,</span> <span class="pre">t],</span> <span class="pre">X[:,</span> <span class="pre">t,</span> <span class="pre">:]]</span></code> over the panel and return
+<code class="docutils literal notranslate"><span class="pre">|coefficients|</span></code> (ignoring the intercept). Mirrors the R
+reference’s <code class="docutils literal notranslate"><span class="pre">paramt</span></code> matrix.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y, X, Y_lag1</strong> (<em>np.ndarray</em>) – Outcome, covariate cube, and lagged outcome (see <code class="xref py py-class docutils literal notranslate"><span class="pre">DSCARInputs</span></code>).</p></li>
+<li><p><strong>T0</strong> (<em>int</em>) – Pre-period length. For <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">&lt;=</span> <span class="pre">T0</span></code> the full panel is used;
+for <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">&gt;</span> <span class="pre">T0</span></code> only the donor rows are used (the treated rows
+carry the post-treatment outcomes, which would contaminate the
+coefficient estimate).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray</em> – Shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">1</span> <span class="pre">+</span> <span class="pre">p)</span></code> per-period absolute coefficient matrix.
+Column <code class="docutils literal notranslate"><span class="pre">0</span></code> is <code class="docutils literal notranslate"><span class="pre">|rho_t|</span></code> (lagged outcome); columns
+<code class="docutils literal notranslate"><span class="pre">1..p</span></code> are <code class="docutils literal notranslate"><span class="pre">|beta_t|</span></code> (exogenous covariates).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.dscar_helpers.pipeline">End-to-end Dynamic Synthetic Control orchestrator.</p>
+<p>Wraps the per-period weight solver in <a class="reference internal" href="clustersc.html#module-mlsynth.utils.clustersc_helpers.rpca.weights" title="mlsynth.utils.clustersc_helpers.rpca.weights"><code class="xref py py-mod docutils literal notranslate"><span class="pre">weights</span></code></a> with the
+algorithm’s recursive structure (Section 2.2 of Zheng &amp; Chen 2024):</p>
+<ul class="simple">
+<li><p>For the pre-period and the first post-period, match on the observed
+lagged outcome <span class="math notranslate nohighlight">\(Y_{i, t-1}\)</span>.</p></li>
+<li><p>For each subsequent post-period <span class="math notranslate nohighlight">\(t &gt; T_0 + 1\)</span>, replace the
+treated unit’s lagged-outcome target by the previously-estimated
+counterfactual <span class="math notranslate nohighlight">\(\widehat \mu_{t-1}(0)\)</span>. This is the dynamic
+matching that makes the bias term in eq. (2.11) stochastically
+small.</p></li>
+</ul>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.pipeline.run_dsc">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">run_dsc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="mlsynth.utils.dscar_helpers.structures.DSCARInputs"><span class="pre">DSCARInputs</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">el_tolerance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">placebo_reps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_fdr_test</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fdr_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit" title="mlsynth.utils.dscar_helpers.structures.DSCARFit"><span class="pre">DSCARFit</span></a></span></span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.pipeline.run_dsc" title="Link to this definition">#</a></dt>
+<dd><p>Walk the panel period by period and assemble the DSCARFit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>DSCARInputs</em>) – Output of <code class="xref py py-func docutils literal notranslate"><span class="pre">prepare_dsc_inputs()</span></code>.</p></li>
+<li><p><strong>el_tolerance</strong> (<em>float</em>) – Mean-absolute-mismatch threshold for triggering EL refinement.</p></li>
+<li><p><strong>placebo_reps</strong> (<em>int</em>) – If <code class="docutils literal notranslate"><span class="pre">&gt;</span> <span class="pre">0</span></code>, run a normalised placebo test (Section 3.2) with
+this many random control-only “treated” draws and populate
+<code class="docutils literal notranslate"><span class="pre">DSCARFit.se</span></code> / <code class="docutils literal notranslate"><span class="pre">DSCARFit.placebo_atts</span></code>.</p></li>
+<li><p><strong>do_fdr_test</strong> (<em>bool</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, run the FDR-controlled per-pre-period
+unconfoundedness test (Section 3.1) and populate
+<code class="docutils literal notranslate"><span class="pre">DSCARFit.pre_period_pvalues</span></code> /
+<code class="docutils literal notranslate"><span class="pre">DSCARFit.pre_period_min_pvalue_adj</span></code>.</p></li>
+<li><p><strong>fdr_alpha</strong> (<em>float</em>) – Significance level for the FDR test.</p></li>
+<li><p><strong>seed</strong> (<em>int</em>) – RNG seed for placebo draws.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.dscar_helpers.inference">Inference for the Dynamic Synthetic Control method.</p>
+<p>Two procedures from Sections 3.1 and 3.2 of Zheng &amp; Chen (2024):</p>
+<ol class="arabic simple">
+<li><p><strong>FDR-controlled unconfoundedness test</strong> (Section 3.1). For each
+pre-period <code class="docutils literal notranslate"><span class="pre">t</span></code>, test <code class="docutils literal notranslate"><span class="pre">H_0:</span> <span class="pre">gap_t</span> <span class="pre">=</span> <span class="pre">0</span></code> using a z-statistic
+<code class="docutils literal notranslate"><span class="pre">z_t</span> <span class="pre">=</span> <span class="pre">gap_t</span> <span class="pre">/</span> <span class="pre">(sigma</span> <span class="pre">*</span> <span class="pre">v_eta_t)</span></code>, where <code class="docutils literal notranslate"><span class="pre">v_eta_t</span> <span class="pre">=</span>
+<span class="pre">sqrt(1/n_treated</span> <span class="pre">+</span> <span class="pre">sum_i</span> <span class="pre">w_{t,</span> <span class="pre">i}^2)</span></code> and <code class="docutils literal notranslate"><span class="pre">sigma</span></code> is the
+residual SD from the pre-period AR-1 model
+<code class="docutils literal notranslate"><span class="pre">Y_it(0)</span> <span class="pre">=</span> <span class="pre">delta_t</span> <span class="pre">+</span> <span class="pre">beta_t'</span> <span class="pre">X_it</span> <span class="pre">+</span> <span class="pre">rho_t</span> <span class="pre">Y_{i,</span> <span class="pre">t-1}</span> <span class="pre">+</span> <span class="pre">eps_it</span></code>.
+Benjamini-Yekutieli correction across the <code class="docutils literal notranslate"><span class="pre">T0</span></code> per-period tests.</p></li>
+<li><p><strong>Normalised placebo test</strong> (Section 3.2). Sample <code class="docutils literal notranslate"><span class="pre">n_treated</span></code>
+donor units uniformly at random <code class="docutils literal notranslate"><span class="pre">K</span></code> times; re-run DSC treating
+them as the placebo “treated” group; normalise each placebo’s
+post-period mean effect by its own per-rep SD so the empirical
+distribution is on the same scale as the real ATT. The placebo SD
+of these normalised statistics is the SE for <code class="docutils literal notranslate"><span class="pre">att</span></code>.</p></li>
+</ol>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.inference.fdr_unconfoundedness_test">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">fdr_unconfoundedness_test</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="mlsynth.utils.dscar_helpers.structures.DSCARInputs"><span class="pre">DSCARInputs</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">np.ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.inference.fdr_unconfoundedness_test" title="Link to this definition">#</a></dt>
+<dd><p>Per-pre-period z-tests + BY-adjusted minimum p-value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>p_values</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(T0,)</span></code> two-sided p-values for <code class="docutils literal notranslate"><span class="pre">H_0:</span> <span class="pre">gap_t</span> <span class="pre">=</span> <span class="pre">0</span></code>.</p></li>
+<li><p><strong>min_p_adjusted</strong> (<em>float</em>) – Smallest BY-adjusted p-value across the <code class="docutils literal notranslate"><span class="pre">T0</span></code> tests.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.inference.normalised_placebo_test">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">normalised_placebo_test</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="mlsynth.utils.dscar_helpers.structures.DSCARInputs"><span class="pre">DSCARInputs</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att_observed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">placebo_reps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">el_tolerance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">np.ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.inference.normalised_placebo_test" title="Link to this definition">#</a></dt>
+<dd><p>Run the normalised placebo procedure (Section 3.2 of Zheng &amp; Chen 2024).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>placebo_atts</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">placebo_reps</span></code> array of placebo post-period mean
+effects (normalised to match the observed-treated SD scale).</p></li>
+<li><p><strong>se</strong> (<em>float</em>) – Empirical SE of <code class="docutils literal notranslate"><span class="pre">att_observed</span></code>, computed from the placebo
+distribution.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.dscar_helpers.structures">Frozen dataclasses for the DSC estimator pipeline.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">DSCARFit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y0_hat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y_treated_mean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att_relative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">placebo_atts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_period_pvalues</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_period_min_pvalue_adj</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_exact_matched_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v_diagonal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit" title="Link to this definition">#</a></dt>
+<dd><p>Per-period DSC weights + counterfactual + treatment-effect path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>weights</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">n_donors)</span></code> per-period simplex weight matrix.</p></li>
+<li><p><strong>Y0_hat</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> estimated counterfactual outcome for the treated
+group (per-hour mean across treated units, following Zheng &amp;
+Chen 2024 Section 5).</p></li>
+<li><p><strong>Y_treated_mean</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> observed per-hour mean across treated units.</p></li>
+<li><p><strong>gap</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> per-period effect <code class="docutils literal notranslate"><span class="pre">Y_treated_mean</span> <span class="pre">-</span> <span class="pre">Y0_hat</span></code>.</p></li>
+<li><p><strong>att</strong> (<em>float</em>) – Mean of <code class="docutils literal notranslate"><span class="pre">gap</span></code> over the post-period.</p></li>
+<li><p><strong>att_relative</strong> (<em>float</em>) – <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">mu1</span> <span class="pre">/</span> <span class="pre">mu0</span></code> where <code class="docutils literal notranslate"><span class="pre">mu1,</span> <span class="pre">mu0</span></code> are post-period means of
+<code class="docutils literal notranslate"><span class="pre">Y_treated_mean</span></code> and <code class="docutils literal notranslate"><span class="pre">Y0_hat</span></code> respectively.</p></li>
+<li><p><strong>se</strong> (<em>Optional[float]</em>) – Standard error of <code class="docutils literal notranslate"><span class="pre">att</span></code> from the normalised placebo run
+(Section 3.2). <code class="docutils literal notranslate"><span class="pre">None</span></code> when <code class="docutils literal notranslate"><span class="pre">placebo_reps</span> <span class="pre">==</span> <span class="pre">0</span></code>.</p></li>
+<li><p><strong>placebo_atts</strong> (<em>Optional[np.ndarray]</em>) – Length-<code class="docutils literal notranslate"><span class="pre">placebo_reps</span></code> post-period mean effects from the
+normalised placebo runs.</p></li>
+<li><p><strong>pre_period_pvalues</strong> (<em>Optional[np.ndarray]</em>) – Length-<code class="docutils literal notranslate"><span class="pre">T0</span></code> per-pre-period two-sided p-values for
+<code class="docutils literal notranslate"><span class="pre">H_0:</span> <span class="pre">gap_t</span> <span class="pre">=</span> <span class="pre">0</span></code> (Section 3.1).</p></li>
+<li><p><strong>pre_period_min_pvalue_adj</strong> (<em>Optional[float]</em>) – Benjamini-Yekutieli-adjusted minimum pre-period p-value.</p></li>
+<li><p><strong>n_exact_matched_periods</strong> (<em>int</em>) – Number of periods at which the EL refinement step succeeded
+(<code class="docutils literal notranslate"><span class="pre">T_matched</span></code> in the paper’s notation).</p></li>
+<li><p><strong>v_diagonal</strong> (<em>Optional[np.ndarray]</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">p</span> <span class="pre">+</span> <span class="pre">1)</span></code> per-period variable-importance vector
+used in the QP (the diagonal of <code class="docutils literal notranslate"><span class="pre">V_t</span></code>).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.Y0_hat">
+<span class="sig-name descname"><span class="pre">Y0_hat</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.Y0_hat" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.Y_treated_mean">
+<span class="sig-name descname"><span class="pre">Y_treated_mean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.Y_treated_mean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.att">
+<span class="sig-name descname"><span class="pre">att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.att" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.att_relative">
+<span class="sig-name descname"><span class="pre">att_relative</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.att_relative" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.gap">
+<span class="sig-name descname"><span class="pre">gap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.gap" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.n_exact_matched_periods">
+<span class="sig-name descname"><span class="pre">n_exact_matched_periods</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.n_exact_matched_periods" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.placebo_atts">
+<span class="sig-name descname"><span class="pre">placebo_atts</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.placebo_atts" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_min_pvalue_adj">
+<span class="sig-name descname"><span class="pre">pre_period_min_pvalue_adj</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_min_pvalue_adj" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_pvalues">
+<span class="sig-name descname"><span class="pre">pre_period_pvalues</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_pvalues" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.se">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.v_diagonal">
+<span class="sig-name descname"><span class="pre">v_diagonal</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.v_diagonal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARFit.weights">
+<span class="sig-name descname"><span class="pre">weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">DSCARInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y_lag1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel for DSC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> outcome panel ordered with the <code class="docutils literal notranslate"><span class="pre">n_treated</span></code>
+treated units first (rows <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">..</span> <span class="pre">n_treated</span> <span class="pre">-</span> <span class="pre">1</span></code>), then donor
+units.</p></li>
+<li><p><strong>Y_lag1</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> one-period-lag outcome. Column <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">0</span></code>
+carries the user-provided pre-period lag; columns
+<code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code> equal <code class="docutils literal notranslate"><span class="pre">Y[:,</span> <span class="pre">t</span> <span class="pre">-</span> <span class="pre">1]</span></code>.</p></li>
+<li><p><strong>X</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T,</span> <span class="pre">p)</span></code> exogenous-covariate cube. <code class="docutils literal notranslate"><span class="pre">p</span></code> may be 0.</p></li>
+<li><p><strong>var_names</strong> (<em>tuple of str</em>) – Length-<code class="docutils literal notranslate"><span class="pre">p</span></code> names of the exogenous covariates (informational).</p></li>
+<li><p><strong>y_name</strong> (<em>str</em>) – Outcome column name (informational).</p></li>
+<li><p><strong>treated_labels</strong> (<em>tuple</em>) – Labels of the directly-treated units, in panel row order.</p></li>
+<li><p><strong>donor_labels</strong> (<em>tuple</em>) – Labels of the donor units, in panel row order.</p></li>
+<li><p><strong>time_labels</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> time labels.</p></li>
+<li><p><strong>N</strong> (<em>int</em>) – Total number of units.</p></li>
+<li><p><strong>T</strong> (<em>int</em>) – Total number of time periods.</p></li>
+<li><p><strong>T0</strong> (<em>int</em>) – Number of pre-treatment periods.</p></li>
+<li><p><strong>T1</strong> (<em>int</em>) – Number of post-treatment periods.</p></li>
+<li><p><strong>n_treated</strong> (<em>int</em>) – Number of directly-treated units.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.N">
+<span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.N" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.T">
+<span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.T1">
+<span class="sig-name descname"><span class="pre">T1</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.X">
+<span class="sig-name descname"><span class="pre">X</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.X" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y_lag1">
+<span class="sig-name descname"><span class="pre">Y_lag1</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y_lag1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.donor_labels">
+<span class="sig-name descname"><span class="pre">donor_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.donor_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.n_treated">
+<span class="sig-name descname"><span class="pre">n_treated</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.n_treated" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.treated_labels">
+<span class="sig-name descname"><span class="pre">treated_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.treated_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.var_names">
+<span class="sig-name descname"><span class="pre">var_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.var_names" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARInputs.y_name">
+<span class="sig-name descname"><span class="pre">y_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.y_name" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.dscar_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">DSCARResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="mlsynth.utils.dscar_helpers.structures.DSCARInputs"><span class="pre">DSCARInputs</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit" title="mlsynth.utils.dscar_helpers.structures.DSCARFit"><span class="pre">DSCARFit</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'dsc'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults" title="Link to this definition">#</a></dt>
+<dd><p>Top-level DSC result container.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.att">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.att" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.att_relative">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">att_relative</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.att_relative" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.counterfactual">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">counterfactual</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.counterfactual" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit" title="mlsynth.utils.dscar_helpers.structures.DSCARFit"><span class="pre">DSCARFit</span></a></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.gap">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">gap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.gap" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs" title="mlsynth.utils.dscar_helpers.structures.DSCARInputs"><span class="pre">DSCARInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.method">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'dsc'</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.se">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.dscar_helpers.structures.DSCARResults.weights">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<p>A tiny AR(1) panel with a planted treatment effect of <span class="math notranslate nohighlight">\(\tau = 2\)</span>
+on unit 0:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">DSCAR</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">T0</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">20</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.5</span>
+<span class="n">eps</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.3</span>
+<span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
+    <span class="n">Y</span><span class="p">[:,</span> <span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">t</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.6</span> <span class="o">*</span> <span class="n">Y</span><span class="p">[:,</span> <span class="n">t</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[:,</span> <span class="n">t</span><span class="p">]</span>
+<span class="n">Y</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">T0</span><span class="p">:]</span> <span class="o">+=</span> <span class="mf">2.0</span>       <span class="c1"># treatment effect on unit 0</span>
+<span class="n">rows</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;u</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
+     <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">]),</span> <span class="s2">&quot;x1&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">]),</span>
+     <span class="s2">&quot;y_lag1&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">t</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">,</span>
+     <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">t</span> <span class="o">&gt;=</span> <span class="n">T0</span><span class="p">)}</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+<span class="p">]</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">DSCAR</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treat&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;exog_covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;x1&quot;</span><span class="p">],</span> <span class="s2">&quot;lagged_outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;y_lag1&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;DSCAR ATT = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">  (true tau = 2.0)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="empirical-replication-beijing-pm2-5-air-pollution-alerts">
+<h2>Empirical replication: Beijing PM2.5 air-pollution alerts<a class="headerlink" href="#empirical-replication-beijing-pm2-5-air-pollution-alerts" title="Link to this heading">#</a></h2>
+<p>DSCAR ships with the two air-pollution panels used in Zheng &amp; Chen
+(2024) Section 5:</p>
+<ul class="simple">
+<li><p><code class="file docutils literal notranslate"><span class="pre">basedata/beijing_pm25_orange_alert.csv</span></code> – the orange alert
+starting 17 Nov 2016, 94 monitoring stations × 72 hours, 20 treated.</p></li>
+<li><p><code class="file docutils literal notranslate"><span class="pre">basedata/beijing_pm25_red_alert.csv</span></code> – the red alert
+starting 16 Dec 2016, 66 stations × 72 hours, 20 treated.</p></li>
+</ul>
+<p>The pre-period is the 48 hours before the alert; the post-period is
+the 24 hours after.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">DSCAR</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/beijing_pm25_orange_alert.csv&quot;</span><span class="p">)</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;treat_indicator&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;alert_if&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;hour_eps&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">48</span><span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">DSCAR</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;pm25&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treat_indicator&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;id_eps&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;hour_eps&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;exog_covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;WSPM&quot;</span><span class="p">,</span> <span class="s2">&quot;humi&quot;</span><span class="p">,</span> <span class="s2">&quot;dewp&quot;</span><span class="p">,</span> <span class="s2">&quot;pres&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;lagged_outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;pm25_lag1&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="n">mu0</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">Y0_hat</span><span class="p">[</span><span class="mi">48</span><span class="p">:]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="n">mu1</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">Y_treated_mean</span><span class="p">[</span><span class="mi">48</span><span class="p">:]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;orange alert ATT  = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.4f</span><span class="si">}</span><span class="s2">  (paper -33.8)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  relative reduction = </span><span class="si">{</span><span class="mi">100</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">res</span><span class="o">.</span><span class="n">att_relative</span><span class="si">:</span><span class="s2">+.2f</span><span class="si">}</span><span class="s2">%  (paper -24.3%)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  mu_0 = </span><span class="si">{</span><span class="n">mu0</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">  (paper 139.0)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  mu_1 = </span><span class="si">{</span><span class="n">mu1</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">  (paper 105.3)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>prints:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">orange</span> <span class="n">alert</span> <span class="n">ATT</span>  <span class="o">=</span> <span class="o">-</span><span class="mf">33.7830</span>  <span class="p">(</span><span class="n">paper</span> <span class="o">-</span><span class="mf">33.8</span><span class="p">)</span>
+  <span class="n">relative</span> <span class="n">reduction</span> <span class="o">=</span> <span class="o">-</span><span class="mf">24.29</span><span class="o">%</span>  <span class="p">(</span><span class="n">paper</span> <span class="o">-</span><span class="mf">24.3</span><span class="o">%</span><span class="p">)</span>
+  <span class="n">mu_0</span> <span class="o">=</span> <span class="mf">139.07</span>  <span class="p">(</span><span class="n">paper</span> <span class="mf">139.0</span><span class="p">)</span>
+  <span class="n">mu_1</span> <span class="o">=</span> <span class="mf">105.28</span>  <span class="p">(</span><span class="n">paper</span> <span class="mf">105.3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Path-A regression status:</p>
+<ul class="simple">
+<li><p>Orange alert: ATT matches the paper to 0.05 μg/m³ and the
+relative-reduction figure to 0.01 percentage points – this is a
+faithful Path-A replication.</p></li>
+<li><p>Red alert: my implementation produces <code class="docutils literal notranslate"><span class="pre">ATT</span> <span class="pre">=</span> <span class="pre">−55.7</span> <span class="pre">μg/m³</span></code>
+(relative reduction 21.9%) against the paper’s reported <code class="docutils literal notranslate"><span class="pre">-70.4</span>
+<span class="pre">μg/m³</span></code> (relative reduction 26.2%). I do not know why this is, as the final code is unpublished. The qualitative finding holds
+(large negative ATT, ~20% reduction), but the magnitude differs by
+~21%. The reference R script that was emailed to me two years ago (as of this writing,
+<code class="docutils literal notranslate"><span class="pre">eg2/Eg_Air_Pollution_eps_201616_12_16_final.R</span></code>) contains a
+commented-out per-unit pressure / humidity de-meaning block,
+suggesting the paper’s red-alert numbers were produced with
+preprocessing the released code doesn’t actually perform. The
+pytest regression <code class="docutils literal notranslate"><span class="pre">TestPathABeijingAlerts::test_red_att_qualitative</span></code>
+asserts the qualitative ATT bound rather than the paper’s exact
+magnitude.</p></li>
+</ul>
+<p>The driver is <code class="file docutils literal notranslate"><span class="pre">examples/dscar/replicate_beijing_alerts.py</span></code>; run
+with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">examples.dscar.replicate_beijing_alerts</span></code>.</p>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Zheng, X., &amp; Chen, S. X. (2024). “Dynamic synthetic control method for
+evaluating treatment effects in auto-regressive processes.”
+<em>Journal of the Royal Statistical Society Series B</em> 86(1):155-176.</p>
+<p>Abadie, A., Diamond, A., &amp; Hainmueller, J. (2010). “Synthetic Control
+Methods for Comparative Case Studies.” <em>Journal of the American
+Statistical Association</em> 105(490):493-505.</p>
+<p>Chen, S. X., &amp; Van Keilegom, I. (2009). “A review on empirical
+likelihood methods for regression.” <em>Test</em> 18(3):415-447.</p>
+<p>Owen, A. (1988). “Empirical likelihood ratio confidence intervals for
+a single functional.” <em>Biometrika</em> 75(2):237-249.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="fma.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Factor Model Approach (FMA)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="sdid.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Synthetic Difference-in-Differences (SDID)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-method">When to Use This Method</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-per-period-matching-vs-fixed-trajectory-sc">Dynamic per-period matching vs. fixed-trajectory SC</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-dscar-when">Reach for DSCAR when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-dscar-when">Do not use DSCAR when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#method">Method</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions">Assumptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.dscar">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.dscar.DSCAR"><code class="docutils literal notranslate"><span class="pre">DSCAR</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.dscar.DSCAR.fit"><code class="docutils literal notranslate"><span class="pre">DSCAR.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig"><code class="docutils literal notranslate"><span class="pre">DSCARConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.el_tolerance"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.el_tolerance</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.exog_covariates"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.exog_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.fdr_alpha"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.fdr_alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.lagged_outcome"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.lagged_outcome</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.model_config"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.placebo_reps"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.placebo_reps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.DSCARConfig.seed"><code class="docutils literal notranslate"><span class="pre">DSCARConfig.seed</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.dscar_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.setup.prepare_dsc_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_dsc_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.weights.solve_dsc_weights"><code class="docutils literal notranslate"><span class="pre">solve_dsc_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.weights.variable_importance"><code class="docutils literal notranslate"><span class="pre">variable_importance()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.pipeline.run_dsc"><code class="docutils literal notranslate"><span class="pre">run_dsc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.inference.fdr_unconfoundedness_test"><code class="docutils literal notranslate"><span class="pre">fdr_unconfoundedness_test()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.inference.normalised_placebo_test"><code class="docutils literal notranslate"><span class="pre">normalised_placebo_test()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit"><code class="docutils literal notranslate"><span class="pre">DSCARFit</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.Y0_hat"><code class="docutils literal notranslate"><span class="pre">DSCARFit.Y0_hat</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.Y_treated_mean"><code class="docutils literal notranslate"><span class="pre">DSCARFit.Y_treated_mean</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.att"><code class="docutils literal notranslate"><span class="pre">DSCARFit.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.att_relative"><code class="docutils literal notranslate"><span class="pre">DSCARFit.att_relative</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.gap"><code class="docutils literal notranslate"><span class="pre">DSCARFit.gap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.n_exact_matched_periods"><code class="docutils literal notranslate"><span class="pre">DSCARFit.n_exact_matched_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.placebo_atts"><code class="docutils literal notranslate"><span class="pre">DSCARFit.placebo_atts</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_min_pvalue_adj"><code class="docutils literal notranslate"><span class="pre">DSCARFit.pre_period_min_pvalue_adj</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.pre_period_pvalues"><code class="docutils literal notranslate"><span class="pre">DSCARFit.pre_period_pvalues</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.se"><code class="docutils literal notranslate"><span class="pre">DSCARFit.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.v_diagonal"><code class="docutils literal notranslate"><span class="pre">DSCARFit.v_diagonal</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARFit.weights"><code class="docutils literal notranslate"><span class="pre">DSCARFit.weights</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs"><code class="docutils literal notranslate"><span class="pre">DSCARInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.N"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T0"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.T1"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.T1</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.X"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.Y_lag1"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.Y_lag1</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.donor_labels"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.donor_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.n_treated"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.n_treated</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.treated_labels"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.treated_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.var_names"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.var_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARInputs.y_name"><code class="docutils literal notranslate"><span class="pre">DSCARInputs.y_name</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults"><code class="docutils literal notranslate"><span class="pre">DSCARResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.att"><code class="docutils literal notranslate"><span class="pre">DSCARResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.att_relative"><code class="docutils literal notranslate"><span class="pre">DSCARResults.att_relative</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.counterfactual"><code class="docutils literal notranslate"><span class="pre">DSCARResults.counterfactual</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.fit"><code class="docutils literal notranslate"><span class="pre">DSCARResults.fit</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.gap"><code class="docutils literal notranslate"><span class="pre">DSCARResults.gap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.inputs"><code class="docutils literal notranslate"><span class="pre">DSCARResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.method"><code class="docutils literal notranslate"><span class="pre">DSCARResults.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.se"><code class="docutils literal notranslate"><span class="pre">DSCARResults.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.dscar_helpers.structures.DSCARResults.weights"><code class="docutils literal notranslate"><span class="pre">DSCARResults.weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-replication-beijing-pm2-5-air-pollution-alerts">Empirical replication: Beijing PM2.5 air-pollution alerts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

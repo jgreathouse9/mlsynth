@@ -1,0 +1,1546 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>GeoLift Market Selection (GEOLIFT) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'geolift';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/geolift.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>GeoLift Market Selection (GEOLIFT)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-and-notation">Setup and notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-1-candidate-nomination">Stage 1 — Candidate nomination</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-1b-design-constraints">Stage 1b — Design constraints</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-2-the-synthetic-control">Stage 2 — The synthetic control</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-3-power-simulation">Stage 3 — Power simulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-4-mde-and-the-composite-rank">Stage 4 — MDE and the composite rank</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-assumptions">Identifying assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#budget-planning-cpic">Budget planning (CPIC)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-and-the-realized-design">Inference and the realized design</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pipeline-and-options">Pipeline and Options</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#plotting">Plotting</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-geolift-s-40-market-panel">Example: GeoLift’s 40-Market Panel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#every-option-at-once-the-full-market-selection-call">Every option at once — the full market-selection call</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading-the-results-plots-tables-and-weights">Reading the results — plots, tables, and weights</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#design-constraints-geography-coverage-size">Design constraints (geography, coverage, size)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-cell-designs">Multi-cell designs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-api">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.GEOLIFT"><code class="docutils literal notranslate"><span class="pre">GEOLIFT</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.GEOLIFT.fit"><code class="docutils literal notranslate"><span class="pre">GEOLIFT.fit()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig"><code class="docutils literal notranslate"><span class="pre">GeoLiftConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig.model_config"><code class="docutils literal notranslate"><span class="pre">GeoLiftConfig.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="geolift-market-selection-geolift">
+<h1>GeoLift Market Selection (GEOLIFT)<a class="headerlink" href="#geolift-market-selection-geolift" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Most estimators in <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> are <em>retrospective</em>: a treatment has happened and
+we want its effect. <code class="docutils literal notranslate"><span class="pre">GEOLIFT</span></code> is <em>prospective</em> — a tool for synthetic
+experimental design in geo-experiments. Before any ad spend, it answers:</p>
+<blockquote>
+<div><p><em>Which</em> markets should be treated, for <em>how long</em>, so that a real lift would
+be detectable?</p>
+</div></blockquote>
+<p>It is a faithful port of Meta’s <a class="reference external" href="https://github.com/facebookincubator/GeoLift">GeoLift</a> market-selection routine onto
+the <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> Augmented-SCM machinery (Ben-Michael, Feller &amp; Rothstein, 2021
+<a class="reference internal" href="replications/geolift.html#bmfr2021" id="id1"><span>[BMFR2021]</span></a>), with conformal inference (Chernozhukov, Wüthrich &amp; Zhu, 2021
+<a class="reference internal" href="replications/geolift.html#cwz2021" id="id2"><span>[CWZ2021]</span></a>) and the standardized design/effect result contract. Reach for it
+when test markets must be chosen up front, you want a minimum detectable
+effect (MDE) and power per candidate region plus the deployable synthetic
+control, you may need to force markets in or out, and — once the experiment
+runs — you want to realize the chosen design into an effect report.</p>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical Formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading">#</a></h2>
+<section id="setup-and-notation">
+<h3>Setup and notation<a class="headerlink" href="#setup-and-notation" title="Link to this heading">#</a></h3>
+<p>There are <span class="math notranslate nohighlight">\(N\)</span> markets <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> and
+<span class="math notranslate nohighlight">\(T\)</span> periods <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span>. The design
+uses only the pre-treatment window
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> of length
+<span class="math notranslate nohighlight">\(T_0\)</span>; if post-treatment data exist they are sliced off (see
+<em>Pre/post split</em>). The outcome of market <span class="math notranslate nohighlight">\(j\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> is
+<span class="math notranslate nohighlight">\(y_{jt}\)</span>, with market series
+<span class="math notranslate nohighlight">\(\mathbf{y}_j = (y_{j1}, \dots, y_{jT})^\top \in \mathbb{R}^{T}\)</span>.</p>
+<p>A candidate test region is a set <span class="math notranslate nohighlight">\(\mathcal{S} \subseteq \mathcal{N}\)</span>
+of <span class="math notranslate nohighlight">\(k \coloneqq |\mathcal{S}|\)</span> markets (the <code class="docutils literal notranslate"><span class="pre">treatment_size</span></code>). It plays
+the role of the canonical treated unit through its aggregate series</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{y}^{\mathcal{S}}, \qquad
+y^{\mathcal{S}}_t \coloneqq \operatorname{agg}_{j \in \mathcal{S}} y_{jt},
+\qquad \operatorname{agg} \in \Bigl\{\textstyle\sum,\ \operatorname{mean}\Bigr\}.\]</div>
+<p>The donor pool is every other market,
+<span class="math notranslate nohighlight">\(\mathcal{N}_0(\mathcal{S}) \coloneqq \mathcal{N} \setminus \mathcal{S}\)</span>
+with <span class="math notranslate nohighlight">\(N_0 \coloneqq N - k\)</span>, giving the donor matrix
+<span class="math notranslate nohighlight">\(\mathbf{Y}_0^{\mathcal{S}} \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0(\mathcal{S})}
+\in \mathbb{R}^{T \times N_0}\)</span>. The <code class="docutils literal notranslate"><span class="pre">sum</span></code> aggregate is GeoLift’s default (the
+right object for total spend/lift); the <code class="docutils literal notranslate"><span class="pre">mean</span></code> keeps <span class="math notranslate nohighlight">\(\mathbf{y}^{\mathcal{S}}\)</span>
+at donor scale — inside the donor convex hull — for a better-posed fit.</p>
+</section>
+<section id="stage-1-candidate-nomination">
+<h3>Stage 1 — Candidate nomination<a class="headerlink" href="#stage-1-candidate-nomination" title="Link to this heading">#</a></h3>
+<p>Enumerating all <span class="math notranslate nohighlight">\(\binom{N}{k}\)</span> regions is intractable, so GeoLift nominates
+a tractable shortlist by correlation similarity. On the pre-period, form the
+Pearson correlation matrix <span class="math notranslate nohighlight">\(\mathbf{P} = [\rho_{ij}] \in \mathbb{R}^{N \times N}\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\rho_{ij} \coloneqq
+\frac{\sum_{t \in \mathcal{T}_1}(y_{it} - \bar{y}_i)(y_{jt} - \bar{y}_j)}
+     {\sqrt{\sum_{t \in \mathcal{T}_1}(y_{it} - \bar{y}_i)^2}\;
+      \sqrt{\sum_{t \in \mathcal{T}_1}(y_{jt} - \bar{y}_j)^2}},
+\qquad \bar{y}_i \coloneqq T_0^{-1}\!\!\sum_{t \in \mathcal{T}_1} y_{it}.\]</div>
+<p>For each anchor <span class="math notranslate nohighlight">\(i\)</span>, the <span class="math notranslate nohighlight">\(k-1\)</span> nearest neighbours are the
+solution of a per-anchor selection problem — pick the <span class="math notranslate nohighlight">\(k-1\)</span> other markets
+of greatest correlation to the anchor:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathcal{S}_i \coloneqq \{i\} \cup
+\operatorname*{arg\,max}_{\substack{\mathcal{T} \subseteq \mathcal{N}
+\setminus \{i\} \\ |\mathcal{T}| = k-1}}
+\sum_{j \in \mathcal{T}} \rho_{ij},\end{split}\]</div>
+<p>which, because the objective is additively separable in <span class="math notranslate nohighlight">\(j\)</span>, is solved
+exactly by ranking: with <span class="math notranslate nohighlight">\(\pi_i\)</span> ordering the other markets by descending
+correlation
+(<span class="math notranslate nohighlight">\(\rho_{i,\pi_i(1)} \ge \dots \ge \rho_{i,\pi_i(N-1)}\)</span>),
+<span class="math notranslate nohighlight">\(\mathcal{S}_i = \{i\} \cup \{\pi_i(1), \dots, \pi_i(k-1)\}\)</span>. This is the
+<code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> substitute for the intractable global
+<span class="math notranslate nohighlight">\(\operatorname{arg\,min}_{\mathcal{S}} L(\mathcal{S})\)</span> (Stage 2’s imbalance
+<span class="math notranslate nohighlight">\(L\)</span>) over all <span class="math notranslate nohighlight">\(\binom{N}{k}\)</span> regions — <span class="math notranslate nohighlight">\(N\)</span> anchored top-<span class="math notranslate nohighlight">\(k\)</span>
+problems instead, each closed-form. The shortlist is
+<span class="math notranslate nohighlight">\(\{\mathcal{S}_i\}_{i \in \mathcal{N}}\)</span> deduplicated —
+<span class="math notranslate nohighlight">\(N\)</span> candidates instead of <span class="math notranslate nohighlight">\(\binom{N}{k}\)</span>. The stochastic
+(“paired-jitter”) variant replaces ranks <span class="math notranslate nohighlight">\(1, \dots, k-1\)</span> by one draw from
+each adjacent pair <span class="math notranslate nohighlight">\(\{1,2\}, \{3,4\}, \dots\)</span>, exploring near-rank neighbours
+(<code class="docutils literal notranslate"><span class="pre">run_stochastic</span></code>; <code class="docutils literal notranslate"><span class="pre">stochastic_mode=&quot;global&quot;</span></code> is faithful to GeoLift,
+<code class="docutils literal notranslate"><span class="pre">&quot;per_anchor&quot;</span></code> draws independently per anchor).</p>
+<p>Forcing constraints. Given a forced-in set
+<span class="math notranslate nohighlight">\(\mathcal{S}_{\mathrm{in}}\)</span> (<code class="docutils literal notranslate"><span class="pre">to_be_treated</span></code>) and a forbidden set
+<span class="math notranslate nohighlight">\(\mathcal{S}_{\mathrm{out}}\)</span> (<code class="docutils literal notranslate"><span class="pre">not_to_be_treated</span></code>,
+<span class="math notranslate nohighlight">\(\mathcal{S}_{\mathrm{in}} \cap \mathcal{S}_{\mathrm{out}} = \varnothing\)</span>),
+nominees are drawn from the free pool
+<span class="math notranslate nohighlight">\(\mathcal{F} \coloneqq \mathcal{N} \setminus (\mathcal{S}_{\mathrm{in}} \cup
+\mathcal{S}_{\mathrm{out}})\)</span> at size <span class="math notranslate nohighlight">\(k - |\mathcal{S}_{\mathrm{in}}|\)</span> and
+unioned with the forced-in set, so every candidate satisfies
+<span class="math notranslate nohighlight">\(\mathcal{S}_{\mathrm{in}} \subseteq \mathcal{S}\)</span> and
+<span class="math notranslate nohighlight">\(\mathcal{S} \cap \mathcal{S}_{\mathrm{out}} = \varnothing\)</span>.</p>
+</section>
+<section id="stage-1b-design-constraints">
+<h3>Stage 1b — Design constraints<a class="headerlink" href="#stage-1b-design-constraints" title="Link to this heading">#</a></h3>
+<p>Beyond hard forcing lists, the rule-based constraints restrict the admissible
+regions and donor pools (the prose walkthrough with runnable examples is in
+<em>Design constraints (geography, coverage, size)</em> below). Each is one of two kinds,
+following the LEXSCM constraint algebra (<a class="reference internal" href="lexscm.html"><span class="doc">Lexicographic Synthetic Control (LEXSCM)</span></a>): a treatment
+criterion filtering admissible <span class="math notranslate nohighlight">\(\mathcal{S}\)</span>, or a control criterion
+restricting the donor pool. None enters the inner weight program of Stage 2.</p>
+<p>Interference graph. Encode market interference by a symmetric
+<span class="math notranslate nohighlight">\(\mathbf{A} = [A_{ij}] \in \{0,1\}^{N \times N}\)</span> with zero diagonal, where
+<span class="math notranslate nohighlight">\(A_{ij} = 1\)</span> iff markets <span class="math notranslate nohighlight">\(i, j\)</span> interfere. It is built from a cluster
+labelling <span class="math notranslate nohighlight">\(c : \mathcal{N} \to \mathcal{C}\)</span> (<code class="docutils literal notranslate"><span class="pre">cluster_col</span></code>,
+<span class="math notranslate nohighlight">\(A_{ij} = 1\)</span> iff <span class="math notranslate nohighlight">\(c(i) = c(j)\)</span>) and/or a spillover matrix
+<span class="math notranslate nohighlight">\(\mathbf{W}\)</span> (<code class="docutils literal notranslate"><span class="pre">adjacency</span></code>, <span class="math notranslate nohighlight">\(A_{ij} = 1\)</span> iff
+<span class="math notranslate nohighlight">\(W_{ij} &gt; \theta\)</span>, the <code class="docutils literal notranslate"><span class="pre">spillover_threshold</span></code>), combined entrywise by
+logical OR. The conflict-neighbours of a region are</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{A}(\mathcal{S}) \coloneqq
+\bigl\{\, k \in \mathcal{N} : A_{jk} = 1 \ \text{for some}\ j \in \mathcal{S}
+\,\bigr\} \setminus \mathcal{S}.\]</div>
+<p><em>Treatment criterion — no interference.</em> The treated region must be an
+independent set of <span class="math notranslate nohighlight">\(\mathbf{A}\)</span>:
+<span class="math notranslate nohighlight">\(A_{ij} = 0 \ \forall\, i, j \in \mathcal{S}\)</span> (at most one market per
+cluster). <em>Control criterion — spillover exclusion.</em> The donor pool drops the
+conflict-neighbours, refining the Stage-2 pool to</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{N}_0(\mathcal{S}) \;=\;
+\mathcal{N} \setminus \bigl(\mathcal{S} \cup \mathcal{A}(\mathcal{S})\bigr),\]</div>
+<p>so a treated market’s interferers can be neither co-treated nor used as its own
+donors.</p>
+<p>Coverage quotas. With a stratum labelling <span class="math notranslate nohighlight">\(g : \mathcal{N} \to
+\mathcal{G}\)</span> (<code class="docutils literal notranslate"><span class="pre">stratum_col</span></code>) and the strata that contain an eligible market
+<span class="math notranslate nohighlight">\(\mathcal{G}_{\mathrm{elig}}\)</span>, the region must satisfy, for the bounds
+<span class="math notranslate nohighlight">\(q_{\min}\)</span> (<code class="docutils literal notranslate"><span class="pre">min_per_stratum</span></code>) and <span class="math notranslate nohighlight">\(q_{\max}\)</span> (<code class="docutils literal notranslate"><span class="pre">max_per_stratum</span></code>),</p>
+<div class="math notranslate nohighlight">
+\[q_{\min} \le \bigl|\{\, j \in \mathcal{S} : g(j) = s \,\}\bigr|
+\quad \forall\, s \in \mathcal{G}_{\mathrm{elig}},
+\qquad
+\bigl|\{\, j \in \mathcal{S} : g(j) = s \,\}\bigr| \le q_{\max}
+\quad \forall\, s \in \mathcal{G}.\]</div>
+<p>Size band. With market sizes <span class="math notranslate nohighlight">\(z_j\)</span> (<code class="docutils literal notranslate"><span class="pre">size_col</span></code>) and bounds
+<span class="math notranslate nohighlight">\([\underline{z}, \overline{z}]\)</span> (<code class="docutils literal notranslate"><span class="pre">min_size</span></code> / <code class="docutils literal notranslate"><span class="pre">max_size</span></code>), only in-band
+markets are treatment-eligible,
+<span class="math notranslate nohighlight">\(\mathcal{N}_{\mathrm{size}} \coloneqq \{\, j : \underline{z} \le z_j \le
+\overline{z} \,\}\)</span>, so <span class="math notranslate nohighlight">\(\mathcal{S} \subseteq \mathcal{N}_{\mathrm{size}}\)</span>;
+out-of-band markets remain available as donors. The ceiling
+<span class="math notranslate nohighlight">\(\overline{z}\)</span> is the a-priori analogue of the synthesizability the scaled
+L2 imbalance <span class="math notranslate nohighlight">\(\kappa(\mathcal{S})\)</span> (below) measures post-hoc.</p>
+<p>All three treatment criteria act on the admissible supports — they sit exactly
+where the cardinality constraint <span class="math notranslate nohighlight">\(|\mathcal{S}| = k\)</span> already lives and only
+<em>shrink</em> the candidate set. If no region satisfies them (e.g.
+<span class="math notranslate nohighlight">\(k\)</span> exceeds <span class="math notranslate nohighlight">\(|\mathcal{C}|\)</span> or <span class="math notranslate nohighlight">\(|\mathcal{G}_{\mathrm{elig}}|\)</span>,
+or <span class="math notranslate nohighlight">\(|\mathcal{N}_{\mathrm{size}}| &lt; k\)</span>) the design reports infeasibility
+(<code class="xref py py-class docutils literal notranslate"><span class="pre">MlsynthConfigError</span></code>) rather than returning a
+degenerate region. With none of the constraints supplied,
+<span class="math notranslate nohighlight">\(\mathbf{A} = \mathbf{0}\)</span> and every region is admissible — the unconstrained
+nomination.</p>
+</section>
+<section id="stage-2-the-synthetic-control">
+<h3>Stage 2 — The synthetic control<a class="headerlink" href="#stage-2-the-synthetic-control" title="Link to this heading">#</a></h3>
+<p>For a candidate <span class="math notranslate nohighlight">\(\mathcal{S}\)</span>, the counterfactual is a weighted donor
+combination. The default is the Augmented SCM <a class="reference internal" href="replications/geolift.html#bmfr2021" id="id3"><span>[BMFR2021]</span></a>. Each period is
+first centred by the donor mean
+<span class="math notranslate nohighlight">\(\mu_t \coloneqq N_0^{-1}\sum_{j \in \mathcal{N}_0}\! y_{jt}\)</span> (the augsynth
+intercept), giving
+<span class="math notranslate nohighlight">\(\widetilde{\mathbf{y}}^{\mathcal{S}} = \mathbf{y}^{\mathcal{S}} - \boldsymbol{\mu}\)</span>
+and <span class="math notranslate nohighlight">\(\widetilde{\mathbf{Y}}_0 = \mathbf{Y}_0 - \boldsymbol{\mu}\mathbf{1}^\top\)</span>.
+A base simplex SCM is solved on the pre-period,</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{w}^{\mathrm{scm}} \in
+\operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
+\bigl\| \widetilde{\mathbf{y}}^{\mathcal{S}}_{\mathcal{T}_1}
+      - \widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}\mathbf{w} \bigr\|_2^2,
+\quad
+\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\},\]</div>
+<p>then ridge-augmented. The augmented weights are themselves the solution of an
+optimization problem — a ridge-penalized balance objective <em>anchored</em> at the
+simplex fit, dropping the simplex constraint so the correction can debias
+(augsynth’s ASCM, hence the possible small negative weights):</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{w}^\ast \;=\;
+\operatorname*{arg\,min}_{\mathbf{w} \in \mathbb{R}^{N_0}}
+\;\bigl\| \widetilde{\mathbf{y}}^{\mathcal{S}}_{\mathcal{T}_1}
+      - \widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}\mathbf{w} \bigr\|_2^2
+\;+\; \lambda\,\bigl\| \mathbf{w} - \mathbf{w}^{\mathrm{scm}} \bigr\|_2^2 ,\]</div>
+<p>whose stationarity condition has the closed form (push-through identity)</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{w}^\ast = \mathbf{w}^{\mathrm{scm}} +
+\widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}^{\top}
+\bigl(\widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}\widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}^{\top}
++ \lambda \mathbf{I}\bigr)^{+}
+\bigl(\widetilde{\mathbf{y}}^{\mathcal{S}}_{\mathcal{T}_1}
+- \widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}\mathbf{w}^{\mathrm{scm}}\bigr),\]</div>
+<p>with the penalty <span class="math notranslate nohighlight">\(\lambda\)</span> chosen by leave-one-period-out cross-validation
+(<span class="math notranslate nohighlight">\(\lambda \to 0\)</span> recovers the plain simplex SCM; <span class="math notranslate nohighlight">\(\lambda \to \infty\)</span>
+pulls back to <span class="math notranslate nohighlight">\(\mathbf{w}^{\mathrm{scm}}\)</span>).</p>
+<p>How the cross-validation is solved (a faster route than the native method).
+The reference implementation (augsynth) selects <span class="math notranslate nohighlight">\(\lambda\)</span> by, for every
+fold and every penalty on the grid, inverting
+<span class="math notranslate nohighlight">\(\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top} + \lambda\mathbf{I}\)</span>
+and cold-refitting the base simplex weights. <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> computes the identical
+quantity by a cheaper algebraic route. Within a fold the matrix
+<span class="math notranslate nohighlight">\(\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}\)</span> and the
+anchor <span class="math notranslate nohighlight">\(\mathbf{w}^{\mathrm{scm}}\)</span> do not depend on <span class="math notranslate nohighlight">\(\lambda\)</span>, so a
+single matrix factorization serves the whole grid: one symmetric
+eigendecomposition
+<span class="math notranslate nohighlight">\(\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}=\mathbf{V}\operatorname{diag}(\mathbf{d})\mathbf{V}^{\top}\)</span>
+gives
+<span class="math notranslate nohighlight">\((\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}+\lambda\mathbf{I})^{-1}=\mathbf{V}\operatorname{diag}\!\bigl(1/(\mathbf{d}+\lambda)\bigr)\mathbf{V}^{\top}\)</span>,
+replacing one matrix inversion per penalty with one decomposition per fold. When
+there are more pre-periods than donors (<span class="math notranslate nohighlight">\(J &lt; m\)</span>, the usual geo case) the
+factorization is taken in <em>dual</em> form — an economy singular value decomposition
+of the <span class="math notranslate nohighlight">\(m \times J\)</span> donor matrix (<span class="math notranslate nohighlight">\(J\)</span> components, cost
+<span class="math notranslate nohighlight">\(O(mJ^2)\)</span>) rather than the <span class="math notranslate nohighlight">\(m \times m\)</span> eigendecomposition (cost
+<span class="math notranslate nohighlight">\(O(m^3)\)</span>) — which is the cheaper of the two whenever periods outnumber
+donors. The single-penalty correction is taken with a linear solve rather than
+an explicit inverse; and the leave-one-out folds (tiny perturbations of one
+another) are
+warm-started from the previous fold’s base weights. Because the base simplex
+objective is strictly convex under full column rank, the cross-validation curve,
+the selected <span class="math notranslate nohighlight">\(\lambda\)</span>, and the fitted weights are unchanged to numerical
+tolerance — only the runtime differs. On a representative design this cuts the
+fit roughly five-fold relative to the per-penalty-inversion native method, which
+matters because the cross-validation is re-run across every candidate, duration,
+and lookback placement in the market-selection search.</p>
+<p>The counterfactual and gap follow the canon,</p>
+<div class="math notranslate nohighlight">
+\[\widehat{y}^{\mathcal{S}}_t \coloneqq \bigl(\mathbf{Y}_0\mathbf{w}^\ast\bigr)_t,
+\qquad
+\tau_t \coloneqq y^{\mathcal{S}}_t - \widehat{y}^{\mathcal{S}}_t,
+\qquad
+\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}\!\!\sum_{t \in \mathcal{T}_2}\! \tau_t .\]</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">augment=None</span></code> variant is the plain simplex SCM with an explicit intercept
+<span class="math notranslate nohighlight">\(\alpha = \operatorname{mean}_{\mathcal{T}_1}(\mathbf{y}^{\mathcal{S}}
+- \mathbf{Y}_0\mathbf{w}^\ast)\)</span>, predicting
+<span class="math notranslate nohighlight">\(\widehat{y}^{\mathcal{S}}_t = \alpha + (\mathbf{Y}_0\mathbf{w}^\ast)_t\)</span>.</p>
+<p>Pre-fit quality is the scaled L2 imbalance — the fitted pre-period imbalance
+relative to the imbalance of uniform donor weights
+<span class="math notranslate nohighlight">\(\mathbf{w}^{\mathrm{unif}} \coloneqq N_0^{-1}\mathbf{1}\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\kappa(\mathcal{S}) \coloneqq
+\frac{\bigl\|\mathbf{Y}_{0,\mathcal{T}_1}\mathbf{w}^\ast
+         - \mathbf{y}^{\mathcal{S}}_{\mathcal{T}_1}\bigr\|_2}
+     {\bigl\|\mathbf{Y}_{0,\mathcal{T}_1}\mathbf{w}^{\mathrm{unif}}
+         - \mathbf{y}^{\mathcal{S}}_{\mathcal{T}_1}\bigr\|_2}
+\;\in\; [0, \infty),\]</div>
+<p>so <span class="math notranslate nohighlight">\(\kappa = 0\)</span> is a perfect fit and <span class="math notranslate nohighlight">\(\kappa = 1\)</span> is no better than
+the donor average. It is unitless (hence comparable across regions of different
+magnitudes) and is <em>reported</em> per candidate.</p>
+</section>
+<section id="stage-3-power-simulation">
+<h3>Stage 3 — Power simulation<a class="headerlink" href="#stage-3-power-simulation" title="Link to this heading">#</a></h3>
+<p>Power is estimated by placebo-in-time experiments carved from the end of the
+pre-period. For a treatment duration <span class="math notranslate nohighlight">\(\ell\)</span> (a <code class="docutils literal notranslate"><span class="pre">durations</span></code> entry) and
+a lookback placement <span class="math notranslate nohighlight">\(s \in \{1, \dots, L\}\)</span> (with
+<span class="math notranslate nohighlight">\(L =\)</span> <code class="docutils literal notranslate"><span class="pre">lookback_window</span></code>), the pseudo-treatment window is the <span class="math notranslate nohighlight">\(\ell\)</span>
+periods ending <span class="math notranslate nohighlight">\(s - 1\)</span> before <span class="math notranslate nohighlight">\(T_0\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{T}^{(s,\ell)}_{2} \coloneqq
+\{\,T_0 - \ell - s + 2,\ \dots,\ T_0 - s + 1\,\},
+\qquad
+\mathcal{T}^{(s,\ell)}_{1} \coloneqq \{1, \dots, T_0 - \ell - s + 1\},\]</div>
+<p>faithful to GeoLift’s <code class="docutils literal notranslate"><span class="pre">max_time</span> <span class="pre">-</span> <span class="pre">tp</span> <span class="pre">-</span> <span class="pre">sim</span> <span class="pre">+</span> <span class="pre">2</span></code> with <span class="math notranslate nohighlight">\(T_0\)</span> the pre-period
+end. The SCM is fit on <span class="math notranslate nohighlight">\(\mathcal{T}^{(s,\ell)}_{1}\)</span>. For an effect size
+<span class="math notranslate nohighlight">\(\delta\)</span> (an <code class="docutils literal notranslate"><span class="pre">effect_sizes</span></code> entry) a known multiplicative lift is injected
+on the pseudo-post block,
+<span class="math notranslate nohighlight">\(y^{\mathcal{S},(\delta)}_t = (1+\delta)\,y^{\mathcal{S}}_t\)</span> for
+<span class="math notranslate nohighlight">\(t \in \mathcal{T}^{(s,\ell)}_2\)</span>, which shifts the gap by
+<span class="math notranslate nohighlight">\(\delta\,y^{\mathcal{S}}_t\)</span> there.</p>
+<p>Detection uses the conformal test <a class="reference internal" href="replications/geolift.html#cwz2021" id="id4"><span>[CWZ2021]</span></a>. With the post-block statistic</p>
+<div class="math notranslate nohighlight">
+\[S_q(\boldsymbol{\tau}) \coloneqq
+\Bigl( |\mathcal{T}_2|^{-1/2}
+\textstyle\sum_{t \in \mathcal{T}_2} |\tau_t|^{q} \Bigr)^{1/q}
+\qquad (q = 1 \text{ by default}),\]</div>
+<p>the joint-null p-value compares the observed statistic to <span class="math notranslate nohighlight">\(n_s\)</span> i.i.d.
+permutations <span class="math notranslate nohighlight">\(\Pi\)</span> of the residual path,</p>
+<div class="math notranslate nohighlight">
+\[p \coloneqq \frac{1}{n_s}\sum_{\Pi}
+\mathbf{1}\!\bigl\{\, S_q(\boldsymbol{\tau}_{\mathcal{T}_2})
+\le S_q\bigl((\Pi\boldsymbol{\tau})_{\mathcal{T}_2}\bigr) \,\bigr\},\]</div>
+<p>and an effect is <em>detected</em> when <span class="math notranslate nohighlight">\(p &lt; \alpha\)</span>. The permutation set
+<span class="math notranslate nohighlight">\(\Pi\)</span> follows <code class="docutils literal notranslate"><span class="pre">conformal_type</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;iid&quot;</span></code> (the augsynth/GeoLift default —
+<span class="math notranslate nohighlight">\(n_s\)</span> independent draws) or <code class="docutils literal notranslate"><span class="pre">&quot;block&quot;</span></code> (the <span class="math notranslate nohighlight">\(T\)</span> moving-block cyclic
+shifts <span class="math notranslate nohighlight">\(\Pi_k(t) = ((t + k) \bmod T)\)</span>, which preserve serial dependence
+and are deterministic, ignoring <span class="math notranslate nohighlight">\(n_s\)</span>). The <span class="math notranslate nohighlight">\(n_s\)</span> reference
+statistics are evaluated in one broadcast over the whole permutation block
+rather than one Python call per permutation; the permutations and their random
+draws are unchanged, so the p-value is bit-identical to the per-permutation
+loop (at the default <span class="math notranslate nohighlight">\(q=1\)</span>) — only faster, which matters because this
+reference is rebuilt for every candidate, duration, lookback, and effect size
+in the search. Power is the detection rate across the <span class="math notranslate nohighlight">\(L\)</span> lookback
+placements,</p>
+<div class="math notranslate nohighlight">
+\[\beta(\mathcal{S}, \ell, \delta) \coloneqq
+\frac{1}{L}\sum_{s=1}^{L}
+\mathbf{1}\!\bigl\{\, p^{(s)}(\mathcal{S}, \ell, \delta) &lt; \alpha \,\bigr\}.\]</div>
+<div class="admonition-fit-once-sweep-math-delta-an-exact-optimization admonition">
+<p class="admonition-title">Fit-once, sweep-<span class="math notranslate nohighlight">\(\delta\)</span> (an exact optimization)</p>
+<p>The injection touches only the post block, so the pre-period the
+cross-validation sees is identical across effect sizes; the CV-selected
+<span class="math notranslate nohighlight">\(\lambda\)</span> is therefore the same for every <span class="math notranslate nohighlight">\(\delta\)</span>. <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code>
+cross-validates once per <span class="math notranslate nohighlight">\((\mathcal{S}, \ell, s)\)</span> and reuses
+<span class="math notranslate nohighlight">\(\lambda\)</span> across <span class="math notranslate nohighlight">\(\delta\)</span> (augsynth’s own behaviour). This is
+<em>provably identical</em> to GeoLift’s per-<span class="math notranslate nohighlight">\(\delta\)</span> refit — pinned by
+<code class="docutils literal notranslate"><span class="pre">test_simulate_lookback_cv_once_equals_per_es_refit</span></code> — at
+<span class="math notranslate nohighlight">\(1/|\{\delta\}|\)</span> the cross-validation cost.</p>
+</div>
+</section>
+<section id="stage-4-mde-and-the-composite-rank">
+<h3>Stage 4 — MDE and the composite rank<a class="headerlink" href="#stage-4-mde-and-the-composite-rank" title="Link to this heading">#</a></h3>
+<p>The minimum detectable effect for a region/duration is the smallest-magnitude
+effect whose power clears the threshold <span class="math notranslate nohighlight">\(\beta_0\)</span> (<code class="docutils literal notranslate"><span class="pre">power_threshold</span></code>,
+default <span class="math notranslate nohighlight">\(0.8\)</span>),</p>
+<div class="math notranslate nohighlight">
+\[\delta^\ast(\mathcal{S}, \ell) \coloneqq
+\operatorname*{arg\,min}_{\delta \,:\, \beta(\mathcal{S},\ell,\delta) \ge \beta_0}
+|\delta|,\]</div>
+<p>with GeoLift’s signed positive/negative tie rule. Writing
+<span class="math notranslate nohighlight">\(\widehat{\delta}\)</span> for the recovered lift at <span class="math notranslate nohighlight">\(\delta^\ast\)</span> and the
+recovery error <span class="math notranslate nohighlight">\(\eta(\mathcal{S},\ell) \coloneqq |\widehat{\delta} -
+\delta^\ast|\)</span>, the composite rank is the mean of three dense ranks
+(<span class="math notranslate nohighlight">\(\operatorname{dr}\)</span> over the surviving candidates), faithful to GeoLift,</p>
+<div class="math notranslate nohighlight">
+\[r(\mathcal{S}, \ell) =
+\operatorname{rank}\!\left(\tfrac13\Bigl[
+\operatorname{dr}\!\bigl(|\delta^\ast|\bigr) +
+\operatorname{dr}\!\bigl(\beta\bigr) +
+\operatorname{dr}\!\bigl(\eta\bigr) \Bigr]\right),
+\qquad \text{(lower is better).}\]</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Two GeoLift-fidelity quirks, replicated as-is: <span class="math notranslate nohighlight">\(\operatorname{dr}(\beta)\)</span>
+is ascending (an MDE whose power sits <em>just</em> above <span class="math notranslate nohighlight">\(\beta_0\)</span> is a
+tighter estimate of the threshold, so it ranks better), and the scaled L2
+imbalance <span class="math notranslate nohighlight">\(\kappa\)</span> is not a ranking term — only <span class="math notranslate nohighlight">\(\delta^\ast\)</span>,
+<span class="math notranslate nohighlight">\(\beta\)</span>, and <span class="math notranslate nohighlight">\(\eta\)</span> enter. Both are documented and one line to
+change.</p>
+</div>
+</section>
+<section id="identifying-assumptions">
+<h3>Identifying assumptions<a class="headerlink" href="#identifying-assumptions" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Pre-period synthesizability. The aggregate <span class="math notranslate nohighlight">\(\mathbf{y}^{\mathcal{S}}\)</span>
+lies in (or near) the span/convex hull of the donor pool over
+<span class="math notranslate nohighlight">\(\mathcal{T}_1\)</span>. Quantified by <span class="math notranslate nohighlight">\(\kappa(\mathcal{S})\)</span>: a low value
+certifies that the synthetic tracks the region, the prerequisite for a
+credible counterfactual.</p>
+<p><em>Remark.</em> With <code class="docutils literal notranslate"><span class="pre">how=&quot;sum&quot;</span></code> the target is <span class="math notranslate nohighlight">\(k\times\)</span> donor scale and can
+sit outside the convex hull, inflating <span class="math notranslate nohighlight">\(\kappa\)</span> toward 1; <code class="docutils literal notranslate"><span class="pre">how=&quot;mean&quot;</span></code>
+restores synthesizability. The choice is the user’s.</p>
+</li>
+<li><p>Exchangeability under the null. The conformal test treats the residual
+path as exchangeable under <span class="math notranslate nohighlight">\(H_0\)</span>: no effect, which the all-period refit
+underlying <span class="math notranslate nohighlight">\(p\)</span> is designed to deliver <a class="reference internal" href="replications/geolift.html#cwz2021" id="id5"><span>[CWZ2021]</span></a>.</p></li>
+<li><p>Stationarity of the placebo windows. Power from the lookback placements
+transports to the real experiment only if the pre-period dynamics resemble the
+experiment window — the usual SC stability assumption.</p></li>
+</ol>
+</section>
+<section id="budget-planning-cpic">
+<h3>Budget planning (CPIC)<a class="headerlink" href="#budget-planning-cpic" title="Link to this heading">#</a></h3>
+<p>Setting <code class="docutils literal notranslate"><span class="pre">cpic</span></code> (cost per incremental conversion) turns each candidate’s MDE
+into a spend, faithful to <code class="docutils literal notranslate"><span class="pre">GeoLiftMarketSelection</span></code>:</p>
+<div class="math notranslate nohighlight">
+\[\mathrm{investment} \;=\; \mathrm{cpic} \times \delta \times
+\sum_{i \in \mathcal{S}} \sum_{t \in \mathcal{W}} Y_{it},\]</div>
+<p>i.e. cost-per-incremental <span class="math notranslate nohighlight">\(\times\)</span> effect size <span class="math notranslate nohighlight">\(\times\)</span> the
+summed treated volume over the (lookback) window — the baseline outcome, on
+the total scale, independent of the mean-of-units fit. The shortlist carries an
+<code class="docutils literal notranslate"><span class="pre">investment</span></code> column; supplying <code class="docutils literal notranslate"><span class="pre">budget</span></code> drops candidates whose detectable
+investment exceeds it (GeoLift’s <code class="docutils literal notranslate"><span class="pre">abs(budget)</span> <span class="pre">&gt;</span> <span class="pre">abs(Investment)</span></code> gate). The
+realized report adds the post-test <code class="docutils literal notranslate"><span class="pre">cost</span></code> <span class="math notranslate nohighlight">\(= \mathrm{cpic} \times\)</span>
+incremental outcome. The investment is a deterministic data transform, so it
+matches <code class="docutils literal notranslate"><span class="pre">GeoLiftMarketSelection</span></code> to the cent (durable case
+<code class="docutils literal notranslate"><span class="pre">geolift_cpic</span></code>); ROI (a value/margin per conversion) is a planned extension
+beyond GeoLift’s cost-only <code class="docutils literal notranslate"><span class="pre">cpic</span></code>.</p>
+</section>
+<section id="inference-and-the-realized-design">
+<h3>Inference and the realized design<a class="headerlink" href="#inference-and-the-realized-design" title="Link to this heading">#</a></h3>
+<p>The design phase reports <span class="math notranslate nohighlight">\(\delta^\ast\)</span> and <span class="math notranslate nohighlight">\(\beta\)</span> per candidate.
+When a <code class="docutils literal notranslate"><span class="pre">post_col</span></code> leaves a post window, <a class="reference internal" href="#mlsynth.GEOLIFT.fit" title="mlsynth.GEOLIFT.fit"><code class="xref py py-meth docutils literal notranslate"><span class="pre">GEOLIFT.fit()</span></code></a> realizes the
+winning design <em>under the hood</em> — applying the winner’s pre-period weights
+<span class="math notranslate nohighlight">\(\mathbf{w}^\ast\)</span> to the full panel and running conformal inference:
+the per-period effect <span class="math notranslate nohighlight">\(\tau_t\)</span> for <span class="math notranslate nohighlight">\(t \in \mathcal{T}_2\)</span>, prediction
+intervals by test inversion (a grid of nulls <span class="math notranslate nohighlight">\(\tau_0\)</span>, the interval being
+the non-rejected range at level <span class="math notranslate nohighlight">\(\alpha\)</span>), and the joint-null p-value
+<span class="math notranslate nohighlight">\(p\)</span> — exposed on <code class="docutils literal notranslate"><span class="pre">result.report</span></code> (the <code class="docutils literal notranslate"><span class="pre">DesignResult</span></code> resolving to its
+<code class="docutils literal notranslate"><span class="pre">EffectResult</span></code>). A design over a <em>no-effect</em> post window returns <span class="math notranslate nohighlight">\(p\)</span>
+non-significant and intervals covering zero.</p>
+</section>
+</section>
+<section id="pipeline-and-options">
+<h2>Pipeline and Options<a class="headerlink" href="#pipeline-and-options" title="Link to this heading">#</a></h2>
+<p>The estimator is a thin front door over the helper pipeline; each stage above is
+a tested leaf in <code class="docutils literal notranslate"><span class="pre">mlsynth/utils/geolift_helpers/</span></code>. The public surface is a
+single <a class="reference internal" href="#mlsynth.GEOLIFT.fit" title="mlsynth.GEOLIFT.fit"><code class="xref py py-meth docutils literal notranslate"><span class="pre">GEOLIFT.fit()</span></code></a> — realization and plotting are handled inside it,
+driven by the data and config (a <code class="docutils literal notranslate"><span class="pre">post_col</span></code> triggers realization;
+<code class="docutils literal notranslate"><span class="pre">display_graphs</span></code> triggers the plot).</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">treatment_size</span></code> <span class="math notranslate nohighlight">\(k\)</span>, <code class="docutils literal notranslate"><span class="pre">durations</span></code> <span class="math notranslate nohighlight">\(\{\ell\}\)</span>, <code class="docutils literal notranslate"><span class="pre">effect_sizes</span></code>
+<span class="math notranslate nohighlight">\(\{\delta\}\)</span>, <code class="docutils literal notranslate"><span class="pre">lookback_window</span></code> <span class="math notranslate nohighlight">\(L\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">to_be_treated</span></code> / <code class="docutils literal notranslate"><span class="pre">not_to_be_treated</span></code> —
+<span class="math notranslate nohighlight">\(\mathcal{S}_{\mathrm{in}}\)</span> / <span class="math notranslate nohighlight">\(\mathcal{S}_{\mathrm{out}}\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cluster_col</span></code> / <code class="docutils literal notranslate"><span class="pre">adjacency</span></code> / <code class="docutils literal notranslate"><span class="pre">spillover_threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">stratum_col</span></code> /
+<code class="docutils literal notranslate"><span class="pre">min_per_stratum</span></code> / <code class="docutils literal notranslate"><span class="pre">max_per_stratum</span></code>, <code class="docutils literal notranslate"><span class="pre">size_col</span></code> / <code class="docutils literal notranslate"><span class="pre">min_size</span></code> /
+<code class="docutils literal notranslate"><span class="pre">max_size</span></code> — rule-based design constraints (see <em>Design constraints</em> below).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">post_col</span></code> — a 0/1 column marking post-treatment periods; the design slices to
+<span class="math notranslate nohighlight">\(\mathcal{T}_1\)</span>, so it is identical whether you pass the full
+post-treatment panel or a pre-only one (the “rerun after treatment”
+invariance). Different post lengths simply change <span class="math notranslate nohighlight">\(T_0\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">how</span></code> (<span class="math notranslate nohighlight">\(\operatorname{sum}\)</span> / <span class="math notranslate nohighlight">\(\operatorname{mean}\)</span>),
+<code class="docutils literal notranslate"><span class="pre">augment</span></code> (<code class="docutils literal notranslate"><span class="pre">&quot;ridge&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">None</span></code>), <code class="docutils literal notranslate"><span class="pre">alpha</span></code> <span class="math notranslate nohighlight">\(\alpha\)</span>,
+<code class="docutils literal notranslate"><span class="pre">power_threshold</span></code> <span class="math notranslate nohighlight">\(\beta_0\)</span>, <code class="docutils literal notranslate"><span class="pre">ns</span></code> <span class="math notranslate nohighlight">\(n_s\)</span>,
+<code class="docutils literal notranslate"><span class="pre">run_stochastic</span></code> / <code class="docutils literal notranslate"><span class="pre">stochastic_mode</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">conformal_type</span></code> — the conformal permutation scheme, <code class="docutils literal notranslate"><span class="pre">&quot;iid&quot;</span></code> (default,
+matching GeoLift) or <code class="docutils literal notranslate"><span class="pre">&quot;block&quot;</span></code> (moving-block cyclic shifts for
+serially-dependent residuals; GeoLift’s <code class="docutils literal notranslate"><span class="pre">conformal_type</span> <span class="pre">=</span> <span class="pre">&quot;block&quot;</span></code> option).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">n_jobs</span></code> — parallel workers for the candidate search (default <code class="docutils literal notranslate"><span class="pre">-1</span></code>, all
+cores; set a positive integer to cap the count, or <code class="docutils literal notranslate"><span class="pre">1</span></code> to run serially).
+The search is embarrassingly parallel: each candidate’s power simulation and
+deployable design fit are independent and use the fixed <code class="docutils literal notranslate"><span class="pre">seed</span></code>, so any
+worker count spreads the candidates across workers (via joblib) and returns
+the <em>identical</em> shortlist, only faster.</p></li>
+</ul>
+<p>Scanning several <code class="docutils literal notranslate"><span class="pre">durations</span></code> yields an MDE <em>per duration</em>
+(”<span class="math notranslate nohighlight">\(\ell = 7\)</span> detects 10%, but <span class="math notranslate nohighlight">\(\ell = 14\)</span> is needed for 5%”):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">res</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span><span class="o">...</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">7</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">21</span><span class="p">]})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="n">res</span><span class="o">.</span><span class="n">power</span><span class="p">[[</span><span class="s2">&quot;candidate&quot;</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">,</span> <span class="s2">&quot;mde&quot;</span><span class="p">,</span> <span class="s2">&quot;power&quot;</span><span class="p">]]</span>   <span class="c1"># one row per (S, l)</span>
+</pre></div>
+</div>
+<section id="plotting">
+<h3>Plotting<a class="headerlink" href="#plotting" title="Link to this heading">#</a></h3>
+<p>With <code class="docutils literal notranslate"><span class="pre">display_graphs</span></code> (default <code class="docutils literal notranslate"><span class="pre">True</span></code>), <a class="reference internal" href="#mlsynth.GEOLIFT.fit" title="mlsynth.GEOLIFT.fit"><code class="xref py py-meth docutils literal notranslate"><span class="pre">GEOLIFT.fit()</span></code></a> plots the
+recommended design in the mlsynth house style
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.plotting.mlsynth_style()</span></code>): the design phase shows
+<span class="math notranslate nohighlight">\(\mathbf{y}^{\mathcal{S}}\)</span> vs <span class="math notranslate nohighlight">\(\widehat{\mathbf{y}}^{\mathcal{S}}\)</span>
+over <span class="math notranslate nohighlight">\(\mathcal{T}_1\)</span>; the post phase (when the design was realized)
+adds the conformal band and the per-period gap <span class="math notranslate nohighlight">\(\tau_t\)</span> over
+<span class="math notranslate nohighlight">\(\mathcal{T}_2\)</span>, with the intervention line at <span class="math notranslate nohighlight">\(T_0\)</span>. The standalone
+helper <code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.geolift_helpers.marketselect.plotter.plot_design()</span></code>
+re-draws from a result on demand.</p>
+</section>
+</section>
+<section id="example-geolift-s-40-market-panel">
+<h2>Example: GeoLift’s 40-Market Panel<a class="headerlink" href="#example-geolift-s-40-market-panel" title="Link to this heading">#</a></h2>
+<p>The package ships GeoLift’s example panel
+(<code class="docutils literal notranslate"><span class="pre">basedata/geolift_market_data.csv</span></code>): <span class="math notranslate nohighlight">\(N = 40\)</span> markets over
+<span class="math notranslate nohighlight">\(T = 90\)</span> days. We design a <span class="math notranslate nohighlight">\(k = 3\)</span> test region, then realize it over a
+10-day no-effect post window (so the realized effect should be null).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span>
+    <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+    <span class="s2">&quot;refs/heads/main/basedata/geolift_market_data.csv&quot;</span>
+<span class="p">)</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;post&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())[</span><span class="o">-</span><span class="mi">10</span><span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">geo</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;post_col&quot;</span><span class="p">:</span> <span class="s2">&quot;post&quot;</span><span class="p">,</span>                 <span class="c1"># design on the pre-80, post-10 reserved</span>
+    <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">14</span><span class="p">],</span> <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">],</span>
+    <span class="s2">&quot;lookback_window&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;augment&quot;</span><span class="p">:</span> <span class="s2">&quot;ridge&quot;</span><span class="p">,</span> <span class="s2">&quot;ns&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+<span class="p">})</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">geo</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>              <span class="c1"># designs, auto-realizes (post window) and plots</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">selected_units</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">winner</span><span class="o">.</span><span class="n">mde</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">winner</span><span class="o">.</span><span class="n">power</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;joint conformal p:&quot;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>   <span class="c1"># ~0.66 -&gt; null</span>
+</pre></div>
+</div>
+<p>Without a <code class="docutils literal notranslate"><span class="pre">post_col</span></code> the same call returns a design-only result
+(<code class="docutils literal notranslate"><span class="pre">res.report</span> <span class="pre">is</span> <span class="pre">None</span></code>); set <code class="docutils literal notranslate"><span class="pre">display_graphs=False</span></code> to suppress the plot.</p>
+<p>The synthetic tracks the test markets, <span class="math notranslate nohighlight">\(\widehat{\tau} \approx 0\)</span>, and the
+joint conformal p-value is far from significant — the correct null over a placebo
+post period.</p>
+</section>
+<section id="every-option-at-once-the-full-market-selection-call">
+<h2>Every option at once — the full market-selection call<a class="headerlink" href="#every-option-at-once-the-full-market-selection-call" title="Link to this heading">#</a></h2>
+<p>GeoLift’s <code class="docutils literal notranslate"><span class="pre">GeoLiftMarketSelection</span></code> exposes the whole design surface in one
+call:</p>
+<div class="highlight-r notranslate"><div class="highlight"><pre><span></span><span class="n">MarketSelections</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="nf">GeoLiftMarketSelection</span><span class="p">(</span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GeoTestData_PreTest</span><span class="p">,</span>
+<span class="w">    </span><span class="n">treatment_periods</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">c</span><span class="p">(</span><span class="m">10</span><span class="p">,</span><span class="w"> </span><span class="m">15</span><span class="p">),</span>
+<span class="w">    </span><span class="n">N</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">c</span><span class="p">(</span><span class="m">2</span><span class="p">,</span><span class="w"> </span><span class="m">3</span><span class="p">,</span><span class="w"> </span><span class="m">4</span><span class="p">,</span><span class="w"> </span><span class="m">5</span><span class="p">),</span>
+<span class="w">    </span><span class="n">Y_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;Y&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">location_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;location&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">time_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;time&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">effect_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">seq</span><span class="p">(</span><span class="m">0</span><span class="p">,</span><span class="w"> </span><span class="m">0.2</span><span class="p">,</span><span class="w"> </span><span class="m">0.05</span><span class="p">),</span>
+<span class="w">    </span><span class="n">lookback_window</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">1</span><span class="p">,</span>
+<span class="w">    </span><span class="n">include_markets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">c</span><span class="p">(</span><span class="s">&quot;chicago&quot;</span><span class="p">),</span>
+<span class="w">    </span><span class="n">exclude_markets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">c</span><span class="p">(</span><span class="s">&quot;honolulu&quot;</span><span class="p">),</span>
+<span class="w">    </span><span class="n">cpic</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">7.50</span><span class="p">,</span><span class="w"> </span><span class="n">budget</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">100000</span><span class="p">,</span>
+<span class="w">    </span><span class="n">alpha</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0.1</span><span class="p">,</span><span class="w"> </span><span class="n">Correlations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">TRUE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">fixed_effects</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">TRUE</span><span class="p">,</span><span class="w"> </span><span class="n">side_of_test</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;two_sided&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Every argument maps onto a <code class="docutils literal notranslate"><span class="pre">GEOLIFT</span></code> config field:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span>                                      <span class="c1"># GeoLift_PreTest, 40 mkts x 90d</span>
+    <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+    <span class="s2">&quot;refs/heads/main/basedata/geolift_market_data.csv&quot;</span>
+<span class="p">)</span>
+
+<span class="n">cfg</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">15</span><span class="p">],</span>                       <span class="c1"># treatment_periods</span>
+    <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.10</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.20</span><span class="p">],</span>
+    <span class="s2">&quot;lookback_window&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;to_be_treated&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;chicago&quot;</span><span class="p">],</span>                <span class="c1"># include_markets</span>
+    <span class="s2">&quot;not_to_be_treated&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;honolulu&quot;</span><span class="p">],</span>           <span class="c1"># exclude_markets</span>
+    <span class="s2">&quot;cpic&quot;</span><span class="p">:</span> <span class="mf">7.50</span><span class="p">,</span> <span class="s2">&quot;budget&quot;</span><span class="p">:</span> <span class="mf">100000.0</span><span class="p">,</span>            <span class="c1"># budget planning</span>
+    <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="s2">&quot;fixed_effects&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>                       <span class="c1"># GeoLift default</span>
+    <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;augment&quot;</span><span class="p">:</span> <span class="s2">&quot;ridge&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;conformal_type&quot;</span><span class="p">:</span> <span class="s2">&quot;iid&quot;</span><span class="p">,</span>                     <span class="c1"># two-sided |stat| permutation</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="c1"># N = c(2,3,4,5): GEOLIFT takes one treatment_size; scan by looping it.</span>
+<span class="n">shortlist</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+    <span class="n">GEOLIFT</span><span class="p">({</span><span class="o">**</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="n">k</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">shortlist</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
+<span class="n">shortlist</span><span class="p">[[</span><span class="s2">&quot;candidate&quot;</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">,</span> <span class="s2">&quot;mde&quot;</span><span class="p">,</span> <span class="s2">&quot;power&quot;</span><span class="p">,</span> <span class="s2">&quot;investment&quot;</span><span class="p">,</span> <span class="s2">&quot;scaled_l2&quot;</span><span class="p">,</span> <span class="s2">&quot;rank&quot;</span><span class="p">]]</span>
+</pre></div>
+</div>
+<p>A few argument notes: <code class="docutils literal notranslate"><span class="pre">Correlations=TRUE</span></code> is GeoLift’s correlation ranking,
+which mlsynth always uses to nominate candidates (Stage 1); <code class="docutils literal notranslate"><span class="pre">side_of_test</span> <span class="pre">=</span>
+<span class="pre">&quot;two_sided&quot;</span></code> is the default conformal statistic (the symmetric <span class="math notranslate nohighlight">\(|x|^q\)</span>
+norm); <code class="docutils literal notranslate"><span class="pre">cpic</span></code> + <code class="docutils literal notranslate"><span class="pre">budget</span></code> drop candidates whose detectable investment busts
+the budget (see <em>Budget planning</em> above).</p>
+<p>The recommended designs (GeoLift’s <code class="docutils literal notranslate"><span class="pre">BestMarkets</span></code> table; mlsynth’s
+<code class="docutils literal notranslate"><span class="pre">shortlist</span></code> carries the same candidates and reproduces <code class="docutils literal notranslate"><span class="pre">Investment</span></code> to the
+cent, see <a class="reference internal" href="replications/geolift.html"><span class="doc">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</span></a>):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Test markets</p></th>
+<th class="head"><p>Dur</p></th>
+<th class="head"><p>Investment</p></th>
+<th class="head"><p>AvgATT</p></th>
+<th class="head"><p>L2</p></th>
+<th class="head"><p>Rank</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>chicago, cincinnati, houston, portland</p></td>
+<td><p>15</p></td>
+<td><p>74,118.38</p></td>
+<td><p>159.36</p></td>
+<td><p>0.197</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-odd"><td><p>chicago, portland</p></td>
+<td><p>15</p></td>
+<td><p>64,563.75</p></td>
+<td><p>290.01</p></td>
+<td><p>0.174</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-even"><td><p>chicago, cincinnati, houston, portland</p></td>
+<td><p>10</p></td>
+<td><p>99,027.75</p></td>
+<td><p>316.62</p></td>
+<td><p>0.197</p></td>
+<td><p>3</p></td>
+</tr>
+<tr class="row-odd"><td><p>chicago, portland</p></td>
+<td><p>10</p></td>
+<td><p>43,646.25</p></td>
+<td><p>300.94</p></td>
+<td><p>0.168</p></td>
+<td><p>3</p></td>
+</tr>
+<tr class="row-even"><td><p>chicago, houston, portland</p></td>
+<td><p>10</p></td>
+<td><p>75,389.25</p></td>
+<td><p>350.31</p></td>
+<td><p>0.231</p></td>
+<td><p>5</p></td>
+</tr>
+<tr class="row-odd"><td><p>chicago, cincinnati, houston, nashville, san d.</p></td>
+<td><p>15</p></td>
+<td><p>95,755.50</p></td>
+<td><p>146.80</p></td>
+<td><p>0.270</p></td>
+<td><p>6</p></td>
+</tr>
+<tr class="row-even"><td><p>atlanta, chicago</p></td>
+<td><p>15</p></td>
+<td><p>81,348.75</p></td>
+<td><p>336.78</p></td>
+<td><p>0.446</p></td>
+<td><p>7</p></td>
+</tr>
+<tr class="row-odd"><td><p>atlanta, chicago, cleveland, las vegas</p></td>
+<td><p>15</p></td>
+<td><p>86,661.75</p></td>
+<td><p>220.82</p></td>
+<td><p>0.532</p></td>
+<td><p>7</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>(28 designs total; the maximum surviving investment is $99,321.75 &lt; the $100k
+budget, so the budget gate held.) Lower <code class="docutils literal notranslate"><span class="pre">Rank</span></code> is better; the smallest, lowest-
+imbalance region that clears power wins — here <code class="docutils literal notranslate"><span class="pre">chicago,</span> <span class="pre">portland</span></code>.</p>
+</section>
+<section id="reading-the-results-plots-tables-and-weights">
+<h2>Reading the results — plots, tables, and weights<a class="headerlink" href="#reading-the-results-plots-tables-and-weights" title="Link to this heading">#</a></h2>
+<p>Everything the design and the realized report produce lives on the result
+object. The complete, runnable example below loads the data, realizes a design
+with a budget (<code class="docutils literal notranslate"><span class="pre">cpic</span></code>), and then draws every view — the power / MDE / budget
+table, observed vs synthetic, the effect with its conformal band, the donor
+weights, the realized cost, and the built-in plot:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.geolift_helpers.marketselect.plotter</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_design</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;refs/heads/main/basedata/geolift_test_data.csv&quot;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>                                   <span class="c1"># GeoLift_Test: 40 mkts x 105 days</span>
+<span class="n">dates</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;post&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">dates</span><span class="p">[</span><span class="mi">90</span><span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>   <span class="c1"># last 15 days = treatment window</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;to_be_treated&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;chicago&quot;</span><span class="p">,</span> <span class="s2">&quot;portland&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">15</span><span class="p">],</span> <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.10</span><span class="p">],</span> <span class="s2">&quot;post_col&quot;</span><span class="p">:</span> <span class="s2">&quot;post&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cpic&quot;</span><span class="p">:</span> <span class="mf">7.50</span><span class="p">,</span> <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;fixed_effects&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="c1"># headline + the power / MDE / budget shortlist (one row per candidate x duration)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">selected_units</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">att</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">power</span><span class="p">[[</span><span class="s2">&quot;candidate&quot;</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">,</span> <span class="s2">&quot;mde&quot;</span><span class="p">,</span> <span class="s2">&quot;power&quot;</span><span class="p">,</span> <span class="s2">&quot;investment&quot;</span><span class="p">]])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">summary_stats</span><span class="p">[</span><span class="s2">&quot;cost&quot;</span><span class="p">])</span>        <span class="c1"># realized spend = cpic x incremental</span>
+
+<span class="c1"># observed vs synthetic</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">time_series</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ts</span><span class="o">.</span><span class="n">time_periods</span><span class="p">,</span> <span class="n">ts</span><span class="o">.</span><span class="n">observed_outcome</span><span class="p">,</span> <span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;observed&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ts</span><span class="o">.</span><span class="n">time_periods</span><span class="p">,</span> <span class="n">ts</span><span class="o">.</span><span class="n">counterfactual_outcome</span><span class="p">,</span> <span class="s2">&quot;r--&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;synthetic&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">ts</span><span class="o">.</span><span class="n">intervention_time</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;grey&quot;</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s2">&quot;:&quot;</span><span class="p">);</span> <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">();</span> <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1"># the effect (gap) with its conformal prediction band</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">details</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ts</span><span class="o">.</span><span class="n">time_periods</span><span class="p">,</span> <span class="n">ts</span><span class="o">.</span><span class="n">estimated_gap</span><span class="p">,</span> <span class="s2">&quot;k&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;periods&quot;</span><span class="p">],</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;lower&quot;</span><span class="p">],</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;upper&quot;</span><span class="p">],</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;grey&quot;</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s2">&quot;:&quot;</span><span class="p">);</span> <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1"># donor weights, biggest contributors</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">donor_weights</span>
+<span class="n">top</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="o">-</span><span class="nb">abs</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="mi">1</span><span class="p">]))[:</span><span class="mi">10</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">top</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">top</span><span class="o">.</span><span class="n">values</span><span class="p">());</span> <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">rotation</span><span class="o">=</span><span class="mi">45</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">);</span> <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1"># the built-in plot (design + realized phases: conformal band + gap)</span>
+<span class="n">plot_design</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">report</span><span class="o">=</span><span class="n">res</span><span class="o">.</span><span class="n">report</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For the full power-vs-effect-size curve of a region (GeoLift’s
+<code class="docutils literal notranslate"><span class="pre">GeoLiftPower</span></code> plot) — power rising through the threshold marks the MDE — run
+the scoring helpers directly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.datautils</span><span class="w"> </span><span class="kn">import</span> <span class="n">geoex_dataprep</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.geolift_helpers.marketselect.helpers.batch</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_simulations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.geolift_helpers.marketselect.helpers.aggregate</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_power</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;refs/heads/main/basedata/geolift_market_data.csv&quot;</span><span class="p">)</span>
+<span class="n">Ywide</span> <span class="o">=</span> <span class="n">geoex_dataprep</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">),</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;Y&quot;</span><span class="p">)[</span><span class="s2">&quot;Ywide&quot;</span><span class="p">]</span>
+<span class="n">cube</span> <span class="o">=</span> <span class="n">run_simulations</span><span class="p">(</span>
+    <span class="n">Ywide</span><span class="p">,</span> <span class="p">[</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;chicago&quot;</span><span class="p">,</span> <span class="s2">&quot;portland&quot;</span><span class="p">})],</span> <span class="n">durations</span><span class="o">=</span><span class="p">[</span><span class="mi">15</span><span class="p">],</span>
+    <span class="n">lookback_window</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">effect_sizes</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.10</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.20</span><span class="p">],</span>
+    <span class="n">fixed_effects</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ns</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+<span class="n">pw</span> <span class="o">=</span> <span class="n">compute_power</span><span class="p">(</span><span class="n">cube</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.10</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">pw</span><span class="p">[</span><span class="s2">&quot;effect_size&quot;</span><span class="p">],</span> <span class="n">pw</span><span class="p">[</span><span class="s2">&quot;power&quot;</span><span class="p">],</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;o&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;grey&quot;</span><span class="p">)</span>                <span class="c1"># power threshold -&gt; MDE crossing</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;injected lift&quot;</span><span class="p">);</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;power&quot;</span><span class="p">);</span> <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="design-constraints-geography-coverage-size">
+<h2>Design constraints (geography, coverage, size)<a class="headerlink" href="#design-constraints-geography-coverage-size" title="Link to this heading">#</a></h2>
+<p>Upstream GeoLift restricts the treated side only through hard market lists
+(<code class="docutils literal notranslate"><span class="pre">to_be_treated</span></code> / <code class="docutils literal notranslate"><span class="pre">not_to_be_treated</span></code>). <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> adds a rule-based
+constraint layer so the candidate nomination and donor pool can encode geography
+and other design considerations. Every restriction is one of two kinds (the
+LEXSCM vocabulary, see <a class="reference internal" href="lexscm.html"><span class="doc">Lexicographic Synthetic Control (LEXSCM)</span></a>): a treatment criterion filtering which
+candidate test regions are admissible, or a control criterion restricting a
+candidate’s donor pool. Neither touches the inner weight solve — they only change
+<em>where the design is allowed to look</em>. With none of these fields set, the design
+is identical to the unconstrained run.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cluster_col</span></code> — a per-market cluster label (DMA / state). Markets in the same
+cluster interfere: at most one may be treated per candidate (treatment
+criterion, the <em>independent-set</em> rule) and a treated market’s same-cluster
+geos are dropped from its donor pool (control criterion, the <em>spillover
+exclusion</em>). An <code class="docutils literal notranslate"><span class="pre">adjacency</span></code> matrix of pairwise spillover strengths, thresholded
+by <code class="docutils literal notranslate"><span class="pre">spillover_threshold</span></code> and combined with <code class="docutils literal notranslate"><span class="pre">cluster_col</span></code> by logical OR, is
+the continuous alternative.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">stratum_col</span></code> + <code class="docutils literal notranslate"><span class="pre">min_per_stratum</span></code> / <code class="docutils literal notranslate"><span class="pre">max_per_stratum</span></code> — coverage
+quotas: require at least <code class="docutils literal notranslate"><span class="pre">min</span></code> treated markets in every stratum that has an
+eligible market (“test in every region”), and/or at most <code class="docutils literal notranslate"><span class="pre">max</span></code> per stratum (a
+quota). A treatment criterion.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">size_col</span></code> + <code class="docutils literal notranslate"><span class="pre">min_size</span></code> / <code class="docutils literal notranslate"><span class="pre">max_size</span></code> — a treated-unit size band: only
+in-band markets are eligible for <em>treatment</em> (they remain available as donors).
+The floor is a power / operational minimum; the ceiling encodes
+synthesizability — a market far larger than the donors cannot sit inside their
+convex hull, which is exactly what the scaled-L2 imbalance <span class="math notranslate nohighlight">\(\kappa\)</span>
+measures, so <code class="docutils literal notranslate"><span class="pre">max_size</span></code> is an a-priori version of <span class="math notranslate nohighlight">\(\kappa \to 1\)</span>.</p></li>
+</ul>
+<p>When the constraints admit no candidate region (e.g. <code class="docutils literal notranslate"><span class="pre">treatment_size</span></code> exceeds
+the number of clusters or strata to cover, or the size band leaves too few
+markets), <a class="reference internal" href="#mlsynth.GEOLIFT.fit" title="mlsynth.GEOLIFT.fit"><code class="xref py py-meth docutils literal notranslate"><span class="pre">GEOLIFT.fit()</span></code></a> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">MlsynthConfigError</span></code>
+rather than returning a degenerate design.</p>
+<div class="admonition-real-geography-the-bundled-dma-contiguity-map admonition">
+<p class="admonition-title">Real geography — the bundled DMA contiguity map</p>
+<p><code class="docutils literal notranslate"><span class="pre">adjacency</span></code> is where you “literally take geography into account”: pass a
+real bordering matrix and treated markets are forced apart while each
+one’s neighbours are barred from its donor pool. The package ships the
+Nielsen US market-area map at <code class="docutils literal notranslate"><span class="pre">basedata/markets/dma_adjacency.csv</span></code> — a
+<code class="docutils literal notranslate"><span class="pre">206</span> <span class="pre">×</span> <span class="pre">206</span></code> symmetric 0/1 contiguity matrix indexed by DMA name (with
+<code class="docutils literal notranslate"><span class="pre">dma_metadata.csv</span></code> carrying state, division, and lat/long) — so a panel
+keyed by DMA can use true borders directly:
+<code class="docutils literal notranslate"><span class="pre">GEOLIFT({...,</span> <span class="pre">&quot;adjacency&quot;:</span> <span class="pre">pd.read_csv(&quot;.../dma_adjacency.csv&quot;,</span> <span class="pre">index_col=0)})</span></code>.
+The same artifact powers LEXSCM’s spillover designs. A worked end-to-end check
+on real borders lives in <code class="docutils literal notranslate"><span class="pre">mlsynth/tests/test_geolift_dma_borders.py</span></code>. Note
+the tension this exposes: correlation nomination favours <em>similar</em> (often
+<em>bordering</em>) markets, so the independent-set filter does real work — it can
+prune many nominees, and a very dense border graph can leave none (a reported
+infeasibility, not a silent degenerate design).</p>
+</div>
+<p>A worked design on real borders. The example below is fully self-contained:
+it pulls the real DMA contiguity map and metadata, simulates a grouped linear
+factor model of seasonal weekly sales — latent group structure in the loadings
+(groups = census divisions), in the spirit of Liao, Shi &amp; Zheng (2025) — over a
+real Southeast / Mid-South DMA footprint, then designs a 3-market geo test that is
+non-adjacent on the map and spread across regions (at most two per division).
+It runs in a few seconds.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+
+<span class="n">base</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+        <span class="s2">&quot;refs/heads/main/basedata/markets&quot;</span><span class="p">)</span>
+<span class="n">A_full</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">base</span><span class="si">}</span><span class="s2">/dma_adjacency.csv&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>   <span class="c1"># 206x206 borders</span>
+<span class="n">meta</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">base</span><span class="si">}</span><span class="s2">/dma_metadata.csv&quot;</span><span class="p">)</span>                   <span class="c1"># dma_name, state, ...</span>
+
+<span class="c1"># Restrict to a real Southeast / Mid-South footprint; groups = census divisions.</span>
+<span class="n">division</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;GA&quot;</span><span class="p">:</span> <span class="s2">&quot;S. Atlantic&quot;</span><span class="p">,</span> <span class="s2">&quot;FL&quot;</span><span class="p">:</span> <span class="s2">&quot;S. Atlantic&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;TN&quot;</span><span class="p">:</span> <span class="s2">&quot;E.S. Central&quot;</span><span class="p">,</span> <span class="s2">&quot;AL&quot;</span><span class="p">:</span> <span class="s2">&quot;E.S. Central&quot;</span><span class="p">}</span>
+<span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="n">meta</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">division</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">meta</span><span class="p">[</span><span class="s2">&quot;division&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">division</span><span class="p">)</span>
+<span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;dma_name&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">A_full</span><span class="o">.</span><span class="n">index</span><span class="p">]</span>
+<span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="n">meta</span><span class="p">[</span><span class="s2">&quot;dma_name&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">names</span><span class="p">)]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">A</span> <span class="o">=</span> <span class="n">A_full</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">names</span><span class="p">,</span> <span class="n">names</span><span class="p">]</span>                                     <span class="c1"># real contiguity</span>
+
+<span class="c1"># Grouped linear factor model of seasonal weekly sales: the loadings carry a</span>
+<span class="c1"># latent group structure (one loading per division), plus a shared seasonal</span>
+<span class="c1"># swing and idiosyncratic noise.</span>
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">div</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">&quot;dma_name&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">names</span><span class="p">,</span> <span class="s2">&quot;division&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+<span class="n">n</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">T</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">),</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">60</span>
+<span class="n">group_loading</span> <span class="o">=</span> <span class="p">{</span><span class="n">g</span><span class="p">:</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">div</span><span class="p">))}</span>
+<span class="n">Lambda</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">group_loading</span><span class="p">[</span><span class="n">g</span><span class="p">]</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">div</span><span class="p">])</span> <span class="o">+</span> <span class="mf">0.1</span> <span class="o">*</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">r</span><span class="p">))</span>
+<span class="n">F</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">r</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>                   <span class="c1"># common factors</span>
+<span class="n">season</span> <span class="o">=</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">T</span><span class="p">)</span> <span class="o">/</span> <span class="mi">52</span><span class="p">)</span>             <span class="c1"># annual seasonality</span>
+<span class="n">sales</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1000</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>                            <span class="c1"># market base level</span>
+         <span class="o">+</span> <span class="n">F</span> <span class="o">@</span> <span class="n">Lambda</span><span class="o">.</span><span class="n">T</span>                                         <span class="c1"># grouped factor structure</span>
+         <span class="o">+</span> <span class="n">season</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>                                      <span class="c1"># shared seasonal swing</span>
+         <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">n</span><span class="p">)))</span>                            <span class="c1"># idiosyncratic noise</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span>
+    <span class="p">{</span><span class="s2">&quot;dma&quot;</span><span class="p">:</span> <span class="n">names</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="s2">&quot;week&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&quot;sales&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">sales</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">j</span><span class="p">]),</span> <span class="s2">&quot;division&quot;</span><span class="p">:</span> <span class="n">div</span><span class="p">[</span><span class="n">j</span><span class="p">]}</span>
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+<span class="p">])</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;sales&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;dma&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;week&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">],</span> <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.10</span><span class="p">],</span>
+    <span class="s2">&quot;lookback_window&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;ns&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;adjacency&quot;</span><span class="p">:</span> <span class="n">A</span><span class="p">,</span>                          <span class="c1"># true DMA borders -&gt; non-adjacent markets</span>
+    <span class="s2">&quot;stratum_col&quot;</span><span class="p">:</span> <span class="s2">&quot;division&quot;</span><span class="p">,</span> <span class="s2">&quot;max_per_stratum&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>   <span class="c1"># spread across regions</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;recommended test markets:&quot;</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">selected_units</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">shortlist</span><span class="p">[[</span><span class="s2">&quot;candidate&quot;</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">,</span> <span class="s2">&quot;mde&quot;</span><span class="p">,</span> <span class="s2">&quot;power&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+
+<span class="c1"># the design honours the geography: no two test markets border each other</span>
+<span class="n">treated</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">selected_units</span>
+<span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">treated</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">treated</span> <span class="k">if</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">b</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Cluster non-interference + spillover donor exclusion. Treat markets in
+different regions, and never let a treated market’s same-region neighbours into
+its synthetic control:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;refs/heads/main/basedata/geolift_market_data.csv&quot;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>                                   <span class="c1"># 40 markets x 90 days</span>
+
+<span class="c1"># Per-market geography. In practice these come from your own region table /</span>
+<span class="c1"># spend data; here they are derived from the panel so the example runs as-is.</span>
+<span class="n">markets</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+<span class="n">region</span> <span class="o">=</span> <span class="p">{</span><span class="n">m</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;R</span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">4</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">markets</span><span class="p">)}</span>   <span class="c1"># 4 illustrative regions</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;region&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">region</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">14</span><span class="p">],</span> <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span>
+    <span class="s2">&quot;lookback_window&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;ns&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;cluster_col&quot;</span><span class="p">:</span> <span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">selected_units</span><span class="p">)</span>                              <span class="c1"># markets in distinct regions</span>
+<span class="c1"># invariant: no candidate&#39;s donors share a region with its treated markets</span>
+<span class="n">cd</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">treated_regions</span> <span class="o">=</span> <span class="p">{</span><span class="n">region</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">u</span><span class="p">)]</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">cd</span><span class="o">.</span><span class="n">candidate</span><span class="p">}</span>
+<span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">region</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">d</span><span class="p">)]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">treated_regions</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cd</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">donor_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Coverage quota + size band. Cover distinct regions (at most one treated market
+each) and treat only mid-sized markets (drop the largest and smallest):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;refs/heads/main/basedata/geolift_market_data.csv&quot;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="n">markets</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;region&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">({</span><span class="n">m</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;R</span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">4</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">markets</span><span class="p">)})</span>
+<span class="n">size</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;location&quot;</span><span class="p">)[</span><span class="s2">&quot;Y&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>              <span class="c1"># avg daily volume = &quot;size&quot;</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;size&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+<span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.2</span><span class="p">)),</span> <span class="nb">float</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.8</span><span class="p">))</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">14</span><span class="p">],</span> <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span>
+    <span class="s2">&quot;lookback_window&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;ns&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;stratum_col&quot;</span><span class="p">:</span> <span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="s2">&quot;max_per_stratum&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>     <span class="c1"># &lt;= 1 treated per region</span>
+    <span class="s2">&quot;size_col&quot;</span><span class="p">:</span> <span class="s2">&quot;size&quot;</span><span class="p">,</span> <span class="s2">&quot;min_size&quot;</span><span class="p">:</span> <span class="n">lo</span><span class="p">,</span> <span class="s2">&quot;max_size&quot;</span><span class="p">:</span> <span class="n">hi</span><span class="p">,</span>  <span class="c1"># mid-sized only</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">selected_units</span><span class="p">)</span>                              <span class="c1"># 3 markets, 3 distinct regions</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">shortlist</span><span class="p">[[</span><span class="s2">&quot;candidate&quot;</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">,</span> <span class="s2">&quot;mde&quot;</span><span class="p">,</span> <span class="s2">&quot;power&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+<section id="multi-cell-designs">
+<h2>Multi-cell designs<a class="headerlink" href="#multi-cell-designs" title="Link to this heading">#</a></h2>
+<p>A multi-cell experiment runs several treatments at once — different channels,
+budgets, or creatives — each on its own group of geos (“cells” <span class="math notranslate nohighlight">\(A, B,
+\dots\)</span>), all measured against a shared control pool over the same window
+(GeoLift’s <code class="docutils literal notranslate"><span class="pre">GeoLiftMultiCell</span></code>). The dedicated estimator is
+<a class="reference internal" href="multicellgeolift.html#mlsynth.MULTICELLGEOLIFT" title="mlsynth.MULTICELLGEOLIFT"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.MULTICELLGEOLIFT</span></code></a>; its data model is a unit-level
+cell-membership column (<code class="docutils literal notranslate"><span class="pre">&quot;A&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;B&quot;</span></code> / … for treated geos; blank or a
+<code class="docutils literal notranslate"><span class="pre">control_label</span></code> for controls) plus a <code class="docutils literal notranslate"><span class="pre">post_col</span></code> window:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">MULTICELLGEOLIFT</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;refs/heads/main/basedata/geolift_test_data.csv&quot;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>                                   <span class="c1"># GeoLift_Test: 40 mkts x 105 days</span>
+<span class="n">dates</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;post&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">dates</span><span class="p">[</span><span class="mi">90</span><span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>   <span class="c1"># last 15 days = treatment window</span>
+
+<span class="c1">#   cell:  &quot;A&quot; -&gt; social-media markets, &quot;B&quot; -&gt; paid-search markets, &quot;&quot; -&gt; control</span>
+<span class="n">cell</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;chicago&quot;</span><span class="p">:</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;portland&quot;</span><span class="p">:</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;atlanta&quot;</span><span class="p">:</span> <span class="s2">&quot;B&quot;</span><span class="p">,</span> <span class="s2">&quot;boston&quot;</span><span class="p">:</span> <span class="s2">&quot;B&quot;</span><span class="p">}</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;cell&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>        <span class="c1"># blank = shared control pool</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">MULTICELLGEOLIFT</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cell_column_name&quot;</span><span class="p">:</span> <span class="s2">&quot;cell&quot;</span><span class="p">,</span> <span class="s2">&quot;post_col&quot;</span><span class="p">:</span> <span class="s2">&quot;post&quot;</span><span class="p">,</span> <span class="s2">&quot;fixed_effects&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="n">res</span><span class="o">.</span><span class="n">cells</span><span class="p">[</span><span class="s2">&quot;A&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">att</span>          <span class="c1"># cell A&#39;s per-unit ATT (a full EffectResult)</span>
+<span class="n">res</span><span class="o">.</span><span class="n">cells</span><span class="p">[</span><span class="s2">&quot;A&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span>    <span class="c1"># cell A&#39;s conformal p</span>
+<span class="n">res</span><span class="o">.</span><span class="n">comparison</span>                      <span class="c1"># pairwise [{cell_a, cell_b, att_diff, winner}, ...]</span>
+<span class="n">res</span><span class="o">.</span><span class="n">winner</span>                          <span class="c1"># cell that wins every comparison, or None</span>
+</pre></div>
+</div>
+<p>Each cell is measured with the same fixed-effect ASCM + conformal inference as a
+single cell, excluding the other cells’ markets from its donor pool (they are
+treated, hence contaminated). The cross-cell <code class="docutils literal notranslate"><span class="pre">winner</span></code> uses GeoLift’s
+non-overlapping-CI rule; with one cell it is <em>identical</em> to single-cell GEOLIFT.
+See <a class="reference internal" href="multicellgeolift.html"><span class="doc">MULTICELLGEOLIFT — multi-cell GeoLift analysis</span></a> for the full treatment, the per-cell plots
+(<code class="docutils literal notranslate"><span class="pre">plot_multicell</span></code>), and the augsynth cross-validation.</p>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<p>The realized effect report is cross-validated against GeoLift/augsynth
+value-for-value on the package’s own <code class="docutils literal notranslate"><span class="pre">GeoLift_Walkthrough</span></code> example: with
+<code class="docutils literal notranslate"><span class="pre">fixed_effects=True</span></code> (the default), <code class="docutils literal notranslate"><span class="pre">GEOLIFT</span></code> reproduces the walkthrough’s
+per-unit ATT (155.6), percent lift (5.4%), summed incremental (4667), and
+conformal p-value (0.01). See <a class="reference internal" href="replications/geolift.html"><span class="doc">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</span></a> for the four
+ingredients required to match (unit fixed effects, mean-of-units fit target, the
+all-period conformal refit, and augsynth’s period-space ridge ASCM) and the
+calibration/placebo evidence behind them. The market-<em>selection</em> stages (no
+published table) remain a faithful port validated end-to-end on GeoLift’s own
+data, with each documented divergence (the CV-once optimization <em>proven exact</em>,
+the corrected per-anchor RNG) available as an opt-in, tested swap.</p>
+<div role="list" class="citation-list">
+<div class="citation" id="bmfr2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>BMFR2021<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id3">2</a>)</span>
+<p>Ben-Michael, E., Feller, A., &amp; Rothstein, J. (2021). The Augmented
+Synthetic Control Method. <em>Journal of the American Statistical Association</em>.</p>
+</div>
+<div class="citation" id="cwz2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>CWZ2021<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id2">1</a>,<a role="doc-backlink" href="#id4">2</a>,<a role="doc-backlink" href="#id5">3</a>)</span>
+<p>Chernozhukov, V., Wüthrich, K., &amp; Zhu, Y. (2021). An Exact and Robust
+Conformal Inference Method for Counterfactual and Synthetic Controls.
+<em>Journal of the American Statistical Association</em>.</p>
+</div>
+</div>
+</section>
+<section id="core-api">
+<h2>Core API<a class="headerlink" href="#core-api" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.GEOLIFT">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.</span></span><span class="sig-name descname"><span class="pre">GEOLIFT</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig" title="mlsynth.utils.geolift_helpers.config.GeoLiftConfig"><span class="pre">GeoLiftConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.GEOLIFT" title="Link to this definition">#</a></dt>
+<dd><p>GeoLift market-selection design.</p>
+<p>Chooses which markets to treat <em>before</em> an experiment by simulating power
+over the historical (pre-treatment) panel, then – once outcomes are observed
+(a <code class="docutils literal notranslate"><span class="pre">post_col</span></code> leaving a pre/post split) – realizes the chosen design into a
+standardized effect report with conformal inference.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>GeoLiftConfig or dict</em>) – Configuration. See
+<a class="reference internal" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig" title="mlsynth.utils.geolift_helpers.config.GeoLiftConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.utils.geolift_helpers.config.GeoLiftConfig</span></code></a>.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEOLIFT</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">panel</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span>
+<span class="gp">... </span>               <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">14</span><span class="p">],</span>
+<span class="gp">... </span>               <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">]})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span><span class="o">.</span><span class="n">selected_units</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.GEOLIFT.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GEOLIFTResults</span></span></span><a class="headerlink" href="#mlsynth.GEOLIFT.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run the market-selection design and return the result.</p>
+<p>Behaviour is driven by the data and config, not by manual sequencing:</p>
+<ul class="simple">
+<li><p>always runs the <strong>design</strong> (candidate nomination -&gt; power -&gt; MDE -&gt;
+rank -&gt; per-candidate synthetic controls);</p></li>
+<li><p>when a <code class="docutils literal notranslate"><span class="pre">post_col</span></code> leaves a post-treatment window, <strong>realizes</strong> the
+winning design on the full panel under the hood, populating
+<code class="docutils literal notranslate"><span class="pre">result.report</span></code> (conformal effect report) – the <code class="docutils literal notranslate"><span class="pre">DesignResult</span></code>
+resolving to its <code class="docutils literal notranslate"><span class="pre">EffectResult</span></code>;</p></li>
+<li><p>when <code class="docutils literal notranslate"><span class="pre">display_graphs</span></code> is set, <strong>plots</strong> the recommended design
+(design phase, or the realized post phase).</p></li>
+</ul>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.geolift_helpers.config.GeoLiftConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.geolift_helpers.config.</span></span><span class="sig-name descname"><span class="pre">GeoLiftConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treatment_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_be_treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">not_to_be_treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cluster_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adjacency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spillover_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratum_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_per_stratum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_per_stratum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">durations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">effect_sizes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lookback_window</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">how</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'sum'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augment</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ridge'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_effects</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cpic</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conformal_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'iid'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_stochastic</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stochastic_mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'global'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the GeoLift market-selection design (GEOLIFT).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.geolift_helpers.config.GeoLiftConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-and-notation">Setup and notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-1-candidate-nomination">Stage 1 — Candidate nomination</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-1b-design-constraints">Stage 1b — Design constraints</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-2-the-synthetic-control">Stage 2 — The synthetic control</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-3-power-simulation">Stage 3 — Power simulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-4-mde-and-the-composite-rank">Stage 4 — MDE and the composite rank</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-assumptions">Identifying assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#budget-planning-cpic">Budget planning (CPIC)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-and-the-realized-design">Inference and the realized design</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pipeline-and-options">Pipeline and Options</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#plotting">Plotting</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-geolift-s-40-market-panel">Example: GeoLift’s 40-Market Panel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#every-option-at-once-the-full-market-selection-call">Every option at once — the full market-selection call</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading-the-results-plots-tables-and-weights">Reading the results — plots, tables, and weights</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#design-constraints-geography-coverage-size">Design constraints (geography, coverage, size)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-cell-designs">Multi-cell designs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-api">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.GEOLIFT"><code class="docutils literal notranslate"><span class="pre">GEOLIFT</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.GEOLIFT.fit"><code class="docutils literal notranslate"><span class="pre">GEOLIFT.fit()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig"><code class="docutils literal notranslate"><span class="pre">GeoLiftConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.geolift_helpers.config.GeoLiftConfig.model_config"><code class="docutils literal notranslate"><span class="pre">GeoLiftConfig.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

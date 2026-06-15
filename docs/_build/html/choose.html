@@ -1,0 +1,983 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>A practitioner’s decision tree &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'choose';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Replications" href="replications.html" />
+    <link rel="prev" title="About mlsynth" href="about.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/choose.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>A practitioner’s decision tree</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reason-forward-data-then-estimand-then-assumptions">Reason forward: data, then estimand, then assumptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#at-a-glance">At a glance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gate-0-identification-pre-screen">Gate 0 — Identification pre-screen</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-a-single-treated-unit">Part 1 — A single treated unit</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-here">Start here</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-many-treated-units">Part 2 — Many treated units</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-designing-an-experiment">Part 3 — Designing an experiment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#failure-mode-index">Failure-mode index</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="a-practitioner-s-decision-tree">
+<h1>A practitioner’s decision tree<a class="headerlink" href="#a-practitioner-s-decision-tree" title="Link to this heading">#</a></h1>
+<p>mlsynth ships dozens of estimators because each one is a named answer to a
+specific complication that breaks the method before it. The trick to not
+drowning is to start with the simplest credible method and escalate only when a
+concrete complication forces you to. That is exactly how this page is organised:
+a few identification gates first, then – within each branch – a ladder that
+runs from the easy, canonical case to the specialised, harder ones.</p>
+<p>Answer each question <em>yes</em> or <em>no</em>. A yes sends you to a method (or a short
+list); a no moves you to the next question.</p>
+<section id="reason-forward-data-then-estimand-then-assumptions">
+<h2>Reason forward: data, then estimand, then assumptions<a class="headerlink" href="#reason-forward-data-then-estimand-then-assumptions" title="Link to this heading">#</a></h2>
+<p>Before you open this tree, adopt the discipline that Baker, Callaway,
+Cunningham, Goodman-Bacon and Sant’Anna call <em>forward engineering</em>
+(<em>Difference-in-Differences Designs: A Practitioner’s Guide</em>, 2025,
+<a class="reference external" href="https://arxiv.org/abs/2503.13323">arXiv:2503.13323</a>). The temptation many
+analysts face is to reverse-engineer: reach for a method because it sounds
+powerful or modern, run it, and only then back out later after they discover
+their assumptions were incorrect. Forward engineering goes the other way – and
+it is the right way:</p>
+<ol class="arabic simple">
+<li><p>What state are your data in? Take honest stock first: panel or a single
+series, how many treated units and whether they adopt at the same time,
+whether assignment was randomized, the length of the pre-period versus the
+number of donors (<span class="math notranslate nohighlight">\(N\)</span> vs <span class="math notranslate nohighlight">\(T_0\)</span>), missing cells, stationarity,
+plausible spillovers, the presence of covariates or an instrument.</p></li>
+<li><p>Given a data structure, what estimand can those data actually support? Fix
+the <em>target parameter</em> before the estimator – a mean ATT, a population ATE,
+a per-arm contrast, a quantile / distributional effect. Do not aim at a
+parameter your design cannot identify just because a method will return a
+number for it.</p></li>
+<li><p>Which identifying assumptions are most defensible for that estimand, given
+that data state? Parallel trends? The convex-hull / no-extrapolation
+condition? No interference (SUTVA)? Exogeneity conditional on the latent
+factors? Proxy or instrument validity? Then, and only then, choose the method
+whose assumptions you can actually defend.</p></li>
+</ol>
+<p>The questions below operationalize exactly that order as best as possible –
+data state, then estimand, then assumptions. But one caveat matters more than
+any single gate: this tree routes you to a method whose assumptions <em>match</em> your
+answers; it does not <em>verify</em> those assumptions for you.</p>
+<p>Each estimator encodes technical conditions a one-line summary cannot capture.
+Follow the link at every leaf and read the original paper for the precise
+assumptions, the inference theory, and the documented failure modes. Treat no
+method as infallible: every estimate here is conditional on assumptions that are
+<em>your</em> job to defend, not the software’s.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The gates are a guide, not a strict partition: several methods answer more
+than one question, and a real problem can trip two at once.</p>
+</div>
+</section>
+<section id="at-a-glance">
+<h2>At a glance<a class="headerlink" href="#at-a-glance" title="Link to this heading">#</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>GATE 0 — Identification pre-screen (answer these first)
+────────────────────────────────────────────────────────
+Are you DESIGNING the experiment (treatment not yet assigned)?  ── yes ─► PART 3
+Is assignment RANDOMIZED?                  ── yes, many small units ─► difference-in-means
+                                           └─ yes, few large units  ─► MUSC
+Do CONTROL UNITS exist at all?             ── no (everyone treated) ─► SHC
+Is treatment ENDOGENOUS (SC can&#39;t absorb)? ── have an instrument    ─► SIV
+                                           └─ have proxies / NCs     ─► PROXIMAL
+Do parallel trends hold AND fixed-T/large-N? ── yes ─► plain Difference-in-Differences
+                                                           (you may not need SC)
+…otherwise:  HOW MANY TREATED UNITS?  ── one ─► PART 1   └─ more than one ─► PART 2
+
+PART 1 — ONE treated unit   (easy ───────────────────────► hard)
+─────────────────────────────────────────────────────────────────
+Start:  FDID   (or VanillaSC for the textbook simplex SC; TSSC for a pre-trends test)
+  ↓ then escalate ONLY if one of these is true:
+Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · SPOTSYNTH (unknown which) · ISCM (outside hull)
+Nonstationary / spurious trend?      ─► SBC · HSC
+Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA
+Nonlinear outcome surface?           ─► NSC
+Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
+Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
+Interpolation across dissimilar donors? ─► MASC
+Different ESTIMAND / treatment type? ─► DSC (dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
+
+PART 2 — MANY treated units   (easy ─────────────────────► hard)
+─────────────────────────────────────────────────────────────────
+Same adoption time?  ─► SDID            (micro units ─► MicroSynth; two-level ─► MLSC)
+  + many treated at once, disaggregated/high-dim donors ─► MSQRT
+Staggered (different times)?  ─► SDID · ROLLDID (rolling-transformation DiD)
+  + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+  + long pre-period, few never-treated, event study ─► SSC
+  + spillovers                        ─► SpSyDiD
+  + missing cells / gaps              ─► MCNNM
+
+PART 3 — DESIGNING an experiment   (by what you care about)
+─────────────────────────────────────────────────────────────────
+Care only about the ATT (effect on the treated)? ─► SYNDES · SPCD · weakly-targeted MAREX
+Care about the ATE (population effect)?           ─► MAREX · LEXSCM
+Geo roll-out — every unit treated or control, no pure donors? ─► PANGEO (supergeo)
+Geo lift test — pick which markets to treat under a budget?    ─► GEOLIFT · MULTICELLGEOLIFT (multi-cell)
+</pre></div>
+</div>
+</section>
+<section id="gate-0-identification-pre-screen">
+<h2>Gate 0 — Identification pre-screen<a class="headerlink" href="#gate-0-identification-pre-screen" title="Link to this heading">#</a></h2>
+<p>These come first because they decide whether synthetic control is even the
+right family. Get one wrong and no amount of donor weighting saves you.</p>
+<p>Q0.1 · Are you designing the experiment? Has the treatment <em>not yet</em> been
+assigned, and you are choosing whom to treat?</p>
+<ul class="simple">
+<li><p>Yes – jump to Part 3 (experimental design).</p></li>
+<li><p>No – the treatment already happened; continue.</p></li>
+</ul>
+<p>Q0.2 · Is assignment randomized (or as-good-as-random)?</p>
+<ul class="simple">
+<li><p>Yes, and you have many small exchangeable units – you do not need synthetic
+control; a difference-in-means (or a regression with controls) is unbiased.</p></li>
+<li><p>Yes, but only one or a few large aggregate units (markets, states) – a single
+random draw can still leave baselines far apart. <a class="reference internal" href="musc.html"><span class="doc">Modified Unbiased Synthetic Control</span></a> makes the effect
+<em>finite-sample unbiased under random assignment</em> and is the only estimator
+here with an unbiased finite-sample variance and exact randomization
+intervals.</p></li>
+<li><p>No – continue.</p></li>
+</ul>
+<p>Q0.3 · Do control units exist at all?</p>
+<ul class="simple">
+<li><p>No – every unit is treated (a nationwide policy, a global shock like
+COVID-19), so there is no donor pool – <a class="reference internal" href="shc.html"><span class="doc">Synthetic Historical Control (SHC)</span></a> rebuilds the comparison
+from overlapping historical blocks of the treated unit’s own series.</p></li>
+<li><p>Yes – continue.</p></li>
+</ul>
+<p>Q0.4 · Is the treatment endogenous in a way SC cannot absorb? This is the home
+of the <em>proximal</em> methods: they are fundamentally tools for unmeasured
+confounding / endogeneity, not for any particular outcome shape. The danger is
+selection on <em>time-varying</em> unobservables – the pre-fit can look perfect and
+the ATT still be biased.</p>
+<ul class="simple">
+<li><p>You have a (partially valid) instrument – a shift-share, a tariff schedule, a
+supply shock – <a class="reference internal" href="siv.html"><span class="doc">Synthetic IV</span></a> SC-debiases the (outcome, treatment, instrument)
+triple, then runs 2SLS; the instrument need only be valid <em>conditional on the
+factors</em>.</p></li>
+<li><p>You have valid proxies / negative controls – extra controls associated with
+the latent confounder but with no direct path to the outcome – <a class="reference internal" href="proximal.html"><span class="doc">Proximal Inference Synthetic Control (PROXIMAL)</span></a>
+instruments the confounder via GMM (and also covers the single-proxy,
+doubly-robust, and surrogate variants).</p></li>
+<li><p>Neither – selection is on the latent factors only (SC’s standard premise) –
+continue.</p></li>
+</ul>
+<p>Q0.5 · Do parallel trends hold, and are you in a fixed-T / large-N regime?</p>
+<ul class="simple">
+<li><p>Yes – you may not need synthetic control at all: plain
+difference-in-differences is simpler and more powerful. The nearest
+in-library options are <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> or <a class="reference internal" href="seq_sdid.html"><span class="doc">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</span></a>.</p></li>
+<li><p>No – you are in SCM territory. Ask the master question:</p></li>
+</ul>
+<p>Q0.6 · How many treated units?</p>
+<ul class="simple">
+<li><p>One – go to Part 1.</p></li>
+<li><p>More than one – go to Part 2.</p></li>
+</ul>
+</section>
+<section id="part-1-a-single-treated-unit">
+<h2>Part 1 — A single treated unit<a class="headerlink" href="#part-1-a-single-treated-unit" title="Link to this heading">#</a></h2>
+<p>Begin with the simplest method that could work and escalate only when a named
+complication applies.</p>
+<section id="start-here">
+<h3>Start here<a class="headerlink" href="#start-here" title="Link to this heading">#</a></h3>
+<p>With one treated unit, a sharp intervention, and a scalar ATT, start with
+<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a> – Forward DiD greedily selects the donors that share the treated
+trend, needs no convex-hull assumption, and gives valid inference even under
+nonstationarity, all with one estimated parameter. If you want the textbook
+simplex synthetic control of Abadie and co-authors, that is <a class="reference internal" href="vanillasc.html"><span class="doc">Vanilla Synthetic Control (VanillaSC)</span></a>;
+if the Forward Parallel Trends Assumption does not hold and you want a formal
+pre-trends test, use <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>. If none of the escalations below applies, you
+are done.</p>
+<p>Now walk the escalations, easy to hard:</p>
+<p>Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes, spatial with a known weight matrix W – <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>.</p></li>
+<li><p>Yes, an enumerable per-unit spillover set – <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a>.</p></li>
+<li><p>You don’t know which donors are contaminated (a large pool, no a-priori
+validity knowledge, or a suspiciously-good-match donor) – <a class="reference internal" href="spotsynth.html"><span class="doc">Spillover-Detecting Synthetic Control (SPOTSYNTH)</span></a>,
+which screens each donor by a pre-intervention forecast test and excludes the
+ones that fail it.</p></li>
+<li><p>Yes, and the treated unit sits outside the donor hull (but is itself a useful
+donor for others) – <a class="reference internal" href="iscm.html"><span class="doc">Imperfect Synthetic Controls (ISCM)</span></a>.</p></li>
+</ul>
+<p>Q1.2 · Is the treated unit outside the donors’ convex hull even without
+spillovers (a true outlier)?</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes – relax the simplex: <a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a> (affine weights), <a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a>
+(penalised / <span class="math notranslate nohighlight">\(L_\infty\)</span>), or the unconstrained <a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a>.</p></li>
+</ul>
+<p>Q1.3 · Is the outcome nonstationary, so a tight pre-fit might be a <em>spurious</em>
+match?</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes – decompose first: <a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a> (Hamilton trend/cycle split, match the
+cycle) or <a class="reference internal" href="hsc.html"><span class="doc">Harmonic Synthetic Control (HSC)</span></a> (soft levels-vs-differences allocation).</p></li>
+</ul>
+<p>Q1.4 · Are there persistent latent factors / time-varying dynamics / heavy
+observation noise?</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes – <a class="reference internal" href="tasc.html"><span class="doc">Time-Aware Synthetic Control (TASC)</span></a> (time-aware state-space model), <a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a> (PC factors with
+a residual-bootstrap test), or <a class="reference internal" href="dscar.html"><span class="doc">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</span></a> (time-varying weights for strongly
+autocorrelated panels with time-varying confounders).</p></li>
+</ul>
+<p>Q1.5 · Is the untreated outcome a nonlinear function of the predictors?</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes – <a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a>.</p></li>
+</ul>
+<p>Q1.6 · Is the donor pool large relative to the pre-period (N &gt;&gt; T0)? This is the
+most common reason to leave the standard workhorses: unrestricted fits overfit
+the pre-period and predict the post-period worse.</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes – escalate, roughly easiest first: <a class="reference internal" href="fscm.html"><span class="doc">Forward-Selected Synthetic Control (FSCM)</span></a> (tune the donor <em>count</em>),
+<a class="reference internal" href="sparse_sc.html"><span class="doc">Sparse Synthetic Control (SparseSC)</span></a> (L1 predictor/covariate selection), <a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a>
+(L2-relaxation / Lasso / forward), <a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a> (one program from simplex SC
+to <span class="math notranslate nohighlight">\(L_\infty\)</span> to DiD), <a class="reference internal" href="clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a> (denoise + cluster donors), or
+<a class="reference internal" href="bvss.html"><span class="doc">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</span></a> (Bayesian spike-and-slab with a soft simplex).</p></li>
+</ul>
+<p>Q1.7 · Are there missing cells in the panel?</p>
+<ul class="simple">
+<li><p>No – next question.</p></li>
+<li><p>Yes, informative (MNAR) with a fully observed anchor block – <a class="reference internal" href="snn.html"><span class="doc">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</span></a>.</p></li>
+<li><p>Yes, arbitrary sparse / low-rank – <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>.</p></li>
+<li><p>Block-missing (treated cells), and you have unit/time covariates – <a class="reference internal" href="rmsi.html"><span class="doc">Robust Matrix estimation with Side Information (RMSI)</span></a>
+exploits side information on both margins (a four-component sieve +
+nuclear-norm completion) to impute the treated counterfactual; it reduces to a
+low-rank completion when the covariates are uninformative.</p></li>
+</ul>
+<p>Q1.8 · Is your estimand or treatment effect non-standard (not a scalar mean ATT
+for one binary treatment)?</p>
+<ul class="simple">
+<li><p>No – you are done; use the <em>Start here</em> method.</p></li>
+<li><p>The whole distribution (quantiles, Lorenz, tails) – <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a>.</p></li>
+<li><p>A continuous or multi-valued dose with no clean control – <a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a>.</p></li>
+<li><p>Several related outcomes (helps most with a short pre-period) – <a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a>.</p></li>
+<li><p>Several distinct intervention arms to compare – <a class="reference internal" href="si.html"><span class="doc">Synthetic Interventions (SI)</span></a>.</p></li>
+</ul>
+<p>Q1.9 · Are you worried about interpolation bias – the synthetic control having
+to <em>interpolate</em> across donors that are individually far from the treated unit,
+so the fit blends dissimilar units?</p>
+<ul class="simple">
+<li><p>No – you are done; use the <em>Start here</em> method.</p></li>
+<li><p>Yes – <a class="reference internal" href="masc.html"><span class="doc">Matching and Synthetic Control (MASC)</span></a> blends extrapolation-free nearest-neighbour matching with
+the SC simplex and chooses the mix that minimises estimated bias, directly
+targeting interpolation bias.</p></li>
+</ul>
+</section>
+</section>
+<section id="part-2-many-treated-units">
+<h2>Part 2 — Many treated units<a class="headerlink" href="#part-2-many-treated-units" title="Link to this heading">#</a></h2>
+<p>The base case for multiple treated units is <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> – Synthetic
+Difference-in-Differences, doubly weighted by unit <em>and</em> time weights – which
+works whether adoption is simultaneous or staggered and degrades gracefully when
+parallel trends or exact matching fail. Escalate from there.</p>
+<p>Q2.1 · Do all treated units adopt at the same time?</p>
+<ul class="simple">
+<li><p>Yes – <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> is the base case. If the units are individual / micro-level
+(thousands to millions), use <a class="reference internal" href="microsynth.html"><span class="doc">MicroSynth (User-Level Balancing SC)</span></a>; if treatment is assigned at a
+coarse level but outcomes are observed at a finer level (state policy, county
+outcomes), use <a class="reference internal" href="mlsc.html"><span class="doc">Multi-Level Synthetic Control (mlSC)</span></a>.</p></li>
+<li><p>Yes, and many units are treated at once with a high-dimensional donor pool
+(disaggregated stores / ZIPs / geos, donor count <span class="math notranslate nohighlight">\(n \gtrsim T_0\)</span>) –
+<a class="reference internal" href="msqrt.html"><span class="doc">Multivariate Square-root Lasso Synthetic Control (MSQRT)</span></a> pools the treated units into one matrix regression and selects
+donors with a pivotal square-root-lasso penalty, borrowing strength across
+treated units instead of fitting each noisily on its own.</p></li>
+<li><p>No – adoption is staggered – continue.</p></li>
+</ul>
+<p>Q2.2 · Staggered: do you just want the overall / event-study ATT?</p>
+<ul class="simple">
+<li><p>Yes, just staggered – <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> (per-cohort + aggregate) is the simplest. A
+lightweight alternative is <a class="reference internal" href="rolldid.html"><span class="doc">Rolling-Transformation DiD (ROLLDID)</span></a>, the Lee–Wooldridge
+rolling-transformation DiD, which rolls each cohort’s pre/post contrast
+forward and pools them. If you want partial pooling across cohorts or oracle
+efficiency under interactive fixed effects, escalate to <a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a> or
+<a class="reference internal" href="seq_sdid.html"><span class="doc">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</span></a>.</p></li>
+<li><p>Staggered, long pre-period, few/no never-treated units, and you want an event
+study without parallel trends – <a class="reference internal" href="ssc.html"><span class="doc">Staggered Synthetic Control (SSC)</span></a> (Staggered Synthetic Control). It
+builds each unit’s synthetic control from all other units (not-yet-treated
+included), so it needs no never-treated pool, and gives event-time ATTs with
+Andrews end-of-sample inference. Best with a long pre-period (large <span class="math notranslate nohighlight">\(T\)</span>,
+moderate <span class="math notranslate nohighlight">\(N\)</span>).</p></li>
+<li><p>Staggered <em>and</em> spillovers onto donors – <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>.</p></li>
+<li><p>Staggered <em>and</em> missing cells / gaps – <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a> (matrix completion handles
+staggered missingness natively).</p></li>
+</ul>
+</section>
+<section id="part-3-designing-an-experiment">
+<h2>Part 3 — Designing an experiment<a class="headerlink" href="#part-3-designing-an-experiment" title="Link to this heading">#</a></h2>
+<p>You are choosing <em>whom</em> to treat, not estimating an effect; these return
+assignments and power / MDE curves, not ATTs. Order by what estimand you care
+about, easiest target first.</p>
+<p>Q3.1 · Do you only care about the ATT (the effect on the treated units)?</p>
+<ul class="simple">
+<li><p>Yes – <a class="reference internal" href="syndes.html"><span class="doc">Synthetic Design (SYNDES)</span></a> (a MIP that minimises the <em>ATT estimator’s</em> MSE, exactly
+<span class="math notranslate nohighlight">\(K\)</span> treated) or <a class="reference internal" href="spcd.html"><span class="doc">Synthetic Principal Component Design (SPCD)</span></a> (a fast spectral phase-synchronisation
+design). A weakly-targeted <a class="reference internal" href="marex.html"><span class="doc">Synthetic Controls for Experimental Design (MAREX)</span></a> design can also be pointed at the
+treated set if you want a convex design that leans ATT-ward.</p></li>
+</ul>
+<p>Q3.2 · Do you care about the population ATE (a population-level contrast, not
+just the treated)?</p>
+<ul class="simple">
+<li><p>Yes – base <a class="reference internal" href="marex.html"><span class="doc">Synthetic Controls for Experimental Design (MAREX)</span></a> matches synthetic-treated and synthetic-control units
+to <em>population</em> predictor means; <a class="reference internal" href="lexscm.html"><span class="doc">Lexicographic Synthetic Control (LEXSCM)</span></a> adds an explicit power /
+minimum-detectable-effect report (validity <em>then</em> power) and budget / cost
+constraints when only a subset is eligible.</p></li>
+</ul>
+<p>Q3.3 · Must every unit end up either treated or control – no pure-donor pool
+left over – as in a geo roll-out?</p>
+<ul class="simple">
+<li><p>Yes – <a class="reference internal" href="pangeo.html"><span class="doc">Parallel-Trends Supergeo Design (PANGEO)</span></a> groups geos into balanced <em>supergeos</em>, trims no unit, and
+matches on the full pre-period <em>trajectory</em> for a downstream
+difference-in-differences read.</p></li>
+</ul>
+<p>Q3.4 · Are you planning a marketing geo-lift test – pick which markets to treat
+so the untreated markets form a clean control, often under a budget?</p>
+<ul class="simple">
+<li><p>Yes, one treatment cell – <a class="reference internal" href="geolift.html"><span class="doc">GeoLift Market Selection (GEOLIFT)</span></a> selects the treated markets and
+reports the design’s power / minimum detectable lift.</p></li>
+<li><p>Yes, several treatment cells (e.g. testing more than one creative or spend
+level at once) – <a class="reference internal" href="multicellgeolift.html"><span class="doc">MULTICELLGEOLIFT — multi-cell GeoLift analysis</span></a> extends the selection to multiple
+cells simultaneously.</p></li>
+</ul>
+</section>
+<section id="failure-mode-index">
+<h2>Failure-mode index<a class="headerlink" href="#failure-mode-index" title="Link to this heading">#</a></h2>
+<p>A reverse lookup: the symptom, and the method named for it.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 42.0%" />
+<col style="width: 58.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Complication</p></th>
+<th class="head"><p>Reach for</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>No control group (everyone treated)</p></td>
+<td><p><a class="reference internal" href="shc.html"><span class="doc">Synthetic Historical Control (SHC)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Randomized, few large units</p></td>
+<td><p><a class="reference internal" href="musc.html"><span class="doc">Modified Unbiased Synthetic Control</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Endogenous treatment, have an instrument</p></td>
+<td><p><a class="reference internal" href="siv.html"><span class="doc">Synthetic IV</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Endogenous treatment, have proxies / negative controls</p></td>
+<td><p><a class="reference internal" href="proximal.html"><span class="doc">Proximal Inference Synthetic Control (PROXIMAL)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Parallel trends holds (fixed-T, large-N)</p></td>
+<td><p>difference-in-differences (off-ramp); <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>, <a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Single treated unit, no complications</p></td>
+<td><p><a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>, <a class="reference internal" href="vanillasc.html"><span class="doc">Vanilla Synthetic Control (VanillaSC)</span></a>, <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Spillovers onto donors (SUTVA), spatial</p></td>
+<td><p><a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Spillovers onto donors, enumerable per-unit</p></td>
+<td><p><a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Contaminated donors unknown / large pool to screen</p></td>
+<td><p><a class="reference internal" href="spotsynth.html"><span class="doc">Spillover-Detecting Synthetic Control (SPOTSYNTH)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Treated unit outside the donor convex hull</p></td>
+<td><p><a class="reference internal" href="iscm.html"><span class="doc">Imperfect Synthetic Controls (ISCM)</span></a>, <a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a>, <a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a>, <a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Nonstationary / spurious-trend matching</p></td>
+<td><p><a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a>, <a class="reference internal" href="hsc.html"><span class="doc">Harmonic Synthetic Control (HSC)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Time-varying dynamics / persistent factors / noise</p></td>
+<td><p><a class="reference internal" href="tasc.html"><span class="doc">Time-Aware Synthetic Control (TASC)</span></a>, <a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a>, <a class="reference internal" href="dscar.html"><span class="doc">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Nonlinear outcome surface</p></td>
+<td><p><a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Donor pool large vs pre-period (N ≳ T0)</p></td>
+<td><p><a class="reference internal" href="fscm.html"><span class="doc">Forward-Selected Synthetic Control (FSCM)</span></a>, <a class="reference internal" href="sparse_sc.html"><span class="doc">Sparse Synthetic Control (SparseSC)</span></a>, <a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a>, <a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a>, <a class="reference internal" href="clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a>, <a class="reference internal" href="bvss.html"><span class="doc">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Missing cells, MNAR</p></td>
+<td><p><a class="reference internal" href="snn.html"><span class="doc">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</span></a>, <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Block-missing with unit/time covariates (side information)</p></td>
+<td><p><a class="reference internal" href="rmsi.html"><span class="doc">Robust Matrix estimation with Side Information (RMSI)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Distributional estimand (QTE, Lorenz, tails)</p></td>
+<td><p><a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Continuous / multi-valued treatment</p></td>
+<td><p><a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Several related outcomes / short pre-period</p></td>
+<td><p><a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Several distinct intervention arms</p></td>
+<td><p><a class="reference internal" href="si.html"><span class="doc">Synthetic Interventions (SI)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Interpolation bias (interpolating across dissimilar donors)</p></td>
+<td><p><a class="reference internal" href="masc.html"><span class="doc">Matching and Synthetic Control (MASC)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Many treated, same time</p></td>
+<td><p><a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>, <a class="reference internal" href="microsynth.html"><span class="doc">MicroSynth (User-Level Balancing SC)</span></a>, <a class="reference internal" href="mlsc.html"><span class="doc">Multi-Level Synthetic Control (mlSC)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Many treated at once, high-dimensional donor pool (block design)</p></td>
+<td><p><a class="reference internal" href="msqrt.html"><span class="doc">Multivariate Square-root Lasso Synthetic Control (MSQRT)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Many treated, staggered adoption</p></td>
+<td><p><a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>, <a class="reference internal" href="rolldid.html"><span class="doc">Rolling-Transformation DiD (ROLLDID)</span></a>, <a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a>, <a class="reference internal" href="seq_sdid.html"><span class="doc">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</span></a>, <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Staggered, long pre-period, few never-treated (event study)</p></td>
+<td><p><a class="reference internal" href="ssc.html"><span class="doc">Staggered Synthetic Control (SSC)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Designing for the ATT</p></td>
+<td><p><a class="reference internal" href="syndes.html"><span class="doc">Synthetic Design (SYNDES)</span></a>, <a class="reference internal" href="spcd.html"><span class="doc">Synthetic Principal Component Design (SPCD)</span></a>, <a class="reference internal" href="marex.html"><span class="doc">Synthetic Controls for Experimental Design (MAREX)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Designing for the ATE</p></td>
+<td><p><a class="reference internal" href="marex.html"><span class="doc">Synthetic Controls for Experimental Design (MAREX)</span></a>, <a class="reference internal" href="lexscm.html"><span class="doc">Lexicographic Synthetic Control (LEXSCM)</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Designing a geo roll-out (no pure donors)</p></td>
+<td><p><a class="reference internal" href="pangeo.html"><span class="doc">Parallel-Trends Supergeo Design (PANGEO)</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Designing a geo-lift test (pick markets, one or many cells)</p></td>
+<td><p><a class="reference internal" href="geolift.html"><span class="doc">GeoLift Market Selection (GEOLIFT)</span></a>, <a class="reference internal" href="multicellgeolift.html"><span class="doc">MULTICELLGEOLIFT — multi-cell GeoLift analysis</span></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>When in doubt, fit two or three of the candidate methods and compare the
+counterfactuals and ATTs. Disagreement is itself diagnostic: it usually means
+one of the gates above is binding harder than you thought.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="about.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">About mlsynth</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="replications.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Replications</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reason-forward-data-then-estimand-then-assumptions">Reason forward: data, then estimand, then assumptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#at-a-glance">At a glance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gate-0-identification-pre-screen">Gate 0 — Identification pre-screen</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-a-single-treated-unit">Part 1 — A single treated unit</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-here">Start here</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-many-treated-units">Part 2 — Many treated units</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-designing-an-experiment">Part 3 — Designing an experiment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#failure-mode-index">Failure-mode index</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

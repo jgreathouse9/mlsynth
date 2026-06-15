@@ -1,0 +1,1768 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Spatial Synthetic Difference-in-Differences (SpSyDiD) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'spsydid';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Spillover-Aware Synthetic Control (SPILLSYNTH)" href="spillsynth.html" />
+    <link rel="prev" title="Staggered Synthetic Control (SSC)" href="ssc.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/spsydid.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Spatial Synthetic Difference-in-Differences (SpSyDiD)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-method">When to Use This Method</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-spsydid-when">Do not use SpSyDiD when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm">Algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identification-assumptions">Identification assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connection-to-existing-methods">Connection to existing methods</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.spsydid">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.spsydid.SpSyDiD"><code class="docutils literal notranslate"><span class="pre">SpSyDiD</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.spsydid.SpSyDiD.fit"><code class="docutils literal notranslate"><span class="pre">SpSyDiD.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.model_config"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.row_standardize_spatial"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.row_standardize_spatial</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.spatial_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.spatial_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.unit_order"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.unit_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.spsydid_helpers.spatial">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.contiguity_weights"><code class="docutils literal notranslate"><span class="pre">contiguity_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.inverse_distance_weights"><code class="docutils literal notranslate"><span class="pre">inverse_distance_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.knn_weights"><code class="docutils literal notranslate"><span class="pre">knn_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.row_standardize"><code class="docutils literal notranslate"><span class="pre">row_standardize()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.validate_spatial_matrix"><code class="docutils literal notranslate"><span class="pre">validate_spatial_matrix()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_spsydid_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.weights.compute_regularization"><code class="docutils literal notranslate"><span class="pre">compute_regularization()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.weights.fit_time_weights"><code class="docutils literal notranslate"><span class="pre">fit_time_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.weights.fit_unit_weights"><code class="docutils literal notranslate"><span class="pre">fit_unit_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.pipeline.run_spsydid"><code class="docutils literal notranslate"><span class="pre">run_spsydid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.outcome_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.outcome_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.treatment_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.treatment_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spatial_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spatial_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.exposure_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.exposure_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T0"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.direct_indices"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.direct_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spillover_indices"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spillover_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.pure_control_indices"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.pure_control_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_direct"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N_direct</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_pure"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N_pure</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_spillover"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N_spillover</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.direct_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.exposure_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.outcome_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.pure_control_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spatial_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spillover_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.treatment_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.aite"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.aite</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.ate"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.ate</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.inputs"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.metadata"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.model_config"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.tau</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau_s"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.tau_s</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.time_weights"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.time_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.unit_weights"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.unit_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.zeta"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.zeta</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification-path-b-monte-carlo">Verification (Path-B Monte Carlo)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#state-level-monte-carlo-40-rolling-window-replications">State-level Monte Carlo (40 rolling-window replications)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#county-level-monte-carlo-4-states-x-200-reps">County-level Monte Carlo (4 states x 200 reps)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="spatial-synthetic-difference-in-differences-spsydid">
+<h1>Spatial Synthetic Difference-in-Differences (SpSyDiD)<a class="headerlink" href="#spatial-synthetic-difference-in-differences-spsydid" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>SpSyDiD (Serenini, R., &amp; Masek, F. (2024). <em>“Spatial Synthetic
+Difference-in-Differences,”</em> SSRN 4736857) extends the Synthetic
+Difference-in-Differences (SDID) estimator of
+Arkhangelsky-Athey-Hirshberg-Imbens-Wager (2021) with a <em>spatial
+spillover term</em>. The estimator separates two estimands that standard
+SDID confounds when SUTVA is violated by geographic spillovers:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> – the direct ATT on the directly-treated
+units (identical in form to standard SDID).</p></li>
+<li><p><span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span> – the indirect / spillover coefficient per
+unit of neighbour-treatment exposure
+<span class="math notranslate nohighlight">\(e_{it} = \sum_{j} w_{ij}\, d_{jt}\)</span>.</p></li>
+</ul>
+<p>The implied population ATE follows from Serenini &amp; Masek’s eq. 14,</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\mathrm{ATE}} = \widehat{\tau} \cdot \bigl(1 + \overline{WD}\bigr),\]</div>
+<p>where <span class="math notranslate nohighlight">\(\overline{WD}\)</span> is the average exposure across the
+directly + indirectly treated units in the post-period.</p>
+<p>The user supplies a row-standardised <span class="math notranslate nohighlight">\(N \times N\)</span> spatial
+weight matrix <span class="math notranslate nohighlight">\(\mathbf{W}\)</span>. Helpers in
+<a class="reference internal" href="#module-mlsynth.utils.spsydid_helpers.spatial" title="mlsynth.utils.spsydid_helpers.spatial"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.spsydid_helpers.spatial</span></code></a> cover the standard
+constructions:</p>
+<ul class="simple">
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">knn_weights()</span></code> – <span class="math notranslate nohighlight">\(k\)</span>-nearest neighbours from coordinates.</p></li>
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">inverse_distance_weights()</span></code> – <span class="math notranslate nohighlight">\(w_{ij} \propto 1/d_{ij}^p\)</span>
+with optional cutoff.</p></li>
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">contiguity_weights()</span></code> – queen / rook contiguity from an
+adjacency dictionary.</p></li>
+</ul>
+<p>When <span class="math notranslate nohighlight">\(\mathbf{W} = \mathbf{0}\)</span> (no spatial structure) or no donor has any
+treated neighbour, SpSyDiD numerically reduces to plain SDID with
+<span class="math notranslate nohighlight">\(\widehat{\tau}_s = 0\)</span>.</p>
+</section>
+<section id="when-to-use-this-method">
+<h2>When to Use This Method<a class="headerlink" href="#when-to-use-this-method" title="Link to this heading">#</a></h2>
+<p>Every difference-based estimator – DiD, synthetic control, and plain
+<a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> – rests on SUTVA: a control unit’s outcome is unaffected
+by anyone else’s treatment. Geography routinely breaks this. When a policy
+in the treated region leaks to its neighbours, those neighbours are exactly
+the units a synthetic control wants to lean on, and the leakage corrupts
+the comparison. Serenini &amp; Masek (2024) make the bias explicit:</p>
+<ul class="simple">
+<li><p>Spillovers onto units <em>inside</em> the donor pool bias and render
+inconsistent the standard SDID ATT – the synthetic control is built
+from partially-treated donors, so the “untreated” benchmark is itself
+moving with the treatment.</p></li>
+<li><p>Spillovers <em>outside</em> the donor pool leave the ATT identifiable but
+make the population ATE unidentified, because the indirect effect on
+exposed-but-excluded units is never measured.</p></li>
+</ul>
+<p>SpSyDiD targets this regime directly. It adds a single spatial exposure
+term <span class="math notranslate nohighlight">\(e_{it} = \sum_{j} w_{ij}\, d_{jt}\)</span> to the doubly-weighted SDID
+regression, so the estimator returns <em>two</em> numbers: the direct ATT
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> (same form as SDID) and the per-exposure indirect
+coefficient <span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span>. The population ATE then follows from
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATE}} = \widehat{\tau}\,(1 + \overline{WD})\)</span> (eq. 14). Relative to
+the older Spatial DiD of Delgado &amp; Florax (2015), the synthetic weighting
+sharpens identification of the indirect effect while keeping SDID’s
+robustness for the direct effect.</p>
+<p>Reach for SpSyDiD whenever there is a plausible mechanism for the
+treatment to <em>leak</em> from the directly-treated units to a subset of
+the donor pool through spatial or structural proximity, and you can
+supply a credible row-standardised weight matrix <span class="math notranslate nohighlight">\(\mathbf{W}\)</span> encoding that
+proximity. Typical examples:</p>
+<ul class="simple">
+<li><p>Immigration policy with cross-border relocation. Arizona’s
+2007 LAWA legislation directly affected Arizona’s noncitizen
+Hispanic population but also displaced workers to neighbouring
+states. SDID alone would either bias the ATT (if you include the
+spillover-affected states as controls) or be unable to estimate
+the spillover at all.</p></li>
+<li><p>State tax changes with cross-border shopping. A state sales-tax
+increase affects that state’s revenue directly <em>and</em> leaks via
+cross-border shopping into neighbouring states.</p></li>
+<li><p>Local advertising campaigns with geographic spillovers across
+DMA boundaries.</p></li>
+<li><p>Vaccine mandates with cross-state mobility effects.</p></li>
+</ul>
+<section id="do-not-use-spsydid-when">
+<h3>Do not use SpSyDiD when<a class="headerlink" href="#do-not-use-spsydid-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>SUTVA holds / there is no spillover concern. With
+<span class="math notranslate nohighlight">\(\mathbf{W} = \mathbf{0}\)</span> or no treated neighbours, SpSyDiD reduces
+numerically to plain <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> with
+<span class="math notranslate nohighlight">\(\widehat{\tau}_s = 0\)</span>; the extra exposure column just adds noise. Use
+<a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> – it is faster and more parsimonious.</p></li>
+<li><p>You cannot defend a spatial weight matrix. The whole identification
+of <span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span> runs through <span class="math notranslate nohighlight">\(\mathbf{W}\)</span>. If proximity is not the
+spillover channel (e.g., interference flows through an unobserved social
+or supply-chain network you cannot encode), a misspecified <span class="math notranslate nohighlight">\(\mathbf{W}\)</span>
+buys biased indirect effects; consider <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a>, which models
+spillover through donor membership rather than a fixed geographic kernel.</p></li>
+<li><p>Interference is global or non-local. SpSyDiD assumes exposure is a
+<em>local</em>, distance-decaying function of neighbours’ treatment. General
+equilibrium effects that hit every unit equally are absorbed into the
+time effects and cannot be separated.</p></li>
+<li><p>You only need the direct ATT and the donor pool is clean. If the
+spillover-affected units can simply be <em>dropped</em> from the donor pool and
+the indirect effect is not of interest, plain <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> on the pruned
+pool is the simpler honest choice.</p></li>
+<li><p>Distributional questions (quantiles, tails) – use <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a>; or a
+single treated unit with no spatial structure – use <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a> /
+<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>.</p></li>
+</ul>
+</section>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical Formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading">#</a></h2>
+<section id="setup">
+<h3>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h3>
+<p>Let <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> index the units and
+<span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span> the periods (1-indexed);
+the intervention takes effect after period <span class="math notranslate nohighlight">\(T_0\)</span>, so the pre-period
+is <span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> and the
+post-period is <span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t &gt; T_0\}\)</span>,
+with <span class="math notranslate nohighlight">\(T_{\mathrm{post}} \coloneqq T - T_0\)</span>. Let <span class="math notranslate nohighlight">\(y_{it}\)</span> be the
+outcome, <span class="math notranslate nohighlight">\(d_{it} \in \{0, 1\}\)</span> the direct-treatment indicator, and
+<span class="math notranslate nohighlight">\(\mathbf{W} \in \mathbb{R}_{\ge 0}^{N \times N}\)</span> a row-standardised
+spatial weight matrix with zero diagonal. The <em>spillover exposure</em> of unit
+<span class="math notranslate nohighlight">\(i\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> is</p>
+<div class="math notranslate nohighlight">
+\[e_{it} \coloneqq (\mathbf{W}\mathbf{d}_t)_i
+      = \sum_{j \in \mathcal{N}} w_{ij}\, d_{jt} \in [0, 1],
+\qquad
+\mathbf{d}_t \coloneqq (d_{1t}, \dots, d_{Nt})^\top .\]</div>
+<p>The estimator auto-partitions <span class="math notranslate nohighlight">\(\mathcal{N}\)</span> into</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\mathcal{I}_{\mathrm{tr}}\)</span> – directly treated units
+(<span class="math notranslate nohighlight">\(d_{it} = 1\)</span> for some <span class="math notranslate nohighlight">\(t\)</span>), with
+<span class="math notranslate nohighlight">\(N_{\mathrm{tr}} \coloneqq |\mathcal{I}_{\mathrm{tr}}|\)</span>;</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathcal{I}_{\mathrm{sp}}\)</span> – indirectly treated units
+(<span class="math notranslate nohighlight">\(d_{it} = 0\)</span> for all <span class="math notranslate nohighlight">\(t\)</span> but <span class="math notranslate nohighlight">\(e_{it} &gt; 0\)</span> for some
+<span class="math notranslate nohighlight">\(t\)</span>), with <span class="math notranslate nohighlight">\(N_{\mathrm{sp}} \coloneqq |\mathcal{I}_{\mathrm{sp}}|\)</span>;</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathcal{C}\)</span> – pure controls (<span class="math notranslate nohighlight">\(d_{it} = 0\)</span> and
+<span class="math notranslate nohighlight">\(e_{it} = 0\)</span> for all <span class="math notranslate nohighlight">\(t\)</span>).</p></li>
+</ul>
+<p>Only <span class="math notranslate nohighlight">\(\mathcal{C}\)</span> is used to fit the SDID unit / time weights.</p>
+</section>
+<section id="algorithm">
+<h3>Algorithm<a class="headerlink" href="#algorithm" title="Link to this heading">#</a></h3>
+<p>Step 1 – SDID weights from pure controls. Following
+Arkhangelsky et al. (2021), fit the unit weights
+<span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\omega}} \in \Delta^{|\mathcal{C}|}\)</span> and time
+weights <span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\lambda}} \in \Delta^{T_0}\)</span> (each on the
+unit simplex <span class="math notranslate nohighlight">\(\Delta^{m} \coloneqq \{\mathbf{x} \in
+\mathbb{R}_{\ge 0}^{m} : \|\mathbf{x}\|_1 = 1\}\)</span>) on <span class="math notranslate nohighlight">\(\mathcal{C}\)</span> only.
+The regularisation parameter is <span class="math notranslate nohighlight">\(\zeta \coloneqq
+T_{\mathrm{post}}^{1/4} \cdot \mathrm{sd}(\Delta \mathbf{y})\)</span>, the standard
+deviation of the first-differenced pre-period donor outcomes.</p>
+<p>Step 2 – assemble the full weight vector. Set</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\widehat{\omega}_i =
+\begin{cases}
+    1 / N_{\mathrm{tr}}                &amp; i \in \mathcal{I}_{\mathrm{tr}}, \\
+    1 / N_{\mathrm{sp}}                &amp; i \in \mathcal{I}_{\mathrm{sp}}, \\
+    \widehat{\omega}_i^{\mathrm{SDID}} &amp; i \in \mathcal{C}.
+\end{cases}\end{split}\]</div>
+<p>Time weights are SDID-fit for the pre-period and uniform
+<span class="math notranslate nohighlight">\(1 / T_{\mathrm{post}}\)</span> for the post-period.</p>
+<p>Step 3 – augmented two-way FE WLS regression. Solve</p>
+<div class="math notranslate nohighlight">
+\[(\widehat{\tau}, \widehat{\tau}_s, \widehat{\mu},
+ \widehat{\boldsymbol{\alpha}}, \widehat{\boldsymbol{\beta}})
+= \arg\min_{\tau, \tau_s, \mu, \boldsymbol{\alpha}, \boldsymbol{\beta}}
+  \sum_{i \in \mathcal{N}} \sum_{t \in \mathcal{T}}
+  \bigl[
+     y_{it} - \mu - \alpha_i - \beta_t
+     - \tau\, d_{it} - \tau_s\, e_{it}
+  \bigr]^2
+  \widehat{\omega}_i\, \widehat{\lambda}_t .\]</div>
+<p>The augmented design jointly recovers the direct effect
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> (the ATT) and the spillover coefficient
+<span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span>.</p>
+<p>Step 4 – combine. With <span class="math notranslate nohighlight">\(\overline{WD}\)</span> the average exposure over
+<span class="math notranslate nohighlight">\(\mathcal{I}_{\mathrm{tr}} \cup \mathcal{I}_{\mathrm{sp}}\)</span> in the
+post-period, the indirect and total effects are</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\mathrm{AITE}} = \widehat{\tau}_s\, \overline{WD},
+\qquad
+\widehat{\mathrm{ATE}} = \widehat{\tau}\,(1 + \overline{WD}).\]</div>
+</section>
+<section id="identification-assumptions">
+<h3>Identification assumptions<a class="headerlink" href="#identification-assumptions" title="Link to this heading">#</a></h3>
+<p>A1. No anticipation – units do not adjust outcomes in advance
+of the treatment.</p>
+<p><em>Remark.</em> The pre-period outcomes <span class="math notranslate nohighlight">\(y_{it}\)</span> for
+<span class="math notranslate nohighlight">\(t \in \mathcal{T}_1\)</span> must reflect the no-treatment world, since
+they are what the SDID weights are fit on. If units respond before
+<span class="math notranslate nohighlight">\(T_0\)</span> – forward-looking firms or households re-optimising ahead of
+a known policy – the pre-period fit is contaminated and both
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> and <span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span> absorb part of the
+anticipation, as in standard SDID.</p>
+<p>A2. Parallel trends – in the absence of treatment, treated,
+spillover, and control units would have followed similar trends,
+conditional on unit and time fixed effects.</p>
+<p><em>Remark.</em> This is the SDID identifying restriction carried over to the
+three-way partition: net of the unit effect <span class="math notranslate nohighlight">\(\alpha_i\)</span> and the time
+effect <span class="math notranslate nohighlight">\(\beta_t\)</span>, the pure controls <span class="math notranslate nohighlight">\(\mathcal{C}\)</span> trace out the
+common trajectory that the directly- and indirectly-treated units would
+have followed absent the policy. The doubly-weighted design relaxes the
+raw parallel-trends requirement to hold only for the SDID-reweighted
+controls, which is why only <span class="math notranslate nohighlight">\(\mathcal{C}\)</span> enters the weight fit.</p>
+<p>A3. Additivity and linearity of spillovers – the potential
+outcome of a unit depends linearly and additively on its own
+treatment status and the treatment exposure of its neighbours,
+captured by <span class="math notranslate nohighlight">\(e_{it}\)</span>.</p>
+<p><em>Remark.</em> This is what lets a single coefficient <span class="math notranslate nohighlight">\(\tau_s\)</span>
+summarise the indirect effect: the exposure <span class="math notranslate nohighlight">\(e_{it} = \sum_j w_{ij}
+d_{jt}\)</span> enters the regression as one extra additive column, scaling
+linearly with how much treated mass a unit’s neighbours carry. If the
+spillover were non-linear in exposure (e.g. saturating once a few
+neighbours are treated), <span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span> would recover only a
+local linear approximation.</p>
+<p>A4. Limited interference – spillovers operate exclusively
+through the structure defined by the exogenous <span class="math notranslate nohighlight">\(\mathbf{W}\)</span>. No other
+local or global interference mechanisms are assumed.</p>
+<p><em>Remark.</em> The whole identification of <span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span> runs
+through <span class="math notranslate nohighlight">\(\mathbf{W}\)</span>, so the weight matrix must encode the true
+spillover channel and be exogenous to the treatment. Interference that
+flows through an unmodelled network, or general-equilibrium effects that
+hit every unit equally, are not captured by <span class="math notranslate nohighlight">\(e_{it}\)</span> – the latter
+are absorbed into the time effects <span class="math notranslate nohighlight">\(\beta_t\)</span> and cannot be
+separated from the direct effect.</p>
+<p>A5. Synthetic-control transferability – the SDID synthetic
+control built on the pure controls also approximates the
+counterfactual trajectory for the indirectly-treated units. This
+holds when spillover-affected units are spatially / structurally
+similar to directly-treated units, which is typically the case in
+geographic spillover settings (neighbours of treated states tend to
+resemble treated states).</p>
+<p><em>Remark.</em> Because the unit weights are fit on <span class="math notranslate nohighlight">\(\mathcal{C}\)</span> alone
+(the indirectly-treated units in <span class="math notranslate nohighlight">\(\mathcal{I}_{\mathrm{sp}}\)</span> are
+held out, then re-entered with uniform weight <span class="math notranslate nohighlight">\(1/N_{\mathrm{sp}}\)</span>),
+the same synthetic must stand in for the counterfactual of units it was
+not fit to. Serenini &amp; Masek (2024) argue this transfer is credible in
+geographic settings, where a treated unit’s exposed neighbours tend to
+resemble the treated unit itself; where spillover-affected units look
+unlike the treated, this is the assumption most at risk.</p>
+</section>
+<section id="connection-to-existing-methods">
+<h3>Connection to existing methods<a class="headerlink" href="#connection-to-existing-methods" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>When <span class="math notranslate nohighlight">\(\mathbf{W} = \mathbf{0}\)</span> (no spatial structure), the spillover
+column vanishes and SpSyDiD reduces to plain SDID with
+<span class="math notranslate nohighlight">\(\widehat{\tau}_s = 0\)</span>.</p></li>
+<li><p>When <span class="math notranslate nohighlight">\(\widehat{\omega}_i = 1 / |\mathcal{C}|\)</span> for all
+controls (uniform weights), SpSyDiD reduces to the Spatial
+Difference-in-Differences estimator of Delgado &amp; Florax (2015).</p></li>
+<li><p>When the panel is balanced + no spillover + non-trivial
+<span class="math notranslate nohighlight">\(\mathbf{W}\)</span>, SpSyDiD’s <span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> matches SDID’s ATT.</p></li>
+</ul>
+</section>
+</section>
+<section id="module-mlsynth.estimators.spsydid">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.spsydid" title="Link to this heading">#</a></h2>
+<p>Spatial Synthetic Difference-in-Differences (SpSyDiD) estimator.</p>
+<p>Serenini, R., &amp; Masek, F. (2024). <em>“Spatial Synthetic
+Difference-in-Differences.”</em> SSRN 4736857.</p>
+<p>Extends Arkhangelsky-Athey-Hirshberg-Imbens-Wager (2021) SDID with a
+spatial spillover term so the estimator can disentangle two estimands
+that the standard SDID confounds when SUTVA is violated by geographic
+spillovers:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\widehat \tau\)</span> – direct effect on the directly-treated
+units (the ATT, identical in form to standard SDID).</p></li>
+<li><p><span class="math notranslate nohighlight">\(\widehat \tau_s\)</span> – spillover coefficient per unit of
+neighbour-treatment exposure <span class="math notranslate nohighlight">\((WD)_{it} = \sum_j w_{ij} D_{jt}\)</span>.</p></li>
+</ul>
+<p>The user supplies a row-standardised <span class="math notranslate nohighlight">\(N \times N\)</span> spatial weight
+matrix <span class="math notranslate nohighlight">\(W\)</span> (helpers in
+<a class="reference internal" href="#module-mlsynth.utils.spsydid_helpers.spatial" title="mlsynth.utils.spsydid_helpers.spatial"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.spsydid_helpers.spatial</span></code></a> cover the standard
+constructions: k-NN from coordinates, inverse distance, queen / rook
+contiguity from adjacency). Donors are auto-partitioned into directly
+treated, spillover-exposed, and pure controls based on
+<span class="math notranslate nohighlight">\(D\)</span> and <span class="math notranslate nohighlight">\(W\)</span>. The SDID unit / time weights are computed on
+the pure controls; the final WLS regression jointly estimates
+<span class="math notranslate nohighlight">\(\tau\)</span> and <span class="math notranslate nohighlight">\(\tau_s\)</span>.</p>
+<p>When <span class="math notranslate nohighlight">\(W = 0\)</span> (no spatial structure) or no donor has any treated
+neighbour, SpSyDiD numerically reduces to plain SDID with
+<span class="math notranslate nohighlight">\(\widehat \tau_s = 0\)</span>.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.spsydid.SpSyDiD">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.spsydid.</span></span><span class="sig-name descname"><span class="pre">SpSyDiD</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.SpSyDiDConfig" title="mlsynth.utils.spsydid_helpers.config.SpSyDiDConfig"><span class="pre">SpSyDiDConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.spsydid.SpSyDiD" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Spatial Synthetic Difference-in-Differences estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>SpSyDiDConfig or dict</em>) – Configuration object. See
+<a class="reference internal" href="#mlsynth.config_models.SpSyDiDConfig" title="mlsynth.config_models.SpSyDiDConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.SpSyDiDConfig</span></code></a>.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.spsydid.SpSyDiD.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults" title="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults"><span class="pre">SpSyDiDResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.spsydid.SpSyDiD.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run Algorithm 1 of Serenini &amp; Masek (2024).</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.SpSyDiDConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">SpSyDiDConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial_matrix:</span> <span class="pre">~typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_order:</span> <span class="pre">~typing.List[~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_standardize_spatial:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.SpSyDiDConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Spatial Synthetic Difference-in-Differences estimator.</p>
+<p>Serenini &amp; Masek (2024). <em>“Spatial Synthetic
+Difference-in-Differences,”</em> SSRN 4736857. Extends SDID
+(Arkhangelsky et al. 2021) with a spatial spillover term so the
+estimator separates the direct ATT from the indirect (spillover)
+effect on units exposed via the spatial weight matrix <span class="math notranslate nohighlight">\(W\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spatial_matrix</strong> (<em>np.ndarray</em>) – Square <span class="math notranslate nohighlight">\(N \times N\)</span> spatial weight matrix. Rows /
+columns must align with <code class="docutils literal notranslate"><span class="pre">unit_order</span></code> (or
+<code class="docutils literal notranslate"><span class="pre">sorted(df[unitid].unique())</span></code> if <code class="docutils literal notranslate"><span class="pre">unit_order</span></code> is None).
+Use the helpers in
+<a class="reference internal" href="#module-mlsynth.utils.spsydid_helpers.spatial" title="mlsynth.utils.spsydid_helpers.spatial"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.spsydid_helpers.spatial</span></code></a> to build <code class="docutils literal notranslate"><span class="pre">W</span></code>
+from coordinates (k-NN, inverse distance) or from an adjacency
+list (queen / rook contiguity).</p></li>
+<li><p><strong>unit_order</strong> (<em>list, optional</em>) – Canonical ordering of unit ids matching the rows / columns of
+<code class="docutils literal notranslate"><span class="pre">spatial_matrix</span></code>. If <code class="docutils literal notranslate"><span class="pre">None</span></code> (default), units are ordered
+by <code class="docutils literal notranslate"><span class="pre">sorted(df[unitid].unique())</span></code>.</p></li>
+<li><p><strong>row_standardize_spatial</strong> (<em>bool</em>) – Row-standardise <code class="docutils literal notranslate"><span class="pre">W</span></code> internally before computing exposure.
+Default True. Skip when the caller has already standardised.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SpSyDiDConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.SpSyDiDConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SpSyDiDConfig.row_standardize_spatial">
+<span class="sig-name descname"><span class="pre">row_standardize_spatial</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.SpSyDiDConfig.row_standardize_spatial" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SpSyDiDConfig.spatial_matrix">
+<span class="sig-name descname"><span class="pre">spatial_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></em><a class="headerlink" href="#mlsynth.config_models.SpSyDiDConfig.spatial_matrix" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SpSyDiDConfig.unit_order">
+<span class="sig-name descname"><span class="pre">unit_order</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.SpSyDiDConfig.unit_order" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mlsynth.utils.spsydid_helpers.spatial">
+<span id="helper-modules"></span><h2>Helper Modules<a class="headerlink" href="#module-mlsynth.utils.spsydid_helpers.spatial" title="Link to this heading">#</a></h2>
+<p>Spatial weight matrix utilities for SpSyDiD.</p>
+<p>The estimator accepts a row-standardised <span class="math notranslate nohighlight">\(N \times N\)</span> spatial weight
+matrix <span class="math notranslate nohighlight">\(W\)</span> directly. These helpers cover the common ways one builds
+<span class="math notranslate nohighlight">\(W\)</span> in practice, so users can either plug in their own matrix or
+construct one from coordinates / adjacency information without an external
+dependency on <code class="docutils literal notranslate"><span class="pre">libpysal</span></code>.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.spatial.contiguity_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.spatial.</span></span><span class="sig-name descname"><span class="pre">contiguity_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">adjacency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_standardized</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.spatial.contiguity_weights" title="Link to this definition">#</a></dt>
+<dd><p>Build a contiguity (queen / rook) spatial weight matrix.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>adjacency</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{unit_id:</span> <span class="pre">iterable</span> <span class="pre">of</span> <span class="pre">neighbour</span> <span class="pre">unit_ids}</span></code>.</p></li>
+<li><p><strong>unit_order</strong> (<em>sequence</em>) – Length-<code class="docutils literal notranslate"><span class="pre">N</span></code> canonical ordering of unit ids matching the panel.</p></li>
+<li><p><strong>row_standardized</strong> (<em>bool</em>) – Divide each row by its row sum (i.e., uniform weight 1/k_i
+across neighbours).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.spatial.inverse_distance_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.spatial.</span></span><span class="sig-name descname"><span class="pre">inverse_distance_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_standardized</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.spatial.inverse_distance_weights" title="Link to this definition">#</a></dt>
+<dd><p>Build an inverse-distance spatial weight matrix.</p>
+<p><span class="math notranslate nohighlight">\(w_{ij} = 1 / d(i, j)^{\text{power}}\)</span> for <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">!=</span> <span class="pre">j</span></code>, zero
+elsewhere. Entries beyond <code class="docutils literal notranslate"><span class="pre">cutoff</span></code> (Euclidean distance) are set
+to zero.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.spatial.knn_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.spatial.</span></span><span class="sig-name descname"><span class="pre">knn_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_standardized</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.spatial.knn_weights" title="Link to this definition">#</a></dt>
+<dd><p>Build a <span class="math notranslate nohighlight">\(k\)</span>-nearest-neighbour spatial weight matrix from coords.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coords</strong> (<em>np.ndarray</em>) – Shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">d)</span></code> of unit coordinates in some metric space
+(e.g. <code class="docutils literal notranslate"><span class="pre">(lat,</span> <span class="pre">lon)</span></code> or projected <code class="docutils literal notranslate"><span class="pre">(x,</span> <span class="pre">y)</span></code>). Euclidean
+distance is used; project to a metric CRS for geographic data.</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – Number of neighbours per unit (excluding self).</p></li>
+<li><p><strong>row_standardized</strong> (<em>bool</em>) – If True (default), divide each row by <code class="docutils literal notranslate"><span class="pre">k</span></code> so weights sum to 1.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.spatial.row_standardize">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.spatial.</span></span><span class="sig-name descname"><span class="pre">row_standardize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">W</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">warn_isolated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.spatial.row_standardize" title="Link to this definition">#</a></dt>
+<dd><p>Divide each row of <code class="docutils literal notranslate"><span class="pre">W</span></code> by its row sum.</p>
+<p>Rows with zero sum (units with no neighbours) are left as zero. The
+paper’s algorithm assumes row-standardised <span class="math notranslate nohighlight">\(W\)</span> so the
+spillover term <span class="math notranslate nohighlight">\((WD)_{it} = \sum_j w_{ij} D_{jt}\)</span> lies in
+<span class="math notranslate nohighlight">\([0, 1]\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>W</strong> (<em>np.ndarray</em>) – Non-negative weight matrix.</p></li>
+<li><p><strong>warn_isolated</strong> (<em>bool</em>) – If True, emit a <code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeWarning</span></code> when one or more rows
+sum to zero (units with no spatial neighbours). Such units can
+never be classified as spillover-exposed and contribute a
+constant-zero exposure column, which is easy to miss. Off by
+default to keep the low-level helper quiet; enabled at the
+<a class="reference internal" href="#mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs" title="mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs"><code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs()</span></code></a>
+boundary.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.spatial.validate_spatial_matrix">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.spatial.</span></span><span class="sig-name descname"><span class="pre">validate_spatial_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">W</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_units</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.spatial.validate_spatial_matrix" title="Link to this definition">#</a></dt>
+<dd><p>Sanity-check <code class="docutils literal notranslate"><span class="pre">W</span></code> and return a float-array copy.</p>
+<dl class="simple">
+<dt>Checks:</dt><dd><ul class="simple">
+<li><p>shape is <code class="docutils literal notranslate"><span class="pre">(n_units,</span> <span class="pre">n_units)</span></code>;</p></li>
+<li><p>entries are finite and non-negative;</p></li>
+<li><p>diagonal is zero (a unit is not its own spatial neighbour).</p></li>
+</ul>
+</dd>
+</dl>
+<p>The matrix is <em>not</em> automatically row-standardised here – pass it
+through <a class="reference internal" href="#mlsynth.utils.spsydid_helpers.spatial.row_standardize" title="mlsynth.utils.spsydid_helpers.spatial.row_standardize"><code class="xref py py-func docutils literal notranslate"><span class="pre">row_standardize()</span></code></a> first if needed.</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.spsydid_helpers.setup">Micro-panel data preparation for SpSyDiD.</p>
+<p>Converts a long-format panel + a spatial weight matrix into the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">SpSyDiDInputs</span></code> container expected by <code class="xref py py-func docutils literal notranslate"><span class="pre">run_spsydid()</span></code>. The
+donor pool is auto-partitioned into three classes following Serenini
+&amp; Masek (2024):</p>
+<ul class="simple">
+<li><p><strong>Directly treated</strong> – units with <span class="math notranslate nohighlight">\(D_{it} = 1\)</span> for some t.</p></li>
+<li><p><strong>Indirectly treated (spillover-exposed)</strong> – units with
+<span class="math notranslate nohighlight">\(D_{it} = 0\)</span> for all t but <span class="math notranslate nohighlight">\((WD)_{it} &gt; 0\)</span> for some t,
+i.e. they have at least one spatial neighbour who is treated.</p></li>
+<li><p><strong>Pure controls</strong> – units with <span class="math notranslate nohighlight">\(D = 0\)</span> and <span class="math notranslate nohighlight">\((WD) = 0\)</span>
+for all t. Only these are used to fit the SDID unit / time weights.</p></li>
+</ul>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_spsydid_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_standardize_spatial</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs" title="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs"><span class="pre">SpSyDiDInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot a long-format panel into <code class="xref py py-class docutils literal notranslate"><span class="pre">SpSyDiDInputs</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Balanced long panel with columns <code class="docutils literal notranslate"><span class="pre">unitid</span></code>, <code class="docutils literal notranslate"><span class="pre">time</span></code>, <code class="docutils literal notranslate"><span class="pre">outcome</span></code>,
+<code class="docutils literal notranslate"><span class="pre">treat</span></code>.</p></li>
+<li><p><strong>outcome, treat, unitid, time</strong> (<em>str</em>) – Column names.</p></li>
+<li><p><strong>spatial_matrix</strong> (<em>np.ndarray</em>) – Square <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">N)</span></code> spatial weight matrix. Rows / columns must be
+ordered consistently with the units in the panel (use
+<code class="docutils literal notranslate"><span class="pre">unit_order</span></code> to fix the ordering; otherwise sorted unique
+<code class="docutils literal notranslate"><span class="pre">unitid</span></code> values are used).</p></li>
+<li><p><strong>unit_order</strong> (<em>sequence, optional</em>) – Canonical ordering of unit ids that matches the rows / columns
+of <code class="docutils literal notranslate"><span class="pre">spatial_matrix</span></code>. If <code class="docutils literal notranslate"><span class="pre">None</span></code> (default), units are ordered
+by <code class="docutils literal notranslate"><span class="pre">sorted(df[unitid].unique())</span></code>.</p></li>
+<li><p><strong>row_standardize_spatial</strong> (<em>bool</em>) – If True (default), row-standardise <code class="docutils literal notranslate"><span class="pre">W</span></code> before storing it.
+Skip when the caller has already standardised.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.spsydid_helpers.weights">SDID weight-computation primitives duplicated for SpSyDiD.</p>
+<p>These functions are <em>intentionally duplicated</em> from
+<code class="docutils literal notranslate"><span class="pre">mlsynth/utils/sdid_helpers/weights.py</span></code> rather than imported. The
+duplication isolates SpSyDiD from future changes to the SDID pipeline
+so silent behavioural drift cannot occur. If the upstream SDID
+formulas change, this module should be updated deliberately.</p>
+<p>Wraps the Arkhangelsky-Athey-Hirshberg-Imbens-Wager (2021) unit-weight
+QP, time-weight QP, and the <span class="math notranslate nohighlight">\(\zeta = T_{\text{post}}^{1/4}
+\cdot \mathrm{std}(\Delta Y)\)</span> regularisation rule.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.weights.compute_regularization">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">compute_regularization</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">donor_outcomes_pre</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_post_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.weights.compute_regularization" title="Link to this definition">#</a></dt>
+<dd><p>SDID <span class="math notranslate nohighlight">\(\zeta = T_{\text{post}}^{1/4} \cdot \mathrm{sd}(\Delta Y)\)</span>.</p>
+<p>The standard deviation is of the first-differenced pre-period donor
+outcomes (Arkhangelsky et al. 2021 Section 3).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.weights.fit_time_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">fit_time_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">donor_outcomes_pre</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_donor_outcomes_post</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.weights.fit_time_weights" title="Link to this definition">#</a></dt>
+<dd><p>SDID time-weight QP.</p>
+<p>Solve for <code class="docutils literal notranslate"><span class="pre">(beta_0,</span> <span class="pre">lambda)</span></code> minimising
+<span class="math notranslate nohighlight">\(\| \beta_0 \mathbf 1 + \Lambda^\top \mathrm{Y}_{0,\mathrm{pre}}
+- \bar y_{0,\mathrm{post}} \|_2^2\)</span> subject to <code class="docutils literal notranslate"><span class="pre">sum(lambda)</span> <span class="pre">==</span> <span class="pre">1</span></code>
+and <code class="docutils literal notranslate"><span class="pre">lambda</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.weights.fit_unit_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">fit_unit_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">donor_outcomes_pre</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_treated_outcome_pre</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zeta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.weights.fit_unit_weights" title="Link to this definition">#</a></dt>
+<dd><p>SDID unit-weight QP.</p>
+<p>Solve for <code class="docutils literal notranslate"><span class="pre">(omega_0,</span> <span class="pre">omega)</span></code> minimising
+<span class="math notranslate nohighlight">\(\| \omega_0 \mathbf 1 + \mathrm Y_{0,\mathrm{pre}} \omega
+- \bar y_{1,\mathrm{pre}} \|_2^2
++ T_0 \zeta^2 \|\omega\|_2^2\)</span>
+subject to <code class="docutils literal notranslate"><span class="pre">sum(omega)</span> <span class="pre">==</span> <span class="pre">1</span></code> and <code class="docutils literal notranslate"><span class="pre">omega</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code>.</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.spsydid_helpers.pipeline">Orchestration pipeline for Spatial Synthetic Difference-in-Differences.</p>
+<p>Implements Algorithm 1 of Serenini &amp; Masek (2024):</p>
+<ol class="arabic">
+<li><p>Compute SDID unit / time weights using <em>only</em> the pure controls as
+donors (Arkhangelsky et al. 2021 QPs duplicated in <a class="reference internal" href="clustersc.html#module-mlsynth.utils.clustersc_helpers.rpca.weights" title="mlsynth.utils.clustersc_helpers.rpca.weights"><code class="xref py py-mod docutils literal notranslate"><span class="pre">weights</span></code></a>).</p></li>
+<li><p>Fix the per-unit weight as
+<span class="math notranslate nohighlight">\(\omega_i = 1 / N_{\mathrm{tr}}\)</span> for directly-treated units,
+<span class="math notranslate nohighlight">\(\omega_i = 1 / N_{\mathrm{sp}}\)</span> for indirectly-treated units,
+and SDID-fit <span class="math notranslate nohighlight">\(\omega_i\)</span> for pure controls.</p></li>
+<li><p>Run the weighted two-way FE regression</p>
+<div class="math notranslate nohighlight">
+\[(\widehat \tau, \widehat \tau_s, \widehat \mu, \widehat \alpha,
+ \widehat \beta)
+= \arg \min \sum_{i, t}
+  \bigl[ Y_{it}
+          - \mu - \alpha_i - \beta_t
+          - \tau D_{it}
+          - \tau_s (WD)_{it}
+  \bigr]^2
+  \widehat \omega_i\, \widehat \lambda_t.\]</div>
+<p>The augmented design recovers the direct effect <span class="math notranslate nohighlight">\(\widehat \tau\)</span>
+and the spillover coefficient <span class="math notranslate nohighlight">\(\widehat \tau_s\)</span> jointly.</p>
+</li>
+<li><p>The implied population ATE is
+<span class="math notranslate nohighlight">\(\widehat \tau (1 + \overline{WD})\)</span>
+with <span class="math notranslate nohighlight">\(\overline{WD}\)</span> the average exposure across directly +
+indirectly treated units (paper eq. 14).</p></li>
+</ol>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.pipeline.run_spsydid">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">run_spsydid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs" title="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs"><span class="pre">SpSyDiDInputs</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults" title="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults"><span class="pre">SpSyDiDResults</span></a></span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.pipeline.run_spsydid" title="Link to this definition">#</a></dt>
+<dd><p>Run Algorithm 1 of Serenini &amp; Masek (2024).</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.spsydid_helpers.structures">Frozen dataclasses for the Spatial Synthetic Difference-in-Differences estimator.</p>
+<p>Serenini &amp; Masek (2024). <em>“Spatial Synthetic Difference-in-Differences.”</em>
+SSRN 4736857. Extends Arkhangelsky-Athey-Hirshberg-Imbens-Wager (2021) SDID
+with a spatial spillover term <span class="math notranslate nohighlight">\(\tau_s\)</span> so the estimator can disentangle
+the direct ATT on the directly-treated units from the <em>indirect</em> (spillover)
+effect on units exposed via a spatial weight matrix <span class="math notranslate nohighlight">\(W\)</span>.</p>
+<p>Two estimands fall out of one regression:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\widehat \tau\)</span> – direct effect on the directly-treated units
+(the ATT, identical in form to standard SDID).</p></li>
+<li><p><span class="math notranslate nohighlight">\(\widehat \tau_s\)</span> – spillover effect per unit of neighbour-treatment
+exposure <span class="math notranslate nohighlight">\((WD)_{it} = \sum_j w_{ij} D_{jt}\)</span>.</p></li>
+</ul>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SpSyDiDInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">outcome_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treatment_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exposure_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direct_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spillover_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pure_control_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel + spatial weights for SpSyDiD.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.outcome_matrix">
+<span class="sig-name descname"><span class="pre">outcome_matrix</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.outcome_matrix" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> panel of outcomes, ordered by <code class="docutils literal notranslate"><span class="pre">unit_names</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.treatment_matrix">
+<span class="sig-name descname"><span class="pre">treatment_matrix</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.treatment_matrix" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> panel of 0/1 treatment indicators.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spatial_matrix">
+<span class="sig-name descname"><span class="pre">spatial_matrix</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spatial_matrix" title="Link to this definition">#</a></dt>
+<dd><p>Row-standardised spatial weight matrix, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">N)</span></code>,
+ordered consistently with <code class="docutils literal notranslate"><span class="pre">unit_names</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.exposure_matrix">
+<span class="sig-name descname"><span class="pre">exposure_matrix</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.exposure_matrix" title="Link to this definition">#</a></dt>
+<dd><p>Pre-computed spillover exposure <span class="math notranslate nohighlight">\((WD)_{it}
+= \sum_j w_{ij} D_{jt}\)</span>, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.unit_names">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.unit_names" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">N</span></code> ordering of unit ids.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> ordering of time-period labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T">
+<span class="sig-name descname"><span class="pre">T</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T" title="Link to this definition">#</a></dt>
+<dd><p>Total number of panel periods.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T0" title="Link to this definition">#</a></dt>
+<dd><p>Number of pre-treatment periods (largest <code class="docutils literal notranslate"><span class="pre">t</span></code> such that
+no unit is treated for <code class="docutils literal notranslate"><span class="pre">t'</span> <span class="pre">&lt;=</span> <span class="pre">t</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.direct_indices">
+<span class="sig-name descname"><span class="pre">direct_indices</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.direct_indices" title="Link to this definition">#</a></dt>
+<dd><p>Indices of <em>directly</em> treated units (those with <code class="docutils literal notranslate"><span class="pre">D=1</span></code> at some t).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spillover_indices">
+<span class="sig-name descname"><span class="pre">spillover_indices</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spillover_indices" title="Link to this definition">#</a></dt>
+<dd><p>Indices of <em>indirectly</em> treated units (<code class="docutils literal notranslate"><span class="pre">D=0</span></code> always but
+<code class="docutils literal notranslate"><span class="pre">(WD)_it</span> <span class="pre">&gt;</span> <span class="pre">0</span></code> at some t).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.pure_control_indices">
+<span class="sig-name descname"><span class="pre">pure_control_indices</span></span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.pure_control_indices" title="Link to this definition">#</a></dt>
+<dd><p>Indices of pure controls (<code class="docutils literal notranslate"><span class="pre">D=0</span></code> and <code class="docutils literal notranslate"><span class="pre">(WD)=0</span></code> for all t).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_direct">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N_direct</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_direct" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_pure">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N_pure</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_pure" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_spillover">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N_spillover</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_spillover" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">direct_indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">exposure_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">outcome_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">pure_control_indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">spatial_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">spillover_indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">treatment_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id9" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.spsydid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SpSyDiDResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">effects:</span> <span class="pre">~mlsynth.config_models.EffectsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">fit_diagnostics:</span> <span class="pre">~mlsynth.config_models.FitDiagnosticsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">time_series:</span> <span class="pre">~mlsynth.config_models.TimeSeriesResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">weights:</span> <span class="pre">~mlsynth.config_models.WeightsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inference:</span> <span class="pre">~mlsynth.config_models.InferenceResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">method_details:</span> <span class="pre">~mlsynth.config_models.MethodDetailsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">sub_method_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">additional_outputs:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">raw_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">execution_summary:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">plot_config:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs,</span> <span class="pre">aite:</span> <span class="pre">float,</span> <span class="pre">ate:</span> <span class="pre">float,</span> <span class="pre">unit_weights:</span> <span class="pre">~typing.Dict[~typing.Any,</span> <span class="pre">float],</span> <span class="pre">time_weights:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">zeta:</span> <span class="pre">float,</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults" title="Link to this definition">#</a></dt>
+<dd><p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.SpSyDiD.fit()</span></code>.</p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> (the observational report).
+SpSyDiD is a <strong>spillover decomposition</strong>: the <strong>direct</strong> effect
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> (ATT) drives the standardized surface, so the flat
+accessors <code class="docutils literal notranslate"><span class="pre">att</span></code> / <code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">gap</span></code> / <code class="docutils literal notranslate"><span class="pre">pre_rmse</span></code> describe the
+<em>directly-treated</em> group (observed mean vs the pure-control SDID synthetic).
+The <strong>indirect</strong> (<code class="docutils literal notranslate"><span class="pre">aite</span></code>) and <strong>total</strong> (<code class="docutils literal notranslate"><span class="pre">ate</span></code>) effects, which have no
+single counterfactual path, are kept as typed fields below. The pure-control
+SDID unit weights live in the standardized <code class="docutils literal notranslate"><span class="pre">weights</span></code> slot (with the time
+weights in <code class="docutils literal notranslate"><span class="pre">summary_stats</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>SpSyDiDInputs</em>) – Preprocessed panel + W matrix + auto-detected partition.</p></li>
+<li><p><strong>aite</strong> (<em>float</em>) – Average indirect treatment effect per unit of exposure
+<span class="math notranslate nohighlight">\(\widehat{\tau}_s\)</span>. Multiply by the average exposure to
+recover the population-level spillover.</p></li>
+<li><p><strong>ate</strong> (<em>float</em>) – Implied population-level ATE
+<span class="math notranslate nohighlight">\(\widehat{\tau} \cdot (1 + \bar{WD})\)</span> per the paper’s
+eq. 14, with <span class="math notranslate nohighlight">\(\bar{WD}\)</span> the average exposure across the
+directly + indirectly treated units.</p></li>
+<li><p><strong>unit_weights</strong> (<em>dict</em>) – Mapping <code class="docutils literal notranslate"><span class="pre">{unit_name:</span> <span class="pre">omega}</span></code> – the per-unit weights used in
+the final WLS regression (SDID-style for pure controls,
+uniform <span class="math notranslate nohighlight">\(1/N_{tr}\)</span> for directly treated and
+<span class="math notranslate nohighlight">\(1/N_{sp}\)</span> for indirectly treated).</p></li>
+<li><p><strong>time_weights</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">T0</span></code> SDID time weights for the pre-period
+(post-period weights are uniform <span class="math notranslate nohighlight">\(1/T_{\text{post}}\)</span> and
+not stored).</p></li>
+<li><p><strong>zeta</strong> (<em>float</em>) – SDID regularisation parameter from Arkhangelsky et al. 2021
+(used in the unit-weight QP for pure controls).</p></li>
+<li><p><strong>metadata</strong> (<em>dict</em>) – Free-form diagnostics (mean exposure, partition sizes, etc.).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.aite">
+<span class="sig-name descname"><span class="pre">aite</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.aite" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.ate">
+<span class="sig-name descname"><span class="pre">ate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.ate" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs" title="mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs"><span class="pre">SpSyDiDInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid',</span> <span class="pre">'frozen':</span> <span class="pre">True,</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">tau</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau" title="Link to this definition">#</a></dt>
+<dd><p>direct effect.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Alias matching paper notation</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau_s">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">tau_s</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau_s" title="Link to this definition">#</a></dt>
+<dd><p>spillover coefficient.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Alias matching paper notation</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.time_weights">
+<span class="sig-name descname"><span class="pre">time_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.time_weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.unit_weights">
+<span class="sig-name descname"><span class="pre">unit_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.unit_weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.zeta">
+<span class="sig-name descname"><span class="pre">zeta</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.zeta" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<p>A self-contained one-draw Monte Carlo on a <span class="math notranslate nohighlight">\(8 \times 8\)</span> spatial
+grid. Six well-spaced units receive treatment of magnitude
+<span class="math notranslate nohighlight">\(\tau = 2.0\)</span>; their <span class="math notranslate nohighlight">\(k = 4\)</span> neighbours absorb a spillover
+of <span class="math notranslate nohighlight">\(\tau_s = 1.0\)</span> per unit of exposure. SpSyDiD with the same
+<span class="math notranslate nohighlight">\(\mathbf{W}\)</span> recovers both estimates.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;One draw of a spatial spillover simulation.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpSyDiD</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.spsydid_helpers.spatial</span><span class="w"> </span><span class="kn">import</span> <span class="n">knn_weights</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------</span>
+<span class="c1"># 1. Lay out an 8x8 grid of units</span>
+<span class="c1"># ---------------------------------------------------------------------</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">xs</span><span class="p">,</span> <span class="n">ys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">8</span><span class="p">))</span>
+<span class="n">coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">xs</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">ys</span><span class="o">.</span><span class="n">flatten</span><span class="p">()])</span>
+<span class="n">N</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">T_pre</span><span class="p">,</span> <span class="n">T_post</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">8</span>
+<span class="n">T</span> <span class="o">=</span> <span class="n">T_pre</span> <span class="o">+</span> <span class="n">T_post</span>
+<span class="n">W</span> <span class="o">=</span> <span class="n">knn_weights</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">row_standardized</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------</span>
+<span class="c1"># 2. Two-way FE DGP with planted direct + spillover effects</span>
+<span class="c1"># ---------------------------------------------------------------------</span>
+
+<span class="n">tau_true</span> <span class="o">=</span> <span class="mf">2.0</span>
+<span class="n">tau_s_true</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+<span class="n">unit_fe</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.5</span>
+<span class="n">time_fe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+<span class="n">Y0</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">unit_fe</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="o">+</span> <span class="n">time_fe</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.2</span>
+<span class="p">)</span>
+<span class="n">D</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="mi">39</span><span class="p">,</span> <span class="mi">56</span><span class="p">,</span> <span class="mi">63</span><span class="p">):</span>
+    <span class="n">D</span><span class="p">[</span><span class="n">u</span><span class="p">,</span> <span class="n">T_pre</span><span class="p">:]</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">Y</span> <span class="o">=</span> <span class="n">Y0</span> <span class="o">+</span> <span class="n">tau_true</span> <span class="o">*</span> <span class="n">D</span> <span class="o">+</span> <span class="n">tau_s_true</span> <span class="o">*</span> <span class="p">(</span><span class="n">W</span> <span class="o">@</span> <span class="n">D</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------</span>
+<span class="c1"># 3. Long DataFrame</span>
+<span class="c1"># ---------------------------------------------------------------------</span>
+
+<span class="n">rows</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">]),</span> <span class="s2">&quot;D&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">D</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">])}</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+<span class="p">]</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------</span>
+<span class="c1"># 4. Fit SpSyDiD</span>
+<span class="c1"># ---------------------------------------------------------------------</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">SpSyDiD</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span>
+    <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;D&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;spatial_matrix&quot;</span><span class="p">:</span> <span class="n">W</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------</span>
+<span class="c1"># 5. Inspect the output</span>
+<span class="c1"># ---------------------------------------------------------------------</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;true tau   = </span><span class="si">{</span><span class="n">tau_true</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">    tau_hat   = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;true tau_s = </span><span class="si">{</span><span class="n">tau_s_true</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">    tau_s_hat = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">aite</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ATE        = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">ate</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;partition  : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">N_direct</span><span class="si">}</span><span class="s2"> direct, &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">N_spillover</span><span class="si">}</span><span class="s2"> spillover, &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">N_pure</span><span class="si">}</span><span class="s2"> pure controls&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mean post-period exposure on treated union = &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;mean_exposure_post_treated&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="verification-path-b-monte-carlo">
+<span id="spsydid-verification"></span><h2>Verification (Path-B Monte Carlo)<a class="headerlink" href="#verification-path-b-monte-carlo" title="Link to this heading">#</a></h2>
+<p>Serenini &amp; Masek (2024) include an empirical example (the Arizona
+2007 LAWA effect on noncitizen Hispanic share, Tables 8-11) but do
+not release the CPS panel used to construct it – their public
+replication repo
+(<a class="github reference external" href="https://github.com/serenini/spatial_SDID">serenini/spatial_SDID</a>) ships only the
+simulation code and a BLS unemployment panel for two Monte Carlo
+exercises. We therefore satisfy the Path-B contract by reproducing
+those two simulation findings against the authors’ own driver
+(<cite>functions_ssdid.py</cite> in their repo), invoking
+<code class="docutils literal notranslate"><span class="pre">SpSyDiD(config).fit()</span></code> end-to-end on every replication.</p>
+<p>The state-level finding is institutionalised as a per-replication
+cross-validation benchmark – <code class="docutils literal notranslate"><span class="pre">benchmarks/cases/spsydid_state_mc.py</span></code>
+runs both <code class="docutils literal notranslate"><span class="pre">SpSyDiD</span></code> and the authors’ own algorithm on each panel and
+asserts per-rep agreement; see the dedicated page
+<a class="reference internal" href="replications/spsydid.html"><span class="doc">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</span></a>.</p>
+<p>The reference panels and adjacency matrices ship with mlsynth in
+<code class="docutils literal notranslate"><span class="pre">basedata/</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">state_unemployment.csv</span></code> – BLS monthly state unemployment 1976-2014.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">US_no_islands_matrix.gal</span></code> – queen-contiguity W for the 49
+contiguous states.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spsydid_bls_county_subset.csv</span></code> – the BLS county-employment slice
+(2002-2004, states WY/OR/PA/AL) used in the county-level MC.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spsydid_county_matrices.pkl</span></code> – per-state county adjacency
+matrices.</p></li>
+</ul>
+<section id="state-level-monte-carlo-40-rolling-window-replications">
+<h3>State-level Monte Carlo (40 rolling-window replications)<a class="headerlink" href="#state-level-monte-carlo-40-rolling-window-replications" title="Link to this heading">#</a></h3>
+<p>Reproduces <code class="docutils literal notranslate"><span class="pre">State_Level_Simulations.ipynb</span></code>: at each 3-year window
+starting in 1975..2014, treat Arkansas (FIPS 5) only and inject
+<span class="math notranslate nohighlight">\(\text{ATT} = 25\%\)</span> of mean unemployment plus
+<span class="math notranslate nohighlight">\(\rho = 0.8\)</span> spillover via the queen-contiguity W. We compare
+the authors’ reference algorithm against <code class="docutils literal notranslate"><span class="pre">SpSyDiD(config).fit()</span></code> on
+the same 40 panels to test for per-rep agreement.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>                       ref-mean    ref-sd    mlsynth-mean    mlsynth-sd
+ATT bias               +0.0187    0.3204         +0.0189        0.3229
+rho bias (tau_s/ATT)   +0.0596    0.9228         +0.0669        0.9965
+
+per-rep correlation:  ATT 0.9917      rho 0.9948
+</pre></div>
+</div>
+<p>Both estimators recover the paper’s headline finding: the mean ATT
+bias is essentially zero (~0.019 against an ATT magnitude of ~1.5
+percentage points). Per-replication, the two implementations agree to
+~0.02 on every panel realisation; the small residual is the
+unit-weight assignment for affected rows
+(mlsynth: <span class="math notranslate nohighlight">\(1/N_{sp}\)</span>; reference: mean of treated-unit SDID
+weights). Both choices are valid downstream of the SDID weight QPs.</p>
+<p>The driver is <code class="file docutils literal notranslate"><span class="pre">examples/spsydid/replicate_state_level_mc.py</span></code>;
+run with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">examples.spsydid.replicate_state_level_mc</span>
+<span class="pre">--reps</span> <span class="pre">40</span></code>.</p>
+</section>
+<section id="county-level-monte-carlo-4-states-x-200-reps">
+<h3>County-level Monte Carlo (4 states x 200 reps)<a class="headerlink" href="#county-level-monte-carlo-4-states-x-200-reps" title="Link to this heading">#</a></h3>
+<p>Reproduces <code class="docutils literal notranslate"><span class="pre">Monte_Carlo_Simulations.ipynb</span></code>: for each of WY, OR, PA,
+AL, randomly draw 10% of counties as directly treated (multiple
+treated units per rep), inject <span class="math notranslate nohighlight">\(\text{ATT} = -25\%\)</span> of mean
+unemployment plus <span class="math notranslate nohighlight">\(\rho = 0.5\)</span> spillover, fit
+<code class="docutils literal notranslate"><span class="pre">SpSyDiD(config).fit()</span></code>, repeat. The four states span 23-67
+counties, so the test is whether the SUTVA correction works across
+panel sizes.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>state  #counties  #treated   ATT bias mean   (sd)    AITE bias mean   (sd)
+WY        23         2          -0.003     0.260         -0.018     0.143
+OR        36         4          -0.023     0.225         -0.022     0.183
+PA        67         7          +0.034     0.246         +0.062     0.127
+AL        67         7          +0.028     0.228         -0.000     0.139
+</pre></div>
+</div>
+<p>In every cell the absolute mean ATT bias is below 0.04 against an ATT
+magnitude of ~-1.5 – the spatial-DGP-induced bias of plain SDID is
+cleanly removed by the SpSyDiD correction at the county scale.</p>
+<p>The driver is <code class="file docutils literal notranslate"><span class="pre">examples/spsydid/replicate_county_level_mc.py</span></code>;
+run with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">examples.spsydid.replicate_county_level_mc</span>
+<span class="pre">--reps</span> <span class="pre">200</span></code>.</p>
+</section>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., &amp;
+Wager, S. (2021). “Synthetic Difference-in-Differences.”
+<em>American Economic Review</em> 111(12):4088-4118.</p>
+<p>Delgado, M. S., &amp; Florax, R. J. G. M. (2015). “Difference-in-Differences
+Techniques for Spatial Data: Local Autocorrelation and Spatial
+Interaction.” <em>Economics Letters</em> 137:123-126.</p>
+<p>Serenini, R., &amp; Masek, F. (2024). “Spatial Synthetic
+Difference-in-Differences.” SSRN Working Paper 4736857.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="ssc.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Staggered Synthetic Control (SSC)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="spillsynth.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Spillover-Aware Synthetic Control (SPILLSYNTH)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-method">When to Use This Method</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-spsydid-when">Do not use SpSyDiD when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm">Algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identification-assumptions">Identification assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connection-to-existing-methods">Connection to existing methods</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.spsydid">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.spsydid.SpSyDiD"><code class="docutils literal notranslate"><span class="pre">SpSyDiD</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.spsydid.SpSyDiD.fit"><code class="docutils literal notranslate"><span class="pre">SpSyDiD.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.model_config"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.row_standardize_spatial"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.row_standardize_spatial</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.spatial_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.spatial_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SpSyDiDConfig.unit_order"><code class="docutils literal notranslate"><span class="pre">SpSyDiDConfig.unit_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.spsydid_helpers.spatial">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.contiguity_weights"><code class="docutils literal notranslate"><span class="pre">contiguity_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.inverse_distance_weights"><code class="docutils literal notranslate"><span class="pre">inverse_distance_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.knn_weights"><code class="docutils literal notranslate"><span class="pre">knn_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.row_standardize"><code class="docutils literal notranslate"><span class="pre">row_standardize()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.spatial.validate_spatial_matrix"><code class="docutils literal notranslate"><span class="pre">validate_spatial_matrix()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_spsydid_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.weights.compute_regularization"><code class="docutils literal notranslate"><span class="pre">compute_regularization()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.weights.fit_time_weights"><code class="docutils literal notranslate"><span class="pre">fit_time_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.weights.fit_unit_weights"><code class="docutils literal notranslate"><span class="pre">fit_unit_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.pipeline.run_spsydid"><code class="docutils literal notranslate"><span class="pre">run_spsydid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.outcome_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.outcome_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.treatment_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.treatment_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spatial_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spatial_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.exposure_matrix"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.exposure_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.T0"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.direct_indices"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.direct_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.spillover_indices"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spillover_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.pure_control_indices"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.pure_control_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_direct"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N_direct</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_pure"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N_pure</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDInputs.N_spillover"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.N_spillover</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.direct_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.exposure_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.outcome_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.pure_control_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spatial_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.spillover_indices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.treatment_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">SpSyDiDInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.aite"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.aite</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.ate"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.ate</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.inputs"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.metadata"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.model_config"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.tau</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.tau_s"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.tau_s</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.time_weights"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.time_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.unit_weights"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.unit_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.spsydid_helpers.structures.SpSyDiDResults.zeta"><code class="docutils literal notranslate"><span class="pre">SpSyDiDResults.zeta</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification-path-b-monte-carlo">Verification (Path-B Monte Carlo)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#state-level-monte-carlo-40-rolling-window-replications">State-level Monte Carlo (40 rolling-window replications)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#county-level-monte-carlo-4-states-x-200-reps">County-level Monte Carlo (4 states x 200 reps)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,1448 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Forward-Selected Synthetic Control (FSCM) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'fscm';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Matching and Synthetic Control (MASC)" href="masc.html" />
+    <link rel="prev" title="Multi-Level Synthetic Control (mlSC)" href="mlsc.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/fscm.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Forward-Selected Synthetic Control (FSCM)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#computing-the-weights-bilevel-optimization">Computing the weights: bilevel optimization</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-forward-stepwise-algorithm">The forward stepwise algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-forward-convex-hull-selection-consistency">Assumptions (forward convex hull + selection consistency)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-illustration-california-s-proposition-99">Empirical Illustration: California’s Proposition 99</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#matching-on-the-author-s-full-predictor-specification">Matching on the author’s full predictor specification</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.fscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.fscm.FSCM"><code class="docutils literal notranslate"><span class="pre">FSCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.fscm.FSCM.fit"><code class="docutils literal notranslate"><span class="pre">FSCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig"><code class="docutils literal notranslate"><span class="pre">FSCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.covariate_windows"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.covariate_windows</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.covariates"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.cv_split"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.cv_split</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.forward_selection"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.forward_selection</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.match_periods"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.match_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.max_donors"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.max_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs"><code class="docutils literal notranslate"><span class="pre">FSCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T0"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T2"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.T2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.Y"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_donors"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.cov_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_treated"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.cov_treated</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.covariate_names"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.covariate_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.donor_labels"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.donor_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_covariates"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.has_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_match_periods"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.has_match_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_predictors"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.has_predictors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_idx"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.match_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_periods"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.match_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.metadata"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.n_donors"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.n_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.time_index"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.time_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.treated_label"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.treated_label</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.unit_index"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.unit_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.y"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.y</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults"><code class="docutils literal notranslate"><span class="pre">FSCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.diagnostics"><code class="docutils literal notranslate"><span class="pre">FSCMResults.diagnostics</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">FSCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">FSCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.model_config"><code class="docutils literal notranslate"><span class="pre">FSCMResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.n_selected"><code class="docutils literal notranslate"><span class="pre">FSCMResults.n_selected</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.selected_donors"><code class="docutils literal notranslate"><span class="pre">FSCMResults.selected_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.selection_path"><code class="docutils literal notranslate"><span class="pre">FSCMResults.selection_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.weights_vector"><code class="docutils literal notranslate"><span class="pre">FSCMResults.weights_vector</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.optimal_size"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.optimal_size</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.order"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.order</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.sizes"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.sizes</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.test_rmspe"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.test_rmspe</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.train_rmspe"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.train_rmspe</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.setup.derive_treatment"><code class="docutils literal notranslate"><span class="pre">derive_treatment()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.setup.prepare_fscm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_fscm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.estimation.run_fscm"><code class="docutils literal notranslate"><span class="pre">run_fscm()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.plotter.plot_fscm"><code class="docutils literal notranslate"><span class="pre">plot_fscm()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bilevel-optimization-malo-et-al-2024">Bilevel optimization (Malo et al. 2024)</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="forward-selected-synthetic-control-fscm">
+<h1>Forward-Selected Synthetic Control (FSCM)<a class="headerlink" href="#forward-selected-synthetic-control-fscm" title="Link to this heading">#</a></h1>
+<section id="when-to-use-this-estimator">
+<h2>When to Use This Estimator<a class="headerlink" href="#when-to-use-this-estimator" title="Link to this heading">#</a></h2>
+<p>The synthetic control method (SCM) of Abadie, Diamond and Hainmueller
+<a class="reference internal" href="references.html#abadie2010" id="id1"><span>[ABADIE2010]</span></a> builds a treated unit’s counterfactual as a convex combination of
+donor units. Conventional practice is to start from all available donors
+and let the simplex weights zero out the irrelevant ones. Cerulli <a class="reference internal" href="references.html#fscm" id="id2"><span>[FSCM]</span></a> argues
+this is often suboptimal: the number of initial donors is itself a complexity
+parameter governing a bias–variance trade-off. A richer donor pool fits the
+pre-treatment window better <em>in sample</em>, but each extra donor that is only
+weakly correlated with the treated unit injects variance into the
+counterfactual <em>out of sample</em> – the synthetic control overfits the
+pre-period and predicts the post-period worse.</p>
+<p><code class="docutils literal notranslate"><span class="pre">FSCM</span></code> resolves this by treating the donor count as a tuning parameter chosen
+by out-of-sample validation. It is the right tool when you have a single
+treated unit and a sizeable donor pool and suspect that not all donors
+deserve to be in the comparison set – when you want SCM to tell you <em>how many</em>
+and <em>which</em> donors to use, rather than assuming “more is better.” Because the
+selection is greedy (forward stepwise), it scales linearly in the pool size,
+unlike the <span class="math notranslate nohighlight">\(2^N\)</span> exhaustive subset search.</p>
+<p>The donor (and predictor) weights are computed by the bilevel optimization
+of Malo, Eskelinen, Zhou and Kuosmanen <a class="reference internal" href="references.html#malo2023computing" id="id3"><span>[malo2023computing]</span></a>, implemented from
+scratch in <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.fscm_helpers.bilevel</span></code> – no external QP solver
+is used. Two switches control the estimator:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">forward_selection</span></code> (default <code class="docutils literal notranslate"><span class="pre">True</span></code>) – when <code class="docutils literal notranslate"><span class="pre">True</span></code>, run the greedy
+forward selection with rolling-origin out-of-sample validation, fitting each
+candidate donor set with the bilevel solver. When <code class="docutils literal notranslate"><span class="pre">False</span></code>, skip selection
+entirely and take the full bilevel solve over all donors (the global SCM
+optimum), reporting the donors that carry weight.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">covariates</span></code> / <code class="docutils literal notranslate"><span class="pre">match_periods</span></code> – when given, the estimator runs in
+predictor mode (Abadie’s predictor matching with a bilevel-optimized
+predictor-weight matrix <span class="math notranslate nohighlight">\(\mathbf{V}\)</span>); when omitted, in trajectory
+mode (matching the pre-treatment outcome path). The four combinations all
+run.</p></li>
+</ul>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<p>Let <span class="math notranslate nohighlight">\(j = 1\)</span> denote the treated unit, with all units
+<span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> and donor pool
+<span class="math notranslate nohighlight">\(\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}\)</span> of cardinality
+<span class="math notranslate nohighlight">\(N_0\)</span>. Time runs over <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span>,
+1-indexed; the intervention takes effect after period <span class="math notranslate nohighlight">\(T_0\)</span>, splitting
+<span class="math notranslate nohighlight">\(\mathcal{T}\)</span> into the pre-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> (of length
+<span class="math notranslate nohighlight">\(T_0\)</span>) and the post-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t &gt; T_0\}\)</span>.</p>
+<p>The treated series is <span class="math notranslate nohighlight">\(\mathbf{y}_1\)</span> with scalar outcomes <span class="math notranslate nohighlight">\(y_{1t}\)</span>,
+and each donor <span class="math notranslate nohighlight">\(j \in \mathcal{N}_0\)</span> contributes a series
+<span class="math notranslate nohighlight">\(\mathbf{y}_j\)</span>, stacked into the donor matrix
+<span class="math notranslate nohighlight">\(\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0}
+\in \mathbb{R}^{T \times N_0}\)</span> (one column per donor). For a donor subset
+<span class="math notranslate nohighlight">\(U \subseteq \mathcal{N}_0\)</span>, the simplex weights solve</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{w}^\ast(U) = \operatorname*{argmin}_{\mathbf{w}\in\Delta_U}
+  \sum_{t\in\mathcal{S}} \bigl(y_{1t} - \mathbf{Y}_{0,t,U}\,\mathbf{w}\bigr)^2,
+\qquad
+\Delta_U \coloneqq \Bigl\{\mathbf{w}\ge 0 : \textstyle\sum_{j\in U}w_j = 1\Bigr\},\]</div>
+<p>fit over a window <span class="math notranslate nohighlight">\(\mathcal{S}\)</span>, and the root-mean-square prediction error
+over an evaluation window <span class="math notranslate nohighlight">\(\mathcal{E}\)</span> is
+<span class="math notranslate nohighlight">\(\mathrm{RMSPE}_{\mathcal{E}}(U) = \sqrt{|\mathcal{E}|^{-1}\sum_{t\in\mathcal{E}}
+(y_{1t} - \mathbf{Y}_{0,t,U}\mathbf{w}^\ast(U))^2}\)</span>. The synthetic counterfactual
+is <span class="math notranslate nohighlight">\(\widehat{\mathbf{y}}_1\)</span> with entries <span class="math notranslate nohighlight">\(\widehat{y}_{1t}\)</span>, the
+per-period effect is <span class="math notranslate nohighlight">\(\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}\)</span>, and the
+ATT is <span class="math notranslate nohighlight">\(\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}
+\sum_{t \in \mathcal{T}_2} \tau_t\)</span>. The significance level is <span class="math notranslate nohighlight">\(\alpha\)</span>.</p>
+<section id="computing-the-weights-bilevel-optimization">
+<h3>Computing the weights: bilevel optimization<a class="headerlink" href="#computing-the-weights-bilevel-optimization" title="Link to this heading">#</a></h3>
+<p>With predictors, SCM jointly chooses predictor weights <span class="math notranslate nohighlight">\(\mathbf{V}\)</span>
+(a <span class="math notranslate nohighlight">\(K\times K\)</span> non-negative diagonal matrix on the simplex) and donor
+weights <span class="math notranslate nohighlight">\(\mathbf{w}\)</span>. Malo et al. <a class="reference internal" href="references.html#malo2023computing" id="id4"><span>[malo2023computing]</span></a> show this is an
+optimistic bilevel program: the upper level fits the outcome, the lower
+level fits the <span class="math notranslate nohighlight">\(\mathbf{V}\)</span>-weighted predictors,</p>
+<div class="math notranslate nohighlight">
+\[\min_{\mathbf{V},\mathbf{w}} \; \tfrac{1}{T_0}\bigl\|\mathbf{y}_{1,\mathcal{T}_1}
+    - \mathbf{Y}_{0,\mathcal{T}_1}\mathbf{w}\bigr\|_2^2
+\quad\text{s.t.}\quad
+\mathbf{w} \in \operatorname*{argmin}_{\mathbf{w}\in\Delta}
+    \bigl\|\mathbf{x}_1 - \mathbf{X}_0\mathbf{w}\bigr\|_{\mathbf{V}}^2 ,\]</div>
+<p>which is NP-hard in general and is the reason off-the-shelf SCM packages can be
+numerically unstable. <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> implements the paper’s globally-convergent
+iterative algorithm in three stages, short-circuiting as soon as an optimum is
+certified (the paper notes the optimum is usually a corner found early):</p>
+<ol class="arabic simple">
+<li><p>Unconstrained feasibility (Section 3.1) – solve the simplex regression
+of the treated outcome on the donors, giving the lower bound <span class="math notranslate nohighlight">\(L(\mathbf{w})\)</span>
+on the upper-level loss; an LP over <span class="math notranslate nohighlight">\(\mathbf{V}\)</span> checks whether some
+predictor is already matched, which certifies optimality.</p></li>
+<li><p>Corner solutions (Section 3.2) – evaluate the <span class="math notranslate nohighlight">\(K\)</span> basic predictor
+weightings (all weight on one predictor) and keep the best by outcome loss.</p></li>
+<li><p>Tykhonov-regularized descent (Section 3.3) – only if a gap remains,
+descend over <span class="math notranslate nohighlight">\(\mathbf{V}\)</span> for a vanishing regularization sequence.</p></li>
+</ol>
+<p>The lower-level (and the trajectory-mode) simplex problems are solved by a
+self-contained FISTA projected-gradient routine
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">simplex_lstsq()</span></code>), which matches a
+reference QP solver to ~1e-8. In predictor mode the optimal <span class="math notranslate nohighlight">\(\mathbf{V}\)</span>
+is computed once on the full donor pool and reused through forward
+selection.</p>
+</section>
+<section id="the-forward-stepwise-algorithm">
+<h3>The forward stepwise algorithm<a class="headerlink" href="#the-forward-stepwise-algorithm" title="Link to this heading">#</a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">forward_selection=True</span></code> (default), the donor count is chosen by
+Cerulli’s procedure (<a class="reference internal" href="references.html#fscm" id="id5"><span>[FSCM]</span></a>, Table 1):</p>
+<ol class="arabic simple">
+<li><p>Start from the empty model <span class="math notranslate nohighlight">\(U_0 = \varnothing\)</span>.</p></li>
+<li><p>For <span class="math notranslate nohighlight">\(k = 0, 1, \ldots, N_0-1\)</span>: among the <span class="math notranslate nohighlight">\(N_0-k\)</span> candidate donors
+not yet selected, add the one whose inclusion minimizes the in-sample
+pre-period RMSPE, giving the nested model
+<span class="math notranslate nohighlight">\(U_{k+1} = U_k \cup \{j^\ast\}\)</span>.</p></li>
+<li><p>For each nested model <span class="math notranslate nohighlight">\(U_k\)</span>, compute an out-of-sample validation
+RMSPE and select <span class="math notranslate nohighlight">\(k^\ast = \operatorname*{argmin}_k \mathrm{CV}(U_k)\)</span>.</p></li>
+</ol>
+<p>The selected donor set is <span class="math notranslate nohighlight">\(U_{k^\ast}\)</span>; <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> then refits the weights
+on the full pre-period over <span class="math notranslate nohighlight">\(U_{k^\ast}\)</span> to form the counterfactual
+<span class="math notranslate nohighlight">\(\widehat{y}_{1t} = \mathbf{Y}_{0,t,U_{k^\ast}}\mathbf{w}^\ast\)</span>, the gap
+<span class="math notranslate nohighlight">\(\tau_t = y_{1t} - \widehat{y}_{1t}\)</span>, and the ATT
+<span class="math notranslate nohighlight">\(\widehat{\tau} = |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t\)</span>.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">forward_selection=False</span></code> the selection and cross-validation are skipped:
+the estimator returns the single full bilevel solve over all donors (the
+global SCM optimum), reporting the weight-bearing donors. This is faster and is
+the right choice when you want the canonical SCM weights rather than a
+parsimonious donor subset.</p>
+<p>Rolling-origin cross-validation. Cerulli’s paper splits the pre-period once
+(early half train, late half test). With short pre-periods (Proposition 99 has
+only 19) a single split is noisy, so <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> uses an expanding-window,
+one-step-ahead scheme instead: for each origin <span class="math notranslate nohighlight">\(t\)</span> from
+<span class="math notranslate nohighlight">\(\lceil T_0\cdot\texttt{cv\_split}\rceil\)</span> to <span class="math notranslate nohighlight">\(T_0-1\)</span>, weights are fit
+on <span class="math notranslate nohighlight">\(\{1,\ldots,t-1\}\)</span> and used to forecast period <span class="math notranslate nohighlight">\(t\)</span>; the
+validation score is the RMSPE of those one-step forecasts. Every late
+pre-period period serves as a test point, using the data more efficiently than
+a single cut.</p>
+</section>
+<section id="assumptions-forward-convex-hull-selection-consistency">
+<h3>Assumptions (forward convex hull + selection consistency)<a class="headerlink" href="#assumptions-forward-convex-hull-selection-consistency" title="Link to this heading">#</a></h3>
+<p>FSCM relaxes canonical SCM’s “the full donor pool must contain a
+convex-hull match for the treated unit” to the much weaker “<em>some</em>
+subset does,” and the forward-stepwise selector is the device that
+finds it. The four assumptions that make the selector behave:</p>
+<p>A1 (forward convex-hull condition – the identifying premise).
+There exists a non-empty subset <span class="math notranslate nohighlight">\(U^\ast \subseteq \mathcal{N}_0\)</span>
+and simplex weights <span class="math notranslate nohighlight">\(\mathbf{w}^\ast \in \Delta_{U^\ast}\)</span> such that the
+treated unit’s pre-period trajectory is (approximately) reproduced
+by the corresponding donor combination,</p>
+<div class="math notranslate nohighlight">
+\[y_{1t} \;\approx\; \sum_{j \in U^\ast} w_j^\ast\, y_{jt}
+\quad \text{for all } t \in \mathcal{T}_1.\]</div>
+<p><em>Remark.</em> The classical SCM hull condition is the special case
+<span class="math notranslate nohighlight">\(U^\ast = \mathcal{N}_0\)</span>; FSCM operates whenever some subset
+(potentially a small one) supplies the hull. If no subset of
+controls can form a convex hull around the target, FSCM cannot be
+used – and no amount of forward stepwise will rescue it. The
+diagnostic is the lower envelope of in-sample RMSPE across the
+nested models <span class="math notranslate nohighlight">\(\{U_k\}\)</span>: if it never falls below the noise
+floor at any size, A1 is failing.</p>
+<p>A2 (stable pre/post relationship). The weights that reproduce
+the treated unit on the pre-period also reproduce its untreated
+trajectory on the post-period – the standard SCM identification
+premise carried through to the selected subset. <em>Remark.</em> This is
+what licenses using pre-period out-of-sample fit (the
+cross-validation test window) as a stand-in for post-period
+predictive accuracy of the counterfactual, which is never
+observed.</p>
+<p>A3 (forward-stepwise selection consistency). Under regularity
+conditions on the donor pool and the pre-period length (Shi &amp;
+Huang 2023, Theorem 1) [fsPDA], the forward stepwise selection rule
+recovers the oracle donor set wpa1:</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}\bigl( U_{k^\ast} = U^\ast \bigr) \;\longrightarrow\; 1
+\qquad \text{as } T_0 \to \infty.\]</div>
+<p><em>Remark.</em> This is the wpa1 selection-consistency property
+that distinguishes FSCM from heuristic donor pre-screening:
+greedy forward steps are not just computationally tractable
+(<span class="math notranslate nohighlight">\(1 + N_0(N_0+1)/2\)</span> fits vs. the exhaustive <span class="math notranslate nohighlight">\(2^{N_0}\)</span>), they
+asymptotically pick the <em>right</em> subset. The regularity conditions
+follow Shi &amp; Huang and assume bounded donor signals, mixing
+shocks within units, and a signal-strength condition on the
+oracle weights (no donor in <span class="math notranslate nohighlight">\(U^\ast\)</span> carries vanishing weight
+in <span class="math notranslate nohighlight">\(\mathbf{w}^\ast\)</span>).</p>
+<p>A4 (informative cross-validation split). The pre-period is
+long enough, and the donor / treated dynamics stable enough
+across the split, that the test-RMSPE on the held-out interval
+is a consistent estimate of out-of-sample prediction error.
+<em>Remark.</em> mlsynth’s expanding-window scheme expects the late
+pre-period to resemble the post-period in distribution; if the
+panel has a structural break inside the pre-window (a global
+financial crisis, a regime change), this assumption fails and the
+selected <span class="math notranslate nohighlight">\(k^\ast\)</span> will reflect the break, not the donor pool.</p>
+</section>
+</section>
+<section id="empirical-illustration-california-s-proposition-99">
+<h2>Empirical Illustration: California’s Proposition 99<a class="headerlink" href="#empirical-illustration-california-s-proposition-99" title="Link to this heading">#</a></h2>
+<p>Following Cerulli’s application – the canonical Abadie <a class="reference internal" href="references.html#abadie2010" id="id6"><span>[ABADIE2010]</span></a> study of
+California’s 1988 tobacco-control program – <code class="docutils literal notranslate"><span class="pre">FSCM</span></code> runs on <code class="docutils literal notranslate"><span class="pre">P99data.csv</span></code>
+(per-capita cigarette sales, 38 control states, 1970–2000). The treated
+indicator is California from 1989 onward.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">FSCM</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/P99data.csv&quot;</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;treated&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;California&quot;</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">1989</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">FSCM</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;cigsale&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treated&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;optimal donors : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">n_selected</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">[</span><span class="s1">&#39;n_donors_available&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;selected       : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">selected_donors</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ATT            : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;pre-period R^2 : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">[</span><span class="s1">&#39;pre_r_squared&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;CV RMSPE       : optimum=</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">[</span><span class="s1">&#39;cv_rmspe_at_optimum&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;  full pool=</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">[</span><span class="s1">&#39;cv_rmspe_full_pool&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This prints:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">optimal</span> <span class="n">donors</span> <span class="p">:</span> <span class="mi">3</span> <span class="n">of</span> <span class="mi">38</span>
+<span class="n">selected</span>       <span class="p">:</span> <span class="p">[</span><span class="s1">&#39;Montana&#39;</span><span class="p">,</span> <span class="s1">&#39;Nevada&#39;</span><span class="p">,</span> <span class="s1">&#39;Utah&#39;</span><span class="p">]</span>
+<span class="n">ATT</span>            <span class="p">:</span> <span class="o">-</span><span class="mf">20.15</span>
+<span class="n">pre</span><span class="o">-</span><span class="n">period</span> <span class="n">R</span><span class="o">^</span><span class="mi">2</span> <span class="p">:</span> <span class="mf">0.970</span>
+<span class="n">CV</span> <span class="n">RMSPE</span>       <span class="p">:</span> <span class="n">optimum</span><span class="o">=</span><span class="mf">1.605</span>  <span class="n">full</span> <span class="n">pool</span><span class="o">=</span><span class="mf">2.916</span>
+</pre></div>
+</div>
+<p>Forward selection keeps 3 of the 38 donors and estimates a drop of about
+20 packs per capita, consistent with Abadie’s original synthetic-control
+estimate. The key diagnostic is the last line: the rolling-origin CV RMSPE at
+the optimum (1.61) is far below using all 38 donors (2.92) – the
+out-of-sample evidence for Cerulli’s bias–variance argument, that the smaller
+donor set forecasts the treated unit <em>better</em> than the full pool. With
+<code class="docutils literal notranslate"><span class="pre">display_graphs=True</span></code> the second panel plots the CV-RMSPE curve against the
+number of donors (the paper’s Fig. 2–3), with the selected count marked.</p>
+<section id="matching-on-the-author-s-full-predictor-specification">
+<h3>Matching on the author’s full predictor specification<a class="headerlink" href="#matching-on-the-author-s-full-predictor-specification" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">P99data.csv</span></code> ships with Abadie’s predictor specification: the covariates
+<code class="docutils literal notranslate"><span class="pre">lnincome</span></code>, <code class="docutils literal notranslate"><span class="pre">beer</span></code>, <code class="docutils literal notranslate"><span class="pre">age15to24</span></code>, <code class="docutils literal notranslate"><span class="pre">retprice</span></code> and cigarette sales in
+1975, 1980 and 1988. Abadie averages the covariates over 1980–1988 (beer over
+1984–1988); these aggregation windows are given through <code class="docutils literal notranslate"><span class="pre">covariate_windows</span></code>,
+and the lagged smoking values through <code class="docutils literal notranslate"><span class="pre">match_periods</span></code>. With
+<code class="docutils literal notranslate"><span class="pre">forward_selection=False</span></code> the estimator returns the full bilevel SCM
+optimum over all donors:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">res</span> <span class="o">=</span> <span class="n">FSCM</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;cigsale&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treated&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span> <span class="s2">&quot;forward_selection&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">&quot;covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;lnincome&quot;</span><span class="p">,</span> <span class="s2">&quot;beer&quot;</span><span class="p">,</span> <span class="s2">&quot;age15to24&quot;</span><span class="p">,</span> <span class="s2">&quot;retprice&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;covariate_windows&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;lnincome&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1980</span><span class="p">,</span> <span class="mi">1988</span><span class="p">),</span> <span class="s2">&quot;age15to24&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1980</span><span class="p">,</span> <span class="mi">1988</span><span class="p">),</span>
+                                  <span class="s2">&quot;retprice&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1980</span><span class="p">,</span> <span class="mi">1988</span><span class="p">),</span> <span class="s2">&quot;beer&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1984</span><span class="p">,</span> <span class="mi">1988</span><span class="p">)},</span>
+            <span class="s2">&quot;match_periods&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1975</span><span class="p">,</span> <span class="mi">1980</span><span class="p">,</span> <span class="mi">1988</span><span class="p">]})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;R^2 </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">[</span><span class="s1">&#39;pre_r_squared&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">  ATT </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">({</span><span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">):</span> <span class="nb">round</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">donor_weights</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mf">1e-3</span><span class="p">})</span>
+<span class="c1"># R^2 0.9787  ATT -19.68</span>
+<span class="c1"># {&#39;Utah&#39;: 0.386, &#39;Montana&#39;: 0.257, &#39;Nevada&#39;: 0.206, &#39;Connecticut&#39;: 0.107, &#39;New Hampshire&#39;: 0.043}</span>
+</pre></div>
+</div>
+<p>This reproduces the global optimum reported in Malo et al.
+<a class="reference internal" href="references.html#malo2023computing" id="id7"><span>[malo2023computing]</span></a> (their Table 1): <span class="math notranslate nohighlight">\(R^2 = 0.979\)</span> with donor weights
+concentrated on Utah, Montana, Nevada, Connecticut and New Hampshire – the
+solution the standard <em>Synth</em> package fails to reach. Consistent with the
+paper’s central finding, the optimal predictor weights <span class="math notranslate nohighlight">\(\mathbf{V}\)</span> form a
+corner solution that places all weight on a single predictor: many
+predictors are interchangeable at the optimum (the upper-level loss is
+non-unique in <span class="math notranslate nohighlight">\(\mathbf{V}\)</span>), so the bilevel solver certifies optimality at
+a corner rather than spreading weight across predictors.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">forward_selection=True</span></code> <em>and</em> predictors, the global <span class="math notranslate nohighlight">\(\mathbf{V}\)</span>
+is frozen and reused across candidate donor sets. Because that corner
+<span class="math notranslate nohighlight">\(\mathbf{V}\)</span> may rest on an easily-matched predictor, it can stop
+constraining the subset fits, so the rolling-origin CV may decline to prune
+the pool. For predictor matching, <code class="docutils literal notranslate"><span class="pre">forward_selection=False</span></code> (the full
+bilevel optimum) is therefore the more reliable choice; forward selection is
+most useful in trajectory mode.</p>
+</div>
+</section>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Empirical (Proposition 99). In trajectory mode with forward selection,
+<code class="docutils literal notranslate"><span class="pre">FSCM</span></code> reproduces Cerulli’s regime: a small donor set (3 of 38) with a
+rolling-origin CV RMSPE minimized below the full pool – the
+out-of-sample signature of the bias–variance trade-off – and an ATT
+<span class="math notranslate nohighlight">\(\approx -20\)</span>. With the full Abadie predictor spec and
+<code class="docutils literal notranslate"><span class="pre">forward_selection=False</span></code>, the bilevel solver reproduces the global SCM
+optimum of Malo et al. <a class="reference internal" href="references.html#malo2023computing" id="id8"><span>[malo2023computing]</span></a> exactly (<span class="math notranslate nohighlight">\(R^2 = 0.979\)</span>,
+Table 1 donor weights), which the <em>Synth</em> package does not reach.</p>
+<p>Solver. The self-contained FISTA simplex solver agrees with a reference
+QP solver to ~1e-8 over random problems; the bilevel <code class="docutils literal notranslate"><span class="pre">unconstrained</span></code>
+feasibility certificate, corner-solution bounds, and a determinism check are
+unit-tested (<code class="docutils literal notranslate"><span class="pre">mlsynth/tests/test_fscm_bilevel.py</span></code>). All four
+<code class="docutils literal notranslate"><span class="pre">forward_selection</span></code> x <code class="docutils literal notranslate"><span class="pre">covariates</span></code> combinations are exercised in
+<code class="docutils literal notranslate"><span class="pre">mlsynth/tests/test_fscm.py</span></code>.</p>
+</div>
+</section>
+<section id="module-mlsynth.estimators.fscm">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.fscm" title="Link to this heading">#</a></h2>
+<p>Forward-Selected Synthetic Control (FSCM).</p>
+<p>A thin, NumPy-first orchestration over <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.fscm_helpers</span></code>.
+FSCM (Cerulli 2024) treats the number of donors as a complexity parameter
+governing a bias–variance trade-off. A forward stepwise selection grows a
+nested donor sequence on the training half of the pre-period (greedy on
+in-sample RMSPE), and a two-interval-time out-of-sample validation on the
+held-out test half picks the donor count that minimizes test RMSPE. The final
+simplex weights are refit on the full pre-period over the selected donors.</p>
+<p>Optional covariate matching (<code class="docutils literal notranslate"><span class="pre">covariates=[...]</span></code>) augments the SCM objective
+with the author’s predictor specification; selection and validation scores are
+always measured on the outcome.</p>
+<p class="rubric">References</p>
+<p>Cerulli, G. (2024). Optimal initial donor selection for the synthetic control
+method. Economics Letters, 244, 111976.
+<a class="reference external" href="https://doi.org/10.1016/j.econlet.2024.111976">https://doi.org/10.1016/j.econlet.2024.111976</a></p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.fscm.FSCM">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.fscm.</span></span><span class="sig-name descname"><span class="pre">FSCM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.FSCMConfig" title="mlsynth.utils.fscm_helpers.config.FSCMConfig"><span class="pre">FSCMConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.fscm.FSCM" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Forward-Selected Synthetic Control estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>FSCMConfig or dict</em>) – Validated configuration. Beyond the common fields (<code class="docutils literal notranslate"><span class="pre">df</span></code>, <code class="docutils literal notranslate"><span class="pre">outcome</span></code>,
+<code class="docutils literal notranslate"><span class="pre">treat</span></code>, <code class="docutils literal notranslate"><span class="pre">unitid</span></code>, <code class="docutils literal notranslate"><span class="pre">time</span></code>, <code class="docutils literal notranslate"><span class="pre">display_graphs</span></code>, <code class="docutils literal notranslate"><span class="pre">save</span></code>, colors),
+FSCM reads <code class="docutils literal notranslate"><span class="pre">covariates</span></code> (optional predictor columns),
+<code class="docutils literal notranslate"><span class="pre">match_periods</span></code> (specific pre-treatment periods whose outcome value
+is matched directly, as in Abadie’s special predictors), <code class="docutils literal notranslate"><span class="pre">cv_split</span></code>
+(training fraction of the pre-period) and <code class="docutils literal notranslate"><span class="pre">max_donors</span></code> (cap on
+forward-selection steps).</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.fscm.FSCM.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults" title="mlsynth.utils.fscm_helpers.structures.FSCMResults"><span class="pre">FSCMResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.fscm.FSCM.fit" title="Link to this definition">#</a></dt>
+<dd><p>Select donors, fit the synthetic control, and return results.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>FSCMResults</em> – Container with the optimal donor set, simplex weights,
+counterfactual, gap, ATT, fit diagnostics, and the
+forward-selection / cross-validation path.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">FSCMConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">forward_selection:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariates:</span> <span class="pre">~typing.List[str]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariate_windows:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">match_periods:</span> <span class="pre">~typing.List[~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_split:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Lt(lt=1.0)]</span> <span class="pre">=</span> <span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_donors:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.FSCMConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Forward-Selected Synthetic Control Method (FSCM).</p>
+<p>FSCM grows a nested donor sequence by forward stepwise selection on the
+training half of the pre-period (greedy on in-sample RMSPE), then chooses
+the donor count by minimizing out-of-sample RMSPE on the held-out test
+half (two-interval-time cross-validation). The final simplex weights are
+refit on the full pre-period over the selected donors.</p>
+<p class="rubric">References</p>
+<p>Cerulli, Giovanni. 2024.
+“Optimal initial donor selection for the synthetic control method.”
+Economics Letters, 244: 111976.
+<a class="reference external" href="https://doi.org/10.1016/j.econlet.2024.111976">https://doi.org/10.1016/j.econlet.2024.111976</a></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.covariate_windows">
+<span class="sig-name descname"><span class="pre">covariate_windows</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.covariate_windows" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.covariates">
+<span class="sig-name descname"><span class="pre">covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.cv_split">
+<span class="sig-name descname"><span class="pre">cv_split</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.cv_split" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.forward_selection">
+<span class="sig-name descname"><span class="pre">forward_selection</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.forward_selection" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.match_periods">
+<span class="sig-name descname"><span class="pre">match_periods</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.match_periods" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.max_donors">
+<span class="sig-name descname"><span class="pre">max_donors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.max_donors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.FSCMConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.FSCMConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="result-containers">
+<h2>Result Containers<a class="headerlink" href="#result-containers" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">FSCM.fit()</span></code> returns a
+<a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults" title="mlsynth.utils.fscm_helpers.structures.FSCMResults"><code class="xref py py-class docutils literal notranslate"><span class="pre">FSCMResults</span></code></a>, an
+<code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> on the standardized two-family
+contract: the flat accessors <code class="docutils literal notranslate"><span class="pre">res.att</span></code> / <code class="docutils literal notranslate"><span class="pre">res.counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">res.gap</span></code>
+/ <code class="docutils literal notranslate"><span class="pre">res.donor_weights</span></code> (the full-pool mapping) / <code class="docutils literal notranslate"><span class="pre">res.pre_rmse</span></code> resolve
+through the standardized sub-models (<code class="docutils literal notranslate"><span class="pre">effects</span></code> / <code class="docutils literal notranslate"><span class="pre">time_series</span></code> / <code class="docutils literal notranslate"><span class="pre">weights</span></code>
+/ <code class="docutils literal notranslate"><span class="pre">fit_diagnostics</span></code>). The FSCM-specific detail is carried alongside: the
+weight-bearing donor set (<code class="docutils literal notranslate"><span class="pre">selected_donors</span></code>), the raw simplex weight array
+(<code class="docutils literal notranslate"><span class="pre">weights_vector</span></code>), the rich fit-diagnostics dict (<code class="docutils literal notranslate"><span class="pre">diagnostics</span></code> – pre-RMSE,
+R<sup>2</sup>, donor counts, CV stats), and – when forward selection ran –
+a <a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath" title="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath"><code class="xref py py-class docutils literal notranslate"><span class="pre">FSCMSelectionPath</span></code></a> (per-size
+in-sample and rolling-origin CV RMSPE, and the selection order;
+<code class="docutils literal notranslate"><span class="pre">None</span></code> when <code class="docutils literal notranslate"><span class="pre">forward_selection=False</span></code>). The prepared, NumPy-only panel is
+exposed as a <a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs" title="mlsynth.utils.fscm_helpers.structures.FSCMInputs"><code class="xref py py-class docutils literal notranslate"><span class="pre">FSCMInputs</span></code></a>, with
+units and time addressed through an <code class="xref py py-class docutils literal notranslate"><span class="pre">IndexSet</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The raw simplex weight array is <code class="docutils literal notranslate"><span class="pre">res.weights_vector</span></code> and the rich
+diagnostics dict is <code class="docutils literal notranslate"><span class="pre">res.diagnostics</span></code>; the bare names <code class="docutils literal notranslate"><span class="pre">res.weights</span></code> /
+<code class="docutils literal notranslate"><span class="pre">res.fit_diagnostics</span></code> are reserved by the contract for the standardized
+<code class="xref py py-class docutils literal notranslate"><span class="pre">WeightsResults</span></code> /
+<code class="xref py py-class docutils literal notranslate"><span class="pre">FitDiagnosticsResults</span></code> sub-models.</p>
+</div>
+<p id="module-mlsynth.utils.fscm_helpers.structures">Frozen, NumPy-first containers for Forward-Selected SCM (FSCM).</p>
+<p>FSCM (Cerulli 2024) treats the <em>number of donors</em> as a complexity parameter
+governing a bias–variance trade-off: a richer donor pool fits the
+pre-treatment window better in sample but injects variance from poorly
+correlated donors out of sample. A forward stepwise selection grows a nested
+donor sequence (greedy on the training-period fit), and a two-interval-time
+out-of-sample validation on the held-out tail of the pre-period picks the
+donor count that minimizes test RMSPE.</p>
+<p>Everything below is pure NumPy; units/time are addressed through
+<code class="xref py py-class docutils literal notranslate"><span class="pre">IndexSet</span></code>. The only DataFrame touchpoint is <code class="docutils literal notranslate"><span class="pre">setup</span></code>.</p>
+<p class="rubric">References</p>
+<p>Cerulli, G. (2024). Optimal initial donor selection for the synthetic control
+method. Economics Letters, 244, 111976.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">FSCMInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_index:</span> <span class="pre">~mlsynth.utils.fast_scm_helpers.structure.IndexSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_index:</span> <span class="pre">~mlsynth.utils.fast_scm_helpers.structure.IndexSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0:</span> <span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_label:</span> <span class="pre">~typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov_treated:</span> <span class="pre">~numpy.ndarray</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov_donors:</span> <span class="pre">~numpy.ndarray</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariate_names:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">match_idx:</span> <span class="pre">~numpy.ndarray</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">match_periods:</span> <span class="pre">~typing.List[~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Preprocessed, NumPy-only panel for the FSCM engine.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_index</strong> (<em>IndexSet</em>) – All <code class="docutils literal notranslate"><span class="pre">N</span></code> donor units (column order of <code class="docutils literal notranslate"><span class="pre">Y</span></code>).</p></li>
+<li><p><strong>time_index</strong> (<em>IndexSet</em>) – All <code class="docutils literal notranslate"><span class="pre">T</span></code> periods (row order of <code class="docutils literal notranslate"><span class="pre">y</span></code> and <code class="docutils literal notranslate"><span class="pre">Y</span></code>).</p></li>
+<li><p><strong>y</strong> (<em>np.ndarray</em>) – Treated-unit outcome over all periods, shape <code class="docutils literal notranslate"><span class="pre">(T,)</span></code>.</p></li>
+<li><p><strong>Y</strong> (<em>np.ndarray</em>) – Donor outcomes, shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N)</span></code>.</p></li>
+<li><p><strong>T0</strong> (<em>int</em>) – Number of pre-treatment periods; post is <code class="docutils literal notranslate"><span class="pre">T2</span> <span class="pre">=</span> <span class="pre">T</span> <span class="pre">-</span> <span class="pre">T0</span></code>.</p></li>
+<li><p><strong>treated_label</strong> (<em>Any</em>) – Identifier of the treated unit.</p></li>
+<li><p><strong>cov_treated</strong> (<em>np.ndarray, optional</em>) – Treated covariate predictor values, shape <code class="docutils literal notranslate"><span class="pre">(P,)</span></code> – each covariate
+averaged over its (Abadie) aggregation window. Empty if no covariates.</p></li>
+<li><p><strong>cov_donors</strong> (<em>np.ndarray, optional</em>) – Donor covariate predictor values, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">P)</span></code>. Empty if none.</p></li>
+<li><p><strong>covariate_names</strong> (<em>list of str</em>) – Names of the <code class="docutils literal notranslate"><span class="pre">P</span></code> covariate columns.</p></li>
+<li><p><strong>match_idx</strong> (<em>np.ndarray, optional</em>) – Time-row indices of “special predictor” periods – specific
+pre-treatment periods whose outcome value is matched directly
+(e.g. the 1975/1980/1988 cigarette-sales values in Abadie’s spec).</p></li>
+<li><p><strong>match_periods</strong> (<em>list</em>) – Labels of those periods, for provenance.</p></li>
+<li><p><strong>metadata</strong> (<em>dict</em>) – Free-form provenance.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.T">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.T2">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.Y" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_donors">
+<span class="sig-name descname"><span class="pre">cov_donors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_donors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_treated">
+<span class="sig-name descname"><span class="pre">cov_treated</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_treated" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.covariate_names">
+<span class="sig-name descname"><span class="pre">covariate_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.covariate_names" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.donor_labels">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">donor_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.donor_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_covariates">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_match_periods">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_match_periods</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_match_periods" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_predictors">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_predictors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_predictors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_idx">
+<span class="sig-name descname"><span class="pre">match_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_idx" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_periods">
+<span class="sig-name descname"><span class="pre">match_periods</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_periods" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.n_donors">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n_donors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.n_donors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.time_index">
+<span class="sig-name descname"><span class="pre">time_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">IndexSet</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.time_index" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.treated_label">
+<span class="sig-name descname"><span class="pre">treated_label</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.treated_label" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.unit_index">
+<span class="sig-name descname"><span class="pre">unit_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">IndexSet</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.unit_index" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMInputs.y">
+<span class="sig-name descname"><span class="pre">y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.y" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">FSCMResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">effects:</span> <span class="pre">~mlsynth.config_models.EffectsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">fit_diagnostics:</span> <span class="pre">~mlsynth.config_models.FitDiagnosticsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">time_series:</span> <span class="pre">~mlsynth.config_models.TimeSeriesResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">weights:</span> <span class="pre">~mlsynth.config_models.WeightsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inference:</span> <span class="pre">~mlsynth.config_models.InferenceResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">method_details:</span> <span class="pre">~mlsynth.config_models.MethodDetailsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">sub_method_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">additional_outputs:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">raw_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">execution_summary:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">plot_config:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.fscm_helpers.structures.FSCMInputs,</span> <span class="pre">selected_donors:</span> <span class="pre">~typing.List[~typing.Any],</span> <span class="pre">weights_vector:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">selection_path:</span> <span class="pre">~mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">diagnostics:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">float]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEstimatorResults</span></code></p>
+<p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.FSCM.fit()</span></code>.</p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> (the observational report):
+it populates the standardized sub-models so the flat accessors (<code class="docutils literal notranslate"><span class="pre">att</span></code> /
+<code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">gap</span></code> / <code class="docutils literal notranslate"><span class="pre">donor_weights</span></code> / <code class="docutils literal notranslate"><span class="pre">pre_rmse</span></code>) resolve
+through the base contract. The FSCM-specific fields below carry the
+forward-selection detail.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>FSCMInputs</em>) – Preprocessed panel.</p></li>
+<li><p><strong>selected_donors</strong> (<em>list</em>) – Labels of the donor set carrying weight.</p></li>
+<li><p><strong>weights_vector</strong> (<em>np.ndarray</em>) – <code class="docutils literal notranslate"><span class="pre">(n_selected,)</span></code> simplex weights over <code class="docutils literal notranslate"><span class="pre">selected_donors</span></code> (the raw
+weight array; <code class="docutils literal notranslate"><span class="pre">res.donor_weights</span></code> is the full-pool mapping).</p></li>
+<li><p><strong>selection_path</strong> (<em>FSCMSelectionPath or None</em>) – Forward-selection / cross-validation trace (<code class="docutils literal notranslate"><span class="pre">None</span></code> when forward
+selection is off).</p></li>
+<li><p><strong>diagnostics</strong> (<em>dict</em>) – Rich fit diagnostics (pre-RMSE, R-squared, donor counts, CV stats);
+the standardized <code class="docutils literal notranslate"><span class="pre">fit_diagnostics</span></code> sub-model mirrors the headline
+numbers and keeps this dict in <code class="docutils literal notranslate"><span class="pre">additional_metrics</span></code>.</p></li>
+<li><p><strong>metadata</strong> (<em>dict</em>) – Free-form provenance.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.diagnostics">
+<span class="sig-name descname"><span class="pre">diagnostics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.diagnostics" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs" title="mlsynth.utils.fscm_helpers.structures.FSCMInputs"><span class="pre">FSCMInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid',</span> <span class="pre">'frozen':</span> <span class="pre">True,</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.n_selected">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n_selected</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.n_selected" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.selected_donors">
+<span class="sig-name descname"><span class="pre">selected_donors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.selected_donors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.selection_path">
+<span class="sig-name descname"><span class="pre">selection_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath" title="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath"><span class="pre">FSCMSelectionPath</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.selection_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMResults.weights_vector">
+<span class="sig-name descname"><span class="pre">weights_vector</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.weights_vector" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">FSCMSelectionPath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sizes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_rmspe</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_rmspe</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimal_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>The forward-selection / cross-validation trace (Cerulli Fig. 2–3).</p>
+<p>Each entry <code class="docutils literal notranslate"><span class="pre">k</span></code> describes the nested model with <code class="docutils literal notranslate"><span class="pre">k</span></code> donors: the donor
+added at that step, the in-sample pre-period RMSPE, and the out-of-sample
+rolling-origin CV RMSPE used to choose the optimal size.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.optimal_size">
+<span class="sig-name descname"><span class="pre">optimal_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.optimal_size" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.order">
+<span class="sig-name descname"><span class="pre">order</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.order" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.sizes">
+<span class="sig-name descname"><span class="pre">sizes</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.sizes" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.test_rmspe">
+<span class="sig-name descname"><span class="pre">test_rmspe</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.test_rmspe" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.train_rmspe">
+<span class="sig-name descname"><span class="pre">train_rmspe</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.train_rmspe" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="helper-modules">
+<h2>Helper Modules<a class="headerlink" href="#helper-modules" title="Link to this heading">#</a></h2>
+<p>Data preparation – the only DataFrame touchpoint: pivots to NumPy, builds the
+unit/time <code class="docutils literal notranslate"><span class="pre">IndexSet</span></code>es, splits pre/post, and assembles the optional covariate
+arrays.</p>
+<p id="module-mlsynth.utils.fscm_helpers.setup">Long-DataFrame -&gt; NumPy boundary for FSCM (the only pandas touchpoint).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.setup.derive_treatment">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">derive_treatment</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.setup.derive_treatment" title="Link to this definition">#</a></dt>
+<dd><p>Read the single treated unit and its first treated period from <code class="docutils literal notranslate"><span class="pre">treat</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.setup.prepare_fscm_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_fscm_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariate_windows</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">match_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs" title="mlsynth.utils.fscm_helpers.structures.FSCMInputs"><span class="pre">FSCMInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.setup.prepare_fscm_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot the panel to NumPy, build <code class="docutils literal notranslate"><span class="pre">IndexSet</span></code>s, split pre/post.</p>
+<p>Covariate predictors are each averaged over an aggregation window (Abadie’s
+specification): <code class="docutils literal notranslate"><span class="pre">covariate_windows</span></code> maps a covariate to an inclusive
+<code class="docutils literal notranslate"><span class="pre">(start,</span> <span class="pre">end)</span></code> label range; covariates not listed are averaged over the
+full pre-treatment period. <code class="docutils literal notranslate"><span class="pre">match_periods</span></code> are specific pre-treatment
+periods whose outcome value is matched directly.</p>
+</dd></dl>
+
+<p>The forward-selection / rolling-origin cross-validation engine and the
+weight-fitting that dispatches to the bilevel solver (predictor mode) or the
+trajectory simplex solve.</p>
+<p id="module-mlsynth.utils.fscm_helpers.estimation">NumPy-first FSCM engine: forward selection + rolling-origin CV.</p>
+<p>Implements Cerulli (2024) with two matching modes:</p>
+<ul class="simple">
+<li><p><strong>Trajectory mode</strong> (no covariates and no special predictors): the SCM
+weights match the treated unit’s pre-treatment <em>outcome trajectory</em>.</p></li>
+<li><p><strong>Predictor mode</strong> (covariates and/or <code class="docutils literal notranslate"><span class="pre">match_periods</span></code> given): the weights
+match Abadie’s <em>predictor</em> specification, with the predictor-weight matrix
+<code class="docutils literal notranslate"><span class="pre">V</span></code> and donor weights jointly determined by the <strong>bilevel optimization</strong>
+of Malo et al. (2024) – <code class="docutils literal notranslate"><span class="pre">V</span></code> is solved once on the full donor pool and then
+reused through forward selection (see <code class="xref py py-mod docutils literal notranslate"><span class="pre">bilevel</span></code>).</p></li>
+</ul>
+<p>In both modes the donor pool is grown greedily and the donor <em>count</em> is chosen
+by rolling-origin cross-validation; the final weights are refit on the full
+pre-period over the selected donors. All optimization is self-contained – the
+simplex problems are solved by the FISTA primitive in <code class="xref py py-mod docutils literal notranslate"><span class="pre">bilevel.simplex</span></code>,
+not by <code class="docutils literal notranslate"><span class="pre">Opt.SCopt</span></code>.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.estimation.run_fscm">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.estimation.</span></span><span class="sig-name descname"><span class="pre">run_fscm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs" title="mlsynth.utils.fscm_helpers.structures.FSCMInputs"><span class="pre">FSCMInputs</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">forward_selection</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_split</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_donors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults" title="mlsynth.utils.fscm_helpers.structures.FSCMResults"><span class="pre">FSCMResults</span></a></span></span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.estimation.run_fscm" title="Link to this definition">#</a></dt>
+<dd><p>Synthetic control via the Malo et al. (2024) bilevel solver.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>FSCMInputs</em>) – Prepared NumPy panel.</p></li>
+<li><p><strong>forward_selection</strong> (<em>bool, default True</em>) – If True, run Cerulli’s forward selection with rolling-origin OOS
+validation to choose a donor subset (each candidate fit by the bilevel
+solver). If False, take the full bilevel solve over all donors with no
+selection.</p></li>
+<li><p><strong>cv_split</strong> (<em>float, default 0.5</em>) – Sets the first rolling origin (forward selection only): forecasting
+begins at period <code class="docutils literal notranslate"><span class="pre">round(T0</span> <span class="pre">*</span> <span class="pre">cv_split)</span></code> and sweeps to the pre-period
+end.</p></li>
+<li><p><strong>max_donors</strong> (<em>int, optional</em>) – Cap on the number of forward-selection steps (default: all donors).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p>Plotting: the outcome paths and the donor-count CV-RMSPE selection curve.</p>
+<p id="module-mlsynth.utils.fscm_helpers.plotter">Plotting for FSCM: treated-vs-counterfactual and the donor-count CV curve.</p>
+<p>The observed-vs-counterfactual panel is delegated to the shared
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Plotter</span></code>; the rolling-origin CV curve is FSCM’s
+own bespoke panel and stays local.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.fscm_helpers.plotter.plot_fscm">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.fscm_helpers.plotter.</span></span><span class="sig-name descname"><span class="pre">plot_fscm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults" title="mlsynth.utils.fscm_helpers.structures.FSCMResults"><span class="pre">FSCMResults</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'red'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlsynth.utils.fscm_helpers.plotter.plot_fscm" title="Link to this definition">#</a></dt>
+<dd><p>Outcome paths (shared archetype) plus the donor-count CV curve.</p>
+</dd></dl>
+
+</section>
+<section id="bilevel-optimization-malo-et-al-2024">
+<h2>Bilevel optimization (Malo et al. 2024)<a class="headerlink" href="#bilevel-optimization-malo-et-al-2024" title="Link to this heading">#</a></h2>
+<p>A self-contained implementation of the optimistic bilevel SCM program, used as
+the weight solver in predictor mode (and the simplex primitive everywhere). No
+external QP solver is involved.</p>
+<p>The simplex-constrained least-squares core: Euclidean projection onto the
+probability simplex and the FISTA accelerated projected-gradient solver.</p>
+<p>The three algorithm stages – unconstrained feasibility, corner solutions, and
+Tykhonov-regularized descent.</p>
+<p>The driver composing the stages, and the structured problem/solution
+containers.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="mlsc.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Multi-Level Synthetic Control (mlSC)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="masc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Matching and Synthetic Control (MASC)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#computing-the-weights-bilevel-optimization">Computing the weights: bilevel optimization</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-forward-stepwise-algorithm">The forward stepwise algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-forward-convex-hull-selection-consistency">Assumptions (forward convex hull + selection consistency)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-illustration-california-s-proposition-99">Empirical Illustration: California’s Proposition 99</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#matching-on-the-author-s-full-predictor-specification">Matching on the author’s full predictor specification</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.fscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.fscm.FSCM"><code class="docutils literal notranslate"><span class="pre">FSCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.fscm.FSCM.fit"><code class="docutils literal notranslate"><span class="pre">FSCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig"><code class="docutils literal notranslate"><span class="pre">FSCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.covariate_windows"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.covariate_windows</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.covariates"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.cv_split"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.cv_split</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.forward_selection"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.forward_selection</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.match_periods"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.match_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.max_donors"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.max_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.FSCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">FSCMConfig.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs"><code class="docutils literal notranslate"><span class="pre">FSCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T0"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.T2"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.T2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.Y"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_donors"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.cov_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.cov_treated"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.cov_treated</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.covariate_names"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.covariate_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.donor_labels"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.donor_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_covariates"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.has_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_match_periods"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.has_match_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.has_predictors"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.has_predictors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_idx"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.match_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.match_periods"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.match_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.metadata"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.n_donors"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.n_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.time_index"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.time_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.treated_label"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.treated_label</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.unit_index"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.unit_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMInputs.y"><code class="docutils literal notranslate"><span class="pre">FSCMInputs.y</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults"><code class="docutils literal notranslate"><span class="pre">FSCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.diagnostics"><code class="docutils literal notranslate"><span class="pre">FSCMResults.diagnostics</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">FSCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">FSCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.model_config"><code class="docutils literal notranslate"><span class="pre">FSCMResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.n_selected"><code class="docutils literal notranslate"><span class="pre">FSCMResults.n_selected</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.selected_donors"><code class="docutils literal notranslate"><span class="pre">FSCMResults.selected_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.selection_path"><code class="docutils literal notranslate"><span class="pre">FSCMResults.selection_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMResults.weights_vector"><code class="docutils literal notranslate"><span class="pre">FSCMResults.weights_vector</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.optimal_size"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.optimal_size</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.order"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.order</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.sizes"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.sizes</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.test_rmspe"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.test_rmspe</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath.train_rmspe"><code class="docutils literal notranslate"><span class="pre">FSCMSelectionPath.train_rmspe</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.setup.derive_treatment"><code class="docutils literal notranslate"><span class="pre">derive_treatment()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.setup.prepare_fscm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_fscm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.estimation.run_fscm"><code class="docutils literal notranslate"><span class="pre">run_fscm()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.fscm_helpers.plotter.plot_fscm"><code class="docutils literal notranslate"><span class="pre">plot_fscm()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bilevel-optimization-malo-et-al-2024">Bilevel optimization (Malo et al. 2024)</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,1219 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Replications &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'replications';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="FDID — Forward Difference-in-Differences (Li 2024)" href="replications/fdid.html" />
+    <link rel="prev" title="A practitioner’s decision tree" href="choose.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Replications</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/replications.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Replications</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#canonical-workhorses">Canonical workhorses</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#decomposition-first-synthetic-control">Decomposition-first synthetic control</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generalising-the-estimand-treatment-or-unit">Generalising the estimand, treatment, or unit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#convex-hull-relaxation">Convex-hull relaxation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#high-dimensional-donor-pools">High-dimensional donor pools</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#time-aware-and-factor-models">Time-aware and factor models</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#staggered-adoption">Staggered adoption</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#missing-data">Missing data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replications-endogeneity">Identification under endogeneity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#experimental-design">Experimental design</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coverage-summary">Coverage summary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-a-replication">Contributing a replication</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="replications">
+<span id="id1"></span><h1>Replications<a class="headerlink" href="#replications" title="Link to this heading">#</a></h1>
+<p>Every estimator in mlsynth is implemented from a specific published
+source paper, and most of them carry an explicit replication section
+in their documentation – either reproducing an empirical result on
+the original authors’ dataset (“Path A”), reproducing a Monte Carlo
+from the paper’s simulation section (“Path B”), or matching the
+output of an authoritative reference implementation
+(“cross-validation”).</p>
+<p>This page catalogues those replications. Thirty-five of the
+thirty-six estimators are currently fully verified; ISCM carries a
+one-draw illustration only (its paper relies on a non-public panel
+and provides no Monte Carlo to reproduce).</p>
+<p>The runnable cases that pin these numbers – and guard against
+regressions – live in the durable benchmark suite; see
+<a class="reference internal" href="benchmarks.html"><span class="doc">Benchmarks</span></a> for the catalogue and how to run them.</p>
+<ul class="simple">
+<li><p>The <a class="reference internal" href="#replications-canonical"><span class="std std-ref">Canonical workhorses</span></a> section covers the workhorse
+SC variants you would reach for first.</p></li>
+<li><p>The <a class="reference internal" href="#replications-decomp"><span class="std std-ref">Decomposition-first synthetic control</span></a> section covers
+decomposition-first methods that match on a cycle or spectral
+component, not raw outcomes.</p></li>
+<li><p>The <a class="reference internal" href="#replications-generalised"><span class="std std-ref">Generalising the estimand, treatment, or unit</span></a> section covers estimators
+that generalise the classical setup along one axis – a different
+estimand, treatment type, or unit scale.</p></li>
+<li><p>The <a class="reference internal" href="#replications-hull"><span class="std std-ref">Convex-hull relaxation</span></a> section covers estimators that
+relax the convex-hull assumption.</p></li>
+<li><p>The <a class="reference internal" href="#replications-highdim"><span class="std std-ref">High-dimensional donor pools</span></a> section covers high-dimensional
+donor pools.</p></li>
+<li><p>The <a class="reference internal" href="#replications-time"><span class="std std-ref">Time-aware and factor models</span></a> section covers state-space and
+factor-model methods.</p></li>
+<li><p>The <a class="reference internal" href="#replications-staggered"><span class="std std-ref">Staggered adoption</span></a>, <a class="reference internal" href="#replications-missing"><span class="std std-ref">Missing data</span></a>,
+and <a class="reference internal" href="#replications-endogeneity"><span class="std std-ref">Identification under endogeneity</span></a> sections cover the
+remaining observational families.</p></li>
+<li><p>The <a class="reference internal" href="#replications-design"><span class="std std-ref">Experimental design</span></a> section covers experimental
+design.</p></li>
+</ul>
+<p>Each entry below links to the full replication code in the source
+documentation page and calls out the headline number that
+demonstrates the match. Replications are progressively being broken out
+into dedicated pages (one per source paper) collected in the toctree
+below; the catalogue entries link to a dedicated page where one exists.</p>
+<div class="toctree-wrapper compound">
+</div>
+<section id="canonical-workhorses">
+<span id="replications-canonical"></span><h2>Canonical workhorses<a class="headerlink" href="#canonical-workhorses" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a> – Li &amp; Shankar (2024) Two-Step Synthetic Control.
+Path A: ATT (+1131.97) and pre-RMSE (434.43) on the
+Brooklyn-showroom panel reproduced to three decimals; Step 1’s
+recommendation matches the paper’s MSC(b). Path B: Figure 2
+MSE-ratio grid – all 16 cells of the
+<span class="math notranslate nohighlight">\((T_1, T_2)\)</span> sweep fall below <span class="math notranslate nohighlight">\(1.0\)</span>, range
+<span class="math notranslate nohighlight">\([0.039, 0.889]\)</span>, matching the paper’s geometry.
+→ dedicated page: <a class="reference internal" href="replications/tssc.html"><span class="doc">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</span></a>; durable cases
+<code class="docutils literal notranslate"><span class="pre">tssc_brooklyn</span></code> (Path A) and <code class="docutils literal notranslate"><span class="pre">tssc_figure2</span></code> (Path B).</p></li>
+<li><p><a class="reference internal" href="vanillasc.html"><span class="doc">Vanilla Synthetic Control (VanillaSC)</span></a> – Standard SC (ADH 2010/2015; Abadie-Gardeazabal 2003).
+Path A: the three canonical studies on their original datasets –
+Prop 99 (Utah/Nevada/Montana/Colorado/Connecticut, ATT <span class="math notranslate nohighlight">\(\approx -19\)</span>
+packs), German reunification (Austria-dominant donor pool), Basque
+(Cataluna <span class="math notranslate nohighlight">\(\approx 0.8\)</span> + Madrid <span class="math notranslate nohighlight">\(\approx 0.2\)</span>, ATT
+<span class="math notranslate nohighlight">\(\approx -0.68\)</span>); plus the Lei-Sudijono (2025) leave-two-out Table-1
+p-value relations. The Prop 99 fit reproduces ADH 2010 Table 2 with the full
+predictor spec (Utah 0.335, Nevada 0.236, Montana 0.202, Colorado 0.160,
+Connecticut 0.068, each within 0.005 of the paper; durable:
+<code class="docutils literal notranslate"><span class="pre">vanillasc_prop99</span></code>).
+→ dedicated page: <a class="reference internal" href="replications/vanillasc.html"><span class="doc">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</span></a>.</p></li>
+<li><p><span class="xref std std-doc">ascm_kansas</span> – Ben-Michael, Feller &amp; Rothstein (2021) Augmented SCM
+(the ridge-augmentation layer on VanillaSC). Cross-validation vs
+<code class="docutils literal notranslate"><span class="pre">augsynth</span></code>: the canonical Kansas tax-cut ladder reproduced
+value-for-value – classic SCM (ATT <span class="math notranslate nohighlight">\(-0.029\)</span>), ridge ASCM
+(<span class="math notranslate nohighlight">\(-0.040\)</span>), covariate ASCM (<span class="math notranslate nohighlight">\(-0.061\)</span>) and residualized
+(<span class="math notranslate nohighlight">\(-0.055\)</span>), pre-fit <span class="math notranslate nohighlight">\(L_2\)</span> falling <span class="math notranslate nohighlight">\(0.083 \to 0.054\)</span>; the
+ridge conformal <span class="math notranslate nohighlight">\(p\)</span>-value (<span class="math notranslate nohighlight">\(0.071\)</span>) also matches. Path B: the
+Section-7 thesis – near-nominal coverage (<span class="math notranslate nohighlight">\(\approx 0.90\)</span>–<span class="math notranslate nohighlight">\(0.96\)</span>)
+and bias reduction across four Kansas-calibrated DGPs. Status: done.
+→ dedicated page: <a class="reference internal" href="replications/ascm_kansas.html"><span class="doc">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</span></a>; durable cases
+<code class="docutils literal notranslate"><span class="pre">ascm_kansas</span></code> and <code class="docutils literal notranslate"><span class="pre">augsynth_calibrated</span></code>.</p></li>
+<li><p><a class="reference internal" href="masc.html"><span class="doc">Matching and Synthetic Control (MASC)</span></a> – Kellogg, Mogstad, Pouliot &amp; Torgovitsky (2020)
+matching + synthetic control. Path A: the KMPT Section-5
+Basque Country / ETA-terrorism study on <code class="docutils literal notranslate"><span class="pre">basque_jasa.csv</span></code>,
+reproduced value for value when run as the authors did
+(MSCMT/<code class="docutils literal notranslate"><span class="pre">synth</span></code> SC + covariate matching): the CV selects pure SC
+(<span class="math notranslate nohighlight">\(\hat\varphi = 0\)</span>, as in KMPT), Cataluna + Madrid carry all
+the weight (1.00 vs 0.85 + 0.15), pre-RMSE <span class="math notranslate nohighlight">\(\$89\)</span> vs
+<span class="math notranslate nohighlight">\(\$94\)</span>, and ATT <span class="math notranslate nohighlight">\(-\$585\)</span> vs the paper’s
+<span class="math notranslate nohighlight">\(-\$580\)</span>. The <code class="docutils literal notranslate"><span class="pre">sc_backend</span></code> and <code class="docutils literal notranslate"><span class="pre">match_on</span></code> toggles expose
+both optimiser/matching choices (durable: <code class="docutils literal notranslate"><span class="pre">masc_basque</span></code>).</p></li>
+<li><p><a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a> – Li (2024) Forward Difference-in-Differences.
+Path A: the author’s public Hong Kong GDP companion replication
+reproduced cell by cell (FDID ATT <span class="math notranslate nohighlight">\(0.0254\)</span>, <span class="math notranslate nohighlight">\(53.84\%\)</span>,
+pre-<span class="math notranslate nohighlight">\(R^2 = 0.843\)</span>, 9 of 24 controls). Path B: Table 5 PMSE grid
+across DGP1-DGP4 at four <span class="math notranslate nohighlight">\((T_1, T_2)\)</span> configurations; cell
+<span class="math notranslate nohighlight">\((48, 24)\)</span> yields <span class="math notranslate nohighlight">\(\mathrm{PMSE} = 0.084\)</span> against the paper’s
+<span class="math notranslate nohighlight">\(0.082\)</span>.
+→ dedicated page: <a class="reference internal" href="replications/fdid.html"><span class="doc">FDID — Forward Difference-in-Differences (Li 2024)</span></a>.</p></li>
+</ul>
+</section>
+<section id="decomposition-first-synthetic-control">
+<span id="replications-decomp"></span><h2>Decomposition-first synthetic control<a class="headerlink" href="#decomposition-first-synthetic-control" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="hsc.html"><span class="doc">Harmonic Synthetic Control (HSC)</span></a> – Harmonic Synthetic Control. Path A: the 1997
+Hong Kong handover – 2003 effect <span class="math notranslate nohighlight">\(-\$1{,}902\)</span> against
+the paper’s <span class="math notranslate nohighlight">\(-\$1{,}900\)</span>; Korea weight 0.18 and Germany
+weight 0.14 match the paper (with <code class="docutils literal notranslate"><span class="pre">ridge=&quot;sdid&quot;</span></code> + a refined
+rho grid; durable: <code class="docutils literal notranslate"><span class="pre">hsc_hongkong</span></code>). Path B: Liu-Xu regime-adaptation
+grid with ARIMA(1,1,0) trends – HSC tracks the oracle-best fixed
+method in both regimes (rho adapts; durable: <code class="docutils literal notranslate"><span class="pre">hsc_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a> – Synthetic Business Cycle. Path A: German
+reunification – Greece weight 0.44, Netherlands 0.37,
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} \approx -952\)</span> (durable:
+<code class="docutils literal notranslate"><span class="pre">sbc_germany</span></code>); also reproduces the
+Hong Kong handover. Path B: Shi-Xi-Xie Models 1-3
+nonstationary DGP, post-MSE ratio &lt; 1 in every model and highest
+(SC competitive) under cointegration (durable: <code class="docutils literal notranslate"><span class="pre">sbc_mc</span></code>).</p></li>
+</ul>
+</section>
+<section id="generalising-the-estimand-treatment-or-unit">
+<span id="replications-generalised"></span><h2>Generalising the estimand, treatment, or unit<a class="headerlink" href="#generalising-the-estimand-treatment-or-unit" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a> – multi-outcome SC, both variants.
+Path A: Tian-Lee-Panchenko (2026) German reunification (nine
+pre-1989 indicators) – the concatenated synthetic reproduces their
+Table 2 balance cell by cell (synthetic 1989 GDP per capita
+<span class="math notranslate nohighlight">\(19029.8\)</span>; CPI <span class="math notranslate nohighlight">\(3.1\)</span>; trade <span class="math notranslate nohighlight">\(59.1\)</span>; tax
+<span class="math notranslate nohighlight">\(34.1\)</span>), pre-RMSE <span class="math notranslate nohighlight">\(= 110\)</span> (durable: <code class="docutils literal notranslate"><span class="pre">scmo_germany</span></code>).
+Path B (concatenated): TLP Table 1 == Sun et al. <code class="docutils literal notranslate"><span class="pre">Simulation1.R</span></code>
+– bias falls and pre-fit rises with the outcome count <span class="math notranslate nohighlight">\(K\)</span> across
+<span class="math notranslate nohighlight">\(T_0 \in \{1, 5, 10\}\)</span> (durable: <code class="docutils literal notranslate"><span class="pre">scmo_concatenated_mc</span></code>).
+Path B (averaged): Sun-Ben-Michael-Feller (2025) Appendix-D regime
+contrast – averaging beats the separate SC under a common factor and
+hurts under purely idiosyncratic factors (durable: <code class="docutils literal notranslate"><span class="pre">scmo_averaged_mc</span></code>).
+→ dedicated page: <a class="reference internal" href="replications/scmo.html"><span class="doc">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</span></a>.</p></li>
+<li><p><a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a> – SCM-relaxation (Liao, Shi &amp; Zheng 2026).
+Path A: Brexit / UK real GDP – the L2 relaxation’s cumulative
+GDP loss is <span class="math notranslate nohighlight">\(\approx 4.0\%\)</span> (paper 3.85%, treatment 2016Q3),
+dense weights on the major EU economies that classic SC drops
+(durable: <code class="docutils literal notranslate"><span class="pre">rescm_brexit</span></code>). Cross-validation: mlsynth’s L2
+relaxation matches the authors’ <code class="docutils literal notranslate"><span class="pre">scmrelax</span></code> package cell by cell at a
+matched <span class="math notranslate nohighlight">\(\tau\)</span> (donor-weight <span class="math notranslate nohighlight">\(L_1\)</span> distance
+<span class="math notranslate nohighlight">\(\approx 0.0014\)</span>; durable: <code class="docutils literal notranslate"><span class="pre">rescm_relax_ref</span></code>).
+Path B: the Section-5 latent-group Monte Carlo – with
+<span class="math notranslate nohighlight">\(J \gg T_0\)</span>, the L2 relaxation’s out-of-sample error against the
+oracle counterfactual is <span class="math notranslate nohighlight">\(\approx 0.43\)</span> of classic SC’s (median;
+paper’s Table 1 <span class="math notranslate nohighlight">\(\approx 0.15\)</span>–<span class="math notranslate nohighlight">\(0.53\)</span>), beating SC in
+<span class="math notranslate nohighlight">\(\approx 73\%\)</span> of reps (durable: <code class="docutils literal notranslate"><span class="pre">rescm_relax_mc</span></code>).
+→ dedicated page: <a class="reference internal" href="replications/rescm.html"><span class="doc">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</span></a>.</p></li>
+<li><p><a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a> – L-infinity-norm SC (Wang, Xing &amp; Ye 2025;
+<code class="docutils literal notranslate"><span class="pre">LINF</span></code> / <code class="docutils literal notranslate"><span class="pre">L1LINF</span></code>). Cross-validation: mlsynth’s L-infinity
+engine matches the authors’ <code class="docutils literal notranslate"><span class="pre">LinfinitySC</span></code> code cell by cell in the
+unique <span class="math notranslate nohighlight">\(T_0&gt;J\)</span> regime (donor-weight <span class="math notranslate nohighlight">\(L_1\)</span> distance
+<span class="math notranslate nohighlight">\(\approx 0.0019\)</span>; durable: <code class="docutils literal notranslate"><span class="pre">linf_crossval_ref</span></code>). Path A:
+Proposition 99 – dense weighting across all 38 donors vs classic SC’s
+6 (durable: <code class="docutils literal notranslate"><span class="pre">linf_prop99</span></code>). Path B: the Section 5 two-factor
+Monte Carlo – L-infinity beats sparse SC in the dense DGPs, <code class="docutils literal notranslate"><span class="pre">L1LINF</span></code>
+in the sparse one (durable: <code class="docutils literal notranslate"><span class="pre">linf_sim</span></code>).
+→ dedicated page: <a class="reference internal" href="replications/linf.html"><span class="doc">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</span></a>.</p></li>
+<li><p><a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a> – Continuous-Treatment SC. Path B: Section 5 /
+Table 1 Monte Carlo across Models 1-4 with factor structure and
+true average effect <span class="math notranslate nohighlight">\(= 0\)</span>; CTSC bias <span class="math notranslate nohighlight">\(\approx 0.00\)</span>
+against the paper’s <span class="math notranslate nohighlight">\(0.005\)</span>-<span class="math notranslate nohighlight">\(0.011\)</span> range, vs.
+fixed-effects bias <span class="math notranslate nohighlight">\(\approx 0.80\)</span> (durable: <code class="docutils literal notranslate"><span class="pre">ctsc_powell_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="shc.html"><span class="doc">Synthetic Historical Control (SHC)</span></a> – Chen, Yang &amp; Yang (2024) Synthetic Historical
+Control. Path B: the Section-3.1 effect-free simulation –
+with <span class="math notranslate nohighlight">\(\delta_t = 0\)</span>, SHC recovers the latent confounder
+<span class="math notranslate nohighlight">\(\ell_t\)</span> to <span class="math notranslate nohighlight">\(\approx 10^{-3}\)</span> matching error pre and
+post (<code class="docutils literal notranslate"><span class="pre">MSE_pre</span></code> / <code class="docutils literal notranslate"><span class="pre">MSE_post</span></code> near zero, rising only mildly with
+the horizon, as the bias bound predicts; durable:
+<code class="docutils literal notranslate"><span class="pre">shc_recovery_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a> – Distributional SC. Path B: Gunsilius (2023)
+Figure 4 reproduction – the 2-Wasserstein-squared distance
+collapses at <span class="math notranslate nohighlight">\(J = 30\)</span> against the rough fit at
+<span class="math notranslate nohighlight">\(J = 4\)</span>, and a location-shift planted effect of
+<span class="math notranslate nohighlight">\(+1.5\)</span> is recovered.</p></li>
+<li><p><a class="reference internal" href="si.html"><span class="doc">Synthetic Interventions (SI)</span></a> – Synthetic Interventions. Path A: California
+Proposition 99 multi-arm counterfactual reproduces the paper’s
+reported control/tax-only/full-program values 75.8 / 57.5 / 59.1.
+Path B: Gavish-Donoho <span class="math notranslate nohighlight">\(k = 5\)</span> for control and
+<span class="math notranslate nohighlight">\(k = 1\)</span> for the tax / program arms, matching the paper.</p></li>
+<li><p><a class="reference internal" href="microsynth.html"><span class="doc">MicroSynth (User-Level Balancing SC)</span></a> – User-Level SC. Path B: Section 5
+contamination-recovery study, 200 reps with true lift
+<span class="math notranslate nohighlight">\(+0.05\)</span>; MicroSynth bias <span class="math notranslate nohighlight">\(+0.0028\)</span> vs. ITT bias
+<span class="math notranslate nohighlight">\(-0.0181\)</span> and naive TOT bias <span class="math notranslate nohighlight">\(+0.0291\)</span>.</p></li>
+</ul>
+</section>
+<section id="convex-hull-relaxation">
+<span id="replications-hull"></span><h2>Convex-hull relaxation<a class="headerlink" href="#convex-hull-relaxation" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="iscm.html"><span class="doc">Imperfect Synthetic Controls (ISCM)</span></a> – Imperfect Synthetic Controls. Example:
+one-factor panel with planted effect 3.0 recovered as
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} \approx 3.0\)</span> and a small outside-
+hull fit metric, illustrating the all-units-as-synthetic-
+controls construction. <em>Full Monte Carlo replication queued.</em></p></li>
+<li><p><a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a> – Nonlinear SC. Cross-validation: matched to
+Tian’s (2023) own R implementation on the Proposition 99 panel
+(Table 2) – per-donor NSC weights track the author’s to
+correlation 0.989 (max <span class="math notranslate nohighlight">\(|\Delta| = 0.024\)</span>), recovering the
+same signed donor pool, with an average effect <span class="math notranslate nohighlight">\(-19.1\)</span> and
+an effect path (<span class="math notranslate nohighlight">\(-9.1/-22.6/-27.0\)</span> in 1990/1995/2000)
+matching the paper’s <span class="math notranslate nohighlight">\(-9.5/-24.5/-28.7\)</span>. Path B: the
+nonlinear-outcome Monte Carlo (Section 4, Table 1) – on the
+<span class="math notranslate nohighlight">\(r = 2\)</span> panel NSC’s 95% CI covers near nominal
+(<span class="math notranslate nohighlight">\(0.93/0.97\)</span> at <span class="math notranslate nohighlight">\(J = 25/50\)</span>, paper
+<span class="math notranslate nohighlight">\(0.935/0.950\)</span>) and the error shrinks as the donor pool
+grows. → dedicated page: <a class="reference internal" href="replications/nsc.html"><span class="doc">NSC — Nonlinear Synthetic Control (Tian 2023)</span></a>; durable cases
+<code class="docutils literal notranslate"><span class="pre">nsc_prop99</span></code>, <code class="docutils literal notranslate"><span class="pre">nsc_mc</span></code>.</p></li>
+</ul>
+</section>
+<section id="high-dimensional-donor-pools">
+<span id="replications-highdim"></span><h2>High-dimensional donor pools<a class="headerlink" href="#high-dimensional-donor-pools" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="bvss.html"><span class="doc">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</span></a> – Xu &amp; Zhou (2025) Bayesian SC with soft simplex.
+Path A: China anti-corruption study on luxury-watch imports
+(87 commodity-category donors) – ATT = -0.020 (95% credible
+interval <span class="math notranslate nohighlight">\([-0.033, -0.003]\)</span>) matches the paper’s
+<span class="math notranslate nohighlight">\(-0.021\ ([-0.032, -0.008])\)</span>.</p></li>
+<li><p><a class="reference internal" href="clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a> – Cluster-then-pool SC. Path A (PCR-SC):
+California Proposition 99 – rank-1 PCR
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}}\)</span> in the <span class="math notranslate nohighlight">\([-19, -24]\)</span> range
+matching the classical ADH baseline. Path A (RPCA-SC): West
+German reunification – Norway weight 0.485, France 0.354,
+pre-RMSE <span class="math notranslate nohighlight">\(\approx 89\)</span> matching Bayani’s reference figures
+(durable: <code class="docutils literal notranslate"><span class="pre">clustersc_rpca_germany</span></code>).
+Path B: Amjad-Shah-Shen periodicity DGP plus a two-factor
+DGP for missing-data robustness. Path B (subgroups,
+cross-validated): Rho et al. (2025) ClusterSC – in the
+high-dimensional-subgroup regime (pooled rank <span class="math notranslate nohighlight">\(&gt;T_0\)</span>)
+ClusterSC beats whole-pool RSC at every noise level (MSE down
+<span class="math notranslate nohighlight">\(60.8\% / 43.2\% / 24.3\%\)</span> at <span class="math notranslate nohighlight">\(\sigma = 0.10/0.25/0.40\)</span>),
+and the authors’ own code reproduces its <span class="math notranslate nohighlight">\(\approx 50\%\)</span>
+headline on its own DGP. Path B (RSC, Amjad-Shah-Shen 2018):
+the PCR-SC training error approximates its generalization error
+(gen/train <span class="math notranslate nohighlight">\(\approx 1.0\text{-}1.15\)</span>) across noise, the RSC
+Table-1 finding. Cross-validation (Shen et al. CIs): mlsynth’s
+variance code matches deshen24/panel-data-regressions to machine
+precision, and the doubly-robust CI attains <span class="math notranslate nohighlight">\(\approx 95\%\)</span>
+coverage for all three estimands where a single-source CI drops to
+<span class="math notranslate nohighlight">\(63\%\)</span>.
+→ dedicated page: <a class="reference internal" href="replications/clustersc.html"><span class="doc">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</span></a>.</p></li>
+<li><p><a class="reference internal" href="mlsc.html"><span class="doc">Multi-Level Synthetic Control (mlSC)</span></a> – Bottmer (2024) multi-level SC.
+Cross-validation against the author’s <code class="docutils literal notranslate"><span class="pre">mlSC_estimator</span></code>
+(<code class="docutils literal notranslate"><span class="pre">multi-level-sc-estimator</span></code>, pinned commit <code class="docutils literal notranslate"><span class="pre">0fb2639</span></code>) on the
+README hierarchical-factor DGP. Path A (one draw):
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} = +0.011930\)</span> vs the reference
+<span class="math notranslate nohighlight">\(+0.011928\)</span>, <span class="math notranslate nohighlight">\(\lambda = 1.970185\)</span> to machine precision.
+Path B (200 independent draws): both unbiased for the true zero
+ATT and in near-machine agreement, <span class="math notranslate nohighlight">\(\max |\Delta| = 5.76
+\times 10^{-4}\)</span>. The case clones the reference at run time and skips
+gracefully when it is unavailable (durable: <code class="docutils literal notranslate"><span class="pre">mlsc_bottmer</span></code>).</p></li>
+<li><p><a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a> – Shi &amp; Huang (2023) panel data approach.
+Path A: Hong Kong economic integration (HCW 24-economy
+panel, quarterly GDP growth) – all three methods recover a
+positive, highly significant CEPA effect, with the
+L2-relaxation estimate (2.48%, <span class="math notranslate nohighlight">\(t \approx 7.7\)</span>)
+reproducing Shi &amp; Wang’s Appendix-E.1 headline of
+<span class="math notranslate nohighlight">\(+2.65\%\)</span> (<span class="math notranslate nohighlight">\(t = 8.35\)</span>); LASSO and forward
+selection bracket it at 3.3% and 3.9% (durable:
+<code class="docutils literal notranslate"><span class="pre">pda_hongkong</span></code>). Path B: Table-1 size/power geometry on
+the four-factor DGP – forward selection stays parsimonious
+(~4 donors) and correctly sized (≈ 0.08-0.09) under both
+factor structures, while LASSO over-selects (9-15) and its
+size inflates under <em>dynamic</em> factors (0.14 vs 0.065 i.i.d.),
+matching the paper; both fully powered at <code class="docutils literal notranslate"><span class="pre">D5</span></code> (durable:
+<code class="docutils literal notranslate"><span class="pre">pda_table1</span></code>). mlsynth’s LASSO is cross-validated, not the
+paper’s modified-BIC, so its LASSO cells are a CV variant, not
+a cell-by-cell match. Path B (LASSO): Li &amp; Bell (2017) Table 2
+on a dense three-factor DGP with <span class="math notranslate nohighlight">\(N=31 &gt; T_1=25\)</span> – the LASSO
+control-unit selection stays parsimonious (~7 of 30) and its
+out-of-sample PMSE scales with the idiosyncratic noise
+(<span class="math notranslate nohighlight">\(\approx 1.5 / 0.97 / 0.18\)</span> at <span class="math notranslate nohighlight">\(\sigma^2 = 1 / 0.5 /
+0.1\)</span>, vs the paper’s <span class="math notranslate nohighlight">\(1.77 / 0.96 / 0.22\)</span>; durable:
+<code class="docutils literal notranslate"><span class="pre">pda_lasso_sim</span></code>). Path B (l2): Shi &amp; Wang (2024) Table 2 on a
+dense strong-factor DGP (<span class="math notranslate nohighlight">\(N=100\)</span>) – the L2-relaxation test’s
+size shrinks toward nominal as <span class="math notranslate nohighlight">\(T_1\)</span> grows (<span class="math notranslate nohighlight">\(0.20\)</span> at
+<span class="math notranslate nohighlight">\(T_1=50\)</span> → <span class="math notranslate nohighlight">\(0.10\)</span> at <span class="math notranslate nohighlight">\(200\)</span>, vs the paper’s
+<span class="math notranslate nohighlight">\(0.142 \to 0.072\)</span>) and its power matches (<span class="math notranslate nohighlight">\(0.567\)</span> vs
+<span class="math notranslate nohighlight">\(0.570\)</span> at <span class="math notranslate nohighlight">\(T_1=50\)</span>; durable: <code class="docutils literal notranslate"><span class="pre">pda_l2_sim</span></code>).
+Path A (fsPDA): the China luxury-watch
+study (anti-corruption campaign, Jan-2013) on
+<code class="docutils literal notranslate"><span class="pre">china_watches_long.csv</span></code> – forward selection picks 3 controls,
+in-sample <span class="math notranslate nohighlight">\(R^2 = 0.777\)</span> and monthly ATE
+<span class="math notranslate nohighlight">\(-3.09\%\)</span>, matching Shi &amp; Huang’s Section 5 cell-for-cell;
+with the prewhitened Newey-West variance from their application
+script the effect is significant (<span class="math notranslate nohighlight">\(t = -2.51\)</span> vs the paper’s
+<span class="math notranslate nohighlight">\(-2.457\)</span>; durable: <code class="docutils literal notranslate"><span class="pre">pda_luxurywatch</span></code>). Path A (l2): the
+Shi &amp; Wang (2024) China PPI / real-estate-regulation study on
+<code class="docutils literal notranslate"><span class="pre">china_ppi_long.csv</span></code> – with the authors’ standardisation the
+L2-relaxation recovers a large significant negative monthly PPI
+effect, <span class="math notranslate nohighlight">\(-5.95\%\)</span> (<span class="math notranslate nohighlight">\(t = -4.48\)</span>), against their
+<span class="math notranslate nohighlight">\(-6.40\%\)</span> (<span class="math notranslate nohighlight">\(t = -3.61\)</span>); the gap is mlsynth’s
+time-respecting sequential CV vs the paper’s future-leaking 5-block
+K-fold (durable: <code class="docutils literal notranslate"><span class="pre">pda_ppi</span></code>). Path A (multi-treat): the Shi &amp;
+Wang (2024) Brexit study on <code class="docutils literal notranslate"><span class="pre">brexit_long.csv</span></code> – 52 UK firms
+treated as a cross-section against 300 controls; on the first
+post-referendum day the L2-relaxation per-period ATE on UK returns
+is <span class="math notranslate nohighlight">\(-4.50\%\)</span> (<span class="math notranslate nohighlight">\(t = -7.5\)</span>), reproducing the paper’s
+<span class="math notranslate nohighlight">\(-4.31\%\)</span> (<span class="math notranslate nohighlight">\(t = -7.39\)</span>). All 52 per-firm fits run
+through one shared OSQP factorisation (durable: <code class="docutils literal notranslate"><span class="pre">pda_brexit</span></code>).</p></li>
+<li><p><a class="reference internal" href="fscm.html"><span class="doc">Forward-Selected Synthetic Control (FSCM)</span></a> – Cerulli (2024) forward-selected SC. Path A:
+Proposition 99 –
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} = -20.15\)</span>,
+pre-<span class="math notranslate nohighlight">\(R^2 = 0.970\)</span>, CV RMSPE <span class="math notranslate nohighlight">\(= 1.605\)</span> vs. the
+full-pool baseline 2.916 (durable: <code class="docutils literal notranslate"><span class="pre">fscm_prop99</span></code>).</p></li>
+<li><p><a class="reference internal" href="sparse_sc.html"><span class="doc">Sparse Synthetic Control (SparseSC)</span></a> – Sparse SC. Path A: California
+Proposition 99 with an over-rich augmented predictor set, with
+conformal inference – the L1 penalty prunes to 6 of 33 predictors
+and the effect lands at <span class="math notranslate nohighlight">\(-17.9\)</span> packs (95% CI
+<span class="math notranslate nohighlight">\([-21.3, -15.4]\)</span>) on the ADH donor pool (durable:
+<code class="docutils literal notranslate"><span class="pre">sparse_sc_prop99</span></code>). See the
+<a class="reference internal" href="replications/sparse_sc.html"><span class="doc">dedicated page</span></a>.</p></li>
+<li><p><a class="reference internal" href="msqrt.html"><span class="doc">Multivariate Square-root Lasso Synthetic Control (MSQRT)</span></a> – Shen, Song &amp; Abadie (2025) multivariate
+square-root-Lasso SC for high-dimensional disaggregated data.
+Path B: the Section-6 simulation (true ATT = 0) – the
+estimator is unbiased (mean bias within Monte-Carlo noise of
+zero) and the imputed-counterfactual RMSE stays near the
+<span class="math notranslate nohighlight">\(\sigma = 0.5\)</span> noise floor and roughly flat in the number of
+treated units <span class="math notranslate nohighlight">\(m\)</span>, the property that makes the
+many-treated regime work (durable: <code class="docutils literal notranslate"><span class="pre">msqrt_sim</span></code>; run at a reduced
+<span class="math notranslate nohighlight">\(n = 80\)</span> regime – the paper’s exact <span class="math notranslate nohighlight">\(n = 400\)</span> RMSE level
+is <span class="math notranslate nohighlight">\(\approx 0.72\)</span>).</p></li>
+</ul>
+</section>
+<section id="time-aware-and-factor-models">
+<span id="replications-time"></span><h2>Time-aware and factor models<a class="headerlink" href="#time-aware-and-factor-models" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a> – Li &amp; Sonnier (2023) factor model approach.
+Path B: coverage study under DGP1 (stationary) and DGP2
+(non-stationary), 1000 reps; coverage at <span class="math notranslate nohighlight">\(M = 1000\)</span>
+equals 0.947 against the nominal 0.95 – and stays near nominal
+across the equal / treated-smaller / treated-larger variance
+regimes where Xu’s interval fails (durable: <code class="docutils literal notranslate"><span class="pre">fma_coverage_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="tasc.html"><span class="doc">Time-Aware Synthetic Control (TASC)</span></a> – Rho et al. (2026) time-aware SC. Path A:
+Proposition 99 – pre-RMSE 0.767, ATT -16.793, gap of -24
+packs by 2000 against the paper’s Figure 10 gap of -25 to -30.
+Path B: the Section-5.2 <span class="math notranslate nohighlight">\((q, r)\)</span> state-space ablation
+(Figures 3-4) – TASC has the smaller median counterfactual RMSE
+than vanilla SC in all four regimes (ratio 0.84-0.93),
+strongest under high observation noise, the paper’s headline
+(durable: <code class="docutils literal notranslate"><span class="pre">tasc_mc</span></code>).</p></li>
+</ul>
+</section>
+<section id="staggered-adoption">
+<span id="replications-staggered"></span><h2>Staggered adoption<a class="headerlink" href="#staggered-adoption" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> – Arkhangelsky et al. (2021) synthetic
+difference-in-differences. Path A: California Proposition
+99 – <span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} = -15.605\)</span> matches the
+paper’s <span class="math notranslate nohighlight">\(-15.6\)</span> (and the <code class="docutils literal notranslate"><span class="pre">synthdid</span></code> R-package’s
+<span class="math notranslate nohighlight">\(-15.604\)</span>) to three significant figures; placebo SE
+<span class="math notranslate nohighlight">\(7.58\)</span> against the paper’s <span class="math notranslate nohighlight">\(8.4\)</span>.
+Cross-validation: matched to <code class="docutils literal notranslate"><span class="pre">causaltensor.SDID</span></code> on the same
+matrix to <span class="math notranslate nohighlight">\(|\Delta| = 3.1\times 10^{-3}\)</span>.
+→ dedicated page: <a class="reference internal" href="replications/sdid.html"><span class="doc">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</span></a>.</p></li>
+<li><p><a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a> – Spatial Synthetic-DiD. Path B
+(cross-validation): the authors’ State-Level Monte Carlo
+(serenini/spatial_SDID) run per-rep against their own algorithm –
+per-rep ATT correlation 0.996, mean ATT bias <span class="math notranslate nohighlight">\(\approx 0.02\)</span>
+for both implementations (the paper’s headline unbiasedness).
+→ dedicated page: <a class="reference internal" href="replications/spsydid.html"><span class="doc">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</span></a>.</p></li>
+<li><p><a class="reference internal" href="spotsynth.html"><span class="doc">Spillover-Detecting Synthetic Control (SPOTSYNTH)</span></a> – O’Riordan &amp; Gilligan-Lee (2025) spillover
+detection for donor selection. Path B: the Figure 2 bias study
+on the Appendix B DGP – a synthetic control on all donors is biased
+(<span class="math notranslate nohighlight">\(\approx +1.6\)</span>), one on valid donors is unbiased, and the S1 /
+S2 screens recover most of the gap, degrading with noise. Path A
+(semi-synthetic): the Figure 6 demonstrations – a planted
+noisy-proxy donor that biases California tobacco (<span class="math notranslate nohighlight">\(-1.4\)</span> vs the
+canonical <span class="math notranslate nohighlight">\(-20.5\)</span>) and German reunification toward zero is
+flagged and excluded, restoring the effect; both run through
+<code class="docutils literal notranslate"><span class="pre">SPOTSYNTH.fit()</span></code>.</p></li>
+<li><p><a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a> – Ben-Michael, Feller &amp; Rothstein (2022)
+partially pooled SC. Cross-validation: matched end-to-end
+to the <code class="docutils literal notranslate"><span class="pre">augsynth</span></code> R-package vignette (<span class="math notranslate nohighlight">\(\nu = 0.2607\)</span>,
+average ATT <span class="math notranslate nohighlight">\(= -0.011\)</span>) to four decimals.</p></li>
+<li><p><a class="reference internal" href="ssc.html"><span class="doc">Staggered Synthetic Control (SSC)</span></a> – Cao, Lu &amp; Wu (2026) staggered synthetic control.
+Path A (cross-validation): the Guanajuato police-reform
+application (Section 4; <span class="math notranslate nohighlight">\(N = 33\)</span>, 10 staggered adopters),
+cross-validated against the authors’ committed reference output
+(<code class="docutils literal notranslate"><span class="pre">jcao0/staggered_synthetic_control</span></code>, pinned commit <code class="docutils literal notranslate"><span class="pre">74e77d4</span></code>)
+– event-time ATT estimates match for all seven outcomes, to
+<span class="math notranslate nohighlight">\(\approx 10^{-4}\)</span> for the homicide (<span class="math notranslate nohighlight">\(T_0 = 174\)</span>) and
+theft rates and <span class="math notranslate nohighlight">\(\approx 10^{-3}\)</span> for the annual cartel
+outcomes, and the smallest SSC Gram eigenvalue per outcome matches
+the reference <code class="docutils literal notranslate"><span class="pre">Table1_eigenvalue.csv</span></code> to <span class="math notranslate nohighlight">\(\approx 10^{-4}\)</span>
+(durable: <code class="docutils literal notranslate"><span class="pre">ssc_guanajuato</span></code>). Path B: the paper’s staggered
+AR(1)-factor DGP (Section 3) – the event-time ATT path
+<span class="math notranslate nohighlight">\(\tau = 1 + e\)</span> is recovered, using all units (including
+not-yet-treated) as donors.</p></li>
+<li><p><a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a> – spillover-aware SC, a four-method dispatcher,
+each method benchmarked.
+Cao-Dowd (<code class="docutils literal notranslate"><span class="pre">method='cd'</span></code>), Path A cross-validation: Proposition
+99 with spillover on the 51-unit panel (50 states + DC, 1970-2000),
+cross-validated against the authors’ committed MATLAB output
+(<code class="docutils literal notranslate"><span class="pre">jcao0/synthetic-control-spillover</span></code>, pinned commit <code class="docutils literal notranslate"><span class="pre">60bbebe</span></code>)
+– the California spillover-adjusted ATT path reproduces
+<code class="docutils literal notranslate"><span class="pre">spillover.csv</span></code> to <span class="math notranslate nohighlight">\(\approx 10^{-4}\)</span>; the spillover-adjusted
+ATT (avg <span class="math notranslate nohighlight">\(-9.44\)</span>) is attenuated relative to vanilla SCM
+(<span class="math notranslate nohighlight">\(-10.81\)</span>) and near zero in the first four post years
+(<span class="math notranslate nohighlight">\(-0.85\)</span>) where spillover to Nevada/Oregon/DC inflates the
+classical estimate (durable: <code class="docutils literal notranslate"><span class="pre">spillsynth_prop99</span></code>).
+Inclusive SCM (<code class="docutils literal notranslate"><span class="pre">method='iscm'</span></code>, Di Stefano &amp; Mellace 2024), Path
+A: German reunification keeping Austria in the donor pool, the
+outcome-only inclusive fit (the no-covariates regime Melnychuk’s
+reference also reports; distinct from the <em>Iterative</em> SCM and from the
+with-covariates Table-2 spec) – Austria carries <span class="math notranslate nohighlight">\(\approx 0.33\)</span> of
+synthetic West Germany and West Germany <span class="math notranslate nohighlight">\(\approx 0.32\)</span> of synthetic
+Austria (<span class="math notranslate nohighlight">\(\det\Omega \approx 0.90\)</span>), and the inclusive ATT is more
+negative than the naive gap (durable: <code class="docutils literal notranslate"><span class="pre">spillsynth_iscm_germany</span></code>).
+Grossi et al. (<code class="docutils literal notranslate"><span class="pre">method='grossi'</span></code>, 2025), Path A: the
+direct/spillover decomposition on German reunification – a direct
+effect (<span class="math notranslate nohighlight">\(\approx -1605\)</span>) more negative than the naive gap, with
+Austria removed from the donor pool but assigned a negative spillover
+(durable: <code class="docutils literal notranslate"><span class="pre">spillsynth_grossi_germany</span></code>).
+SAR Bayesian (<code class="docutils literal notranslate"><span class="pre">method='sar'</span></code>, Sakaguchi &amp; Tagawa 2026), Path B
+(cross-validation): mlsynth runs the authors’ own spatial-AR
+simulation DGP (rook lattice, <code class="docutils literal notranslate"><span class="pre">sigma2=1</span></code>) and reproduces their
+published Section-5.2 cells (<code class="docutils literal notranslate"><span class="pre">N=16,</span> <span class="pre">T0=20</span></code>) – the proposed method is
+unbiased at every <span class="math notranslate nohighlight">\(\rho\)</span> (paper <span class="math notranslate nohighlight">\(|\text{bias}|\le 0.003\)</span>)
+with ~95% coverage, while ordinary SCM’s bias grows with the spillover
+(mlsynth <span class="math notranslate nohighlight">\(+0.10/+0.57\)</span> vs the paper’s <span class="math notranslate nohighlight">\(+0.092/+0.504\)</span> at
+<span class="math notranslate nohighlight">\(\rho=0.3/0.8\)</span>); the proposed estimator de-biases SCM and nests
+it at <span class="math notranslate nohighlight">\(\rho=0\)</span> (durable: <code class="docutils literal notranslate"><span class="pre">spillsynth_sar_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="seq_sdid.html"><span class="doc">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</span></a> – Arkhangelsky &amp; Samkov (2025) Sequential
+Synthetic DiD. Path B: the Section-5.2.2 calibrated-panel
+Monte Carlo (Table 1) reconstructed from the paper’s description
+(the authors’ CPS log-wage panel is not public) – under an
+interactive-fixed-effects violation of parallel trends, standard
+DiD’s 95% CI coverage collapses (<span class="math notranslate nohighlight">\(\approx 0.45\)</span>, paper
+<span class="math notranslate nohighlight">\(\approx 0.70\)</span>) while Sequential SDiD stays near nominal
+(<span class="math notranslate nohighlight">\(0.945\)</span>) with roughly five-times-smaller bias and lower
+RMSE – the paper’s “DiD severely biased, Sequential SDiD reliable”
+headline (durable: <code class="docutils literal notranslate"><span class="pre">seq_sdid_mc</span></code>). A noiseless rank-one IFE
+corollary pins exact machine-precision recovery for every
+donor-balanced cohort.
+→ dedicated page: <a class="reference internal" href="replications/seq_sdid.html"><span class="doc">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</span></a>.</p></li>
+</ul>
+</section>
+<section id="missing-data">
+<span id="replications-missing"></span><h2>Missing data<a class="headerlink" href="#missing-data" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a> – Athey, Bayati, Doudchenko, Imbens &amp; Khosravi
+(2021) matrix-completion SC. Path A: Proposition 99 –
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} \approx -20\)</span> packs per capita,
+consistent with classical SC, FSCM and SNN estimates on the
+same panel. Cross-validation: matched to
+<code class="docutils literal notranslate"><span class="pre">causaltensor</span></code>’s MC-NNM ATT (-19.83 vs -20.27, <span class="math notranslate nohighlight">\(\approx\)</span>
+2%; estimand-level, given the differing FE sub-solvers).
+→ dedicated page: <a class="reference internal" href="replications/mcnnm.html"><span class="doc">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</span></a>.</p></li>
+<li><p><a class="reference internal" href="snn.html"><span class="doc">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</span></a> – Synthetic Nearest Neighbours.
+Cross-validation: Proposition 99 –
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} \approx -19\)</span> packs/capita,
+matching the Abadie-Diamond-Hainmueller (2010) reference
+baseline.</p></li>
+<li><p><a class="reference internal" href="rmsi.html"><span class="doc">Robust Matrix estimation with Side Information (RMSI)</span></a> – Agarwal, Choi &amp; Yuan (2026) robust matrix
+estimation with side information. Path A: Proposition 99
+with the Abadie covariates as side information –
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} \approx -21\)</span> packs/capita
+(widening to <span class="math notranslate nohighlight">\(\approx -32\)</span> by 2000), matching the ADH
+baseline. Path B: the paper’s four-component MNAR Monte
+Carlo (Section 5.1) – RMSI’s missing-block AMSE is lower than
+the no-side-information baseline, the paper’s central finding.</p></li>
+</ul>
+</section>
+<section id="replications-endogeneity">
+<span id="identification-under-endogeneity"></span><h2>Identification under endogeneity<a class="headerlink" href="#replications-endogeneity" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="siv.html"><span class="doc">Synthetic IV</span></a> – Gulek &amp; Vives (2024) synthetic IV. Path A:
+Autor-Dorn-Hanson China-shock 2SLS (Table 3) reproduced
+exactly on the public replication archive – coefficients
+<span class="math notranslate nohighlight">\(-0.888 / -0.718 / -0.746\)</span> against
+<span class="math notranslate nohighlight">\(-0.89 / -0.72 / -0.75\)</span>. Path B: Section 6 Syrian-
+calibrated Monte Carlo across <span class="math notranslate nohighlight">\(r \in \{0.5, 0.7, 0.9\}\)</span>
+at 200 reps; TSLS-TWFE bias 0.111 / 0.228 / 0.387 matches the
+paper’s 0.111 / 0.218 / 0.360 essentially exactly, with
+SIV’s debiasing far below 2SLS at every level (durable:
+<code class="docutils literal notranslate"><span class="pre">siv_syria_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="dscar.html"><span class="doc">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</span></a> – Zheng &amp; Chen (2024) dynamic SC for
+auto-regressive processes. Path A: Beijing heavy-pollution
+alerts on station-level PM2.5 – the <em>orange</em> alert reproduces
+the paper value for value (ATT <span class="math notranslate nohighlight">\(-33.78\)</span> vs <span class="math notranslate nohighlight">\(-33.8\)</span>, a
+24.3% reduction; counterfactual 139.1 vs 139.0, treated mean 105.3
+vs 105.3), while the <em>red</em> alert recovers a large negative effect
+(<span class="math notranslate nohighlight">\(-55.7\)</span>, ~22% reduction) whose magnitude differs from the
+paper’s <span class="math notranslate nohighlight">\(-70.4\)</span> (the released code omits a per-unit de-meaning
+step), pinned as a qualitative + regression guard (durable:
+<code class="docutils literal notranslate"><span class="pre">dscar_beijing</span></code>).</p></li>
+<li><p><a class="reference internal" href="proximal.html"><span class="doc">Proximal Inference Synthetic Control (PROXIMAL)</span></a> – Proximal SC. Path A (cross-validation):
+Panic of 1907 on the Trust panel, cross-validated against the
+authors’ Python reference (<code class="docutils literal notranslate"><span class="pre">freshtaste/proximal</span></code>, pinned commit
+<code class="docutils literal notranslate"><span class="pre">a67d81e</span></code>) and the papers’ Table 3 – PI <span class="math notranslate nohighlight">\(-1.148\)</span> vs.
+reference <span class="math notranslate nohighlight">\(-1.138\)</span>; PIS <span class="math notranslate nohighlight">\(-1.148\)</span> vs. <span class="math notranslate nohighlight">\(-1.134\)</span>;
+PIPost <span class="math notranslate nohighlight">\(-1.220\)</span> (matching the reference to <code class="docutils literal notranslate"><span class="pre">1e-8</span></code>); the
+no-proxy SPSC (<span class="math notranslate nohighlight">\(-0.892\)</span>), doubly-robust DR (<span class="math notranslate nohighlight">\(-1.194\)</span>)
+and PIPW (<span class="math notranslate nohighlight">\(-0.854\)</span>) are pinned alongside (durable:
+<code class="docutils literal notranslate"><span class="pre">proximal_panic1907</span></code>).
+Path B (PI/PIS/PIPost): the authors’ <code class="docutils literal notranslate"><span class="pre">freshtaste/proximal</span></code>
+surrogates DGP (Sec. 4.1, trending <span class="math notranslate nohighlight">\(\log t\)</span> factor,
+<span class="math notranslate nohighlight">\(\mathrm{True.ATT}=1\)</span>) – the proximal trio recovers the
+truth with near-nominal coverage and PIS attains the lowest MSE,
+while classical SC is biased by the trend (durable:
+<code class="docutils literal notranslate"><span class="pre">proximal_surrogates_mc</span></code>). Path B (SPSC): the authors’ own
+interactive-fixed-effects Monte Carlo (the <code class="docutils literal notranslate"><span class="pre">qkrcks0218/SPSC</span></code>
+README DGP, <span class="math notranslate nohighlight">\(\mathrm{True.ATT}=3\)</span>) – over 60 draws SPSC
+recovers the truth essentially without bias under either
+detrending choice, and the detrended SPSC-DT covers near the
+nominal 95% while the un-detrended SPSC-NoDT under-covers under
+the trend (durable: <code class="docutils literal notranslate"><span class="pre">spsc_ifem_mc</span></code>). Path B (DR/PIPW): the
+authors’ <code class="docutils literal notranslate"><span class="pre">DR_Proximal_SC/simulation/normal</span></code> design
+(<span class="math notranslate nohighlight">\(\mathrm{True.ATE}=2\)</span>) – DR and PIPW recover the truth with
+near-nominal Wald coverage, and DR is robust to an outcome-bridge
+misspecification that collapses the outcome-only PI
+(<span class="math notranslate nohighlight">\(\approx 4.2\)</span> vs. DR <span class="math notranslate nohighlight">\(\approx 2.0\)</span>; durable:
+<code class="docutils literal notranslate"><span class="pre">dr_proximal_mc</span></code>).</p></li>
+</ul>
+</section>
+<section id="experimental-design">
+<span id="replications-design"></span><h2>Experimental design<a class="headerlink" href="#experimental-design" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="syndes.html"><span class="doc">Synthetic Design (SYNDES)</span></a> – Abadie &amp; Zhao (2025) synthetic design.
+Path B: Section 5 ablation across the three design types
+(<code class="docutils literal notranslate"><span class="pre">per_unit</span></code> / <code class="docutils literal notranslate"><span class="pre">two_way_global</span></code> / <code class="docutils literal notranslate"><span class="pre">one_way_global</span></code>) at 40
+reps under AR(1) factors; <code class="docutils literal notranslate"><span class="pre">per_unit</span></code> design RMSE = 0.098
+against a random-DiM baseline of 0.982, power = 0.50 at
+MDE = 0.157.</p></li>
+<li><p><a class="reference internal" href="marex.html"><span class="doc">Synthetic Controls for Experimental Design (MAREX)</span></a> – Abadie &amp; Zhao (2025) market-exclusion design.
+Path A: Walmart 45-store weekly-sales placebo design –
+pre-fit RMSE 2.2%, placebo ATT <span class="math notranslate nohighlight">\(-1.0%\)</span>, p-value 0.937
+against the paper’s 0.933. Path B: Lin-factor DGP recovers
+the treatment effect across the MAE-vs-effect-scale sweep.</p></li>
+<li><p><a class="reference internal" href="pangeo.html"><span class="doc">Parallel-Trends Supergeo Design (PANGEO)</span></a> – Parallel-Trends Supergeo Design. Path B:
+seasonal-sales panel with up-trend, down-trend, and cyclical
+trajectories; PANGEO RMSE <span class="math notranslate nohighlight">\(\approx 0.2\)</span> against scalar-
+matching RMSE <span class="math notranslate nohighlight">\(\approx 6\)</span> at <span class="math notranslate nohighlight">\(\tau = 4\)</span> (a
+<span class="math notranslate nohighlight">\(30\times\)</span> improvement); pre-period parallelism
+<span class="math notranslate nohighlight">\(R^2 \in [0.90, 0.98]\)</span> (durable: <code class="docutils literal notranslate"><span class="pre">pangeo_supergeo_mc</span></code>).</p></li>
+<li><p><a class="reference internal" href="spcd.html"><span class="doc">Synthetic Principal Component Design (SPCD)</span></a> – Synthetic Principal Component Design.
+Path B: Lu-Li-Ying-Blanchet linear-factor model with
+<span class="math notranslate nohighlight">\(\tau = 1\)</span>, <span class="math notranslate nohighlight">\(\sigma = 1\)</span> – SPCD mean
+<span class="math notranslate nohighlight">\(\widehat{\mathrm{ATT}} \approx 1.0\)</span>, RMSE
+<span class="math notranslate nohighlight">\(\approx 0.4\)</span> against the random-design baseline RMSE
+<span class="math notranslate nohighlight">\(\approx 3.9\)</span> (a <span class="math notranslate nohighlight">\(10\times\)</span> improvement).</p></li>
+<li><p><a class="reference internal" href="lexscm.html"><span class="doc">Lexicographic Synthetic Control (LEXSCM)</span></a> – Lexicographic synthetic experimental design
+(Abadie-Zhao 2026; Vives-i-Bastida 2022). Path A: the Walmart
+45-store placebo design – pre-fit RMSE <span class="math notranslate nohighlight">\(\approx 2.7\%\)</span> of
+mean sales, placebo effect <span class="math notranslate nohighlight">\(\approx 0.9\%\)</span>, permutation
+p <span class="math notranslate nohighlight">\(\approx 0.63\)</span> (CI covers zero), the paper’s “no spurious
+effect” result. Path B: the Abadie-Zhao Section-5 linear-factor
+design simulation (exact params: <span class="math notranslate nohighlight">\(J=15\)</span>, <span class="math notranslate nohighlight">\(T_E=20\)</span>) – the
+design recovers the planted effect with MAE/scale <span class="math notranslate nohighlight">\(\approx 0.24\)</span>
+for the single-treated-unit design falling to <span class="math notranslate nohighlight">\(\approx 0.16\)</span> at
+<span class="math notranslate nohighlight">\(m=2\)</span> (Table-2 monotonicity).
+→ dedicated page: <a class="reference internal" href="replications/lexscm.html"><span class="doc">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</span></a>.</p></li>
+<li><p><a class="reference internal" href="geolift.html"><span class="doc">GeoLift Market Selection (GEOLIFT)</span></a> – Meta’s GeoLift market-selection design (augsynth
+Augmented SCM + conformal inference). Cross-validation vs
+<code class="docutils literal notranslate"><span class="pre">GeoLift</span></code>/<code class="docutils literal notranslate"><span class="pre">augsynth</span></code>: the <code class="docutils literal notranslate"><span class="pre">GeoLift_Walkthrough</span></code> realized report
+reproduced value-for-value with <code class="docutils literal notranslate"><span class="pre">fixed_effects=True</span></code> – per-unit ATT
+155.6, percent lift 5.4%, summed incremental 4667, conformal
+<span class="math notranslate nohighlight">\(p = 0.01\)</span>. The match needs unit fixed effects (per-unit demeaning),
+a mean-of-units fit target, the all-period conformal refit, and augsynth’s
+period-space ridge ASCM; the conformal test is shown calibrated by a
+40-market placebo study. Status: done.
+→ dedicated page: <a class="reference internal" href="replications/geolift.html"><span class="doc">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</span></a>; durable case
+<code class="docutils literal notranslate"><span class="pre">geolift_walkthrough</span></code> (plus <code class="docutils literal notranslate"><span class="pre">test_geolift_walkthrough</span></code>).</p></li>
+</ul>
+</section>
+<section id="coverage-summary">
+<h2>Coverage summary<a class="headerlink" href="#coverage-summary" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table" id="id2">
+<caption><span class="caption-text">Verification coverage by family</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 32.0%" />
+<col style="width: 14.0%" />
+<col style="width: 14.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Family</p></th>
+<th class="head"><p>Verified</p></th>
+<th class="head"><p>In family</p></th>
+<th class="head"><p>Status</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Canonical workhorses</p></td>
+<td><p>2</p></td>
+<td><p>2</p></td>
+<td><p>Complete (TSSC, FDID)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Decomposition-first</p></td>
+<td><p>2</p></td>
+<td><p>2</p></td>
+<td><p>Complete (HSC, SBC)</p></td>
+</tr>
+<tr class="row-even"><td><p>Generalised estimand / treatment / unit</p></td>
+<td><p>5</p></td>
+<td><p>5</p></td>
+<td><p>Complete (SCMO, CTSC, DSC, SI, MicroSynth)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Convex-hull relaxation</p></td>
+<td><p>1</p></td>
+<td><p>2</p></td>
+<td><p>NSC ✓ (cross-validated vs author’s R + Path-B MC);
+ISCM one-draw only (non-public panel, no MC)</p></td>
+</tr>
+<tr class="row-even"><td><p>High-dimensional donors</p></td>
+<td><p>7</p></td>
+<td><p>7</p></td>
+<td><p>Complete (BVSS, CLUSTERSC, MLSC, PDA, RESCM, FSCM,
+SPARSE_SC)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Time-aware / factor models</p></td>
+<td><p>2</p></td>
+<td><p>2</p></td>
+<td><p>Complete (FMA, TASC)</p></td>
+</tr>
+<tr class="row-even"><td><p>Staggered adoption</p></td>
+<td><p>5</p></td>
+<td><p>5</p></td>
+<td><p>Complete (SDID, SpSyDiD, PPSCM, SSC, SEQ_SDID)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Spillover-aware (donor screening)</p></td>
+<td><p>1</p></td>
+<td><p>1</p></td>
+<td><p>Complete (SPOTSYNTH; SpSyDiD counted under staggered)</p></td>
+</tr>
+<tr class="row-even"><td><p>Missing data</p></td>
+<td><p>3</p></td>
+<td><p>3</p></td>
+<td><p>Complete (MCNNM, SNN, RMSI)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Identification under endogeneity</p></td>
+<td><p>2</p></td>
+<td><p>2</p></td>
+<td><p>Complete (SIV, PROXIMAL)</p></td>
+</tr>
+<tr class="row-even"><td><p>Experimental design</p></td>
+<td><p>5</p></td>
+<td><p>5</p></td>
+<td><p>Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Of mlsynth’s 36 estimators, 35 (97%) carry a strong or solid
+replication against their source paper or against an
+authoritative reference implementation. Only ISCM remains a
+one-draw illustration – its paper relies on a non-public panel
+and provides no Monte Carlo to reproduce.</p>
+</section>
+<section id="contributing-a-replication">
+<h2>Contributing a replication<a class="headerlink" href="#contributing-a-replication" title="Link to this heading">#</a></h2>
+<p>If you have used an mlsynth estimator and replicated a paper’s
+number in the course of your work, please open an issue or pull
+request on <a class="reference external" href="https://github.com/jgreathouse9/mlsynth/issues">GitHub</a>. The two
+requirements are:</p>
+<ol class="arabic simple">
+<li><p>The replication target is a published number – a row of a
+table, a point on a figure, or a key statistic in the prose.</p></li>
+<li><p>The replication is runnable from a copy of the documentation
+snippet plus the source dataset (CSV, R-package data, or a
+simulator we ship).</p></li>
+</ol>
+<p>A reference Path A entry is <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>’s Brooklyn-showroom
+section; a reference Path B entry is <a class="reference internal" href="tasc.html"><span class="doc">Time-Aware Synthetic Control (TASC)</span></a>’s Section 5
+grid; a reference cross-validation entry is <a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a>’s
+<code class="docutils literal notranslate"><span class="pre">augsynth</span></code>-vignette comparison.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="choose.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">A practitioner’s decision tree</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="replications/fdid.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">FDID — Forward Difference-in-Differences (Li 2024)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#canonical-workhorses">Canonical workhorses</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#decomposition-first-synthetic-control">Decomposition-first synthetic control</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generalising-the-estimand-treatment-or-unit">Generalising the estimand, treatment, or unit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#convex-hull-relaxation">Convex-hull relaxation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#high-dimensional-donor-pools">High-dimensional donor pools</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#time-aware-and-factor-models">Time-aware and factor models</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#staggered-adoption">Staggered adoption</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#missing-data">Missing data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replications-endogeneity">Identification under endogeneity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#experimental-design">Experimental design</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coverage-summary">Coverage summary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-a-replication">Contributing a replication</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,986 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>References &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Vanilla Synthetic Control (VanillaSC)" href="vanillasc.html" />
+    <link rel="prev" title="Benchmarks" href="benchmarks.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/references.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>References</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="references">
+<h1>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h1>
+<div role="list" class="citation-list">
+<div class="citation" id="abadie2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Abadie2021<span class="fn-bracket">]</span></span>
+<p>Abadie, Alberto. <em>“Using Synthetic Controls: Feasibility, Data Requirements, and Methodological Aspects.”</em> Journal of Economic Literature, vol. 59, no. 2, 2021, pp. 391–425. <a class="reference external" href="https://doi.org/10.1257/jel.20191450">https://doi.org/10.1257/jel.20191450</a>.</p>
+</div>
+<div class="citation" id="adid" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ADID<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T., and Christophe Van den Bulte. <em>“Augmented Difference-in-Differences.”</em> Marketing Science, vol. 42, no. 4, 2023, pp. 746–767. <a class="reference external" href="https://doi.org/10.1287/mksc.2022.1406">https://doi.org/10.1287/mksc.2022.1406</a>.</p>
+</div>
+<div class="citation" id="lassopda" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>LASSOPDA<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T., and David R. Bell. <em>“Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation.”</em> J. Econom., vol. 197, no. 1, March 2017, pp. 65–75. <a class="reference external" href="https://doi.org/10.1016/j.jeconom.2016.01.011">https://doi.org/10.1016/j.jeconom.2016.01.011</a>.</p>
+</div>
+<div class="citation" id="amjad2018" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Amjad2018<span class="fn-bracket">]</span></span>
+<p>Amjad, Muhammad, Devavrat Shah, and Dennis Shen. <em>“Robust Synthetic Control.”</em> Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.</p>
+</div>
+<div class="citation" id="agarwal2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Agarwal2021<span class="fn-bracket">]</span></span>
+<p>Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. <em>“On Robustness of Principal Component Regression.”</em> Journal of the American Statistical Association, vol. 116, no. 536, 2021, pp. 1731–1745. doi:10.1080/01621459.2021.1928513.</p>
+</div>
+<div class="citation" id="clustersc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ClusterSC<span class="fn-bracket">]</span></span>
+<p>Rho, Saeyoung, Tang, Andrew, Bergam, Noah, Cummings, Rachel, and Misra, Vishal.
+“ClusterSC: Advancing Synthetic Control with Donor Selection.”
+<em>Proceedings of the 28th International Conference on Artificial Intelligence and Statistics (AISTATS)</em>,
+PMLR 258, 2025. arXiv:2503.21629.</p>
+</div>
+<div class="citation" id="baing2002" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>BaiNg2002<span class="fn-bracket">]</span></span>
+<p>Bai, Jushan and Serena Ng (2002), “Determining the Number of Factors in Approximate Factor Models,” <em>Econometrica</em>, 70 (1), 191–222.</p>
+</div>
+<div class="citation" id="bayani2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Bayani2021<span class="fn-bracket">]</span></span>
+<p>Bayani, Mani. <em>“Robust PCA Synthetic Control.”</em> Working paper, arXiv, 2021. doi:10.48550/ARXIV.2108.12542.</p>
+</div>
+<div class="citation" id="chaisesurvey" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>chaisesurvey<span class="fn-bracket">]</span></span>
+<p>de Chaisemartin, Clément and D’Haultfoeuille, Xavier.
+“Two-way fixed effects and differences-in-differences with heterogeneous treatment effects: a survey.”
+<em>The Econometrics Journal</em>, 26(3): C1-C30, 2022.
+DOI: <a class="reference external" href="https://doi.org/10.1093/ectj/utac017">https://doi.org/10.1093/ectj/utac017</a></p>
+</div>
+<div class="citation" id="costa2023" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Costa2023<span class="fn-bracket">]</span></span>
+<p>Luis Costa, Vivek F. Farias, Patricio Foncea, Jingyuan (Donna) Gan, Ayush Garg, Ivo Rosa Montenegro, Kumarjit Pathak, Tianyi Peng, Dusan Popovic. <em>“Generalized Synthetic Control for TestOps at ABI: Models, Algorithms, and Infrastructure.”</em> INFORMS Journal on Applied Analytics, vol. 53, no. 5, 2023, pp. 336–349.</p>
+</div>
+<div class="citation" id="chatterjee2015" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Chatterjee2015<span class="fn-bracket">]</span></span>
+<p>Sourav Chatterjee. “Matrix estimation by Universal Singular Value Thresholding.” <em>The Annals of Statistics</em>, Ann. Statist. 43(1), 177-214, (February 2015).</p>
+</div>
+<div class="citation" id="donoho2023" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Donoho2023<span class="fn-bracket">]</span></span>
+<p>David Donoho, Matan Gavish, Elad Romanov. “ScreeNOT: Exact MSE-optimal singular value thresholding in correlated noise.” <em>The Annals of Statistics</em>, Ann. Statist. 51(1), 122-148, (February 2023).</p>
+</div>
+<div class="citation" id="hcw" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>HCW<span class="fn-bracket">]</span></span>
+<p>Hsiao, Cheng, H. Steve Ching, and Shui Ki Wan. “A Panel Data Approach for Program Evaluation: Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China.” <em>Journal of Applied Econometrics</em> 27, no. 5 (2012): 705-40. DOI: 10.1002/jae.1230.</p>
+</div>
+<div class="citation" id="fohlin2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>fohlin2021<span class="fn-bracket">]</span></span>
+<p>Caroline Fohlin and Zhikun Lu.
+“How Contagious Was the Panic of 1907? New Evidence from Trust Company Stocks.”
+<em>AEA Papers and Proceedings</em>, vol. 111, pp. 514-519, 2021.
+DOI: <a class="reference external" href="https://doi.org/10.1257/pandp.20211097">https://doi.org/10.1257/pandp.20211097</a></p>
+</div>
+<div class="citation" id="li2024" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Li2024<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T. <em>“Frontiers: A Simple Forward Difference-in-Differences Method.”</em> Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. <a class="reference external" href="https://doi.org/10.1287/mksc.2022.0212">doi:10.1287/mksc.2022.0212</a>.</p>
+</div>
+<div class="citation" id="liutchetgenvar" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>LiuTchetgenVar<span class="fn-bracket">]</span></span>
+<p>Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão.
+“Proximal Causal Inference for Synthetic Control with Surrogates.”
+<em>arXiv Working Paper</em>, 2308.09527, 2023.
+URL: <a class="reference external" href="https://arxiv.org/abs/2308.09527">https://arxiv.org/abs/2308.09527</a></p>
+</div>
+</div>
+<div role="list" class="citation-list">
+<div class="citation" id="roth20232218" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ROTH20232218<span class="fn-bracket">]</span></span>
+<p>Roth, Jonathan, Sant’Anna, Pedro H.C., Bilinski, Alyssa, and Poe, John.
+“What’s trending in difference-in-differences? A synthesis of the recent econometrics literature.”
+<em>Journal of Econometrics</em>, 235(2): 2218-2244, 2023.
+DOI: <a class="reference external" href="https://doi.org/10.1016/j.jeconom.2023.03.008">https://doi.org/10.1016/j.jeconom.2023.03.008</a></p>
+</div>
+<div class="citation" id="l2relax" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>l2relax<span class="fn-bracket">]</span></span>
+<p>Zhentao Shi and Yishu Wang. <em>“L2-relaxation for Economic Prediction.”</em> November 2024. <a class="reference external" href="https://doi.org/10.13140/RG.2.2.11670.97609">doi:10.13140/RG.2.2.11670.97609</a>.</p>
+</div>
+<div class="citation" id="pdapi" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>pdapi<span class="fn-bracket">]</span></span>
+<p>Hongyi Jiang, Xingyu Li, Yan Shen, and Qiankun Zhou. <em>“Prediction Intervals of Panel Data Approach for Programme Evaluation.”</em> <em>Journal of Applied Econometrics</em>, 40(5): 655-668, 2025. <a class="reference external" href="https://doi.org/10.1002/jae.3134">doi:10.1002/jae.3134</a>.</p>
+</div>
+<div class="citation" id="fspda" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>fsPDA<span class="fn-bracket">]</span></span>
+<p>Shi, Zhentao and Huang, Jingyi.
+“Forward-selected panel data approach for program evaluation.”
+<em>Journal of Econometrics</em>, 234(2): 512-535, 2023.
+DOI: <a class="reference external" href="https://doi.org/10.1016/j.jeconom.2021.04.009">https://doi.org/10.1016/j.jeconom.2021.04.009</a></p>
+</div>
+<div class="citation" id="sdid" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>sdid<span class="fn-bracket">]</span></span>
+<p>Clarke, Damian, Pailañir, Daniel, Athey, Susan, and Imbens, Guido.
+“On Synthetic Difference-in-Differences and Related Estimation Methods in Stata.”
+<em>Working Paper</em>. Available at: <a class="reference external" href="https://doi.org/10.48550/arXiv.2301.11859">https://doi.org/10.48550/arXiv.2301.11859</a></p>
+</div>
+<div class="citation" id="stackdid" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>stackdid<span class="fn-bracket">]</span></span>
+<p>Wing, Coady, Freedman, Seth M., and Hollingsworth, Alex.
+“Stacked Difference-in-Differences.”
+<em>National Bureau of Economic Research, Working Paper Series</em>, 32054, January 2024.
+DOI: <a class="reference external" href="https://doi.org/10.3386/w32054">https://doi.org/10.3386/w32054</a></p>
+</div>
+<div class="citation" id="aersdid" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>aersdid<span class="fn-bracket">]</span></span>
+<p>Arkhangelsky, Dmitry, Athey, Susan, Hirshberg, David A., Imbens, Guido W., and Wager, Stefan.
+“Synthetic Difference-in-Differences.”
+<em>American Economic Review</em>, 111(12): 4088–4118, 2021.
+URL: <a class="reference external" href="https://doi.org/10.1257/aer.20190159">https://doi.org/10.1257/aer.20190159</a></p>
+</div>
+<div class="citation" id="scmdisagg" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>scmdisagg<span class="fn-bracket">]</span></span>
+<p>Abadie, Alberto and L’Hour, Jérémy.
+“A Penalized Synthetic Control Estimator for Disaggregated Data.”
+<em>Journal of the American Statistical Association</em>, 116(536): 1817–1834, 2021.
+DOI: <a class="reference external" href="https://doi.org/10.1080/01621459.2021.1971535">https://doi.org/10.1080/01621459.2021.1971535</a></p>
+</div>
+<div class="citation" id="tssc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>TSSC<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T. and Shankar, Venkatesh.
+“A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events.”
+<em>Management Science</em>, 70(6): 3734-3747, 2024.
+DOI: <a class="reference external" href="https://doi.org/10.1287/mnsc.2023.4878">https://doi.org/10.1287/mnsc.2023.4878</a></p>
+</div>
+<div class="citation" id="fma" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>FMA<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T. and Sonnier, Garrett P.
+“Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings.”
+<em>Journal of Marketing Research</em>, 60(3): 449-472, 2023.
+DOI: <a class="reference external" href="https://doi.org/10.1177/00222437221137533">https://doi.org/10.1177/00222437221137533</a></p>
+</div>
+<div class="citation" id="becker20181" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>BECKER20181<span class="fn-bracket">]</span></span>
+<p>Becker, Martin and Klößner, Stefan.
+“Fast and reliable computation of generalized synthetic controls.”
+<em>Econometrics and Statistics</em>, 5: 1-19, 2018.
+DOI: <a class="reference external" href="https://doi.org/10.1016/j.ecosta.2017.08.002">https://doi.org/10.1016/j.ecosta.2017.08.002</a></p>
+</div>
+<div class="citation" id="albalate2021decoupling" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>albalate2021decoupling<span class="fn-bracket">]</span></span>
+<p>Albalate, Daniel, Bel, Germà, and Mazaira-Font, Ferran A.
+“Decoupling synthetic control methods to ensure stability, accuracy and meaningfulness.”
+<em>SERIEs</em>, 12(4): 549-584, 2021.
+Publisher: Springer</p>
+</div>
+<div class="citation" id="li2023statistical" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>li2023statistical<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T. and Sonnier, Garrett P.
+“Statistical inference for the factor model approach to estimate causal effects in quasi-experimental settings.”
+<em>Journal of Marketing Research</em>, 60(3): 449–472, 2023.
+Publisher: SAGE Publications</p>
+</div>
+<div class="citation" id="microsynth" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>microsynth<span class="fn-bracket">]</span></span>
+<p>Robbins, Michael W., Saunders, Jessica, and Kilmer, Beau.
+“A Framework for Synthetic Control Methods With High-Dimensional, Micro-Level Data: Evaluating a Neighborhood-Specific Crime Intervention.”
+<em>Journal of the American Statistical Association</em>, 112(517): 109-126, 2017.
+DOI: <a class="reference external" href="https://doi.org/10.1080/01621459.2016.1213634">https://doi.org/10.1080/01621459.2016.1213634</a></p>
+</div>
+<div class="citation" id="abadie2015" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Abadie2015<span class="fn-bracket">]</span></span>
+<p>Abadie, Alberto, Diamond, Alexis, and Hainmueller, Jens.
+“Comparative Politics and the Synthetic Control Method.”
+<em>American Journal of Political Science</em>, 59(2): 495-510, 2015.
+DOI: <a class="reference external" href="https://doi.org/10.1111/ajps.12116">https://doi.org/10.1111/ajps.12116</a></p>
+</div>
+<div class="citation" id="malo2023computing" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>malo2023computing<span class="fn-bracket">]</span></span>
+<p>Malo, Pekka, Eskelinen, Juha, Zhou, Xun, and Kuosmanen, Timo.
+“Computing synthetic controls using bilevel optimization.”
+<em>Computational Economics</em>, 2023.
+DOI: <a class="reference external" href="https://doi.org/10.1007/s10614-023-10471-7">https://doi.org/10.1007/s10614-023-10471-7</a></p>
+</div>
+<div class="citation" id="jaumesparsesc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>jaumesparsesc<span class="fn-bracket">]</span></span>
+<p>Vives-i-Bastida, Jaume.
+“Predictor Selection for Synthetic Controls.”
+<em>Working Paper</em>, 2022.
+URL: <a class="reference external" href="https://arxiv.org/abs/2203.11576">https://arxiv.org/abs/2203.11576</a></p>
+</div>
+<div class="citation" id="causeimben" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>causeimben<span class="fn-bracket">]</span></span>
+<p>Imbens, Guido W.
+“Causal Inference in the Social Sciences.”
+<em>Annual Review of Statistics and Its Application</em>, 11: 123-152, 2024.
+DOI: <a class="reference external" href="https://doi.org/10.1146/annurev-statistics-033121-114601">https://doi.org/10.1146/annurev-statistics-033121-114601</a></p>
+</div>
+<div class="citation" id="dague2018" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>DAGUE2018<span class="fn-bracket">]</span></span>
+<p>Dague, Laura and Lahey, Joanna N.
+“Causal Inference Methods: Lessons from Applied Microeconomics.”
+<em>Journal of Public Administration Research and Theory</em>, 29(3): 511-529, 2018.
+DOI: <a class="reference external" href="https://doi.org/10.1093/jopart/muy067">https://doi.org/10.1093/jopart/muy067</a></p>
+</div>
+<div class="citation" id="proxscm" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ProxSCM<span class="fn-bracket">]</span></span>
+<p>Shi, Xu, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen.
+“Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework.”
+2023. <a class="reference external" href="https://doi.org/10.48550/arXiv.2108.13935">https://doi.org/10.48550/arXiv.2108.13935</a></p>
+</div>
+<div class="citation" id="shinegcontrol" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ShiNegControl<span class="fn-bracket">]</span></span>
+<p>Shi, Xu, Wang Miao, Jennifer C. Nelson, and Eric J. Tchetgen Tchetgen.
+“Multiply Robust Causal Inference with Double-Negative Control Adjustment for Categorical Unmeasured Confounding.”
+<em>Journal of the Royal Statistical Society: Series B (Statistical Methodology)</em> 82, no. 2 (2020): 521-540.
+DOI: <a class="reference external" href="https://doi.org/10.1111/rssb.12361">https://doi.org/10.1111/rssb.12361</a></p>
+</div>
+<div class="citation" id="spsc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SPSC<span class="fn-bracket">]</span></span>
+<p>Park, Chan, and Eric J. Tchetgen Tchetgen.
+“Single Proxy Synthetic Control.”
+<em>Journal of Causal Inference</em> 13, no. 1 (2025): 20230079.
+DOI: <a class="reference external" href="https://doi.org/10.1515/jci-2023-0079">https://doi.org/10.1515/jci-2023-0079</a></p>
+</div>
+<div class="citation" id="drprox" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>DRProx<span class="fn-bracket">]</span></span>
+<p>Qiu, Hongxiang, Xu Shi, Wang Miao, Edgar Dobriban, and Eric Tchetgen Tchetgen.
+“Doubly Robust Proximal Synthetic Controls.”
+<em>Biometrics</em> 80, no. 2 (2024): ujae055.
+DOI: <a class="reference external" href="https://doi.org/10.1093/biomtc/ujae055">https://doi.org/10.1093/biomtc/ujae055</a></p>
+</div>
+<div class="citation" id="abadie2003" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ABADIE2003<span class="fn-bracket">]</span></span>
+<p>Abadie, Alberto and Gardeazabal, Javier.
+“The Economic Costs of Conflict: A Case Study of the Basque Country.”
+<em>American Economic Review</em>, 93(1): 113-132, 2003.
+DOI: <a class="reference external" href="https://doi.org/10.1257/000282803321455188">https://doi.org/10.1257/000282803321455188</a></p>
+</div>
+<div class="citation" id="kinn2018" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>KINN2018<span class="fn-bracket">]</span></span>
+<p>Kinn, Daniel.
+“Synthetic Control Methods and Big Data.”
+<em>arXiv Working Paper</em>, 1803.00096, 2018.
+DOI: <a class="reference external" href="https://doi.org/10.48550/arXiv.1803.00096">https://doi.org/10.48550/arXiv.1803.00096</a></p>
+</div>
+<div class="citation" id="wiltshire2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>WILTSHIRE2021<span class="fn-bracket">]</span></span>
+<p>Wiltshire, Justin C.
+“allsynth: Synthetic Control Bias-Correction Utilities for Stata.”
+<em>Working Paper</em>, 2021.</p>
+</div>
+<div class="citation" id="greathouse2022" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>GREATHOUSE2022<span class="fn-bracket">]</span></span>
+<p>Greathouse, Jared.
+“Scul: Regularized Synthetic Controls in Stata.”
+<em>Georgia State University</em>, 08, 2022.
+DOI: <a class="reference external" href="https://doi.org/10.2139/ssrn.4196189">https://doi.org/10.2139/ssrn.4196189</a></p>
+</div>
+<div class="citation" id="abadie2024" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ABADIE2024<span class="fn-bracket">]</span></span>
+<p>Abadie, Alberto and Zhao, Jinglong.
+“Synthetic Controls for Experimental Design.”
+<em>arXiv Working Paper</em>, 2108.02196, 2024.
+DOI: <a class="reference external" href="https://arxiv.org/abs/2108.02196">https://arxiv.org/abs/2108.02196</a></p>
+</div>
+<div class="citation" id="ferman2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>FERMAN2020<span class="fn-bracket">]</span></span>
+<p>Ferman, Bruno, Pinto, Cristine, and Possebom, Vitor.
+“Cherry Picking with Synthetic Controls.”
+<em>Journal of Policy Analysis and Management</em>, 39(2): 510-532, 2020.
+DOI: <a class="reference external" href="https://doi.org/10.1002/pam.22206">https://doi.org/10.1002/pam.22206</a></p>
+</div>
+<div class="citation" id="viviano2023" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>VIVIANO2023<span class="fn-bracket">]</span></span>
+<p>Viviano, Davide and Bradic, Jelena.
+“Synthetic Learner: Model-free inference on treatments over time.”
+<em>Journal of Econometrics</em>, 234(2): 691-713, 2023.
+DOI: <a class="reference external" href="https://doi.org/10.1016/j.jeconom">https://doi.org/10.1016/j.jeconom</a>.</p>
+</div>
+<div class="citation" id="rcm2022" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>RCM2022<span class="fn-bracket">]</span></span>
+<p>Yan, Guanpeng and Chen, Qiang.
+“rcm: A command for the regression control method.”
+<em>The Stata Journal</em>, 22(4): 842-883, 2022.
+URL: <a class="reference external" href="https://doi.org/10.1177/1536867X221140960">https://doi.org/10.1177/1536867X221140960</a></p>
+</div>
+<div class="citation" id="abadie2010" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ABADIE2010<span class="fn-bracket">]</span></span>
+<p>Abadie, Alberto, Diamond, Alexis, and Hainmueller, Jens.
+“Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California’s Tobacco Control Program.”
+<em>Journal of the American Statistical Association</em>, 105(490): 493-505, 2010.
+URL: <a class="reference external" href="https://doi.org/10.1198/jasa.2009.ap08746">https://doi.org/10.1198/jasa.2009.ap08746</a></p>
+</div>
+<div class="citation" id="fscm" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>FSCM<span class="fn-bracket">]</span></span>
+<p>Cerulli, Giovanni.
+“Optimal initial donor selection for the synthetic control method.”
+<em>Economics Letters</em>, 244: 111976, 2024.
+DOI: <a class="reference external" href="https://doi.org/10.1016/j.econlet.2024.111976">https://doi.org/10.1016/j.econlet.2024.111976</a></p>
+</div>
+<div class="citation" id="fect2024" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>FECT2024<span class="fn-bracket">]</span></span>
+<p>Liu, Licheng, Wang, Ye, and Xu, Yiqing.
+“A Practical Guide to Counterfactual Estimators for Causal Inference with Time-Series Cross-Sectional Data.”
+<em>American Journal of Political Science</em>, 68(1): 160-176, 2024.
+URL: <a class="reference external" href="https://doi.org/10.1111/ajps.12723">https://doi.org/10.1111/ajps.12723</a></p>
+</div>
+<div class="citation" id="synth22023" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SYNTH22023<span class="fn-bracket">]</span></span>
+<p>Yan, Guanpeng and Chen, Qiang.
+“synth2: Synthetic control method with placebo tests, robustness test, and visualization.”
+<em>The Stata Journal</em>, 23(3): 597-624, 2023.
+URL: <a class="reference external" href="https://doi.org/10.1177/1536867X231195278">https://doi.org/10.1177/1536867X231195278</a></p>
+</div>
+<div class="citation" id="xu2017" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Xu2017<span class="fn-bracket">]</span></span>
+<p>Xu, Yiqing. “Generalized Synthetic Control Method: Causal Inference with Interactive Fixed Effects Models.” <em>Political Analysis</em> 25, no. 1 (2017): 57–76. <a class="reference external" href="https://doi.org/10.1017/pan.2016.2">https://doi.org/10.1017/pan.2016.2</a>.</p>
+</div>
+<div class="citation" id="mcnnm" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>MCNNM<span class="fn-bracket">]</span></span>
+<p>Athey, Susan, Bayati, Mohsen, Doudchenko, Nikolay, Imbens, Guido, and Khosravi, Khashayar.
+“Matrix Completion Methods for Causal Panel Data Models.”
+<em>Journal of the American Statistical Association</em>, 116(536): 1716-1730, 2021.
+DOI: <a class="reference external" href="https://doi.org/10.1080/01621459.2021.1891924">https://doi.org/10.1080/01621459.2021.1891924</a></p>
+</div>
+<div class="citation" id="mazumder2010" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Mazumder2010<span class="fn-bracket">]</span></span>
+<p>Mazumder, Rahul, Hastie, Trevor, and Tibshirani, Robert.
+“Spectral Regularization Algorithms for Learning Large Incomplete Matrices.”
+<em>Journal of Machine Learning Research</em>, 11: 2287-2322, 2010.</p>
+</div>
+<div class="citation" id="msqrt" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>MSQRT<span class="fn-bracket">]</span></span>
+<p>Shen, Zikai, Song, Xinkun, and Abadie, Alberto.
+“Efficiently Learning Synthetic Control Models for High-dimensional Disaggregated Data.”
+<em>arXiv Working Paper</em>, 2510.22828, 2025.
+URL: <a class="reference external" href="https://arxiv.org/abs/2510.22828">https://arxiv.org/abs/2510.22828</a></p>
+</div>
+<div class="citation" id="scpi" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SCPI<span class="fn-bracket">]</span></span>
+<p>Cattaneo, Matias D., Feng, Yingjie, Palomba, Filippo, and Titiunik, Rocío.
+“Uncertainty Quantification in Synthetic Controls with Staggered Treatment Adoption.”
+<em>Review of Economics and Statistics</em> (forthcoming); <em>arXiv Working Paper</em>, 2210.05026, 2025.
+URL: <a class="reference external" href="https://arxiv.org/abs/2210.05026">https://arxiv.org/abs/2210.05026</a></p>
+</div>
+<div class="citation" id="ssc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SSC<span class="fn-bracket">]</span></span>
+<p>Cao, Jianfei, Lu, Shirley, and Wu, Hang.
+“Synthetic Control Inference for Staggered Adoption.”
+<em>The Econometrics Journal</em> (forthcoming), 2026. URL: <a class="reference external" href="https://doi.org/10.1093/ectj/utag015">https://doi.org/10.1093/ectj/utag015</a></p>
+</div>
+<div class="citation" id="rmsi" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>RMSI<span class="fn-bracket">]</span></span>
+<p>Agarwal, Anish, Choi, Jungjun, and Yuan, Ming.
+“Robust Matrix Estimation with Side Information.”
+<em>arXiv Working Paper</em>, 2603.24833, 2026. URL: <a class="reference external" href="https://arxiv.org/abs/2603.24833">https://arxiv.org/abs/2603.24833</a></p>
+</div>
+<div class="citation" id="spotsynth" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SPOTSYNTH<span class="fn-bracket">]</span></span>
+<p>O’Riordan, Michael, and Gilligan-Lee, Ciarán M.
+“Spillover Detection for Donor Selection in Synthetic Control Models.”
+<em>Journal of Causal Inference</em> 13(1):20240036, 2025.
+URL: <a class="reference external" href="https://doi.org/10.1515/jci-2024-0036">https://doi.org/10.1515/jci-2024-0036</a></p>
+</div>
+<div class="citation" id="syndes" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SYNDES<span class="fn-bracket">]</span></span>
+<p>Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
+Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.
+“Synthetic Design: An Optimization Approach to Experimental Design with Synthetic Controls.”
+<em>Advances in Neural Information Processing Systems (NeurIPS)</em>, 2021.
+arXiv:2112.00278. URL: https://arxiv.org/abs/2112.00278</p>
+</div>
+<div class="citation" id="spcd" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SPCD<span class="fn-bracket">]</span></span>
+<p>Lu, Yiping, Li, Jiajin, Ying, Lexing, and Blanchet, Jose.
+“Synthetic Principal Component Design: Fast Covariate Balancing with Synthetic Controls.”
+<em>arXiv Working Paper</em>, 2211.15241, 2022.
+URL: <a class="reference external" href="https://arxiv.org/abs/2211.15241">https://arxiv.org/abs/2211.15241</a></p>
+</div>
+<div class="citation" id="hsc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>HSC<span class="fn-bracket">]</span></span>
+<p>Liu, Ziyi, and Xu, Yiqing.
+“The Harmonic Synthetic Control Method.”
+<em>Working Paper</em>, 2026.</p>
+</div>
+<div class="citation" id="ppscm" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>PPSCM<span class="fn-bracket">]</span></span>
+<p>Ben-Michael, Eli, Feller, Avi, and Rothstein, Jesse.
+“Synthetic Controls with Staggered Adoption.”
+<em>Journal of the Royal Statistical Society: Series B</em>, 84(2): 351-381, 2022.
+DOI: <a class="reference external" href="https://doi.org/10.1111/rssb.12448">https://doi.org/10.1111/rssb.12448</a></p>
+</div>
+<div class="citation" id="siv" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SIV<span class="fn-bracket">]</span></span>
+<p>Gulek, Atilla, and Vives-i-Bastida, Jaume.
+“Synthetic IV Estimation in Panels.”
+<em>Working Paper</em>, 2024.</p>
+</div>
+<div class="citation" id="tasc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>TASC<span class="fn-bracket">]</span></span>
+<p>Rho, Saeyoung, Illick, Cyrus, Narasipura, Samhitha, Abadie, Alberto,
+Hsu, Daniel, and Misra, Vishal.
+“Time-Aware Synthetic Control.”
+<em>arXiv Preprint</em>, 2601.03099, 2026.
+URL: <a class="reference external" href="https://arxiv.org/abs/2601.03099">https://arxiv.org/abs/2601.03099</a></p>
+</div>
+<div class="citation" id="adh" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ADH<span class="fn-bracket">]</span></span>
+<p>Autor, David H., Dorn, David, and Hanson, Gordon H.
+“The China Syndrome: Local Labor Market Effects of Import Competition
+in the United States.”
+<em>American Economic Review</em>, 103(6): 2121-2168, 2013.
+DOI: <a class="reference external" href="https://doi.org/10.1257/aer.103.6.2121">https://doi.org/10.1257/aer.103.6.2121</a></p>
+</div>
+<div class="citation" id="linfsc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>LinfSC<span class="fn-bracket">]</span></span>
+<p>Wang, Le, Xin Xing, and Youhui Ye.
+<em>“A L-infinity Norm Counterfactual and Synthetic Control Approach.”</em>
+Working Paper, Virginia Tech, 2025. arXiv: <a class="reference external" href="https://arxiv.org/abs/2510.26053">https://arxiv.org/abs/2510.26053</a>.
+Reference implementation (Python): <a class="github reference external" href="https://github.com/BioAlgs/LinfinitySC">BioAlgs/LinfinitySC</a></p>
+</div>
+<div class="citation" id="relaxsc" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>RelaxSC<span class="fn-bracket">]</span></span>
+<p>Liao, Chengwang, Zhentao Shi, and Yapeng Zheng.
+<em>“A Relaxation Approach to Synthetic Control.”</em>
+Working Paper, The Chinese University of Hong Kong, 2026.
+arXiv: <a class="reference external" href="https://arxiv.org/abs/2508.01793">https://arxiv.org/abs/2508.01793</a>.
+Reference implementation (Python package <code class="docutils literal notranslate"><span class="pre">scmrelax</span></code>):
+<a class="github reference external" href="https://github.com/metricshilab/scmrelax">metricshilab/scmrelax</a> (installable from
+<a class="github reference external" href="https://github.com/PanJi-0/scmrelax">PanJi-0/scmrelax</a>); the Brexit / UK real-GDP
+empirical application: <a class="github reference external" href="https://github.com/YapengZheng/Relaxed_SC">YapengZheng/Relaxed_SC</a></p>
+</div>
+<div class="citation" id="bvss" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>BVSS<span class="fn-bracket">]</span></span>
+<p>Xu, Yihong and Zhou, Quan.
+“Bayesian Synthetic Control with a Soft Simplex Constraint.”
+<em>arXiv Working Paper</em>, 2503.06454, 2025.
+URL: <a class="reference external" href="https://arxiv.org/abs/2503.06454">https://arxiv.org/abs/2503.06454</a></p>
+</div>
+<div class="citation" id="liscm2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>LiSCM2020<span class="fn-bracket">]</span></span>
+<p>Li, Kathleen T.
+“Statistical Inference for Average Treatment Effects Estimated by Synthetic Control Methods.”
+<em>Journal of the American Statistical Association</em>, 115(532): 2068-2083, 2020.</p>
+</div>
+<div class="citation" id="doudchenkoimbens2017" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>DoudchenkoImbens2017<span class="fn-bracket">]</span></span>
+<p>Doudchenko, Nikolay and Imbens, Guido W.
+“Balancing, Regression, Difference-In-Differences and Synthetic Control Methods: A Synthesis.”
+<em>arXiv Working Paper</em>, 1610.07748, 2017.
+URL: <a class="reference external" href="https://arxiv.org/abs/1610.07748">https://arxiv.org/abs/1610.07748</a></p>
+</div>
+<div class="citation" id="tianleepanchenko" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>TianLeePanchenko<span class="fn-bracket">]</span></span>
+<p>Tian, Wei, Lee, Seojeong, and Panchenko, Valentyn.
+“Synthetic Controls with Multiple Outcomes.”
+<em>The Econometrics Journal</em>, utag005, 2026.
+DOI: <a class="reference external" href="https://doi.org/10.1093/ectj/utag005">https://doi.org/10.1093/ectj/utag005</a></p>
+</div>
+<div class="citation" id="sunbenmichaelfeller" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SunBenMichaelFeller<span class="fn-bracket">]</span></span>
+<p>Sun, Liyang, Ben-Michael, Eli, and Feller, Avi.
+“Using Multiple Outcomes to Improve the Synthetic Control Method.”
+<em>The Review of Economics and Statistics</em>, 2025.
+DOI: <a class="reference external" href="https://doi.org/10.1162/rest_a_01592">https://doi.org/10.1162/rest_a_01592</a></p>
+</div>
+<div class="citation" id="si" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>SI<span class="fn-bracket">]</span></span>
+<p>Agarwal, Anish, Shah, Devavrat, and Shen, Dennis.
+“Synthetic Interventions: Extending Synthetic Controls to Multiple Treatments.”
+<em>Operations Research</em>, 74(2): 840-859, 2025.
+DOI: <a class="reference external" href="https://doi.org/10.1287/opre.2025.1590">https://doi.org/10.1287/opre.2025.1590</a></p>
+</div>
+<div class="citation" id="kmpt2021" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>KMPT2021<span class="fn-bracket">]</span></span>
+<p>Kellogg, Maxwell, Mogstad, Magne, Pouliot, Guillaume A., and Torgovitsky, Alexander.
+“Combining Matching and Synthetic Control to Trade Off Biases From Extrapolation and Interpolation.”
+<em>Journal of the American Statistical Association</em>, 116(536): 1804-1816, 2021.
+DOI: <a class="reference external" href="https://doi.org/10.1080/01621459.2021.1979562">https://doi.org/10.1080/01621459.2021.1979562</a></p>
+</div>
+</div>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="benchmarks.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Benchmarks</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="vanillasc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Vanilla Synthetic Control (VanillaSC)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

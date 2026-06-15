@@ -1,0 +1,1901 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Relaxed / Penalized Synthetic Control (RESCM) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'rescm';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Time-Aware Synthetic Control (TASC)" href="tasc.html" />
+    <link rel="prev" title="Panel Data Approach (PDA)" href="pda.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/rescm.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Relaxed / Penalized Synthetic Control (RESCM)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-unified-convex-program">The unified convex program</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#penalized-branch-l-infinity-scm-wang-xing-ye">Penalized branch: L-infinity SCM (Wang, Xing &amp; Ye)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#relaxation-branch-scm-relaxation-liao-shi-zheng">Relaxation branch: SCM-relaxation (Liao, Shi &amp; Zheng)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-named-corner-cases">The named corner cases</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shared-assumptions-across-the-rescm-class">Shared assumptions across the RESCM class</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-the-assumptions-bind-practical-diagnostics">When the assumptions bind: practical diagnostics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-rescm-and-when-not-to">When to use RESCM – and when not to</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference">Inference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-illustration-california-s-proposition-99">Empirical Illustration: California’s Proposition 99</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.laxscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.laxscm.RESCM"><code class="docutils literal notranslate"><span class="pre">RESCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.laxscm.RESCM.fit"><code class="docutils literal notranslate"><span class="pre">RESCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig"><code class="docutils literal notranslate"><span class="pre">RESCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.Config"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.Config</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.Config.extra"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.Config.extra</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.alpha"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.methods"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.methods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.n_splits"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.n_splits</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.n_taus"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.n_taus</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.solver"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.solver</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.standardize"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.standardize</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.tau"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.tau</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs"><code class="docutils literal notranslate"><span class="pre">RESCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T0"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T2"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.T2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.X"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.donor_labels"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.donor_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.metadata"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.n_donors"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.n_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.time_index"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.time_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.treated_label"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.treated_label</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.unit_index"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.unit_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.y"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.y</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att_se"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.att_se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.branch"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.branch</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.ci"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.counterfactual"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.counterfactual</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.display_name"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.display_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.donor_weights"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.donor_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.fit_diagnostics"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.fit_diagnostics</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.gap"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.gap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.hyperparameters"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.hyperparameters</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.intercept"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.intercept</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.metadata"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.name"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.p_value"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.weights"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.weights</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults"><code class="docutils literal notranslate"><span class="pre">RESCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_by_method"><code class="docutils literal notranslate"><span class="pre">RESCMResults.att_by_method()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_se"><code class="docutils literal notranslate"><span class="pre">RESCMResults.att_se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.fits"><code class="docutils literal notranslate"><span class="pre">RESCMResults.fits</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">RESCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">RESCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.model_config"><code class="docutils literal notranslate"><span class="pre">RESCMResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.se_by_method"><code class="docutils literal notranslate"><span class="pre">RESCMResults.se_by_method()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.selected_variant"><code class="docutils literal notranslate"><span class="pre">RESCMResults.selected_variant</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec"><code class="docutils literal notranslate"><span class="pre">MethodSpec</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.branch"><code class="docutils literal notranslate"><span class="pre">MethodSpec.branch</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.description"><code class="docutils literal notranslate"><span class="pre">MethodSpec.description</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.kwargs"><code class="docutils literal notranslate"><span class="pre">MethodSpec.kwargs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.name"><code class="docutils literal notranslate"><span class="pre">MethodSpec.name</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.normalize_method"><code class="docutils literal notranslate"><span class="pre">normalize_method()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.resolve_specs"><code class="docutils literal notranslate"><span class="pre">resolve_specs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.setup.derive_treatment"><code class="docutils literal notranslate"><span class="pre">derive_treatment()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.setup.prepare_rescm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_rescm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.inference.ate_inference"><code class="docutils literal notranslate"><span class="pre">ate_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.estimation.run_rescm"><code class="docutils literal notranslate"><span class="pre">run_rescm()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="relaxed-penalized-synthetic-control-rescm">
+<h1>Relaxed / Penalized Synthetic Control (RESCM)<a class="headerlink" href="#relaxed-penalized-synthetic-control-rescm" title="Link to this heading">#</a></h1>
+<section id="when-to-use-this-estimator">
+<h2>When to Use This Estimator<a class="headerlink" href="#when-to-use-this-estimator" title="Link to this heading">#</a></h2>
+<p>The classic synthetic control method (SCM) of Abadie, Diamond and Hainmueller
+<a class="reference internal" href="references.html#abadie2010" id="id1"><span>[ABADIE2010]</span></a> builds a counterfactual as a convex combination of donor
+units – weights on the simplex, no intercept. That convex hull restriction is
+what makes SCM interpretable and robust, but it is also brittle when the donor
+pool is large relative to the pre-period: with <span class="math notranslate nohighlight">\(N_0\)</span> donors and only
+<span class="math notranslate nohighlight">\(T_0\)</span> pre-periods, the least-squares fit underlying SCM is
+under-determined once <span class="math notranslate nohighlight">\(N_0 \gtrsim T_0\)</span>, the weights become unstable, and
+many “equally good” solutions exist.</p>
+<p><code class="docutils literal notranslate"><span class="pre">RESCM</span></code> is a single convex program that nests a whole family of SCM
+estimators as corner cases, so you can dial the donor-pool regularization
+continuously from classic SCM all the way to difference-in-differences (equal
+weights), and pick the corner that suits your data. Two branches are exposed,
+each with the estimation/inference theory of its own paper:</p>
+<ul class="simple">
+<li><p>Penalized branch – <span class="math notranslate nohighlight">\(\min \tfrac{1}{2}\|\mathbf{y}_1 - \mu - \mathbf{Y}_0\boldsymbol{\omega}\|_2^2 +
+P(\boldsymbol{\omega})\)</span> with <span class="math notranslate nohighlight">\(P\)</span> an <span class="math notranslate nohighlight">\(\ell_1\)</span> / <span class="math notranslate nohighlight">\(\ell_2\)</span> /
+<span class="math notranslate nohighlight">\(\ell_\infty\)</span> (or mixed) penalty. The <span class="math notranslate nohighlight">\(\ell_\infty\)</span> member is the
+L-infinity-norm SCM of Wang, Xing and Ye <a class="reference internal" href="references.html#linfsc" id="id2"><span>[LinfSC]</span></a>, which <em>spreads</em>
+weight across donors (capping the largest weight) rather than concentrating
+it; classic Abadie SCM is the no-penalty (<span class="math notranslate nohighlight">\(\lambda = 0\)</span>) simplex corner,
+and equal-weights/DiD is the heavy-<span class="math notranslate nohighlight">\(\ell_\infty\)</span> limit
+<a class="reference internal" href="references.html#doudchenkoimbens2017" id="id3"><span>[DoudchenkoImbens2017]</span></a>.</p></li>
+<li><p>Relaxation branch – the SCM-relaxation of Liao, Shi and Zheng
+<a class="reference internal" href="references.html#relaxsc" id="id4"><span>[RelaxSC]</span></a>: keep the simplex <span class="math notranslate nohighlight">\(\boldsymbol{\omega} \in \Delta^{N_0}\)</span>, but <em>relax</em> the
+exact balance first-order condition to an <span class="math notranslate nohighlight">\(\ell_\infty\)</span> tolerance
+<span class="math notranslate nohighlight">\(\eta\)</span>, then among all weights satisfying the relaxed condition pick the
+one minimizing an information-theoretic divergence <span class="math notranslate nohighlight">\(D(\boldsymbol{\omega})\)</span>
+(squared <span class="math notranslate nohighlight">\(\ell_2\)</span>, entropy, or empirical likelihood). The divergence
+picks a unique, stable weight (e.g. closest-to-uniform), and under a latent
+group structure recovers equal-within-group weights.</p></li>
+</ul>
+<p>Use <code class="docutils literal notranslate"><span class="pre">RESCM</span></code> when you have a single treated unit and a large donor pool
+and want either (i) a dense, stable counterfactual that does not hinge on a
+handful of donors (<code class="docutils literal notranslate"><span class="pre">LINF</span></code> / <code class="docutils literal notranslate"><span class="pre">RELAX_*</span></code>), or (ii) a one-stop interface to
+compare classic SCM against its penalized and relaxed cousins on the same
+panel. Pick estimators by name through <code class="docutils literal notranslate"><span class="pre">methods</span></code>.</p>
+<div class="admonition-reference-implementations-authors-code admonition">
+<p class="admonition-title">Reference implementations (authors’ code)</p>
+<p>The source papers’ own code — useful for cross-checking and otherwise
+hard to locate:</p>
+<ul class="simple">
+<li><p>L-infinity-norm SCM (Wang, Xing &amp; Ye <a class="reference internal" href="references.html#linfsc" id="id5"><span>[LinfSC]</span></a>, backing <code class="docutils literal notranslate"><span class="pre">LINF</span></code> /
+<code class="docutils literal notranslate"><span class="pre">L1LINF</span></code>): <a class="github reference external" href="https://github.com/BioAlgs/LinfinitySC">BioAlgs/LinfinitySC</a></p></li>
+<li><p>SCM-relaxation (Liao, Shi &amp; Zheng <a class="reference internal" href="references.html#relaxsc" id="id6"><span>[RelaxSC]</span></a>, backing <code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code> /
+<code class="docutils literal notranslate"><span class="pre">RELAX_ENTROPY</span></code> / <code class="docutils literal notranslate"><span class="pre">RELAX_EL</span></code>): the <code class="docutils literal notranslate"><span class="pre">scmrelax</span></code> Python package at
+<a class="github reference external" href="https://github.com/metricshilab/scmrelax">metricshilab/scmrelax</a> (installable from
+<a class="github reference external" href="https://github.com/PanJi-0/scmrelax">PanJi-0/scmrelax</a>), with the Brexit / UK real-GDP
+application at <a class="github reference external" href="https://github.com/YapengZheng/Relaxed_SC">YapengZheng/Relaxed_SC</a></p></li>
+</ul>
+</div>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<p>We use the synthetic-control canon. Let <span class="math notranslate nohighlight">\(j = 1\)</span> denote the treated unit,
+with all units <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \ldots, N\}\)</span> and donor pool
+<span class="math notranslate nohighlight">\(\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}\)</span> of cardinality
+<span class="math notranslate nohighlight">\(N_0\)</span>; <span class="math notranslate nohighlight">\(\mathbf{y}_1\)</span> is the treated outcome and
+<span class="math notranslate nohighlight">\(\mathbf{Y}_0 = (y_{jt})_{j \in \mathcal{N}_0}\)</span> the
+<span class="math notranslate nohighlight">\(T \times N_0\)</span> donor matrix. Time runs over
+<span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \ldots, T\}\)</span>, 1-indexed; the
+intervention takes effect after period <span class="math notranslate nohighlight">\(T_0\)</span>, splitting <span class="math notranslate nohighlight">\(\mathcal{T}\)</span>
+into the pre-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> (of length
+<span class="math notranslate nohighlight">\(|\mathcal{T}_1| = T_0\)</span>) and the post-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t &gt; T_0\}\)</span> (of length
+<span class="math notranslate nohighlight">\(|\mathcal{T}_2| = T - T_0\)</span>).
+Donor weights <span class="math notranslate nohighlight">\(\boldsymbol{\omega} = (\omega_1, \ldots, \omega_{N_0})'\)</span> live
+on the simplex <span class="math notranslate nohighlight">\(\Delta^{N_0} = \{\boldsymbol{\omega} : \omega_j \ge 0,\,
+\sum_j \omega_j = 1\}\)</span> (relaxation branch) or are penalized (penalized branch);
+<span class="math notranslate nohighlight">\(\mu\)</span> is an optional intercept. The counterfactual is
+<span class="math notranslate nohighlight">\(\widehat{y}_{1t}^N = \mu + \mathbf{Y}_{0,t\cdot}\,\boldsymbol{\omega}\)</span>, the
+per-period effect <span class="math notranslate nohighlight">\(\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}^N\)</span>, and the
+ATT <span class="math notranslate nohighlight">\(\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t\)</span>.
+<span class="math notranslate nohighlight">\(\|\mathbf{A}\|_\infty = \max_{ij}|a_{ij}|\)</span>. With pre-period donor Gram
+matrix <span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\Sigma}} = T_0^{-1}\sum_{t\in\mathcal{T}_1}
+\mathbf{Y}_{0,t\cdot}'\mathbf{Y}_{0,t\cdot}\)</span> and cross-moment
+<span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\Upsilon}} = T_0^{-1}\sum_{t\in\mathcal{T}_1}
+\mathbf{Y}_{0,t\cdot}' y_{1t}\)</span>, the SCM least-squares first-order condition is
+<span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega} = \widehat{\boldsymbol{\Upsilon}}\)</span>.</p>
+<section id="the-unified-convex-program">
+<h3>The unified convex program<a class="headerlink" href="#the-unified-convex-program" title="Link to this heading">#</a></h3>
+<p>Every <code class="docutils literal notranslate"><span class="pre">RESCM</span></code> corner case is a special case of one program. The
+penalized form fits the in-sample loss with a regularizer,</p>
+<div class="math notranslate nohighlight">
+\[\min_{\mu,\,\boldsymbol{\omega}\in\mathcal{C}} \;
+  \tfrac{1}{2}\sum_{t\in\mathcal{T}_1}
+    \bigl(y_{1t} - \mu - \mathbf{Y}_{0,t\cdot}\boldsymbol{\omega}\bigr)^2
+  + \lambda\Bigl[\alpha\|\boldsymbol{\omega}\|_1
+    + (1-\alpha)\,Q(\boldsymbol{\omega})\Bigr],
+\qquad Q \in \{\tfrac{1}{2}\|\cdot\|_2^2,\; \|\cdot\|_\infty\},\]</div>
+<p>with constraint set <span class="math notranslate nohighlight">\(\mathcal{C}\)</span> (simplex by default), mixing
+<span class="math notranslate nohighlight">\(\alpha\in[0,1]\)</span>, and strength <span class="math notranslate nohighlight">\(\lambda\)</span> chosen by K-fold
+cross-validation. The relaxation form instead minimizes a divergence
+subject to a relaxed balance condition,</p>
+<div class="math notranslate nohighlight">
+\[\min_{\boldsymbol{\omega}\in\Delta^{N_0}} \; D(\boldsymbol{\omega})
+\quad\text{s.t.}\quad
+\bigl\|\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega}
+  - \widehat{\boldsymbol{\Upsilon}}\bigr\|_\infty \le \eta,
+\qquad
+D \in \Bigl\{\tfrac{1}{2}\|\boldsymbol{\omega}\|_2^2,\;
+  \textstyle\sum_j \omega_j\log\omega_j,\;
+  -\textstyle\sum_j \log\omega_j\Bigr\},\]</div>
+<p>where the three divergences are squared <span class="math notranslate nohighlight">\(\ell_2\)</span>, entropy, and
+empirical likelihood respectively, and <span class="math notranslate nohighlight">\(\eta\)</span> is selected by
+validation. Classic SCM is recovered at <span class="math notranslate nohighlight">\(\lambda=0\)</span> (penalized, simplex)
+or <span class="math notranslate nohighlight">\(\eta = 0\)</span> (relaxation); the equal-weights/DiD estimator is the
+<span class="math notranslate nohighlight">\(\lambda\to\infty\)</span> <span class="math notranslate nohighlight">\(\ell_\infty\)</span> limit or large-<span class="math notranslate nohighlight">\(\eta\)</span> limit.</p>
+</section>
+</section>
+<section id="penalized-branch-l-infinity-scm-wang-xing-ye">
+<h2>Penalized branch: L-infinity SCM (Wang, Xing &amp; Ye)<a class="headerlink" href="#penalized-branch-l-infinity-scm-wang-xing-ye" title="Link to this heading">#</a></h2>
+<p>Idea. Classic SCM tends to load heavily on one or two donors. When the
+true data-generating process spreads signal across many donors, that
+concentration is fragile – a single idiosyncratic donor shock contaminates the
+counterfactual. The <span class="math notranslate nohighlight">\(\ell_\infty\)</span> penalty
+<span class="math notranslate nohighlight">\(\|\boldsymbol{\omega}\|_\infty = \max_j |\omega_j|\)</span> directly caps the
+largest weight, so minimizing it (under the simplex) pushes the solution
+toward <em>spreading</em> weight across donors – in the limit, equal weights. The
+mixed <span class="math notranslate nohighlight">\(\ell_1 + \ell_\infty\)</span> penalty (<code class="docutils literal notranslate"><span class="pre">L1LINF</span></code>) trades sparsity against
+spreading. Both shrink toward a stable, dense counterfactual that tolerates
+<span class="math notranslate nohighlight">\(N_0 &gt; T_0\)</span>.</p>
+<p>Assumptions (Wang, Xing &amp; Ye <a class="reference internal" href="references.html#linfsc" id="id7"><span>[LinfSC]</span></a>).</p>
+<p><em>Assumption 1 (factor model).</em> The outcomes follow a linear factor model
+<span class="math notranslate nohighlight">\(y_{jt} = \boldsymbol{\lambda}_j'\mathbf{f}_t + u_{jt}\)</span> with the treated
+unit’s loading in (or near) the convex hull of the donor loadings, so an
+<span class="math notranslate nohighlight">\(\ell_\infty\)</span>-regularized convex combination approximates the treated
+factor structure.</p>
+<p><em>Assumption 2 (weak dependence).</em> The idiosyncratic errors <span class="math notranslate nohighlight">\(u_{jt}\)</span> are
+mean-zero and weakly dependent over time (strong-mixing with summable
+autocovariances), permitting a HAC long-run variance and a sequential CLT for
+the post-period mean.</p>
+<p><em>Assumption 3 (regularization rate).</em> The penalty strength <span class="math notranslate nohighlight">\(\lambda\)</span>
+(and mixing <span class="math notranslate nohighlight">\(\alpha\)</span>) are chosen so the weight estimate is consistent for
+its population target; in practice both are selected by K-fold cross-validation
+on the pre-period.</p>
+<p><em>Remark.</em> The <span class="math notranslate nohighlight">\(\ell_\infty\)</span> cap is what buys stability in high
+dimensions: by refusing to let any single weight dominate, the estimator’s
+prediction variance stays controlled even when <span class="math notranslate nohighlight">\(N_0 \gg T_0\)</span>, where the
+unconstrained least-squares (and concentrated classic SCM) solutions degrade.
+This is the synthetic-control analogue of the L2-relaxation argument for dense
+coefficients.</p>
+<p>Inference. Wang, Xing and Ye extend the synthetic-control ATT inference of
+Li <a class="reference internal" href="references.html#liscm2020" id="id8"><span>[LiSCM2020]</span></a> to the dense, weakly dependent setting. With fixed weights the
+post-period gap <span class="math notranslate nohighlight">\(\tau_t\)</span> has mean <span class="math notranslate nohighlight">\(\widehat{\tau}\)</span>, and</p>
+<div class="math notranslate nohighlight">
+\[\widehat{Z} = \frac{\widehat{\tau}}
+    {\sqrt{\widehat{\rho}^2_{(1)}/T_0 + \widehat{\rho}^2_{(2)}/|\mathcal{T}_2|}}
+\xrightarrow{d} N(0,1),\]</div>
+<p>with <span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(1)}\)</span> the HAC long-run variance of the pre-period
+prediction residuals (first-stage weight-estimation uncertainty) and
+<span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(2)}\)</span> that of the de-meaned post-period effects. This is
+the two-term variance <code class="docutils literal notranslate"><span class="pre">RESCM</span></code> uses for all corner cases (see <em>Inference</em>
+below).</p>
+<p>When to use. Dense, factor-driven donor structure; high dimension
+(<span class="math notranslate nohighlight">\(N_0&gt;T_0\)</span> permitted); when you want a counterfactual robust to any single
+donor’s idiosyncrasies rather than a sparse, concentrated fit.</p>
+</section>
+<section id="relaxation-branch-scm-relaxation-liao-shi-zheng">
+<h2>Relaxation branch: SCM-relaxation (Liao, Shi &amp; Zheng)<a class="headerlink" href="#relaxation-branch-scm-relaxation-liao-shi-zheng" title="Link to this heading">#</a></h2>
+<p>Idea. Classic SCM solves a least-squares problem whose first-order
+condition is <span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega} =
+\widehat{\boldsymbol{\Upsilon}}\)</span> – exact balance of the donor moments. When
+<span class="math notranslate nohighlight">\(N_0\)</span> is large this condition is over-strict: it is satisfied (or nearly
+so) by a continuum of weights, and the chosen one is arbitrary and unstable.
+SCM-relaxation keeps the simplex but relaxes the balance condition to an
+<span class="math notranslate nohighlight">\(\ell_\infty\)</span> tolerance <span class="math notranslate nohighlight">\(\eta\)</span>, then selects, among all admissible
+weights, the one minimizing a divergence <span class="math notranslate nohighlight">\(D(\boldsymbol{\omega})\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\boldsymbol{\omega}} = \operatorname*{argmin}_{\boldsymbol{\omega}\in\Delta^{N_0}}
+  D(\boldsymbol{\omega})
+\quad\text{s.t.}\quad
+\bigl\|\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega}
+  - \widehat{\boldsymbol{\Upsilon}}\bigr\|_\infty \le \eta.\]</div>
+<p>The divergence breaks the tie deterministically: <span class="math notranslate nohighlight">\(\ell_2\)</span>
+(<code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code>) picks the minimum-norm weight, entropy (<code class="docutils literal notranslate"><span class="pre">RELAX_ENTROPY</span></code>)
+the maximum-entropy / closest-to-uniform weight, and empirical likelihood
+(<code class="docutils literal notranslate"><span class="pre">RELAX_EL</span></code>) the EL-optimal weight. <span class="math notranslate nohighlight">\(\eta=0\)</span> reduces to (a divergence-
+selected) classic SCM; large <span class="math notranslate nohighlight">\(\eta\)</span> admits the whole simplex and the
+divergence alone determines the weight (entropy/EL <span class="math notranslate nohighlight">\(\to\)</span> equal weights).</p>
+<p>Assumptions (Liao, Shi &amp; Zheng <a class="reference internal" href="references.html#relaxsc" id="id9"><span>[RelaxSC]</span></a>).</p>
+<p><em>Assumption 1 (approximate factor model with group structure).</em> Units load on
+common factors and fall into latent groups; the treated unit’s loading is
+spanned by the donor loadings up to an approximation error that the relaxation
+tolerance <span class="math notranslate nohighlight">\(\eta\)</span> absorbs.</p>
+<p><em>Assumption 2 (identifiable divergence minimizer).</em> The divergence
+<span class="math notranslate nohighlight">\(D\)</span> is strictly convex on the simplex, so the relaxed feasible set has a
+unique minimizer – this is what restores well-posedness when the exact balance
+condition does not.</p>
+<p><em>Assumption 3 (weak dependence and moments).</em> The errors are weakly dependent
+with bounded moments, so sample moments <span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\Sigma}},
+\widehat{\boldsymbol{\Upsilon}}\)</span> converge and a post-period CLT applies.</p>
+<p><em>Remark.</em> The key result (oracle prediction) is that the relaxed weight
+predicts the treated counterfactual as well as the infeasible oracle that knows
+the factor structure, and under the latent group structure the divergence-
+selected weight is equal within groups – a transparent, interpretable
+solution that the arbitrary classic-SCM tie-break does not deliver.</p>
+<p>Inference. Liao, Shi and Zheng’s main theory concerns <em>prediction</em>
+consistency (the oracle property). For an ATT confidence interval <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code>
+applies the same weak-dependence two-term HAC test as the penalized branch
+(Li <a class="reference internal" href="references.html#liscm2020" id="id10"><span>[LiSCM2020]</span></a>), treating the relaxed weights as the fixed first stage. See
+the caveat under <em>Verification</em>.</p>
+</section>
+<section id="the-named-corner-cases">
+<h2>The named corner cases<a class="headerlink" href="#the-named-corner-cases" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">methods</span></code> selects estimators by name; each resolves to one exact call of the
+convex engine.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.5%" />
+<col style="width: 15.4%" />
+<col style="width: 64.1%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Branch</p></th>
+<th class="head"><p>Estimator</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SC</span></code></p></td>
+<td><p>penalized</p></td>
+<td><p>Classic Abadie simplex SCM (<span class="math notranslate nohighlight">\(\lambda=0\)</span>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">LASSO</span></code></p></td>
+<td><p>penalized</p></td>
+<td><p><span class="math notranslate nohighlight">\(\ell_1\)</span> penalty; sparse donor weights.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RIDGE</span></code></p></td>
+<td><p>penalized</p></td>
+<td><p><span class="math notranslate nohighlight">\(\ell_2\)</span> penalty; dense shrunken weights.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ENET</span></code></p></td>
+<td><p>penalized</p></td>
+<td><p>Elastic net (<span class="math notranslate nohighlight">\(\ell_1 + \ell_2\)</span>); <span class="math notranslate nohighlight">\(\alpha\)</span> by CV.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">LINF</span></code></p></td>
+<td><p>penalized</p></td>
+<td><p>L-infinity-norm SCM <a class="reference internal" href="references.html#linfsc" id="id11"><span>[LinfSC]</span></a>; spreads weight, nests DiD.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">L1LINF</span></code></p></td>
+<td><p>penalized</p></td>
+<td><p>Mixed <span class="math notranslate nohighlight">\(\ell_1 + \ell_\infty\)</span> penalty.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code></p></td>
+<td><p>relaxation</p></td>
+<td><p>SCM-relaxation, <span class="math notranslate nohighlight">\(\ell_2\)</span> divergence <a class="reference internal" href="references.html#relaxsc" id="id12"><span>[RelaxSC]</span></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">RELAX_ENTROPY</span></code></p></td>
+<td><p>relaxation</p></td>
+<td><p>SCM-relaxation, entropy divergence.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RELAX_EL</span></code></p></td>
+<td><p>relaxation</p></td>
+<td><p>SCM-relaxation, empirical-likelihood divergence.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="shared-assumptions-across-the-rescm-class">
+<h2>Shared assumptions across the RESCM class<a class="headerlink" href="#shared-assumptions-across-the-rescm-class" title="Link to this heading">#</a></h2>
+<p>The penalized and relaxation branches differ in how they regularize
+the weights, but they share the same identifying stack. The
+shared structural conditions, consolidated from Wang-Xing-Ye
+(<span class="math notranslate nohighlight">\(L_\infty\)</span> SCM) and Liao-Shi-Zheng (SCM-relaxation):</p>
+<p>A1 (Linear factor model for untreated outcomes). Each unit’s
+untreated outcome obeys</p>
+<div class="math notranslate nohighlight">
+\[y_{jt}^N \;=\; \boldsymbol\lambda_j' \mathbf f_t
+           \;+\; u_{jt},
+\qquad j \in \{1\} \cup \mathcal{N}_0, \;\; t \in \mathcal T,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\mathbf f_t\)</span> an <span class="math notranslate nohighlight">\(r\)</span>-vector of latent common
+factors, <span class="math notranslate nohighlight">\(\boldsymbol\lambda_j\)</span> a unit-specific loading,
+and <span class="math notranslate nohighlight">\(u_{jt}\)</span> a mean-zero idiosyncratic shock orthogonal to
+the factors. Both branches lean on this factor structure: it is
+what makes the treated unit’s untreated outcome a (dense) linear
+combination of the donors’ outcomes plus an orthogonal error.</p>
+<p>A2 (Single treated unit, sharp absorbing treatment). Unit
+<span class="math notranslate nohighlight">\(j = 1\)</span> is the only treated unit; treatment turns on at
+<span class="math notranslate nohighlight">\(T_0 + 1\)</span> and stays on. Donors are untreated throughout
+(no interference). Both papers’ main theorems are stated for the
+single-treated case; multi-treated extensions exist
+(<em>FECT</em> / <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> for staggered designs are the
+mlsynth alternatives).</p>
+<p>A3 (Weak temporal dependence). The errors <span class="math notranslate nohighlight">\(u_{jt}\)</span>
+are mean-zero, weakly dependent (<span class="math notranslate nohighlight">\(\alpha\)</span>-mixing or
+<span class="math notranslate nohighlight">\(\rho\)</span>-mixing with summable autocovariances), and have
+bounded moments. This is what licenses the HAC long-run variance
+estimator and the sequential CLT for the post-period mean. The
+Wang-Xing-Ye theory explicitly accommodates stationary,
+trend-stationary, and unit-root non-stationary cases under
+exponential decay in correlation rates; the Liao-Shi-Zheng
+theory uses an <span class="math notranslate nohighlight">\(\alpha\)</span>-mixing CLT.</p>
+<p>A4 (High-dimensional sample-size regime). <span class="math notranslate nohighlight">\(T_0 \to
+\infty\)</span> and <span class="math notranslate nohighlight">\(N_0\)</span> may grow (potentially <span class="math notranslate nohighlight">\(N_0 \gg T_0\)</span>),
+which is the entire point of regularizing toward a dense
+solution. The classical-SCM least-squares first-order condition
+<span class="math notranslate nohighlight">\(\widehat{\boldsymbol\Sigma} \boldsymbol\omega =
+\widehat{\boldsymbol\Upsilon}\)</span> is under-determined once
+<span class="math notranslate nohighlight">\(N_0 \gtrsim T_0\)</span>; both branches restore well-posedness, but
+do so under the same growth regime.</p>
+<p>A5 (Treated unit (approximately) in the convex hull of donor
+loadings). The treated loading <span class="math notranslate nohighlight">\(\boldsymbol\lambda_1\)</span> is
+spanned by the donor loadings up to an approximation error that
+the regularization tolerance (<span class="math notranslate nohighlight">\(\lambda\)</span> for penalized,
+<span class="math notranslate nohighlight">\(\eta\)</span> for relaxation) absorbs. <em>Remark.</em> If
+<span class="math notranslate nohighlight">\(\boldsymbol\lambda_1\)</span> is structurally outside the donor
+hull – even after relaxation – both branches fail. Use
+<a class="reference internal" href="iscm.html"><span class="doc">Imperfect Synthetic Controls (ISCM)</span></a>.</p>
+<p>A6 (Branch-specific regularization rate).</p>
+<ul class="simple">
+<li><p>For the penalized branch (Wang-Xing-Ye): the penalty
+strength <span class="math notranslate nohighlight">\(\lambda\)</span> and (when applicable) the mixing
+<span class="math notranslate nohighlight">\(\alpha\)</span> are chosen so the weight estimator is
+consistent for its population target. In mlsynth both are
+selected by K-fold cross-validation on the pre-period.</p></li>
+<li><p>For the relaxation branch (Liao-Shi-Zheng): the
+tolerance <span class="math notranslate nohighlight">\(\eta\)</span> (selected by validation) shrinks at a
+rate that makes the relaxed first-order condition
+asymptotically equivalent to the oracle moment condition;
+Theorem 1 of the paper gives the precise rate.</p></li>
+</ul>
+<p>A7 (Latent group structure – relaxation branch only). The
+donor loadings <span class="math notranslate nohighlight">\(\boldsymbol\lambda_j\)</span> fall into <span class="math notranslate nohighlight">\(K\)</span>
+latent groups; both <span class="math notranslate nohighlight">\(K\)</span> and the factor count <span class="math notranslate nohighlight">\(r\)</span> may
+diverge, regardless of their relative order. Under this
+structure the relaxation branch’s divergence-minimizing weight
+asymptotically recovers equal weights within groups –
+Liao-Shi-Zheng’s interpretable “transparent solution” that
+classical SCM’s arbitrary tie-break does not deliver. <em>Remark.</em>
+Without latent groups the relaxation still produces a valid
+counterfactual; the within-group-equal-weight interpretation is
+the bonus that group structure buys.</p>
+<p>A8 (Strictly convex divergence – relaxation branch only).
+The divergence <span class="math notranslate nohighlight">\(D\)</span> is strictly convex on the simplex
+(squared <span class="math notranslate nohighlight">\(\ell_2\)</span>, entropy, empirical likelihood, or any
+GEL-class function with non-negative support and restricted
+strong convexity). Strict convexity is what makes the relaxed
+feasible set have a unique minimizer – this is the
+well-posedness fix that distinguishes RESCM-relaxation from
+classical SCM in the under-determined regime.</p>
+<section id="when-the-assumptions-bind-practical-diagnostics">
+<h3>When the assumptions bind: practical diagnostics<a class="headerlink" href="#when-the-assumptions-bind-practical-diagnostics" title="Link to this heading">#</a></h3>
+<ol class="loweralpha">
+<li><p>Latent factor model (A1). Both branches lean on the
+factor structure. If the panel is not well-described by a
+small number of common factors, the linear-combination
+representation has a non-vanishing residual the
+regularization cannot remove.</p>
+<p><em>Plausibly violated when</em> donors are largely idiosyncratic
+(unrelated processes), or when a donor has a one-time
+structural break that no factor model absorbs.
+<em>Diagnostic</em>: SVD of the pre-period donor matrix should
+show a clear factor cutoff (top few singular values
+carrying most of the energy). A flat-tailed spectrum flags
+A1 failure; in that regime, switch to balancing-aware
+estimators (<a class="reference internal" href="microsynth.html"><span class="doc">MicroSynth (User-Level Balancing SC)</span></a> for unit-level data) or stay
+with <em>canonical SCM</em> (which does not lean as hard on
+A1).</p>
+</li>
+<li><p>Weak temporal dependence (A3). The HAC long-run variance
+estimator needs mixing with at-least-summable
+autocovariances. Strong serial correlation, long-memory
+series, or non-stationarity break this.</p>
+<p><em>Plausibly violated when</em> outcomes are price levels or
+cumulative quantities. <em>Diagnostic</em>: ADF/KPSS on the
+pre-period residuals; non-stationarity flags A3 failure.
+For unit-root outcomes the Wang-Xing-Ye theory still goes
+through under exponential correlation decay, but the
+finite-sample HAC variance is often optimistic.
+First-difference before fitting, or use <a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a>
+(stationary-cycle estimator).</p>
+</li>
+<li><p>Sample-size regime (A4). Both branches’ asymptotics
+require <span class="math notranslate nohighlight">\(T_0\)</span> large. The Verification section’s
+Monte Carlo documents what happens at <span class="math notranslate nohighlight">\(T_0 &lt; N_0\)</span>: the
+point estimate is unbiased and powerful, but the analytic
+two-term variance over-rejects (the normal approximation
+has not kicked in).</p>
+<p><em>Plausibly violated when</em> <span class="math notranslate nohighlight">\(T_0 \le N_0\)</span> or
+<span class="math notranslate nohighlight">\(T_0 &lt; 50\)</span>-ish. <em>Diagnostic</em>: read <code class="docutils literal notranslate"><span class="pre">res.pre_rmse</span></code>
+against the donor noise floor (the mean leave-one-out
+pre-RMSE across donors); if treated pre-RMSE is much
+smaller, the estimator is over-fitting and
+<span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(1)}\)</span> understates uncertainty. Report
+a placebo / conformal CI (e.g. via <em>canonical SCM</em> with
+permutation inference) alongside the analytic CI.</p>
+</li>
+<li><p>Treated unit in donor convex hull (A5). Both branches
+keep the simplex (or shrink toward the simplex). If the
+treated unit’s loading is structurally outside the donor
+hull, the regularization tolerance <span class="math notranslate nohighlight">\(\eta\)</span> /
+<span class="math notranslate nohighlight">\(\lambda\)</span> cannot bridge it.</p>
+<p><em>Plausibly violated when</em> the treated unit is qualitatively
+different from every donor (a coastal mega-state against
+only interior states; a tech-led economy against
+commodity-led donors). <em>Diagnostic</em>: read <code class="docutils literal notranslate"><span class="pre">res.pre_rmse</span></code>
+on the un-regularized <code class="docutils literal notranslate"><span class="pre">SC</span></code> corner and on the most-
+regularized variant in your run. If both stay high, the
+hull condition is failing. Switch to <a class="reference internal" href="iscm.html"><span class="doc">Imperfect Synthetic Controls (ISCM)</span></a> (which
+identifies the effect even when the treated unit is
+outside the hull) or <a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a> (which drops the simplex
+to allow negative-weight extrapolation).</p>
+</li>
+<li><p>Regularization rate (A6) – choosing <span class="math notranslate nohighlight">\(\lambda\)</span> /
+<span class="math notranslate nohighlight">\(\eta\)</span>. Cross-validation can be noisy on a short
+pre-period; the selected hyperparameter is then noise and
+the implied counterfactual flips with the seed.</p>
+<p><em>Plausibly violated when</em> <span class="math notranslate nohighlight">\(T_0 \le 20\)</span>. <em>Diagnostic</em>:
+re-run with different <code class="docutils literal notranslate"><span class="pre">cv_folds</span></code> or different
+train/validation splits; if the selected <span class="math notranslate nohighlight">\(\lambda\)</span>
+/<span class="math notranslate nohighlight">\(\eta\)</span> and the implied ATT move substantially, the
+CV is not informative. Either fix <span class="math notranslate nohighlight">\(\lambda\)</span> at a
+domain-informed value via the explicit knobs, or fall back
+to <em>canonical SCM</em> / <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a> which do not need
+CV at all.</p>
+</li>
+<li><p>Latent group structure (A7 – relaxation only). The
+within-group-equal-weights interpretation requires that
+donors actually fall into groups on their loadings.</p>
+<p><em>Plausibly violated when</em> donor loadings are continuously
+distributed without natural clusters. <em>Diagnostic</em>: inspect
+the empirical CDF of <code class="docutils literal notranslate"><span class="pre">res.fits[&quot;RELAX_ENTROPY&quot;].donor_weights</span></code>;
+a multi-modal CDF supports the group structure, a smooth
+CDF means the group story is rhetorical rather than real.
+If groups are not present, prefer <code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code> (which
+targets minimum-norm weights, no group assumption needed).</p>
+</li>
+<li><p>Choice of divergence (A8 – relaxation only). The three
+divergences encode different priors: <span class="math notranslate nohighlight">\(\ell_2\)</span>
+minimum-norm (defensive default), entropy /
+maximum-entropy (closest-to-uniform), empirical likelihood
+(GEL-optimal). Each is valid; the choice is a modeling
+decision.</p>
+<p><em>Practical rule of thumb</em>: <code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code> for a defensible
+default; <code class="docutils literal notranslate"><span class="pre">RELAX_ENTROPY</span></code> when the policy story is “the
+counterfactual should be close to a uniform average of
+donors”; <code class="docutils literal notranslate"><span class="pre">RELAX_EL</span></code> when the inferential framework is
+explicitly GEL-based and you want the maximum-likelihood
+interpretation. The three rarely disagree by more than
+Monte-Carlo noise on well-behaved panels.</p>
+</li>
+</ol>
+</section>
+<section id="when-to-use-rescm-and-when-not-to">
+<h3>When to use RESCM – and when not to<a class="headerlink" href="#when-to-use-rescm-and-when-not-to" title="Link to this heading">#</a></h3>
+<p>Reach for RESCM when:</p>
+<ul class="simple">
+<li><p>You have a single treated unit and a large donor pool
+(<span class="math notranslate nohighlight">\(N_0\)</span> comparable to or exceeding <span class="math notranslate nohighlight">\(T_0\)</span>), and a
+factor-driven panel where many donors plausibly carry
+signal. Classical SCM concentrates weight on a few donors;
+the dense-shrinkage variants in RESCM diversify prediction
+risk across the pool.</p></li>
+<li><p>You want a stable, dense counterfactual that does not
+hinge on one or two donors – exactly the “denser weighting
+philosophy” both papers advocate. The <span class="math notranslate nohighlight">\(\ell_\infty\)</span>
+penalty caps the largest weight; the relaxation branch
+spreads weight by minimizing a strictly-convex divergence
+on the simplex.</p></li>
+<li><p>You want a one-stop interface to compare classical SCM,
+Lasso-SC, Ridge-SC, elastic-net SCM, <span class="math notranslate nohighlight">\(L_\infty\)</span>-SCM,
+and three relaxation variants on the same panel. The
+<code class="docutils literal notranslate"><span class="pre">methods</span></code> argument selects estimators by name; each maps
+to one call of the same convex engine.</p></li>
+<li><p>You want HAC-based, classical-statistics inference
+(Li 2020 two-term standard errors) on the ATT rather than a
+permutation or conformal procedure. Note the
+finite-sample-inference caveat below.</p></li>
+</ul>
+<p>Do not use RESCM when:</p>
+<ul class="simple">
+<li><p>You need sparse, hand-interpretable weights as the
+headline deliverable. Both branches actively shrink toward
+dense solutions; that is the design choice. If the policy
+story has to be “California ≈ Utah + Montana + Nevada”, run
+<em>canonical SCM</em> / <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>, or <a class="reference internal" href="fscm.html"><span class="doc">Forward-Selected Synthetic Control (FSCM)</span></a>
+(forward-selected SC with the simplex retained) for a
+sparse-by-construction donor set.</p></li>
+<li><p>The treated unit is structurally outside the donor hull.
+Both branches keep (or shrink toward) the simplex. Pre-RMSE
+stays high at every regularization level. Use <a class="reference internal" href="iscm.html"><span class="doc">Imperfect Synthetic Controls (ISCM)</span></a>
+(identifies the effect through donors that use the treated
+unit as a positive-weight donor in their own synthetic
+controls) or <a class="reference internal" href="nsc.html"><span class="doc">Nonlinear Synthetic Control (NSC)</span></a> (drops the simplex restriction).</p></li>
+<li><p>Very short pre-period <span class="math notranslate nohighlight">\((T_0 &lt; N_0)\)</span>. The Path-B
+Monte Carlo in the Verification section above documents
+the over-rejection: the analytic two-term variance has not
+kicked in. Either lengthen the pre-period (aggregate to a
+finer time grid), prune donors, or report a placebo /
+conformal CI alongside.</p></li>
+<li><p>Non-stationary or unit-root outcomes. A3’s mixing
+assumption strains here; the Wang-Xing-Ye theory accommodates
+unit-root cases under exponential correlation decay, but the
+HAC variance is often optimistic in finite samples.
+First-difference, or use <a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a>.</p></li>
+<li><p>You have multiple treated units / staggered adoption.
+RESCM’s theory is built for a single treated unit. Use
+<em>FECT</em> or <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> for staggered designs.</p></li>
+<li><p>Spillovers across donors. A2’s no-interference clause
+fails; the factor model’s orthogonality breaks. Use
+<a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a> or <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>.</p></li>
+<li><p>Continuous or multi-valued treatment. RESCM encodes a
+single binary intervention; continuous dose belongs in
+<a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a>.</p></li>
+<li><p>Distributional questions (Lorenz curves, QTEs, tail
+effects). RESCM targets the mean ATT through a Gaussian-
+likelihood linear projection. Use <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a> for
+distributional effects.</p></li>
+<li><p>You need Bayesian posterior credible bands. RESCM
+returns frequentist HAC-based CIs and a single point
+estimate per corner. For posterior inclusion probabilities
+and credible bands on donor weights, use <a class="reference internal" href="bvss.html"><span class="doc">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</span></a>
+(spike-and-slab with a soft simplex – the natural Bayesian
+analogue of the dense-vs-sparse trade-off the RESCM family
+addresses frequentistically).</p></li>
+<li><p>You want predictor-level (covariate + lagged-outcome)
+matching rather than outcome-only matching. RESCM’s
+workhorse projection is on donor outcomes; for
+predictor-matching with L1 sparsity on the
+predictor-weight matrix, use <a class="reference internal" href="sparse_sc.html"><span class="doc">Sparse Synthetic Control (SparseSC)</span></a>.</p></li>
+<li><p>You want the factor model itself (the loadings and
+factors) estimated and reported. RESCM is agnostic to
+factor estimation – the factor model only motivates the
+linear projection and never enters the estimator. For
+factor-aware estimators that surface <span class="math notranslate nohighlight">\(\widehat{F}\)</span> and
+<span class="math notranslate nohighlight">\(\widehat{\Lambda}\)</span>, use <a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a> or <a class="reference internal" href="clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a>
+(which exposes the HSVT rank in its results).</p></li>
+<li><p>Donor selection is the bottleneck, not weight
+shrinkage. If you have a small number of donors and want
+to <em>select</em> the best subset rather than spread weight
+across a wide pool, use <a class="reference internal" href="fscm.html"><span class="doc">Forward-Selected Synthetic Control (FSCM)</span></a> (forward selection on
+donor units) or <a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a> with <code class="docutils literal notranslate"><span class="pre">methods=[&quot;fs&quot;]</span></code>
+(forward-selected PDA with sample-splitting inference).</p></li>
+</ul>
+</section>
+</section>
+<section id="inference">
+<h2>Inference<a class="headerlink" href="#inference" title="Link to this heading">#</a></h2>
+<p>Once the donor weights are fixed by any corner case, the post-period gap
+<span class="math notranslate nohighlight">\(\tau_t = y_{1t} - \widehat{y}_{1t}^N\)</span> is a scalar series whose mean
+is the ATT. <code class="docutils literal notranslate"><span class="pre">RESCM</span></code> reports the Li <a class="reference internal" href="references.html#liscm2020" id="id13"><span>[LiSCM2020]</span></a> two-term long-run variance
+used by the L-infinity paper,</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\mathrm{se}}(\widehat{\tau}) =
+  \sqrt{\widehat{\rho}^2_{(1)}/T_0 + \widehat{\rho}^2_{(2)}/|\mathcal{T}_2|},\]</div>
+<p>where <span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(1)}\)</span> is the HAC long-run variance of the pre-period
+prediction residuals – carrying the first-stage weight-estimation
+uncertainty – and <span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(2)}\)</span> is the HAC long-run variance of
+the de-meaned post-period effects (Bartlett kernel, <span class="math notranslate nohighlight">\(\lfloor
+|\mathcal{T}_2|^{1/4}\rfloor\)</span> lag). The pre-period term is essential for dense
+penalized/relaxed weights: unlike forward-selection PDA – whose sample
+splitting makes pre/post asymptotically independent and lets a post-only
+variance suffice – the dense estimators reuse the entire pre-window to fit the
+weights, so dropping <span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(1)}\)</span> understates the standard error.</p>
+</section>
+<section id="empirical-illustration-california-s-proposition-99">
+<h2>Empirical Illustration: California’s Proposition 99<a class="headerlink" href="#empirical-illustration-california-s-proposition-99" title="Link to this heading">#</a></h2>
+<p>The canonical synthetic-control application <a class="reference internal" href="references.html#abadie2010" id="id14"><span>[ABADIE2010]</span></a> studies the effect of
+California’s 1988 Proposition 99 tobacco-control program on per-capita cigarette
+sales, with 38 control states over 1970-2000. Running <code class="docutils literal notranslate"><span class="pre">RESCM</span></code> with the
+classic <code class="docutils literal notranslate"><span class="pre">SC</span></code> corner alongside the two papers’ headline estimators reuses the
+same panel and returns each method’s counterfactual, ATT, and a HAC confidence
+interval.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">RESCM</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv&quot;</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;Proposition 99&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Proposition 99&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">RESCM</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;cigsale&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;Proposition 99&quot;</span><span class="p">,</span>
+             <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+             <span class="s2">&quot;methods&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;SC&quot;</span><span class="p">,</span> <span class="s2">&quot;LINF&quot;</span><span class="p">,</span> <span class="s2">&quot;RELAX_L2&quot;</span><span class="p">],</span> <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span>
+             <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">fit</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">fits</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">9s</span><span class="si">}</span><span class="s2"> ATE </span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">8.3f</span><span class="si">}</span><span class="s2">  SE </span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">att_se</span><span class="si">:</span><span class="s2">6.3f</span><span class="si">}</span><span class="s2">  &quot;</span>
+          <span class="sa">f</span><span class="s2">&quot;95% CI (</span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">ci</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">7.2f</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">ci</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">7.2f</span><span class="si">}</span><span class="s2">)  &quot;</span>
+          <span class="sa">f</span><span class="s2">&quot;p=</span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">p_value</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">  donors=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">donor_weights</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This prints:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">SC</span>        <span class="n">ATE</span>  <span class="o">-</span><span class="mf">17.371</span>  <span class="n">SE</span>  <span class="mf">2.304</span>  <span class="mi">95</span><span class="o">%</span> <span class="n">CI</span> <span class="p">(</span> <span class="o">-</span><span class="mf">21.89</span><span class="p">,</span> <span class="o">-</span><span class="mf">12.86</span><span class="p">)</span>  <span class="n">p</span><span class="o">=</span><span class="mf">0.000</span>  <span class="n">donors</span><span class="o">=</span><span class="mi">6</span>
+<span class="n">LINF</span>      <span class="n">ATE</span>  <span class="o">-</span><span class="mf">17.359</span>  <span class="n">SE</span>  <span class="mf">2.303</span>  <span class="mi">95</span><span class="o">%</span> <span class="n">CI</span> <span class="p">(</span> <span class="o">-</span><span class="mf">21.87</span><span class="p">,</span> <span class="o">-</span><span class="mf">12.85</span><span class="p">)</span>  <span class="n">p</span><span class="o">=</span><span class="mf">0.000</span>  <span class="n">donors</span><span class="o">=</span><span class="mi">6</span>
+<span class="n">RELAX_L2</span>  <span class="n">ATE</span>  <span class="o">-</span><span class="mf">22.190</span>  <span class="n">SE</span>  <span class="mf">4.115</span>  <span class="mi">95</span><span class="o">%</span> <span class="n">CI</span> <span class="p">(</span> <span class="o">-</span><span class="mf">30.26</span><span class="p">,</span> <span class="o">-</span><span class="mf">14.12</span><span class="p">)</span>  <span class="n">p</span><span class="o">=</span><span class="mf">0.000</span>  <span class="n">donors</span><span class="o">=</span><span class="mi">7</span>
+</pre></div>
+</div>
+<p>The penalized corners (<code class="docutils literal notranslate"><span class="pre">SC</span></code>, <code class="docutils literal notranslate"><span class="pre">LINF</span></code>) agree on an outcome-only effect of
+about <span class="math notranslate nohighlight">\(-17\)</span> cigarette packs per capita: when the donor pool fits the
+pre-period well (pre-treatment <span class="math notranslate nohighlight">\(R^2 \approx 0.98\)</span>, pre-RMSE
+<span class="math notranslate nohighlight">\(1.45\)</span>), cross-validation picks near-zero <span class="math notranslate nohighlight">\(\ell_\infty\)</span> shrinkage
+and <code class="docutils literal notranslate"><span class="pre">LINF</span></code> collapses onto classic SCM. The relaxation corner (<code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code>)
+trades a little pre-fit (<span class="math notranslate nohighlight">\(R^2 \approx 0.97\)</span>) for a more constrained
+weight and lands at a larger effect, <span class="math notranslate nohighlight">\(-22.2\)</span>, whose wider confidence
+interval reflects the larger pre-period residual variance the two-term standard
+error correctly propagates.</p>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Empirical (Path A, Proposition 99). <code class="docutils literal notranslate"><span class="pre">SC</span></code>/<code class="docutils literal notranslate"><span class="pre">LINF</span></code>/<code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code> run on
+the smoking panel (above); the penalized corners reproduce the classic
+outcome-only SCM effect (<span class="math notranslate nohighlight">\(\approx -17\)</span>) and the relaxation corner the
+denser, larger estimate, both significant and consistent with the
+literature.</p>
+<p>Simulation (Path B, high dimension). A size/power Monte Carlo in the
+regime these methods target – <span class="math notranslate nohighlight">\(N_0=90\)</span> donors, <span class="math notranslate nohighlight">\(T_0=36\)</span>
+pre-periods (<span class="math notranslate nohighlight">\(N_0 \gg T_0\)</span>), <span class="math notranslate nohighlight">\(|\mathcal{T}_2|=36\)</span>, three-factor AR(1) DGP,
+treated loading a convex mix of donors, idiosyncratic <span class="math notranslate nohighlight">\(N(0,1)\)</span> –
+rejecting <code class="docutils literal notranslate"><span class="pre">H0:</span> <span class="pre">ATT</span> <span class="pre">=</span> <span class="pre">0</span></code> at 5% (50 replications; <span class="math notranslate nohighlight">\(\delta=0\)</span> is size,
+<span class="math notranslate nohighlight">\(\delta=1\)</span> is power):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 22.9%" />
+<col style="width: 25.7%" />
+<col style="width: 25.7%" />
+<col style="width: 25.7%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><span class="math notranslate nohighlight">\(\delta\)</span></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">SC</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">LINF</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0 (size)</p></td>
+<td><p>0.20</p></td>
+<td><p>0.22</p></td>
+<td><p>0.28</p></td>
+</tr>
+<tr class="row-odd"><td><p>1 (power)</p></td>
+<td><p>0.98</p></td>
+<td><p>0.98</p></td>
+<td><p>0.94</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Estimation is unbiased and powerful (mean ATT bias <span class="math notranslate nohighlight">\(\approx 0\)</span>;
+power <span class="math notranslate nohighlight">\(0.94\)</span>-<span class="math notranslate nohighlight">\(0.98\)</span>), but the analytic ATT test over-rejects
+in this short, high-dimensional panel. A diagnostic isolates two mechanisms:
+<code class="docutils literal notranslate"><span class="pre">SC</span></code> genuinely over-fits the 36-period pre-window (pre-RMSE <span class="math notranslate nohighlight">\(0.77\)</span> vs
+the true noise sd <span class="math notranslate nohighlight">\(1.0\)</span>), so <span class="math notranslate nohighlight">\(\widehat{\rho}^2_{(1)}\)</span> understates
+estimation uncertainty – it self-corrects as <span class="math notranslate nohighlight">\(T_0\)</span> grows (pre-RMSE
+<span class="math notranslate nohighlight">\(\to 0.94\)</span> at <span class="math notranslate nohighlight">\(T_0=250\)</span>); <code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code> does <em>not</em> over-fit
+(pre-RMSE <span class="math notranslate nohighlight">\(\approx 1.0\)</span>), so its over-rejection reflects the analytic
+influence function not capturing how strongly-relaxed dense weights feed into
+the ATT. Both papers’ asymptotics require <span class="math notranslate nohighlight">\(T_0\)</span> large relative to
+<span class="math notranslate nohighlight">\(N_0\)</span>; the normal approximation is unreliable at <span class="math notranslate nohighlight">\(T_0 &lt; N_0\)</span>, and
+the two-term variance (which already cuts the post-only over-rejection by
+<span class="math notranslate nohighlight">\(\sim 35\%\)</span>) does not fully close the gap here. For honest
+finite-sample inference in this regime, prefer a placebo / conformal
+procedure <a class="reference internal" href="replications/geolift.html#cwz2021" id="id15"><span>[CWZ2021]</span></a>. (Only 50 replications – noisy; the relaxation
+<span class="math notranslate nohighlight">\(\eta\)</span> is validated by CV, not fixed.)</p>
+<p>Durable benchmarks. The relaxation branch is pinned against the authors’
+own paper and code: <code class="docutils literal notranslate"><span class="pre">rescm_brexit</span></code> (Path A – the Brexit / UK real-GDP
+application, <code class="docutils literal notranslate"><span class="pre">standardize=False</span></code>) and <code class="docutils literal notranslate"><span class="pre">rescm_relax_ref</span></code> (cross-validation
+– mlsynth’s L2 relaxation vs the <code class="docutils literal notranslate"><span class="pre">scmrelax</span></code> package, cell by cell at a
+matched <span class="math notranslate nohighlight">\(\eta\)</span>). See the dedicated page <a class="reference internal" href="replications/rescm.html"><span class="doc">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</span></a>.</p>
+<p>The penalized branch’s L-infinity estimators (<code class="docutils literal notranslate"><span class="pre">LINF</span></code> / <code class="docutils literal notranslate"><span class="pre">L1LINF</span></code>, Wang,
+Xing &amp; Ye <a class="reference internal" href="references.html#linfsc" id="id16"><span>[LinfSC]</span></a>) are pinned separately: <code class="docutils literal notranslate"><span class="pre">linf_crossval_ref</span></code>
+(cross-validation – mlsynth’s L-infinity engine vs the authors’
+<code class="docutils literal notranslate"><span class="pre">LinfinitySC</span></code> code, cell by cell in the unique <span class="math notranslate nohighlight">\(T_0&gt;N_0\)</span> regime),
+<code class="docutils literal notranslate"><span class="pre">linf_prop99</span></code> (Path A – dense weighting vs classic SC on Proposition 99),
+and <code class="docutils literal notranslate"><span class="pre">linf_sim</span></code> (Path B – the Section 5 Monte Carlo ordering). See the
+dedicated page <a class="reference internal" href="replications/linf.html"><span class="doc">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</span></a>.</p>
+</div>
+</section>
+<section id="module-mlsynth.estimators.laxscm">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.laxscm" title="Link to this heading">#</a></h2>
+<p>Relaxed/penalized synthetic control (RESCM).</p>
+<p>A thin, NumPy-first orchestration over <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.laxscm_helpers</span></code>.
+RESCM is a single convex synthetic-control program that nests a family of
+estimators as corner cases, selected by <em>name</em>:</p>
+<ul class="simple">
+<li><p>penalized branch – classic <code class="docutils literal notranslate"><span class="pre">SC</span></code>, <code class="docutils literal notranslate"><span class="pre">LASSO</span></code>, <code class="docutils literal notranslate"><span class="pre">RIDGE</span></code>, <code class="docutils literal notranslate"><span class="pre">ENET</span></code> and the
+L-infinity-norm SCM (<code class="docutils literal notranslate"><span class="pre">LINF</span></code> / <code class="docutils literal notranslate"><span class="pre">L1LINF</span></code>) of Wang, Xing &amp; Ye (2025):
+<code class="docutils literal notranslate"><span class="pre">min</span> <span class="pre">||y0</span> <span class="pre">-</span> <span class="pre">mu</span> <span class="pre">-</span> <span class="pre">Y</span> <span class="pre">omega||^2</span> <span class="pre">+</span> <span class="pre">P(omega)</span></code>.</p></li>
+<li><p>relaxation branch – <code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code> / <code class="docutils literal notranslate"><span class="pre">RELAX_ENTROPY</span></code> / <code class="docutils literal notranslate"><span class="pre">RELAX_EL</span></code>, the
+SCM-relaxation of Liao, Shi &amp; Zheng (2026): keep the simplex and relax the
+exact balance first-order condition to an L-infinity tolerance, then minimise
+an information-theoretic divergence.</p></li>
+</ul>
+<p>Pick estimators with <code class="docutils literal notranslate"><span class="pre">methods</span></code>; the first one drives the convenience aliases
+on the returned <code class="xref py py-class docutils literal notranslate"><span class="pre">RESCMResults</span></code>.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.laxscm.RESCM">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.laxscm.</span></span><span class="sig-name descname"><span class="pre">RESCM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.RESCMConfig" title="mlsynth.utils.laxscm_helpers.config.RESCMConfig"><span class="pre">RESCMConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.laxscm.RESCM" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Relaxed/penalized synthetic-control estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>RESCMConfig or dict</em>) – Validated configuration. Beyond the common fields, RESCM reads
+<code class="docutils literal notranslate"><span class="pre">methods</span></code> (which named corner cases to fit), <code class="docutils literal notranslate"><span class="pre">alpha</span></code> (CI level),
+<code class="docutils literal notranslate"><span class="pre">tau</span></code> / <code class="docutils literal notranslate"><span class="pre">n_splits</span></code> / <code class="docutils literal notranslate"><span class="pre">n_taus</span></code> (relaxation-branch CV controls), and
+<code class="docutils literal notranslate"><span class="pre">solver</span></code>.</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>Liao, C., Shi, Z., &amp; Zheng, Y. (2026). A Relaxation Approach to Synthetic
+Control. arXiv:2508.01793.</p>
+<p>Wang, L., Xing, X., &amp; Ye, Y. (2025). An L-infinity Norm Synthetic Control
+Approach. arXiv:2510.26053.</p>
+<p>Abadie, A., Diamond, A., &amp; Hainmueller, J. (2010). Synthetic control methods
+for comparative case studies. JASA, 105(490), 493-505.</p>
+<p>Doudchenko, N., &amp; Imbens, G. W. (2017). Balancing, Regression,
+Difference-in-Differences and Synthetic Control Methods: A Synthesis.
+arXiv:1610.07748.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.laxscm.RESCM.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults" title="mlsynth.utils.laxscm_helpers.structures.RESCMResults"><span class="pre">RESCMResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.laxscm.RESCM.fit" title="Link to this definition">#</a></dt>
+<dd><p>Fit the requested RESCM corner case(s) and return typed results.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>RESCMResults</em> – Container of per-method
+<a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit" title="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit"><code class="xref py py-class docutils literal notranslate"><span class="pre">RESCMMethodFit</span></code></a>
+objects (donor weights, counterfactual, gap, ATE, HAC standard
+error, CI, p-value), with convenience aliases (<code class="docutils literal notranslate"><span class="pre">att</span></code>, <code class="docutils literal notranslate"><span class="pre">att_se</span></code>,
+<code class="docutils literal notranslate"><span class="pre">counterfactual</span></code>, <code class="docutils literal notranslate"><span class="pre">donor_weights</span></code>) forwarding to the first
+requested method.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">RESCMConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">methods:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau:</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">~typing.Literal['heuristic']</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_splits:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=2)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_taus:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver:</span> <span class="pre">~typing.Any</span> <span class="pre">=</span> <span class="pre">'CLARABEL'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Lt(lt=1.0)]</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">standardize:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.RESCMConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Relaxed/Balanced SCM (RESCM) estimator.</p>
+<p>Pick one or more named corner-case estimators of the RESCM convex program
+via <code class="docutils literal notranslate"><span class="pre">methods</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">[&quot;SC&quot;,</span> <span class="pre">&quot;LINF&quot;,</span> <span class="pre">&quot;RELAX_L2&quot;]</span></code>); the first listed
+drives the convenience aliases on the returned <code class="docutils literal notranslate"><span class="pre">RESCMResults</span></code>. Valid
+names and aliases come from the registry in
+<a class="reference internal" href="#module-mlsynth.utils.laxscm_helpers.specs" title="mlsynth.utils.laxscm_helpers.specs"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.laxscm_helpers.specs</span></code></a> (<code class="docutils literal notranslate"><span class="pre">METHOD_SPECS</span></code>).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.Config">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Config</span></span><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.Config" title="Link to this definition">#</a></dt>
+<dd><dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.Config.extra">
+<span class="sig-name descname"><span class="pre">extra</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'forbid'</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.Config.extra" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.methods">
+<span class="sig-name descname"><span class="pre">methods</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.methods" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.n_splits">
+<span class="sig-name descname"><span class="pre">n_splits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.n_splits" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.n_taus">
+<span class="sig-name descname"><span class="pre">n_taus</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.n_taus" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.solver">
+<span class="sig-name descname"><span class="pre">solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.solver" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.standardize">
+<span class="sig-name descname"><span class="pre">standardize</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.standardize" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RESCMConfig.tau">
+<span class="sig-name descname"><span class="pre">tau</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'heuristic'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.RESCMConfig.tau" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="result-containers">
+<h2>Result Containers<a class="headerlink" href="#result-containers" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">RESCM.fit()</span></code> returns a
+<a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults" title="mlsynth.utils.laxscm_helpers.structures.RESCMResults"><code class="xref py py-class docutils literal notranslate"><span class="pre">RESCMResults</span></code></a>, whose <code class="docutils literal notranslate"><span class="pre">fits</span></code>
+maps each named corner case to a
+<a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit" title="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit"><code class="xref py py-class docutils literal notranslate"><span class="pre">RESCMMethodFit</span></code></a> (donor weights,
+intercept, counterfactual, gap, ATT, two-term HAC standard error, CI, p-value,
+nonzero donor weights, fit diagnostics, and the realized hyperparameters).
+Convenience aliases (<code class="docutils literal notranslate"><span class="pre">att</span></code>, <code class="docutils literal notranslate"><span class="pre">att_se</span></code>, <code class="docutils literal notranslate"><span class="pre">counterfactual</span></code>,
+<code class="docutils literal notranslate"><span class="pre">donor_weights</span></code>) forward to the first requested method. The prepared,
+NumPy-only panel is exposed as a
+<a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs" title="mlsynth.utils.laxscm_helpers.structures.RESCMInputs"><code class="xref py py-class docutils literal notranslate"><span class="pre">RESCMInputs</span></code></a>, with units and
+time addressed through an <code class="xref py py-class docutils literal notranslate"><span class="pre">IndexSet</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">RESCM.fit()</span></code> returns an <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> on
+the standardized two-family contract. It is a dispatcher over the corner-case
+estimators in <code class="docutils literal notranslate"><span class="pre">res.fits</span></code>; the selected estimator drives the flat accessors
+(<code class="docutils literal notranslate"><span class="pre">res.att</span></code> / <code class="docutils literal notranslate"><span class="pre">res.att_ci</span></code> / <code class="docutils literal notranslate"><span class="pre">res.counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">res.gap</span></code> /
+<code class="docutils literal notranslate"><span class="pre">res.donor_weights</span></code> / <code class="docutils literal notranslate"><span class="pre">res.pre_rmse</span></code>), which resolve through the
+standardized sub-models. <code class="docutils literal notranslate"><span class="pre">res.att_by_method()</span></code> / <code class="docutils literal notranslate"><span class="pre">res.se_by_method()</span></code>
+report every fit.</p>
+</div>
+<p id="module-mlsynth.utils.laxscm_helpers.structures">Frozen, NumPy-first containers for the Relaxed/penalized SCM engine (RESCM).</p>
+<p>RESCM is a single convex synthetic-control program that nests a family of
+estimators as corner cases. Two branches are exposed, each with its own
+source paper:</p>
+<ul class="simple">
+<li><p><strong>relaxed</strong> – SCM-relaxation (Liao, Shi &amp; Zheng 2026): keep the simplex
+<code class="docutils literal notranslate"><span class="pre">omega</span> <span class="pre">in</span> <span class="pre">Delta_J</span></code> and <em>relax</em> the exact balance first-order condition to
+an L-infinity tolerance, then minimise an information-theoretic divergence
+<code class="docutils literal notranslate"><span class="pre">D(omega)</span></code> (<code class="docutils literal notranslate"><span class="pre">l2</span></code> / <code class="docutils literal notranslate"><span class="pre">entropy</span></code> / <code class="docutils literal notranslate"><span class="pre">el</span></code>).</p></li>
+<li><p><strong>elastic</strong> – penalized SCM: <code class="docutils literal notranslate"><span class="pre">min</span> <span class="pre">||y0</span> <span class="pre">-</span> <span class="pre">mu</span> <span class="pre">-</span> <span class="pre">Y</span> <span class="pre">omega||^2</span> <span class="pre">+</span> <span class="pre">P(omega)</span></code> with
+<code class="docutils literal notranslate"><span class="pre">P</span></code> an L1 / L2 / L-infinity (or mixed) penalty. The L-infinity branch is the
+L-infinity-norm SCM of Wang, Xing &amp; Ye (2025); classic Abadie SC is the
+<code class="docutils literal notranslate"><span class="pre">lambda</span> <span class="pre">=</span> <span class="pre">0</span></code> simplex corner.</p></li>
+</ul>
+<p>Everything below is pure NumPy; units/time are addressed through
+<code class="xref py py-class docutils literal notranslate"><span class="pre">IndexSet</span></code>. The only DataFrame touchpoint is <code class="xref py py-mod docutils literal notranslate"><span class="pre">setup</span></code>.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">RESCMInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_index:</span> <span class="pre">~mlsynth.utils.fast_scm_helpers.structure.IndexSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_index:</span> <span class="pre">~mlsynth.utils.fast_scm_helpers.structure.IndexSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0:</span> <span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_label:</span> <span class="pre">~typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Preprocessed, NumPy-only panel for the RESCM engine.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_index</strong> (<em>IndexSet</em>) – All <code class="docutils literal notranslate"><span class="pre">N</span></code> donor units (column order of <code class="docutils literal notranslate"><span class="pre">X</span></code>).</p></li>
+<li><p><strong>time_index</strong> (<em>IndexSet</em>) – All <code class="docutils literal notranslate"><span class="pre">T</span></code> periods (row order of <code class="docutils literal notranslate"><span class="pre">y</span></code> and <code class="docutils literal notranslate"><span class="pre">X</span></code>).</p></li>
+<li><p><strong>y</strong> (<em>np.ndarray</em>) – Treated-unit outcome over all periods, shape <code class="docutils literal notranslate"><span class="pre">(T,)</span></code>.</p></li>
+<li><p><strong>X</strong> (<em>np.ndarray</em>) – Donor outcomes, shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N)</span></code>.</p></li>
+<li><p><strong>T0</strong> (<em>int</em>) – Number of pre-treatment periods (<code class="docutils literal notranslate"><span class="pre">T1</span></code>); post is <code class="docutils literal notranslate"><span class="pre">T2</span> <span class="pre">=</span> <span class="pre">T</span> <span class="pre">-</span> <span class="pre">T0</span></code>.</p></li>
+<li><p><strong>treated_label</strong> (<em>Any</em>) – Identifier of the treated unit.</p></li>
+<li><p><strong>metadata</strong> (<em>dict</em>) – Free-form provenance.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T2">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.X">
+<span class="sig-name descname"><span class="pre">X</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.X" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.donor_labels">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">donor_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.donor_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.n_donors">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n_donors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.n_donors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.time_index">
+<span class="sig-name descname"><span class="pre">time_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">IndexSet</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.time_index" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.treated_label">
+<span class="sig-name descname"><span class="pre">treated_label</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.treated_label" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.unit_index">
+<span class="sig-name descname"><span class="pre">unit_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">IndexSet</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.unit_index" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMInputs.y">
+<span class="sig-name descname"><span class="pre">y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.y" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">RESCMMethodFit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">name:</span> <span class="pre">str,</span> <span class="pre">branch:</span> <span class="pre">str,</span> <span class="pre">display_name:</span> <span class="pre">str,</span> <span class="pre">weights:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">intercept:</span> <span class="pre">float,</span> <span class="pre">counterfactual:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">gap:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">att:</span> <span class="pre">float,</span> <span class="pre">att_se:</span> <span class="pre">float,</span> <span class="pre">ci:</span> <span class="pre">~typing.Tuple[float,</span> <span class="pre">float],</span> <span class="pre">p_value:</span> <span class="pre">float,</span> <span class="pre">donor_weights:</span> <span class="pre">~typing.Dict[~typing.Any,</span> <span class="pre">float],</span> <span class="pre">fit_diagnostics:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">hyperparameters:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A single RESCM corner-case fit (e.g. <code class="docutils literal notranslate"><span class="pre">SC</span></code> / <code class="docutils literal notranslate"><span class="pre">LINF</span></code> / <code class="docutils literal notranslate"><span class="pre">RELAX_L2</span></code>).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att">
+<span class="sig-name descname"><span class="pre">att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att_se">
+<span class="sig-name descname"><span class="pre">att_se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att_se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.branch">
+<span class="sig-name descname"><span class="pre">branch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.branch" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.ci">
+<span class="sig-name descname"><span class="pre">ci</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.ci" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.counterfactual">
+<span class="sig-name descname"><span class="pre">counterfactual</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.counterfactual" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.display_name">
+<span class="sig-name descname"><span class="pre">display_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.display_name" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.donor_weights">
+<span class="sig-name descname"><span class="pre">donor_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.donor_weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.fit_diagnostics">
+<span class="sig-name descname"><span class="pre">fit_diagnostics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.fit_diagnostics" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.gap">
+<span class="sig-name descname"><span class="pre">gap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.gap" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.hyperparameters">
+<span class="sig-name descname"><span class="pre">hyperparameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.hyperparameters" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.intercept">
+<span class="sig-name descname"><span class="pre">intercept</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.intercept" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.name" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.p_value">
+<span class="sig-name descname"><span class="pre">p_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.p_value" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.weights">
+<span class="sig-name descname"><span class="pre">weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">RESCMResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">effects:</span> <span class="pre">~mlsynth.config_models.EffectsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">fit_diagnostics:</span> <span class="pre">~mlsynth.config_models.FitDiagnosticsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">time_series:</span> <span class="pre">~mlsynth.config_models.TimeSeriesResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">weights:</span> <span class="pre">~mlsynth.config_models.WeightsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inference:</span> <span class="pre">~mlsynth.config_models.InferenceResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">method_details:</span> <span class="pre">~mlsynth.config_models.MethodDetailsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">sub_method_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">additional_outputs:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">raw_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">execution_summary:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">plot_config:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.laxscm_helpers.structures.RESCMInputs,</span> <span class="pre">fits:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit],</span> <span class="pre">selected_variant:</span> <span class="pre">str,</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEstimatorResults</span></code></p>
+<p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.RESCM.fit()</span></code>.</p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> (the observational report):
+a dispatcher over the corner-case estimators in <code class="docutils literal notranslate"><span class="pre">fits</span></code>, it lifts the
+selected estimator’s quantities into the standardized sub-models so the flat
+accessors (<code class="docutils literal notranslate"><span class="pre">att</span></code> / <code class="docutils literal notranslate"><span class="pre">att_ci</span></code> / <code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">gap</span></code> /
+<code class="docutils literal notranslate"><span class="pre">donor_weights</span></code> / <code class="docutils literal notranslate"><span class="pre">pre_rmse</span></code>) resolve through the base contract. The
+RESCM-specific fields below keep every nested fit available.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>RESCMInputs</em>) – Preprocessed panel.</p></li>
+<li><p><strong>fits</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{estimator_name:</span> <span class="pre">RESCMMethodFit}</span></code> for every corner case run.</p></li>
+<li><p><strong>selected_variant</strong> (<em>str</em>) – Which fit drives the standardized surface / flat accessors.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_by_method">
+<span class="sig-name descname"><span class="pre">att_by_method</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_by_method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_se">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">att_se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.fits">
+<span class="sig-name descname"><span class="pre">fits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit" title="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit"><span class="pre">RESCMMethodFit</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.fits" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs" title="mlsynth.utils.laxscm_helpers.structures.RESCMInputs"><span class="pre">RESCMInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid',</span> <span class="pre">'frozen':</span> <span class="pre">True,</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.se_by_method">
+<span class="sig-name descname"><span class="pre">se_by_method</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.se_by_method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.structures.RESCMResults.selected_variant">
+<span class="sig-name descname"><span class="pre">selected_variant</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.selected_variant" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="helper-modules">
+<h2>Helper Modules<a class="headerlink" href="#helper-modules" title="Link to this heading">#</a></h2>
+<p>The named-estimator registry: each entry maps a name to the exact convex-engine
+call (branch and keyword arguments).</p>
+<p id="module-mlsynth.utils.laxscm_helpers.specs">Named corner-case estimators of the RESCM convex program.</p>
+<p>The legacy API exposed a nested <code class="docutils literal notranslate"><span class="pre">models_to_run</span></code> dict where the caller had to
+know which <code class="docutils literal notranslate"><span class="pre">second_norm</span></code> / <code class="docutils literal notranslate"><span class="pre">relaxation</span></code> / <code class="docutils literal notranslate"><span class="pre">constraint_type</span></code> / <code class="docutils literal notranslate"><span class="pre">alpha</span></code>
+combination realised which estimator. This module replaces that with a flat
+registry of <em>named</em> estimators: the user picks methods by name and each name
+resolves to the exact engine call.</p>
+<p>Every spec dispatches to one of two engine entry points
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.laxscm_helpers.crossval.fit_relaxed_scm()</span></code> or <code class="docutils literal notranslate"><span class="pre">fit_en_scm</span></code>); <code class="docutils literal notranslate"><span class="pre">kwargs</span></code>
+are forwarded verbatim.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.MethodSpec">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.specs.</span></span><span class="sig-name descname"><span class="pre">MethodSpec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kwargs:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec" title="Link to this definition">#</a></dt>
+<dd><p>How a named RESCM estimator maps onto the convex engine.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.MethodSpec.branch">
+<span class="sig-name descname"><span class="pre">branch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.branch" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.MethodSpec.description">
+<span class="sig-name descname"><span class="pre">description</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.description" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.MethodSpec.kwargs">
+<span class="sig-name descname"><span class="pre">kwargs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.kwargs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.MethodSpec.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.name" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.normalize_method">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.specs.</span></span><span class="sig-name descname"><span class="pre">normalize_method</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.normalize_method" title="Link to this definition">#</a></dt>
+<dd><p>Map a user-supplied method name to a registry key (case-insensitive).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.specs.resolve_specs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.specs.</span></span><span class="sig-name descname"><span class="pre">resolve_specs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">methods</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec" title="mlsynth.utils.laxscm_helpers.specs.MethodSpec"><span class="pre">MethodSpec</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.specs.resolve_specs" title="Link to this definition">#</a></dt>
+<dd><p>Return the ordered list of <a class="reference internal" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec" title="mlsynth.utils.laxscm_helpers.specs.MethodSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">MethodSpec</span></code></a> for the requested names.</p>
+</dd></dl>
+
+<p>Data preparation – the only DataFrame touchpoint: pivots to NumPy, builds the
+unit/time <code class="docutils literal notranslate"><span class="pre">IndexSet</span></code>es, and splits pre/post.</p>
+<p id="module-mlsynth.utils.laxscm_helpers.setup">Long-DataFrame -&gt; NumPy boundary for RESCM (the only pandas touchpoint).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.setup.derive_treatment">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">derive_treatment</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.setup.derive_treatment" title="Link to this definition">#</a></dt>
+<dd><p>Read the single treated unit and its first treated period from <code class="docutils literal notranslate"><span class="pre">treat</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.setup.prepare_rescm_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_rescm_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs" title="mlsynth.utils.laxscm_helpers.structures.RESCMInputs"><span class="pre">RESCMInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.setup.prepare_rescm_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot the panel to NumPy, build <code class="docutils literal notranslate"><span class="pre">IndexSet</span></code>s, split pre/post.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>RESCMInputs</em> – Pure-NumPy container: treated vector <code class="docutils literal notranslate"><span class="pre">y</span></code> (T,), donor matrix <code class="docutils literal notranslate"><span class="pre">X</span></code>
+(T, N), <code class="docutils literal notranslate"><span class="pre">T0</span></code>, and unit/time <code class="xref py py-class docutils literal notranslate"><span class="pre">IndexSet</span></code>s.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p>The weak-dependence two-term HAC ATT inference (Li 2020).</p>
+<p id="module-mlsynth.utils.laxscm_helpers.inference">Weak-dependence ATE inference for the RESCM counterfactual.</p>
+<p>Once donor weights are fixed, the post-treatment gap <code class="docutils literal notranslate"><span class="pre">d_t</span> <span class="pre">=</span> <span class="pre">y_t</span> <span class="pre">-</span> <span class="pre">yhat_t</span></code> has
+mean equal to the ATE. Under weak dependence (Li 2020, extended to dense weights
+by Wang, Xing &amp; Ye 2025), the ATE is asymptotically normal,</p>
+<blockquote>
+<div><p>Z = ATE / sqrt( rho1^2 / T1 + rho2^2 / T2 ) -&gt; N(0, 1),</p>
+</div></blockquote>
+<p>with <code class="docutils literal notranslate"><span class="pre">rho1^2</span></code> the HAC long-run variance of the <strong>pre-period prediction
+residuals</strong> (which carries the first-stage weight-estimation uncertainty) and
+<code class="docutils literal notranslate"><span class="pre">rho2^2</span></code> the HAC long-run variance of the de-meaned <strong>post-period effects</strong>.</p>
+<p>The pre-period term is essential for dense penalized/relaxed weights: unlike
+forward selection (whose sample splitting makes the pre/post periods
+asymptotically independent and lets a post-only variance suffice), the dense
+estimators reuse the whole pre-window to fit the weights, so ignoring <code class="docutils literal notranslate"><span class="pre">rho1</span></code>
+severely understates the standard error when <code class="docutils literal notranslate"><span class="pre">N</span></code> is large relative to <code class="docutils literal notranslate"><span class="pre">T1</span></code>.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.inference.ate_inference">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">ate_inference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.inference.ate_inference" title="Link to this definition">#</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">(att,</span> <span class="pre">se,</span> <span class="pre">ci,</span> <span class="pre">p_value)</span></code> for the post-period gap mean.</p>
+<p>Uses the Li (2020) two-term long-run variance: pre-period residual LRV
+(estimation uncertainty) plus de-meaned post-period effect LRV.</p>
+</dd></dl>
+
+<p>Run loop dispatching each corner case to the convex engine and assembling the
+typed per-method fits.</p>
+<p id="module-mlsynth.utils.laxscm_helpers.estimation">Run the requested RESCM corner case(s) and assemble typed per-method fits.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.laxscm_helpers.estimation.run_rescm">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.laxscm_helpers.estimation.</span></span><span class="sig-name descname"><span class="pre">run_rescm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs" title="mlsynth.utils.laxscm_helpers.structures.RESCMInputs"><span class="pre">RESCMInputs</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">methods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_splits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_taus</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CLARABEL'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">standardize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit" title="mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit"><span class="pre">RESCMMethodFit</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.laxscm_helpers.estimation.run_rescm" title="Link to this definition">#</a></dt>
+<dd><p>Fit each requested RESCM corner case and attach weak-dependence ATE inference.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="pda.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Panel Data Approach (PDA)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="tasc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Time-Aware Synthetic Control (TASC)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-unified-convex-program">The unified convex program</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#penalized-branch-l-infinity-scm-wang-xing-ye">Penalized branch: L-infinity SCM (Wang, Xing &amp; Ye)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#relaxation-branch-scm-relaxation-liao-shi-zheng">Relaxation branch: SCM-relaxation (Liao, Shi &amp; Zheng)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-named-corner-cases">The named corner cases</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shared-assumptions-across-the-rescm-class">Shared assumptions across the RESCM class</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-the-assumptions-bind-practical-diagnostics">When the assumptions bind: practical diagnostics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-rescm-and-when-not-to">When to use RESCM – and when not to</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference">Inference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-illustration-california-s-proposition-99">Empirical Illustration: California’s Proposition 99</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.laxscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.laxscm.RESCM"><code class="docutils literal notranslate"><span class="pre">RESCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.laxscm.RESCM.fit"><code class="docutils literal notranslate"><span class="pre">RESCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig"><code class="docutils literal notranslate"><span class="pre">RESCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.Config"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.Config</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.Config.extra"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.Config.extra</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.alpha"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.methods"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.methods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.n_splits"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.n_splits</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.n_taus"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.n_taus</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.solver"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.solver</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.standardize"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.standardize</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RESCMConfig.tau"><code class="docutils literal notranslate"><span class="pre">RESCMConfig.tau</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs"><code class="docutils literal notranslate"><span class="pre">RESCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T0"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.T2"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.T2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.X"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.donor_labels"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.donor_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.metadata"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.n_donors"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.n_donors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.time_index"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.time_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.treated_label"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.treated_label</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.unit_index"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.unit_index</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMInputs.y"><code class="docutils literal notranslate"><span class="pre">RESCMInputs.y</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.att_se"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.att_se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.branch"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.branch</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.ci"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.counterfactual"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.counterfactual</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.display_name"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.display_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.donor_weights"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.donor_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.fit_diagnostics"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.fit_diagnostics</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.gap"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.gap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.hyperparameters"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.hyperparameters</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.intercept"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.intercept</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.metadata"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.name"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.p_value"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit.weights"><code class="docutils literal notranslate"><span class="pre">RESCMMethodFit.weights</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults"><code class="docutils literal notranslate"><span class="pre">RESCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_by_method"><code class="docutils literal notranslate"><span class="pre">RESCMResults.att_by_method()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.att_se"><code class="docutils literal notranslate"><span class="pre">RESCMResults.att_se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.fits"><code class="docutils literal notranslate"><span class="pre">RESCMResults.fits</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">RESCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">RESCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.model_config"><code class="docutils literal notranslate"><span class="pre">RESCMResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.se_by_method"><code class="docutils literal notranslate"><span class="pre">RESCMResults.se_by_method()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.structures.RESCMResults.selected_variant"><code class="docutils literal notranslate"><span class="pre">RESCMResults.selected_variant</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec"><code class="docutils literal notranslate"><span class="pre">MethodSpec</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.branch"><code class="docutils literal notranslate"><span class="pre">MethodSpec.branch</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.description"><code class="docutils literal notranslate"><span class="pre">MethodSpec.description</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.kwargs"><code class="docutils literal notranslate"><span class="pre">MethodSpec.kwargs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.MethodSpec.name"><code class="docutils literal notranslate"><span class="pre">MethodSpec.name</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.normalize_method"><code class="docutils literal notranslate"><span class="pre">normalize_method()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.specs.resolve_specs"><code class="docutils literal notranslate"><span class="pre">resolve_specs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.setup.derive_treatment"><code class="docutils literal notranslate"><span class="pre">derive_treatment()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.setup.prepare_rescm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_rescm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.inference.ate_inference"><code class="docutils literal notranslate"><span class="pre">ate_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.laxscm_helpers.estimation.run_rescm"><code class="docutils literal notranslate"><span class="pre">run_rescm()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

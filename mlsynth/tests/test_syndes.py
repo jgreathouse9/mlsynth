@@ -318,6 +318,53 @@ class TestPowerAnalysis:
         assert np.isfinite(power.mde_absolute).all()
         assert np.isfinite(power.mde_percent).all()
 
+    # ------------------------------------------------------------------
+    # The per-horizon MDE table should come back from fit() by default,
+    # over horizons 1..12, without a separate power_analysis() call.
+    # ------------------------------------------------------------------
+
+    def test_fit_attaches_power_curve_by_default(self, fitted_results):
+        pc = fitted_results.power_curve
+        assert isinstance(pc, SYNDESPower)
+        assert pc.n_post_periods.tolist() == list(range(1, 13))
+        assert pc.mde_absolute.shape == pc.n_post_periods.shape
+        assert pc.mde_percent.shape == pc.n_post_periods.shape
+        # to_dataframe() gives the tidy n_post / mde table the user expects
+        df = pc.to_dataframe()
+        assert list(df.columns) == ["n_post", "mde_absolute", "mde_percent"]
+        assert len(df) == 12
+
+    def test_default_power_curve_matches_explicit_call(self, fitted_results):
+        explicit = power_analysis(fitted_results, alpha=fitted_results.power_curve.alpha)
+        np.testing.assert_allclose(
+            fitted_results.power_curve.mde_absolute, explicit.mde_absolute
+        )
+
+    @pytest.mark.parametrize("mode", ["per_unit", "two_way_global", "one_way_global"])
+    def test_power_curve_attached_for_all_mip_modes(self, panel, mode):
+        res = SYNDES({
+            "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+            "K": 2, "mode": mode, "post_col": "post", "run_inference": False,
+        }).fit()
+        assert isinstance(res.power_curve, SYNDESPower)
+        assert res.power_curve.n_post_periods.tolist() == list(range(1, 13))
+
+    def test_power_curve_failure_is_swallowed(self, panel, monkeypatch):
+        # A degenerate power computation must never break a fit; power_curve
+        # is simply left as None, mirroring res.post_fit.power handling.
+        import mlsynth.estimators.syndes as syn_mod
+
+        def _boom(*a, **k):
+            raise RuntimeError("forced power-curve failure")
+
+        monkeypatch.setattr(syn_mod, "power_analysis", _boom)
+        res = SYNDES({
+            "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+            "K": 2, "mode": "two_way_global", "post_col": "post",
+            "run_inference": False,
+        }).fit()
+        assert res.power_curve is None
+
     def test_to_dataframe(self, fitted_results):
         df = power_analysis(fitted_results).to_dataframe()
         assert list(df.columns) == ["n_post", "mde_absolute", "mde_percent"]
@@ -568,6 +615,9 @@ class TestAnnealedMode:
         assert res.inference.method.startswith("moving_block_permutation")
         assert isinstance(res.post_fit, SyntheticControlPostFit)
         assert res.post_fit.power is not None
+        # Per-horizon MDE table attached by default, even for the annealed mode.
+        assert isinstance(res.power_curve, SYNDESPower)
+        assert res.power_curve.n_post_periods.tolist() == list(range(1, 13))
         # Trace populated by each outer iteration.
         assert len(res.trace.objective_history) == 8
         assert len(res.trace.rmse_history) == 8

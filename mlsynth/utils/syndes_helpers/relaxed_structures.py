@@ -179,6 +179,7 @@ class RelaxedSolverResults:
     inputs: Optional["SYNDESInputs"] = None
     inference: Optional[RelaxedInference] = None
     post_fit: Optional[Any] = None    # SyntheticControlPostFit; Any to dodge import cycle
+    power_curve: Optional[Any] = None  # SYNDESPower over horizons 1..12 (default)
 
     @property
     def mode(self) -> str:

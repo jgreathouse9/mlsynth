@@ -1,0 +1,1553 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Robust Matrix estimation with Side Information (RMSI) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'rmsi';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Synthetic IV" href="siv.html" />
+    <link rel="prev" title="Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)" href="snn.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/rmsi.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Robust Matrix estimation with Side Information (RMSI)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-rmsi-when">Do not use RMSI when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-assumptions">Identifying assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-estimator">The estimator</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#side-information">Side information</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replication">Replication</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.rmsi">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.rmsi.RMSI"><code class="docutils literal notranslate"><span class="pre">RMSI</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.rmsi.RMSI.fit"><code class="docutils literal notranslate"><span class="pre">RMSI.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig"><code class="docutils literal notranslate"><span class="pre">RMSIConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.model_config"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.rank"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.rank</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.sieve_order"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.sieve_order</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.time_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.time_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.unit_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.unit_covariates</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs"><code class="docutils literal notranslate"><span class="pre">RMSIInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Y"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.D"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.X"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Z"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Z</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T0"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.N"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Z</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.control_idx"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.control_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.time_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.treated_idx"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.unit_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults"><code class="docutils literal notranslate"><span class="pre">RMSIResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.att_by_period"><code class="docutils literal notranslate"><span class="pre">RMSIResults.att_by_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.components"><code class="docutils literal notranslate"><span class="pre">RMSIResults.components</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.counterfactual_matrix"><code class="docutils literal notranslate"><span class="pre">RMSIResults.counterfactual_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.effects_matrix"><code class="docutils literal notranslate"><span class="pre">RMSIResults.effects_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.inputs"><code class="docutils literal notranslate"><span class="pre">RMSIResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.metadata"><code class="docutils literal notranslate"><span class="pre">RMSIResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.model_config"><code class="docutils literal notranslate"><span class="pre">RMSIResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.rank"><code class="docutils literal notranslate"><span class="pre">RMSIResults.rank</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.synthetic_mean"><code class="docutils literal notranslate"><span class="pre">RMSIResults.synthetic_mean</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.treated_mean"><code class="docutils literal notranslate"><span class="pre">RMSIResults.treated_mean</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.core.algorithm1"><code class="docutils literal notranslate"><span class="pre">algorithm1()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.core.algorithm3"><code class="docutils literal notranslate"><span class="pre">algorithm3()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.core.sieve_poly"><code class="docutils literal notranslate"><span class="pre">sieve_poly()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.setup.prepare_rmsi_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_rmsi_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.pipeline.run_rmsi"><code class="docutils literal notranslate"><span class="pre">run_rmsi()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.simulation.simulate_rmsi_panel"><code class="docutils literal notranslate"><span class="pre">simulate_rmsi_panel()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.J"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.J</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N0"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.N0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T0"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.alphas"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.alphas</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.n_reps"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.n_reps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.sigma"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.sigma</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.replicate_prop99"><code class="docutils literal notranslate"><span class="pre">replicate_prop99()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.run_rmsi_simulation"><code class="docutils literal notranslate"><span class="pre">run_rmsi_simulation()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp"><code class="docutils literal notranslate"><span class="pre">simulate_rmsi_dgp()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="robust-matrix-estimation-with-side-information-rmsi">
+<h1>Robust Matrix estimation with Side Information (RMSI)<a class="headerlink" href="#robust-matrix-estimation-with-side-information-rmsi" title="Link to this heading">#</a></h1>
+<section id="when-to-use-this-estimator">
+<h2>When to Use This Estimator<a class="headerlink" href="#when-to-use-this-estimator" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">RMSI</span></code> implements the side-information matrix estimator of Agarwal, Choi and
+Yuan <a class="reference internal" href="references.html#rmsi" id="id1"><span>[RMSI]</span></a>. It is a causal-panel matrix-completion method – like
+<a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>, it imputes the treated units’ missing counterfactual cells – but
+it exploits covariates on both margins of the panel: unit-level (row)
+characteristics <span class="math notranslate nohighlight">\(\mathbf{X}\)</span> and time-level (column) characteristics
+<span class="math notranslate nohighlight">\(\mathbf{Z}\)</span>.</p>
+<p>Its robustness comes from decomposing the target matrix into four complementary
+pieces and estimating each separately:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{M} = \underbrace{\mathbf{G}_1(\mathbf{X})\, \mathbf{Q}_1(\mathbf{Z})^\top}_{\mathbf{M}_1:\ \text{both margins}}
+  + \underbrace{\mathbf{G}_2(\mathbf{X})\, \mathbf{V}_1^\top}_{\mathbf{M}_2:\ \text{row-driven}}
+  + \underbrace{\mathbf{W}_1\, \mathbf{Q}_2(\mathbf{Z})^\top}_{\mathbf{M}_3:\ \text{column-driven}}
+  + \underbrace{\mathbf{W}_2\, \mathbf{V}_2^\top}_{\mathbf{M}_4:\ \text{residual low-rank}} .\]</div>
+<p>Unlike inductive matrix completion (which forces an exact low-rank linear
+covariate-interaction term and no genuine noise component), this decomposition
+accommodates nonlinear covariate effects, a part explained by only one
+margin, and a part explained by neither – and it degrades gracefully when
+the covariates are uninformative (it then reduces to a de-meaned low-rank
+completion). Reach for <code class="docutils literal notranslate"><span class="pre">RMSI</span></code> when you have a block-adoption causal panel,
+informative unit and/or time covariates, and you expect those covariates to
+carry signal the raw outcome matrix alone would estimate noisily.</p>
+<section id="do-not-use-rmsi-when">
+<h3>Do not use RMSI when<a class="headerlink" href="#do-not-use-rmsi-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Adoption is staggered (treated units switch on at different times). RMSI
+assumes a block design; use <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>, <a class="reference internal" href="ssc.html"><span class="doc">Staggered Synthetic Control (SSC)</span></a>, <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>, or
+<a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a>.</p></li>
+<li><p>You have no covariates and no reason to expect one margin’s structure to
+help. With no side information RMSI reduces to a low-rank completion, so
+<a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a> (purpose-built, with inference) is the more direct choice.</p></li>
+<li><p>An interpretable donor-weight story is the deliverable – RMSI imputes a
+matrix, not a sparse convex combination; use <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>/<a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a>.</p></li>
+<li><p>Spillovers contaminate the controls (SUTVA fails) – use <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>
+or <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a>.</p></li>
+</ul>
+</section>
+<section id="notation">
+<h3>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h3>
+<p>The panel has <span class="math notranslate nohighlight">\(N\)</span> units <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> and
+<span class="math notranslate nohighlight">\(T\)</span> periods <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span>, 1-indexed;
+the intervention takes effect after period <span class="math notranslate nohighlight">\(T_0\)</span>, splitting
+<span class="math notranslate nohighlight">\(\mathcal{T}\)</span> into the pre-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> and the
+post-period <span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t &gt; T_0\}\)</span>. A
+block of treated units adopts at the common time <span class="math notranslate nohighlight">\(T_0\)</span>; the remaining units
+are controls. The outcome of unit <span class="math notranslate nohighlight">\(i\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> is <span class="math notranslate nohighlight">\(y_{it}\)</span>,
+collected into the <span class="math notranslate nohighlight">\(T \times N\)</span> matrix <span class="math notranslate nohighlight">\(\mathbf{Y}\)</span> (one column per
+unit). Unit-level covariates are averaged per unit into the row feature matrix
+<span class="math notranslate nohighlight">\(\mathbf{X}\)</span> and time-level covariates per period into <span class="math notranslate nohighlight">\(\mathbf{Z}\)</span>;
+<span class="math notranslate nohighlight">\(\mathbf{P}_X, \mathbf{P}_Z\)</span> are the sieve projectors onto their spans. The
+target counterfactual matrix is <span class="math notranslate nohighlight">\(\mathbf{M}\)</span> with the no-intervention
+entries <span class="math notranslate nohighlight">\(y_{it}^N\)</span>; its estimate is <span class="math notranslate nohighlight">\(\widehat{\mathbf{M}}\)</span>, with
+imputed entries <span class="math notranslate nohighlight">\(\widehat{y}_{it}\)</span>. The per-cell effect is
+<span class="math notranslate nohighlight">\(\tau_{it} \coloneqq y_{it} - \widehat{y}_{it}\)</span> (estimating
+<span class="math notranslate nohighlight">\(y_{it}^I - y_{it}^N\)</span>), and the ATT
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> averages <span class="math notranslate nohighlight">\(\tau_{it}\)</span> over the treated cells in
+<span class="math notranslate nohighlight">\(\mathcal{T}_2\)</span>.</p>
+</section>
+<section id="identifying-assumptions">
+<h3>Identifying assumptions<a class="headerlink" href="#identifying-assumptions" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Block adoption. All treated units adopt at the common time <span class="math notranslate nohighlight">\(T_0\)</span>, so
+the missing cells form a single rectangular block (treated units over
+<span class="math notranslate nohighlight">\(\mathcal{T}_2\)</span>); the tall submatrix (all units over
+<span class="math notranslate nohighlight">\(\mathcal{T}_1\)</span>) and the wide submatrix (controls over
+<span class="math notranslate nohighlight">\(\mathcal{T}\)</span>) are fully observed.</p>
+<p><em>Remark.</em> This is what lets Algorithm 1 run on the two observed submatrices
+and Algorithm 3 recombine their singular subspaces. Staggered adoption breaks
+the rectangular missingness pattern; use <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>, <a class="reference internal" href="ssc.html"><span class="doc">Staggered Synthetic Control (SSC)</span></a>,
+<a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>, or <a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a> instead.</p>
+</li>
+<li><p>Side-information structure. The no-intervention matrix decomposes into the
+four components <span class="math notranslate nohighlight">\(\mathbf{M} = \mathbf{M}_1 + \mathbf{M}_2 + \mathbf{M}_3
++ \mathbf{M}_4\)</span> – explained by both margins, the row margin only, the column
+margin only, and a residual low-rank part – with the margin-driven pieces
+captured by (possibly nonlinear) functions of <span class="math notranslate nohighlight">\(\mathbf{X}\)</span> and
+<span class="math notranslate nohighlight">\(\mathbf{Z}\)</span> realised through the sieve bases.</p>
+<p><em>Remark.</em> When the covariates are uninformative the first three components
+vanish and the model reduces to a de-meaned low-rank completion, recovering
+the no-side-information baseline – the source of RMSI’s graceful degradation.</p>
+</li>
+<li><p>No anticipation and SUTVA. Pre-period outcomes reflect the no-intervention
+path, <span class="math notranslate nohighlight">\(y_{it} = y_{it}^N\)</span> for <span class="math notranslate nohighlight">\(t \in \mathcal{T}_1\)</span>, and controls
+are untreated and uncontaminated over <span class="math notranslate nohighlight">\(\mathcal{T}\)</span>, so the observed
+submatrices carry only no-intervention outcomes.</p>
+<p><em>Remark.</em> Spillovers onto the controls or a pre-<span class="math notranslate nohighlight">\(T_0\)</span> response bias the
+imputed block. Quarantine contaminated controls before fitting; if spillovers
+are intrinsic, use <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a> or <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a>.</p>
+</li>
+</ol>
+</section>
+<section id="the-estimator">
+<h3>The estimator<a class="headerlink" href="#the-estimator" title="Link to this heading">#</a></h3>
+<p><em>Algorithm 1 (fully observed).</em> With polynomial sieve bases of the covariates
+and projectors <span class="math notranslate nohighlight">\(\mathbf{P}_X, \mathbf{P}_Z\)</span> onto them, the component
+explained by both margins is
+<span class="math notranslate nohighlight">\(\widehat{\mathbf{M}}_1 = \mathbf{P}_X \mathbf{Y} \mathbf{P}_Z\)</span>, and the
+other three are singular-value soft-thresholds of the projected residuals (the
+penalised least squares
+<span class="math notranslate nohighlight">\(\operatorname*{argmin}_{\mathbf{A}} \lVert \mathbf{B} - \mathbf{A}\rVert_F^2 + \nu\lVert \mathbf{A}\rVert_*\)</span>
+has the closed form <span class="math notranslate nohighlight">\(\operatorname{svt}(\mathbf{B}, \nu/2)\)</span>):</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\mathbf{M}}_2 = \operatorname{svt}\!\big(\mathbf{P}_X \mathbf{Y} (\mathbf{I} - \mathbf{P}_Z),\ \nu_2/2\big),\quad
+\widehat{\mathbf{M}}_3 = \operatorname{svt}\!\big((\mathbf{I} - \mathbf{P}_X) \mathbf{Y} \mathbf{P}_Z,\ \nu_3/2\big),\quad
+\widehat{\mathbf{M}}_4 = \operatorname{svt}\!\big((\mathbf{I} - \mathbf{P}_X) \mathbf{Y} (\mathbf{I} - \mathbf{P}_Z),\ \nu_4/2\big),\]</div>
+<p>with <span class="math notranslate nohighlight">\(\nu_2 = C_2\sqrt{T}\)</span>, <span class="math notranslate nohighlight">\(\nu_3 = C_3\sqrt{N}\)</span>,
+<span class="math notranslate nohighlight">\(\nu_4 = C_4(\sqrt{N}+\sqrt{T})\)</span>. The estimate is
+<span class="math notranslate nohighlight">\(\widehat{\mathbf{M}} = \widehat{\mathbf{M}}_1 + \widehat{\mathbf{M}}_2 + \widehat{\mathbf{M}}_3 + \widehat{\mathbf{M}}_4\)</span>
+– only projections and SVDs, no iterative solver.</p>
+<p><em>Algorithm 3 (block-missing causal).</em> The treated post-treatment cells form a
+missing block. RMSI applies Algorithm 1 to the fully observed tall submatrix
+(all units, pre-treatment periods) and wide submatrix (control units, all
+periods), then recombines their singular subspaces,
+<span class="math notranslate nohighlight">\(\widehat{\mathbf{M}} = \widehat{\mathbf{U}}_{\text{tall}}\, \widehat{\mathbf{H}}\, \widehat{\mathbf{D}}_{\text{wide}} \widehat{\mathbf{V}}_{\text{wide}}^\top\)</span>,
+where <span class="math notranslate nohighlight">\(\widehat{\mathbf{H}}\)</span> rotates the wide left-singular vectors onto
+the tall ones over the control rows. The ATT
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> is the observed minus the imputed outcome averaged over
+the treated post-treatment cells <span class="math notranslate nohighlight">\(\mathcal{T}_2\)</span>, with per-cell effects
+<span class="math notranslate nohighlight">\(\tau_{it} \coloneqq y_{it} - \widehat{y}_{it}\)</span>. <code class="docutils literal notranslate"><span class="pre">RMSI</span></code> targets the
+block (common adoption time) setting.</p>
+</section>
+<section id="side-information">
+<h3>Side information<a class="headerlink" href="#side-information" title="Link to this heading">#</a></h3>
+<p>Pass the covariate columns through the config: <code class="docutils literal notranslate"><span class="pre">unit_covariates</span></code> are columns
+(approximately) constant within a unit – averaged per unit to form the row
+feature matrix <span class="math notranslate nohighlight">\(\mathbf{X}\)</span> – and <code class="docutils literal notranslate"><span class="pre">time_covariates</span></code> are columns constant
+within a period – averaged per period to form <span class="math notranslate nohighlight">\(\mathbf{Z}\)</span>. Either may be
+empty.</p>
+</section>
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<p>A block panel of forty units (eight treated at period 20) whose untreated
+outcomes are driven by nonlinear functions of two unit covariates and two time
+covariates plus a residual low-rank part, with a constant effect of <code class="docutils literal notranslate"><span class="pre">+5</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">RMSI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.rmsi_helpers.simulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">simulate_rmsi_panel</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">simulate_rmsi_panel</span><span class="p">(</span>
+    <span class="n">n_units</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">n_treated</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">T0</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">n_post</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">att</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">RMSI</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treated&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unit_covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;x0&quot;</span><span class="p">,</span> <span class="s2">&quot;x1&quot;</span><span class="p">],</span>   <span class="c1"># row side information</span>
+    <span class="s2">&quot;time_covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;z0&quot;</span><span class="p">,</span> <span class="s2">&quot;z1&quot;</span><span class="p">],</span>   <span class="c1"># column side information</span>
+    <span class="s2">&quot;sieve_order&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>            <span class="c1"># observed vs. imputed counterfactual</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ATT (true 5.0) = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">   [rank </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">rank</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="replication">
+<h2>Replication<a class="headerlink" href="#replication" title="Link to this heading">#</a></h2>
+<p>Both of the paper’s empirical pieces are reproduced through the public API.</p>
+<p>Path A – Proposition 99 (Section 5.2). Using the Abadie et al. (2010)
+tobacco panel shipped at
+<a class="reference external" href="https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/P99data.csv">basedata/P99data.csv</a>,
+<code class="docutils literal notranslate"><span class="pre">RMSI</span></code> treats California from 1989 and uses the state-level Abadie predictors
+as unit covariates and the year-average retail price as the time covariate:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.rmsi_helpers.replication</span><span class="w"> </span><span class="kn">import</span> <span class="n">replicate_prop99</span>
+
+<span class="c1"># downloads basedata/P99data.csv by default; pass a path/DataFrame to override</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">replicate_prop99</span><span class="p">(</span><span class="n">rank</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="c1"># -&gt; California Proposition 99 ATT ~ -21 packs/capita (1989 ~ -7, 2000 ~ -32)</span>
+</pre></div>
+</div>
+<p>The estimated ATT of about <span class="math notranslate nohighlight">\(-21\)</span> packs per capita is consistent with
+Abadie, Diamond &amp; Hainmueller <a class="reference internal" href="references.html#abadie2010" id="id2"><span>[ABADIE2010]</span></a> and with the <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a> / <a class="reference internal" href="snn.html"><span class="doc">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</span></a>
+estimates elsewhere in <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code>. The equivalent explicit call:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">RMSI</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;main/basedata/P99data.csv&quot;</span><span class="p">)</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;lnincome&quot;</span><span class="p">,</span> <span class="s2">&quot;beer&quot;</span><span class="p">,</span> <span class="s2">&quot;age15to24&quot;</span><span class="p">,</span> <span class="s2">&quot;retprice&quot;</span><span class="p">]:</span>
+    <span class="n">d</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;state&quot;</span><span class="p">)[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">mean</span><span class="p">()))</span>
+    <span class="n">d</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+<span class="n">d</span><span class="p">[</span><span class="s2">&quot;treated&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;California&quot;</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">1989</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">RMSI</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">d</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;cigsale&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treated&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;unit_covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;lnincome&quot;</span><span class="p">,</span> <span class="s2">&quot;beer&quot;</span><span class="p">,</span> <span class="s2">&quot;age15to24&quot;</span><span class="p">,</span> <span class="s2">&quot;retprice&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;time_covariates&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;retprice&quot;</span><span class="p">],</span> <span class="s2">&quot;rank&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+            <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Path B – synthetic Monte Carlo (Section 5.1). The paper’s four-component
+DGP under the block-missing (MNAR) pattern; RMSI imputes the missing block at a
+lower average mean-squared error than the no-side-information baseline:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.rmsi_helpers.replication</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">run_rmsi_simulation</span><span class="p">,</span> <span class="n">RMSISimConfig</span><span class="p">,</span> <span class="n">PAPER</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># quick, reduced-count preset (use PAPER for the full N=T=400, 100-rep study)</span>
+<span class="n">out</span> <span class="o">=</span> <span class="n">run_rmsi_simulation</span><span class="p">(</span><span class="n">RMSISimConfig</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">T</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">N0</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">T0</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span>
+                                        <span class="n">J</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">n_reps</span><span class="o">=</span><span class="mi">10</span><span class="p">))</span>
+<span class="c1"># -&gt; AMSE side-info &lt; AMSE no-side-info (side information lowers the error)</span>
+</pre></div>
+</div>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Path B (synthetic). On the paper’s four-component MNAR DGP
+(<a class="reference internal" href="#mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp" title="mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_rmsi_dgp()</span></code></a>), RMSI’s
+block imputation achieves a lower missing-block AMSE than the
+no-side-information baseline – reproducing the paper’s central finding that
+leveraging side information improves imputation accuracy.</p>
+<p>Path A (Proposition 99). <code class="docutils literal notranslate"><span class="pre">replicate_prop99</span></code> recovers a California
+Proposition 99 ATT of about <span class="math notranslate nohighlight">\(-21\)</span> packs per capita (widening toward
+<span class="math notranslate nohighlight">\(-32\)</span> by 2000), matching the Abadie-Diamond-Hainmueller <a class="reference internal" href="references.html#abadie2010" id="id3"><span>[ABADIE2010]</span></a>
+baseline and the other <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> estimators on the same panel.</p>
+</div>
+</section>
+<section id="module-mlsynth.estimators.rmsi">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.rmsi" title="Link to this heading">#</a></h2>
+<p>RMSI: Robust Matrix estimation with Side Information (Agarwal, Choi &amp; Yuan 2026).</p>
+<p>Agarwal, A., Choi, J. &amp; Yuan, M. (2026). <em>“Robust Matrix Estimation with Side
+Information.”</em> arXiv:2603.24833.</p>
+<p>RMSI estimates a panel’s untreated-outcome matrix while <strong>exploiting covariates
+on both margins</strong> – unit-level (row) characteristics <span class="math notranslate nohighlight">\(X\)</span> and time-level
+(column) characteristics <span class="math notranslate nohighlight">\(Z\)</span>. It decomposes the target matrix into four
+complementary pieces,</p>
+<div class="math notranslate nohighlight">
+\[M = \underbrace{G_1(X) Q_1(Z)^\top}_{M_1\text{: both}}
+  + \underbrace{G_2(X) V_1^\top}_{M_2\text{: row-driven}}
+  + \underbrace{W_1 Q_2(Z)^\top}_{M_3\text{: column-driven}}
+  + \underbrace{W_2 V_2^\top}_{M_4\text{: residual low-rank}},\]</div>
+<p>and estimates each by <strong>sieve projection plus nuclear-norm penalization</strong>: with
+projectors <span class="math notranslate nohighlight">\(P_X, P_Z\)</span> onto polynomial sieve bases of the covariates, the
+component explained by both margins is <span class="math notranslate nohighlight">\(\widehat M_1 = P_X Y P_Z\)</span>, and the
+remaining three are singular-value soft-thresholds of the corresponding
+projected residuals (the penalised least squares has that closed form). Because
+the pieces are recovered separately and summed, the method is <strong>robust</strong>: it
+accommodates nonlinear covariate effects, parts explained by only one margin,
+and a part explained by neither – and degrades gracefully when the covariates
+are uninformative (it then reduces to a de-meaned low-rank completion).</p>
+<p>For causal panel data the treated cells form a missing block. RMSI applies the
+estimator to the fully observed “tall” submatrix (all units, pre-treatment
+periods) and “wide” submatrix (control units, all periods) and recombines their
+singular subspaces to impute the missing treated counterfactual; the ATT is the
+observed minus the imputed outcome over the treated cells. This estimator
+targets the <strong>block</strong> (common adoption time) causal setting.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.rmsi.RMSI">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.rmsi.</span></span><span class="sig-name descname"><span class="pre">RMSI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.RMSIConfig" title="mlsynth.utils.rmsi_helpers.config.RMSIConfig"><span class="pre">RMSIConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.rmsi.RMSI" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Robust Matrix estimation with Side Information.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>RMSIConfig or dict</em>) – Configuration object. See <a class="reference internal" href="#mlsynth.config_models.RMSIConfig" title="mlsynth.config_models.RMSIConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.RMSIConfig</span></code></a>.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.rmsi.RMSI.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults" title="mlsynth.utils.rmsi_helpers.structures.RMSIResults"><span class="pre">RMSIResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.rmsi.RMSI.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run RMSI and return <code class="xref py py-class docutils literal notranslate"><span class="pre">RMSIResults</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.RMSIConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">RMSIConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_covariates:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_covariates:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sieve_order:</span> <span class="pre">~typing.Annotated[int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.RMSIConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the RMSI estimator.</p>
+<p>Agarwal, Choi &amp; Yuan (2026), <em>“Robust Matrix Estimation with Side
+Information”</em> (arXiv:2603.24833). Imputes the treated counterfactual of a
+block-adoption causal panel by a four-component sieve + nuclear-norm matrix
+estimator that exploits unit-level (row) and time-level (column) covariates.
+Inherits the standard <code class="docutils literal notranslate"><span class="pre">df</span></code> / <code class="docutils literal notranslate"><span class="pre">outcome</span></code> / <code class="docutils literal notranslate"><span class="pre">treat</span></code> / <code class="docutils literal notranslate"><span class="pre">unitid</span></code> /
+<code class="docutils literal notranslate"><span class="pre">time</span></code> interface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_covariates</strong> (<em>list of str</em>) – Columns that vary across units and are (approximately) constant within a
+unit; averaged per unit to form the row feature matrix <code class="docutils literal notranslate"><span class="pre">X</span></code>. May be
+empty (then the row projection captures only the mean).</p></li>
+<li><p><strong>time_covariates</strong> (<em>list of str</em>) – Columns that vary across periods and are constant across units within a
+period; averaged per period to form the column feature matrix <code class="docutils literal notranslate"><span class="pre">Z</span></code>.
+May be empty.</p></li>
+<li><p><strong>sieve_order</strong> (<em>int</em>) – Polynomial sieve order <code class="docutils literal notranslate"><span class="pre">J</span></code> (default 2, matching the paper).</p></li>
+<li><p><strong>rank</strong> (<em>int, optional</em>) – Factor rank for the block recombination; chosen by a relative-magnitude
+singular-value threshold when None.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RMSIConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.RMSIConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RMSIConfig.rank">
+<span class="sig-name descname"><span class="pre">rank</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.RMSIConfig.rank" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RMSIConfig.sieve_order">
+<span class="sig-name descname"><span class="pre">sieve_order</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.RMSIConfig.sieve_order" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RMSIConfig.time_covariates">
+<span class="sig-name descname"><span class="pre">time_covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.config_models.RMSIConfig.time_covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.RMSIConfig.unit_covariates">
+<span class="sig-name descname"><span class="pre">unit_covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.config_models.RMSIConfig.unit_covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="result-containers">
+<h2>Result Containers<a class="headerlink" href="#result-containers" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">RMSI.fit()</span></code> returns a
+<a class="reference internal" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults" title="mlsynth.utils.rmsi_helpers.structures.RMSIResults"><code class="xref py py-class docutils literal notranslate"><span class="pre">RMSIResults</span></code></a>: the ATT, the imputed
+counterfactual matrix <code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> and per-cell <code class="docutils literal notranslate"><span class="pre">effects</span></code>,
+<code class="docutils literal notranslate"><span class="pre">att_by_period</span></code>, the cross-treated-unit observed/imputed means the plotter
+draws, the factor <code class="docutils literal notranslate"><span class="pre">rank</span></code> used, and metadata.</p>
+<p id="module-mlsynth.utils.rmsi_helpers.structures">Frozen dataclasses for the RMSI estimator.</p>
+<p>Agarwal, Choi &amp; Yuan (2026), <em>Robust Matrix Estimation with Side Information</em>
+(arXiv:2603.24833). RMSI imputes the treated counterfactual of a block-adoption
+causal panel by a four-component sieve + nuclear-norm matrix estimator that
+exploits unit-level (row) and time-level (column) covariates.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">RMSIInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Z</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">control_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Preprocessed block-adoption panel with side information for RMSI.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Y" title="Link to this definition">#</a></dt>
+<dd><p>Outcomes, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.D">
+<span class="sig-name descname"><span class="pre">D</span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.D" title="Link to this definition">#</a></dt>
+<dd><p>Treatment indicators, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> (<code class="docutils literal notranslate"><span class="pre">1</span></code> where treated).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.X">
+<span class="sig-name descname"><span class="pre">X</span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.X" title="Link to this definition">#</a></dt>
+<dd><p>Row (unit) covariates, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">d1)</span></code> – one row per unit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Z">
+<span class="sig-name descname"><span class="pre">Z</span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Z" title="Link to this definition">#</a></dt>
+<dd><p>Column (time) covariates, shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">d2)</span></code> – one row per period.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T0" title="Link to this definition">#</a></dt>
+<dd><p>Number of clean pre-treatment periods (common adoption at <code class="docutils literal notranslate"><span class="pre">T0</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">treated_idx,</span> <span class="pre">control_idx</span></span></dt>
+<dd><p>Indices of ever-treated and never-treated units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">unit_names,</span> <span class="pre">time_labels</span></span></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>sequence</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">unit_covariates,</span> <span class="pre">time_covariates</span></span></dt>
+<dd><p>The covariate column names used to build <code class="docutils literal notranslate"><span class="pre">X</span></code> and <code class="docutils literal notranslate"><span class="pre">Z</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">D</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.N">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.N" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">X</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">Z</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.control_idx">
+<span class="sig-name descname"><span class="pre">control_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.control_idx" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_covariates">
+<span class="sig-name descname"><span class="pre">time_covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.treated_idx">
+<span class="sig-name descname"><span class="pre">treated_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.treated_idx" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_covariates">
+<span class="sig-name descname"><span class="pre">unit_covariates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_covariates" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_names">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_names" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">RMSIResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">effects:</span> <span class="pre">~mlsynth.config_models.EffectsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">fit_diagnostics:</span> <span class="pre">~mlsynth.config_models.FitDiagnosticsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">time_series:</span> <span class="pre">~mlsynth.config_models.TimeSeriesResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">weights:</span> <span class="pre">~mlsynth.config_models.WeightsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inference:</span> <span class="pre">~mlsynth.config_models.InferenceResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">method_details:</span> <span class="pre">~mlsynth.config_models.MethodDetailsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">sub_method_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">additional_outputs:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">raw_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">execution_summary:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">plot_config:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.rmsi_helpers.structures.RMSIInputs,</span> <span class="pre">counterfactual_matrix:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">effects_matrix:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">att_by_period:</span> <span class="pre">~typing.Dict[~typing.Any,</span> <span class="pre">float],</span> <span class="pre">treated_mean:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">synthetic_mean:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">rank:</span> <span class="pre">int,</span> <span class="pre">components:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~numpy.ndarray]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEstimatorResults</span></code></p>
+<p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.RMSI.fit()</span></code>.</p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> (the observational report):
+in addition to the RMSI-specific fields below it exposes the standardized
+sub-models (<code class="docutils literal notranslate"><span class="pre">effects</span></code>, <code class="docutils literal notranslate"><span class="pre">time_series</span></code>, <code class="docutils literal notranslate"><span class="pre">weights</span></code>, <code class="docutils literal notranslate"><span class="pre">inference</span></code>,
+<code class="docutils literal notranslate"><span class="pre">fit_diagnostics</span></code>, <code class="docutils literal notranslate"><span class="pre">method_details</span></code>) and the flat accessors <code class="docutils literal notranslate"><span class="pre">att</span></code> /
+<code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">gap</span></code> / <code class="docutils literal notranslate"><span class="pre">pre_rmse</span></code>. The treated counterfactual path
+(<code class="docutils literal notranslate"><span class="pre">res.counterfactual</span></code>) is the cross-treated-unit synthetic mean; the full
+imputed <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> matrix lives in <code class="docutils literal notranslate"><span class="pre">counterfactual_matrix</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>RMSIInputs</em>)</p></li>
+<li><p><strong>counterfactual_matrix</strong> (<em>np.ndarray</em>) – Estimated untreated potential outcomes <code class="docutils literal notranslate"><span class="pre">M_hat</span></code>, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.
+(Renamed from <code class="docutils literal notranslate"><span class="pre">counterfactual</span></code>, which now returns the 1-D treated
+path per the result contract.)</p></li>
+<li><p><strong>effects_matrix</strong> (<em>np.ndarray</em>) – Observed minus imputed on treated cells (NaN elsewhere), shape
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>. (Renamed from <code class="docutils literal notranslate"><span class="pre">effects</span></code>, which is now the standardized
+<code class="xref py py-class docutils literal notranslate"><span class="pre">EffectsResults</span></code> slot.)</p></li>
+<li><p><strong>att_by_period</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{time_label:</span> <span class="pre">ATT}</span></code> over the post-treatment periods.</p></li>
+<li><p><strong>treated_mean, synthetic_mean</strong> (<em>np.ndarray</em>) – Cross-treated-unit means of observed / imputed over the full timeline
+(the series the plotter draws), length <code class="docutils literal notranslate"><span class="pre">T</span></code>.</p></li>
+<li><p><strong>rank</strong> (<em>int</em>) – Factor rank used in the block recombination.</p></li>
+<li><p><strong>components</strong> (<em>dict, optional</em>) – The four components of the “tall” fit (diagnostic), if retained.</p></li>
+<li><p><strong>metadata</strong> (<em>dict</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.att_by_period">
+<span class="sig-name descname"><span class="pre">att_by_period</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.att_by_period" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.components">
+<span class="sig-name descname"><span class="pre">components</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">np.ndarray</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.components" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.counterfactual_matrix">
+<span class="sig-name descname"><span class="pre">counterfactual_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.counterfactual_matrix" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.effects_matrix">
+<span class="sig-name descname"><span class="pre">effects_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.effects_matrix" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs" title="mlsynth.utils.rmsi_helpers.structures.RMSIInputs"><span class="pre">RMSIInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid',</span> <span class="pre">'frozen':</span> <span class="pre">True,</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.rank">
+<span class="sig-name descname"><span class="pre">rank</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.rank" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.synthetic_mean">
+<span class="sig-name descname"><span class="pre">synthetic_mean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.synthetic_mean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.structures.RMSIResults.treated_mean">
+<span class="sig-name descname"><span class="pre">treated_mean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.treated_mean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="helper-modules">
+<h2>Helper Modules<a class="headerlink" href="#helper-modules" title="Link to this heading">#</a></h2>
+<p>The numerical core: sieve bases, projections, singular-value soft-thresholding,
+Algorithm 1 (four-component) and Algorithm 3 (block-missing recombination).</p>
+<p id="module-mlsynth.utils.rmsi_helpers.core">Numerical core for RMSI (Agarwal, Choi &amp; Yuan 2026).</p>
+<p>Implements the four-component sieve + nuclear-norm estimator (their Algorithm 1)
+and the block-missing causal extension (their Algorithm 3). Both reduce to
+projections and singular-value soft-thresholding – no iterative solver.</p>
+<p>Algorithm 1 decomposes <code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">=</span> <span class="pre">M1</span> <span class="pre">+</span> <span class="pre">M2</span> <span class="pre">+</span> <span class="pre">M3</span> <span class="pre">+</span> <span class="pre">M4</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">M1</span> <span class="pre">=</span> <span class="pre">PX</span> <span class="pre">Y</span> <span class="pre">PZ</span></code>                     – explained by both row &amp; column features</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">M2</span> <span class="pre">=</span> <span class="pre">svt(PX</span> <span class="pre">Y</span> <span class="pre">(I-PZ),</span> <span class="pre">nu2/2)</span></code>     – row-feature-driven</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">M3</span> <span class="pre">=</span> <span class="pre">svt((I-PX)</span> <span class="pre">Y</span> <span class="pre">PZ,</span> <span class="pre">nu3/2)</span></code>     – column-feature-driven</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">M4</span> <span class="pre">=</span> <span class="pre">svt((I-PX)</span> <span class="pre">Y</span> <span class="pre">(I-PZ),</span> <span class="pre">nu4/2)</span></code> – residual low-rank (no features)</p></li>
+</ul>
+<p>where <code class="docutils literal notranslate"><span class="pre">PX</span></code>/<code class="docutils literal notranslate"><span class="pre">PZ</span></code> project onto sieve bases of the row/column covariates, the
+penalised least-squares <code class="docutils literal notranslate"><span class="pre">argmin</span> <span class="pre">||B</span> <span class="pre">-</span> <span class="pre">A||_F^2</span> <span class="pre">+</span> <span class="pre">nu||A||_*</span></code> has the closed form
+<code class="docutils literal notranslate"><span class="pre">svt(B,</span> <span class="pre">nu/2)</span></code>, and <code class="docutils literal notranslate"><span class="pre">nu2</span> <span class="pre">=</span> <span class="pre">C2</span> <span class="pre">sqrt(T)</span></code>, <code class="docutils literal notranslate"><span class="pre">nu3</span> <span class="pre">=</span> <span class="pre">C3</span> <span class="pre">sqrt(N)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">nu4</span> <span class="pre">=</span> <span class="pre">C4</span> <span class="pre">(sqrt(N)</span> <span class="pre">+</span> <span class="pre">sqrt(T))</span></code>.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.core.algorithm1">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.core.</span></span><span class="sig-name descname"><span class="pre">algorithm1</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Z</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">J</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C3</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C4</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PX</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PZ</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.core.algorithm1" title="Link to this definition">#</a></dt>
+<dd><p>Four-component sieve + SVT estimator (Algorithm 1) for a full matrix.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y</strong> (<em>np.ndarray, shape (N, T)</em>) – Fully observed outcome matrix.</p></li>
+<li><p><strong>X</strong> (<em>np.ndarray, shape (N, d1)</em>) – Row (unit) covariates.</p></li>
+<li><p><strong>Z</strong> (<em>np.ndarray, shape (T, d2)</em>) – Column (time) covariates.</p></li>
+<li><p><strong>J</strong> (<em>int</em>) – Sieve order.</p></li>
+<li><p><strong>C2, C3, C4</strong> (<em>float</em>) – Penalty constants for the three soft-thresholded components.</p></li>
+<li><p><strong>PX, PZ</strong> (<em>np.ndarray, optional</em>) – Precomputed projectors (built from the sieve bases if omitted).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>M_hat</strong> (<em>np.ndarray, shape (N, T)</em>) – The aggregated estimate <code class="docutils literal notranslate"><span class="pre">M1</span> <span class="pre">+</span> <span class="pre">M2</span> <span class="pre">+</span> <span class="pre">M3</span> <span class="pre">+</span> <span class="pre">M4</span></code>.</p></li>
+<li><p><strong>components</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{&quot;M1&quot;,</span> <span class="pre">&quot;M2&quot;,</span> <span class="pre">&quot;M3&quot;,</span> <span class="pre">&quot;M4&quot;}</span></code> – the individual components.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.core.algorithm3">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.core.</span></span><span class="sig-name descname"><span class="pre">algorithm3</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Z</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">control_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">J</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C3</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C4</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.core.algorithm3" title="Link to this definition">#</a></dt>
+<dd><p>Block-missing causal estimator (Algorithm 3).</p>
+<p>Imputes the full matrix from the “tall” submatrix (all units, pre-treatment
+periods) and the “wide” submatrix (control units, all periods), recombining
+via <code class="docutils literal notranslate"><span class="pre">M_hat</span> <span class="pre">=</span> <span class="pre">U_tall</span> <span class="pre">H_adj</span> <span class="pre">D_wide</span> <span class="pre">V_wide'</span></code> with a rotation <code class="docutils literal notranslate"><span class="pre">H_adj</span></code> that
+aligns the wide left-singular vectors to the tall ones on the control rows.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y</strong> (<em>np.ndarray, shape (N, T)</em>) – Outcome matrix; the treated post-treatment block is treated as missing.</p></li>
+<li><p><strong>X, Z</strong> (<em>np.ndarray</em>) – Row and column covariates.</p></li>
+<li><p><strong>control_idx</strong> (<em>np.ndarray</em>) – Indices of never-treated (control) units (the “wide” rows).</p></li>
+<li><p><strong>T0</strong> (<em>int</em>) – Number of clean pre-treatment periods (the “tall” columns).</p></li>
+<li><p><strong>J</strong> (<em>int</em>) – Sieve order.</p></li>
+<li><p><strong>rank</strong> (<em>int, optional</em>) – Factor rank <code class="docutils literal notranslate"><span class="pre">K</span></code>; a relative-magnitude singular-value threshold
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">_auto_rank()</span></code>) is used when omitted.</p></li>
+<li><p><strong>C2, C3, C4</strong> (<em>float</em>) – Penalty constants forwarded to <a class="reference internal" href="#mlsynth.utils.rmsi_helpers.core.algorithm1" title="mlsynth.utils.rmsi_helpers.core.algorithm1"><code class="xref py py-func docutils literal notranslate"><span class="pre">algorithm1()</span></code></a>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>M_hat</strong> (<em>np.ndarray, shape (N, T)</em>) – The completed matrix (the imputed counterfactual everywhere).</p></li>
+<li><p><strong>rank</strong> (<em>int</em>) – The factor rank used.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.core.sieve_poly">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.core.</span></span><span class="sig-name descname"><span class="pre">sieve_poly</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">C</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">J</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.core.sieve_poly" title="Link to this definition">#</a></dt>
+<dd><p>Polynomial sieve basis (with intercept) of a covariate matrix.</p>
+<p>For <code class="docutils literal notranslate"><span class="pre">J</span> <span class="pre">=</span> <span class="pre">2</span></code> each covariate <code class="docutils literal notranslate"><span class="pre">c</span></code> contributes <code class="docutils literal notranslate"><span class="pre">c</span></code> and <code class="docutils literal notranslate"><span class="pre">c**2</span></code>; a constant
+column is prepended so the projection captures means.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>C</strong> (<em>np.ndarray, shape (n, d)</em>) – Covariate matrix (rows are units/periods).</p></li>
+<li><p><strong>J</strong> (<em>int</em>) – Polynomial sieve order.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray, shape (n, 1 + d*J)</em> – Basis matrix <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">c_1,</span> <span class="pre">c_1^2,</span> <span class="pre">...,</span> <span class="pre">c_d,</span> <span class="pre">c_d^2,</span> <span class="pre">...]</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p>Panel + side-information ingestion (block design enforced).</p>
+<p id="module-mlsynth.utils.rmsi_helpers.setup">Panel + side-information ingestion for the RMSI estimator.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.setup.prepare_rmsi_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_rmsi_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs" title="mlsynth.utils.rmsi_helpers.structures.RMSIInputs"><span class="pre">RMSIInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.setup.prepare_rmsi_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot a long panel into block matrices and extract side information.</p>
+<p>RMSI (Agarwal, Choi &amp; Yuan 2026) assumes a <strong>block</strong> design: every
+ever-treated unit adopts at the same period <code class="docutils literal notranslate"><span class="pre">T0</span></code>. <code class="docutils literal notranslate"><span class="pre">unit_covariates</span></code> are
+columns (approximately) constant within a unit -&gt; the row feature matrix
+<code class="docutils literal notranslate"><span class="pre">X</span></code> (one row per unit, time-averaged); <code class="docutils literal notranslate"><span class="pre">time_covariates</span></code> are columns
+constant within a period -&gt; the column feature matrix <code class="docutils literal notranslate"><span class="pre">Z</span></code> (one row per
+period, unit-averaged). Either may be empty, in which case the corresponding
+projection captures only the mean.</p>
+</dd></dl>
+
+<p>Run loop: Algorithm 3, the ATT and per-period effects, and the imputed series.</p>
+<p id="module-mlsynth.utils.rmsi_helpers.pipeline">Orchestration for the RMSI estimator (Agarwal, Choi &amp; Yuan 2026).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.pipeline.run_rmsi">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">run_rmsi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs" title="mlsynth.utils.rmsi_helpers.structures.RMSIInputs"><span class="pre">RMSIInputs</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">J</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C3</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C4</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults" title="mlsynth.utils.rmsi_helpers.structures.RMSIResults"><span class="pre">RMSIResults</span></a></span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.pipeline.run_rmsi" title="Link to this definition">#</a></dt>
+<dd><p>Run RMSI (Algorithm 3) and assemble <code class="xref py py-class docutils literal notranslate"><span class="pre">RMSIResults</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>RMSIInputs</em>)</p></li>
+<li><p><strong>J</strong> (<em>int</em>) – Polynomial sieve order (default 2, matching the paper).</p></li>
+<li><p><strong>rank</strong> (<em>int, optional</em>) – Factor rank; estimated by the eigenvalue-ratio method if omitted.</p></li>
+<li><p><strong>C2, C3, C4</strong> (<em>float</em>) – Penalty constants for the soft-thresholded components.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p>Block causal DGP with side information for examples and tests.</p>
+<p id="module-mlsynth.utils.rmsi_helpers.simulation">Block-adoption causal DGP with side information for RMSI examples/tests.</p>
+<p>Mirrors the regime RMSI targets: an outcome matrix whose untreated potential
+outcomes are driven by (nonlinear) functions of unit covariates <code class="docutils literal notranslate"><span class="pre">X</span></code> and time
+covariates <code class="docutils literal notranslate"><span class="pre">Z</span></code> plus a residual low-rank part, with a block of treated units
+adopting at a common period. Returns a tidy long panel (with the covariate
+columns) ready for <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.RMSI</span></code>.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.simulation.simulate_rmsi_panel">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.simulation.</span></span><span class="sig-name descname"><span class="pre">simulate_rmsi_panel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_units</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">40</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_post</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">11</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_unit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.simulation.simulate_rmsi_panel" title="Link to this definition">#</a></dt>
+<dd><p>Simulate a block, side-information, low-rank causal panel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_units, n_treated</strong> (<em>int</em>) – Total units and the number treated (treated units adopt at <code class="docutils literal notranslate"><span class="pre">T0</span></code>).</p></li>
+<li><p><strong>T0, n_post</strong> (<em>int</em>) – Pre- and post-treatment period counts.</p></li>
+<li><p><strong>d_unit, d_time</strong> (<em>int</em>) – Numbers of unit (row) and time (column) covariates.</p></li>
+<li><p><strong>att</strong> (<em>float</em>) – Constant additive treatment effect on treated post cells.</p></li>
+<li><p><strong>noise</strong> (<em>float</em>) – Idiosyncratic-noise standard deviation.</p></li>
+<li><p><strong>seed</strong> (<em>int</em>) – RNG seed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>pandas.DataFrame</em> – Long panel with columns <code class="docutils literal notranslate"><span class="pre">unit</span></code>, <code class="docutils literal notranslate"><span class="pre">time</span></code>, <code class="docutils literal notranslate"><span class="pre">Y</span></code>, <code class="docutils literal notranslate"><span class="pre">treated</span></code>,
+<code class="docutils literal notranslate"><span class="pre">x0..</span></code> (unit covariates), <code class="docutils literal notranslate"><span class="pre">z0..</span></code> (time covariates).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p>Path-A (Proposition 99) and Path-B (synthetic Monte-Carlo) replications.</p>
+<p id="module-mlsynth.utils.rmsi_helpers.replication">Replications of Agarwal, Choi &amp; Yuan (2026).</p>
+<ul class="simple">
+<li><p><strong>Path B</strong> – the paper’s synthetic Monte-Carlo study (Section 5.1): the
+four-component DGP under the block-missing (MNAR) pattern. RMSI recovers the
+missing block at a lower error than the no-side-information baseline.</p></li>
+<li><p><strong>Path A</strong> – the empirical Proposition 99 / tobacco application (Section 5.2),
+run on the data shipped in <code class="docutils literal notranslate"><span class="pre">basedata/P99data.csv</span></code>.</p></li>
+</ul>
+<p>Both run through the public estimator surface / the documented helper functions.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.replication.</span></span><span class="sig-name descname"><span class="pre">RMSISimConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">400</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">400</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">J</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alphas</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">(0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_reps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig" title="Link to this definition">#</a></dt>
+<dd><p>Parameters for the RMSI synthetic Monte-Carlo (paper Section 5.1, MNAR).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.J">
+<span class="sig-name descname"><span class="pre">J</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.J" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N">
+<span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">400</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N0">
+<span class="sig-name descname"><span class="pre">N0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">200</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T">
+<span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">400</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">200</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.alphas">
+<span class="sig-name descname"><span class="pre">alphas</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">(0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25)</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.alphas" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.n_reps">
+<span class="sig-name descname"><span class="pre">n_reps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">100</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.n_reps" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.sigma">
+<span class="sig-name descname"><span class="pre">sigma</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.5</span></em><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.sigma" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.replicate_prop99">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.replication.</span></span><span class="sig-name descname"><span class="pre">replicate_prop99</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sieve_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.replicate_prop99" title="Link to this definition">#</a></dt>
+<dd><p>Estimate California’s Proposition 99 effect with RMSI (Path A).</p>
+<p>Loads the Abadie et al. (2010) tobacco panel (<code class="docutils literal notranslate"><span class="pre">basedata/P99data.csv</span></code>),
+treats California from 1989, uses the state-level Abadie predictors
+(<code class="docutils literal notranslate"><span class="pre">lnincome</span></code>, <code class="docutils literal notranslate"><span class="pre">beer</span></code>, <code class="docutils literal notranslate"><span class="pre">age15to24</span></code>, <code class="docutils literal notranslate"><span class="pre">retprice</span></code>) as unit covariates and
+the year-average retail price as the time covariate, and runs
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.RMSI</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>str or pandas.DataFrame, optional</em>) – Path/URL to the panel, or a DataFrame. Default downloads
+<code class="docutils literal notranslate"><span class="pre">P99data.csv</span></code> from <code class="docutils literal notranslate"><span class="pre">basedata/</span></code>.</p></li>
+<li><p><strong>rank</strong> (<em>int, optional</em>) – Factor rank (default 3; suits the single-treated-unit case – the
+eigenvalue-ratio default tends to pick rank 1 here).</p></li>
+<li><p><strong>sieve_order</strong> (<em>int</em>) – Polynomial sieve order.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>mlsynth.utils.rmsi_helpers.structures.RMSIResults</em></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.run_rmsi_simulation">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.replication.</span></span><span class="sig-name descname"><span class="pre">run_rmsi_simulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig" title="mlsynth.utils.rmsi_helpers.replication.RMSISimConfig"><span class="pre">RMSISimConfig</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">RMSISimConfig(N=120,</span> <span class="pre">T=120,</span> <span class="pre">N0=60,</span> <span class="pre">T0=60,</span> <span class="pre">J=5,</span> <span class="pre">sigma=0.5,</span> <span class="pre">alphas=(0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25),</span> <span class="pre">n_reps=10)</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span></span></span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.run_rmsi_simulation" title="Link to this definition">#</a></dt>
+<dd><p>Run the synthetic MNAR Monte-Carlo and return missing-block AMSE.</p>
+<p>Compares RMSI (with side information) to a no-side-information baseline
+(the same block estimator with empty covariates, i.e. a de-meaned low-rank
+completion) by the average mean squared error over the missing block.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>dict</em> – <code class="docutils literal notranslate"><span class="pre">{&quot;rmsi&quot;:</span> <span class="pre">amse_side_info,</span> <span class="pre">&quot;no_side_info&quot;:</span> <span class="pre">amse_baseline,</span> <span class="pre">&quot;rel_improvement&quot;:</span> <span class="pre">...}</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rmsi_helpers.replication.</span></span><span class="sig-name descname"><span class="pre">simulate_rmsi_dgp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25,</span> <span class="pre">0.25)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp" title="Link to this definition">#</a></dt>
+<dd><p>Generate <code class="docutils literal notranslate"><span class="pre">(Y,</span> <span class="pre">M,</span> <span class="pre">X,</span> <span class="pre">Z)</span></code> from the paper’s four-component DGP (Section 5.1).</p>
+<p>Eight characteristics (four per margin) with the paper’s distributions;
+<code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">=</span> <span class="pre">sum_r</span> <span class="pre">alpha_r</span> <span class="pre">M_r</span></code> with each <code class="docutils literal notranslate"><span class="pre">M_r</span></code> normalised to
+<code class="docutils literal notranslate"><span class="pre">||M_r||_F</span> <span class="pre">=</span> <span class="pre">sqrt(2</span> <span class="pre">N</span> <span class="pre">T)</span></code>; noise <code class="docutils literal notranslate"><span class="pre">N(0,</span> <span class="pre">sigma^2)</span></code>.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="snn.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="siv.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Synthetic IV</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-rmsi-when">Do not use RMSI when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-assumptions">Identifying assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-estimator">The estimator</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#side-information">Side information</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replication">Replication</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.rmsi">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.rmsi.RMSI"><code class="docutils literal notranslate"><span class="pre">RMSI</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.rmsi.RMSI.fit"><code class="docutils literal notranslate"><span class="pre">RMSI.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig"><code class="docutils literal notranslate"><span class="pre">RMSIConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.model_config"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.rank"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.rank</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.sieve_order"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.sieve_order</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.time_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.time_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.RMSIConfig.unit_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIConfig.unit_covariates</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs"><code class="docutils literal notranslate"><span class="pre">RMSIInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Y"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.D"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.X"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.Z"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Z</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T0"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.N"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.T"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.X</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.Z</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.control_idx"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.control_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.time_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.treated_idx"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_covariates"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.unit_covariates</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">RMSIInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults"><code class="docutils literal notranslate"><span class="pre">RMSIResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.att_by_period"><code class="docutils literal notranslate"><span class="pre">RMSIResults.att_by_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.components"><code class="docutils literal notranslate"><span class="pre">RMSIResults.components</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.counterfactual_matrix"><code class="docutils literal notranslate"><span class="pre">RMSIResults.counterfactual_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.effects_matrix"><code class="docutils literal notranslate"><span class="pre">RMSIResults.effects_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.inputs"><code class="docutils literal notranslate"><span class="pre">RMSIResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.metadata"><code class="docutils literal notranslate"><span class="pre">RMSIResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.model_config"><code class="docutils literal notranslate"><span class="pre">RMSIResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.rank"><code class="docutils literal notranslate"><span class="pre">RMSIResults.rank</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.synthetic_mean"><code class="docutils literal notranslate"><span class="pre">RMSIResults.synthetic_mean</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.structures.RMSIResults.treated_mean"><code class="docutils literal notranslate"><span class="pre">RMSIResults.treated_mean</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.core.algorithm1"><code class="docutils literal notranslate"><span class="pre">algorithm1()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.core.algorithm3"><code class="docutils literal notranslate"><span class="pre">algorithm3()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.core.sieve_poly"><code class="docutils literal notranslate"><span class="pre">sieve_poly()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.setup.prepare_rmsi_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_rmsi_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.pipeline.run_rmsi"><code class="docutils literal notranslate"><span class="pre">run_rmsi()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.simulation.simulate_rmsi_panel"><code class="docutils literal notranslate"><span class="pre">simulate_rmsi_panel()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.J"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.J</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.N0"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.N0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.T0"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.alphas"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.alphas</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.n_reps"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.n_reps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.RMSISimConfig.sigma"><code class="docutils literal notranslate"><span class="pre">RMSISimConfig.sigma</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.replicate_prop99"><code class="docutils literal notranslate"><span class="pre">replicate_prop99()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.run_rmsi_simulation"><code class="docutils literal notranslate"><span class="pre">run_rmsi_simulation()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp"><code class="docutils literal notranslate"><span class="pre">simulate_rmsi_dgp()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

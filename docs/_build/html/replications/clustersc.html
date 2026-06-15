@@ -1,0 +1,873 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'replications/clustersc';</script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)" href="lexscm.html" />
+    <link rel="prev" title="SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)" href="seq_sdid.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../replications.html">Replications</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/replications/clustersc.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-estimators-for-the-price-of-one">Two estimators for the price of one</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-regime-that-matters">The regime that matters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cross-validation-against-the-authors-code">Cross-validation against the authors’ code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rsc-pre-post-test-error-amjad-shah-shen-2018">RSC pre/post test error (Amjad-Shah-Shen 2018)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#confidence-interval-coverage-shen-et-al">Confidence-interval coverage (Shen et al.)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rpca-sc-west-german-reunification-bayani-2021">RPCA-SC: West German reunification (Bayani 2021)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="clustersc-synthetic-control-with-donor-selection-rho-et-al-2025">
+<span id="replication-clustersc"></span><h1>ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)<a class="headerlink" href="#clustersc-synthetic-control-with-donor-selection-rho-et-al-2025" title="Link to this heading">#</a></h1>
+<dl class="field-list simple">
+<dt class="field-odd">Estimator<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="../clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a> — <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.CLUSTERSC</span></code></p>
+</dd>
+<dt class="field-even">Source<span class="colon">:</span></dt>
+<dd class="field-even"><p>Rho, S., Tang, A., Bergam, N., Cummings, R., &amp; Misra, V. (2025),
+<em>“ClusterSC: Advancing Synthetic Control with Donor Selection,”</em> arXiv:2503.21629.</p>
+</dd>
+<dt class="field-odd">Replication type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Path B</strong> — the paper’s synthetic Monte Carlo (Section 6.1),
+exercising both estimator modes, with a <strong>cross-validation</strong> of the authors’
+reference code against their own headline.</p>
+</dd>
+<dt class="field-even">Status<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Verified</strong> — mlsynth reproduces the paper’s central claim in the
+high-dimensional-subgroup regime; the authors’ code reproduces its ~50%
+headline on its own DGP.</p>
+</dd>
+</dl>
+<section id="two-estimators-for-the-price-of-one">
+<h2>Two estimators for the price of one<a class="headerlink" href="#two-estimators-for-the-price-of-one" title="Link to this heading">#</a></h2>
+<p>mlsynth’s single <code class="docutils literal notranslate"><span class="pre">CLUSTERSC</span></code> estimator covers both halves of the paper:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">clustering=False</span></code> is plain <strong>RSC / PCR-SC</strong> (Amjad-Shah-Shen 2018:
+HSVT-denoise the donor pool to rank <code class="docutils literal notranslate"><span class="pre">r</span></code>, then OLS) — the paper’s <em>benchmark</em>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">clustering=True</span></code> is <strong>ClusterSC</strong> — k-means the donors in SVD-feature space
+(Algorithm 3), keep the target’s subgroup, then run RSC on it (Algorithm 4).</p></li>
+</ul>
+<p>So one benchmark validates both the baseline and the contribution.</p>
+</section>
+<section id="the-regime-that-matters">
+<h2>The regime that matters<a class="headerlink" href="#the-regime-that-matters" title="Link to this heading">#</a></h2>
+<p>The paper motivates ClusterSC by the <strong>curse of dimensionality</strong>: with many
+donors, the whole-pool regression lives in a high-dimensional, noisy space.
+mlsynth’s RSC, however, denoises the <em>pre-period</em> donor matrix to a fixed rank
+<em>before</em> regressing, so it is already robust to the raw donor count <code class="docutils literal notranslate"><span class="pre">n</span></code> — and
+on the paper’s own two-subgroup DGP (rank 3 + 3) clustering buys mlsynth almost
+nothing, because its rank-6 whole-pool fit already captures the structure.</p>
+<p>The lever that genuinely exercises the paper’s argument is the <strong>pooled signal
+rank</strong>. With <code class="docutils literal notranslate"><span class="pre">K</span></code> well-separated subgroups of rank <code class="docutils literal notranslate"><span class="pre">r</span></code>, the pooled donor
+matrix has rank <code class="docutils literal notranslate"><span class="pre">K·r</span></code>; once <code class="docutils literal notranslate"><span class="pre">K·r</span></code> exceeds the pre-period length <code class="docutils literal notranslate"><span class="pre">T0</span></code> the
+whole-pool fit <em>must</em> under-denoise, while each subgroup stays low-rank and
+well-conditioned. We use <code class="docutils literal notranslate"><span class="pre">K=6</span></code> subgroups of rank 3 with <code class="docutils literal notranslate"><span class="pre">T0=8</span></code> (pooled rank
+18 ≫ 8). In this regime mlsynth’s ClusterSC clearly beats its whole-pool RSC at
+every noise level (placebo DGP, true effect 0, so post-period MSE is pure
+prediction error):</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id1">
+<caption><span class="caption-text">Median post-period test MSE (mlsynth, 25 placebo targets, seed 0)</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 26.8%" />
+<col style="width: 26.8%" />
+<col style="width: 24.4%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Noise σ</p></th>
+<th class="head"><p>RSC (whole pool)</p></th>
+<th class="head"><p>ClusterSC</p></th>
+<th class="head"><p>MSE reduction</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0.10</p></td>
+<td><p>0.0299</p></td>
+<td><p>0.0117</p></td>
+<td><p><strong>60.8%</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>0.25</p></td>
+<td><p>0.1161</p></td>
+<td><p>0.0659</p></td>
+<td><p><strong>43.2%</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>0.40</p></td>
+<td><p>0.2495</p></td>
+<td><p>0.1888</p></td>
+<td><p><strong>24.3%</strong></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The durable check is <code class="docutils literal notranslate"><span class="pre">benchmarks/cases/clustersc_subgroups.py</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">benchmarks</span><span class="o">/</span><span class="n">run_benchmarks</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">case</span> <span class="n">clustersc_subgroups</span>
+</pre></div>
+</div>
+<p>It asserts <code class="docutils literal notranslate"><span class="pre">clustering_wins_all</span> <span class="pre">==</span> <span class="pre">1</span></code> (ClusterSC beats RSC at every noise) plus
+a positive floor on the smallest gain. The DGP is a faithful <code class="docutils literal notranslate"><span class="pre">K</span></code>-subgroup
+generalisation of the authors’ two-subgroup sine mixture, in
+<code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.clustersc_helpers.simulation.simulate_subgroup_panel()</span></code>.</p>
+</section>
+<section id="cross-validation-against-the-authors-code">
+<h2>Cross-validation against the authors’ code<a class="headerlink" href="#cross-validation-against-the-authors-code" title="Link to this heading">#</a></h2>
+<p>mlsynth and the authors’ reference implementation
+(<a class="github reference external" href="https://github.com/srho1/ClusterSC">srho1/ClusterSC</a>) make different, individually-valid
+modelling choices:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 37.0%" />
+<col style="width: 37.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Step</p></th>
+<th class="head"><p>mlsynth (paper Algorithm 3/4)</p></th>
+<th class="head"><p>reference code</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Clustering features</p></td>
+<td><p>rank-<code class="docutils literal notranslate"><span class="pre">r</span></code> truncated <code class="docutils literal notranslate"><span class="pre">UΣ_r</span></code> of the <strong>pre-period</strong> donors</p></td>
+<td><p><strong>full, untruncated</strong> <code class="docutils literal notranslate"><span class="pre">UΣ</span></code> of the whole panel</p></td>
+</tr>
+<tr class="row-odd"><td><p>Denoising</p></td>
+<td><p>pre-period only (no post leakage)</p></td>
+<td><p>full panel</p></td>
+</tr>
+<tr class="row-even"><td><p>Weight fit</p></td>
+<td><p>OLS via pseudo-inverse, <strong>no intercept</strong></p></td>
+<td><p>OLS <strong>with intercept</strong></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Because of this, the two are strongest in <em>different</em> regimes — clustering helps
+mlsynth where the pooled rank exceeds <code class="docutils literal notranslate"><span class="pre">T0</span></code>, and helps the reference on its own
+two-subgroup DGP (where its full-panel-plus-intercept RSC baseline is weaker). A
+per-target numeric cross-validation between the two implementations is therefore
+<strong>not meaningful</strong>, and we do not assert one.</p>
+<p>What <em>is</em> a clean cross-check is the <strong>authors’ code against the authors’ paper</strong>:
+<code class="docutils literal notranslate"><span class="pre">benchmarks/cases/clustersc_subgroups_ref.py</span></code> clones the reference repo (pinned
+commit, MIT-licensed, imported not vendored) and runs its RSC / ClusterSC on its
+own <code class="docutils literal notranslate"><span class="pre">generate_sine_dataset_A</span></code> / <code class="docutils literal notranslate"><span class="pre">_B</span></code> DGP, confirming the paper’s headline that
+clustering substantially lowers test MSE (single seed, 30 targets):</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id2">
+<caption><span class="caption-text">Median test-MSE reduction, authors’ code on authors’ DGP</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 40.9%" />
+<col style="width: 59.1%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Noise σ</p></th>
+<th class="head"><p>MSE reduction</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0.10</p></td>
+<td><p>38.8%</p></td>
+</tr>
+<tr class="row-odd"><td><p>0.25</p></td>
+<td><p>71.3%</p></td>
+</tr>
+<tr class="row-even"><td><p>0.40</p></td>
+<td><p>70.6%</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>(The paper reports ~50% at n=1000 over 500 reps; the single-seed median over 30
+targets is noisier but unambiguously large and positive at every noise level.)</p>
+<p>Run it with:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">kneed</span> <span class="n">scikit</span><span class="o">-</span><span class="n">learn</span>
+<span class="n">python</span> <span class="n">benchmarks</span><span class="o">/</span><span class="n">run_benchmarks</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">case</span> <span class="n">clustersc_subgroups_ref</span>
+</pre></div>
+</div>
+<p>It skips gracefully when the repo cannot be cloned or <code class="docutils literal notranslate"><span class="pre">syclib</span></code> / <code class="docutils literal notranslate"><span class="pre">kneed</span></code> are
+unavailable.</p>
+</section>
+<section id="rsc-pre-post-test-error-amjad-shah-shen-2018">
+<h2>RSC pre/post test error (Amjad-Shah-Shen 2018)<a class="headerlink" href="#rsc-pre-post-test-error-amjad-shah-shen-2018" title="Link to this heading">#</a></h2>
+<p>The PCR-SC path is also benchmarked against the <strong>Robust Synthetic Control</strong>
+paper (Amjad, Shah &amp; Shen 2018, JMLR 19:1-51) that underpins it. Section 5.3,
+Table 1 reports that on a low-rank latent-variable panel the <strong>pre-intervention
+MSE (training error) approximates the post-intervention MSE (generalization
+error)</strong> – so the in-sample pre-fit honestly predicts out-of-sample forecast
+accuracy. Both errors are taken against the <em>true</em> (noise-free) mean, which the
+DGP exposes; mlsynth’s RSC (<code class="docutils literal notranslate"><span class="pre">CLUSTERSC</span></code> with <code class="docutils literal notranslate"><span class="pre">clustering=False</span></code>) reproduces
+this at every noise level:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id3">
+<caption><span class="caption-text">PCR-SC error vs the true mean (N=100, T=2000, T0=1600, rank 3)</span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 20.5%" />
+<col style="width: 28.2%" />
+<col style="width: 28.2%" />
+<col style="width: 23.1%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Noise σ</p></th>
+<th class="head"><p>Training (pre) MSE</p></th>
+<th class="head"><p>Generalization (post) MSE</p></th>
+<th class="head"><p>gen / train</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>3.1</p></td>
+<td><p>0.176</p></td>
+<td><p>0.202</p></td>
+<td><p>1.15</p></td>
+</tr>
+<tr class="row-odd"><td><p>1.3</p></td>
+<td><p>0.041</p></td>
+<td><p>0.044</p></td>
+<td><p>1.08</p></td>
+</tr>
+<tr class="row-even"><td><p>0.4</p></td>
+<td><p>0.0043</p></td>
+<td><p>0.0044</p></td>
+<td><p>1.03</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The ratio sits just above 1 throughout, matching the paper’s “training error
+approximates generalization error” finding; the absolute magnitudes depend on
+the (paper-underspecified) truncation rank, so the durable check
+(<code class="docutils literal notranslate"><span class="pre">benchmarks/cases/rsc_synth_error.py</span></code>) pins the <em>ratio</em> and noise-monotonicity
+rather than Table 1’s exact cells. The DGP is
+<code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.clustersc_helpers.simulation.simulate_rsc_panel()</span></code>.</p>
+</section>
+<section id="confidence-interval-coverage-shen-et-al">
+<h2>Confidence-interval coverage (Shen et al.)<a class="headerlink" href="#confidence-interval-coverage-shen-et-al" title="Link to this heading">#</a></h2>
+<p>mlsynth’s frequentist PCR-SC confidence intervals port the variance estimators of
+Shen et al.’s <em>Same Root Different Leaves</em> (the
+<a class="github reference external" href="https://github.com/deshen24/panel-data-regressions">deshen24/panel-data-regressions</a> reference). Two cross-checks
+in <code class="docutils literal notranslate"><span class="pre">benchmarks/cases/rsc_shen_coverage.py</span></code>:</p>
+<ul>
+<li><p><strong>Variance cross-validation.</strong> On identical resampled inputs, mlsynth’s
+<code class="docutils literal notranslate"><span class="pre">_var_homo</span></code> / <code class="docutils literal notranslate"><span class="pre">_var_jack</span></code> equal the reference <code class="docutils literal notranslate"><span class="pre">var.py</span></code> to machine
+precision (max <span class="math notranslate nohighlight">\(|\Delta| \approx 4\times 10^{-16}\)</span> / exactly 0).</p></li>
+<li><p><strong>Coverage validity.</strong> Reproducing the repo’s <code class="docutils literal notranslate"><span class="pre">simulation.py</span></code> Monte Carlo
+(calibrated to Prop 99), the <strong>doubly-robust</strong> variance is approximately valid
+for <em>all three</em> estimands, while a single-source variance under-covers the
+estimand it is not built for:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id4">
+<caption><span class="caption-text">95%-CI coverage (seed 0, 500 reps)</span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 32.5%" />
+<col style="width: 22.5%" />
+<col style="width: 22.5%" />
+<col style="width: 22.5%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Variance</p></th>
+<th class="head"><p>μ_hz</p></th>
+<th class="head"><p>μ_vt</p></th>
+<th class="head"><p>μ_dr</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>doubly robust (DR)</p></td>
+<td><p>0.95</p></td>
+<td><p>1.00</p></td>
+<td><p>0.92</p></td>
+</tr>
+<tr class="row-odd"><td><p>vertical only (VT)</p></td>
+<td><p><strong>0.63</strong></p></td>
+<td><p>0.93</p></td>
+<td><p>0.58</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The DR variance keeps coverage near nominal everywhere; the vertical-only
+variance covers the horizontal estimand just 63% of the time – the paper’s
+motivation for the doubly-robust construction. Run with
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">benchmarks/run_benchmarks.py</span> <span class="pre">--case</span> <span class="pre">rsc_shen_coverage</span></code> (skips if the
+repo cannot be cloned).</p>
+</li>
+</ul>
+</section>
+<section id="rpca-sc-west-german-reunification-bayani-2021">
+<h2>RPCA-SC: West German reunification (Bayani 2021)<a class="headerlink" href="#rpca-sc-west-german-reunification-bayani-2021" title="Link to this heading">#</a></h2>
+<p>The sections above all exercise the PCR-SC / RSC family. CLUSTERSC’s <em>other</em>
+family – <strong>RPCA-SC</strong> (robust <span class="math notranslate nohighlight">\(L+S\)</span> low-rank donor denoising, Bayani 2021)
+– is pinned on the canonical German-reunification application. With the PCP
+robust-PCA denoiser, <code class="docutils literal notranslate"><span class="pre">CLUSTERSC(method=&quot;rpca&quot;,</span> <span class="pre">rpca_method=&quot;PCP&quot;)</span></code> reproduces
+Bayani’s reference design on <code class="docutils literal notranslate"><span class="pre">basedata/german_reunification.csv</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id5">
+<caption><span class="caption-text">RPCA-SC synthetic West Germany (PCP)</span><a class="headerlink" href="#id5" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 30.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Quantity</p></th>
+<th class="head"><p>mlsynth</p></th>
+<th class="head"><p>Bayani (2021)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Norway weight</p></td>
+<td><p>0.485</p></td>
+<td><p>~0.48</p></td>
+</tr>
+<tr class="row-odd"><td><p>France weight</p></td>
+<td><p>0.354</p></td>
+<td><p>~0.35</p></td>
+</tr>
+<tr class="row-even"><td><p>New Zealand weight</p></td>
+<td><p>0.296</p></td>
+<td><p>~0.30</p></td>
+</tr>
+<tr class="row-odd"><td><p>Pre-fit RMSE</p></td>
+<td><p>88.6</p></td>
+<td><p>~90</p></td>
+</tr>
+<tr class="row-even"><td><p>Effect on West German GDP</p></td>
+<td><p>negative</p></td>
+<td><p>negative (ADH)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The durable check is <code class="docutils literal notranslate"><span class="pre">benchmarks/cases/clustersc_rpca_germany.py</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">benchmarks</span><span class="o">/</span><span class="n">run_benchmarks</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">case</span> <span class="n">clustersc_rpca_germany</span>
+</pre></div>
+</div>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Shen, D., Ding, P., Sekhon, J., &amp; Yu, B. (2023). “Same Root Different Leaves:
+Time Series and Cross-Sectional Methods in Panel Data.” <em>Econometrica</em>
+91(6):2125-2154.</p>
+<p>Rho, S., Tang, A., Bergam, N., Cummings, R., &amp; Misra, V. (2025). “ClusterSC:
+Advancing Synthetic Control with Donor Selection.” <em>arXiv:2503.21629.</em></p>
+<p>Amjad, M., Shah, D., &amp; Shen, D. (2018). “Robust Synthetic Control.” <em>Journal of
+Machine Learning Research</em> 19(22):1-51.</p>
+<p>Bayani, M. (2021). “Robust PCA Synthetic Control.”</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="seq_sdid.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="lexscm.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-estimators-for-the-price-of-one">Two estimators for the price of one</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-regime-that-matters">The regime that matters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cross-validation-against-the-authors-code">Cross-validation against the authors’ code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rsc-pre-post-test-error-amjad-shah-shen-2018">RSC pre/post test error (Amjad-Shah-Shen 2018)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#confidence-interval-coverage-shen-et-al">Confidence-interval coverage (Shen et al.)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rpca-sc-west-german-reunification-bayani-2021">RPCA-SC: West German reunification (Bayani 2021)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

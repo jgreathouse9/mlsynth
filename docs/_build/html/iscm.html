@@ -1,0 +1,2049 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Imperfect Synthetic Controls (ISCM) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'iscm';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Nonlinear Synthetic Control (NSC)" href="nsc.html" />
+    <link rel="prev" title="MicroSynth (User-Level Balancing SC)" href="microsynth.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/iscm.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Imperfect Synthetic Controls (ISCM)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-identifying-intuition">The identifying intuition</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-iscm">When to use ISCM</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-paper-section-2">Setup (paper Section 2)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fit-metric-paper-eq-14">Fit metric (paper eq. 14)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#treatment-effect-paper-eq-8-15">Treatment effect (paper eq. 8 / 15)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-paper-section-5-eq-16">Inference (paper Section 5, eq. 16)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scope-of-this-implementation">Scope of this implementation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-powell-2026">Assumptions (Powell 2026)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-the-assumptions-bind-practical-diagnostics">When the assumptions bind: practical diagnostics</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-iscm-and-when-not-to">When to use ISCM – and when not to</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-wisconsin-s-48-h-handgun-waiting-period-repeal">Empirical: Wisconsin’s 48-h handgun waiting-period repeal</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.iscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.iscm.ISCM"><code class="docutils literal notranslate"><span class="pre">ISCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.iscm.ISCM.fit"><code class="docutils literal notranslate"><span class="pre">ISCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig"><code class="docutils literal notranslate"><span class="pre">ISCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.alpha"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.inference"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.n_draws"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.null_value"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.random_state"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.random_state</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.iscm_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.setup.prepare_iscm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_iscm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.weights.all_units_weights"><code class="docutils literal notranslate"><span class="pre">all_units_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.estimate.fit_metric"><code class="docutils literal notranslate"><span class="pre">fit_metric()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.estimate.residuals_and_exposure"><code class="docutils literal notranslate"><span class="pre">residuals_and_exposure()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.estimate.weighted_att"><code class="docutils literal notranslate"><span class="pre">weighted_att()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.inference.ibragimov_muller_inference"><code class="docutils literal notranslate"><span class="pre">ibragimov_muller_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.pipeline.run_iscm"><code class="docutils literal notranslate"><span class="pre">run_iscm()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference"><code class="docutils literal notranslate"><span class="pre">ISCMInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.method"><code class="docutils literal notranslate"><span class="pre">ISCMInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.null_value"><code class="docutils literal notranslate"><span class="pre">ISCMInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.t_stat"><code class="docutils literal notranslate"><span class="pre">ISCMInference.t_stat</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.p_value"><code class="docutils literal notranslate"><span class="pre">ISCMInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.se"><code class="docutils literal notranslate"><span class="pre">ISCMInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.ci"><code class="docutils literal notranslate"><span class="pre">ISCMInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.alpha_level"><code class="docutils literal notranslate"><span class="pre">ISCMInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.n_contributing"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_contributing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.n_draws"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">ISCMInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">ISCMInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">ISCMInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_contributing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">ISCMInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">ISCMInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">ISCMInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">ISCMInference.t_stat</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs"><code class="docutils literal notranslate"><span class="pre">ISCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.Y"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.D"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.T0"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.treated_idx"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.N"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.T"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.n_post"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.n_post</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults"><code class="docutils literal notranslate"><span class="pre">ISCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.att"><code class="docutils literal notranslate"><span class="pre">ISCMResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_weight_matrix"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.fit_metric"><code class="docutils literal notranslate"><span class="pre">ISCMResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_att"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.contribution"><code class="docutils literal notranslate"><span class="pre">ISCMResults.contribution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.residuals"><code class="docutils literal notranslate"><span class="pre">ISCMResults.residuals</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.exposure"><code class="docutils literal notranslate"><span class="pre">ISCMResults.exposure</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.weights"><code class="docutils literal notranslate"><span class="pre">ISCMResults.weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.inference"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">ISCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id15"><code class="docutils literal notranslate"><span class="pre">ISCMResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id16"><code class="docutils literal notranslate"><span class="pre">ISCMResults.contribution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id17"><code class="docutils literal notranslate"><span class="pre">ISCMResults.exposure</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id18"><code class="docutils literal notranslate"><span class="pre">ISCMResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id19"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id20"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id21"><code class="docutils literal notranslate"><span class="pre">ISCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id22"><code class="docutils literal notranslate"><span class="pre">ISCMResults.residuals</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id23"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id24"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id25"><code class="docutils literal notranslate"><span class="pre">ISCMResults.weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="imperfect-synthetic-controls-iscm">
+<h1>Imperfect Synthetic Controls (ISCM)<a class="headerlink" href="#imperfect-synthetic-controls-iscm" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>ISCM (Powell, D. (2026). <em>“Imperfect Synthetic Controls,”</em> Journal of
+Applied Econometrics 41(3):253-264) confronts the synthetic control
+method’s least defensible assumption: that a perfect synthetic
+control exists. The classic SCM requires the treated unit to lie inside
+the convex hull of the donors and its pre-treatment path to be matched
+<em>exactly</em>. With transitory shocks – noise with non-vanishing variance –
+an exact fit is impossible even in expectation, and the convex-hull
+condition may simply fail (the treated unit can be more extreme than any
+weighted average of donors).</p>
+<p>ISCM relaxes this with two ideas:</p>
+<ol class="arabic simple">
+<li><p>Synthetic controls for every unit. Rather than fitting one
+synthetic control for the treated unit, ISCM builds one for <em>all</em>
+units. The treatment effect is then identified even when the treated
+unit is <em>outside</em> the convex hull – because it can still appear <em>as a
+donor</em> for control units, and those units’ post-treatment residuals
+carry information about the effect (paper eq. 6).</p></li>
+<li><p>Moment conditions robust to transitory shocks. ISCM relies on
+conditions of the form <span class="math notranslate nohighlight">\(\sum_{j} w_i^j \mathbb{E}[y_{jt}] =
+\mathbb{E}[y_{it}]\)</span> that need only hold in expectation, producing
+asymptotically unbiased estimates as the pre-period grows even when no
+unit fits perfectly in sample.</p></li>
+</ol>
+<p>It adds a data-driven fit metric <span class="math notranslate nohighlight">\(a_i\)</span> that asymptotically excludes
+units lacking a valid synthetic control – removing the researcher’s
+eyeball “is the pre-fit good enough” decision – and an Ibragimov-Muller
+inference procedure that stays valid with a tiny donor pool.</p>
+<section id="the-identifying-intuition">
+<h3>The identifying intuition<a class="headerlink" href="#the-identifying-intuition" title="Link to this heading">#</a></h3>
+<p>Suppose the treated unit (unit <span class="math notranslate nohighlight">\(1\)</span>) is too extreme to be matched by
+any convex combination of controls. A control unit <span class="math notranslate nohighlight">\(i\)</span> whose
+synthetic control <em>does</em> place weight <span class="math notranslate nohighlight">\(w_i^1 &gt; 0\)</span> on unit <span class="math notranslate nohighlight">\(1\)</span>
+will, after treatment, have its synthetic counterfactual contaminated by
+the effect: its residual picks up <span class="math notranslate nohighlight">\(-w_i^1 \tau\)</span>. Since unit
+<span class="math notranslate nohighlight">\(i\)</span> is itself untreated, regressing its residual on its “treatment
+exposure” <span class="math notranslate nohighlight">\(-w_i^1\)</span> recovers <span class="math notranslate nohighlight">\(\tau\)</span>. ISCM pools this signal
+across all such units.</p>
+</section>
+<section id="when-to-use-iscm">
+<h3>When to use ISCM<a class="headerlink" href="#when-to-use-iscm" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The treated unit’s pre-period path is not well inside the donor
+convex hull (it trends above/below all donors), so traditional SCM
+produces a visibly poor fit and a biased counterfactual.</p></li>
+<li><p>Outcomes are noisy (transitory shocks), so an exact pre-period
+match is implausible and would overfit.</p></li>
+<li><p>The donor pool is small, so permutation inference cannot reach
+conventional significance.</p></li>
+<li><p>You have a long pre-period (the method’s guarantees are asymptotic
+in <span class="math notranslate nohighlight">\(T_0\)</span>).</p></li>
+</ul>
+</section>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<p>Let the units be <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span>, with the
+treated unit indexed <span class="math notranslate nohighlight">\(1\)</span>; because ISCM builds a synthetic control for
+<em>every</em> unit, a running unit index <span class="math notranslate nohighlight">\(i \in \mathcal{N}\)</span> denotes the unit
+whose synthetic control is being formed, and <span class="math notranslate nohighlight">\(j, k \neq i\)</span> index its
+donors. Time runs over <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span>,
+1-indexed; the intervention takes effect after period <span class="math notranslate nohighlight">\(T_0\)</span>, splitting
+<span class="math notranslate nohighlight">\(\mathcal{T}\)</span> into the pre-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> (of length
+<span class="math notranslate nohighlight">\(T_0\)</span>) and the post-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t &gt; T_0\}\)</span>.</p>
+<p>The scalar outcome is <span class="math notranslate nohighlight">\(y_{jt}\)</span> (unit, then time), with treatment dummy
+<span class="math notranslate nohighlight">\(d_{jt}\)</span> and transitory shock <span class="math notranslate nohighlight">\(\epsilon_{jt}\)</span>; in Abadie’s
+potential-outcome notation <span class="math notranslate nohighlight">\(y_{jt}^N\)</span> is the outcome without the
+intervention and <span class="math notranslate nohighlight">\(y_{jt}^I\)</span> under it. Unit <span class="math notranslate nohighlight">\(i\)</span>’s donor weights are
+<span class="math notranslate nohighlight">\(\mathbf{w}_i \in \mathbb{R}^{N_0}\)</span> (entries <span class="math notranslate nohighlight">\(w_i^j\)</span>), constrained
+to the unit simplex
+<span class="math notranslate nohighlight">\(\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}\)</span>; the optimiser is <span class="math notranslate nohighlight">\(\widehat{\mathbf{w}}_i\)</span>. The
+per-period, per-unit treatment effect is <span class="math notranslate nohighlight">\(\tau_{it}\)</span>; the pooled ATT is
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> and the per-unit estimate <span class="math notranslate nohighlight">\(\widehat{\tau}_i\)</span>. The
+data-driven fit metric is <span class="math notranslate nohighlight">\(a_i\)</span> and the contributing set <span class="math notranslate nohighlight">\(C\)</span>.</p>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical Formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading">#</a></h2>
+<section id="setup-paper-section-2">
+<h3>Setup (paper Section 2)<a class="headerlink" href="#setup-paper-section-2" title="Link to this heading">#</a></h3>
+<p>For <span class="math notranslate nohighlight">\(N\)</span> units over <span class="math notranslate nohighlight">\(T\)</span> periods with a latent-factor outcome</p>
+<div class="math notranslate nohighlight">
+\[y_{it} = \tau_{it}\, d_{it} + L_{it} + \epsilon_{it},
+\qquad L_{it} = \boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i,\]</div>
+<p>ISCM builds, for every unit <span class="math notranslate nohighlight">\(i\)</span>, a synthetic control from the
+others (paper eq. 5):</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\mathbf{w}}_i = \operatorname*{argmin}_{\mathbf{w}}
+    \sum_{t \le T_0} \Bigl( y_{it} - \sum_{j \ne i} w^j y_{jt} \Bigr)^2,
+\quad w^j \ge 0,\ \sum_{j \ne i} w^j = 1.\]</div>
+</section>
+<section id="fit-metric-paper-eq-14">
+<h3>Fit metric (paper eq. 14)<a class="headerlink" href="#fit-metric-paper-eq-14" title="Link to this heading">#</a></h3>
+<p>Each unit is weighted by how well its synthetic control satisfies the
+SCM moment conditions in the pre-period. With residual
+<span class="math notranslate nohighlight">\(R_{it} = y_{it} - \sum_j \widehat{w}_i^{\,j} y_{jt}\)</span> and moment vector
+<span class="math notranslate nohighlight">\(M_i^k = \tfrac{1}{T_0}\sum_{t \le T_0} R_{it} y_{kt}\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[a_i = \frac{\min_\ell M_\ell^\top M_\ell}{M_i^\top M_i} \in (0, 1],\]</div>
+<p>so the best-fitting unit gets <span class="math notranslate nohighlight">\(a_i = 1\)</span> and units without a valid
+synthetic control get <span class="math notranslate nohighlight">\(a_i \to 0\)</span> – they are dropped from the
+estimate automatically.</p>
+</section>
+<section id="treatment-effect-paper-eq-8-15">
+<h3>Treatment effect (paper eq. 8 / 15)<a class="headerlink" href="#treatment-effect-paper-eq-8-15" title="Link to this heading">#</a></h3>
+<p>With treatment exposure
+<span class="math notranslate nohighlight">\(E_{it} = d_{it} - \sum_j \widehat{w}_i^{\,j} d_{jt}\)</span>, the ATT is the
+<span class="math notranslate nohighlight">\(a_i\)</span>-weighted least-squares slope, pooled over all units and the
+post-period:</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\tau} =
+  \frac{\sum_i a_i \sum_{t &gt; T_0} E_{it} R_{it}}
+       {\sum_i a_i \sum_{t &gt; T_0} E_{it}^2}
+  = \sum_{i \in C} v_i\, \widehat{\tau}_i,
+\quad
+\widehat{\tau}_i = \frac{\sum_{t&gt;T_0} E_{it} R_{it}}{\sum_{t&gt;T_0} E_{it}^2},\]</div>
+<p>where <span class="math notranslate nohighlight">\(C\)</span> is the contributing set (units with non-zero exposure)
+and <span class="math notranslate nohighlight">\(v_i = a_i \sum_t E_{it}^2 / \sum_\ell a_\ell \sum_t E_{\ell t}^2\)</span>.</p>
+</section>
+<section id="inference-paper-section-5-eq-16">
+<h3>Inference (paper Section 5, eq. 16)<a class="headerlink" href="#inference-paper-section-5-eq-16" title="Link to this heading">#</a></h3>
+<p>ISCM produces one estimate <span class="math notranslate nohighlight">\(\widehat{\tau}_i\)</span> per contributing
+unit. The Ibragimov-Muller approach forms a t-statistic from their
+weighted spread and calibrates the p-value with a sign-flip (Rademacher)
+randomization test on the weighted deviations
+<span class="math notranslate nohighlight">\(v_i(\widehat{\tau}_i - \tau_0)\)</span>. This is conservative but valid
+with very few units – though note the achievable p-value floor is about
+<span class="math notranslate nohighlight">\(2/2^{|C|}\)</span>, so a handful of contributing units cannot reach
+conventional thresholds (exactly the small-donor-pool limitation Powell
+highlights).</p>
+</section>
+</section>
+<section id="scope-of-this-implementation">
+<h2>Scope of this implementation<a class="headerlink" href="#scope-of-this-implementation" title="Link to this heading">#</a></h2>
+<p>This follows Powell’s <em>applied</em> procedure: synthetic controls for all
+units come from the traditional SCM (the documented starting point), the
+<span class="math notranslate nohighlight">\(a_i\)</span> weights are formed from the pre-period moment conditions, the
+ATT is the <span class="math notranslate nohighlight">\(a_i\)</span>-weighted least-squares effect, and inference is the
+sign-flip test. It does not run the optional continuously-updating
+GMM refinement that re-estimates the weights jointly to be orthogonal to
+transitory shocks (paper Section 3.2-3.4); the SCM-initialised weights
+are that procedure’s starting point and deliver the headline
+relaxed-convex-hull identification.</p>
+</section>
+<section id="assumptions-powell-2026">
+<h2>Assumptions (Powell 2026)<a class="headerlink" href="#assumptions-powell-2026" title="Link to this heading">#</a></h2>
+<p>ISCM trades the canonical SCM’s “perfect synthetic control” requirement
+for a substantially weaker set of moment conditions on the transitory
+shocks. The paper’s formal assumptions (Section 4.1):</p>
+<p>A1 (Outcomes). <span class="math notranslate nohighlight">\(y_{it} = \tau_{it}\, d_{it} + L_{it} +
+\epsilon_{it}\)</span> with <span class="math notranslate nohighlight">\(L_{it}\)</span> a fixed (but possibly latent)
+systematic component, <span class="math notranslate nohighlight">\(y_{it}\)</span> continuous, and bounded products
+<span class="math notranslate nohighlight">\(\lVert y_{it} \epsilon_{jt} \rVert &lt; \infty\)</span>. The latent
+component nests interactive fixed effects (<span class="math notranslate nohighlight">\(L_{it} =
+\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i\)</span>), additive two-way FE
+(<span class="math notranslate nohighlight">\(L_{it} = \theta_i + \gamma_t\)</span>), and other workhorse panel
+structures.</p>
+<p><em>Remark.</em> The outcome is the standard latent-factor panel: a treatment term
+plus a fixed systematic component plus transitory noise. Because <span class="math notranslate nohighlight">\(L_{it}\)</span>
+nests both interactive and additive fixed effects, ISCM does not commit to a
+particular panel structure – it only needs <span class="math notranslate nohighlight">\(L_{it}\)</span> to be reproducible by
+a synthetic control (A2), which is what the next assumption asserts.</p>
+<p>A2 (Existence of Synthetic Controls). For every unit <span class="math notranslate nohighlight">\(i\)</span>,
+<em>either</em> (a) there exist simplex weights <span class="math notranslate nohighlight">\(\mathbf{w}_i\)</span> such that
+<span class="math notranslate nohighlight">\(L_{it} = \sum_{k \ne i} w_i^k L_{kt}\)</span> for all <span class="math notranslate nohighlight">\(t\)</span>,
+<em>or</em> (b) there exists some other unit <span class="math notranslate nohighlight">\(j\)</span> with
+<span class="math notranslate nohighlight">\(w_j^i &gt; 0\)</span> such that <span class="math notranslate nohighlight">\(L_{jt} = \sum_{k \ne j} w_j^k
+L_{kt}\)</span> for all <span class="math notranslate nohighlight">\(t\)</span>.</p>
+<p><em>Remark.</em> In words: every unit either has its own convex-hull synthetic
+control, or appears as a positive-weight donor in some other unit’s synthetic
+control. The whole point of ISCM is that (b) suffices for the treated unit – it
+can be too extreme to admit (a) and still be identifiable through (b).</p>
+<p>A3 (Independence of transitory shocks). (a)
+<span class="math notranslate nohighlight">\(\mathbb{E}[\epsilon_{it} \mid \mathbf{d}_i, L_i] = 0\)</span> (mean-independence
+of the shocks from treatment and the latent component); (b)
+<span class="math notranslate nohighlight">\(\mathbb{E}[\epsilon_{it} \epsilon_{jt} \mid \mathbf{d}_i, L_i, \mathbf{d}_j,
+L_j] = 0\)</span> for all <span class="math notranslate nohighlight">\(i \ne j\)</span> (no contemporaneous cross-unit
+correlation in the shocks).</p>
+<p><em>Remark.</em> The moment conditions that drive the ISCM estimator rely on
+cross-sectional shock independence after conditioning on the latent component. A
+common contemporaneous shock across units violates (b) and reintroduces a bias
+term the estimator cannot remove.</p>
+<p>A4 (Within-unit serial dependence allowed).
+<span class="math notranslate nohighlight">\(\epsilon_{it}\)</span> is a strongly mixing sequence in <span class="math notranslate nohighlight">\(t\)</span> of
+size <span class="math notranslate nohighlight">\(-r/(r-1)\)</span> for some <span class="math notranslate nohighlight">\(r &gt; 1\)</span>, with
+<span class="math notranslate nohighlight">\(\mathbb{E}|\epsilon_{it}|^{r+\delta} &lt; \infty\)</span> for some
+<span class="math notranslate nohighlight">\(\delta &gt; 0\)</span>.</p>
+<p><em>Remark.</em> ISCM permits serially correlated shocks within a unit (a meaningful
+relaxation vs. canonical SC’s iid assumption) provided they mix at a uniform
+rate. Unit roots and other persistent (non-mixing) structures are ruled out.</p>
+<p>A5 (Regularity of the fit weights). If A2(a) holds for unit
+<span class="math notranslate nohighlight">\(i\)</span>, then <span class="math notranslate nohighlight">\(a_i(\mathbf{w}) \xrightarrow{p} \bar a_i &gt; 0\)</span>.</p>
+<p><em>Remark.</em> The data-driven fit metric does not collapse for units that actually
+have a valid synthetic control. Convenient (paper footnote 10): holds
+straightforwardly for any unit whose pre-period moment distance is bounded away
+from zero.</p>
+<p>Theorem 4.1 (asymptotic unbiasedness). Under A1-A5,
+<span class="math notranslate nohighlight">\(\widehat{\tau}_{1t} \xrightarrow{p} \tau_{1t} + V_t\)</span>
+with <span class="math notranslate nohighlight">\(\mathbb{E}[V_t] = 0\)</span> as <span class="math notranslate nohighlight">\(T_0 \to \infty\)</span>. The
+estimator is <em>asymptotically unbiased</em> but not consistent for a
+single post-period – aggregation across the post-period (eq. 15)
+or across multiple treated units (Section 4.4.3) is what drives
+the variance term toward zero.</p>
+<section id="when-the-assumptions-bind-practical-diagnostics">
+<h3>When the assumptions bind: practical diagnostics<a class="headerlink" href="#when-the-assumptions-bind-practical-diagnostics" title="Link to this heading">#</a></h3>
+<ol class="loweralpha">
+<li><p>Latent component is fixed and continuous (A1).
+The systematic component <span class="math notranslate nohighlight">\(L_{it}\)</span> is deterministic
+conditional on the unit; the outcome <span class="math notranslate nohighlight">\(y_{it}\)</span> is continuous.</p>
+<p><em>Plausibly violated when</em> outcomes are binary or low-count
+(handgun-suicide-events per month in a small state can spike
+to zero or single digits; an LPM/Tobit-style nonlinearity
+enters that A1 does not cover). <em>Diagnostic</em>: histogram the
+outcome; heaps at zero or integer values flag a non-continuous
+structure. Aggregate to coarser time bins (Powell aggregates
+monthly suicides to 12-month windows for exactly this reason)
+or move to <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a> if the <em>distribution</em> is the object.</p>
+</li>
+<li><p>A2(a) OR A2(b) for every unit, with at least one A2(a).
+Identification fails only if no unit has a proper
+synthetic control. The treated unit may fail A2(a) entirely
+– that’s the whole point – as long as it appears with
+positive weight in some other unit’s synthetic control.</p>
+<p><em>Plausibly violated when</em> the donor pool itself sits in a
+qualitatively different regime (e.g. the eight waiting-period
+states are <em>all</em> low-suicide-rate while Wisconsin and any
+donor that would put weight on it are high-rate). <em>Diagnostic</em>:
+read <code class="docutils literal notranslate"><span class="pre">res.fit_metric</span></code>; if every <span class="math notranslate nohighlight">\(a_i \approx 0\)</span>,
+no unit in the panel has a proper synthetic control and the
+estimator has nothing to anchor on. If only the treated unit
+has <span class="math notranslate nohighlight">\(a_1 \to 0\)</span> but a handful of donors have
+<span class="math notranslate nohighlight">\(a_i \gtrsim 0.5\)</span> (the Wisconsin pattern: Iowa, Indiana,
+Mississippi all fit well as syntheses <em>and</em> place positive
+weight on Wisconsin), A2(b) is still doing its job.</p>
+</li>
+<li><p>No contemporaneous cross-sectional shock correlation (A3b).
+The shocks <span class="math notranslate nohighlight">\(\epsilon_{it}, \epsilon_{jt}\)</span> are uncorrelated
+across units in the <em>same</em> period given the latent component.</p>
+<p><em>Plausibly violated when</em> a common national-level shock hits
+every unit in the same period – a federal policy change, a
+macro recession, a pandemic. The ISCM moment conditions
+(paper eq. 10) are no longer zero in expectation because the
+cross-unit residual covariances enter the bias term.
+<em>Diagnostic</em>: form the panel of pre-period SCM residuals
+<span class="math notranslate nohighlight">\(R_{it} = y_{it} - \sum_j \widehat{w}_i^{\,j} y_{jt}\)</span> and
+compute the cross-sectional correlation matrix; large
+off-diagonal entries flag A3b violations. Drop the common
+shock with a unit-time fixed effect <em>before</em> fitting ISCM, or
+use a time-fixed-effects pre-residualisation step (Powell
+notes ISCM does not require unit FE but does require A3b).</p>
+</li>
+<li><p>Within-unit mixing of the shock (A4).
+Serial correlation within a unit is allowed but must decay –
+strongly mixing of size <span class="math notranslate nohighlight">\(-r/(r-1)\)</span>, <span class="math notranslate nohighlight">\(r &gt; 1\)</span>. This
+rules out unit roots and other persistent (non-mixing)
+structures in the shock.</p>
+<p><em>Plausibly violated when</em> the outcome contains a unit-root
+component – raw monthly stock-price levels, cumulative
+population, undifferenced trending series. The ISCM estimator
+converges to the true effect <em>plus</em> a non-vanishing variance
+term <span class="math notranslate nohighlight">\(V_t\)</span> (Theorem 4.1), and that variance fails to
+average down over the post-period when <span class="math notranslate nohighlight">\(\epsilon\)</span> does
+not mix. <em>Diagnostic</em>: ADF or KPSS test on the pre-period
+residuals; if non-stationary, first-difference the outcome or
+move to a stationary-cycle estimator (<a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a>) before
+feeding into ISCM.</p>
+</li>
+<li><p>Long pre-period (Theorem 4.1 is asymptotic in <span class="math notranslate nohighlight">\(T_0\)</span>).
+Unbiasedness requires <span class="math notranslate nohighlight">\(T_0 \to \infty\)</span>; in finite
+samples the bias term has a residual of order
+<span class="math notranslate nohighlight">\(T_0^{-1/2}\)</span> from the empirical moment conditions.</p>
+<p><em>Plausibly violated when</em> <span class="math notranslate nohighlight">\(T_0\)</span> is on the order of
+<span class="math notranslate nohighlight">\(N\)</span> or smaller, especially with a small donor pool.
+<em>Diagnostic</em>: the paper’s application uses 161 monthly pre-
+treatment observations; if your <span class="math notranslate nohighlight">\(T_0\)</span> is in the tens,
+re-estimate after lengthening the pre-period (e.g. by
+aggregating across a finer time grid) and compare. Large
+swings in the estimate flag the finite-sample bias.</p>
+</li>
+<li><p>Inference floor under tiny contributing sets <span class="math notranslate nohighlight">\(|C|\)</span>.
+The Ibragimov-Muller sign-flip test on per-unit estimates has
+p-value floor <span class="math notranslate nohighlight">\(2 / 2^{|C|}\)</span>. With <span class="math notranslate nohighlight">\(|C| = 3\)</span> the
+floor is 0.25; with <span class="math notranslate nohighlight">\(|C| = 5\)</span> it is 0.0625; with
+<span class="math notranslate nohighlight">\(|C| = 8\)</span> it is 0.0078.</p>
+<p><em>Plausibly violated when</em> the donor pool is so small that
+only a few units survive the <span class="math notranslate nohighlight">\(a_i\)</span> filtering. The
+Wisconsin application has <span class="math notranslate nohighlight">\(|C| = 5\)</span> (Wisconsin plus
+California, Indiana, Iowa, Mississippi, Rhode Island), so the
+smallest possible p-value the test can return is
+<span class="math notranslate nohighlight">\(\approx 0.0625\)</span> – the headline 0.046 sits at the
+floor. <em>Diagnostic</em>: read
+<code class="docutils literal notranslate"><span class="pre">res.inference.n_contributing</span></code>; if it is below 6 or so,
+interpret p-values cautiously and consider expanding the
+donor pool or aggregating multiple treated units (Powell
+Section 4.4.3) to add inference power.</p>
+</li>
+</ol>
+</section>
+</section>
+<section id="when-to-use-iscm-and-when-not-to">
+<h2>When to use ISCM – and when not to<a class="headerlink" href="#when-to-use-iscm-and-when-not-to" title="Link to this heading">#</a></h2>
+<p>Reach for ISCM when:</p>
+<ul class="simple">
+<li><p>The treated unit is visibly outside the donor convex hull
+(its pre-period trends above or below every donor, no convex
+combination can match it) and you can see the canonical SCM
+pre-fit is bad. ISCM’s whole identification story is built for
+this case.</p></li>
+<li><p>You have a long pre-period (Powell’s application uses 161
+monthly observations; Theorem 4.1 is asymptotic in <span class="math notranslate nohighlight">\(T_0\)</span>).</p></li>
+<li><p>Transitory shocks are large – outcomes are noisy enough
+that an exact pre-period match is implausible even when the
+hull holds. The moment-condition framework is robust to shock
+variance that breaks the canonical SCM’s exact-fit assumption.</p></li>
+<li><p>The donor pool is small – conventional permutation
+inference cannot reach 5% with 8 donors (the floor is roughly
+<span class="math notranslate nohighlight">\(1/9\)</span>); ISCM’s per-unit decomposition + Ibragimov-Muller
+sign-flip gets you to the floor <span class="math notranslate nohighlight">\(2/2^{|C|}\)</span>, which is
+meaningfully tighter (0.0625 at <span class="math notranslate nohighlight">\(|C|=5\)</span>) than 1/9.</p></li>
+<li><p>You want to remove the eyeball “is the pre-fit good enough”
+decision from your workflow. The <span class="math notranslate nohighlight">\(a_i\)</span> weights
+systematise that judgement, asymptotically excluding units
+without proper synthetic controls without the researcher
+flagging them by hand.</p></li>
+</ul>
+<p>Do not use ISCM when:</p>
+<ul class="simple">
+<li><p>The treated unit is well inside the hull and the canonical
+SCM pre-fit is tight. ISCM adds estimation noise from the
+per-unit decomposition and the <span class="math notranslate nohighlight">\(a_i\)</span> weighting machinery
+for no identification gain. Use <em>canonical SCM</em>, <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>, or
+<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a> – they have stronger small-sample guarantees in
+the happy case.</p></li>
+<li><p>Contemporaneous national-level shocks are part of the DGP
+(national policy change, macro recession, pandemic spanning
+treated + donors). A3b fails; the ISCM moment conditions
+acquire a bias term you cannot remove. Either de-mean by
+time-FE before fitting or move to <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a> /
+<a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a> if the shock has spatial structure.</p></li>
+<li><p>The outcome is non-stationary or unit-root without
+differencing. A4’s mixing condition fails; the post-period
+variance term in Theorem 4.1 does not average down.
+First-difference, or move to <a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a> (a stationary-cycle
+estimator) before feeding into ISCM.</p></li>
+<li><p>Binary, ordinal, or low-count outcomes. A1 requires
+continuity. With heaps at zero or integer values, aggregate to
+coarser time bins (the Wisconsin application aggregates monthly
+suicides to 12-month windows), or move to <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a> for the
+distributional question.</p></li>
+<li><p>No unit anywhere in the panel has a valid synthetic control.
+A2(a) must hold for <em>some</em> unit (paper Discussion, Section
+4.2). If every <span class="math notranslate nohighlight">\(a_i \to 0\)</span>, ISCM has nothing to anchor
+on. Diagnose by inspecting <code class="docutils literal notranslate"><span class="pre">res.fit_metric</span></code>; if every value
+is near zero, the panel is structurally unsuited and you need
+a different identification strategy.</p></li>
+<li><p>Continuous or multi-valued treatment. ISCM encodes binary
+on/off treatment with the exposure <span class="math notranslate nohighlight">\(E_{it} = d_{it} -
+\sum_j \widehat{w}_i^{\,j} d_{jt}\)</span>. Continuous dose
+(minimum wage, ad spend, drug dosage) belongs in <a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a>.</p></li>
+<li><p>Staggered adoption with a long mixed-treatment pre-period.
+Section 4.4.3 sketches a multi-treated extension but assumes
+a common pre-period free of treatment. If donors adopt the
+policy at different times across a long window, drop late
+adopters or use a staggered SC variant
+(<em>FECT</em>, <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>).</p></li>
+<li><p>You need a sparse, interpretable single weight vector.
+ISCM returns per-unit weights for <em>all</em> units (one synthetic
+control per unit) and aggregates them via <span class="math notranslate nohighlight">\(a_i\)</span>. If the
+policy story you need is “this single state is a convex
+combination of these four donors”, report the canonical SC
+weight vector alongside ISCM, or use <em>canonical SCM</em> / <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>
+whose output IS a single sparse weight vector.</p></li>
+</ul>
+</section>
+<section id="empirical-wisconsin-s-48-h-handgun-waiting-period-repeal">
+<h2>Empirical: Wisconsin’s 48-h handgun waiting-period repeal<a class="headerlink" href="#empirical-wisconsin-s-48-h-handgun-waiting-period-repeal" title="Link to this heading">#</a></h2>
+<p>Powell’s Section 6 application: in June 2015 Wisconsin repealed its
+48-h handgun-purchase waiting period. The donor pool is the eight
+states that also had waiting periods during the analysis window
+<em>and</em> did not repeal them (California, Hawaii, Illinois, Iowa,
+Maryland, Minnesota, New Jersey, Rhode Island). The outcome is
+monthly handgun-suicide deaths per 100,000 from January 2002 to
+May 2019 (161 pre-treatment months, 47 post-period).</p>
+<p>The setup is exactly the case ISCM was built for:</p>
+<ul class="simple">
+<li><p>Wisconsin is structurally outside the donor hull. It has
+the highest handgun-suicide rate in 73 of the 161 pre-period
+months – no convex combination of the eight donors can match
+its level even in expectation. The canonical SCM
+(Figure 1B, blue line) drifts visibly upward in the pre-period,
+flagging the convex-hull violation; the demeaned SCM (Powell
+also runs this) corrects for level but still shows an upward
+pre-period trend, indicating the convex-hull assumption fails
+<em>in expectation</em>, not just in sample.</p></li>
+<li><p>The donor pool is small (<span class="math notranslate nohighlight">\(N_0 = 8\)</span>), so the canonical
+permutation test’s smallest achievable p-value is roughly
+<span class="math notranslate nohighlight">\(1/9 \approx 0.11\)</span> – above any conventional threshold.</p></li>
+</ul>
+<p>ISCM produces:</p>
+<ul>
+<li><p>Main estimate: <span class="math notranslate nohighlight">\(\widehat{\tau} = 0.105\)</span> deaths per
+100,000 (about a 30% increase relative to the pre-repeal
+Wisconsin rate), <span class="math notranslate nohighlight">\(p = 0.046\)</span> via the Ibragimov-Muller
+sign-flip on the contributing units. The p-value sits at the
+inference floor <span class="math notranslate nohighlight">\(2/2^{|C|}\)</span> with <span class="math notranslate nohighlight">\(|C| = 5\)</span>.</p></li>
+<li><p>Per-state decomposition (paper Table 1, <code class="docutils literal notranslate"><span class="pre">v_i</span></code> weights):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>State</p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(v_i\)</span></p></th>
+<th class="head"><p>Estimate</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Iowa</p></td>
+<td><p>35.73%</p></td>
+<td><p>0.038</p></td>
+</tr>
+<tr class="row-odd"><td><p>Indiana</p></td>
+<td><p>34.46%</p></td>
+<td><p>0.063</p></td>
+</tr>
+<tr class="row-even"><td><p>Mississippi</p></td>
+<td><p>19.43%</p></td>
+<td><p>0.232</p></td>
+</tr>
+<tr class="row-odd"><td><p>Wisconsin</p></td>
+<td><p>9.94%</p></td>
+<td><p>0.232</p></td>
+</tr>
+<tr class="row-even"><td><p>California</p></td>
+<td><p>0.43%</p></td>
+<td><p>0.336</p></td>
+</tr>
+<tr class="row-odd"><td><p>Rhode Island</p></td>
+<td><p>0.02%</p></td>
+<td><p>-1.931</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Wisconsin contributes only ~10% of the total estimate – it is
+itself a bad synthetic control for the other waiting-period
+states (its outside-hull position cuts both ways) – while Iowa
+and Indiana, which produce <em>good</em> synthetic controls <em>and</em>
+place positive weight on Wisconsin, drive 70% of the estimate.
+This is the A2(b) identification mechanism at work: even though
+Wisconsin fails A2(a), the unbiased treatment-effect signal is
+recovered from the donors who use Wisconsin as a donor.</p>
+</li>
+</ul>
+<p>Because the application uses restricted-access NVSS mortality
+data, this estimator is not runnable end-to-end from public
+sources. The replication package
+(<code class="docutils literal notranslate"><span class="pre">https://journaldata.zbw.eu/dataset/imperfect-synthetic-controls</span></code>)
+documents access; the mlsynth ISCM API call is structurally
+identical to the example above.</p>
+</section>
+<section id="module-mlsynth.estimators.iscm">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.iscm" title="Link to this heading">#</a></h2>
+<p>ISCM: Imperfect Synthetic Controls (Powell 2026).</p>
+<p>Powell, D. (2026). <em>“Imperfect Synthetic Controls.”</em> Journal of Applied
+Econometrics 41(3):253-264.</p>
+<p>The synthetic control method assumes a <em>perfect</em> synthetic control
+exists – the treated unit lies inside the convex hull of the donors and
+its pre-period path is matched exactly. With transitory shocks this is
+implausible: an exact fit cannot hold even in expectation. ISCM relaxes
+the assumption by constructing synthetic controls for <strong>every</strong> unit and
+identifying the treatment effect even when the treated unit is <em>outside</em>
+the convex hull. The intuition (paper eq. 6): a treated unit that fits no
+donor combination can still appear <em>as a donor</em> for control units, and
+those units’ post-treatment residuals then carry information about the
+effect.</p>
+<p>ISCM also introduces a data-driven fit metric <span class="math notranslate nohighlight">\(a_i\)</span> that
+asymptotically excludes units lacking a valid synthetic control –
+removing the researcher’s eyeball judgment of pre-period fit – and an
+Ibragimov-Muller inference procedure that remains valid with a very
+small donor pool, where permutation tests cannot reach standard
+significance thresholds.</p>
+<p>This implementation follows Powell’s applied procedure: synthetic
+controls for all units are obtained by the traditional SCM, the
+<span class="math notranslate nohighlight">\(a_i\)</span> fit weights are formed from the pre-period moment conditions,
+the ATT is the <span class="math notranslate nohighlight">\(a_i\)</span>-weighted least-squares effect (eq. 8 / 15),
+and inference is the sign-flip randomization test of eq. 16. It does not
+run the optional continuously-updating GMM refinement of the weights
+(paper Section 3.2-3.4); the SCM-initialised weights are the documented
+starting point of that procedure.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.iscm.ISCM">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.iscm.</span></span><span class="sig-name descname"><span class="pre">ISCM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.ISCMConfig" title="mlsynth.utils.iscm_helpers.config.ISCMConfig"><span class="pre">ISCMConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.iscm.ISCM" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Imperfect Synthetic Controls estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>ISCMConfig or dict</em>) – Configuration object. See
+<a class="reference internal" href="#mlsynth.config_models.ISCMConfig" title="mlsynth.config_models.ISCMConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.ISCMConfig</span></code></a>.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.iscm.ISCM.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults" title="mlsynth.utils.iscm_helpers.structures.ISCMResults"><span class="pre">ISCMResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.iscm.ISCM.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run ISCM and return <code class="xref py py-class docutils literal notranslate"><span class="pre">ISCMResults</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">ISCMConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Lt(lt=1.0)]</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws:</span> <span class="pre">~typing.Annotated[int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=100)]</span> <span class="pre">=</span> <span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.ISCMConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Imperfect Synthetic Controls (ISCM) estimator.</p>
+<p>Powell, D. (2026). <em>“Imperfect Synthetic Controls,”</em> Journal of Applied
+Econometrics. Builds synthetic controls for every unit, identifies the
+treatment effect even when the treated unit is outside the convex hull,
+weights units by a data-driven fit metric, and uses Ibragimov-Muller
+inference valid for small donor pools. Inherits the standard <code class="docutils literal notranslate"><span class="pre">df</span></code> /
+<code class="docutils literal notranslate"><span class="pre">outcome</span></code> / <code class="docutils literal notranslate"><span class="pre">treat</span></code> / <code class="docutils literal notranslate"><span class="pre">unitid</span></code> / <code class="docutils literal notranslate"><span class="pre">time</span></code> interface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inference</strong> (<em>bool</em>) – Run Ibragimov-Muller inference over the per-unit estimates.
+Default True.</p></li>
+<li><p><strong>null_value</strong> (<em>float</em>) – Null effect <code class="docutils literal notranslate"><span class="pre">alpha_0</span></code> for the randomization test. Default 0.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – Two-sided level for the confidence interval.</p></li>
+<li><p><strong>n_draws</strong> (<em>int</em>) – Number of Rademacher sign-flip draws for the p-value.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – Seed for the randomization-test RNG.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.ISCMConfig.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig.inference">
+<span class="sig-name descname"><span class="pre">inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.ISCMConfig.inference" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.ISCMConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig.n_draws">
+<span class="sig-name descname"><span class="pre">n_draws</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.ISCMConfig.n_draws" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig.null_value">
+<span class="sig-name descname"><span class="pre">null_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.ISCMConfig.null_value" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.ISCMConfig.random_state">
+<span class="sig-name descname"><span class="pre">random_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.ISCMConfig.random_state" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mlsynth.utils.iscm_helpers.setup">
+<span id="helper-modules"></span><h2>Helper Modules<a class="headerlink" href="#module-mlsynth.utils.iscm_helpers.setup" title="Link to this heading">#</a></h2>
+<p>Panel ingestion for the ISCM estimator.</p>
+<p>Pivots a long-format panel into the dense <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> outcome and
+treatment matrices ISCM operates on. ISCM builds a synthetic control for
+<em>every</em> unit, so – unlike single-treated SCM – there is no treated /
+donor split at this stage; all units are retained.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.setup.prepare_iscm_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_iscm_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs" title="mlsynth.utils.iscm_helpers.structures.ISCMInputs"><span class="pre">ISCMInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.setup.prepare_iscm_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot a long panel into <code class="xref py py-class docutils literal notranslate"><span class="pre">ISCMInputs</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Balanced long panel; one row per <code class="docutils literal notranslate"><span class="pre">(unit,</span> <span class="pre">time)</span></code>.</p></li>
+<li><p><strong>outcome, treat, unitid, time</strong> (<em>str</em>) – Column names. A treated unit has <code class="docutils literal notranslate"><span class="pre">treat</span> <span class="pre">==</span> <span class="pre">1</span></code> from a common
+adoption period onward; ISCM assumes a single adoption date (no
+staggered timing).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.iscm_helpers.weights">All-units synthetic-control weights for ISCM.</p>
+<p>For every unit <span class="math notranslate nohighlight">\(i\)</span>, ISCM constructs a synthetic control from the
+<em>other</em> units by the usual constrained least-squares pre-period fit
+(paper eq. 5):</p>
+<div class="math notranslate nohighlight">
+\[\widehat w_i = \arg\min_{w}
+    \sum_{t \le T_0} \Bigl( Y_{it} - \sum_{j \ne i} w_j Y_{jt} \Bigr)^2,
+\quad w_j \ge 0,\ \sum_{j \ne i} w_j = 1.\]</div>
+<p>These per-unit weights are the starting point of ISCM (Powell’s applied
+procedure initialises with the traditional SCM); the fit metric and the
+treatment-effect regression are built on top of them.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.weights.all_units_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">all_units_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.weights.all_units_weights" title="Link to this definition">#</a></dt>
+<dd><p>Return the <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">N)</span></code> all-units SC weight matrix.</p>
+<p>Row <code class="docutils literal notranslate"><span class="pre">i</span></code> holds unit <code class="docutils literal notranslate"><span class="pre">i</span></code>’s synthetic-control weights over the other
+units (<code class="docutils literal notranslate"><span class="pre">W[i,</span> <span class="pre">i]</span> <span class="pre">=</span> <span class="pre">0</span></code>, each row non-negative and summing to one).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y</strong> (<em>np.ndarray</em>) – Outcomes, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p></li>
+<li><p><strong>T0</strong> (<em>int</em>) – Number of pre-treatment periods.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.iscm_helpers.estimate">Fit metric and weighted-least-squares treatment effect for ISCM.</p>
+<p>Given the all-units synthetic-control weights <span class="math notranslate nohighlight">\(W\)</span>, ISCM forms</p>
+<ul class="simple">
+<li><p>the SC <strong>residuals</strong> <span class="math notranslate nohighlight">\(R_{it} = Y_{it} - \sum_j w_{ij} Y_{jt}\)</span>,</p></li>
+<li><p>the treatment <strong>exposure</strong> <span class="math notranslate nohighlight">\(E_{it} = D_{it} - \sum_j w_{ij}
+D_{jt}\)</span> (the regressor: a control unit that borrows the treated unit
+as a donor has non-zero post-period exposure <span class="math notranslate nohighlight">\(-w_{i,\text{tr}}\)</span>),</p></li>
+<li><p>a per-unit <strong>fit metric</strong> <span class="math notranslate nohighlight">\(a_i\)</span> (paper eq. 14) that weights
+units by how well their synthetic control satisfies the SCM moment
+conditions in the pre-period – asymptotically excluding units without
+a valid synthetic control,</p></li>
+</ul>
+<p>and estimates the ATT by weighted least squares pooled over all units
+(paper eq. 8 / 15):</p>
+<div class="math notranslate nohighlight">
+\[\widehat\alpha =
+  \frac{\sum_i a_i \sum_{t &gt; T_0} E_{it} R_{it}}
+       {\sum_i a_i \sum_{t &gt; T_0} E_{it}^2}.\]</div>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.estimate.fit_metric">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.estimate.</span></span><span class="sig-name descname"><span class="pre">fit_metric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">R</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.estimate.fit_metric" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit fit weights <span class="math notranslate nohighlight">\(a_i \in (0, 1]\)</span> (paper eq. 14).</p>
+<p>The pre-period moment vector for unit <code class="docutils literal notranslate"><span class="pre">i</span></code> collects the empirical
+covariances of its SC residual with every other unit’s outcomes,
+<span class="math notranslate nohighlight">\(M_i^k = \tfrac{1}{T_0}\sum_{t \le T_0} R_{it} Y_{kt}\)</span>. A good
+synthetic control makes these (near) zero. The metric normalises so
+the best-fitting unit gets <code class="docutils literal notranslate"><span class="pre">1</span></code> and poorer fits get progressively
+smaller weights:</p>
+<div class="math notranslate nohighlight">
+\[a_i = \frac{\min_\ell M_\ell' M_\ell}{M_i' M_i}.\]</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.estimate.residuals_and_exposure">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.estimate.</span></span><span class="sig-name descname"><span class="pre">residuals_and_exposure</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">W</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.estimate.residuals_and_exposure" title="Link to this definition">#</a></dt>
+<dd><p>Return (residuals R, exposure E), each shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.estimate.weighted_att">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.estimate.</span></span><span class="sig-name descname"><span class="pre">weighted_att</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">R</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">E</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.estimate.weighted_att" title="Link to this definition">#</a></dt>
+<dd><p>Aggregate ATT and per-unit decomposition (paper eq. 15).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>att</strong> (<em>float</em>) – WLS aggregate effect.</p></li>
+<li><p><strong>unit_att</strong> (np.ndarray, shape <code class="docutils literal notranslate"><span class="pre">(N,)</span></code>) – Per-unit estimate <span class="math notranslate nohighlight">\(\widehat\alpha_i = \sum_{t&gt;T_0} E_{it}
+R_{it} / \sum_{t&gt;T_0} E_{it}^2\)</span>; <code class="docutils literal notranslate"><span class="pre">NaN</span></code> outside the contributing
+set (units with zero post-period exposure).</p></li>
+<li><p><strong>contribution</strong> (np.ndarray, shape <code class="docutils literal notranslate"><span class="pre">(N,)</span></code>) – Per-unit share <span class="math notranslate nohighlight">\(v_i\)</span> of the aggregate effect; sums to one
+over the contributing set.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.iscm_helpers.inference">Ibragimov-Muller inference for ISCM (paper Section 5, eq. 16).</p>
+<p>ISCM yields one treatment-effect estimate <span class="math notranslate nohighlight">\(\widehat\alpha_i\)</span> per
+contributing unit, with relative weights <span class="math notranslate nohighlight">\(v_i\)</span> (so
+<span class="math notranslate nohighlight">\(\widehat\alpha = \sum_{i \in C} v_i \widehat\alpha_i\)</span>). Under
+the null <span class="math notranslate nohighlight">\(H_0: \alpha = \alpha_0\)</span> the weighted deviations
+<span class="math notranslate nohighlight">\(v_i(\widehat\alpha_i - \alpha_0)\)</span> are treated as approximately
+symmetric, and a sign-flip (Rademacher) randomization test calibrates the
+p-value – conservative but valid even with a handful of contributing
+units, where a permutation test cannot reach standard thresholds.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.inference.ibragimov_muller_inference">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">ibragimov_muller_inference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">att</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_att</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">contribution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference" title="mlsynth.utils.iscm_helpers.structures.ISCMInference"><span class="pre">ISCMInference</span></a></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.inference.ibragimov_muller_inference" title="Link to this definition">#</a></dt>
+<dd><p>Sign-flip randomization test over the per-unit estimates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>att</strong> (<em>float</em>) – Aggregate ATT.</p></li>
+<li><p><strong>unit_att</strong> (<em>np.ndarray</em>) – Per-unit estimates (<code class="docutils literal notranslate"><span class="pre">NaN</span></code> outside the contributing set).</p></li>
+<li><p><strong>contribution</strong> (<em>np.ndarray</em>) – Per-unit weights <span class="math notranslate nohighlight">\(v_i\)</span> (sum to one over <code class="docutils literal notranslate"><span class="pre">C</span></code>).</p></li>
+<li><p><strong>N</strong> (<em>int</em>) – Total number of units (for the finite-sample variance scaling).</p></li>
+<li><p><strong>null_value</strong> (<em>float</em>) – Tested null <span class="math notranslate nohighlight">\(\alpha_0\)</span>.</p></li>
+<li><p><strong>alpha_level</strong> (<em>float</em>) – Two-sided level for the reported CI.</p></li>
+<li><p><strong>n_draws</strong> (<em>int</em>) – Number of Rademacher sign-flip draws.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – RNG seed.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.iscm_helpers.pipeline">Orchestration for the ISCM estimator (Powell 2026).</p>
+<p>Pipeline:</p>
+<ol class="arabic simple">
+<li><p>Build synthetic controls for every unit (<code class="xref py py-func docutils literal notranslate"><span class="pre">all_units_weights()</span></code>).</p></li>
+<li><p>Form SC residuals and treatment exposure; compute the per-unit fit
+metric <span class="math notranslate nohighlight">\(a_i\)</span> (<a class="reference internal" href="ctsc.html#module-mlsynth.utils.ctsc_helpers.estimate" title="mlsynth.utils.ctsc_helpers.estimate"><code class="xref py py-mod docutils literal notranslate"><span class="pre">estimate</span></code></a>).</p></li>
+<li><p>Estimate the ATT by the <span class="math notranslate nohighlight">\(a_i\)</span>-weighted least-squares regression
+pooled over all units (paper eq. 15).</p></li>
+<li><p>Optionally run Ibragimov-Muller inference over the per-unit estimates.</p></li>
+</ol>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.pipeline.run_iscm">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">run_iscm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs" title="mlsynth.utils.iscm_helpers.structures.ISCMInputs"><span class="pre">ISCMInputs</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults" title="mlsynth.utils.iscm_helpers.structures.ISCMResults"><span class="pre">ISCMResults</span></a></span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.pipeline.run_iscm" title="Link to this definition">#</a></dt>
+<dd><p>Run ISCM and assemble <code class="xref py py-class docutils literal notranslate"><span class="pre">ISCMResults</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>ISCMInputs</em>) – Preprocessed panel.</p></li>
+<li><p><strong>inference</strong> (<em>bool</em>) – If True, run Ibragimov-Muller inference. Default True.</p></li>
+<li><p><strong>null_value</strong> (<em>float</em>) – Null effect <span class="math notranslate nohighlight">\(\alpha_0\)</span> for the test.</p></li>
+<li><p><strong>alpha_level</strong> (<em>float</em>) – Two-sided level for the confidence interval.</p></li>
+<li><p><strong>n_draws</strong> (<em>int</em>) – Number of Rademacher sign-flip draws.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – RNG seed for the randomization test.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.iscm_helpers.structures">Frozen dataclasses for the Imperfect Synthetic Controls (ISCM) estimator.</p>
+<p>Powell, D. (2026). <em>“Imperfect Synthetic Controls.”</em> Journal of Applied
+Econometrics 41(3):253-264.</p>
+<p>The standard SCM assumes a <em>perfect</em> synthetic control exists: the
+treated unit lies inside the convex hull of the donors and its
+pre-period outcomes are matched exactly. With transitory shocks this is
+implausible – an exact fit is impossible even in expectation. ISCM
+relaxes this by</p>
+<ol class="arabic simple">
+<li><p>constructing synthetic controls for <strong>every</strong> unit (not just the
+treated one), so the treatment effect is identified even when the
+treated unit is <em>outside</em> the convex hull – it can still appear as a
+donor for control units, and those units’ post-treatment residuals
+carry information about the effect (paper eq. 6);</p></li>
+<li><p>weighting units by a data-driven fit metric <span class="math notranslate nohighlight">\(a_i\)</span> that
+asymptotically excludes units lacking a valid synthetic control
+(paper eq. 14), removing the researcher’s eyeball “is the pre-fit
+good enough” judgment;</p></li>
+<li><p>estimating the effect by weighted least squares across all units
+(paper eq. 8 / 15);</p></li>
+<li><p>conducting inference via the Ibragimov-Muller t-statistic over the
+per-unit estimates (paper eq. 16), valid even with a very small
+donor pool.</p></li>
+</ol>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">ISCMInference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_stat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_contributing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference" title="Link to this definition">#</a></dt>
+<dd><p>Ibragimov-Muller inference for ISCM (paper Section 5, eq. 16).</p>
+<p>ISCM produces one treatment-effect estimate per contributing unit.
+Their (weighted) spread calibrates uncertainty via a sign-flip
+(Rademacher) randomization test – conservative but valid even with a
+handful of donors, where a permutation test cannot reach standard
+significance thresholds.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.method" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;ibragimov_muller&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.null_value">
+<span class="sig-name descname"><span class="pre">null_value</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.null_value" title="Link to this definition">#</a></dt>
+<dd><p>The tested null effect <span class="math notranslate nohighlight">\(\alpha_0\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.t_stat">
+<span class="sig-name descname"><span class="pre">t_stat</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.t_stat" title="Link to this definition">#</a></dt>
+<dd><p>The Ibragimov-Muller test statistic (paper eq. 16).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.p_value">
+<span class="sig-name descname"><span class="pre">p_value</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.p_value" title="Link to this definition">#</a></dt>
+<dd><p>Two-sided sign-flip randomization p-value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.se">
+<span class="sig-name descname"><span class="pre">se</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.se" title="Link to this definition">#</a></dt>
+<dd><p>Standard error implied by the per-unit estimate spread.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.ci">
+<span class="sig-name descname"><span class="pre">ci</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.ci" title="Link to this definition">#</a></dt>
+<dd><p>Approximate two-sided confidence interval for the ATT.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple of float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.alpha_level">
+<span class="sig-name descname"><span class="pre">alpha_level</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.alpha_level" title="Link to this definition">#</a></dt>
+<dd><p>Two-sided level used for <code class="docutils literal notranslate"><span class="pre">ci</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.n_contributing">
+<span class="sig-name descname"><span class="pre">n_contributing</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.n_contributing" title="Link to this definition">#</a></dt>
+<dd><p>Size of the contributing set <code class="docutils literal notranslate"><span class="pre">C</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInference.n_draws">
+<span class="sig-name descname"><span class="pre">n_draws</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.n_draws" title="Link to this definition">#</a></dt>
+<dd><p>Number of Rademacher draws.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">alpha_level</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">ci</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span></em><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">n_contributing</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">n_draws</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">null_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">p_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">t_stat</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">ISCMInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel for ISCM (synthetic controls for all units).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.Y" title="Link to this definition">#</a></dt>
+<dd><p>Outcomes for every unit, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.D">
+<span class="sig-name descname"><span class="pre">D</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.D" title="Link to this definition">#</a></dt>
+<dd><p>Treatment indicators, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>; <code class="docutils literal notranslate"><span class="pre">D[i,</span> <span class="pre">t]</span> <span class="pre">=</span> <span class="pre">1</span></code> iff unit
+<code class="docutils literal notranslate"><span class="pre">i</span></code> is treated at period <code class="docutils literal notranslate"><span class="pre">t</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.T0" title="Link to this definition">#</a></dt>
+<dd><p>Number of pre-treatment periods (treatment starts at <code class="docutils literal notranslate"><span class="pre">T0</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.unit_names">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.unit_names" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">N</span></code> unit identifiers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> period labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.treated_idx">
+<span class="sig-name descname"><span class="pre">treated_idx</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.treated_idx" title="Link to this definition">#</a></dt>
+<dd><p>Indices of the ever-treated units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">D</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id9" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.N">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.N" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.T">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id11" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMInputs.n_post">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n_post</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.n_post" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id12" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">treated_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id13" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id14" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.iscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">ISCMResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.iscm_helpers.structures.ISCMInputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att:</span> <span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_weight_matrix:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_metric:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_att:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">contribution:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residuals:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exposure:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights:</span> <span class="pre">~typing.Any</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference:</span> <span class="pre">~mlsynth.utils.iscm_helpers.structures.ISCMInference</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults" title="Link to this definition">#</a></dt>
+<dd><p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.ISCM.fit()</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.inputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs" title="mlsynth.utils.iscm_helpers.structures.ISCMInputs">ISCMInputs</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.att">
+<span class="sig-name descname"><span class="pre">att</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.att" title="Link to this definition">#</a></dt>
+<dd><p>Average treatment effect on the treated, aggregated over the
+post-treatment period (paper eq. 15).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_weight_matrix">
+<span class="sig-name descname"><span class="pre">unit_weight_matrix</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_weight_matrix" title="Link to this definition">#</a></dt>
+<dd><p>All-units synthetic-control weight matrix, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">N)</span></code>. Row
+<code class="docutils literal notranslate"><span class="pre">i</span></code> is the synthetic control for unit <code class="docutils literal notranslate"><span class="pre">i</span></code> (<code class="docutils literal notranslate"><span class="pre">[i,</span> <span class="pre">i]</span> <span class="pre">=</span>
+<span class="pre">0</span></code>, each row non-negative and summing to one).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.fit_metric">
+<span class="sig-name descname"><span class="pre">fit_metric</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.fit_metric" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit fit weights <span class="math notranslate nohighlight">\(a_i \in (0, 1]\)</span>, shape <code class="docutils literal notranslate"><span class="pre">(N,)</span></code>;
+<code class="docutils literal notranslate"><span class="pre">1</span></code> for the best-fitting unit, smaller for poorer synthetic
+controls (paper eq. 14).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_att">
+<span class="sig-name descname"><span class="pre">unit_att</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_att" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit treatment-effect estimates, shape <code class="docutils literal notranslate"><span class="pre">(N,)</span></code>; <code class="docutils literal notranslate"><span class="pre">NaN</span></code> for
+units that carry no identifying variation. Only units in the
+contributing set <code class="docutils literal notranslate"><span class="pre">C</span></code> (non-zero treatment exposure) are finite.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.contribution">
+<span class="sig-name descname"><span class="pre">contribution</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.contribution" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit share <span class="math notranslate nohighlight">\(v_i\)</span> of the aggregate ATT, shape <code class="docutils literal notranslate"><span class="pre">(N,)</span></code>;
+sums to one over the contributing set (paper, before eq. 16).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.residuals">
+<span class="sig-name descname"><span class="pre">residuals</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.residuals" title="Link to this definition">#</a></dt>
+<dd><p>Synthetic-control residuals <span class="math notranslate nohighlight">\(Y_{it} - \sum_j w_{ij}
+Y_{jt}\)</span>, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.exposure">
+<span class="sig-name descname"><span class="pre">exposure</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.exposure" title="Link to this definition">#</a></dt>
+<dd><p>Treatment exposure <span class="math notranslate nohighlight">\(D_{it} - \sum_j w_{ij} D_{jt}\)</span>, shape
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> – the regressor in the WLS effect estimate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.weights">
+<span class="sig-name descname"><span class="pre">weights</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.weights" title="Link to this definition">#</a></dt>
+<dd><p>Standardized donor weights for the treated unit(s) – the treated
+unit’s row of <code class="docutils literal notranslate"><span class="pre">unit_weight_matrix</span></code> (a convex synthetic control
+over the other units). For multiple treated units, the cross-unit
+average; per-unit rows live in <code class="docutils literal notranslate"><span class="pre">summary_stats</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>WeightsResults, optional</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.inference">
+<span class="sig-name descname"><span class="pre">inference</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.inference" title="Link to this definition">#</a></dt>
+<dd><p><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference" title="mlsynth.utils.iscm_helpers.structures.ISCMInference"><code class="xref py py-class docutils literal notranslate"><span class="pre">ISCMInference</span></code></a> when <code class="docutils literal notranslate"><span class="pre">inference=True</span></code>; <code class="docutils literal notranslate"><span class="pre">None</span></code> otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object, optional</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.iscm_helpers.structures.ISCMResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><a class="headerlink" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.metadata" title="Link to this definition">#</a></dt>
+<dd><p>Free-form diagnostics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id15">
+<span class="sig-name descname"><span class="pre">att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id15" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id16">
+<span class="sig-name descname"><span class="pre">contribution</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id16" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id17">
+<span class="sig-name descname"><span class="pre">exposure</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id17" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id18">
+<span class="sig-name descname"><span class="pre">fit_metric</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id18" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id19">
+<span class="sig-name descname"><span class="pre">inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference" title="mlsynth.utils.iscm_helpers.structures.ISCMInference"><span class="pre">ISCMInference</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id19" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id20">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs" title="mlsynth.utils.iscm_helpers.structures.ISCMInputs"><span class="pre">ISCMInputs</span></a></em><a class="headerlink" href="#id20" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id21">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id21" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id22">
+<span class="sig-name descname"><span class="pre">residuals</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id22" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id23">
+<span class="sig-name descname"><span class="pre">unit_att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id23" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id24">
+<span class="sig-name descname"><span class="pre">unit_weight_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id24" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id25">
+<span class="sig-name descname"><span class="pre">weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id25" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<p>A one-factor panel where the treated unit has the largest factor loading
+– placing it outside the convex hull of the controls, so a traditional
+SCM cannot match it. ISCM still recovers the planted effect via the
+control units that use the treated unit as a donor.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISCM</span>
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># 1. One-factor panel; unit 0 (treated) has the MAX loading</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">T0</span><span class="p">,</span> <span class="n">true_alpha</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">48</span><span class="p">,</span> <span class="mf">3.0</span>
+<span class="n">loadings</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">N</span><span class="p">)</span>        <span class="c1"># unit 0 outside the hull</span>
+<span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">(</span><span class="n">T</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.3</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+<span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">loadings</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.05</span>
+<span class="n">D</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">))</span>
+<span class="n">Y</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">T0</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">true_alpha</span>
+<span class="n">D</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">T0</span><span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+
+<span class="n">rows</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;u</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">],</span> <span class="s2">&quot;D&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">D</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">])}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)]</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># 2. Fit ISCM with Ibragimov-Muller inference</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">ISCM</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;D&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># 3. Inspect the result</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ATT = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">  (true = </span><span class="si">{</span><span class="n">true_alpha</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;treated fit metric a_0 = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">fit_metric</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">  &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;(small =&gt; outside the hull)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;treated contribution   = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">contribution</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="mi">100</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;p-value = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">  &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;(n contributing = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">n_contributing</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Abadie, A., Diamond, A., &amp; Hainmueller, J. (2010). “Synthetic Control
+Methods for Comparative Case Studies.” <em>Journal of the American
+Statistical Association</em> 105(490):493-505.</p>
+<p>Ferman, B., &amp; Pinto, C. (2021). “Synthetic Controls with Imperfect
+Pretreatment Fit.” <em>Quantitative Economics</em> 12(4):1197-1221.</p>
+<p>Fry, J. (2024). “A Method of Moments Approach to Asymptotically Unbiased
+Synthetic Controls.” <em>Journal of Econometrics</em> 244:105846.</p>
+<p>Ibragimov, R., &amp; Muller, U. K. (2010). “T-Statistic Based Correlation
+and Heterogeneity Robust Inference.” <em>Journal of Business &amp; Economic
+Statistics</em> 28(4):453-468.</p>
+<p>Powell, D. (2026). “Imperfect Synthetic Controls.” <em>Journal of Applied
+Econometrics</em> 41(3):253-264.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="microsynth.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">MicroSynth (User-Level Balancing SC)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="nsc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Nonlinear Synthetic Control (NSC)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-identifying-intuition">The identifying intuition</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-iscm">When to use ISCM</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-paper-section-2">Setup (paper Section 2)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fit-metric-paper-eq-14">Fit metric (paper eq. 14)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#treatment-effect-paper-eq-8-15">Treatment effect (paper eq. 8 / 15)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-paper-section-5-eq-16">Inference (paper Section 5, eq. 16)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scope-of-this-implementation">Scope of this implementation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-powell-2026">Assumptions (Powell 2026)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-the-assumptions-bind-practical-diagnostics">When the assumptions bind: practical diagnostics</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-iscm-and-when-not-to">When to use ISCM – and when not to</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-wisconsin-s-48-h-handgun-waiting-period-repeal">Empirical: Wisconsin’s 48-h handgun waiting-period repeal</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.iscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.iscm.ISCM"><code class="docutils literal notranslate"><span class="pre">ISCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.iscm.ISCM.fit"><code class="docutils literal notranslate"><span class="pre">ISCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig"><code class="docutils literal notranslate"><span class="pre">ISCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.alpha"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.inference"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.n_draws"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.null_value"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.ISCMConfig.random_state"><code class="docutils literal notranslate"><span class="pre">ISCMConfig.random_state</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.iscm_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.setup.prepare_iscm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_iscm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.weights.all_units_weights"><code class="docutils literal notranslate"><span class="pre">all_units_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.estimate.fit_metric"><code class="docutils literal notranslate"><span class="pre">fit_metric()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.estimate.residuals_and_exposure"><code class="docutils literal notranslate"><span class="pre">residuals_and_exposure()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.estimate.weighted_att"><code class="docutils literal notranslate"><span class="pre">weighted_att()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.inference.ibragimov_muller_inference"><code class="docutils literal notranslate"><span class="pre">ibragimov_muller_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.pipeline.run_iscm"><code class="docutils literal notranslate"><span class="pre">run_iscm()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference"><code class="docutils literal notranslate"><span class="pre">ISCMInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.method"><code class="docutils literal notranslate"><span class="pre">ISCMInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.null_value"><code class="docutils literal notranslate"><span class="pre">ISCMInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.t_stat"><code class="docutils literal notranslate"><span class="pre">ISCMInference.t_stat</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.p_value"><code class="docutils literal notranslate"><span class="pre">ISCMInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.se"><code class="docutils literal notranslate"><span class="pre">ISCMInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.ci"><code class="docutils literal notranslate"><span class="pre">ISCMInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.alpha_level"><code class="docutils literal notranslate"><span class="pre">ISCMInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.n_contributing"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_contributing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInference.n_draws"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">ISCMInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">ISCMInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">ISCMInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_contributing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">ISCMInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">ISCMInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">ISCMInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">ISCMInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">ISCMInference.t_stat</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs"><code class="docutils literal notranslate"><span class="pre">ISCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.Y"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.D"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.T0"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.treated_idx"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.N"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.T"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMInputs.n_post"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.n_post</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">ISCMInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults"><code class="docutils literal notranslate"><span class="pre">ISCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.att"><code class="docutils literal notranslate"><span class="pre">ISCMResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_weight_matrix"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.fit_metric"><code class="docutils literal notranslate"><span class="pre">ISCMResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.unit_att"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.contribution"><code class="docutils literal notranslate"><span class="pre">ISCMResults.contribution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.residuals"><code class="docutils literal notranslate"><span class="pre">ISCMResults.residuals</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.exposure"><code class="docutils literal notranslate"><span class="pre">ISCMResults.exposure</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.weights"><code class="docutils literal notranslate"><span class="pre">ISCMResults.weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.inference"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.iscm_helpers.structures.ISCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">ISCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id15"><code class="docutils literal notranslate"><span class="pre">ISCMResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id16"><code class="docutils literal notranslate"><span class="pre">ISCMResults.contribution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id17"><code class="docutils literal notranslate"><span class="pre">ISCMResults.exposure</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id18"><code class="docutils literal notranslate"><span class="pre">ISCMResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id19"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id20"><code class="docutils literal notranslate"><span class="pre">ISCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id21"><code class="docutils literal notranslate"><span class="pre">ISCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id22"><code class="docutils literal notranslate"><span class="pre">ISCMResults.residuals</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id23"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id24"><code class="docutils literal notranslate"><span class="pre">ISCMResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id25"><code class="docutils literal notranslate"><span class="pre">ISCMResults.weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
