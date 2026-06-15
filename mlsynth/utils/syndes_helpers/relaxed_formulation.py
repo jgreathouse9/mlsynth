@@ -83,7 +83,15 @@ def solve_weights_global(
     problem = cp.Problem(objective, constraints)
     problem.solve(solver=cp.OSQP, warm_start=True, verbose=False)
 
-    if problem.status not in _OPTIMAL_STATUSES:
+    # This simplex-constrained LSQ is always feasible (uniform weights satisfy
+    # it), but OSQP (first-order ADMM) can spuriously report infeasible/inaccurate
+    # on large-magnitude, ill-scaled panels -- which would otherwise crash the
+    # annealed solver mid-search. Fall back to the robust interior-point CLARABEL
+    # solver before giving up.
+    if problem.status not in _OPTIMAL_STATUSES or w_T.value is None:
+        problem.solve(solver=cp.CLARABEL, verbose=False)
+
+    if problem.status not in _OPTIMAL_STATUSES or w_T.value is None:
         raise MlsynthEstimationError(
             f"Relaxed weight QP failed with status: {problem.status}"
         )
