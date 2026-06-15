@@ -37,7 +37,7 @@ def validate_relaxed_inputs(Y: np.ndarray, K: int) -> None:
 
 
 def default_lambda(Y: np.ndarray) -> float:
-    """Default ridge parameter: average cross-sectional variance of ``Y``.
+    """Default ridge parameter: average within-unit (over-time) variance of ``Y``.
 
     Parameters
     ----------
@@ -51,11 +51,20 @@ def default_lambda(Y: np.ndarray) -> float:
 
     Notes
     -----
-    Uses ``ddof=0`` to preserve numerical compatibility with the original
-    inline default of the relaxed solver.
+    Delegates to :func:`mlsynth.utils.syndes_helpers.optimization.estimate_lambda`
+    so the annealed solver and the exact MIP share a single default penalty
+    (both ``var(..., ddof=1)``). Keeping them identical means the two modes
+    minimise the *same* objective, so an annealed feasible point is a valid
+    upper bound on the exact MIP optimum and the modes' objectives are directly
+    comparable. The previous ddof=0 default silently put the annealed objective
+    on a slightly different scale.
     """
 
-    return float(np.mean(np.var(Y, axis=0)))
+    # Local import avoids a module-level cycle (optimization imports from the
+    # syndes_helpers package); the dependency is one-way and safe at call time.
+    from .optimization import estimate_lambda
+
+    return estimate_lambda(Y)
 
 
 def _reconstruction_error(Yc: np.ndarray, cols: list[int]) -> float:
