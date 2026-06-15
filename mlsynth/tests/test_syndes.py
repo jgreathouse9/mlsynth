@@ -728,6 +728,44 @@ class TestRelaxedInitialization:
         Y2 = np.array([[0.0, 0.0], [1.0, 3.0]])
         assert default_lambda(Y2) > 0.0
 
+    def test_default_lambda_matches_estimate_lambda(self):
+        # The annealed solver's default penalty MUST equal the exact solver's
+        # (``estimate_lambda``), so the two modes minimise the *same* objective
+        # and their objective values are directly comparable -- i.e. a feasible
+        # annealed point is a valid upper bound on the exact MIP optimum. They
+        # previously diverged (ddof=0 vs ddof=1).
+        from mlsynth.utils.syndes_helpers.relaxed_initialization import (
+            default_lambda,
+        )
+        from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
+        rng = np.random.default_rng(0)
+        for seed in range(5):
+            Y = 1000.0 + rng.standard_normal((30, 12)) * 50.0
+            assert default_lambda(Y) == pytest.approx(estimate_lambda(Y), rel=1e-12)
+
+    def test_annealed_default_lambda_agrees_with_exact(self):
+        # Integration: with lam=None the annealed mode reports the same
+        # lambda_value as the exact solver would estimate, so objectives are
+        # on the same scale across modes.
+        from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
+        rng = np.random.default_rng(3)
+        N, T = 8, 20
+        F = rng.standard_normal((T, 2)); L = rng.standard_normal((2, N))
+        Ymat = 1000.0 + F @ L * 10.0 + rng.standard_normal((T, N))
+        rows = []
+        for i in range(N):
+            for t in range(T):
+                rows.append({"unit": f"u{i}", "time": t, "y": float(Ymat[t, i]),
+                             "post": int(t >= T - 4)})
+        panel = pd.DataFrame(rows)
+        res = SYNDES({"df": panel, "outcome": "y", "unitid": "unit",
+                      "time": "time", "K": 3,
+                      "mode": "two_way_global_annealed",
+                      "relaxed_max_iter": 4, "post_col": "post",
+                      "lam": None, "run_inference": False}).fit()
+        Y_pre = Ymat[:T - 4]
+        assert res.design.lambda_value == pytest.approx(estimate_lambda(Y_pre), rel=1e-12)
+
     def test_init_assignment_picks_K_units(self):
         from mlsynth.utils.syndes_helpers.relaxed_initialization import (
             init_assignment,
