@@ -364,8 +364,19 @@ def select_treated_designs(
     min_per_stratum: Optional[int] = None,
     max_per_stratum: Optional[int] = None,
     size_band: Optional[Any] = None,
+    targeting_penalty: float = 0.0,
 ) -> Dict[str, Any]:
     """Select the ``top_K`` treated m-tuples with smallest imbalance.
+
+    ``targeting_penalty`` (gamma >= 0) makes the design *weakly targeted*: it
+    adds ``gamma || w - (1/m) 1 ||^2`` to the treated QP, pulling the weights
+    toward the group's own equal-weight aggregate so the treated group looks more
+    like itself than like the population mean (trading some population
+    representativeness -- the ATE -- for a deployable equal-weight group closer
+    to its own ATT). On the simplex this is exactly a diagonal ridge,
+    ``min_w w'(G_SS + gamma I) w``; the reported ``imbalance`` remains the true
+    targeting distance ``sqrt(w' G w)`` at the penalized ``w``. ``gamma=0`` (the
+    default) is the fully targeted design, unchanged.
 
     Parameters
     ----------
@@ -388,6 +399,13 @@ def select_treated_designs(
     """
     t0 = time.time()
     G = np.asarray(G, dtype=float)
+    if targeting_penalty < 0:
+        raise MlsynthConfigError(
+            f"targeting_penalty (gamma) must be >= 0; got {targeting_penalty}."
+        )
+    # Weakly-targeted ridge: search and weight-solve on G + gamma I; the true
+    # targeting imbalance is read off the original G at the penalized weights.
+    Gsearch = G + targeting_penalty * np.eye(G.shape[0]) if targeting_penalty > 0 else G
     rng = np.random.default_rng(random_state)
 
     # Up-front feasibility audit: one itemised error naming EVERY binding
@@ -413,13 +431,13 @@ def select_treated_designs(
 
     consensus = None
     if method == "enumerate":
-        raw, n_eval = _enumerate(G, cand, m, top_K, unit_costs, budget, iters,
+        raw, n_eval = _enumerate(Gsearch, cand, m, top_K, unit_costs, budget, iters,
                                  conflict=conflict, strata=strata,
                                  min_per=min_per_stratum, max_per=max_per_stratum,
                                  required=required)
         exact = True
     elif method == "heuristic":
-        raw, n_eval, consensus = _local_search(G, cand, m, top_K, unit_costs,
+        raw, n_eval, consensus = _local_search(Gsearch, cand, m, top_K, unit_costs,
                                                budget, n_starts, rng, iters,
                                                conflict=conflict, strata=strata,
                                                min_per=min_per_stratum,
@@ -460,10 +478,12 @@ def select_treated_designs(
     designs: List[TreatedDesign] = []
     for rank, (S, _approx) in enumerate(raw, start=1):
         S = [int(x) for x in S]
-        loss, w, _ = _afw_single(G[np.ix_(S, S)], iters=600, tol=1e-14)
+        # Penalized weights/loss on G + gamma I; true targeting imbalance on G.
+        loss, w, _ = _afw_single(Gsearch[np.ix_(S, S)], iters=600, tol=1e-14)
+        imb2 = float(w @ G[np.ix_(S, S)] @ w)
         tc = float(unit_costs[S].sum()) if unit_costs is not None else 0.0
         d = TreatedDesign(
-            indices=S, weights=w, loss=loss, imbalance=float(np.sqrt(max(loss, 0.0))),
+            indices=S, weights=w, loss=loss, imbalance=float(np.sqrt(max(imb2, 0.0))),
             total_cost=tc, label=f"Design {rank}",
         )
         if unit_index is not None:

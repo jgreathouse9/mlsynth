@@ -53,6 +53,19 @@ class LEXSCMConfig(BaseMAREXConfig):
                     "selected treated units."
     )
 
+    targeting_penalty: float = Field(
+        default=0.0, ge=0.0,
+        description="Weak-targeting penalty (gamma >= 0) on the treated-tuple QP. "
+                    "0 (default) is the fully targeted design: the treated weighted "
+                    "combination is driven onto the population mean (the ATE goal, "
+                    "Abadie-Zhao). gamma > 0 adds gamma||w - 1/m||^2, pulling the "
+                    "treatment weights toward the group's own equal-weight aggregate "
+                    "so the treated group looks more like itself than the population "
+                    "-- a weakly targeted design whose estimand slides from the "
+                    "population ATE toward the treated group's ATT. Large gamma "
+                    "selects the best equal-weight m-tuple."
+    )
+
     # =========================================================
     # SPILLOVER / INTERFERENCE EXCLUSIONS (Vives-i-Bastida 2022)
     # =========================================================
