@@ -63,7 +63,8 @@ class TestParallelMatchesSerial:
         parallel = GEOLIFT(_cfg(n_jobs=2)).fit().search.shortlist.reset_index(drop=True)
         pd.testing.assert_frame_equal(serial, parallel)
 
-    def test_n_jobs_default_is_one(self):
+    def test_n_jobs_default_is_all_cores(self):
+        # Default uses all cores (-1); users cap it with a positive int.
         from mlsynth.utils.geolift_helpers.config import GeoLiftConfig
-        cfg = GeoLiftConfig(**_cfg())
-        assert cfg.n_jobs == 1
+        cfg = GeoLiftConfig(**{k: v for k, v in _cfg().items() if k != "n_jobs"})
+        assert cfg.n_jobs == -1

@@ -487,12 +487,12 @@ driven by the data and config (a ``post_col`` triggers realization;
 * ``conformal_type`` — the conformal permutation scheme, ``"iid"`` (default,
   matching GeoLift) or ``"block"`` (moving-block cyclic shifts for
   serially-dependent residuals; GeoLift's ``conformal_type = "block"`` option).
-* ``n_jobs`` — parallel workers for the candidate search (default ``1``,
-  serial). The search is embarrassingly parallel: each candidate's power
-  simulation and deployable design fit are independent and use the fixed
-  ``seed``, so ``n_jobs > 1`` (or ``-1`` for all cores) spreads the candidates
-  across workers (via joblib) and returns the *identical* shortlist, only
-  faster.
+* ``n_jobs`` — parallel workers for the candidate search (default ``-1``, all
+  cores; set a positive integer to cap the count, or ``1`` to run serially).
+  The search is embarrassingly parallel: each candidate's power simulation and
+  deployable design fit are independent and use the fixed ``seed``, so any
+  worker count spreads the candidates across workers (via joblib) and returns
+  the *identical* shortlist, only faster.
 
 Scanning several ``durations`` yields an MDE *per duration*
 (":math:`\ell = 7` detects 10%, but :math:`\ell = 14` is needed for 5%"):

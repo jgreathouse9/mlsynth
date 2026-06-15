@@ -131,12 +131,12 @@ class GeoLiftConfig(BaseMAREXConfig):
     stochastic_mode: str = Field(default="global", description="'global' (faithful) or 'per_anchor' (corrected).")
     seed: int = Field(default=0, description="RNG seed (candidate sampling + conformal permutations).")
     n_jobs: int = Field(
-        default=1,
+        default=-1,
         description="Parallel workers for the candidate search (power simulation "
-        "and per-candidate design fits, via joblib). 1 (default) runs serially. "
-        ">1 or -1 (all cores) parallelizes across candidates; each candidate is "
-        "independent and uses the fixed seed, so results are identical to the "
-        "serial run -- only faster.",
+        "and per-candidate design fits, via joblib). Default -1 uses all "
+        "available cores; set a positive integer to cap the worker count, or 1 "
+        "to run serially. The candidates are independent and use the fixed seed, "
+        "so any worker count returns the identical shortlist -- only faster.",
     )
 
     # --- display ---
