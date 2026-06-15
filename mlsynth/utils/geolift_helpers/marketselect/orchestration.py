@@ -67,6 +67,15 @@ class GEOLIFTResults(DesignResult):
         extra = "allow"
 
 
+def _fit_candidate_design(candidate, Ywide, how, augment, fixed_effects, conflict):
+    """Deployable design fit for one candidate (top-level so it is picklable for
+    the joblib parallel backend; the serial path calls it directly)."""
+    return design_fit(
+        Ywide, candidate, how=how, augment=augment, fixed_effects=fixed_effects,
+        exclude=(conflict_neighbors(candidate, conflict) if conflict else None),
+    )
+
+
 def run_design(config: GeoLiftConfig) -> GEOLIFTResults:
     """Run the full GeoLift market-selection design from a :class:`GeoLiftConfig`."""
     prep = geoex_dataprep(
@@ -157,22 +166,30 @@ def run_design(config: GeoLiftConfig) -> GEOLIFTResults:
         Ywide, candidates, config.durations, config.lookback_window, config.effect_sizes,
         how=config.how, augment=config.augment, ns=config.ns, seed=config.seed,
         conformal_type=config.conformal_type, fixed_effects=config.fixed_effects,
-        cpic=config.cpic, conflict=conflict,
+        cpic=config.cpic, conflict=conflict, n_jobs=config.n_jobs,
     )
     power_table = compute_power(cube, alpha=config.alpha)
     shortlist = compute_rank(power_table, power_threshold=config.power_threshold,
                              budget=config.budget)
 
     # Per-candidate deployable design fit (full pre-period), with the same
-    # spillover donor exclusion the scoring stage used.
-    designs = {
-        candidate: design_fit(
-            Ywide, candidate, how=config.how, augment=config.augment,
-            fixed_effects=config.fixed_effects,
-            exclude=(conflict_neighbors(candidate, conflict) if conflict else None),
+    # spillover donor exclusion the scoring stage used. Independent per candidate
+    # (and order-preserving), so it parallelizes identically to the serial dict.
+    if config.n_jobs == 1:
+        designs = {
+            c: _fit_candidate_design(c, Ywide, config.how, config.augment,
+                                     config.fixed_effects, conflict)
+            for c in candidates
+        }
+    else:
+        from joblib import Parallel, delayed
+
+        fitted = Parallel(n_jobs=config.n_jobs)(
+            delayed(_fit_candidate_design)(c, Ywide, config.how, config.augment,
+                                           config.fixed_effects, conflict)
+            for c in candidates
         )
-        for candidate in candidates
-    }
+        designs = dict(zip(candidates, fitted))
 
     # Stitch each candidate's best (lowest-rank) shortlist row into its design.
     best_row = {}

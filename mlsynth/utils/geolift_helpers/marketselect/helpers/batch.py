@@ -24,6 +24,35 @@ _COLUMNS = [
 ]
 
 
+def _simulate_candidate(
+    candidate, Ywide, durations, lookback_window, effect_sizes, *,
+    fit_how, n_periods, augment, q, ns, seed, conformal_type, fixed_effects,
+    cpic, conflict,
+):
+    """All rows for one candidate (pure + deterministic given a fixed ``seed``).
+
+    Factored out as a module-level function so it is picklable for the joblib
+    parallel backend; the serial path calls it directly.
+    """
+    treated = aggregate_treated(Ywide, candidate, how=fit_how)
+    # CPIC investment uses the *summed* treated volume (GeoLift's sum(Y[D==1])),
+    # independent of the fit aggregation.
+    treated_total = aggregate_treated(Ywide, candidate, how="sum").to_numpy()
+    exclude = conflict_neighbors(candidate, conflict) if conflict else None
+    donors = donor_matrix(Ywide, candidate, exclude=exclude)
+    rows: List[dict] = []
+    for duration in durations:
+        for sim in range(1, int(lookback_window) + 1):
+            for row in simulate_lookback(
+                treated, donors, n_periods, duration, sim, effect_sizes,
+                augment=augment, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
+                fixed_effects=fixed_effects, cpic=cpic, treated_total=treated_total,
+            ):
+                row["candidate"] = candidate
+                rows.append(row)
+    return rows
+
+
 def run_simulations(
     Ywide: pd.DataFrame,
     candidates: Iterable[frozenset],
@@ -40,6 +69,7 @@ def run_simulations(
     fixed_effects: bool = False,
     cpic: Optional[float] = None,
     conflict: Optional[ConflictGraph] = None,
+    n_jobs: int = 1,
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
@@ -92,24 +122,30 @@ def run_simulations(
     # consistent with the realized report so power/MDE reflect the same model.
     fit_how = "mean" if fixed_effects else how
     n_periods = Ywide.shape[0]
-    records: List[dict] = []
-    for candidate in candidates:
-        treated = aggregate_treated(Ywide, candidate, how=fit_how)
-        # CPIC investment uses the *summed* treated volume (GeoLift's
-        # sum(Y[D==1])), independent of the fit aggregation.
-        treated_total = aggregate_treated(Ywide, candidate, how="sum").to_numpy()
-        exclude = conflict_neighbors(candidate, conflict) if conflict else None
-        donors = donor_matrix(Ywide, candidate, exclude=exclude)
-        for duration in durations:
-            for sim in range(1, int(lookback_window) + 1):
-                for row in simulate_lookback(
-                    treated, donors, n_periods, duration, sim, effect_sizes,
-                    augment=augment, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
-                    fixed_effects=fixed_effects, cpic=cpic, treated_total=treated_total,
-                ):
-                    row["candidate"] = candidate
-                    records.append(row)
+    candidates = list(candidates)
+    work = dict(
+        fit_how=fit_how, n_periods=n_periods, augment=augment, q=q, ns=ns,
+        seed=seed, conformal_type=conformal_type, fixed_effects=fixed_effects,
+        cpic=cpic, conflict=conflict,
+    )
+    if n_jobs == 1:
+        per_candidate = [
+            _simulate_candidate(c, Ywide, durations, lookback_window,
+                                effect_sizes, **work)
+            for c in candidates
+        ]
+    else:
+        # Embarrassingly parallel over candidates; joblib preserves input order,
+        # and each candidate is pure + uses the fixed ``seed``, so the stacked
+        # table is identical to the serial run -- only faster.
+        from joblib import Parallel, delayed
 
+        per_candidate = Parallel(n_jobs=n_jobs)(
+            delayed(_simulate_candidate)(c, Ywide, durations, lookback_window,
+                                         effect_sizes, **work)
+            for c in candidates
+        )
+    records = [row for rows in per_candidate for row in rows]
     if not records:
         return pd.DataFrame(columns=_COLUMNS)
     return pd.DataFrame(records)[_COLUMNS]
