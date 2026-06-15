@@ -183,7 +183,16 @@ def power_analysis(
         )
 
     n_units = Y_pre.shape[1]
-    contrast = _build_contrast_vector(design, n_units=n_units)
+    # Every solved design caches its unit-level contrast; prefer it so the
+    # function is mode-agnostic (the annealed RelaxedDesign carries
+    # ``contrast_weights`` but no ``mode``, so it cannot go through
+    # ``_build_contrast_vector``). Fall back to rebuilding it (per_unit leaves
+    # ``contrast_weights`` as ``None`` and reconstructs from its weight matrix).
+    cached = getattr(design, "contrast_weights", None)
+    if cached is not None:
+        contrast = np.asarray(cached, dtype=float).reshape(-1)
+    else:
+        contrast = _build_contrast_vector(design, n_units=n_units)
     if contrast.size != n_units:
         raise MlsynthEstimationError(
             f"Contrast length ({contrast.size}) does not match the panel "
@@ -202,8 +211,14 @@ def power_analysis(
         )
     sigma_perm = float(np.std(per_period, ddof=1))
 
-    # Baseline for the percentage conversion.
-    treated_idx = np.asarray(design.selected_unit_indices, dtype=int)
+    # Baseline for the percentage conversion. The MIP designs expose the
+    # treated set directly; the annealed RelaxedDesign exposes it only on the
+    # results wrapper, so fall back to the assignment vector.
+    sel = getattr(design, "selected_unit_indices", None)
+    if sel is None:
+        sel = np.flatnonzero(np.asarray(getattr(design, "assignment", []),
+                                        dtype=float) > 0.5)
+    treated_idx = np.asarray(sel, dtype=int)
     baseline_kind = baseline if isinstance(baseline, str) else "custom"
     if isinstance(baseline, str):
         if baseline == "treated":

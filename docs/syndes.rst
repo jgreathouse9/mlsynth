@@ -288,10 +288,37 @@ the same module powers all three estimators.
    print(p.headline.power_at_observed)           # power to detect res.post_fit.ate
    print(p.curve)                                # tuple of MDEPoint per horizon
 
+A second, per-horizon table comes back from every fit by default as
+``res.power_curve`` -- a :class:`~mlsynth.SYNDESPower` over post-period horizons
+``1..12``, so you can read the minimum-detectable-effect curve without a
+separate :func:`~mlsynth.power_analysis` call:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   rng = __import__("numpy").random.default_rng(0)
+   n_units, n_periods, n_post = 8, 20, 6
+   Y = (rng.uniform(8.0, 12.0, n_units)
+        + rng.normal(size=(n_periods, 2)) @ rng.uniform(0.3, 1.0, (n_units, 2)).T
+        + rng.normal(scale=0.3, size=(n_periods, n_units)))
+   df = pd.DataFrame(
+       [{"unit": j, "time": t, "Y": float(Y[t, j]),
+         "post": int(t >= n_periods - n_post)}
+        for j in range(n_units) for t in range(n_periods)]
+   )
+   res = SYNDES({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                 "K": 3, "mode": "two_way_global", "post_col": "post"}).fit()
+
+   print(res.power_curve.to_dataframe())         # n_post 1..12, mde_absolute, mde_percent
+
 Power-analysis failures (e.g. degenerate pre-period contrast) never break a
-fit; ``res.post_fit.power`` is simply left as ``None`` in that case. To
-compute on a non-default horizon grid or significance level call
-:func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
+fit; ``res.post_fit.power`` and ``res.power_curve`` are simply left as ``None``
+in that case. For a custom horizon grid, significance level, or baseline, call
+:func:`~mlsynth.power_analysis` (per-horizon table) or
+:func:`~mlsynth.utils.post_fit.compute_power_analysis` (the headline AR(1)
+surface) directly.
 
 post_col vs T0
 ~~~~~~~~~~~~~~

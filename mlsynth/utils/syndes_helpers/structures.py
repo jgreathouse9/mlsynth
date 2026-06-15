@@ -241,6 +241,15 @@ class SYNDESResults:
         :func:`mlsynth.utils.post_fit.compute_post_fit`. Same shape and
         semantics as the MAREX / LEXSCM / PANGEO equivalents, so downstream
         consumers see a single uniform surface across the family.
+    power_curve : SYNDESPower, optional
+        Per-horizon minimum-detectable-effect table over post-period horizons
+        ``1..12``, attached by default at the end of :meth:`mlsynth.SYNDES.fit`
+        so the MDE curve comes back without a separate
+        :func:`mlsynth.power_analysis` call. ``power_curve.to_dataframe()`` is
+        the tidy ``(n_post, mde_absolute, mde_percent)`` table. Left as ``None``
+        if the computation is degenerate (e.g. too-short pre-period). For a
+        custom horizon grid, significance level, or baseline, call
+        :func:`mlsynth.power_analysis` directly.
 
     Notes
     -----
@@ -259,6 +268,7 @@ class SYNDESResults:
     inference: Optional[SYNDESInference] = None
     post_fit: Optional[Any] = None    # SyntheticControlPostFit; Any to dodge import cycle
     pool: Optional[Any] = None        # solution-pool menu (list of dicts) when top_K > 1
+    power_curve: Optional[Any] = None  # SYNDESPower over horizons 1..12 (default)
 
     @property
     def mode(self) -> str:

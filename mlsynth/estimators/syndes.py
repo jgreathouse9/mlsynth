@@ -68,6 +68,7 @@ from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design_pool,
 )
 from ..utils.syndes_helpers.plotter import plot_syndes_design
+from ..utils.syndes_helpers.power import power_analysis
 from ..utils.syndes_helpers.relaxed_solver import solve_two_way_relaxed
 from ..utils.syndes_helpers.relaxed_structures import RelaxedSolverResults
 from ..utils.syndes_helpers.setup import prepare_syndes_inputs
@@ -174,6 +175,21 @@ def _design_control_weights(design, n_units):
     if cw_raw is not None:
         return np.asarray(cw_raw, dtype=float).reshape(-1)
     return np.zeros(n_units)
+
+
+def _syndes_power_curve(results, alpha):
+    """Per-horizon MDE table (horizons 1..12) attached to every SYNDES fit.
+
+    Computed by default so the minimum-detectable-effect curve comes back from
+    :meth:`SYNDES.fit` without a separate :func:`mlsynth.power_analysis` call.
+    Custom horizon grids, significance levels, or baselines still go through
+    :func:`mlsynth.power_analysis`. Never breaks a fit: returns ``None`` on any
+    degeneracy (e.g. a too-short pre-period), mirroring ``post_fit.power``.
+    """
+    try:
+        return power_analysis(results, n_post_periods=range(1, 13), alpha=alpha)
+    except Exception:                # never let power analysis break a fit
+        return None
 
 
 def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
@@ -399,6 +415,9 @@ class SYNDES:
             design=design, inputs=inputs, inference=inference,
             post_fit=post_fit, pool=pool,
         )
+        results = replace(
+            results, power_curve=_syndes_power_curve(results, self.alpha)
+        )
 
         if self.display_graph:
             try:
@@ -443,5 +462,8 @@ class SYNDES:
             inference=inference, alpha=self.alpha,
         )
 
-        return replace(relaxed, inputs=inputs, inference=inference,
-                        post_fit=post_fit)
+        results = replace(relaxed, inputs=inputs, inference=inference,
+                          post_fit=post_fit)
+        return replace(
+            results, power_curve=_syndes_power_curve(results, self.alpha)
+        )
