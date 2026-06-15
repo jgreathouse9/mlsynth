@@ -250,6 +250,12 @@ class SYNDESResults:
         if the computation is degenerate (e.g. too-short pre-period). For a
         custom horizon grid, significance level, or baseline, call
         :func:`mlsynth.power_analysis` directly.
+    recommendation : SYNDESRecommendation, optional
+        Present when a solution pool exists (``top_K > 1``): the Pareto frontier
+        on fit vs power and a single recommended design chosen by a GeoLift-style
+        composite score (see
+        :func:`mlsynth.utils.syndes_helpers.select.recommend_syndes`). ``None``
+        for a single-design fit.
 
     Notes
     -----
@@ -269,6 +275,7 @@ class SYNDESResults:
     post_fit: Optional[Any] = None    # SyntheticControlPostFit; Any to dodge import cycle
     pool: Optional[Any] = None        # solution-pool menu (list of dicts) when top_K > 1
     power_curve: Optional[Any] = None  # SYNDESPower over horizons 1..12 (default)
+    recommendation: Optional[Any] = None  # SYNDESRecommendation when a pool exists
 
     @property
     def mode(self) -> str:

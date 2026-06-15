@@ -778,6 +778,74 @@ horizon you will actually run: the leftmost is the most powerful experiment in
 the pool, which -- per the lesson above -- need not be the rank-1 (best-fitting)
 design.
 
+Pareto recommendation
+---------------------
+
+Ranking by power alone has the opposite blind spot to ranking by fit: the most
+detectable design may balance the pre-period poorly. The honest object is the
+trade-off between the two, so whenever a pool is produced ``SYNDES`` attaches a
+recommendation to ``res.recommendation`` (a
+:class:`~mlsynth.SYNDESRecommendation`), mirroring the LEXSCM recommender. It has
+two parts.
+
+First, a Pareto frontier on fit versus power, where fit is the pre-period RMSE
+between the treated group and the weighted average of the controls (downwards)
+and power is ``mde_pct`` at the realised horizon (downwards): the designs for
+which neither can be improved without worsening the other. Dominated designs --
+including, very often, the rank-1 best-fitting design, which buys its fit at the
+cost of power -- are set aside. The frontier is always exposed in
+``res.recommendation.pareto_ids`` for transparency, with cost as a tie-break
+rather than a third axis.
+
+Second, a single recommended design picked by a GeoLift-style composite score:
+each design is dense-ranked on fit and on power (best metric ranks first, exactly
+as GeoLift's market-selection score aggregates its component ranks), and the two
+ranks are combined with the configurable ``power_weight`` / ``fit_weight``
+(normalised to sum to one; default ``0.51`` / ``0.49``, a slight preference for
+power). The smallest combined score wins, with cost then pre-period RMSE breaking
+ties. Selection never raises: with no design whose MDE is finite it falls back to
+the best-fitting design and reports ``status="POWER_NOT_ESTABLISHED"``; with no
+pool, ``status="EMPTY"``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   df = pd.read_csv(                                      # GeoLift_PreTest panel
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/geolift_market_data.csv"
+   )
+   markets = sorted(df["location"].unique())[:20]        # 20-market subset
+   df = df[df["location"].isin(markets)].copy()
+   cut = sorted(df["date"].unique())[-14]
+   df["post"] = (df["date"] >= cut).astype(int)
+
+   # top_K=6 runs six MIPs -- expect ~a minute on SCIP. power_weight/fit_weight
+   # default to 0.51/0.49; raise power_weight to prefer detectability harder.
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post", "top_K": 6,
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   rec = res.recommendation
+   print(rec.status, rec.weights)                        # 'OK' {'power':0.51,'fit':0.49}
+   print(rec.winner.design_id, rec.winner.markets)       # the recommended design
+   print(rec.winner.control_group)                       # its synthetic-control donors
+   print(rec.pareto_ids)                                 # fit-power Pareto frontier
+   print(pd.DataFrame(rec.table))                        # every design, scored + flagged
+
+The recommended design is generally not the rank-1 fit optimum: on this subset
+the fit-optimal design is dominated on power, and the score lands on a frontier
+design with a materially smaller MDE.
+
+When ``display_graph=True`` and a pool exists, the design plot becomes
+two panels -- the recommended design's synthetic treated/control trajectory on
+top, and this fit-versus-power frontier (recommended design starred) on the
+bottom. The frontier panel can also be drawn on its own with
+:func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`.
+
 Verification
 ------------
 
@@ -938,6 +1006,13 @@ The moving-block permutation test (shared contrast dispatch across modes).
 The minimum-detectable-effect power analysis (Newey-West long-run SE).
 
 .. automodule:: mlsynth.utils.syndes_helpers.power
+   :members:
+   :undoc-members:
+
+Pareto recommendation -- the composite-score selector that builds
+``res.recommendation`` from the solution pool:
+
+.. automodule:: mlsynth.utils.syndes_helpers.select
    :members:
    :undoc-members:
 

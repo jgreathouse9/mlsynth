@@ -76,6 +76,51 @@ def test_dispatch_unknown_mode_raises():
 
 
 # --------------------------------------------------------------------------
+# Pareto recommendation plot
+# --------------------------------------------------------------------------
+
+def _fit_pool(mode, *, top_K=4, K=2):
+    cfg = {"df": _panel(), "outcome": "y", "unitid": "unit", "time": "time",
+           "K": K, "mode": mode, "post_col": "post", "run_inference": False,
+           "top_K": top_K}
+    return SYNDES(cfg).fit()
+
+
+def test_pareto_plot_standalone():
+    res = _fit_pool("two_way_global")
+    ax = P.plot_syndes_pareto(res)
+    # one marker per pooled design is laid down across the scatter/frontier
+    assert ax is not None
+
+
+def test_pareto_plot_requires_pool():
+    res = _fit("two_way_global")          # top_K=1 -> no pool / recommendation
+    with pytest.raises(MlsynthPlottingError, match="pool"):
+        P.plot_syndes_pareto(res)
+
+
+def test_dispatch_two_panel_when_pool_global():
+    res = _fit_pool("two_way_global")
+    # dispatcher routes pooled results to the two-panel (design + Pareto) plot
+    plot_syndes_design(res)
+
+
+def test_dispatch_two_panel_when_pool_per_unit():
+    res = _fit_pool("per_unit")
+    plot_syndes_design(res)
+
+
+def test_dispatch_two_panel_design_stage_no_post():
+    # Design-only mode (no post window) still produces the two-panel plot.
+    df = _panel(n_post=0)
+    res = SYNDES({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                  "K": 2, "mode": "two_way_global", "top_K": 3,
+                  "run_inference": False}).fit()
+    assert res.inputs.Y_post is None and res.recommendation is not None
+    plot_syndes_design(res)
+
+
+# --------------------------------------------------------------------------
 # plot_global_design
 # --------------------------------------------------------------------------
 

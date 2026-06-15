@@ -69,6 +69,7 @@ from ..utils.syndes_helpers.optimization import (
 )
 from ..utils.syndes_helpers.plotter import plot_syndes_design
 from ..utils.syndes_helpers.power import power_analysis
+from ..utils.syndes_helpers.select import recommend_syndes
 from ..utils.syndes_helpers.relaxed_solver import solve_two_way_relaxed
 from ..utils.syndes_helpers.relaxed_structures import RelaxedSolverResults
 from ..utils.syndes_helpers.setup import prepare_syndes_inputs
@@ -328,6 +329,9 @@ class SYNDES:
         self.budget = config.budget
         self.top_K: int = config.top_K
         self.arm: Optional[str] = config.arm
+        self.power_weight: float = config.power_weight
+        self.fit_weight: float = config.fit_weight
+        self.max_shortlist: int = config.max_shortlist
 
     # ------------------------------------------------------------------
     # Public API
@@ -436,9 +440,16 @@ class SYNDES:
             inference=inference, alpha=self.alpha,
         )
 
+        recommendation = (
+            recommend_syndes(
+                pool, power_weight=self.power_weight, fit_weight=self.fit_weight,
+                max_shortlist=self.max_shortlist,
+            )
+            if pool else None
+        )
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,
-            post_fit=post_fit, pool=pool,
+            post_fit=post_fit, pool=pool, recommendation=recommendation,
         )
         results = replace(
             results, power_curve=_syndes_power_curve(results, self.alpha)

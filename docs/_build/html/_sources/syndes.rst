@@ -662,11 +662,16 @@ kept on ``results.design``. Its keys are:
   weight (the synthetic-control pool backing the treated arms).
 * ``objective`` -- the MIP objective (fit) the design was ranked by.
 * ``pre_fit_rmse`` -- root-mean-square pre-period contrast.
-* ``mde_pct`` -- minimum detectable effect, as a percent of the treated
-  baseline (the same permutation-null MDE :func:`~mlsynth.power_analysis` uses).
+* ``mde_pct`` -- minimum detectable effect at the realised post horizon, as a
+  percent of the treated baseline. This is the entry's ``power_curve`` value at
+  that horizon (the Newey-West HAC MDE), so the headline number and the curve
+  always agree.
 * ``cost`` -- summed cost of the treated units (``None`` when no ``costs`` given).
 * ``design`` -- the full :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESDesign`
   for the entry, with its treated, control, and contrast weights.
+* ``power_curve`` -- the entry's own :class:`~mlsynth.SYNDESPower` over horizons
+  ``1..12`` (``None`` if the computation is degenerate), so every candidate is
+  comparable on power, not just the rank-1 winner on ``results.power_curve``.
 
 Because the objective only ranks fit, the value is precisely the re-scoring on
 the dimensions it ignored: a manager can trade a small fit increase for lower
@@ -719,20 +724,20 @@ the optimiser happens to minimise.
 Ranking the menu by power
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Each menu entry carries its full ``design``, so the per-horizon MDE machinery of
-the previous section applies to every candidate, not just the rank-1 winner:
-wrap an entry's design with the shared ``inputs`` and call
-:func:`~mlsynth.power_analysis` at the horizon you plan to run. The example below
-takes a 20-market GeoLift subset, scores every menu design's MDE at horizon
-:math:`h = 3`, and plots them sorted most-detectable first -- turning the menu
-into a power ranking the MSE objective never sees:
+Each menu entry carries its own per-horizon ``power_curve`` (a
+:class:`~mlsynth.SYNDESPower` over horizons ``1..12``), computed with the same
+Newey-West machinery as the previous section, so the whole pool is comparable on
+power -- not just the rank-1 winner on ``res.power_curve``. Reading an entry's
+MDE at the horizon you plan to run is a single array lookup. The example below
+takes a 20-market GeoLift subset and plots every menu design's MDE at horizon
+:math:`h = 3`, sorted most-detectable first -- turning the menu into a power
+ranking the MSE objective never sees:
 
 .. code-block:: python
 
    import matplotlib.pyplot as plt
    import pandas as pd
-   from mlsynth import SYNDES, power_analysis
-   from mlsynth.utils.syndes_helpers.structures import SYNDESResults
+   from mlsynth import SYNDES
 
    df = pd.read_csv(                                      # GeoLift_PreTest panel
        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
@@ -751,12 +756,9 @@ into a power ranking the MSE objective never sees:
    }).fit()
 
    H = 3                                                  # horizon to plan for
-   scored = []
-   for d in res.pool:
-       p = power_analysis(SYNDESResults(design=d["design"], inputs=res.inputs),
-                          n_post_periods=[H])
-       scored.append(("+".join(map(str, sorted(d["markets"]))),
-                      float(p.mde_percent[0])))
+   scored = [("+".join(map(str, sorted(d["markets"]))),
+              float(d["power_curve"].mde_percent[H - 1]))   # 1-indexed horizon
+             for d in res.pool]
    scored.sort(key=lambda r: r[1])                        # smallest MDE -> left
 
    labels = [s[0] for s in scored]
@@ -775,6 +777,72 @@ Reading the bars left to right gives the designs in order of detectability at th
 horizon you will actually run: the leftmost is the most powerful experiment in
 the pool, which -- per the lesson above -- need not be the rank-1 (best-fitting)
 design.
+
+Pareto recommendation
+---------------------
+
+Ranking by power alone has the opposite blind spot to ranking by fit: the most
+detectable design may balance the pre-period poorly. The honest object is the
+trade-off between the two, so whenever a pool is produced ``SYNDES`` attaches a
+recommendation to ``res.recommendation`` (a
+:class:`~mlsynth.SYNDESRecommendation`), mirroring the LEXSCM recommender. It has
+two parts.
+
+First, a Pareto frontier on fit (the MIP objective, downwards) versus power
+(``mde_pct`` at the realised horizon, downwards): the designs for which neither
+can be improved without worsening the other. Dominated designs -- including, very
+often, the rank-1 best-fitting design, which buys its fit at the cost of power --
+are set aside. The frontier is always exposed in ``res.recommendation.pareto_ids``
+for transparency, with cost as a tie-break rather than a third axis.
+
+Second, a single recommended design picked by a GeoLift-style composite score:
+each design is dense-ranked on fit and on power (best metric ranks first, exactly
+as GeoLift's market-selection score aggregates its component ranks), and the two
+ranks are combined with the configurable ``power_weight`` / ``fit_weight``
+(normalised to sum to one; default ``0.51`` / ``0.49``, a slight preference for
+power). The smallest combined score wins, with cost then pre-period RMSE breaking
+ties. Selection never raises: with no design whose MDE is finite it falls back to
+the best-fitting design and reports ``status="POWER_NOT_ESTABLISHED"``; with no
+pool, ``status="EMPTY"``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   df = pd.read_csv(                                      # GeoLift_PreTest panel
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/geolift_market_data.csv"
+   )
+   markets = sorted(df["location"].unique())[:20]        # 20-market subset
+   df = df[df["location"].isin(markets)].copy()
+   cut = sorted(df["date"].unique())[-14]
+   df["post"] = (df["date"] >= cut).astype(int)
+
+   # top_K=6 runs six MIPs -- expect ~a minute on SCIP. power_weight/fit_weight
+   # default to 0.51/0.49; raise power_weight to prefer detectability harder.
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post", "top_K": 6,
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   rec = res.recommendation
+   print(rec.status, rec.weights)                        # 'OK' {'power':0.51,'fit':0.49}
+   print(rec.winner.design_id, rec.winner.markets)       # the recommended design
+   print(rec.winner.control_group)                       # its synthetic-control donors
+   print(rec.pareto_ids)                                 # fit-power Pareto frontier
+   print(pd.DataFrame(rec.table))                        # every design, scored + flagged
+
+The recommended design is generally not the rank-1 fit optimum: on this subset
+the fit-optimal design is dominated on power, and the score lands on a frontier
+design with a materially smaller MDE.
+
+When ``display_graph=True`` and a pool exists, the design plot becomes
+two panels -- the recommended design's synthetic treated/control trajectory on
+top, and this fit-versus-power frontier (recommended design starred) on the
+bottom. The frontier panel can also be drawn on its own with
+:func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`.
 
 Verification
 ------------
@@ -936,6 +1004,13 @@ The moving-block permutation test (shared contrast dispatch across modes).
 The minimum-detectable-effect power analysis (Newey-West long-run SE).
 
 .. automodule:: mlsynth.utils.syndes_helpers.power
+   :members:
+   :undoc-members:
+
+Pareto recommendation -- the composite-score selector that builds
+``res.recommendation`` from the solution pool:
+
+.. automodule:: mlsynth.utils.syndes_helpers.select
    :members:
    :undoc-members:
 
