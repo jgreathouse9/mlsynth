@@ -232,6 +232,38 @@ to the convex hull of the selected donors, and :math:`\sqrt{L(\mathcal{S})}`
 is the achieved imbalance of Assumption 1. Stage 1 returns the ``top_K`` sets of
 smallest :math:`L(\mathcal{S})`, subject to the budget below.
 
+Weakly targeted designs (``targeting_penalty``)
+"""""""""""""""""""""""""""""""""""""""""""""""
+
+By default Stage 1 is *fully targeted*: the weights :math:`\mathbf{w}` are free
+to contort onto the population mean (Abadie & Zhao's representative-experiment
+goal, so the estimand is the population ATE :math:`\tau_t = \sum_j f_j(Y^I_{jt}
+- Y^N_{jt})`). In practice you often treat the chosen markets as a group --
+equal- or population-weighted -- not with bespoke fractional weights, and you
+may prefer the treated group to look like *itself* rather than the population.
+``targeting_penalty`` :math:`= \gamma \ge 0` adds an anchor toward the group's
+own equal-weight aggregate,
+
+.. math::
+
+   \min_{\mathbf{w} \in \Delta(\mathcal{S})}\ \mathbf{w}^\top
+   \mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w}
+   \;+\; \gamma\,\bigl\lVert \mathbf{w} - \tfrac{1}{m}\mathbf{1} \bigr\rVert_2^2 .
+
+On the simplex :math:`\mathbf{1}^\top\mathbf{w}=1`, so :math:`\lVert \mathbf{w}
+- \tfrac1m\mathbf{1}\rVert_2^2 = \mathbf{w}^\top\mathbf{w} - \tfrac1m` and the
+penalty is exactly a diagonal ridge, :math:`\min_{\mathbf{w}\in\Delta}
+\mathbf{w}^\top(\mathbf{G}_{\mathcal{S}\mathcal{S}} + \gamma\mathbf{I})\mathbf{w}`.
+The reported imbalance stays the *true* targeting distance
+:math:`\sqrt{\mathbf{w}^\top\mathbf{G}_{\mathcal{S}\mathcal{S}}\mathbf{w}}` at the
+penalized weights. :math:`\gamma = 0` (default) is the fully targeted design;
+:math:`\gamma \to \infty` selects the best equal-weight :math:`m`-tuple; in
+between is *weakly targeted*, sliding the estimand from the population ATE toward
+the treated group's own ATT. This is also the mechanism that discourages
+idiosyncratic treated sets: free weights can hit the population mean even for an
+odd set, whereas the anchor favours sets that sit near the population naturally
+(with near-equal weights), which the donor pool can also reconstruct.
+
 How a single tuple is built: the inner simplex QP
 """""""""""""""""""""""""""""""""""""""""""""""""
 

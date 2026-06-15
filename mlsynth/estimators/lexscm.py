@@ -200,6 +200,7 @@ class LEXSCM:
         # =========================================================
         self.top_K: int = config.top_K
         self.top_P: int = config.top_P
+        self.targeting_penalty: float = config.targeting_penalty
 
         # =========================================================
         # INFERENCE / POWER
@@ -449,6 +450,7 @@ class LEXSCM:
             min_per_stratum=self.min_per_stratum,
             max_per_stratum=self.max_per_stratum,
             size_band=size_band,
+            targeting_penalty=self.targeting_penalty,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 
