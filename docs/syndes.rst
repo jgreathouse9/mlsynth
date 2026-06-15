@@ -891,7 +891,7 @@ the full native GeoLift ``GeoLift_Test`` panel (all 40 markets):
 
    syn = SYNDES({"df": df, "outcome": "Y", "unitid": "location", "time": "date",
                  "K": 3, "mode": "two_way_global", "post_col": "post",
-                 "top_K": 6, "gap_limit": 0.2, "time_limit": 10.0}).fit()
+                 "top_K": 6, "gap_limit": 0.05, "time_limit": 20.0}).fit()  # ~2 min
    gl = GEOLIFT({"df": df, "outcome": "Y", "unitid": "location", "time": "date",
                  "treatment_size": 3, "durations": [n_post],
                  "effect_sizes": [0.0, 0.1], "lookback_window": 1,
