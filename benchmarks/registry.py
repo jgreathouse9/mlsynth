@@ -81,7 +81,7 @@ CASES = {
     "dsc_dube": "benchmarks.cases.dsc_dube",                  # Path A: DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
-    "geolift_walkthrough": "benchmarks.cases.geolift",  # cross-val vs GeoLift/augsynth: GeoLift_Walkthrough realized report (fixedeff ASCM + conformal)
+    "geolift_walkthrough": "benchmarks.cases.geolift",  # cross-val vs GeoLift/augsynth: GeoLift_Walkthrough full summary, base + ridge-augmented (ATT/lift/incremental/L2/scaled-L2/%improve/bias/weights/conformal)
     "geolift_augsynth_ref": "benchmarks.cases.geolift_augsynth_ref",  # cross-val vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
     "geolift_cpic": "benchmarks.cases.geolift_cpic",  # cross-val vs GeoLiftMarketSelection: CPIC investment value-for-value
     "geolift_multicell": "benchmarks.cases.geolift_multicell",  # cross-val vs augsynth: multi-cell per-cell ATT + donor exclusion
