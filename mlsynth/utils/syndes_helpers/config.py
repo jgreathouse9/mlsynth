@@ -195,6 +195,26 @@ class SYNDESConfig(BaseMAREXConfig):
             "returned. K (if set) then applies per arm."
         ),
     )
+    power_weight: float = Field(
+        default=0.51, gt=0.0,
+        description=(
+            "Weight on power (minimum detectable effect) in the GeoLift-style "
+            "composite score that picks ``results.recommendation`` from the "
+            "``top_K`` pool. Normalised against ``fit_weight`` to sum to one; "
+            "the default 0.51 vs 0.49 slightly prefers power over fit."
+        ),
+    )
+    fit_weight: float = Field(
+        default=0.49, gt=0.0,
+        description=(
+            "Weight on fit (the MIP objective) in the composite recommendation "
+            "score. Normalised against ``power_weight`` to sum to one."
+        ),
+    )
+    max_shortlist: int = Field(
+        default=5, gt=0,
+        description="Maximum number of designs in results.recommendation.shortlist.",
+    )
 
     @model_validator(mode="after")
     def _check_syndes_params(cls, values: Any) -> Any:

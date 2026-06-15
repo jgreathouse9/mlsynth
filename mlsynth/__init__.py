@@ -21,6 +21,7 @@ from .estimators.spotsynth import SPOTSYNTH
 from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
+from .utils.syndes_helpers.select import SYNDESRecommendation, recommend_syndes
 from .estimators.spcd import SPCD
 from .estimators.tasc import TASC
 from .estimators.sbc import SBC
@@ -94,6 +95,8 @@ __all__ = [
     "SYNDES",
     "SYNDESPower",
     "power_analysis",
+    "SYNDESRecommendation",
+    "recommend_syndes",
     "DSC",
     "SpSyDiD",
     "ISCM",
