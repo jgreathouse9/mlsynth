@@ -848,6 +848,64 @@ starred (x-axis: the pre-period RMSE). Panel B can also be drawn on its own with
 :func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`. Both render in
 the in-house mlsynth plot style.
 
+Comparing designs across methods (GEOLIFT vs SYNDES)
+----------------------------------------------------
+
+SYNDES and :doc:`GEOLIFT <geolift>` use different optimisers but share a grammar:
+each emits a design that reduces to a unit-level contrast
+:math:`\mathbf{c} = \mathbf{w}_{\text{treated}} - \mathbf{w}_{\text{control}}`
+(both sides summing to one) over the same panel. From :math:`\mathbf{c}` two
+comparable numbers follow -- the pre-period fit RMSE
+:math:`\sqrt{\operatorname{mean}((\mathbf{Y}_{\text{pre}}\mathbf{c})^2)}` and,
+by injecting a known effect at a fixed horizon, a minimum detectable effect. So
+the two methods' designs can be placed on one fit-versus-power plane and their
+Pareto frontiers overlaid.
+
+The one rule that keeps the comparison honest is that the MDE must be computed by
+a single shared harness for both methods -- same horizon, same effect grid, same
+moving-block permutation null, same baseline -- so the frontier gap reflects the
+designs, not two different power methodologies.
+:mod:`mlsynth.utils.design_compare` does exactly this. It rests on the fact that
+adding an effect :math:`\tau` to the treated units shifts the contrast mean
+:math:`\mathbf{y}_t^\top\mathbf{c}` by exactly :math:`\tau` (the treated weights
+sum to one), so the length-:math:`h` block-mean null shifted by :math:`\tau` is
+the alternative, and the power at :math:`\tau` is the share of that shifted null
+clearing the two-sided critical value.
+
+The example fixes the horizon at five post-periods and overlays both frontiers on
+the full native GeoLift ``GeoLift_Test`` panel (all 40 markets):
+
+:func:`~mlsynth.compare_methods` is the one-call wrapper: feed it the common
+options (panel, treated-set size, horizon, post window) plus any per-method
+overrides, and it fits both estimators and scores them on the shared plane,
+returning the comparison in dataframe (``.table``) and plot (``.plot()``) form.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import compare_methods
+
+   df = pd.read_csv(                                       # full native GeoLift_Test panel
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/geolift_test_data.csv"
+   )                                                       # all 40 markets
+
+   cmp = compare_methods(
+       df, outcome="Y", unitid="location", time="date",
+       treated_size=3, horizon=5, n_post=5, top_K=6,       # only five post-periods
+       syndes_options={"gap_limit": 0.05, "time_limit": 20.0},  # ~2 min for SYNDES
+   )
+   print(cmp.table[["method", "label", "fit_rmse", "mde_pct", "pareto"]])
+   cmp.plot()                                              # overlaid frontiers
+
+``cmp.table`` has one row per design scored on the shared plane (``fit_rmse``,
+``mde_pct`` at horizon five) with a per-method ``pareto`` flag, and ``cmp.plot()``
+overlays the two frontiers so you can read directly which method's designs
+dominate, and where. ``cmp.syndes`` and ``cmp.geolift`` keep the underlying fits
+for further inspection. To do it by hand instead -- fit each method yourself and
+pass the designs through :func:`~mlsynth.from_syndes` / :func:`~mlsynth.from_geolift`
+into :func:`~mlsynth.compare_pareto` -- see those functions.
+
 Verification
 ------------
 
@@ -1015,6 +1073,13 @@ Pareto recommendation -- the composite-score selector that builds
 ``res.recommendation`` from the solution pool:
 
 .. automodule:: mlsynth.utils.syndes_helpers.select
+   :members:
+   :undoc-members:
+
+Cross-method comparison -- score GEOLIFT and SYNDES designs on one shared
+fit-vs-power plane:
+
+.. automodule:: mlsynth.utils.design_compare
    :members:
    :undoc-members:
 

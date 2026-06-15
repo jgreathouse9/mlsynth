@@ -444,6 +444,7 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pareto-recommendation">Pareto recommendation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#comparing-designs-across-methods-geolift-vs-syndes">Comparing designs across methods (GEOLIFT vs SYNDES)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.syndes">Core API</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.syndes.SYNDES"><code class="docutils literal notranslate"><span class="pre">SYNDES</span></code></a><ul class="nav section-nav flex-column">
@@ -670,6 +671,18 @@
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.syndes_helpers.select.recommend_syndes"><code class="docutils literal notranslate"><span class="pre">recommend_syndes()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec"><code class="docutils literal notranslate"><span class="pre">DesignSpec</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.contrast"><code class="docutils literal notranslate"><span class="pre">DesignSpec.contrast</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.label"><code class="docutils literal notranslate"><span class="pre">DesignSpec.label</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.method"><code class="docutils literal notranslate"><span class="pre">DesignSpec.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.treated"><code class="docutils literal notranslate"><span class="pre">DesignSpec.treated</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.compare_pareto"><code class="docutils literal notranslate"><span class="pre">compare_pareto()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.from_geolift"><code class="docutils literal notranslate"><span class="pre">from_geolift()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.from_syndes"><code class="docutils literal notranslate"><span class="pre">from_syndes()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.plot_compare_pareto"><code class="docutils literal notranslate"><span class="pre">plot_compare_pareto()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.simulated_mde"><code class="docutils literal notranslate"><span class="pre">simulated_mde()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">MDEPoint</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">MDEPoint.mde_absolute</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">MDEPoint.mde_pct</span></code></a></li>
@@ -1467,12 +1480,14 @@ trade-off between the two, so whenever a pool is produced <code class="docutils 
 recommendation to <code class="docutils literal notranslate"><span class="pre">res.recommendation</span></code> (a
 <code class="xref py py-class docutils literal notranslate"><span class="pre">SYNDESRecommendation</span></code>), mirroring the LEXSCM recommender. It has
 two parts.</p>
-<p>First, a Pareto frontier on fit (the MIP objective, downwards) versus power
-(<code class="docutils literal notranslate"><span class="pre">mde_pct</span></code> at the realised horizon, downwards): the designs for which neither
-can be improved without worsening the other. Dominated designs – including, very
-often, the rank-1 best-fitting design, which buys its fit at the cost of power –
-are set aside. The frontier is always exposed in <code class="docutils literal notranslate"><span class="pre">res.recommendation.pareto_ids</span></code>
-for transparency, with cost as a tie-break rather than a third axis.</p>
+<p>First, a Pareto frontier on fit versus power, where fit is the pre-period RMSE
+between the treated group and the weighted average of the controls (downwards)
+and power is <code class="docutils literal notranslate"><span class="pre">mde_pct</span></code> at the realised horizon (downwards): the designs for
+which neither can be improved without worsening the other. Dominated designs –
+including, very often, the rank-1 best-fitting design, which buys its fit at the
+cost of power – are set aside. The frontier is always exposed in
+<code class="docutils literal notranslate"><span class="pre">res.recommendation.pareto_ids</span></code> for transparency, with cost as a tie-break
+rather than a third axis.</p>
 <p>Second, a single recommended design picked by a GeoLift-style composite score:
 each design is dense-ranked on fit and on power (best metric ranks first, exactly
 as GeoLift’s market-selection score aggregates its component ranks), and the two
@@ -1510,14 +1525,77 @@ pool, <code class="docutils literal notranslate"><span class="pre">status=&quot;
 <span class="nb">print</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">table</span><span class="p">))</span>                        <span class="c1"># every design, scored + flagged</span>
 </pre></div>
 </div>
-<p>The recommended design is generally not the rank-1 fit optimum: on this subset
-the fit-optimal design is dominated on power, and the score lands on a frontier
-design with a materially smaller MDE.</p>
-<p>When <code class="docutils literal notranslate"><span class="pre">display_graph=True</span></code> and a pool exists, the design plot becomes
-two panels – the recommended design’s synthetic treated/control trajectory on
-top, and this fit-versus-power frontier (recommended design starred) on the
-bottom. The frontier panel can also be drawn on its own with
-<code class="xref py py-func docutils literal notranslate"><span class="pre">plot_syndes_pareto()</span></code>.</p>
+<p>Designs are numbered by fit: <code class="docutils literal notranslate"><span class="pre">D1</span></code> is always the best-fitting design (smallest
+pre-period RMSE), <code class="docutils literal notranslate"><span class="pre">D2</span></code> the next, and so on. The recommended design need not be
+<code class="docutils literal notranslate"><span class="pre">D1</span></code> – when power outweighs fit it is a higher-numbered design with a smaller
+MDE, which is exactly the trade-off the recommendation surfaces.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">display_graph=True</span></code> and a pool exists, two figures are drawn: Panel A,
+the normal SYNDES design plot (synthetic treated vs synthetic control), and
+Panel B, this fit-versus-power Pareto frontier with the recommended design
+starred (x-axis: the pre-period RMSE). Panel B can also be drawn on its own with
+<code class="xref py py-func docutils literal notranslate"><span class="pre">plot_syndes_pareto()</span></code>. Both render in
+the in-house mlsynth plot style.</p>
+</section>
+<section id="comparing-designs-across-methods-geolift-vs-syndes">
+<h2>Comparing designs across methods (GEOLIFT vs SYNDES)<a class="headerlink" href="#comparing-designs-across-methods-geolift-vs-syndes" title="Link to this heading">#</a></h2>
+<p>SYNDES and <a class="reference internal" href="geolift.html"><span class="doc">GEOLIFT</span></a> use different optimisers but share a grammar:
+each emits a design that reduces to a unit-level contrast
+<span class="math notranslate nohighlight">\(\mathbf{c} = \mathbf{w}_{\text{treated}} - \mathbf{w}_{\text{control}}\)</span>
+(both sides summing to one) over the same panel. From <span class="math notranslate nohighlight">\(\mathbf{c}\)</span> two
+comparable numbers follow – the pre-period fit RMSE
+<span class="math notranslate nohighlight">\(\sqrt{\operatorname{mean}((\mathbf{Y}_{\text{pre}}\mathbf{c})^2)}\)</span> and,
+by injecting a known effect at a fixed horizon, a minimum detectable effect. So
+the two methods’ designs can be placed on one fit-versus-power plane and their
+Pareto frontiers overlaid.</p>
+<p>The one rule that keeps the comparison honest is that the MDE must be computed by
+a single shared harness for both methods – same horizon, same effect grid, same
+moving-block permutation null, same baseline – so the frontier gap reflects the
+designs, not two different power methodologies.
+<a class="reference internal" href="#module-mlsynth.utils.design_compare" title="mlsynth.utils.design_compare"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.design_compare</span></code></a> does exactly this. It rests on the fact that
+adding an effect <span class="math notranslate nohighlight">\(\tau\)</span> to the treated units shifts the contrast mean
+<span class="math notranslate nohighlight">\(\mathbf{y}_t^\top\mathbf{c}\)</span> by exactly <span class="math notranslate nohighlight">\(\tau\)</span> (the treated weights
+sum to one), so the length-<span class="math notranslate nohighlight">\(h\)</span> block-mean null shifted by <span class="math notranslate nohighlight">\(\tau\)</span> is
+the alternative, and the power at <span class="math notranslate nohighlight">\(\tau\)</span> is the share of that shifted null
+clearing the two-sided critical value.</p>
+<p>The example fixes the horizon at five post-periods and overlays both frontiers on
+a 20-market GeoLift subset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">SYNDES</span><span class="p">,</span> <span class="n">GEOLIFT</span><span class="p">,</span> <span class="n">from_syndes</span><span class="p">,</span> <span class="n">from_geolift</span><span class="p">,</span>
+                     <span class="n">compare_pareto</span><span class="p">,</span> <span class="n">plot_compare_pareto</span><span class="p">)</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span>
+    <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+    <span class="s2">&quot;refs/heads/main/basedata/geolift_market_data.csv&quot;</span>
+<span class="p">)</span>
+<span class="n">markets</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())[:</span><span class="mi">20</span><span class="p">]</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">markets</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">dates</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+<span class="n">n_post</span> <span class="o">=</span> <span class="mi">5</span>                                              <span class="c1"># only five post-periods</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;post&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">dates</span><span class="p">[</span><span class="o">-</span><span class="n">n_post</span><span class="p">:]))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">syn</span> <span class="o">=</span> <span class="n">SYNDES</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+              <span class="s2">&quot;K&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;mode&quot;</span><span class="p">:</span> <span class="s2">&quot;two_way_global&quot;</span><span class="p">,</span> <span class="s2">&quot;post_col&quot;</span><span class="p">:</span> <span class="s2">&quot;post&quot;</span><span class="p">,</span>
+              <span class="s2">&quot;top_K&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">&quot;gap_limit&quot;</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">,</span> <span class="s2">&quot;time_limit&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="n">gl</span> <span class="o">=</span> <span class="n">GEOLIFT</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span>
+              <span class="s2">&quot;treatment_size&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;durations&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">n_post</span><span class="p">],</span>
+              <span class="s2">&quot;effect_sizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="s2">&quot;lookback_window&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+              <span class="s2">&quot;post_col&quot;</span><span class="p">:</span> <span class="s2">&quot;post&quot;</span><span class="p">,</span> <span class="s2">&quot;how&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;fixed_effects&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+              <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">&quot;ns&quot;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+              <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="c1"># Both methods&#39; designs -&gt; the common (contrast) currency, scored together.</span>
+<span class="n">specs</span> <span class="o">=</span> <span class="n">from_syndes</span><span class="p">(</span><span class="n">syn</span><span class="p">)</span> <span class="o">+</span> <span class="n">from_geolift</span><span class="p">(</span><span class="n">gl</span><span class="p">)</span>
+<span class="n">Ywide</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">pivot</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s2">&quot;Y&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">sort_index</span><span class="p">()</span>
+<span class="n">out</span> <span class="o">=</span> <span class="n">compare_pareto</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">Ywide</span><span class="p">,</span> <span class="n">n_pre</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">dates</span><span class="p">)</span> <span class="o">-</span> <span class="n">n_post</span><span class="p">,</span> <span class="n">horizon</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">out</span><span class="p">[[</span><span class="s2">&quot;method&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">,</span> <span class="s2">&quot;fit_rmse&quot;</span><span class="p">,</span> <span class="s2">&quot;mde_pct&quot;</span><span class="p">,</span> <span class="s2">&quot;pareto&quot;</span><span class="p">]])</span>
+
+<span class="n">plot_compare_pareto</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>                                <span class="c1"># overlaid frontiers</span>
+</pre></div>
+</div>
+<p>Each row of <code class="docutils literal notranslate"><span class="pre">out</span></code> is a design scored on the shared plane (<code class="docutils literal notranslate"><span class="pre">fit_rmse</span></code>,
+<code class="docutils literal notranslate"><span class="pre">mde_pct</span></code> at horizon five), with a per-method <code class="docutils literal notranslate"><span class="pre">pareto</span></code> flag; the plot overlays
+the two frontiers so you can read directly which method’s designs dominate, and
+where.</p>
 </section>
 <section id="verification">
 <h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
@@ -3351,10 +3429,11 @@ manager usually wants a single, defensible recommendation that balances the two.
 This module turns the <code class="docutils literal notranslate"><span class="pre">top_K</span></code> pool (already re-scored on power and cost by
 <code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.estimators.syndes._syndes_pool_menu()</span></code>) into:</p>
 <ul class="simple">
-<li><p>a Pareto frontier on <code class="docutils literal notranslate"><span class="pre">(fit</span> <span class="pre">downwards,</span> <span class="pre">power</span> <span class="pre">downwards)</span></code> – the designs for
-which neither fit nor minimum-detectable-effect can be improved without
-worsening the other (cost enters only as a tie-break), always exposed for
-transparency; and</p></li>
+<li><p>a Pareto frontier on <code class="docutils literal notranslate"><span class="pre">(fit</span> <span class="pre">downwards,</span> <span class="pre">power</span> <span class="pre">downwards)</span></code> – where fit is the
+pre-period RMSE between the treated group and the weighted average of the
+controls – the designs for which neither fit nor minimum-detectable-effect can
+be improved without worsening the other (cost enters only as a tie-break),
+always exposed for transparency; and</p></li>
 <li><p>a single recommended design chosen by a GeoLift-style composite score: the
 weighted mean of the two dense ranks (fit and power), defaulting to a slight
 preference for power (<code class="docutils literal notranslate"><span class="pre">0.51</span></code>) over fit (<code class="docutils literal notranslate"><span class="pre">0.49</span></code>). Cost, then pre-period
@@ -3510,6 +3589,131 @@ for power).</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><em>SYNDESRecommendation</em></p>
+</dd>
+</dl>
+</dd></dl>
+
+<p>Cross-method comparison – score GEOLIFT and SYNDES designs on one shared
+fit-vs-power plane:</p>
+<p id="module-mlsynth.utils.design_compare">Cross-estimator design comparison on a common fit-vs-power plane.</p>
+<p>GEOLIFT and SYNDES differ in their optimisers but share a grammar: each emits a
+design that reduces to a unit-level contrast <code class="docutils literal notranslate"><span class="pre">c</span> <span class="pre">=</span> <span class="pre">w_treated</span> <span class="pre">-</span> <span class="pre">w_control</span></code> (both
+sides summing to one) over the same panel. From <code class="docutils literal notranslate"><span class="pre">c</span></code> two comparable numbers
+follow – the pre-period fit RMSE <code class="docutils literal notranslate"><span class="pre">sqrt(mean((Y_pre</span> <span class="pre">&#64;</span> <span class="pre">c)**2))</span></code> and, by
+injecting a known effect at a fixed horizon, a minimum detectable effect.</p>
+<p>Scoring every design from either method through one shared simulation harness –
+same horizon, same effect grid, same moving-block permutation null, same
+baseline – puts them on identical axes, so the per-method Pareto frontiers can
+be overlaid and compared directly. This is the point of the module: the frontier
+gap then reflects the <em>designs</em>, not two different power methodologies.</p>
+<p>The MDE simulation rests on one fact true for any normalised design: adding an
+effect <code class="docutils literal notranslate"><span class="pre">tau</span></code> to the treated units’ outcomes shifts the contrast mean
+<code class="docutils literal notranslate"><span class="pre">Y_t</span> <span class="pre">&#64;</span> <span class="pre">c</span></code> by exactly <code class="docutils literal notranslate"><span class="pre">tau</span></code> (because the treated weights sum to one). So the
+alternative distribution of the length-<code class="docutils literal notranslate"><span class="pre">h</span></code> block mean is the null distribution
+shifted by <code class="docutils literal notranslate"><span class="pre">tau</span></code>, and the power at <code class="docutils literal notranslate"><span class="pre">tau</span></code> is the share of the (empirical,
+moving-block) null whose shifted magnitude clears the two-sided critical value.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.DesignSpec">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.design_compare.</span></span><span class="sig-name descname"><span class="pre">DesignSpec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">contrast</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.design_compare.DesignSpec" title="Link to this definition">#</a></dt>
+<dd><p>A design from any estimator, in the common cross-method currency.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>method</strong> (<em>str</em>) – Originating method, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;SYNDES&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;GEOLIFT&quot;</span></code>.</p></li>
+<li><p><strong>label</strong> (<em>str</em>) – Human-readable design label (shown on the plot).</p></li>
+<li><p><strong>contrast</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{unit_label:</span> <span class="pre">weight}</span></code> for <code class="docutils literal notranslate"><span class="pre">w_treated</span> <span class="pre">-</span> <span class="pre">w_control</span></code>; missing units are
+zero. Treated weights are positive and sum to one, control weights
+negative and sum to minus one.</p></li>
+<li><p><strong>treated</strong> (<em>list</em>) – Treated-unit labels (used for the baseline and the label).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.DesignSpec.contrast">
+<span class="sig-name descname"><span class="pre">contrast</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.design_compare.DesignSpec.contrast" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.DesignSpec.label">
+<span class="sig-name descname"><span class="pre">label</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.design_compare.DesignSpec.label" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.DesignSpec.method">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.design_compare.DesignSpec.method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.DesignSpec.treated">
+<span class="sig-name descname"><span class="pre">treated</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.design_compare.DesignSpec.treated" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.compare_pareto">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.design_compare.</span></span><span class="sig-name descname"><span class="pre">compare_pareto</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">specs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlsynth.utils.design_compare.DesignSpec" title="mlsynth.utils.design_compare.DesignSpec"><span class="pre">DesignSpec</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Ywide</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_pre</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">effects_pct</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power_target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#mlsynth.utils.design_compare.compare_pareto" title="Link to this definition">#</a></dt>
+<dd><p>Score designs from any method(s) on the shared fit-vs-power plane.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>specs</strong> (<em>sequence of DesignSpec</em>) – Designs to compare (typically from <a class="reference internal" href="#mlsynth.utils.design_compare.from_syndes" title="mlsynth.utils.design_compare.from_syndes"><code class="xref py py-func docutils literal notranslate"><span class="pre">from_syndes()</span></code></a> and
+<a class="reference internal" href="#mlsynth.utils.design_compare.from_geolift" title="mlsynth.utils.design_compare.from_geolift"><code class="xref py py-func docutils literal notranslate"><span class="pre">from_geolift()</span></code></a>, run on the same panel).</p></li>
+<li><p><strong>Ywide</strong> (<em>pd.DataFrame</em>) – Outcome panel, rows = time, columns = unit labels (the canonical order
+every contrast is aligned to).</p></li>
+<li><p><strong>n_pre</strong> (<em>int</em>) – Number of leading rows that are pre-treatment.</p></li>
+<li><p><strong>horizon</strong> (<em>int, default 5</em>) – Post-period horizon for the MDE simulation.</p></li>
+<li><p><strong>effects_pct</strong> (<em>sequence of float, optional</em>) – Ascending grid of effect sizes as a percent of the treated baseline.
+Defaults to <code class="docutils literal notranslate"><span class="pre">0.25</span> <span class="pre">..</span> <span class="pre">30</span></code> in 0.25 steps – the common grid both methods
+are simulated over.</p></li>
+<li><p><strong>alpha, power_target</strong> (<em>float</em>) – Two-sided significance level and target power.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>pd.DataFrame</em> – One row per design: <code class="docutils literal notranslate"><span class="pre">method</span></code>, <code class="docutils literal notranslate"><span class="pre">label</span></code>, <code class="docutils literal notranslate"><span class="pre">treated</span></code>, <code class="docutils literal notranslate"><span class="pre">fit_rmse</span></code>,
+<code class="docutils literal notranslate"><span class="pre">mde_pct</span></code> (at <code class="docutils literal notranslate"><span class="pre">horizon</span></code>), and a per-method <code class="docutils literal notranslate"><span class="pre">pareto</span></code> flag.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.from_geolift">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.design_compare.</span></span><span class="sig-name descname"><span class="pre">from_geolift</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">res</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlsynth.utils.design_compare.DesignSpec" title="mlsynth.utils.design_compare.DesignSpec"><span class="pre">DesignSpec</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.design_compare.from_geolift" title="Link to this definition">#</a></dt>
+<dd><p>Build DesignSpecs from a fitted GEOLIFT result (its candidate designs).</p>
+<p>The treated side is the equal-weighted (<code class="docutils literal notranslate"><span class="pre">1/K</span></code>) average of the selected
+markets, matching SYNDES’s normalised treated weights, so both methods’
+contrasts share the <code class="docutils literal notranslate"><span class="pre">sum(w_treated)</span> <span class="pre">=</span> <span class="pre">1</span></code> convention.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.from_syndes">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.design_compare.</span></span><span class="sig-name descname"><span class="pre">from_syndes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">res</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlsynth.utils.design_compare.DesignSpec" title="mlsynth.utils.design_compare.DesignSpec"><span class="pre">DesignSpec</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.design_compare.from_syndes" title="Link to this definition">#</a></dt>
+<dd><p>Build DesignSpecs from a fitted SYNDES result (its solution pool).</p>
+<p>Falls back to the single returned design when no pool exists (<code class="docutils literal notranslate"><span class="pre">top_K</span> <span class="pre">==</span> <span class="pre">1</span></code>).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.plot_compare_pareto">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.design_compare.</span></span><span class="sig-name descname"><span class="pre">plot_compare_pareto</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.design_compare.plot_compare_pareto" title="Link to this definition">#</a></dt>
+<dd><p>Overlay each method’s fit-vs-power Pareto frontier on shared axes.</p>
+<p>Renders in the in-house mlsynth style. Returns the axis drawn on.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.design_compare.simulated_mde">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.design_compare.</span></span><span class="sig-name descname"><span class="pre">simulated_mde</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pre_contrast</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">effects_abs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power_target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#mlsynth.utils.design_compare.simulated_mde" title="Link to this definition">#</a></dt>
+<dd><p>Minimum detectable effect from a contrast’s moving-block permutation null.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pre_contrast</strong> (<em>np.ndarray</em>) – The pre-period contrast series <code class="docutils literal notranslate"><span class="pre">g_t</span> <span class="pre">=</span> <span class="pre">Y_t</span> <span class="pre">&#64;</span> <span class="pre">c</span></code>, shape <code class="docutils literal notranslate"><span class="pre">(T0,)</span></code>.</p></li>
+<li><p><strong>horizon</strong> (<em>int</em>) – Post-period horizon <code class="docutils literal notranslate"><span class="pre">h</span></code> the test averages over.</p></li>
+<li><p><strong>effects_abs</strong> (<em>sequence of float</em>) – Ascending grid of candidate effect sizes, in outcome units.</p></li>
+<li><p><strong>alpha, power_target</strong> (<em>float</em>) – Two-sided significance level and target power.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>float</em> – Smallest grid effect reaching <code class="docutils literal notranslate"><span class="pre">power_target</span></code>, or <code class="docutils literal notranslate"><span class="pre">inf</span></code> if none does.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4078,6 +4282,7 @@ is carried in <code class="docutils literal notranslate"><span class="pre">addit
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pareto-recommendation">Pareto recommendation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#comparing-designs-across-methods-geolift-vs-syndes">Comparing designs across methods (GEOLIFT vs SYNDES)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.syndes">Core API</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.syndes.SYNDES"><code class="docutils literal notranslate"><span class="pre">SYNDES</span></code></a><ul class="nav section-nav flex-column">
@@ -4304,6 +4509,18 @@ is carried in <code class="docutils literal notranslate"><span class="pre">addit
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.syndes_helpers.select.recommend_syndes"><code class="docutils literal notranslate"><span class="pre">recommend_syndes()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec"><code class="docutils literal notranslate"><span class="pre">DesignSpec</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.contrast"><code class="docutils literal notranslate"><span class="pre">DesignSpec.contrast</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.label"><code class="docutils literal notranslate"><span class="pre">DesignSpec.label</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.method"><code class="docutils literal notranslate"><span class="pre">DesignSpec.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.DesignSpec.treated"><code class="docutils literal notranslate"><span class="pre">DesignSpec.treated</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.compare_pareto"><code class="docutils literal notranslate"><span class="pre">compare_pareto()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.from_geolift"><code class="docutils literal notranslate"><span class="pre">from_geolift()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.from_syndes"><code class="docutils literal notranslate"><span class="pre">from_syndes()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.plot_compare_pareto"><code class="docutils literal notranslate"><span class="pre">plot_compare_pareto()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.design_compare.simulated_mde"><code class="docutils literal notranslate"><span class="pre">simulated_mde()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">MDEPoint</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">MDEPoint.mde_absolute</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">MDEPoint.mde_pct</span></code></a></li>
