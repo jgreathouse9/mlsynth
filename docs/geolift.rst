@@ -240,13 +240,20 @@ and cold-refitting the base simplex weights. ``mlsynth`` computes the identical
 quantity by a cheaper algebraic route. Within a fold the matrix
 :math:`\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}` and the
 anchor :math:`\mathbf{w}^{\mathrm{scm}}` do not depend on :math:`\lambda`, so a
-single symmetric eigendecomposition
+single matrix factorization serves the whole grid: one symmetric
+eigendecomposition
 :math:`\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}=\mathbf{V}\operatorname{diag}(\mathbf{d})\mathbf{V}^{\top}`
-serves the whole grid via
+gives
 :math:`(\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}+\lambda\mathbf{I})^{-1}=\mathbf{V}\operatorname{diag}\!\bigl(1/(\mathbf{d}+\lambda)\bigr)\mathbf{V}^{\top}`,
-replacing one matrix inversion per penalty with one decomposition per fold; the
-single-penalty correction is taken with a linear solve rather than an explicit
-inverse; and the leave-one-out folds (tiny perturbations of one another) are
+replacing one matrix inversion per penalty with one decomposition per fold. When
+there are more pre-periods than donors (:math:`J < m`, the usual geo case) the
+factorization is taken in *dual* form — an economy singular value decomposition
+of the :math:`m \times J` donor matrix (:math:`J` components, cost
+:math:`O(mJ^2)`) rather than the :math:`m \times m` eigendecomposition (cost
+:math:`O(m^3)`) — which is the cheaper of the two whenever periods outnumber
+donors. The single-penalty correction is taken with a linear solve rather than
+an explicit inverse; and the leave-one-out folds (tiny perturbations of one
+another) are
 warm-started from the previous fold's base weights. Because the base simplex
 objective is strictly convex under full column rank, the cross-validation curve,
 the selected :math:`\lambda`, and the fitted weights are unchanged to numerical

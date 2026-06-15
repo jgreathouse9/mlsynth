@@ -139,19 +139,30 @@ def solve_ridge(
 def solve_ridge_path(
     A: np.ndarray, B: np.ndarray, W: np.ndarray, lambdas: np.ndarray
 ) -> np.ndarray:
-    """Ridge corrections for a whole lambda grid from one eigendecomposition.
+    """Ridge corrections for a whole lambda grid from one matrix factorization.
 
     Equivalent to ``np.vstack([solve_ridge(A, B, W, lam) for lam in lambdas])``
-    but evaluates the entire grid from a single symmetric eigendecomposition of
-    ``B B^T`` instead of inverting ``B B^T + lambda I`` once per lambda. With
+    but evaluates the entire grid from a single factorization instead of
+    inverting ``B B^T + lambda I`` once per lambda. Two algebraically identical
+    routes, chosen by shape so the factored matrix is the smaller one:
 
-        B B^T = V diag(d) V^T,    inv(B B^T + lambda I) = V diag(1/(d+lambda)) V^T,
+    * ``J < m`` (the long-panel / GEOLIFT regime -- more periods than donors):
+      the *dual*. With the economy SVD ``B = U diag(S) V^T`` (``r = min(m, J)``
+      components),
 
-    the correction ``M @ inv(...) @ B`` becomes ``(p / (d + lambda)) @ Q`` where
-    ``M = A - B W``, ``p = M V`` and ``Q = V^T B`` are computed once. The
-    ``+ lambda I`` keeps every shifted system positive-definite, so the result
-    matches :func:`solve_ridge` to numerical tolerance even when ``B B^T`` is
-    rank-deficient (``J < m`` periods, or collinear donors).
+          inv(B B^T + lambda I) B = U diag(S / (S^2 + lambda)) V^T,
+
+      so ``M @ inv(...) @ B = (a * S / (S^2 + lambda)) @ V^T`` with
+      ``a = M U``. This factors the ``m x J`` matrix (cost ``O(m J^2)``) and
+      works in ``r`` components rather than eigendecomposing the ``m x m``
+      ``B B^T`` (cost ``O(m^3)``) -- a large saving when ``m >> J``.
+    * ``m <= J``: the symmetric eigendecomposition ``B B^T = V diag(d) V^T``
+      (the smaller, ``m x m``, matrix here), giving
+      ``(p / (d + lambda)) @ Q`` with ``p = M V``, ``Q = V^T B``.
+
+    The ``+ lambda I`` keeps every shifted system positive-definite, so both
+    routes match :func:`solve_ridge` to numerical tolerance even when ``B B^T``
+    is rank-deficient (collinear donors).
 
     Parameters
     ----------
@@ -174,6 +185,14 @@ def solve_ridge_path(
     W = np.asarray(W, dtype=float).ravel()
     lambdas = np.asarray(lambdas, dtype=float).ravel()
     M = A - B @ W                                   # (m,)
+    m, J = B.shape
+    if J < m:
+        # Dual: economy SVD of B (r = min(m, J) = J components) -> O(m J^2),
+        # avoiding the O(m^3) eigendecomposition of the m x m matrix B B^T.
+        U, S, Vt = np.linalg.svd(B, full_matrices=False)   # U (m,r) S (r,) Vt (r,J)
+        a = M @ U                                           # (r,)
+        scale = (a[None, :] * S[None, :]) / (S[None, :] ** 2 + lambdas[:, None])
+        return scale @ Vt                                  # (L, J)
     d, V = np.linalg.eigh(B @ B.T)                  # (m,), (m, m) symmetric PSD
     p = M @ V                                       # (m,)
     Q = V.T @ B                                     # (m, J)
