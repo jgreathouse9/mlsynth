@@ -214,11 +214,30 @@ produced the design:
 
 .. code-block:: python
 
-   pf = res.post_fit                          # SyntheticControlPostFit
-   pf.ate, pf.ate_percent, pf.total_effect    # treatment-effect scalars
-   pf.rmse_fit, pf.rmse_post                  # pre / post fit quality
-   pf.p_value, pf.ci_lower, pf.ci_upper       # permutation inference
-   pf.power                                   # PowerAnalysis (see below)
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   rng = np.random.default_rng(0)
+   n_units, n_periods, n_post = 8, 20, 6
+   factors = rng.normal(size=(n_periods, 2))
+   loadings = rng.uniform(0.3, 1.0, size=(n_units, 2))
+   level = rng.uniform(8.0, 12.0, size=n_units)
+   Y = level + factors @ loadings.T + rng.normal(scale=0.3, size=(n_periods, n_units))
+   df = pd.DataFrame(
+       [{"unit": j, "time": t, "Y": float(Y[t, j]),
+         "post": int(t >= n_periods - n_post)}
+        for j in range(n_units) for t in range(n_periods)]
+   )
+   res = SYNDES({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                 "K": 3, "mode": "two_way_global", "post_col": "post",
+                 "run_inference": True}).fit()
+
+   pf = res.post_fit                            # SyntheticControlPostFit
+   print(pf.ate, pf.ate_percent, pf.total_effect)   # treatment-effect scalars
+   print(pf.rmse_fit, pf.rmse_post)                 # pre / post fit quality
+   print(pf.p_value, pf.ci_lower, pf.ci_upper)      # permutation inference
+   print(pf.power)                                  # PowerAnalysis (see below)
 
 The synthetic treated / control trajectories used to populate ``post_fit`` are
 the per-unit weighted aggregates ``Y[:, j] @ treated_weights`` and
@@ -244,11 +263,30 @@ the same module powers all three estimators.
 
 .. code-block:: python
 
-   p = res.post_fit.power                      # PowerAnalysis
-   p.headline.mde_absolute                     # MDE at the realised T_post
-   p.headline.mde_pct                          # ... as % of post-period baseline
-   p.headline.power_at_observed                # power to detect res.post_fit.ate
-   p.curve                                     # tuple of MDEPoint per horizon
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   rng = np.random.default_rng(0)
+   n_units, n_periods, n_post = 8, 20, 6
+   factors = rng.normal(size=(n_periods, 2))
+   loadings = rng.uniform(0.3, 1.0, size=(n_units, 2))
+   level = rng.uniform(8.0, 12.0, size=n_units)
+   Y = level + factors @ loadings.T + rng.normal(scale=0.3, size=(n_periods, n_units))
+   df = pd.DataFrame(
+       [{"unit": j, "time": t, "Y": float(Y[t, j]),
+         "post": int(t >= n_periods - n_post)}
+        for j in range(n_units) for t in range(n_periods)]
+   )
+   res = SYNDES({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                 "K": 3, "mode": "two_way_global", "post_col": "post",
+                 "run_inference": True}).fit()
+
+   p = res.post_fit.power                        # PowerAnalysis
+   print(p.headline.mde_absolute)                # MDE at the realised T_post
+   print(p.headline.mde_pct)                     # ... as % of post-period baseline
+   print(p.headline.power_at_observed)           # power to detect res.post_fit.ate
+   print(p.curve)                                # tuple of MDEPoint per horizon
 
 Power-analysis failures (e.g. degenerate pre-period contrast) never break a
 fit; ``res.post_fit.power`` is simply left as ``None`` in that case. To
@@ -335,23 +373,36 @@ optimality:
 
 .. code-block:: python
 
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   # A small balanced panel: 8 units, 20 periods (last 6 are post-treatment).
+   rng = np.random.default_rng(0)
+   n_units, n_periods, n_post = 8, 20, 6
+   factors = rng.normal(size=(n_periods, 2))
+   loadings = rng.uniform(0.3, 1.0, size=(n_units, 2))
+   level = rng.uniform(8.0, 12.0, size=n_units)
+   Y = level + factors @ loadings.T + rng.normal(scale=0.3, size=(n_periods, n_units))
+   df = pd.DataFrame(
+       [{"unit": j, "time": t, "Y": float(Y[t, j]),
+         "post": int(t >= n_periods - n_post)}
+        for j in range(n_units) for t in range(n_periods)]
+   )
+
+   base = {"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+           "K": 3, "mode": "two_way_global", "post_col": "post"}
+
    # Default: 5% gap, 60s wall-clock — production-suitable.
-   SYNDES({
-       "df": df, "outcome": "y", "unitid": "unit", "time": "time",
-       "K": 3, "mode": "two_way_global", "post_col": "post",
-   }).fit()
+   SYNDES(base).fit()
 
    # Loosen the gap to return in seconds when you just need a
    # plausible design for prototyping.
-   SYNDES({...,
-           "gap_limit": 0.25, "time_limit": 5.0,
-   }).fit()
+   SYNDES({**base, "gap_limit": 0.25, "time_limit": 5.0}).fit()
 
    # Disable both limits for an asymptotic-optimality run. Be
    # prepared for hours-long solves on long panels.
-   SYNDES({...,
-           "gap_limit": None, "time_limit": None,
-   }).fit()
+   SYNDES({**base, "gap_limit": None, "time_limit": None}).fit()
 
 The MIP status codes ``user_limit`` and ``user_limit_inaccurate``
 (SCIP's "stopped early with a valid incumbent") are accepted as
@@ -381,6 +432,25 @@ per arm (so it must be smaller than the smallest arm's unit count).
 
 .. code-block:: python
 
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   # Two arms (A, B), each with 6 markets over 20 periods (last 6 post).
+   rng = np.random.default_rng(0)
+   n_per_arm, n_periods, n_post = 6, 20, 6
+   rows = []
+   for arm in ("A", "B"):
+       factors = rng.normal(size=(n_periods, 2))
+       for j in range(n_per_arm):
+           loading = rng.uniform(0.3, 1.0, size=2)
+           level = rng.uniform(8.0, 12.0)
+           series = level + factors @ loading + rng.normal(scale=0.3, size=n_periods)
+           for t in range(n_periods):
+               rows.append({"DMA": f"{arm}{j}", "week": t, "sales": float(series[t]),
+                            "treat": arm, "post": int(t >= n_periods - n_post)})
+   df = pd.DataFrame(rows)
+
    res = SYNDES({
        "df": df, "outcome": "sales", "unitid": "DMA", "time": "week",
        "arm": "treat",                 # categorical arm label per unit
@@ -388,9 +458,9 @@ per arm (so it must be smaller than the smallest arm's unit count).
        "run_inference": True,
    }).fit()
 
-   res.arm_designs["A"]                 # full SYNDESResults for arm A
-   res.atet_by_arm()                    # {arm: ATET}
-   res.selected_unit_labels_by_arm()    # {arm: treated units}
+   print(res.arm_designs["A"])              # full SYNDESResults for arm A
+   print(res.atet_by_arm())                 # {arm: ATET}
+   print(res.selected_unit_labels_by_arm()) # {arm: treated units}
 
 The arm column must be constant within each unit over time. ``arm`` is not
 compatible with the global ``costs``/``budget`` constraint (the cost vector is
@@ -460,12 +530,42 @@ the dimensions it ignored: a manager can trade a small fit increase for lower
 cost or higher power. ``top_K=1`` (default) is unchanged -- only the optimum is
 returned and ``results.pool`` is ``None``.
 
+The example below imports a subset of the GeoLift pre-test panel (the same
+40-market data the :doc:`geolift` page uses) and returns a five-design menu:
+
 .. code-block:: python
 
-   res = SYNDES({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
-                 "K": 3, "mode": "two_way_global", "top_K": 5}).fit()
-   for d in res.pool:                        # ranked menu, best fit first
-       print(d["markets"], round(d["objective"], 1), round(d["mde_pct"], 2), d["cost"])
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   df = pd.read_csv(                                      # GeoLift_PreTest, 40 mkts x 90d
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/geolift_market_data.csv"
+   )
+   markets = sorted(df["location"].unique())[:8]         # 8-market subset keeps the MIP small
+   df = df[df["location"].isin(markets)].copy()
+   cut = sorted(df["date"].unique())[-14]                # last 14 days = post window
+   df["post"] = (df["date"] >= cut).astype(int)
+
+   # top_K=5 runs five MIPs (one per no-good cut), so expect ~a minute on SCIP.
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post", "top_K": 5,
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   print(sorted(res.design.selected_unit_labels.tolist()))   # the MSE-optimal design
+   for d in res.pool:                                         # ranked menu, best fit first
+       print(sorted(d["markets"]), round(d["objective"], 1),
+             round(d["mde_pct"], 3), d["cost"])
+
+The lesson is the whole point of the menu: the rank-1 design minimises MSE, but
+fit is not power. On this subset the best-fitting design is not the most
+detectable — a design ranked further down the pool, with an essentially
+identical objective, can carry a materially smaller minimum detectable effect
+(or a lower ``cost`` once ``costs`` is supplied). The menu lets you choose the
+design that agrees with what you will actually deploy, instead of the one number
+the optimiser happens to minimise.
 
 Verification
 ------------

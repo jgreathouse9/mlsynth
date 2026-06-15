@@ -254,6 +254,30 @@ Every estimator page carries, in this order near the top:
    (a)/(b)/(c), **each immediately followed by a Remark** giving the intuition.
    Do not bury assumptions in prose.
 
+### Code blocks are runnable MWEs
+
+Every ``.. code-block:: python`` on a doc page is a minimal worked example: a
+reader must be able to copy it, paste it, and run it as-is. That means each
+block, on its own, must
+
+* **obtain its data** — either simulate a panel (a few lines of numpy/pandas,
+  seeded with ``np.random.default_rng``) or import a real one (the
+  ``raw.githubusercontent.com/jgreathouse9/mlsynth/.../basedata/<file>.csv``
+  convention other pages use), never reference an undefined ``df``;
+* **call the public API** with real, existing column names and arguments —
+  no ``SYNDES({...})`` placeholders, no ``outcome="y"`` when the frame's column
+  is ``"Y"``;
+* **run and show the feature** — fit, then print/inspect the specific outputs
+  the surrounding prose is describing, so the block demonstrates the thing it
+  documents.
+
+Snippets that merely list a result object's attribute surface still count: give
+them a one-line data load + ``fit()`` so the variable they reference exists. If
+a block cannot be made to run, it does not belong on the page. Prefer a small,
+fast dataset; when an example is unavoidably slow (e.g. several sequential MIP
+solves), say so in a comment rather than shrinking it into something that no
+longer runs.
+
 ## Scope reminder
 
 This is a notation/style contract, not a license to revise mathematics. When
