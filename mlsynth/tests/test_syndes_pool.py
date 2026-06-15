@@ -118,3 +118,53 @@ class TestEstimatorPool:
         res = SYNDES(self._cfg(top_K=3, costs=costs, budget=20.0)).fit()
         for e in res.pool:
             assert e["cost"] is not None and e["cost"] <= 20.0 + 1e-6
+
+    # ------------------------------------------------------------------
+    # The menu must be *actionable*: each entry has to expose enough to
+    # deploy that design -- not just rank it. That means the full design
+    # (treated/control weights) and the control group, for every entry,
+    # not only the rank-1 winner kept on ``res.design``.
+    # ------------------------------------------------------------------
+
+    def test_pool_entry_exposes_full_design(self):
+        from mlsynth.utils.syndes_helpers.structures import SYNDESDesign
+
+        res = SYNDES(self._cfg(top_K=4)).fit()
+        for e in res.pool:
+            assert "design" in e, "each menu entry must carry its full design"
+            d = e["design"]
+            assert isinstance(d, SYNDESDesign)
+            # the design's treated set agrees with the entry's market labels
+            assert sorted(d.selected_unit_labels.tolist()) == sorted(e["markets"])
+            # deploy-critical weights are present (two_way_global carries both)
+            assert d.treated_weights is not None
+            assert d.control_weights is not None
+
+    def test_pool_rank1_design_is_the_returned_optimum(self):
+        res = SYNDES(self._cfg(top_K=4)).fit()
+        rank1 = res.pool[0]["design"]
+        assert set(rank1.selected_unit_indices) == set(res.design.selected_unit_indices)
+
+    def test_pool_entry_exposes_control_group(self):
+        res = SYNDES(self._cfg(top_K=4)).fit()
+        all_labels = {f"u{i:02d}" for i in range(10)}
+        for e in res.pool:
+            assert "control_group" in e, "each entry must name its control group"
+            ctrl = e["control_group"]
+            assert isinstance(ctrl, list) and len(ctrl) > 0
+            treated = set(e["markets"])
+            # control group is donors only -- disjoint from the treated set
+            assert set(ctrl).isdisjoint(treated)
+            # and every control label is a real unit in the panel
+            assert set(ctrl) <= all_labels
+
+    def test_pool_control_group_per_unit_mode(self):
+        # per_unit: control_weights is None and the control side lives in the
+        # (K, N) treated-weight matrix -- the menu must still recover it.
+        res = SYNDES(self._cfg(top_K=3, mode="per_unit", K=3)).fit()
+        for e in res.pool:
+            d = e["design"]
+            assert d.control_weights is None  # confirm we exercise the matrix branch
+            ctrl = e["control_group"]
+            assert isinstance(ctrl, list) and len(ctrl) > 0
+            assert set(ctrl).isdisjoint(set(e["markets"]))
