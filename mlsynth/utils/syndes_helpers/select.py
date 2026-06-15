@@ -201,9 +201,19 @@ def recommend_syndes(
             table=[], weights=weights,
         )
 
+    def _entry_fit(e: Dict[str, Any]) -> float:
+        r = e.get("pre_fit_rmse")
+        if r is not None and np.isfinite(r):
+            return float(r)
+        return float(e["objective"])
+
+    # Number designs by fit (RMSE) ascending, so D1 is always the best-fitting
+    # design -- the recommended design may be a higher-numbered one when the
+    # power weight outweighs its fit.
+    ordered = sorted(pool, key=_entry_fit)
     designs = [
         SYNDESDesignMetrics(
-            design_id=f"D{i + 1}",
+            design_id=f"D{rank + 1}",
             markets=list(e.get("markets", [])),
             control_group=list(e.get("control_group", [])),
             objective=float(e["objective"]),
@@ -214,7 +224,7 @@ def recommend_syndes(
                           else float(e["pre_fit_rmse"])),
             design=e.get("design"),
         )
-        for i, e in enumerate(pool)
+        for rank, e in enumerate(ordered)
     ]
 
     scores = _composite_scores(designs, pw, fw)

@@ -18,20 +18,21 @@ from .structures import SYNDESResults
 
 
 def plot_syndes_design(results: SYNDESResults | RelaxedSolverResults) -> None:
-    """Dispatch to the appropriate SYNDES plot for a result object.
+    """Render the SYNDES design figure(s).
 
-    When the fit produced a solution pool (``top_K > 1``), the design is shown
-    as a two-panel figure: the recommended design's synthetic treated/control
-    trajectory on top, and the fit-vs-power Pareto frontier (with the
-    recommended design starred) on the bottom. A single-design fit keeps the
-    one-panel trajectory plot.
+    Always draws Panel A -- the normal SYNDES design plot (synthetic treated vs
+    synthetic control). When the fit produced a solution pool (``top_K > 1``) a
+    second figure, Panel B, is drawn: the fit-vs-power Pareto frontier with the
+    recommended design starred. The two are separate figures.
     """
-
+    _plot_normal_design(results)
     if (getattr(results, "recommendation", None) is not None
             and getattr(results, "pool", None)):
-        _plot_design_with_pareto(results)
-        return
+        plot_syndes_pareto(results)
 
+
+def _plot_normal_design(results: SYNDESResults | RelaxedSolverResults) -> None:
+    """Dispatch to the mode-specific single-design plot (Panel A)."""
     if results.mode == "two_way_global_annealed":
         plot_relaxed_design(results)
     elif results.mode in {
@@ -64,7 +65,7 @@ def plot_global_design(results: SYNDESResults) -> None:
             intervention=n_pre - 0.5,
             outcome=results.inputs.outcome,
             time="period",
-            title=f"SYNDES Global Design ({results.mode})",
+            title=f"Panel A: synthetic treated vs synthetic control ({results.mode})",
         )
         ax.figure.tight_layout()
         plt.show()
@@ -138,7 +139,8 @@ def plot_relaxed_design(results: RelaxedSolverResults) -> None:
             intervention=n_pre - 0.5,
             outcome=results.inputs.outcome,
             time="period",
-            title="SYNDES Global Design (two_way_global_annealed)",
+            title="Panel A: synthetic treated vs synthetic control "
+                  "(two_way_global_annealed)",
         )
         ax.figure.tight_layout()
         plt.show()
@@ -204,7 +206,7 @@ def _draw_pareto(ax, rec) -> "object":
 
     ax.set_xlabel("pre-period RMSE (treated vs weighted control)")
     ax.set_ylabel("MDE %  (lower is better)")
-    ax.set_title("SYNDES pool: fit vs power (Pareto frontier)")
+    ax.set_title("Panel B: fit vs power (Pareto frontier)")
     ax.legend()
     return ax
 
@@ -231,31 +233,3 @@ def plot_syndes_pareto(results: SYNDESResults, ax=None):
         ax.figure.tight_layout()
         plt.show()
     return ax
-
-
-def _plot_design_with_pareto(results: SYNDESResults) -> None:
-    """Two-panel plot: recommended design trajectory + the Pareto frontier."""
-    rec = results.recommendation
-    winner_design = (rec.winner.design if rec.winner is not None
-                     and rec.winner.design is not None else results.design)
-    n_pre = results.inputs.Y_pre.shape[0]
-    treated, control = _treated_control_series(results, winner_design)
-    wid = rec.winner.design_id if rec.winner is not None else "?"
-
-    with mlsynth_style():
-        fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(10, 9))
-        Plotter().observed_vs_counterfactual(
-            times=np.arange(treated.shape[0]),
-            observed=treated,
-            counterfactuals=control,
-            labels=["Synthetic Control"],
-            treated_label=f"design {wid}",
-            intervention=n_pre - 0.5,
-            outcome=results.inputs.outcome,
-            time="period",
-            title=f"SYNDES recommended design {wid} ({results.mode})",
-            ax=ax_top,
-        )
-        _draw_pareto(ax_bot, rec)
-        fig.tight_layout()
-        plt.show()

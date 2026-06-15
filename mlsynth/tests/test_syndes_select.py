@@ -125,6 +125,21 @@ class TestRecommend:
         rec = recommend_syndes(pool, max_shortlist=3)
         assert len(rec.shortlist) == 3
 
+    def test_design_ids_numbered_by_fit(self):
+        # D1 is the best-fitting design (lowest RMSE), regardless of input order.
+        pool = [
+            _entry(5.0, 1.0, rmse=0.9, markets=["worst_fit"]),
+            _entry(1.0, 3.0, rmse=0.1, markets=["best_fit"]),
+            _entry(3.0, 2.0, rmse=0.5, markets=["mid"]),
+        ]
+        rec = recommend_syndes(pool)
+        by_id = {r["design_id"]: r for r in rec.table}
+        assert by_id["D1"]["markets"] == ["best_fit"]
+        assert by_id["D3"]["markets"] == ["worst_fit"]
+        # fit RMSE increases monotonically with the design number
+        rmses = [by_id[f"D{i}"]["fit_rmse"] for i in (1, 2, 3)]
+        assert rmses == sorted(rmses)
+
 
 # ----------------------------------------------------------------------
 # Estimator integration: SYNDES(top_K=...).fit() -> results.recommendation

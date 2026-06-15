@@ -836,15 +836,17 @@ pool, ``status="EMPTY"``.
    print(rec.pareto_ids)                                 # fit-power Pareto frontier
    print(pd.DataFrame(rec.table))                        # every design, scored + flagged
 
-The recommended design is generally not the rank-1 fit optimum: on this subset
-the fit-optimal design is dominated on power, and the score lands on a frontier
-design with a materially smaller MDE.
+Designs are numbered by fit: ``D1`` is always the best-fitting design (smallest
+pre-period RMSE), ``D2`` the next, and so on. The recommended design need not be
+``D1`` -- when power outweighs fit it is a higher-numbered design with a smaller
+MDE, which is exactly the trade-off the recommendation surfaces.
 
-When ``display_graph=True`` and a pool exists, the design plot becomes
-two panels -- the recommended design's synthetic treated/control trajectory on
-top, and this fit-versus-power frontier (recommended design starred) on the
-bottom. The frontier panel can also be drawn on its own with
-:func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`.
+When ``display_graph=True`` and a pool exists, two figures are drawn: Panel A,
+the normal SYNDES design plot (synthetic treated vs synthetic control), and
+Panel B, this fit-versus-power Pareto frontier with the recommended design
+starred (x-axis: the pre-period RMSE). Panel B can also be drawn on its own with
+:func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`. Both render in
+the in-house mlsynth plot style.
 
 Verification
 ------------
