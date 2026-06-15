@@ -258,6 +258,7 @@ class SYNDESResults:
     inputs: SYNDESInputs
     inference: Optional[SYNDESInference] = None
     post_fit: Optional[Any] = None    # SyntheticControlPostFit; Any to dodge import cycle
+    pool: Optional[Any] = None        # solution-pool menu (list of dicts) when top_K > 1
 
     @property
     def mode(self) -> str:

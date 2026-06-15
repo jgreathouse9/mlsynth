@@ -442,6 +442,31 @@ A budget constraint (``costs`` + ``budget``) adds
 :math:`\sum_i \mathrm{cost}_i D_i \le B` to the MIP; ``mode="two_way_global"``
 also accepts ``K=None`` to let the program choose the number of treated units.
 
+Solution pool (``top_K``): a menu, not one answer
+-------------------------------------------------
+
+The MIP returns the single MSE-optimal design, but that is optimal for *fit
+alone* -- it discards every other feasible design, some of which may be cheaper,
+more detectable, or operationally preferable at a negligible fit cost. Setting
+``top_K > 1`` returns a ranked pool of the best ``top_K`` distinct designs,
+obtained by *no-good cuts*: after each solve the chosen treated set
+:math:`S` is forbidden (:math:`\sum_{i \in S} D_i \le |S|-1`) and the MIP is
+re-solved for the next-best design. The pool is attached as ``results.pool`` --
+a list of dicts ranked by MSE, each with its ``markets``, ``objective`` (MSE),
+``pre_fit_rmse``, ``mde_pct`` (the same permutation-null MDE
+:func:`~mlsynth.power_analysis` uses), and ``cost`` (when ``costs`` is given).
+Because the objective only ranks fit, the value is precisely the re-scoring on
+the dimensions it ignored: a manager can trade a small fit increase for lower
+cost or higher power. ``top_K=1`` (default) is unchanged -- only the optimum is
+returned and ``results.pool`` is ``None``.
+
+.. code-block:: python
+
+   res = SYNDES({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                 "K": 3, "mode": "two_way_global", "top_K": 5}).fit()
+   for d in res.pool:                        # ranked menu, best fit first
+       print(d["markets"], round(d["objective"], 1), round(d["mde_pct"], 2), d["cost"])
+
 Verification
 ------------
 
