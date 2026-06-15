@@ -1,0 +1,1058 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Helper Utilities &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'helpers';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Data Utilities" href="data.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/helpers.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Helper Utilities</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet"><code class="docutils literal notranslate"><span class="pre">IndexSet</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.labels"><code class="docutils literal notranslate"><span class="pre">IndexSet.labels</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.label_to_idx"><code class="docutils literal notranslate"><span class="pre">IndexSet.label_to_idx</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.from_labels"><code class="docutils literal notranslate"><span class="pre">IndexSet.from_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.get_labels"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.get_index"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_index()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.__init__"><code class="docutils literal notranslate"><span class="pre">IndexSet.__init__()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">IndexSet.from_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_index()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">IndexSet.label_to_idx</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">IndexSet.labels</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.lexplot"><code class="docutils literal notranslate"><span class="pre">lexplot()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.prenorm"><code class="docutils literal notranslate"><span class="pre">prenorm()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.sc_diagplot"><code class="docutils literal notranslate"><span class="pre">sc_diagplot()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.ssdid_est"><code class="docutils literal notranslate"><span class="pre">ssdid_est()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.ssdid_lambda"><code class="docutils literal notranslate"><span class="pre">ssdid_lambda()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.ssdid_w"><code class="docutils literal notranslate"><span class="pre">ssdid_w()</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-mlsynth.utils.helperutils">
+<span id="helper-utilities"></span><h1>Helper Utilities<a class="headerlink" href="#module-mlsynth.utils.helperutils" title="Link to this heading">#</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">IndexSet</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_to_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Immutable bidirectional index mapping between arbitrary labels and integer indices.</p>
+<p>This class provides a lightweight utility for converting between human-readable
+unit/time labels and integer indices used in NumPy arrays.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet.labels">
+<span class="sig-name descname"><span class="pre">labels</span></span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet.labels" title="Link to this definition">#</a></dt>
+<dd><p>Ordered array of labels (e.g., unit IDs or time periods).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet.label_to_idx">
+<span class="sig-name descname"><span class="pre">label_to_idx</span></span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet.label_to_idx" title="Link to this definition">#</a></dt>
+<dd><p>Mapping from label → integer index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Dict[Any, int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet.from_labels">
+<span class="sig-name descname"><span class="pre">from_labels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet.from_labels" title="Link to this definition">#</a></dt>
+<dd><p>Construct IndexSet from an iterable of labels.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet.get_labels">
+<span class="sig-name descname"><span class="pre">get_labels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet.get_labels" title="Link to this definition">#</a></dt>
+<dd><p>Convert integer indices to labels.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet.get_index">
+<span class="sig-name descname"><span class="pre">get_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet.get_index" title="Link to this definition">#</a></dt>
+<dd><p>Convert labels to integer indices.</p>
+</dd></dl>
+
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>This structure is immutable (<cite>frozen=True</cite>).</p></li>
+<li><p>Intended for consistent indexing across panel datasets.</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.IndexSet.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_to_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.IndexSet.__init__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id0">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_labels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.helperutils.IndexSet" title="mlsynth.utils.helperutils.IndexSet"><span class="pre">IndexSet</span></a></span></span><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd><p>Construct an IndexSet from an iterable of labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>labels</strong> (<em>Iterable[Any]</em>) – Ordered sequence of unique identifiers.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>IndexSet</em> – Mapping object for label-index conversions.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">get_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd><p>Convert labels into integer indices.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>labels</strong> (<em>array-like</em>) – Input labels.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray</em> – Integer indices corresponding to input labels.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">get_labels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd><p>Convert integer indices into corresponding labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>indices</strong> (<em>array-like</em>) – Integer indices.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray</em> – Corresponding labels.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">label_to_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.lexplot">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">lexplot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_plot_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.lexplot" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.prenorm">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">prenorm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_array</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.prenorm" title="Link to this definition">#</a></dt>
+<dd><p>Normalize a vector or matrix based on its last element or last row.</p>
+<p>This function scales the input array <cite>input_array</cite> such that its last element (if <cite>input_array</cite>
+is 1D) or each column’s last element (if <cite>input_array</cite> is 2D, using the last row
+<cite>input_array[-1, :]</cite> for normalization factors) is scaled towards a <cite>target</cite> value.
+Specifically, each element <cite>input_array[i]</cite> (for 1D) or <cite>input_array[i, j]</cite> (for 2D) is
+transformed to <cite>(input_array[i] / input_array[-1]) * target</cite> or <cite>(input_array[i, j] / input_array[-1, j]) * target</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_array</strong> (<em>np.ndarray</em>) – Input array to be normalized. Can be 1-dimensional (vector) or
+2-dimensional (matrix).</p>
+<ul>
+<li><p>If 1D, shape (T,): Normalization is based on the last element <cite>input_array[-1]</cite>.</p></li>
+<li><p>If 2D, shape (T, N): Normalization is performed column-wise, based
+on the elements of the last row <cite>input_array[-1, :]</cite>. Each column <cite>input_array[:, j]</cite> is
+normalized using <cite>input_array[-1, j]</cite>.</p></li>
+</ul>
+</li>
+<li><p><strong>target</strong> (<em>float, optional</em>) – The target value to which the reference element(s) (last element or
+last row elements) are scaled. Default is 100.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray</em> – The normalized array, having the same shape as the input <cite>input_array</cite>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>MlsynthDataError</strong> – If any element used for normalization (i.e., <cite>input_array[-1]</cite> for 1D input,
+    or any element in <cite>input_array[-1, :]</cite> for 2D input) is zero.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Example with a 1D array</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prenorm</span><span class="p">(</span><span class="n">x_1d</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="go">array([ 20.,  40.,  80., 100.])</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Example with a 2D array (matrix)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">12</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Last row is [4, 8, 12]. Target is 100.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Col 0: [1, 2, 4] -&gt; [1/4*100, 2/4*100, 4/4*100] = [25, 50, 100]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Col 1: [2, 4, 8] -&gt; [2/8*100, 4/8*100, 8/8*100] = [25, 50, 100]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Col 2: [3, 6, 12] -&gt; [3/12*100, 6/12*100, 12/12*100] = [25, 50, 100]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prenorm</span><span class="p">(</span><span class="n">x_2d</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="go">array([[ 25.,  25.,  25.],</span>
+<span class="go">       [ 50.,  50.,  50.],</span>
+<span class="go">       [100., 100., 100.]])</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Example that raises MlsynthDataError</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_zero_1d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">try</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">prenorm</span><span class="p">(</span><span class="n">x_zero_1d</span><span class="p">)</span>
+<span class="gp">... </span><span class="k">except</span> <span class="n">MlsynthDataError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+<span class="go">Division by zero: Denominator for normalization is zero.</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.sc_diagplot">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">sc_diagplot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.sc_diagplot" title="Link to this definition">#</a></dt>
+<dd><p>Generate diagnostic plots for synthetic control analyses.</p>
+<p>For each configuration provided, this function plots the treated unit’s
+outcome trajectory against individual donor unit trajectories and the
+mean trajectory of all donor units. A vertical line indicates the
+start of the treatment period.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>config_list</strong> (<em>List[Dict[str, Any]]</em>) – A list of configuration dictionaries. Each dictionary defines settings
+for a single plot (or a subplot if multiple configs are provided).
+Each dictionary must contain the following keys, which are typically
+passed to an internal data preparation function (like <cite>dataprep</cite>):</p>
+<ul>
+<li><dl class="simple">
+<dt>“df”<span class="classifier">pandas.DataFrame</span></dt><dd><p>The input panel data.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>“unitid”<span class="classifier">str</span></dt><dd><p>The name of the column in <cite>df</cite> that identifies the units
+(e.g., countries, firms).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>“time”<span class="classifier">str</span></dt><dd><p>The name of the column in <cite>df</cite> that identifies the time periods
+(e.g., years, quarters).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>“outcome”<span class="classifier">str</span></dt><dd><p>The name of the column in <cite>df</cite> representing the outcome variable
+to be plotted.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>“treat”<span class="classifier">Union[str, int, List[Union[str, int]]]</span></dt><dd><p>Identifier(s) for the treated unit(s). This is used by the
+internal data preparation function to distinguish treated
+units from donor units.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>“cohort”<span class="classifier">Optional[Union[str, int]], default None</span></dt><dd><p>If the data preparation step can result in multiple cohorts
+(e.g., different treatment start times), this key specifies which
+cohort’s data to use for the plot. If <cite>None</cite> and multiple cohorts
+are detected by <cite>dataprep</cite>, a <cite>ValueError</cite> is raised.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</li>
+<li><p><strong>save</strong> (<em>Optional[str], default None</em>) – If provided, saves the plot to the specified file path instead of displaying
+it interactively. Accepts formats supported by <cite>matplotlib.pyplot.savefig</cite>
+(e.g., ‘.png’, ‘.pdf’, ‘.svg’).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>None</em> – This function displays a matplotlib plot or saves it to disk if <cite>save</cite> is specified.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>MlsynthConfigError</strong> – If <cite>config_list</cite> is not a list.
+    If multiple cohorts are detected in the data prepared from a config
+    and the “cohort” key is not specified in that config.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This function uses a local import <cite>from .datautils import dataprep</cite>.
+This is done to avoid potential circular import issues if <cite>helperutils.py</cite>
+is imported by modules that <cite>dataprep</cite> might depend on indirectly.
+The plot styling is controlled by a predefined <cite>ubertheme</cite>.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">patch</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create sample data for the plot</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data_dict</span> <span class="o">=</span> <span class="p">{</span>
+<span class="gp">... </span>    <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">2000</span><span class="p">,</span> <span class="mi">2001</span><span class="p">,</span> <span class="mi">2002</span><span class="p">,</span> <span class="mi">2000</span><span class="p">,</span> <span class="mi">2001</span><span class="p">,</span> <span class="mi">2002</span><span class="p">,</span> <span class="mi">2000</span><span class="p">,</span> <span class="mi">2001</span><span class="p">,</span> <span class="mi">2002</span><span class="p">],</span>
+<span class="gp">... </span>    <span class="s1">&#39;country&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">],</span>
+<span class="gp">... </span>    <span class="s1">&#39;gdp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.1</span><span class="p">,</span> <span class="mf">2.2</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.6</span><span class="p">,</span> <span class="mf">1.7</span><span class="p">]</span>
+<span class="gp">... </span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df_sample</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data_dict</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Configuration for sc_diagplot</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plot_config</span> <span class="o">=</span> <span class="p">[{</span>
+<span class="gp">... </span>    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df_sample</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;country&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;gdp&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;A&quot;</span>  <span class="c1"># Unit &#39;A&#39; is treated</span>
+<span class="gp">... </span><span class="p">}]</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Mock the output of dataprep for this example</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># dataprep would normally process df_sample based on the config</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mock_dataprep_output</span> <span class="o">=</span> <span class="p">{</span>
+<span class="gp">... </span>    <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>  <span class="c1"># Treated unit &#39;A&#39; outcomes</span>
+<span class="gp">... </span>    <span class="s2">&quot;donor_matrix&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">2.1</span><span class="p">,</span> <span class="mf">1.6</span><span class="p">],</span> <span class="p">[</span><span class="mf">2.2</span><span class="p">,</span> <span class="mf">1.7</span><span class="p">]]),</span> <span class="c1"># Donors &#39;B&#39;, &#39;C&#39;</span>
+<span class="gp">... </span>    <span class="s2">&quot;treated_unit_name&quot;</span><span class="p">:</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;pre_periods&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>  <span class="c1"># Indicates treatment starts after the first period (index 0)</span>
+<span class="gp">... </span>    <span class="s2">&quot;Ywide&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="p">[</span><span class="mi">2000</span><span class="p">,</span> <span class="mi">2001</span><span class="p">,</span> <span class="mi">2002</span><span class="p">])</span> <span class="c1"># For time axis labels</span>
+<span class="gp">... </span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Patch dataprep and plt.show to run example non-interactively</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="s2">&quot;mlsynth.utils.helperutils.dataprep&quot;</span><span class="p">,</span> <span class="n">return_value</span><span class="o">=</span><span class="n">mock_dataprep_output</span><span class="p">),</span>     <span class="o">...</span>      <span class="n">patch</span><span class="p">(</span><span class="s2">&quot;matplotlib.pyplot.show&quot;</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">sc_diagplot</span><span class="p">(</span><span class="n">plot_config</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># This would typically display a plot showing:</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># - GDP of unit &#39;A&#39; (black line).</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># - GDP of donor units &#39;B&#39; and &#39;C&#39; (gray lines).</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># - Mean GDP of donors &#39;B&#39; and &#39;C&#39; (blue line).</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># - A vertical dashed line after year 2000, indicating treatment start.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># To save the figure instead:</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sc_diagplot</span><span class="p">(</span><span class="n">plot_config</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="s2">&quot;sc_diagplot_output.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.ssdid_est">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">ssdid_est</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">treated_unit_outcomes_all_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_units_outcomes_all_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_weights_vector</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_pre_treatment_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_treatment_horizon_offset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.ssdid_est" title="Link to this definition">#</a></dt>
+<dd><p>Compute the Synthetic Difference-in-Differences (SSDID) treatment effect estimate.</p>
+<p>This function calculates the SSDID treatment effect for a specific
+post-treatment horizon <cite>post_treatment_horizon_offset</cite>. The estimate is derived by taking the
+difference between a post-treatment “gap” and a weighted pre-treatment “gap”.</p>
+<p>The post-treatment gap is:
+<cite>post_treatment_gap = treated_unit_outcomes_all_periods[num_pre_treatment_periods + post_treatment_horizon_offset] - (donor_units_outcomes_all_periods[num_pre_treatment_periods + post_treatment_horizon_offset, :] &#64; donor_weights)</cite></p>
+<p>The weighted pre-treatment gap is:
+<cite>weighted_pre_treatment_gap = time_weights_vector &#64; (treated_unit_outcomes_all_periods[:num_pre_treatment_periods] - (donor_units_outcomes_all_periods[:num_pre_treatment_periods, :] &#64; donor_weights))</cite></p>
+<p>The SSDID estimate is <cite>post_treatment_gap - weighted_pre_treatment_gap</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>treated_unit_outcomes_all_periods</strong> (<em>np.ndarray</em>) – Outcome vector for the treated unit across all time periods.
+Shape (T_total,), where T_total is the total number of time periods.</p></li>
+<li><p><strong>donor_units_outcomes_all_periods</strong> (<em>np.ndarray</em>) – Matrix of outcomes for donor units across all time periods.
+Shape (T_total, J), where J is the number of donor units.</p></li>
+<li><p><strong>donor_weights</strong> (<em>np.ndarray</em>) – Donor weights used to create the synthetic control unit.
+Shape (J,). These weights typically sum to 1.</p></li>
+<li><p><strong>time_weights_vector</strong> (<em>np.ndarray</em>) – Time weights used to average the pre-treatment gaps.
+Shape (num_pre_treatment_periods,). These weights typically sum to 1.</p></li>
+<li><p><strong>num_pre_treatment_periods</strong> (<em>int</em>) – Number of pre-treatment periods. This defines the length of
+<cite>time_weights_vector</cite> and the segment of pre-treatment data used for
+calculating <cite>weighted_pre_treatment_gap</cite>.</p></li>
+<li><p><strong>post_treatment_horizon_offset</strong> (<em>int</em>) – Post-treatment horizon relative to <cite>num_pre_treatment_periods</cite>. The treatment effect is
+estimated for time period <cite>num_pre_treatment_periods + post_treatment_horizon_offset</cite> (0-indexed).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>float</em> – The estimated SSDID treatment effect at horizon <cite>post_treatment_horizon_offset</cite>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>MlsynthDataError</strong> – If input arrays have incorrect types, dimensions, or inconsistent shapes,
+    or if period indices are out of bounds.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">T_total_ex</span><span class="p">,</span> <span class="n">J_ex</span><span class="p">,</span> <span class="n">num_pre_periods_ex</span><span class="p">,</span> <span class="n">horizon_offset_ex</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">treated_outcomes_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">T_total_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">donor_outcomes_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">T_total_ex</span><span class="p">,</span> <span class="n">J_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">donor_weights_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span> <span class="c1"># Example donor weights</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">time_weights_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">num_pre_periods_ex</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">num_pre_periods_ex</span><span class="p">)</span>    <span class="c1"># Example time weights (uniform)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">att_k</span> <span class="o">=</span> <span class="n">ssdid_est</span><span class="p">(</span><span class="n">treated_outcomes_ex</span><span class="p">,</span> <span class="n">donor_outcomes_ex</span><span class="p">,</span> <span class="n">donor_weights_ex</span><span class="p">,</span> <span class="n">time_weights_ex</span><span class="p">,</span> <span class="n">num_pre_periods_ex</span><span class="p">,</span> <span class="n">horizon_offset_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SSDID estimate at horizon k=</span><span class="si">{</span><span class="n">horizon_offset_ex</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">att_k</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">SSDID estimate at horizon k=2: ...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.ssdid_lambda">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">ssdid_lambda</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">treated_unit_outcomes_all_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_units_outcomes_all_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_pre_treatment_periods_for_lambda</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_treatment_horizon_offset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l2_penalty_regularization_strength</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.ssdid_lambda" title="Link to this definition">#</a></dt>
+<dd><p>Solve for time weights (lambda) and intercept for the SSDID method.</p>
+<p>This function estimates time weights (<cite>optimal_time_weights</cite>) and an intercept
+(<cite>optimal_intercept</cite>) used in the Synthetic Difference-in-Differences (SSDID)
+method. These weights are optimized to make a weighted average of the
+treated unit’s pre-treatment outcomes match the average outcome of donor
+units at a specific post-treatment horizon <cite>post_treatment_horizon_offset</cite>.</p>
+<p>The objective function is:
+<cite>min_{lambda, lambda_0} || treated_unit_outcomes_pre_treatment_for_lambda &#64; lambda - lambda_0 - target_donor_outcomes_at_horizon ||_2^2 +
+l2_penalty_regularization_strength^2 * ||lambda||_2^2</cite>
+subject to <cite>sum(lambda) == 1</cite>.
+Here, <cite>target_donor_outcomes_at_horizon</cite> is <cite>donor_units_outcomes_all_periods[num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset, :]</cite>
+(the average outcome of donor units at time <cite>num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset</cite>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>treated_unit_outcomes_all_periods</strong> (<em>np.ndarray</em>) – Outcome vector for the treated unit across all time periods.
+Shape (T_total,), where T_total is the total number of time periods.
+Only the first <cite>num_pre_treatment_periods_for_lambda</cite> periods are used in the optimization. (Formerly <cite>treated_y</cite>)</p></li>
+<li><p><strong>donor_units_outcomes_all_periods</strong> (<em>np.ndarray</em>) – Matrix of outcomes for donor units across all time periods.
+Shape (T_total, J), where J is the number of donor units.
+The row <cite>donor_units_outcomes_all_periods[num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset, :]</cite> is used as the target for matching. (Formerly <cite>donor_matrix</cite>)</p></li>
+<li><p><strong>num_pre_treatment_periods_for_lambda</strong> (<em>int</em>) – Number of pre-treatment periods of <cite>treated_unit_outcomes_all_periods</cite> to use for constructing
+the weighted average. The <cite>time_weights_variable</cite> will have length <cite>num_pre_treatment_periods_for_lambda</cite>. (Formerly <cite>a</cite>)</p></li>
+<li><p><strong>post_treatment_horizon_offset</strong> (<em>int</em>) – Post-treatment horizon offset. The target for matching is the average
+donor outcome at time period <cite>num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset</cite>. (Formerly <cite>k</cite>)</p></li>
+<li><p><strong>l2_penalty_regularization_strength</strong> (<em>float</em>) – Regularization parameter (non-negative) for the L2 penalty on the
+time weights <cite>time_weights_variable</cite>. A larger <cite>l2_penalty_regularization_strength</cite> imposes a stronger penalty. (Formerly <cite>eta</cite>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><em>Tuple[np.ndarray, float]</em> – A tuple containing:</p>
+<ul class="simple">
+<li><p>optimal_time_weights : np.ndarray
+The optimal time weights, shape (num_pre_treatment_periods_for_lambda,). These weights sum to 1. (Formerly <cite>lambda_val</cite>)</p></li>
+<li><p>optimal_intercept : float
+The optimal intercept term. (Formerly <cite>lambda_0_val</cite>)</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>MlsynthDataError</strong> – If input arrays have incorrect types, dimensions, or inconsistent shapes.</p></li>
+<li><p><strong>MlsynthConfigError</strong> – If <cite>l2_penalty_regularization_strength</cite> is negative.
+    If <cite>num_pre_treatment_periods_for_lambda</cite> or <cite>post_treatment_horizon_offset</cite> are negative or lead to invalid slice indices.</p></li>
+<li><p><strong>MlsynthEstimationError</strong> – If the CVXPY optimization solver fails.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The optimization is performed using CVXPY with the default solver.</p></li>
+<li><p><cite>target_donor_period_index = num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset</cite> is the index into <cite>donor_units_outcomes_all_periods</cite> for the target observation.</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">T_total_ex</span><span class="p">,</span> <span class="n">J_ex</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">num_pre_periods_lambda_ex</span><span class="p">,</span> <span class="n">horizon_offset_ex</span><span class="p">,</span> <span class="n">l2_penalty_ex</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">0.05</span> <span class="c1"># Target donor obs at time a+k = 12</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">treated_outcomes_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">T_total_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">donor_outcomes_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">T_total_ex</span><span class="p">,</span> <span class="n">J_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">opt_lambda_weights</span><span class="p">,</span> <span class="n">opt_lambda_intercept</span> <span class="o">=</span> <span class="n">ssdid_lambda</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">treated_outcomes_ex</span><span class="p">,</span> <span class="n">donor_outcomes_ex</span><span class="p">,</span> <span class="n">num_pre_periods_lambda_ex</span><span class="p">,</span> <span class="n">horizon_offset_ex</span><span class="p">,</span> <span class="n">l2_penalty_ex</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Lambda weights shape: </span><span class="si">{</span><span class="n">opt_lambda_weights</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">Lambda weights shape: (10,)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sum of lambda weights: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">opt_lambda_weights</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">Sum of lambda weights: 1.00</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Lambda intercept: </span><span class="si">{</span><span class="n">opt_lambda_intercept</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">Lambda intercept: ...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.helperutils.ssdid_w">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.helperutils.</span></span><span class="sig-name descname"><span class="pre">ssdid_w</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">treated_unit_outcomes_all_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_units_outcomes_all_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_matching_pre_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matching_horizon_offset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l2_penalty_regularization_strength</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_prior_weights_for_penalty</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.helperutils.ssdid_w" title="Link to this definition">#</a></dt>
+<dd><p>Solve for synthetic control weights (omega) for the SSDID method.</p>
+<p>This function estimates the donor weights (<cite>optimal_donor_weights</cite>) and an intercept term
+(<cite>optimal_intercept</cite>) that best match the pre-treatment trajectory of a treated unit.
+The optimization minimizes the sum of squared residuals between the treated
+unit’s outcomes and the weighted combination of donor outcomes, plus an L2
+penalty on the donor weights. The weights are constrained to sum to 1.</p>
+<p>The objective function is:
+<cite>min_{optimal_donor_weights, optimal_intercept} || donor_units_outcomes_matching_period &#64; optimal_donor_weights - optimal_intercept - treated_unit_outcomes_matching_period ||_2^2 +
+l2_penalty_regularization_strength^2 * sum(donor_prior_weights_for_penalty_j * optimal_donor_weights_j^2)</cite>
+subject to <cite>sum(optimal_donor_weights) == 1</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>treated_unit_outcomes_all_periods</strong> (<em>np.ndarray</em>) – Outcome vector for the treated unit across all time periods.
+Shape (T_total,), where T_total is the total number of time periods. (Formerly <cite>treated_y</cite>)</p></li>
+<li><p><strong>donor_units_outcomes_all_periods</strong> (<em>np.ndarray</em>) – Matrix of outcomes for donor units across all time periods.
+Shape (T_total, J), where J is the number of donor units. (Formerly <cite>donor_matrix</cite>)</p></li>
+<li><p><strong>num_matching_pre_periods</strong> (<em>int</em>) – Number of pre-treatment periods to use for matching the treated unit’s
+trajectory. The estimation uses data up to <cite>matching_period_end_index = num_matching_pre_periods + matching_horizon_offset</cite>. (Formerly <cite>a</cite>)</p></li>
+<li><p><strong>matching_horizon_offset</strong> (<em>int</em>) – Horizon parameter that defines the end of the matching period (<cite>matching_period_end_index</cite>).
+The outcomes from <cite>treated_unit_outcomes_all_periods[:matching_period_end_index]</cite> and
+<cite>donor_units_outcomes_all_periods[:matching_period_end_index, :]</cite> are used in the optimization. (Formerly <cite>k</cite>)</p></li>
+<li><p><strong>l2_penalty_regularization_strength</strong> (<em>float</em>) – Regularization parameter (non-negative) for the L2 penalty on the
+donor weights <cite>optimal_donor_weights</cite>. A larger <cite>l2_penalty_regularization_strength</cite> imposes a stronger penalty. (Formerly <cite>eta</cite>)</p></li>
+<li><p><strong>donor_prior_weights_for_penalty</strong> (<em>Optional[np.ndarray], default None</em>) – Prior weights for donor units, used in the L2 penalty term.
+Shape (J,). If None, uniform prior weights (1/J for each donor)
+are assumed. Default is None. (Formerly <cite>pi</cite>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><em>Tuple[np.ndarray, float]</em> – A tuple containing:</p>
+<ul class="simple">
+<li><p>optimal_donor_weights : np.ndarray
+The optimal donor weights, shape (J,). These weights sum to 1. (Formerly <cite>omega</cite>)</p></li>
+<li><p>optimal_intercept : float
+The optimal intercept term. (Formerly <cite>omega_0</cite>)</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>MlsynthDataError</strong> – If input arrays have incorrect types, dimensions, or inconsistent shapes.
+    If <cite>donor_prior_weights_for_penalty</cite> is provided and has an incorrect shape.</p></li>
+<li><p><strong>MlsynthConfigError</strong> – If <cite>l2_penalty_regularization_strength</cite> is negative.
+    If <cite>num_matching_pre_periods</cite> or <cite>matching_horizon_offset</cite> are negative or lead to invalid slice indices.</p></li>
+<li><p><strong>MlsynthEstimationError</strong> – If the CVXPY optimization solver fails.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The optimization is performed using CVXPY with the default solver.</p></li>
+<li><p><cite>matching_period_end_index = num_matching_pre_periods + matching_horizon_offset</cite> defines the window of pre-treatment data used for estimation. (Formerly <cite>t_max = a + k</cite>)</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">T_total_ex</span><span class="p">,</span> <span class="n">J_ex</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">num_matching_pre_periods_ex</span><span class="p">,</span> <span class="n">matching_horizon_offset_ex</span><span class="p">,</span> <span class="n">l2_penalty_ex</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">treated_outcomes_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">T_total_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">donor_outcomes_ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">T_total_ex</span><span class="p">,</span> <span class="n">J_ex</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">opt_omega_vals</span><span class="p">,</span> <span class="n">opt_omega_0_val</span> <span class="o">=</span> <span class="n">ssdid_w</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">treated_outcomes_ex</span><span class="p">,</span> <span class="n">donor_outcomes_ex</span><span class="p">,</span> <span class="n">num_matching_pre_periods_ex</span><span class="p">,</span> <span class="n">matching_horizon_offset_ex</span><span class="p">,</span> <span class="n">l2_penalty_ex</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Omega weights shape: </span><span class="si">{</span><span class="n">opt_omega_vals</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">Omega weights shape: (3,)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sum of omega weights: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">opt_omega_vals</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">Sum of omega weights: 1.00</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Intercept omega_0: </span><span class="si">{</span><span class="n">opt_omega_0_val</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="go">Intercept omega_0: ...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="data.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Data Utilities</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet"><code class="docutils literal notranslate"><span class="pre">IndexSet</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.labels"><code class="docutils literal notranslate"><span class="pre">IndexSet.labels</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.label_to_idx"><code class="docutils literal notranslate"><span class="pre">IndexSet.label_to_idx</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.from_labels"><code class="docutils literal notranslate"><span class="pre">IndexSet.from_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.get_labels"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.get_index"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_index()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.IndexSet.__init__"><code class="docutils literal notranslate"><span class="pre">IndexSet.__init__()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">IndexSet.from_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_index()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">IndexSet.get_labels()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">IndexSet.label_to_idx</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">IndexSet.labels</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.lexplot"><code class="docutils literal notranslate"><span class="pre">lexplot()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.prenorm"><code class="docutils literal notranslate"><span class="pre">prenorm()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.sc_diagplot"><code class="docutils literal notranslate"><span class="pre">sc_diagplot()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.ssdid_est"><code class="docutils literal notranslate"><span class="pre">ssdid_est()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.ssdid_lambda"><code class="docutils literal notranslate"><span class="pre">ssdid_lambda()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.helperutils.ssdid_w"><code class="docutils literal notranslate"><span class="pre">ssdid_w()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

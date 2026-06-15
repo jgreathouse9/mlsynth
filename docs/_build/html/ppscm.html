@@ -1,0 +1,1377 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Partially Pooled SCM (PPSCM) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'ppscm';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Staggered Synthetic Control (SSC)" href="ssc.html" />
+    <link rel="prev" title="Sequential Synthetic Difference-in-Differences (Sequential SDiD)" href="seq_sdid.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/ppscm.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Partially Pooled SCM (PPSCM)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-ppscm-when">Reach for PPSCM when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-ppscm-when">Do not use PPSCM when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#method">Method</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference">Inference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-illustration-mandatory-collective-bargaining">Empirical Illustration: mandatory collective bargaining</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.ppscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ppscm.PPSCM"><code class="docutils literal notranslate"><span class="pre">PPSCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ppscm.PPSCM.fit"><code class="docutils literal notranslate"><span class="pre">PPSCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.alpha"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.fixedeff"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.fixedeff</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.inference_method"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.inference_method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.lam"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.lam</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.n_boot"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.n_boot</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.n_lags"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.n_lags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.n_leads"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.n_leads</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.nu"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.nu</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.run_inference"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.run_inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.seed"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.solver"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.solver</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.time_cohort"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.time_cohort</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.fixedeff"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.fixedeff</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.global_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.global_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.ind_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.ind_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.lam"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.lam</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_lags"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.n_lags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_leads"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.n_leads</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.nu_used"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.nu_used</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_global"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.pct_improve_global</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_ind"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.pct_improve_ind</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_global_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.scaled_global_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_ind_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.scaled_ind_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.time_cohort"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.time_cohort</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.ci"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.horizons"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.horizons</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.se"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.tau"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.tau</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference"><code class="docutils literal notranslate"><span class="pre">PPSCMInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.att"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.ci"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.method"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.se"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.se</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.Xy"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.Xy</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.control_units"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.control_units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.intervention_time"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.intervention_time</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.n</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n_pre"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.n_pre</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.outcome"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.outcome</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.treated_units"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.treated_units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.trt"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.trt</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.units"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.units</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults"><code class="docutils literal notranslate"><span class="pre">PPSCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.att"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.design"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.design</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.donor_weights"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.donor_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.event_study"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.event_study</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inference"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.nu"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.nu</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.setup.prepare_ppscm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_ppscm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.fit_feff"><code class="docutils literal notranslate"><span class="pre">fit_feff()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.predict_tau"><code class="docutils literal notranslate"><span class="pre">predict_tau()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.run_multisynth"><code class="docutils literal notranslate"><span class="pre">run_multisynth()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.solve_cohort_qp"><code class="docutils literal notranslate"><span class="pre">solve_cohort_qp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.inference.bootstrap_inference"><code class="docutils literal notranslate"><span class="pre">bootstrap_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.inference.jackknife_inference"><code class="docutils literal notranslate"><span class="pre">jackknife_inference()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="partially-pooled-scm-ppscm">
+<h1>Partially Pooled SCM (PPSCM)<a class="headerlink" href="#partially-pooled-scm-ppscm" title="Link to this heading">#</a></h1>
+<section id="when-to-use-this-estimator">
+<h2>When to Use This Estimator<a class="headerlink" href="#when-to-use-this-estimator" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">PPSCM</span></code> is a faithful port of <code class="docutils literal notranslate"><span class="pre">augsynth::multisynth</span></code> – the partially
+pooled synthetic control of Ben-Michael, Feller and Rothstein <a class="reference internal" href="references.html#ppscm" id="id1"><span>[PPSCM]</span></a> for
+staggered adoption. Use it when several units are treated but at <em>different</em>
+times, with a pool of never-treated (or late-treated) comparison units, and you
+want a single estimate of the average treatment effect on the treated (ATT) over
+relative time (time-since-treatment), pooling information across cohorts.</p>
+<p>The central idea is a pooling dial <span class="math notranslate nohighlight">\(\nu\)</span>. Fitting a <em>separate</em> synthetic
+control for each treated unit gives the best per-unit pre-treatment fit but high
+variance; a <em>fully pooled</em> control (one synthetic match for the average treated
+unit) is stable but may fit any individual unit poorly. PPSCM interpolates
+between the two, choosing <span class="math notranslate nohighlight">\(\nu\)</span> to balance overall and unit-level
+imbalance. <code class="docutils literal notranslate"><span class="pre">time_cohort=True</span></code> collapses units sharing an adoption time into a
+single fully-pooled cohort (one synthetic control per cohort).</p>
+<p>The problem PPSCM solves is that the two reflexive extensions of SCM to
+staggered adoption are each flawed. Separate SCM (fit a synthetic
+control per treated unit, then average – common practice) requires a good
+synthetic control for <em>every</em> treated unit, which often fails, and its
+strong per-unit fits can still leave the <em>average</em> poorly matched, biasing
+the ATT. Pooled SCM (match the average treated unit) nails the average
+fit but can fit individual units badly, biasing unit-level effects and the
+average when the data-generating process drifts over time. Ben-Michael,
+Feller and Rothstein bound the estimation error by <em>both</em> the average
+imbalance and the per-unit imbalances, and partially pooled SCM minimises a
+weighted combination of the two – the regime where neither extreme is
+trustworthy.</p>
+<section id="reach-for-ppscm-when">
+<h3>Reach for PPSCM when<a class="headerlink" href="#reach-for-ppscm-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Several units are treated at different adoption times, with a pool of
+never-treated (or not-yet-treated) comparison units.</p></li>
+<li><p>You want an ATT over relative time (an event-study path), pooling
+information across cohorts rather than trusting each cohort’s own fit.</p></li>
+<li><p>No single donor mix matches every treated unit, so separate SCM
+leaves you with unreliable per-unit fits – the partial-pooling dial lets
+the average fit borrow strength without abandoning unit-level fit.</p></li>
+<li><p>You want an estimator that nests the familiar special cases (separate
+and fully pooled SCM) and a principled way to choose between them.</p></li>
+</ul>
+</section>
+<section id="do-not-use-ppscm-when">
+<h3>Do not use PPSCM when<a class="headerlink" href="#do-not-use-ppscm-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>All treated units adopt at the same time (a single cohort). The
+staggered machinery is unnecessary; use classic SC (<a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>,
+<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>) or, for many treated units at one time, <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>.</p></li>
+<li><p>You are willing to assume parallel trends after weighting and want
+the DiD-flavoured double weighting / time weights. <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> (and, for
+efficiency under interactive fixed effects, <a class="reference internal" href="seq_sdid.html"><span class="doc">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</span></a>) is the more
+natural home; PPSCM is a <em>synthetic-control</em> estimator, not a
+difference-in-differences one.</p></li>
+<li><p>Spillovers violate SUTVA across the donor pool – use <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>.</p></li>
+<li><p>The treated paths lie outside the donor convex hull / the donor pool is
+large and noisy. Partial pooling cannot manufacture a hull that does
+not contain the treated units; a factor-model (<a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a>) or low-rank
+(<a class="reference internal" href="clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a>, <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>) approach is better.</p></li>
+<li><p>Distributional effects (quantiles, tails) – use <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a>.</p></li>
+</ul>
+</section>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<p>All units <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \ldots, N\}\)</span> are observed over
+periods <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \ldots, T\}\)</span>. A treated unit
+(or cohort) <span class="math notranslate nohighlight">\(j\)</span> adopts at period <span class="math notranslate nohighlight">\(T_j\)</span>; never-treated units have
+<span class="math notranslate nohighlight">\(T_j = \infty\)</span> and form the donor pool
+<span class="math notranslate nohighlight">\(\mathcal{N}_0 \coloneqq \{j \in \mathcal{N} : T_j = \infty\}\)</span> of
+cardinality <span class="math notranslate nohighlight">\(N_0\)</span>. The panel is split at the last adoption time, the
+canonical point <span class="math notranslate nohighlight">\(T_0\)</span>, into a pre-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}\)</span> of length
+<span class="math notranslate nohighlight">\(T_0\)</span> and a post-period
+<span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t &gt; T_0\}\)</span>. For cohort
+<span class="math notranslate nohighlight">\(j\)</span>, donor weights <span class="math notranslate nohighlight">\(\mathbf{w}_j\)</span> live on the simplex
+<span class="math notranslate nohighlight">\(\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}\)</span>; the synthetic control matches the cohort’s
+pre-treatment residuals. The per-period effect is <span class="math notranslate nohighlight">\(\tau_t\)</span> and the
+average treatment effect on the treated is <span class="math notranslate nohighlight">\(\widehat{\tau}\)</span>.</p>
+</section>
+<section id="method">
+<h2>Method<a class="headerlink" href="#method" title="Link to this heading">#</a></h2>
+<p>PPSCM follows <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> in three stages.</p>
+<p>1. Two-way fixed effects (<code class="docutils literal notranslate"><span class="pre">fixedeff=True</span></code>, the default). A time effect is
+the never-treated units’ per-period mean; a unit effect is each unit’s mean over
+its own pre-adoption window. Both are removed and the synthetic control balances
+the residuals – the “intercept-shifted” estimator of the paper.</p>
+<p>2. Partially pooled QP. With per-cohort pre-treatment imbalance
+<span class="math notranslate nohighlight">\(\mathbf{q}_j \coloneqq \mathbf{x}_j - \mathbf{X}_{0,j}\mathbf{w}_j\)</span>
+(residuals; the pooled imbalance aligned by relative time), the weights
+solve</p>
+<div class="math notranslate nohighlight">
+\[\min_{\{\mathbf{w}_j \in \Delta^{N_0}\}} \;
+  \frac{\nu}{\text{norm}_{\text{pool}}\,J^2}
+    \Bigl\|\textstyle\sum_j \mathbf{q}_j\Bigr\|^2
+  + \frac{1-\nu}{\text{norm}_{\text{sep}}\,J}
+    \sum_j \frac{\|\mathbf{q}_j\|^2}{\text{ndim}_j}
+  + \lambda \sum_j \|\mathbf{w}_j\|^2 ,\]</div>
+<p>where <span class="math notranslate nohighlight">\(\text{norm}_{\text{pool}}\)</span> and <span class="math notranslate nohighlight">\(\text{norm}_{\text{sep}}\)</span> are
+the separate-fit (<code class="docutils literal notranslate"><span class="pre">nu=0</span></code>) global and individual imbalance norms. Small
+<span class="math notranslate nohighlight">\(\nu\)</span> approaches a separate SCM per cohort; large <span class="math notranslate nohighlight">\(\nu\)</span> a fully
+pooled SCM.</p>
+<p>3. Choosing <span class="math notranslate nohighlight">\(\nu\)</span>. With <code class="docutils literal notranslate"><span class="pre">nu=&quot;auto&quot;</span></code> (default) PPSCM uses augsynth’s
+triangle-inequality ratio <span class="math notranslate nohighlight">\(\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}\)</span>
+from the separate fit; a float fixes it.</p>
+<p>Assumptions / Remarks.</p>
+<p><em>Assumption 1 (no anticipation, parallel residual trends).</em> After removing the
+two-way fixed effects, the treated cohorts’ residual paths would have matched a
+convex combination of donor residual paths absent treatment. <em>Remark.</em> This is
+the staggered-adoption analogue of the SCM identifying assumption; the fixed
+effects absorb level and common-time shifts so the weights only need to match
+the residual dynamics.</p>
+<p><em>Assumption 2 (overlap / donor availability).</em> Each cohort has eligible donors
+– never-treated units, or units treated more than <code class="docutils literal notranslate"><span class="pre">n_leads</span></code> periods later.
+<em>Remark.</em> Late-treated units can serve as “clean” controls for earlier cohorts
+until they themselves are treated, which the donor-eligibility rule enforces.</p>
+<p><em>Remark (pooling).</em> <span class="math notranslate nohighlight">\(\nu\)</span> is a bias–variance dial, not an identification
+parameter: the estimand (the wATET over the treated cohorts) is the same;
+<span class="math notranslate nohighlight">\(\nu\)</span> only trades per-cohort fit against stability of the pooled average.</p>
+</section>
+<section id="inference">
+<h2>Inference<a class="headerlink" href="#inference" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">PPSCM</span></code> reports the paper’s delete-one jackknife: drop each unit, refit the
+full estimator (holding <span class="math notranslate nohighlight">\(\nu\)</span> fixed), and form
+<span class="math notranslate nohighlight">\(\widehat{\text{se}}^2 = \tfrac{N-1}{N}\sum_{j \in \mathcal{N}}(\widehat{\tau}_j - \bar{\tau})^2\)</span>
+for the overall ATT and each relative-time horizon, with Wald intervals.</p>
+</section>
+<section id="empirical-illustration-mandatory-collective-bargaining">
+<h2>Empirical Illustration: mandatory collective bargaining<a class="headerlink" href="#empirical-illustration-mandatory-collective-bargaining" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> vignette studies the effect of state mandatory
+collective-bargaining laws on log per-pupil education expenditure
+(Paglayan 2018), a staggered design. <code class="docutils literal notranslate"><span class="pre">basedata/Teachingaugsynth.scv</span></code> ships the
+panel; the analysis restricts to 1959–1997, drops DC and Wisconsin, and treats
+a state from the year it required bargaining.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">PPSCM</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/Teachingaugsynth.scv&quot;</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="o">~</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;State&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">([</span><span class="s2">&quot;DC&quot;</span><span class="p">,</span> <span class="s2">&quot;WI&quot;</span><span class="p">])]</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">1959</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">1997</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;cbr&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;YearCBrequired&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">PPSCM</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;lnppexpend&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;cbr&quot;</span><span class="p">,</span>
+             <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;State&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;nu (auto)   : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">design</span><span class="o">.</span><span class="n">nu_used</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average ATT : </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">  (SE </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">se</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This prints:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nu</span> <span class="p">(</span><span class="n">auto</span><span class="p">)</span>   <span class="p">:</span> <span class="mf">0.2607</span>
+<span class="n">Average</span> <span class="n">ATT</span> <span class="p">:</span> <span class="o">-</span><span class="mf">0.011</span>  <span class="p">(</span><span class="n">SE</span> <span class="mf">0.020</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>reproducing the augsynth vignette (<code class="docutils literal notranslate"><span class="pre">nu</span> <span class="pre">=</span> <span class="pre">0.2607</span></code>, Average ATT <code class="docutils literal notranslate"><span class="pre">-0.011</span></code>).
+Setting <code class="docutils literal notranslate"><span class="pre">time_cohort=True</span></code> collapses to adoption-time cohorts and gives
+<code class="docutils literal notranslate"><span class="pre">nu</span> <span class="pre">=</span> <span class="pre">0.3939</span></code>, Average ATT <code class="docutils literal notranslate"><span class="pre">-0.017</span></code> (augsynth: <code class="docutils literal notranslate"><span class="pre">-0.018</span></code>).</p>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Exact replication of augsynth. On the Paglayan data PPSCM matches
+<code class="docutils literal notranslate"><span class="pre">augsynth::multisynth</span></code> to high precision: the auto-<span class="math notranslate nohighlight">\(\nu\)</span> agrees to
+four decimals (0.2607 default, 0.3939 time-cohort), the Average ATT matches
+(<span class="math notranslate nohighlight">\(-0.011\)</span> default; <span class="math notranslate nohighlight">\(-0.017\)</span> vs <span class="math notranslate nohighlight">\(-0.018\)</span> time-cohort), and
+the raw global/individual L2 imbalances agree (0.003 / 0.028). The full
+relative-time event study matches the vignette’s per-horizon averages to
+3–4 decimals. The decisive fidelity detail is aligning the pooled
+imbalance by relative time on top of two-way fixed effects. The jackknife SE
+(0.020) is close to augsynth’s default wild-bootstrap SE (0.022); they differ
+only by inference procedure. This is locked in by
+<code class="docutils literal notranslate"><span class="pre">test_matches_augsynth_vignette</span></code> in <code class="docutils literal notranslate"><span class="pre">mlsynth/tests/test_ppscm.py</span></code>.</p>
+</div>
+</section>
+<section id="module-mlsynth.estimators.ppscm">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.ppscm" title="Link to this heading">#</a></h2>
+<p>Partially Pooled Synthetic Control (PPSCM) estimator.</p>
+<p>A thin orchestration over <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.ppscm_helpers</span></code>, faithfully
+porting augsynth::multisynth:</p>
+<blockquote>
+<div><p>Ben-Michael, E., Feller, A., &amp; Rothstein, J. (2022). “Synthetic Controls
+with Staggered Adoption.” <em>JRSS-B</em> 84(2):351-381.</p>
+</div></blockquote>
+<p>PPSCM removes two-way fixed effects, balances the residuals with a
+partially-pooled QP (<code class="docutils literal notranslate"><span class="pre">nu</span></code> interpolating between separate and fully pooled
+SCM), and reports a relative-time event study and overall ATT with the paper’s
+delete-one jackknife. <code class="docutils literal notranslate"><span class="pre">time_cohort=True</span></code> collapses units sharing an adoption
+time into one fully-pooled cohort.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.ppscm.PPSCM">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.ppscm.</span></span><span class="sig-name descname"><span class="pre">PPSCM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.PPSCMConfig" title="mlsynth.utils.ppscm_helpers.config.PPSCMConfig"><span class="pre">PPSCMConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.ppscm.PPSCM" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Partially Pooled SCM estimator (augsynth::multisynth port).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>PPSCMConfig or dict</em>) – Validated configuration. Reads <code class="docutils literal notranslate"><span class="pre">nu</span></code> (pooling, or <code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code>),
+<code class="docutils literal notranslate"><span class="pre">fixedeff</span></code>, <code class="docutils literal notranslate"><span class="pre">n_leads</span></code>, <code class="docutils literal notranslate"><span class="pre">n_lags</span></code>, <code class="docutils literal notranslate"><span class="pre">time_cohort</span></code>, <code class="docutils literal notranslate"><span class="pre">lam</span></code>,
+<code class="docutils literal notranslate"><span class="pre">run_inference</span></code> and <code class="docutils literal notranslate"><span class="pre">alpha</span></code> beyond the common panel fields.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>PPSCMResults</em> – Design (pooling level + balance diagnostics), relative-time event
+study, overall ATT with jackknife inference, and donor weights.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.ppscm.PPSCM.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults" title="mlsynth.utils.ppscm_helpers.structures.PPSCMResults"><span class="pre">PPSCMResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.ppscm.PPSCM.fit" title="Link to this definition">#</a></dt>
+<dd><p>Fit PPSCM and return the typed result container.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">PPSCMConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu:</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">~typing.Literal['auto']</span> <span class="pre">=</span> <span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixedeff:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_leads:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_lags:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_cohort:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=0)]</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver:</span> <span class="pre">~typing.Any</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_inference:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference_method:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'jackknife'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot:</span> <span class="pre">~typing.Annotated[int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Lt(lt=1.0)]</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Partially Pooled SCM (PPSCM) estimator.</p>
+<p>Implements Ben-Michael, Feller &amp; Rothstein (2022, <em>JRSS-B</em>
+84(2):351-381). Targets staggered-adoption designs by minimizing a
+weighted average of the per-treated-unit imbalance <code class="docutils literal notranslate"><span class="pre">q_sep</span></code> and
+the average-treated imbalance <code class="docutils literal notranslate"><span class="pre">q_pool</span></code>, with weighting hyper-
+parameter <code class="docutils literal notranslate"><span class="pre">nu</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.fixedeff">
+<span class="sig-name descname"><span class="pre">fixedeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.fixedeff" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.inference_method">
+<span class="sig-name descname"><span class="pre">inference_method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.inference_method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.lam">
+<span class="sig-name descname"><span class="pre">lam</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.lam" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.n_boot">
+<span class="sig-name descname"><span class="pre">n_boot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.n_boot" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.n_lags">
+<span class="sig-name descname"><span class="pre">n_lags</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.n_lags" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.n_leads">
+<span class="sig-name descname"><span class="pre">n_leads</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.n_leads" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.nu">
+<span class="sig-name descname"><span class="pre">nu</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'auto'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.nu" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.run_inference">
+<span class="sig-name descname"><span class="pre">run_inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.run_inference" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.seed" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.solver">
+<span class="sig-name descname"><span class="pre">solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.solver" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.PPSCMConfig.time_cohort">
+<span class="sig-name descname"><span class="pre">time_cohort</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.PPSCMConfig.time_cohort" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="result-containers">
+<h2>Result Containers<a class="headerlink" href="#result-containers" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">PPSCM.fit()</span></code> returns a
+<a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults" title="mlsynth.utils.ppscm_helpers.structures.PPSCMResults"><code class="xref py py-class docutils literal notranslate"><span class="pre">PPSCMResults</span></code></a>: the
+<a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign" title="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign"><code class="xref py py-class docutils literal notranslate"><span class="pre">PPSCMDesign</span></code></a> (pooling level and
+balance diagnostics), the relative-time
+<a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy" title="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PPSCMEventStudy</span></code></a>, the overall
+<a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference" title="mlsynth.utils.ppscm_helpers.structures.PPSCMInference"><code class="xref py py-class docutils literal notranslate"><span class="pre">PPSCMInference</span></code></a>, and the
+per-cohort donor weights.</p>
+<p id="module-mlsynth.utils.ppscm_helpers.structures">Typed, NumPy-first result containers for Partially Pooled SCM (staggered).</p>
+<p>PPSCM ports augsynth::multisynth (Ben-Michael, Feller &amp; Rothstein 2022): a
+partially-pooled synthetic control for staggered adoption that interpolates,
+via <code class="docutils literal notranslate"><span class="pre">nu</span></code>, between a separate SCM per treated unit (<code class="docutils literal notranslate"><span class="pre">nu</span></code> small) and a fully
+pooled SCM (<code class="docutils literal notranslate"><span class="pre">nu</span></code> large), on top of two-way fixed effects.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">PPSCMDesign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nu_used</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixedeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_cohort</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_leads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_lags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_l2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ind_l2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scaled_global_l2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scaled_ind_l2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>The fitted design: pooling level and balance diagnostics.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.fixedeff">
+<span class="sig-name descname"><span class="pre">fixedeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.fixedeff" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.global_l2">
+<span class="sig-name descname"><span class="pre">global_l2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.global_l2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.ind_l2">
+<span class="sig-name descname"><span class="pre">ind_l2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.ind_l2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.lam">
+<span class="sig-name descname"><span class="pre">lam</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.lam" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_lags">
+<span class="sig-name descname"><span class="pre">n_lags</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_lags" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_leads">
+<span class="sig-name descname"><span class="pre">n_leads</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_leads" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.nu_used">
+<span class="sig-name descname"><span class="pre">nu_used</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.nu_used" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_global">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">pct_improve_global</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_global" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_ind">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">pct_improve_ind</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_ind" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_global_l2">
+<span class="sig-name descname"><span class="pre">scaled_global_l2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_global_l2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_ind_l2">
+<span class="sig-name descname"><span class="pre">scaled_ind_l2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_ind_l2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.time_cohort">
+<span class="sig-name descname"><span class="pre">time_cohort</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.time_cohort" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">PPSCMEventStudy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">horizons</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Relative-time (time-since-treatment) average ATT path.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.ci">
+<span class="sig-name descname"><span class="pre">ci</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.ci" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.horizons">
+<span class="sig-name descname"><span class="pre">horizons</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.horizons" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.se">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.tau">
+<span class="sig-name descname"><span class="pre">tau</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.tau" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInference">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">PPSCMInference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">att</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Overall (post-period average) ATT and its inference.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInference.att">
+<span class="sig-name descname"><span class="pre">att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.att" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInference.ci">
+<span class="sig-name descname"><span class="pre">ci</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.ci" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInference.method">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInference.se">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">PPSCMInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Xy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_pre</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intervention_time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Preprocessed staggered panel (the only pandas touchpoint is <code class="docutils literal notranslate"><span class="pre">setup</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Xy</strong> (<em>np.ndarray</em>) – Full outcome matrix, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T)</span></code> (units x all periods).</p></li>
+<li><p><strong>trt</strong> (<em>np.ndarray</em>) – Adoption index per unit (position in <code class="docutils literal notranslate"><span class="pre">time_labels</span></code>); <code class="docutils literal notranslate"><span class="pre">inf</span></code> for
+never-treated controls.</p></li>
+<li><p><strong>n_pre</strong> (<em>int</em>) – Number of pre-treatment periods (columns before the last adoption).</p></li>
+<li><p><strong>time_labels</strong> (<em>np.ndarray</em>) – Sorted time labels, length <code class="docutils literal notranslate"><span class="pre">T</span></code>.</p></li>
+<li><p><strong>units</strong> (<em>np.ndarray</em>) – Unit labels, length <code class="docutils literal notranslate"><span class="pre">n</span></code>.</p></li>
+<li><p><strong>outcome</strong> (<em>str</em>) – Outcome column name.</p></li>
+<li><p><strong>intervention_time</strong> (<em>Any</em>) – The last adoption time (pre/post split point).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.Xy">
+<span class="sig-name descname"><span class="pre">Xy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.Xy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.control_units">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">control_units</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.control_units" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.intervention_time">
+<span class="sig-name descname"><span class="pre">intervention_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.intervention_time" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n_pre">
+<span class="sig-name descname"><span class="pre">n_pre</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n_pre" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.outcome">
+<span class="sig-name descname"><span class="pre">outcome</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.outcome" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.treated_units">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">treated_units</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.treated_units" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.trt">
+<span class="sig-name descname"><span class="pre">trt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.trt" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.units">
+<span class="sig-name descname"><span class="pre">units</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.units" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">PPSCMResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.ppscm_helpers.structures.PPSCMInputs,</span> <span class="pre">design:</span> <span class="pre">~mlsynth.utils.ppscm_helpers.structures.PPSCMDesign,</span> <span class="pre">event_study:</span> <span class="pre">~mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy,</span> <span class="pre">inference:</span> <span class="pre">~mlsynth.utils.ppscm_helpers.structures.PPSCMInference,</span> <span class="pre">donor_weights:</span> <span class="pre">~typing.Dict[~typing.Any,</span> <span class="pre">~typing.Dict[~typing.Any,</span> <span class="pre">float]],</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.PPSCM.fit()</span></code>.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.att">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">att</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.att" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.design">
+<span class="sig-name descname"><span class="pre">design</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign" title="mlsynth.utils.ppscm_helpers.structures.PPSCMDesign"><span class="pre">PPSCMDesign</span></a></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.design" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.donor_weights">
+<span class="sig-name descname"><span class="pre">donor_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.donor_weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.event_study">
+<span class="sig-name descname"><span class="pre">event_study</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy" title="mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy"><span class="pre">PPSCMEventStudy</span></a></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.event_study" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inference">
+<span class="sig-name descname"><span class="pre">inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference" title="mlsynth.utils.ppscm_helpers.structures.PPSCMInference"><span class="pre">PPSCMInference</span></a></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inference" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs" title="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs"><span class="pre">PPSCMInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.structures.PPSCMResults.nu">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nu</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.nu" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="helper-modules">
+<h2>Helper Modules<a class="headerlink" href="#helper-modules" title="Link to this heading">#</a></h2>
+<p>Staggered long-to-wide formatting (the only DataFrame touchpoint): derive
+adoption times, split pre/post at the last adoption.</p>
+<p id="module-mlsynth.utils.ppscm_helpers.setup">Long-DataFrame -&gt; NumPy boundary for PPSCM (staggered adoption).</p>
+<p>Mirrors augsynth::format_data_stag: derive each unit’s first treated period,
+split the panel at the <em>last</em> adoption time into pre (<code class="docutils literal notranslate"><span class="pre">X</span></code>) and post (<code class="docutils literal notranslate"><span class="pre">y</span></code>),
+and index adoption by position in the sorted time vector (Inf for never-treated).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.setup.prepare_ppscm_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_ppscm_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs" title="mlsynth.utils.ppscm_helpers.structures.PPSCMInputs"><span class="pre">PPSCMInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.setup.prepare_ppscm_inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<p>The engine: two-way fixed effects (<code class="docutils literal notranslate"><span class="pre">fit_feff</span></code>), the partially-pooled QP,
+auto-<span class="math notranslate nohighlight">\(\nu\)</span>, and the relative-time event study / ATT.</p>
+<p id="module-mlsynth.utils.ppscm_helpers.engine">Core staggered-adoption engine for PPSCM, ported faithfully from
+augsynth::multisynth (Ben-Michael, Feller &amp; Rothstein 2022).</p>
+<dl class="simple">
+<dt>Pipeline (one call = one fit):</dt><dd><ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fit_feff</span></code> removes fixed effects (force=3 two-way: time effect from
+never-treated column means + per-cohort unit pre-mean) and balances the
+residuals.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">solve_cohort_qp</span></code> solves the partially-pooled QP over donor weights,
+with the pooled imbalance aligned by <strong>relative time</strong> (front-padded) and
+the pooled/separate terms normalized by the separate fit’s norms.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">run_multisynth</span></code> chooses <code class="docutils literal notranslate"><span class="pre">nu</span></code> (triangle-inequality ratio when “auto”),
+refits, and produces the relative-time event study and ATT.</p></li>
+</ol>
+</dd>
+</dl>
+<p>Validated to reproduce the multisynth vignette exactly (default nu=0.2607,
+ATT=-0.011; time_cohort nu=0.3939, ATT=-0.017).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.engine.fit_feff">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.engine.</span></span><span class="sig-name descname"><span class="pre">fit_feff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Xy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adopt_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixedeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.engine.fit_feff" title="Link to this definition">#</a></dt>
+<dd><p>Residualize <code class="docutils literal notranslate"><span class="pre">Xy</span></code> per cohort.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">{adoption_index:</span> <span class="pre">residual_matrix</span> <span class="pre">(n,</span> <span class="pre">T)}</span></code>. With <code class="docutils literal notranslate"><span class="pre">fixedeff</span></code> the
+time effect is the never-treated column mean and the unit effect is each
+unit’s mean residual over its pre-adoption window <code class="docutils literal notranslate"><span class="pre">[:tj]</span></code>; without it,
+only the time effect (control averages) is removed.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.engine.predict_tau">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.engine.</span></span><span class="sig-name descname"><span class="pre">predict_tau</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">res</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">groups</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adopt_of</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">members</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">W</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">H</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bs_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.engine.predict_tau" title="Link to this definition">#</a></dt>
+<dd><p>Relative-time <code class="docutils literal notranslate"><span class="pre">tau</span></code> per cohort, plus the n1-weighted event study and ATT.</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">bs_weight</span></code> (per-unit multipliers, default all ones) this is augsynth’s
+<code class="docutils literal notranslate"><span class="pre">predict.multisynth(bs_weight=...)</span></code> written in residual space: the
+fixed-effect terms cancel between the treated mean and the synthetic, leaving
+the treated residuals (scaled by <code class="docutils literal notranslate"><span class="pre">bs_weight</span></code>, averaged over the cohort) minus
+the donor residuals weighted by <code class="docutils literal notranslate"><span class="pre">W[g]</span> <span class="pre">*</span> <span class="pre">bs_weight</span></code>. <code class="docutils literal notranslate"><span class="pre">bs_weight</span> <span class="pre">=</span> <span class="pre">ones</span></code>
+reproduces the point estimate exactly.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.engine.run_multisynth">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.engine.</span></span><span class="sig-name descname"><span class="pre">run_multisynth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Xy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_leads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_lags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixedeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_cohort</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.engine.run_multisynth" title="Link to this definition">#</a></dt>
+<dd><p>Run one multisynth fit; returns weights, event study, ATT, diagnostics.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.engine.solve_cohort_qp">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.engine.</span></span><span class="sig-name descname"><span class="pre">solve_cohort_qp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">res</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">groups</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adopt_of</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">members</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_lags</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_pool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_sep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.engine.solve_cohort_qp" title="Link to this definition">#</a></dt>
+<dd><p>Partially-pooled QP: per-cohort simplex weights (summing to cohort size).</p>
+</dd></dl>
+
+<p>The paper’s delete-one jackknife inference.</p>
+<p id="module-mlsynth.utils.ppscm_helpers.inference">Delete-one jackknife inference for PPSCM (Ben-Michael et al. 2022).</p>
+<p>The paper’s jackknife drops each unit <code class="docutils literal notranslate"><span class="pre">i</span></code> (treated <em>or</em> control), refits the
+full staggered estimator on the remaining <code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">-</span> <span class="pre">1</span></code> units (holding <code class="docutils literal notranslate"><span class="pre">nu</span></code>
+fixed), and forms</p>
+<blockquote>
+<div><p>se^2 = (n - 1) / n * sum_i (theta_i - mean_i theta_i)^2</p>
+</div></blockquote>
+<p>separately for the overall ATT and each relative-time horizon. Wald intervals
+are built from these SEs around the full-sample point estimates.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.inference.bootstrap_inference">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">bootstrap_inference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_time_full</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att_full</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.inference.bootstrap_inference" title="Link to this definition">#</a></dt>
+<dd><p>augsynth’s default Mammen wild/multiplier bootstrap (<code class="docutils literal notranslate"><span class="pre">weighted_bootstrap_multi</span></code>).</p>
+<p>Reweights the <em>single</em> fit by per-unit multipliers <code class="docutils literal notranslate"><span class="pre">Z</span></code> (no refit): for each
+draw, <code class="docutils literal notranslate"><span class="pre">predict_tau(bs_weight=Z)</span> <span class="pre">-</span> <span class="pre">(sum(Z)/n_treated)</span> <span class="pre">*</span> <span class="pre">point_estimate</span></code>; the
+bootstrap SE is the root-mean-square of the centered draws. Returns
+<code class="docutils literal notranslate"><span class="pre">(att,</span> <span class="pre">se,</span> <span class="pre">ci,</span> <span class="pre">per_time_se,</span> <span class="pre">per_time_ci)</span></code> matching <code class="docutils literal notranslate"><span class="pre">jackknife_inference</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ppscm_helpers.inference.jackknife_inference">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ppscm_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">jackknife_inference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Xy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_leads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_lags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixedeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_cohort</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu_used</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_time_full</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">att_full</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.ppscm_helpers.inference.jackknife_inference" title="Link to this definition">#</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">(att,</span> <span class="pre">se,</span> <span class="pre">ci,</span> <span class="pre">per_time_se,</span> <span class="pre">per_time_ci)</span></code>.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="seq_sdid.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="ssc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Staggered Synthetic Control (SSC)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-ppscm-when">Reach for PPSCM when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-ppscm-when">Do not use PPSCM when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#method">Method</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference">Inference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#empirical-illustration-mandatory-collective-bargaining">Empirical Illustration: mandatory collective bargaining</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.ppscm">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ppscm.PPSCM"><code class="docutils literal notranslate"><span class="pre">PPSCM</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ppscm.PPSCM.fit"><code class="docutils literal notranslate"><span class="pre">PPSCM.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.alpha"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.fixedeff"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.fixedeff</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.inference_method"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.inference_method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.lam"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.lam</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.model_config"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.n_boot"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.n_boot</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.n_lags"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.n_lags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.n_leads"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.n_leads</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.nu"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.nu</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.run_inference"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.run_inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.seed"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.solver"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.solver</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.PPSCMConfig.time_cohort"><code class="docutils literal notranslate"><span class="pre">PPSCMConfig.time_cohort</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.fixedeff"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.fixedeff</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.global_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.global_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.ind_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.ind_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.lam"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.lam</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_lags"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.n_lags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.n_leads"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.n_leads</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.nu_used"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.nu_used</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_global"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.pct_improve_global</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.pct_improve_ind"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.pct_improve_ind</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_global_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.scaled_global_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.scaled_ind_l2"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.scaled_ind_l2</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMDesign.time_cohort"><code class="docutils literal notranslate"><span class="pre">PPSCMDesign.time_cohort</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.ci"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.horizons"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.horizons</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.se"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy.tau"><code class="docutils literal notranslate"><span class="pre">PPSCMEventStudy.tau</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference"><code class="docutils literal notranslate"><span class="pre">PPSCMInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.att"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.ci"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.method"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInference.se"><code class="docutils literal notranslate"><span class="pre">PPSCMInference.se</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.Xy"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.Xy</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.control_units"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.control_units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.intervention_time"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.intervention_time</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.n</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.n_pre"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.n_pre</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.outcome"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.outcome</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.treated_units"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.treated_units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.trt"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.trt</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMInputs.units"><code class="docutils literal notranslate"><span class="pre">PPSCMInputs.units</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults"><code class="docutils literal notranslate"><span class="pre">PPSCMResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.att"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.att</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.design"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.design</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.donor_weights"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.donor_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.event_study"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.event_study</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inference"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.inputs"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.metadata"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.structures.PPSCMResults.nu"><code class="docutils literal notranslate"><span class="pre">PPSCMResults.nu</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.setup.prepare_ppscm_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_ppscm_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.fit_feff"><code class="docutils literal notranslate"><span class="pre">fit_feff()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.predict_tau"><code class="docutils literal notranslate"><span class="pre">predict_tau()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.run_multisynth"><code class="docutils literal notranslate"><span class="pre">run_multisynth()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.engine.solve_cohort_qp"><code class="docutils literal notranslate"><span class="pre">solve_cohort_qp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.inference.bootstrap_inference"><code class="docutils literal notranslate"><span class="pre">bootstrap_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ppscm_helpers.inference.jackknife_inference"><code class="docutils literal notranslate"><span class="pre">jackknife_inference()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,647 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'replications/spsydid';</script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)" href="seq_sdid.html" />
+    <link rel="prev" title="MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)" href="mcnnm.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../replications.html">Replications</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/replications/spsydid.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>SpSyDiD — Spatial Synthetic-DiD (Serenini & Masek 2024)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation-strategy">Validation strategy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-dgp-state-level-monte-carlo">The DGP (State-Level Monte Carlo)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#per-replication-cross-validation">Per-replication cross-validation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#durable-check">Durable check</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="spsydid-spatial-synthetic-did-serenini-masek-2024">
+<span id="replication-spsydid"></span><h1>SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)<a class="headerlink" href="#spsydid-spatial-synthetic-did-serenini-masek-2024" title="Link to this heading">#</a></h1>
+<dl class="field-list simple">
+<dt class="field-odd">Estimator<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="../spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a> — <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.SpSyDiD</span></code></p>
+</dd>
+<dt class="field-even">Source<span class="colon">:</span></dt>
+<dd class="field-even"><p>Serenini, R., &amp; Masek, F. (2024), <em>“Spatial Synthetic
+Difference-in-Differences,”</em> SSRN Working Paper 4736857.</p>
+</dd>
+<dt class="field-odd">Replication type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Path B</strong> — the authors’ State-Level Monte Carlo, as a
+<strong>per-replication cross-validation</strong> against the authors’ own reference code.</p>
+</dd>
+<dt class="field-even">Status<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Fully verified</strong> — matched per-rep to the authors’ algorithm and
+recovers the paper’s headline unbiasedness.</p>
+</dd>
+</dl>
+<section id="validation-strategy">
+<h2>Validation strategy<a class="headerlink" href="#validation-strategy" title="Link to this heading">#</a></h2>
+<p>Serenini &amp; Masek’s empirical example (the Arizona 2007 LAWA effect) runs on a
+CPS panel that the authors do not release. Their public replication repository,
+<a class="github reference external" href="https://github.com/serenini/spatial_SDID">serenini/spatial_SDID</a>, instead ships the <strong>simulation code</strong>
+plus a BLS unemployment panel for two Monte Carlo exercises. We therefore
+satisfy the contract along <strong>Path B</strong> — and, because the authors’ full code is
+available, we make it a <strong>cross-validation</strong>: on every replication we run both
+<code class="docutils literal notranslate"><span class="pre">mlsynth.SpSyDiD</span></code> and the authors’ own estimator on the <em>same</em> panel and
+compare the direct ATT per-rep.</p>
+<p>Because the reference repository carries <strong>no licence</strong>, its code is not
+vendored into mlsynth. The benchmark clones it on demand at a pinned commit
+(<code class="docutils literal notranslate"><span class="pre">e43427d</span></code>) and imports the authors’ <code class="docutils literal notranslate"><span class="pre">functions_ssdid</span></code> weight machinery from
+the clone; the spatial WLS step is reproduced from
+<code class="docutils literal notranslate"><span class="pre">State_Level_Simulations.ipynb</span></code> (cell 16). It skips gracefully when git, the
+network, or <code class="docutils literal notranslate"><span class="pre">libpysal</span></code> is unavailable.</p>
+</section>
+<section id="the-dgp-state-level-monte-carlo">
+<h2>The DGP (State-Level Monte Carlo)<a class="headerlink" href="#the-dgp-state-level-monte-carlo" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Panel:</strong> 49 contiguous US states, monthly unemployment 1976-2014
+(<code class="docutils literal notranslate"><span class="pre">basedata/state_unemployment.csv</span></code>); queen-contiguity <span class="math notranslate nohighlight">\(W\)</span>
+(<code class="docutils literal notranslate"><span class="pre">basedata/US_no_islands_matrix.gal</span></code>), row-standardised.</p></li>
+<li><p><strong>Windows:</strong> for each 3-year rolling window the third year is the
+post-period (<span class="math notranslate nohighlight">\(T_0 = 24\)</span>, <span class="math notranslate nohighlight">\(T_1 = 12\)</span>). Panels are deterministic.</p></li>
+<li><p><strong>Treatment:</strong> Arkansas (FIPS 5) is the directly-treated state. The outcome
+is <span class="math notranslate nohighlight">\(\text{UR2} = \text{perc\_unem} + \text{interaction}\cdot\text{ATT}
++ \text{spillover}\cdot\text{ATT}\cdot\rho\)</span>, with ATT set to 25% of the
+window’s mean unemployment and <span class="math notranslate nohighlight">\(\rho = 0.8\)</span>.</p></li>
+</ul>
+</section>
+<section id="per-replication-cross-validation">
+<h2>Per-replication cross-validation<a class="headerlink" href="#per-replication-cross-validation" title="Link to this heading">#</a></h2>
+<p>Over the 20 deterministic windows from 1975, mlsynth and the authors’ reference
+algorithm agree on the direct ATT to within <span class="math notranslate nohighlight">\(\approx 0.09\)</span> pp per rep,
+with a per-rep correlation of <strong>0.996</strong>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 46.9%" />
+<col style="width: 26.5%" />
+<col style="width: 26.5%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Quantity (20 windows)</p></th>
+<th class="head"><p>mlsynth</p></th>
+<th class="head"><p>reference</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>mean ATT bias</p></td>
+<td><p>+0.023</p></td>
+<td><p>+0.022</p></td>
+</tr>
+<tr class="row-odd"><td><p>max per-rep <span class="math notranslate nohighlight">\(|\Delta\widehat{\tau}|\)</span> vs ref</p></td>
+<td><p>0.094</p></td>
+<td><p>—</p></td>
+</tr>
+<tr class="row-even"><td><p>per-rep correlation vs ref</p></td>
+<td><p>0.996</p></td>
+<td><p>—</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Both estimators recover the paper’s headline finding: the <strong>mean ATT bias is
+essentially zero</strong> (~0.02 against an ATT magnitude of ~1.7 pp), i.e. the
+spatial correction cleanly removes the spillover-induced bias that contaminates
+plain SDID. The small per-rep residual is the affected-unit weight convention
+(mlsynth: <span class="math notranslate nohighlight">\(1/N_{sp}\)</span>; reference: mean treated-unit SDID weight) — both
+valid downstream of the SDID weight QPs.</p>
+</section>
+<section id="durable-check">
+<h2>Durable check<a class="headerlink" href="#durable-check" title="Link to this heading">#</a></h2>
+<p>The benchmark lives in <code class="docutils literal notranslate"><span class="pre">benchmarks/cases/spsydid_state_mc.py</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">libpysal</span>
+<span class="n">python</span> <span class="n">benchmarks</span><span class="o">/</span><span class="n">run_benchmarks</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">case</span> <span class="n">spsydid_state_mc</span>
+</pre></div>
+</div>
+<p>It asserts per-rep agreement (max <span class="math notranslate nohighlight">\(|\Delta| &lt; 0.2\)</span>, correlation &gt; 0.98)
+and near-zero mean ATT bias for <em>both</em> implementations.</p>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., &amp; Wager, S.
+(2021). “Synthetic Difference-in-Differences.” <em>American Economic Review</em>
+111(12):4088-4118.</p>
+<p>Serenini, R., &amp; Masek, F. (2024). “Spatial Synthetic Difference-in-Differences.”
+SSRN Working Paper 4736857.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="mcnnm.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="seq_sdid.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation-strategy">Validation strategy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-dgp-state-level-monte-carlo">The DGP (State-Level Monte Carlo)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#per-replication-cross-validation">Per-replication cross-validation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#durable-check">Durable check</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,913 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Data Utilities &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'data';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Helper Utilities" href="helpers.html" />
+    <link rel="prev" title="Rolling-Transformation DiD (ROLLDID)" href="rolldid.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/data.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Data Utilities</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.balance"><code class="docutils literal notranslate"><span class="pre">balance()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.build_covariate_matrix"><code class="docutils literal notranslate"><span class="pre">build_covariate_matrix()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.build_donor_segments"><code class="docutils literal notranslate"><span class="pre">build_donor_segments()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.clean_surrogates2"><code class="docutils literal notranslate"><span class="pre">clean_surrogates2()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.dataprep"><code class="docutils literal notranslate"><span class="pre">dataprep()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.geoex_dataprep"><code class="docutils literal notranslate"><span class="pre">geoex_dataprep()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.logictreat"><code class="docutils literal notranslate"><span class="pre">logictreat()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.proxy_dataprep"><code class="docutils literal notranslate"><span class="pre">proxy_dataprep()</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-mlsynth.utils.datautils">
+<span id="data-utilities"></span><h1>Data Utilities<a class="headerlink" href="#module-mlsynth.utils.datautils" title="Link to this heading">#</a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.balance">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">balance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_period_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.balance" title="Link to this definition">#</a></dt>
+<dd><p>Check if the panel is strongly balanced.</p>
+<p>A strongly balanced panel means every unit has an observation for every
+time period, and there are no duplicate unit-time observations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – The input panel data. Must contain columns specified by <cite>unit_id_column_name</cite>
+and <cite>time_period_column_name</cite>.</p></li>
+<li><p><strong>unit_id_column_name</strong> (<em>str</em>) – The name of the column in <cite>df</cite> that identifies the units. (Formerly <cite>unit_col</cite>)</p></li>
+<li><p><strong>time_period_column_name</strong> (<em>str</em>) – The name of the column in <cite>df</cite> that identifies the time periods. (Formerly <cite>time_col</cite>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>None</em> – This function does not return a value but raises an error if the
+panel is not strongly balanced or contains duplicates.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>MlsynthDataError</strong> – If duplicate unit-time observations are found.
+    If the panel is not strongly balanced (i.e., not all units have
+    observations for all time periods).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.build_covariate_matrix">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">build_covariate_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_period_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pre_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggregation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'pre_mean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.build_covariate_matrix" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit covariate matrix aligned to <code class="docutils literal notranslate"><span class="pre">unit_order</span></code>.</p>
+<p>Aggregates each covariate column into a single value per unit. The
+default <code class="docutils literal notranslate"><span class="pre">&quot;pre_mean&quot;</span></code> aggregation takes the mean over the first
+<code class="docutils literal notranslate"><span class="pre">pre_periods</span></code> rows; time-invariant covariates collapse to their
+constant value.</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">normalize=True</span></code> each column is centered by its cross-unit mean
+and scaled by its cross-unit std (computed across the units in
+<code class="docutils literal notranslate"><span class="pre">unit_order</span></code>) so all covariates are unit-free, which is the standard
+pre-step before applying SCM-style predictor weights or computing
+standardized mean differences for balance diagnostics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>cov_matrix</strong> (np.ndarray, shape <code class="docutils literal notranslate"><span class="pre">(len(unit_order),</span> <span class="pre">len(covariates))</span></code>) – Per-unit values for each covariate, in the order given by
+<code class="docutils literal notranslate"><span class="pre">unit_order</span></code> and <code class="docutils literal notranslate"><span class="pre">covariates</span></code>.</p></li>
+<li><p><strong>cov_names</strong> (<em>tuple of str</em>) – The covariate names, in the same order as the columns of
+<code class="docutils literal notranslate"><span class="pre">cov_matrix</span></code>.</p></li>
+<li><p><strong>cov_means</strong> (np.ndarray, shape <code class="docutils literal notranslate"><span class="pre">(len(covariates),)</span></code>) – Cross-unit means used for centering (zeros when <code class="docutils literal notranslate"><span class="pre">normalize=False</span></code>).</p></li>
+<li><p><strong>cov_scales</strong> (np.ndarray, shape <code class="docutils literal notranslate"><span class="pre">(len(covariates),)</span></code>) – Cross-unit stds used for scaling (ones when <code class="docutils literal notranslate"><span class="pre">normalize=False</span></code>).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.build_donor_segments">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">build_donor_segments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ell_hat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.datautils.build_donor_segments" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.clean_surrogates2">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">clean_surrogates2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">surrogate_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">donor_covariates_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_unit_covariates_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_pre_treatment_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">common_covariates_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.clean_surrogates2" title="Link to this definition">#</a></dt>
+<dd><p>Clean surrogate variables by orthogonalizing them against covariates.</p>
+<p>This function adjusts each surrogate variable in <cite>surrogate_matrix</cite> by removing the
+linear influence of a set of covariates. The covariates for projection
+are formed by combining <cite>donor_covariates_matrix</cite> (donor pool covariates) and
+<cite>treated_unit_covariates_matrix</cite> (treated unit covariates), potentially augmented by
+<cite>common_covariates_matrix</cite>. The cleaning process involves estimating a linear
+relationship between each surrogate and the combined covariates using data
+from the pre-treatment period (<cite>num_pre_treatment_periods</cite>), and then
+subtracting this predicted component from the surrogate across all time periods.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>surrogate_matrix</strong> (<em>np.ndarray</em>) – Matrix of surrogate variables to be cleaned.
+Shape (n_periods, n_surrogates).</p></li>
+<li><p><strong>donor_covariates_matrix</strong> (<em>np.ndarray</em>) – Matrix of covariates for the donor pool.
+Shape (n_periods, n_donor_covariates).</p></li>
+<li><p><strong>treated_unit_covariates_matrix</strong> (<em>np.ndarray</em>) – Matrix of covariates for the treated unit.
+Shape (n_periods, n_treated_covariates).
+Typically, <cite>n_donor_covariates</cite> equals <cite>n_treated_covariates</cite>.</p></li>
+<li><p><strong>num_pre_treatment_periods</strong> (<em>int</em>) – Number of pre-treatment periods. The linear projection coefficients
+(<cite>projection_coefficients</cite>) are estimated using data up to this period.</p></li>
+<li><p><strong>common_covariates_matrix</strong> (<em>Optional[np.ndarray], default None</em>) – Additional common covariates to include in the projection for both
+donor and treated sides. Shape (n_periods, n_common_covariates).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray</em> – The matrix of cleaned surrogate variables, where the influence of
+the specified covariates has been removed.
+Shape (n_periods, n_surrogates).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.dataprep">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">dataprep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_period_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treatment_indicator_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_no_donors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covariate_aggregation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'pre_mean'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'pre_mean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize_covariates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">marex</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.dataprep" title="Link to this definition">#</a></dt>
+<dd><p>Prepare data for synthetic control methods.</p>
+<p>Pivots a long DataFrame into a wide format required by many synthetic
+control estimators. It identifies treated and donor units, and separates
+data into pre-treatment and post-treatment periods. Handles cases with
+a single treated unit or multiple treated units (by cohorting based on
+treatment start time).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – The input panel data in long format. Must contain columns for unit
+identifiers, time periods, outcome variable, and treatment indicator.</p></li>
+<li><p><strong>unit_id_column_name</strong> (<em>str</em>) – Name of the column in <cite>df</cite> that identifies unique units.</p></li>
+<li><p><strong>time_period_column_name</strong> (<em>str</em>) – Name of the column in <cite>df</cite> that identifies time periods.</p></li>
+<li><p><strong>outcome_column_name</strong> (<em>str</em>) – Name of the column in <cite>df</cite> for the outcome variable.</p></li>
+<li><p><strong>treatment_indicator_column_name</strong> (<em>str</em>) – Name of the column in <cite>df</cite> for the treatment indicator (0 or 1).</p></li>
+<li><p><strong>allow_no_donors</strong> (<em>bool, default False</em>) – If True, do not raise when zero donor units remain after dropping
+the treated unit.</p></li>
+<li><p><strong>covariates</strong> (<em>list of str, optional</em>) – Column names to fold into a per-unit covariate matrix. When
+supplied, the returned dict gains
+<code class="docutils literal notranslate"><span class="pre">covariate_matrix</span></code> / <code class="docutils literal notranslate"><span class="pre">covariate_names</span></code> / <code class="docutils literal notranslate"><span class="pre">covariate_means</span></code> /
+<code class="docutils literal notranslate"><span class="pre">covariate_scales</span></code> plus
+<code class="docutils literal notranslate"><span class="pre">donor_covariate_matrix</span></code> / <code class="docutils literal notranslate"><span class="pre">treated_covariate_matrix</span></code> (single
+treated case). Time-varying covariates are aggregated per the
+<code class="docutils literal notranslate"><span class="pre">covariate_aggregation</span></code> mode; time-invariant covariates collapse
+to their constant value. <code class="docutils literal notranslate"><span class="pre">None</span></code> (default) leaves the return dict
+identical to the pre-extension behaviour.</p></li>
+<li><p><strong>covariate_aggregation</strong> (<em>{“pre_mean”}, default “pre_mean”</em>) – How to collapse each covariate column to a single value per unit.
+Currently only <code class="docutils literal notranslate"><span class="pre">&quot;pre_mean&quot;</span></code> (the pre-treatment mean) is supported.</p></li>
+<li><p><strong>normalize_covariates</strong> (<em>bool, default True</em>) – If True, z-score each covariate column across units (the standard
+pre-step for SCM-style predictor weights and SMD diagnostics).</p></li>
+<li><p><strong>marex</strong> (<em>bool, default False</em>) – If True, additionally compute the Abadie-Zhou-style stacked
+predictor matrix <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">=</span> <span class="pre">[Y_pre;</span> <span class="pre">covariates^T]</span></code> plus its
+population-weighted aggregate, surfacing the inputs that the
+MAREX-family experimental-design estimators consume.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><em>Dict[str, Any]</em> – A dictionary containing the prepared data. Always populates the
+backward-compatible keys (<cite>treated_unit_name</cite>, <cite>Ywide</cite>, <cite>y</cite>,
+<cite>donor_names</cite>, <cite>donor_matrix</cite>, <cite>total_periods</cite>, <cite>pre_periods</cite>,
+<cite>post_periods</cite>, <cite>time_labels</cite> in the single-treated case;
+<cite>Ywide</cite>, <cite>cohorts</cite>, <cite>time_labels</cite> in the cohort case). When the
+opt-in kwargs above are non-default, additionally populates:</p>
+<p><code class="docutils literal notranslate"><span class="pre">covariate_matrix</span></code> : (N, M)
+<code class="docutils literal notranslate"><span class="pre">covariate_names</span></code> : tuple of str
+<code class="docutils literal notranslate"><span class="pre">covariate_means</span></code> : (M,)
+<code class="docutils literal notranslate"><span class="pre">covariate_scales</span></code> : (M,)
+<code class="docutils literal notranslate"><span class="pre">donor_covariate_matrix</span></code> : (n_donors, M)        — single-treated only
+<code class="docutils literal notranslate"><span class="pre">treated_covariate_matrix</span></code> : (1, M)             — single-treated only
+<code class="docutils literal notranslate"><span class="pre">predictor_matrix</span></code> : (T_pre + M, N)             — when <code class="docutils literal notranslate"><span class="pre">marex=True</span></code>
+<code class="docutils literal notranslate"><span class="pre">predictor_block_sizes</span></code> : (T_pre, M)            — when <code class="docutils literal notranslate"><span class="pre">marex=True</span></code>
+<code class="docutils literal notranslate"><span class="pre">f_weights</span></code> : (N,)                              — when <code class="docutils literal notranslate"><span class="pre">marex=True</span></code>
+<code class="docutils literal notranslate"><span class="pre">X_population_mean</span></code> : (T_pre + M,)              — when <code class="docutils literal notranslate"><span class="pre">marex=True</span></code></p>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>MlsynthDataError</strong> – <ul class="simple">
+<li><p>If no donor units are found after pivoting and selecting for a single
+      treated unit case.
+    - If there are zero pre-treatment periods for a single treated unit case.
+    - If a covariate column name is not present in <code class="docutils literal notranslate"><span class="pre">df.columns</span></code>.
+    - If <code class="docutils literal notranslate"><span class="pre">covariate_aggregation</span></code> is unknown.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.geoex_dataprep">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">geoex_dataprep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_period_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.geoex_dataprep" title="Link to this definition">#</a></dt>
+<dd><p>Organize a balanced panel into a wide outcome matrix, <em>without</em>
+knowing who is treated.</p>
+<p><code class="docutils literal notranslate"><span class="pre">dataprep</span></code> is the workhorse for estimators, but it needs a treatment
+indicator to split treated/donor units and pre/post periods. Experimental
+<em>design</em> tools — geo-experiment market selection, pre-experiment power,
+clustering, exploratory diagnostics — run <em>before</em> anyone is assigned to
+treatment, so they only need the treatment-agnostic core: a strongly
+balanced <code class="docutils literal notranslate"><span class="pre">time</span> <span class="pre">x</span> <span class="pre">unit</span></code> outcome matrix. <code class="docutils literal notranslate"><span class="pre">geoex_dataprep</span></code> returns exactly
+that, sharing column/index conventions with <code class="docutils literal notranslate"><span class="pre">dataprep</span></code> (<code class="docutils literal notranslate"><span class="pre">Ywide</span></code> /
+<code class="docutils literal notranslate"><span class="pre">time_labels</span></code>) so the two are interchangeable across modules.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – The input panel data in long format. Must contain columns for unit
+identifiers, time periods, and the outcome variable.</p></li>
+<li><p><strong>unit_id_column_name</strong> (<em>str</em>) – Name of the column in <code class="docutils literal notranslate"><span class="pre">df</span></code> that identifies units (e.g. geos /
+markets).</p></li>
+<li><p><strong>time_period_column_name</strong> (<em>str</em>) – Name of the column in <code class="docutils literal notranslate"><span class="pre">df</span></code> that identifies time periods.</p></li>
+<li><p><strong>outcome_column_name</strong> (<em>str</em>) – Name of the column in <code class="docutils literal notranslate"><span class="pre">df</span></code> for the outcome variable.</p></li>
+<li><p><strong>post_col</strong> (<em>str, optional</em>) – Name of a 0/1 column marking post-treatment time periods (à la MAREX /
+lexscm). When supplied, the returned panel is <strong>restricted to the
+pre-treatment period</strong> so the design reproduces identically whether the
+caller hands over a full post-treatment panel (flagged by <code class="docutils literal notranslate"><span class="pre">post_col</span></code>)
+or a pre-only panel. <code class="docutils literal notranslate"><span class="pre">None</span></code> (default) treats every period as
+pre-treatment.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><em>Dict[str, Any]</em> – A dictionary with the treatment-agnostic panel. When <code class="docutils literal notranslate"><span class="pre">post_col</span></code> is
+given, <code class="docutils literal notranslate"><span class="pre">Ywide</span></code> / <code class="docutils literal notranslate"><span class="pre">Y</span></code> / <code class="docutils literal notranslate"><span class="pre">time_labels</span></code> / <code class="docutils literal notranslate"><span class="pre">n_units</span></code> / <code class="docutils literal notranslate"><span class="pre">n_periods</span></code>
+describe the <strong>pre-treatment slice only</strong>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">Ywide</span></code><span class="classifier">pd.DataFrame</span></dt><dd><p>Wide outcome matrix of shape <code class="docutils literal notranslate"><span class="pre">(n_periods,</span> <span class="pre">n_units)</span></code>; the index is
+the sorted time labels and the columns are the unit ids.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Y</span></code><span class="classifier">np.ndarray</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">Ywide</span></code> as a <code class="docutils literal notranslate"><span class="pre">(n_periods,</span> <span class="pre">n_units)</span></code> float array — the form the
+correlation / similarity tools consume directly.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">unit_names</span></code><span class="classifier">pd.Index</span></dt><dd><p>Unit ids — the <code class="docutils literal notranslate"><span class="pre">Ywide</span></code> column index.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">time_labels</span></code><span class="classifier">pd.Index</span></dt><dd><p>Sorted time labels — the <code class="docutils literal notranslate"><span class="pre">Ywide</span></code> row index.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">n_units</span></code><span class="classifier">int</span></dt><dd><p>Number of units (columns).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">n_periods</span></code><span class="classifier">int</span></dt><dd><p>Number of time periods (rows) in the returned panel.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">pre_periods</span></code><span class="classifier">int</span></dt><dd><p>Number of pre-treatment periods (equals <code class="docutils literal notranslate"><span class="pre">n_periods</span></code>; derived from
+<code class="docutils literal notranslate"><span class="pre">post_col</span></code> when given, else the full panel length).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">post_col</span></code><span class="classifier">str or None</span></dt><dd><p>Echo of the <code class="docutils literal notranslate"><span class="pre">post_col</span></code> argument, so callers can tell whether the
+panel was sliced to the pre-period.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>MlsynthDataError</strong> – <ul>
+<li><p>If any of the named columns (including <code class="docutils literal notranslate"><span class="pre">post_col</span></code>) are absent.
+    - If the panel is not strongly balanced or contains duplicate
+      unit-time observations (delegated to <a class="reference internal" href="#mlsynth.utils.datautils.balance" title="mlsynth.utils.datautils.balance"><code class="xref py py-func docutils literal notranslate"><span class="pre">balance()</span></code></a>).
+    - If <code class="docutils literal notranslate"><span class="pre">post_col</span></code> is undefined (NaN) for any time period.</p></li>
+</ul>
+</p></li>
+<li><p><strong>MlsynthConfigError</strong> – <ul>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">post_col</span></code> marks every period as post-treatment (no pre-period).
+    - If <code class="docutils literal notranslate"><span class="pre">post_col</span></code>’s post periods are not a single contiguous block at
+      the end of the panel.</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.logictreat">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">logictreat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">treatment_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.logictreat" title="Link to this definition">#</a></dt>
+<dd><p>Analyze a treatment matrix to determine treatment timings and unit counts.</p>
+<p>Identifies the pre-treatment and post-treatment periods for single or multiple
+treated units. For multiple treated units, it determines the first treatment
+period for each.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>treatment_matrix</strong> (<em>np.ndarray</em>) – A 2D NumPy array where rows represent time periods and columns
+represent units. A value of 1 indicates treatment, 0 otherwise.
+Shape (n_periods, n_units).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p><em>Dict[str, Any]</em> – A dictionary containing treatment analysis results. The keys and
+their meanings depend on whether a single or multiple treated units
+are detected:</p>
+<dl class="simple">
+<dt>If a single treated unit is found:</dt><dd><dl class="simple">
+<dt>”Num Treated Units”<span class="classifier">int</span></dt><dd><p>Always 1.</p>
+</dd>
+<dt>”Post Periods”<span class="classifier">int</span></dt><dd><p>Number of post-treatment periods for the treated unit.</p>
+</dd>
+<dt>”Treated Index”<span class="classifier">np.ndarray</span></dt><dd><p>1D array containing the column index of the treated unit.
+Shape (1,).</p>
+</dd>
+<dt>”Pre Periods”<span class="classifier">int</span></dt><dd><p>Number of pre-treatment periods for the treated unit.</p>
+</dd>
+<dt>”Total Periods”<span class="classifier">int</span></dt><dd><p>Total number of time periods for the treated unit.</p>
+</dd>
+</dl>
+</dd>
+<dt>If multiple treated units are found:</dt><dd><dl class="simple">
+<dt>”Num Treated Units”<span class="classifier">int</span></dt><dd><p>Number of unique treated units detected.</p>
+</dd>
+<dt>”Treated Index”<span class="classifier">np.ndarray</span></dt><dd><p>1D array containing the column indices of all treated units.
+Shape (num_treated_units,).</p>
+</dd>
+<dt>”First Treat Periods”<span class="classifier">np.ndarray</span></dt><dd><p>1D array, where each element is the first treatment period
+(0-indexed) for the corresponding treated unit in “Treated Index”.
+Shape (num_treated_units,).</p>
+</dd>
+<dt>”Pre Periods by Unit”<span class="classifier">np.ndarray</span></dt><dd><p>1D array, number of pre-treatment periods for each treated unit.
+Shape (num_treated_units,).</p>
+</dd>
+<dt>”Post Periods by Unit”<span class="classifier">np.ndarray</span></dt><dd><p>1D array, number of post-treatment periods for each treated unit.
+Shape (num_treated_units,).</p>
+</dd>
+<dt>”Total Periods”<span class="classifier">int</span></dt><dd><p>Total number of time periods in the input <cite>treatment_matrix</cite>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>MlsynthDataError</strong> – If <cite>treatment_matrix</cite> is not a NumPy array.
+    If no treated units are found (zero treated observations).
+    If a treated unit has no post-treatment period.
+    If treatment is not sustained for a treated unit (i.e., a 0 appears
+    after a 1 in its treatment vector).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.datautils.proxy_dataprep">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.datautils.</span></span><span class="sig-name descname"><span class="pre">proxy_dataprep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">surrogate_units</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">proxy_variable_column_names_map</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Artist'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_period_column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Date'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_total_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.datautils.proxy_dataprep" title="Link to this definition">#</a></dt>
+<dd><p>Construct surrogate and surrogate-proxy matrices from long-form data.</p>
+<p>This function takes a long-format DataFrame and pivots it to create
+two wide-format matrices for a specified set of surrogate units:</p>
+<ol class="arabic simple">
+<li><p>A surrogate matrix (often denoted as <cite>X</cite> in models like ProximalSC),
+derived from variables specified by <cite>proxy_variable_column_names_map[‘donorproxies’]</cite>.</p></li>
+<li><p>A surrogate-proxy matrix (often denoted <cite>Z1</cite>), derived from variables
+specified by <cite>proxy_variable_column_names_map[‘surrogatevars’]</cite>.</p></li>
+</ol>
+<p>The function assumes that <cite>proxy_variable_column_names_map[‘donorproxies’]</cite> and
+<cite>proxy_variable_column_names_map[‘surrogatevars’]</cite> each contain the name of a single column
+in <cite>df</cite> to be used for constructing these matrices.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – The input panel data in long format. Must contain columns for unit
+identifiers, time periods, and the variables specified in <cite>proxy_variable_column_names_map</cite>.</p></li>
+<li><p><strong>surrogate_units</strong> (<em>List[Any]</em>) – A list of unit identifiers (matching values in <cite>unit_id_column_name</cite>) that will
+form the columns of the output matrices.</p></li>
+<li><p><strong>proxy_variable_column_names_map</strong> (<em>Dict[str, List[str]]</em>) – A dictionary specifying the variables to use for constructing the
+matrices. It must contain two keys:</p>
+<ul>
+<li><p>‘donorproxies’: A list containing the name of the column in <cite>df</cite>
+to use for the surrogate matrix. (Formerly <cite>proxy_vars</cite>)</p></li>
+<li><p>‘surrogatevars’: A list containing the name of the column in <cite>df</cite>
+to use for the surrogate-proxy matrix.</p></li>
+</ul>
+</li>
+<li><p><strong>unit_id_column_name</strong> (<em>str, default “Artist”</em>) – Name of the column in <cite>df</cite> that identifies unique units. (Formerly <cite>id_col</cite>)</p></li>
+<li><p><strong>time_period_column_name</strong> (<em>str, default “Date”</em>) – Name of the column in <cite>df</cite> that identifies time periods. This column
+will form the index of the pivoted DataFrames before conversion to NumPy arrays. (Formerly <cite>time_col</cite>)</p></li>
+<li><p><strong>num_total_periods</strong> (<em>Optional[int], default None</em>) – Total number of time periods. This parameter is not explicitly used in
+the current implementation’s logic but is included for potential API
+consistency or future extensions. (Formerly <cite>T</cite>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>surrogate_matrix</strong> (<em>np.ndarray</em>) – The constructed surrogate matrix (X).
+Shape (n_time_periods, n_surrogate_units).</p></li>
+<li><p><strong>surrogate_proxy_matrix</strong> (<em>np.ndarray</em>) – The constructed surrogate-proxy matrix (Z1).
+Shape (n_time_periods, n_surrogate_units).</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>KeyError</strong> – <ul class="simple">
+<li><p>If <cite>proxy_variable_column_names_map</cite> does not contain ‘donorproxies’ or ‘surrogatevars’,
+      or if the lists associated with these keys are empty.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="rolldid.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Rolling-Transformation DiD (ROLLDID)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="helpers.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Helper Utilities</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.balance"><code class="docutils literal notranslate"><span class="pre">balance()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.build_covariate_matrix"><code class="docutils literal notranslate"><span class="pre">build_covariate_matrix()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.build_donor_segments"><code class="docutils literal notranslate"><span class="pre">build_donor_segments()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.clean_surrogates2"><code class="docutils literal notranslate"><span class="pre">clean_surrogates2()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.dataprep"><code class="docutils literal notranslate"><span class="pre">dataprep()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.geoex_dataprep"><code class="docutils literal notranslate"><span class="pre">geoex_dataprep()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.logictreat"><code class="docutils literal notranslate"><span class="pre">logictreat()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.datautils.proxy_dataprep"><code class="docutils literal notranslate"><span class="pre">proxy_dataprep()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

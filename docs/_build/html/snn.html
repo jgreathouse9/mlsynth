@@ -1,0 +1,1418 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Synthetic Nearest Neighbors / Causal Matrix Completion (SNN) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'snn';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Robust Matrix estimation with Side Information (RMSI)" href="rmsi.html" />
+    <link rel="prev" title="Matrix Completion with Nuclear Norm Minimization (MCNNM)" href="mcnnm.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/snn.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-algorithm">The algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-panel-data-is-a-natural-fit">Why panel data is a natural fit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#causal-use-in-mlsynth">Causal use in mlsynth</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-method">When to Use This Method</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-snn-when">Reach for SNN when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-snn-when">Do not use SNN when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.snn">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.snn.SNN"><code class="docutils literal notranslate"><span class="pre">SNN</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.snn.SNN.fit"><code class="docutils literal notranslate"><span class="pre">SNN.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig"><code class="docutils literal notranslate"><span class="pre">SNNConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.alpha"><code class="docutils literal notranslate"><span class="pre">SNNConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.clip"><code class="docutils literal notranslate"><span class="pre">SNNConfig.clip</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.inference"><code class="docutils literal notranslate"><span class="pre">SNNConfig.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.max_rank"><code class="docutils literal notranslate"><span class="pre">SNNConfig.max_rank</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.model_config"><code class="docutils literal notranslate"><span class="pre">SNNConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.n_neighbors"><code class="docutils literal notranslate"><span class="pre">SNNConfig.n_neighbors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.random_state"><code class="docutils literal notranslate"><span class="pre">SNNConfig.random_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.spectral_energy"><code class="docutils literal notranslate"><span class="pre">SNNConfig.spectral_energy</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.universal_rank"><code class="docutils literal notranslate"><span class="pre">SNNConfig.universal_rank</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.snn_helpers.completion">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.completion.snn_complete"><code class="docutils literal notranslate"><span class="pre">snn_complete()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.completion.snn_donor_weights"><code class="docutils literal notranslate"><span class="pre">snn_donor_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.completion.snn_predict"><code class="docutils literal notranslate"><span class="pre">snn_predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.setup.prepare_snn_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_snn_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.pipeline.run_snn"><code class="docutils literal notranslate"><span class="pre">run_snn()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference"><code class="docutils literal notranslate"><span class="pre">SNNInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.method"><code class="docutils literal notranslate"><span class="pre">SNNInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.se"><code class="docutils literal notranslate"><span class="pre">SNNInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.ci"><code class="docutils literal notranslate"><span class="pre">SNNInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.alpha_level"><code class="docutils literal notranslate"><span class="pre">SNNInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.n_jackknife"><code class="docutils literal notranslate"><span class="pre">SNNInference.n_jackknife</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">SNNInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">SNNInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">SNNInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">SNNInference.n_jackknife</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">SNNInference.se</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs"><code class="docutils literal notranslate"><span class="pre">SNNInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.Y"><code class="docutils literal notranslate"><span class="pre">SNNInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.D"><code class="docutils literal notranslate"><span class="pre">SNNInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.treated_idx"><code class="docutils literal notranslate"><span class="pre">SNNInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.T0"><code class="docutils literal notranslate"><span class="pre">SNNInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">SNNInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">SNNInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">SNNInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.N"><code class="docutils literal notranslate"><span class="pre">SNNInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.T"><code class="docutils literal notranslate"><span class="pre">SNNInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">SNNInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">SNNInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">SNNInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">SNNInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">SNNInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults"><code class="docutils literal notranslate"><span class="pre">SNNResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.att_by_period"><code class="docutils literal notranslate"><span class="pre">SNNResults.att_by_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.counterfactual_matrix"><code class="docutils literal notranslate"><span class="pre">SNNResults.counterfactual_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.effects_matrix"><code class="docutils literal notranslate"><span class="pre">SNNResults.effects_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.feasible"><code class="docutils literal notranslate"><span class="pre">SNNResults.feasible</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.inference_jackknife"><code class="docutils literal notranslate"><span class="pre">SNNResults.inference_jackknife</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.inputs"><code class="docutils literal notranslate"><span class="pre">SNNResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.metadata"><code class="docutils literal notranslate"><span class="pre">SNNResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.model_config"><code class="docutils literal notranslate"><span class="pre">SNNResults.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="synthetic-nearest-neighbors-causal-matrix-completion-snn">
+<h1>Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)<a class="headerlink" href="#synthetic-nearest-neighbors-causal-matrix-completion-snn" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>SNN (Agarwal, A., Dahleh, M., Shah, D. &amp; Shen, D. (2021). <em>“Causal Matrix
+Completion,”</em> arXiv:2109.15154) recovers the missing entries of a
+partially observed matrix when the data are missing not at random
+(MNAR) – the probability that an entry is observed depends on the
+underlying value. This selection bias is the norm in the two canonical
+matrix-completion applications:</p>
+<ul class="simple">
+<li><p>Recommender systems: a user who dislikes horror films will almost
+never rate one, so the missingness pattern is informative about the
+ratings themselves.</p></li>
+<li><p>Panel data / causal inference: policy-makers adopt programs for
+reasons correlated with outcomes, and competing policies cannot be
+observed simultaneously, so the potential-outcome matrix is
+systematically (not randomly) missing.</p></li>
+</ul>
+<p>Classical matrix completion assumes data are <em>missing completely at
+random</em> (MCAR) and is biased under MNAR. SNN provides a causal framework
+and an estimator with entry-wise (max-norm) finite-sample consistency and
+asymptotic normality under MNAR.</p>
+<section id="the-algorithm">
+<h3>The algorithm<a class="headerlink" href="#the-algorithm" title="Link to this heading">#</a></h3>
+<p>To impute entry <span class="math notranslate nohighlight">\((i, j)\)</span>, SNN combines nearest neighbors
+(collaborative filtering) with synthetic controls:</p>
+<ol class="arabic simple">
+<li><p>Anchor rows and columns. Find a fully observed submatrix
+<span class="math notranslate nohighlight">\(S\)</span> whose rows are observed in column <span class="math notranslate nohighlight">\(j\)</span> and whose
+columns are observed in row <span class="math notranslate nohighlight">\(i\)</span> (paper Section 4.2). The
+reference implementation finds these via a maximum-biclique search;
+mlsynth uses a dependency-free greedy search for a large fully
+observed block.</p></li>
+<li><p>Principal component regression. Truncate the SVD of <span class="math notranslate nohighlight">\(S\)</span>,
+regress row <span class="math notranslate nohighlight">\(i\)</span>’s anchor-column values <span class="math notranslate nohighlight">\(q\)</span> on <span class="math notranslate nohighlight">\(S\)</span> to
+learn weights <span class="math notranslate nohighlight">\(\beta\)</span>, and apply them to column <span class="math notranslate nohighlight">\(j\)</span>’s
+anchor-row values <span class="math notranslate nohighlight">\(x\)</span>:
+<span class="math notranslate nohighlight">\(\widehat A_{ij} = \langle x, \beta \rangle\)</span> (paper Algorithm 1).</p></li>
+</ol>
+<p>SNN generalises Synthetic Interventions (Agarwal et al. 2021b, the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.SI</span></code> estimator), which itself generalises classic
+synthetic control: the same PCR machinery is applied, but the anchor
+submatrix is found <em>per entry</em> rather than assuming a fixed treated/donor
+block, so SNN handles arbitrary (block-structured) MNAR patterns.</p>
+</section>
+<section id="why-panel-data-is-a-natural-fit">
+<h3>Why panel data is a natural fit<a class="headerlink" href="#why-panel-data-is-a-natural-fit" title="Link to this heading">#</a></h3>
+<p>A fully observed <em>anchor block</em> is essential. Under independent MCAR no
+large fully observed submatrix exists, but the block-structured
+missingness of panel data – a control block observed throughout, with
+treated units missing their post-treatment <span class="math notranslate nohighlight">\(y^N\)</span> – <em>naturally
+induces</em> anchor rows (controls) and columns (pre-periods). SNN is
+therefore especially well suited to comparative case studies and
+staggered-adoption designs, exactly the setting this estimator targets.</p>
+</section>
+<section id="causal-use-in-mlsynth">
+<h3>Causal use in mlsynth<a class="headerlink" href="#causal-use-in-mlsynth" title="Link to this heading">#</a></h3>
+<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">SNN</span></code> estimator masks the treated post-treatment cells as
+missing, imputes their untreated potential outcomes by SNN matrix
+completion, and forms the treatment effect as observed minus imputed:</p>
+<div class="math notranslate nohighlight">
+\[\tau_{it} \coloneqq y_{it} - \widehat{y}_{it}^N, \qquad
+\widehat{\tau} \coloneqq \frac{1}{|\{(i,t): d_{it}=1\}|}
+    \sum_{d_{it}=1} \tau_{it}.\]</div>
+<p>The general matrix-completion engine is exposed directly as
+<code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.snn_helpers.snn_complete()</span></code> for non-causal MNAR
+completion (e.g. recommender systems): pass a matrix with <code class="docutils literal notranslate"><span class="pre">NaN</span></code> for
+missing entries.</p>
+</section>
+</section>
+<section id="when-to-use-this-method">
+<h2>When to Use This Method<a class="headerlink" href="#when-to-use-this-method" title="Link to this heading">#</a></h2>
+<p>SNN’s distinctive bet is about <em>why</em> data are missing. Classical matrix
+completion – and the nuclear-norm estimator in <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a> – assumes the
+observed cells are a structured but ultimately exogenous sample of the
+matrix. SNN instead targets missing not at random (MNAR): the very
+event of observing a cell is correlated with its value (a horror-averse
+user never rates horror films; a region adopts a policy <em>because</em> of where
+its outcomes are heading). Under MNAR, MCAR-based completion is biased, and
+SNN’s per-entry nearest-neighbour + PCR construction restores entry-wise
+consistency and asymptotic normality.</p>
+<section id="reach-for-snn-when">
+<h3>Reach for SNN when<a class="headerlink" href="#reach-for-snn-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Missingness is informative. Whether a cell is observed depends on its
+own (latent) value – recommender ratings, self-selected program
+adoption, instrument-driven attrition.</p></li>
+<li><p>The observed cells contain a large fully observed anchor block. Panel
+causal designs supply this naturally: a control block observed
+throughout, with treated units missing only their post-treatment
+<span class="math notranslate nohighlight">\(y^N\)</span>. This block structure is what lets SNN find anchor rows and
+columns per entry.</p></li>
+<li><p>Arbitrary / block-structured missingness, including staggered
+adoption, where different units are missing different post-periods and
+no single fixed treated/donor split applies (SNN generalises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.SI</span></code> to this case).</p></li>
+<li><p>You want general (non-causal) MNAR matrix completion – e.g. a
+recommender matrix – via <code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.snn_helpers.snn_complete()</span></code>.</p></li>
+</ul>
+</section>
+<section id="do-not-use-snn-when">
+<h3>Do not use SNN when<a class="headerlink" href="#do-not-use-snn-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>No large fully observed submatrix exists. SNN’s anchor step needs a
+dense observed block; if missingness is heavy and scattered with no such
+block, prefer the nuclear-norm estimator <a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>, which regularises
+the whole matrix rather than imputing entry-by-entry.</p></li>
+<li><p>The design is a simple single-treated block with a clean pre-period
+and you want classic interpretable donor weights, closed-form CIs, or a
+convex-combination story. Use <a class="reference internal" href="si.html"><span class="doc">Synthetic Interventions (SI)</span></a>, <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>, or <a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a>;
+per-entry anchoring is unnecessary machinery there.</p></li>
+<li><p>Spillovers violate SUTVA on the control block – use <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a>
+or <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a>.</p></li>
+<li><p>Continuous or multi-valued treatment – SNN imputes an untreated
+potential-outcome matrix under a binary mask; dose response belongs in
+<a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a>.</p></li>
+<li><p>Distributional questions (quantiles, tails) – use <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a>.</p></li>
+</ul>
+</section>
+</section>
+<section id="module-mlsynth.estimators.snn">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.snn" title="Link to this heading">#</a></h2>
+<p>SNN: Synthetic Nearest Neighbors / Causal Matrix Completion (Agarwal et al. 2021).</p>
+<p>Agarwal, A., Dahleh, M., Shah, D. &amp; Shen, D. (2021). <em>“Causal Matrix
+Completion.”</em> arXiv:2109.15154.</p>
+<p>SNN recovers missing entries of a partially observed matrix under
+<strong>missing not at random (MNAR)</strong> patterns – where the probability that an
+entry is observed depends on the underlying values (selection bias), as in
+recommender systems and panel data. It does so by combining nearest
+neighbors (collaborative filtering) with synthetic controls: for a target
+entry it finds a fully observed <strong>anchor submatrix</strong> and runs <strong>principal
+component regression</strong> to impute the value. SNN generalises the Synthetic
+Interventions estimator (which mlsynth exposes as <code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.SI</span></code>),
+which in turn generalises classic synthetic control.</p>
+<p>In the causal/panel setting handled by this estimator, the treated units’
+post-treatment untreated potential outcomes <span class="math notranslate nohighlight">\(Y(0)\)</span> are exactly the
+missing entries; SNN imputes them and the treatment effect is the
+observed outcome minus the imputed counterfactual. The underlying matrix
+completion engine is also exposed directly via
+<code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.snn_helpers.snn_complete()</span></code> for general MNAR matrix
+completion (e.g. recommender systems).</p>
+<p>The block-structured missingness of panel data – a fully observed
+control block – naturally induces the anchor rows and columns SNN needs,
+so the method is especially well suited to comparative case studies and
+staggered-adoption designs.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.snn.SNN">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.snn.</span></span><span class="sig-name descname"><span class="pre">SNN</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.SNNConfig" title="mlsynth.utils.snn_helpers.config.SNNConfig"><span class="pre">SNNConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.snn.SNN" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Synthetic Nearest Neighbors (causal matrix completion) estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>SNNConfig or dict</em>) – Configuration object. See <a class="reference internal" href="#mlsynth.config_models.SNNConfig" title="mlsynth.config_models.SNNConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.SNNConfig</span></code></a>.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.snn.SNN.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.snn_helpers.structures.SNNResults" title="mlsynth.utils.snn_helpers.structures.SNNResults"><span class="pre">SNNResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.snn.SNN.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run SNN and return <code class="xref py py-class docutils literal notranslate"><span class="pre">SNNResults</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">SNNConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors:</span> <span class="pre">~typing.Annotated[int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rank:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=1)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectral_energy:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Le(le=1.0)]</span> <span class="pre">=</span> <span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">universal_rank:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Lt(lt=1.0)]</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.SNNConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Synthetic Nearest Neighbors (SNN) estimator.</p>
+<p>Agarwal, Dahleh, Shah &amp; Shen (2021), <em>“Causal Matrix Completion”</em>
+(arXiv:2109.15154). Imputes treated units’ untreated potential
+outcomes by MNAR matrix completion (anchor submatrix + principal
+component regression), generalising the Synthetic Interventions /
+synthetic-control approach. Inherits the standard <code class="docutils literal notranslate"><span class="pre">df</span></code> / <code class="docutils literal notranslate"><span class="pre">outcome</span></code>
+/ <code class="docutils literal notranslate"><span class="pre">treat</span></code> / <code class="docutils literal notranslate"><span class="pre">unitid</span></code> / <code class="docutils literal notranslate"><span class="pre">time</span></code> interface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_neighbors</strong> (<em>int</em>) – Number of synthetic neighbours (anchor-row groups) to average.</p></li>
+<li><p><strong>max_rank</strong> (<em>int, optional</em>) – Fixed PCR truncation rank; overrides the spectral/universal rule.</p></li>
+<li><p><strong>spectral_energy</strong> (<em>float</em>) – Singular-value energy threshold for spectral rank selection
+(used when <code class="docutils literal notranslate"><span class="pre">max_rank</span></code> is None and <code class="docutils literal notranslate"><span class="pre">universal_rank</span></code> is False).</p></li>
+<li><p><strong>universal_rank</strong> (<em>bool</em>) – Use the Donoho-Gavish (2014) universal hard-threshold rank.
+Default True – well-calibrated for small low-rank panels (e.g.
+Prop 99); set False to use the spectral-energy threshold.</p></li>
+<li><p><strong>clip</strong> (<em>bool</em>) – Clip imputations to the observed value range.</p></li>
+<li><p><strong>inference</strong> (<em>bool</em>) – Run a leave-one-control jackknife for the ATT SE / CI.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – Two-sided level for the jackknife confidence interval.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – Seed for anchor-row splitting.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.clip">
+<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.clip" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.inference">
+<span class="sig-name descname"><span class="pre">inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.inference" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.max_rank">
+<span class="sig-name descname"><span class="pre">max_rank</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.max_rank" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.n_neighbors">
+<span class="sig-name descname"><span class="pre">n_neighbors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.n_neighbors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.random_state">
+<span class="sig-name descname"><span class="pre">random_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.random_state" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.spectral_energy">
+<span class="sig-name descname"><span class="pre">spectral_energy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.spectral_energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SNNConfig.universal_rank">
+<span class="sig-name descname"><span class="pre">universal_rank</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.SNNConfig.universal_rank" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mlsynth.utils.snn_helpers.completion">
+<span id="helper-modules"></span><h2>Helper Modules<a class="headerlink" href="#module-mlsynth.utils.snn_helpers.completion" title="Link to this heading">#</a></h2>
+<p>Core matrix-completion engine for Synthetic Nearest Neighbors (SNN).</p>
+<p>Agarwal, A., Dahleh, M., Shah, D. &amp; Shen, D. (2021). <em>“Causal Matrix
+Completion.”</em> arXiv:2109.15154.</p>
+<p>SNN imputes a missing entry <span class="math notranslate nohighlight">\((i, j)\)</span> of a partially observed matrix
+by (1) finding <strong>anchor rows and columns</strong> – a fully observed submatrix
+<span class="math notranslate nohighlight">\(S\)</span> whose rows are observed in column <span class="math notranslate nohighlight">\(j\)</span> and whose columns
+are observed in row <span class="math notranslate nohighlight">\(i\)</span> – and (2) running <strong>principal component
+regression</strong> (PCR): truncate the SVD of <span class="math notranslate nohighlight">\(S\)</span>, regress row
+<span class="math notranslate nohighlight">\(i\)</span>’s anchor-column values on <span class="math notranslate nohighlight">\(S\)</span> to learn weights
+<span class="math notranslate nohighlight">\(\beta\)</span>, and apply them to column <span class="math notranslate nohighlight">\(j\)</span>’s anchor-row values
+(paper Algorithm 1).</p>
+<p>It generalises the Synthetic Interventions / synthetic-control PCR
+machinery to arbitrary “missing not at random” (MNAR) patterns, because
+the anchor submatrix is found per entry rather than assuming a fixed
+treated/donor block. The reference implementation
+(github.com/deshen24/syntheticNN) uses a NetworkX maximum-biclique
+search to find anchors; this implementation uses a dependency-free greedy
+search for the largest fully observed submatrix.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.completion.snn_complete">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.completion.</span></span><span class="sig-name descname"><span class="pre">snn_complete</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectral_energy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">universal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.completion.snn_complete" title="Link to this definition">#</a></dt>
+<dd><p>Complete a matrix with missing entries marked as <code class="docutils literal notranslate"><span class="pre">NaN</span></code> via SNN.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>np.ndarray</em>) – Partially observed matrix; missing entries are <code class="docutils literal notranslate"><span class="pre">NaN</span></code>.</p></li>
+<li><p><strong>n_neighbors</strong> (<em>int</em>) – Number of synthetic neighbours (anchor-row groups) to average.</p></li>
+<li><p><strong>max_rank</strong> (<em>int, optional</em>) – Fixed PCR truncation rank; overrides the spectral/universal rule.</p></li>
+<li><p><strong>spectral_energy</strong> (<em>float</em>) – Energy threshold for spectral rank selection (when <code class="docutils literal notranslate"><span class="pre">max_rank</span></code> and
+<code class="docutils literal notranslate"><span class="pre">universal</span></code> are unset).</p></li>
+<li><p><strong>universal</strong> (<em>bool</em>) – Use the Donoho-Gavish universal hard threshold for the rank.</p></li>
+<li><p><strong>min_value, max_value</strong> (<em>float, optional</em>) – Clip imputed values to this range.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – Seed for the anchor-row splitting.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>completed</strong> (<em>np.ndarray</em>) – Matrix with missing entries imputed (NaN where infeasible).</p></li>
+<li><p><strong>feasible</strong> (<em>np.ndarray</em>) – Boolean mask, <code class="docutils literal notranslate"><span class="pre">True</span></code> where an imputation was produced.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.completion.snn_donor_weights">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.completion.</span></span><span class="sig-name descname"><span class="pre">snn_donor_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectral_energy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">universal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.completion.snn_donor_weights" title="Link to this definition">#</a></dt>
+<dd><p>Effective PCR donor weights for treated unit <code class="docutils literal notranslate"><span class="pre">i</span></code>.</p>
+<p>For a treated unit, every missing (post-treatment) cell shares the same
+anchor rows (the donor units) and anchor columns (the pre-periods), so
+a single weight vector <span class="math notranslate nohighlight">\(\beta\)</span> over the donors reproduces the
+imputed counterfactual: <span class="math notranslate nohighlight">\(\widehat Y_{it}(0) = \sum_j \beta_j
+Y_{jt}\)</span>. Returns <code class="docutils literal notranslate"><span class="pre">(donor_indices,</span> <span class="pre">weights)</span></code>; the weights are the
+(unconstrained) PCR coefficients – they need not be non-negative nor
+sum to one. Returns empty arrays if no anchor block exists.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.completion.snn_predict">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.completion.</span></span><span class="sig-name descname"><span class="pre">snn_predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectral_energy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">universal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">bool</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.completion.snn_predict" title="Link to this definition">#</a></dt>
+<dd><p>Impute entry <code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">j)</span></code> of <code class="docutils literal notranslate"><span class="pre">X</span></code> via SNN. Returns (value, feasible).</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.snn_helpers.setup">Panel ingestion for the SNN estimator.</p>
+<p>Pivots a long panel into <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> outcome and treatment matrices. SNN
+treats the treated post-treatment cells as missing and imputes them.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.setup.prepare_snn_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_snn_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.snn_helpers.structures.SNNInputs" title="mlsynth.utils.snn_helpers.structures.SNNInputs"><span class="pre">SNNInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.setup.prepare_snn_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot a long panel into <code class="xref py py-class docutils literal notranslate"><span class="pre">SNNInputs</span></code>.</p>
+<p>A treated unit has <code class="docutils literal notranslate"><span class="pre">treat</span> <span class="pre">==</span> <span class="pre">1</span></code> from a common adoption period
+onward; SNN imputes those cells’ untreated potential outcomes.</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.snn_helpers.pipeline">Orchestration for the SNN estimator (Agarwal et al. 2021).</p>
+<p>In the causal/panel setting, SNN masks the treated post-treatment cells
+as missing, imputes their untreated potential outcomes by synthetic
+nearest-neighbors matrix completion, and forms treatment effects as
+observed minus imputed.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.pipeline.run_snn">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">run_snn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.snn_helpers.structures.SNNInputs" title="mlsynth.utils.snn_helpers.structures.SNNInputs"><span class="pre">SNNInputs</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rank</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectral_energy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">universal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.snn_helpers.structures.SNNResults" title="mlsynth.utils.snn_helpers.structures.SNNResults"><span class="pre">SNNResults</span></a></span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.pipeline.run_snn" title="Link to this definition">#</a></dt>
+<dd><p>Run SNN and assemble <code class="xref py py-class docutils literal notranslate"><span class="pre">SNNResults</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>SNNInputs</em>) – Preprocessed panel.</p></li>
+<li><p><strong>n_neighbors</strong> (<em>int</em>) – Number of synthetic neighbours (anchor-row groups) to average.</p></li>
+<li><p><strong>max_rank</strong> (<em>int, optional</em>) – Fixed PCR truncation rank (overrides spectral/universal rule).</p></li>
+<li><p><strong>spectral_energy</strong> (<em>float</em>) – Energy threshold for spectral rank selection.</p></li>
+<li><p><strong>universal</strong> (<em>bool</em>) – Use the Donoho-Gavish universal hard threshold for the rank
+(default True; well-calibrated for small low-rank panels).</p></li>
+<li><p><strong>clip</strong> (<em>bool</em>) – Clip imputations to the observed value range.</p></li>
+<li><p><strong>inference</strong> (<em>bool</em>) – If True, run a leave-one-control jackknife for the ATT SE/CI.</p></li>
+<li><p><strong>alpha_level</strong> (<em>float</em>) – Two-sided level for the jackknife CI.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – Seed for anchor-row splitting.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.snn_helpers.structures">Frozen dataclasses for the Synthetic Nearest Neighbors (SNN) estimator.</p>
+<p>Agarwal, A., Dahleh, M., Shah, D. &amp; Shen, D. (2021). <em>“Causal Matrix
+Completion.”</em> arXiv:2109.15154.</p>
+<p>In the causal/panel setting, SNN treats the treated units’ post-treatment
+potential outcomes <span class="math notranslate nohighlight">\(Y(0)\)</span> as the missing entries of the outcome
+matrix and imputes them by matrix completion (synthetic nearest
+neighbors), then forms treatment effects as observed minus imputed. It
+generalises the Synthetic Interventions / synthetic-control estimator to
+arbitrary missingness patterns.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInference">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SNNInference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jackknife</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInference" title="Link to this definition">#</a></dt>
+<dd><p>Jackknife inference for the SNN ATT.</p>
+<p>Leaves out one control (anchor) unit at a time, re-imputes, and uses
+the spread of the resulting ATTs to form a standard error and
+confidence interval.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInference.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInference.method" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;jackknife&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInference.se">
+<span class="sig-name descname"><span class="pre">se</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInference.se" title="Link to this definition">#</a></dt>
+<dd><p>Jackknife standard error of the ATT.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInference.ci">
+<span class="sig-name descname"><span class="pre">ci</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInference.ci" title="Link to this definition">#</a></dt>
+<dd><p>Two-sided confidence interval for the ATT.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple of float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInference.alpha_level">
+<span class="sig-name descname"><span class="pre">alpha_level</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInference.alpha_level" title="Link to this definition">#</a></dt>
+<dd><p>Level used for <code class="docutils literal notranslate"><span class="pre">ci</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInference.n_jackknife">
+<span class="sig-name descname"><span class="pre">n_jackknife</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInference.n_jackknife" title="Link to this definition">#</a></dt>
+<dd><p>Number of leave-one-control re-fits used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">alpha_level</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">ci</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span></em><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">n_jackknife</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SNNInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel for SNN.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.Y" title="Link to this definition">#</a></dt>
+<dd><p>Observed outcomes, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.D">
+<span class="sig-name descname"><span class="pre">D</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.D" title="Link to this definition">#</a></dt>
+<dd><p>Treatment indicators, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>; <code class="docutils literal notranslate"><span class="pre">1</span></code> where treated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.treated_idx">
+<span class="sig-name descname"><span class="pre">treated_idx</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.treated_idx" title="Link to this definition">#</a></dt>
+<dd><p>Indices of ever-treated units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.T0">
+<span class="sig-name descname"><span class="pre">T0</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.T0" title="Link to this definition">#</a></dt>
+<dd><p>First treated period (post-treatment is <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">&gt;=</span> <span class="pre">T0</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.unit_names">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.unit_names" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">N</span></code> unit identifiers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> period labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">D</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.N">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.N" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNInputs.T">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">T0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">treated_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id9" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.snn_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SNNResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">effects:</span> <span class="pre">~mlsynth.config_models.EffectsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">fit_diagnostics:</span> <span class="pre">~mlsynth.config_models.FitDiagnosticsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">time_series:</span> <span class="pre">~mlsynth.config_models.TimeSeriesResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">weights:</span> <span class="pre">~mlsynth.config_models.WeightsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inference:</span> <span class="pre">~mlsynth.config_models.InferenceResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">method_details:</span> <span class="pre">~mlsynth.config_models.MethodDetailsResults</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">sub_method_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">additional_outputs:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">raw_results:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">execution_summary:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">plot_config:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.snn_helpers.structures.SNNInputs,</span> <span class="pre">counterfactual_matrix:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">effects_matrix:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">att_by_period:</span> <span class="pre">~typing.Dict[~typing.Any,</span> <span class="pre">float],</span> <span class="pre">feasible:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">inference_jackknife:</span> <span class="pre">~mlsynth.utils.snn_helpers.structures.SNNInference</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">metadata:</span> <span class="pre">~typing.Dict[str,</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults" title="Link to this definition">#</a></dt>
+<dd><p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.SNN.fit()</span></code>.</p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> (the observational report):
+in addition to the SNN-specific fields below it exposes the standardized
+sub-models (<code class="docutils literal notranslate"><span class="pre">effects</span></code>, <code class="docutils literal notranslate"><span class="pre">time_series</span></code>, <code class="docutils literal notranslate"><span class="pre">weights</span></code>, <code class="docutils literal notranslate"><span class="pre">inference</span></code>,
+<code class="docutils literal notranslate"><span class="pre">fit_diagnostics</span></code>, <code class="docutils literal notranslate"><span class="pre">method_details</span></code>) and the flat accessors <code class="docutils literal notranslate"><span class="pre">att</span></code> /
+<code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">gap</span></code> / <code class="docutils literal notranslate"><span class="pre">att_ci</span></code> / <code class="docutils literal notranslate"><span class="pre">pre_rmse</span></code>. The treated
+counterfactual path (<code class="docutils literal notranslate"><span class="pre">res.counterfactual</span></code>) is the cross-treated-unit mean
+of the imputed <span class="math notranslate nohighlight">\(Y(0)\)</span>; the full imputed <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code> matrix lives in
+<code class="docutils literal notranslate"><span class="pre">counterfactual_matrix</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>SNNInputs</em>) – Preprocessed panel.</p></li>
+<li><p><strong>counterfactual_matrix</strong> (<em>np.ndarray</em>) – Outcome matrix with treated post-treatment <span class="math notranslate nohighlight">\(Y(0)\)</span> imputed,
+shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>. (Renamed from <code class="docutils literal notranslate"><span class="pre">counterfactual</span></code>, which now returns
+the 1-D treated path per the result contract.)</p></li>
+<li><p><strong>effects_matrix</strong> (<em>np.ndarray</em>) – Per-cell treatment effects (observed minus imputed) for treated
+post cells; <code class="docutils literal notranslate"><span class="pre">NaN</span></code> elsewhere, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>. (Renamed from
+<code class="docutils literal notranslate"><span class="pre">effects</span></code>, which is now the standardized <code class="docutils literal notranslate"><span class="pre">EffectsResults</span></code> slot.)</p></li>
+<li><p><strong>att_by_period</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{period_label:</span> <span class="pre">mean</span> <span class="pre">effect</span> <span class="pre">across</span> <span class="pre">treated</span> <span class="pre">units}</span></code> for
+post-treatment periods.</p></li>
+<li><p><strong>feasible</strong> (<em>np.ndarray</em>) – Boolean mask of cells SNN could impute, shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">T)</span></code>.</p></li>
+<li><p><strong>inference_jackknife</strong> (<em>SNNInference, optional</em>) – The raw jackknife inference object (<code class="docutils literal notranslate"><span class="pre">method</span></code> / <code class="docutils literal notranslate"><span class="pre">se</span></code> / <code class="docutils literal notranslate"><span class="pre">ci</span></code>) when
+<code class="docutils literal notranslate"><span class="pre">inference=True</span></code>; <code class="docutils literal notranslate"><span class="pre">None</span></code> otherwise. The standardized
+<code class="xref py py-class docutils literal notranslate"><span class="pre">InferenceResults</span></code> is mirrored into the
+<code class="docutils literal notranslate"><span class="pre">inference</span></code> slot (so <code class="docutils literal notranslate"><span class="pre">res.att_ci</span></code> resolves).</p></li>
+<li><p><strong>metadata</strong> (<em>dict</em>) – Free-form diagnostics.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The PCR donor weights (the linear combination that builds the
+counterfactual) live in the standardized <code class="docutils literal notranslate"><span class="pre">weights</span></code> slot: for a single
+treated unit <code class="docutils literal notranslate"><span class="pre">donor_weights</span></code> maps donor name -&gt; weight; with multiple
+treated units it holds the cross-unit average and the per-unit weights live
+in <code class="docutils literal notranslate"><span class="pre">summary_stats['per_unit_donor_weights']</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.att_by_period">
+<span class="sig-name descname"><span class="pre">att_by_period</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.att_by_period" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.counterfactual_matrix">
+<span class="sig-name descname"><span class="pre">counterfactual_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.counterfactual_matrix" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.effects_matrix">
+<span class="sig-name descname"><span class="pre">effects_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.effects_matrix" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.feasible">
+<span class="sig-name descname"><span class="pre">feasible</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.feasible" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.inference_jackknife">
+<span class="sig-name descname"><span class="pre">inference_jackknife</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="s"><span class="pre">'SNNInference'</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.inference_jackknife" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.snn_helpers.structures.SNNInputs" title="mlsynth.utils.snn_helpers.structures.SNNInputs"><span class="pre">SNNInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.snn_helpers.structures.SNNResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid',</span> <span class="pre">'frozen':</span> <span class="pre">True,</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.snn_helpers.structures.SNNResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<p>Proposition 99 – California’s 1988 tobacco-control program, the canonical
+synthetic-control case study. SNN treats California’s post-1988
+per-capita cigarette sales as the missing entries, imputes the
+counterfactual by matrix completion, and reports the ATT. With
+<code class="docutils literal notranslate"><span class="pre">display_graphs=True</span></code> it draws the observed-vs-counterfactual chart.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">SNN</span>
+
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="c1"># Load the Prop 99 panel (39 states, 1970-2000; California treated 1989)</span>
+<span class="c1"># ------------------------------------------------------------------</span>
+<span class="n">file</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+    <span class="s2">&quot;refs/heads/main/basedata/smoking_data.csv&quot;</span>
+<span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">SNN</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span>
+    <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;cigsale&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;Proposition 99&quot;</span><span class="p">,</span>      <span class="c1"># boolean treatment column</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>              <span class="c1"># leave-one-control jackknife</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>         <span class="c1"># observed vs SNN counterfactual</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ATT (avg 1989-2000) = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.2f</span><span class="si">}</span><span class="s2"> packs/capita&quot;</span><span class="p">)</span>
+<span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">att_ci</span>               <span class="c1"># standardized; jackknife when inference=True</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;jackknife 95% CI    = [</span><span class="si">{</span><span class="n">lo</span><span class="si">:</span><span class="s2">+.2f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">hi</span><span class="si">:</span><span class="s2">+.2f</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gap by 2000         = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att_by_period</span><span class="p">[</span><span class="mi">2000</span><span class="p">]</span><span class="si">:</span><span class="s2">+.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The default <code class="docutils literal notranslate"><span class="pre">universal_rank=True</span></code> (Donoho-Gavish hard threshold) keeps
+the rank well-calibrated for this small (39 x 31) low-rank panel; it
+returns an average ATT of about <code class="docutils literal notranslate"><span class="pre">-18</span></code> packs/capita, widening to roughly
+<code class="docutils literal notranslate"><span class="pre">-29</span></code> by 2000 – consistent with Abadie, Diamond &amp; Hainmueller (2010).</p>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<p>Cross-validated against the reference implementation
+(<a class="reference external" href="https://github.com/deshen24/syntheticNN">deshen24/syntheticNN</a>): on the
+Prop 99 block-missingness pattern mlsynth reproduces the reference’s imputed
+counterfactual to machine precision. See <a class="reference internal" href="replications/snn.html"><span class="doc">SNN — deshen24/syntheticNN (Prop 99)</span></a>.</p>
+<p>The same SNN engine performs general (non-causal) matrix completion on
+any matrix with <code class="docutils literal notranslate"><span class="pre">NaN</span></code> for the missing entries:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.snn_helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">snn_complete</span>
+
+<span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span>
+              <span class="p">[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">],</span>
+              <span class="p">[</span><span class="mf">3.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="mf">9.0</span><span class="p">]])</span>
+<span class="n">completed</span><span class="p">,</span> <span class="n">feasible</span> <span class="o">=</span> <span class="n">snn_complete</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Abadie, A., Diamond, A., &amp; Hainmueller, J. (2010). “Synthetic Control
+Methods for Comparative Case Studies.” <em>Journal of the American
+Statistical Association</em> 105(490):493-505.</p>
+<p>Agarwal, A., Shah, D., Shen, D., &amp; Song, D. (2021b). “On Robustness of
+Principal Component Regression.” <em>Journal of the American Statistical
+Association</em>.</p>
+<p>Agarwal, A., Dahleh, M., Shah, D., &amp; Shen, D. (2021). “Causal Matrix
+Completion.” arXiv:2109.15154.</p>
+<p>Athey, S., Bayati, M., Doudchenko, N., Imbens, G., &amp; Khosravi, K. (2021).
+“Matrix Completion Methods for Causal Panel Data Models.” <em>Journal of the
+American Statistical Association</em> 116(536):1716-1730.</p>
+<p>Gavish, M., &amp; Donoho, D. L. (2014). “The Optimal Hard Threshold for
+Singular Values is 4/sqrt(3).” <em>IEEE Transactions on Information Theory</em>
+60(8):5040-5053.</p>
+<p>Ma, W., &amp; Chen, G. H. (2019). “Missing Not at Random in Matrix Completion:
+The Effectiveness of Estimating Missingness Probabilities Under a Low
+Nuclear Norm Assumption.” <em>NeurIPS</em>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="mcnnm.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Matrix Completion with Nuclear Norm Minimization (MCNNM)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="rmsi.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Robust Matrix estimation with Side Information (RMSI)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-algorithm">The algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-panel-data-is-a-natural-fit">Why panel data is a natural fit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#causal-use-in-mlsynth">Causal use in mlsynth</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-method">When to Use This Method</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-snn-when">Reach for SNN when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-snn-when">Do not use SNN when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.snn">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.snn.SNN"><code class="docutils literal notranslate"><span class="pre">SNN</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.snn.SNN.fit"><code class="docutils literal notranslate"><span class="pre">SNN.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig"><code class="docutils literal notranslate"><span class="pre">SNNConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.alpha"><code class="docutils literal notranslate"><span class="pre">SNNConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.clip"><code class="docutils literal notranslate"><span class="pre">SNNConfig.clip</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.inference"><code class="docutils literal notranslate"><span class="pre">SNNConfig.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.max_rank"><code class="docutils literal notranslate"><span class="pre">SNNConfig.max_rank</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.model_config"><code class="docutils literal notranslate"><span class="pre">SNNConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.n_neighbors"><code class="docutils literal notranslate"><span class="pre">SNNConfig.n_neighbors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.random_state"><code class="docutils literal notranslate"><span class="pre">SNNConfig.random_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.spectral_energy"><code class="docutils literal notranslate"><span class="pre">SNNConfig.spectral_energy</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SNNConfig.universal_rank"><code class="docutils literal notranslate"><span class="pre">SNNConfig.universal_rank</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.snn_helpers.completion">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.completion.snn_complete"><code class="docutils literal notranslate"><span class="pre">snn_complete()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.completion.snn_donor_weights"><code class="docutils literal notranslate"><span class="pre">snn_donor_weights()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.completion.snn_predict"><code class="docutils literal notranslate"><span class="pre">snn_predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.setup.prepare_snn_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_snn_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.pipeline.run_snn"><code class="docutils literal notranslate"><span class="pre">run_snn()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference"><code class="docutils literal notranslate"><span class="pre">SNNInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.method"><code class="docutils literal notranslate"><span class="pre">SNNInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.se"><code class="docutils literal notranslate"><span class="pre">SNNInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.ci"><code class="docutils literal notranslate"><span class="pre">SNNInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.alpha_level"><code class="docutils literal notranslate"><span class="pre">SNNInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInference.n_jackknife"><code class="docutils literal notranslate"><span class="pre">SNNInference.n_jackknife</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">SNNInference.alpha_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">SNNInference.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">SNNInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">SNNInference.n_jackknife</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">SNNInference.se</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs"><code class="docutils literal notranslate"><span class="pre">SNNInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.Y"><code class="docutils literal notranslate"><span class="pre">SNNInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.D"><code class="docutils literal notranslate"><span class="pre">SNNInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.treated_idx"><code class="docutils literal notranslate"><span class="pre">SNNInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.T0"><code class="docutils literal notranslate"><span class="pre">SNNInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">SNNInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">SNNInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">SNNInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.N"><code class="docutils literal notranslate"><span class="pre">SNNInputs.N</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNInputs.T"><code class="docutils literal notranslate"><span class="pre">SNNInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">SNNInputs.T0</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">SNNInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">SNNInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">SNNInputs.treated_idx</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">SNNInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults"><code class="docutils literal notranslate"><span class="pre">SNNResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.att_by_period"><code class="docutils literal notranslate"><span class="pre">SNNResults.att_by_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.counterfactual_matrix"><code class="docutils literal notranslate"><span class="pre">SNNResults.counterfactual_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.effects_matrix"><code class="docutils literal notranslate"><span class="pre">SNNResults.effects_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.feasible"><code class="docutils literal notranslate"><span class="pre">SNNResults.feasible</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.inference_jackknife"><code class="docutils literal notranslate"><span class="pre">SNNResults.inference_jackknife</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.inputs"><code class="docutils literal notranslate"><span class="pre">SNNResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.metadata"><code class="docutils literal notranslate"><span class="pre">SNNResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.snn_helpers.structures.SNNResults.model_config"><code class="docutils literal notranslate"><span class="pre">SNNResults.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

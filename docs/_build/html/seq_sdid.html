@@ -1,0 +1,1749 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Sequential Synthetic Difference-in-Differences (Sequential SDiD) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'seq_sdid';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Partially Pooled SCM (PPSCM)" href="ppscm.html" />
+    <link rel="prev" title="Synthetic Difference-in-Differences (SDID)" href="sdid.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/seq_sdid.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Sequential Synthetic Difference-in-Differences (Sequential SDiD)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-sequential-sdid-when">Reach for Sequential SDiD when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-sequential-sdid-when">Do not use Sequential SDiD when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-assumptions">Identifying assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm-1">Algorithm 1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pooled-event-study">Pooled Event Study</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-eta-to-infty-limit">The <span class="math notranslate nohighlight">\(\eta \to \infty\)</span> Limit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-section-2-3">Inference (Section 2.3)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.seq_sdid">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.seq_sdid.SequentialSDID"><code class="docutils literal notranslate"><span class="pre">SequentialSDID</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.seq_sdid.SequentialSDID.fit"><code class="docutils literal notranslate"><span class="pre">SequentialSDID.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.K"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.K</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.a_max"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.a_max</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.a_min"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.a_min</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.alpha"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.eta"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.eta</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.mode"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.model_config"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.n_bootstrap"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.n_bootstrap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.seed"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.seed</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.seq_sdid_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.setup.prepare_seq_sdid_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_seq_sdid_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.weights.solve_time_qp"><code class="docutils literal notranslate"><span class="pre">solve_time_qp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.weights.solve_unit_qp"><code class="docutils literal notranslate"><span class="pre">solve_unit_qp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.algorithm.pooled_event_study"><code class="docutils literal notranslate"><span class="pre">pooled_event_study()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.algorithm.run_sequential_sdid"><code class="docutils literal notranslate"><span class="pre">run_sequential_sdid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.inference.bayesian_bootstrap_event_study"><code class="docutils literal notranslate"><span class="pre">bayesian_bootstrap_event_study()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.inference.wald_intervals"><code class="docutils literal notranslate"><span class="pre">wald_intervals()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.plotter.plot_seq_sdid"><code class="docutils literal notranslate"><span class="pre">plot_seq_sdid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.cohort_period"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.cohort_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.k"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.k</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.lambda_w"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.lambda_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.omega"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.omega</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.tau"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.tau</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.alpha"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.bootstrap_draws"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.bootstrap_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.ci"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.horizons"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.horizons</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.se"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.tau"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.tau</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.method"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.n_bootstrap"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference.n_bootstrap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.seed"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference.seed</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.K"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.K</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.Y_agg"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.Y_agg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_max"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.a_max</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_min"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.a_min</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_labels"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.cohort_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_periods"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.cohort_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.n_units"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.n_units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.pi"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.pi</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.treated_cohort_indices"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.treated_cohort_indices</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.cohort_effects"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.cohort_effects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.eta"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.eta</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.event_study"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.event_study</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inference_detail"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.inference_detail</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inputs"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.mode"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.model_config"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.raw_event_study"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.raw_event_study</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="sequential-synthetic-difference-in-differences-sequential-sdid">
+<h1>Sequential Synthetic Difference-in-Differences (Sequential SDiD)<a class="headerlink" href="#sequential-synthetic-difference-in-differences-sequential-sdid" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Sequential Synthetic Difference-in-Differences (Sequential SDiD,
+<a class="reference external" href="https://arxiv.org/abs/2404.00164v2">arXiv:2404.00164v2</a>, Arkhangelsky &amp;
+Samkov, 2025) is an event-study estimator for staggered-adoption designs
+that remains robust when the parallel-trends assumption fails. It adapts
+the canonical SDiD of Arkhangelsky et al. (2021) by operating on
+<em>cohort-level aggregates</em> and <em>sequentially</em> imputing treated cells with
+their estimated counterfactuals so that bias from early cohorts does not
+cascade into later ones.</p>
+<p>The estimator is asymptotically equivalent to an infeasible oracle OLS
+regression that knows the unobserved interactive fixed effects (Proposition
+3.1 of the paper), giving it the first formal efficiency guarantees for an
+SC-type method. Five structural differences distinguish Sequential SDiD
+from the canonical SDID estimator already in <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth</span></code>:</p>
+<ul class="simple">
+<li><p>It works on aggregated cohort outcomes <span class="math notranslate nohighlight">\(y_{a, t} \coloneqq
+n_a^{-1} \sum_{i:\,A_i = a} y_{i, t}\)</span> rather than unit-level data, with
+cohort shares <span class="math notranslate nohighlight">\(\pi_a \coloneqq n_a / n\)</span> carrying the unit-count information.</p></li>
+<li><p>Weights satisfy only the simplex sum constraint <span class="math notranslate nohighlight">\(\mathbf{1}^\top\mathbf{w} = 1\)</span>
+— non-negativity is dropped.</p></li>
+<li><p>The unit-weight penalty is the population-share-scaled
+<span class="math notranslate nohighlight">\(\eta^{2} \sum_j w_j^2 / \pi_j\)</span>; the time-weight penalty is
+<span class="math notranslate nohighlight">\(\eta^{2} \sum_l \lambda_l^2\)</span>.</p></li>
+<li><p>Donors for cohort <span class="math notranslate nohighlight">\(a\)</span> are restricted to later-adopting cohorts
+<span class="math notranslate nohighlight">\(j &gt; a\)</span> (including the never-treated cohort), not the universe of
+controls.</p></li>
+<li><p>Cohort-by-horizon effects are estimated in a sequential cascade:
+each <span class="math notranslate nohighlight">\(\widehat{\tau}_{a, k}^{\,\mathrm{SSDiD}}\)</span> is computed, then the treated cell
+<span class="math notranslate nohighlight">\(y_{a, a + k}\)</span> is overwritten with <span class="math notranslate nohighlight">\(y_{a, a + k} - \widehat{\tau}_{a, k}^{\,\mathrm{SSDiD}}\)</span>
+so subsequent <code class="docutils literal notranslate"><span class="pre">(a',</span> <span class="pre">k')</span></code> steps see an imputed
+panel free of treatment contamination.</p></li>
+</ul>
+</section>
+<section id="when-to-use-this-estimator">
+<h2>When to Use This Estimator<a class="headerlink" href="#when-to-use-this-estimator" title="Link to this heading">#</a></h2>
+<p>Event studies with staggered adoption – units switching on at
+different dates – are the workhorse design of applied micro. The modern
+estimators built for them (Callaway &amp; Sant’Anna 2020, de Chaisemartin &amp;
+d’Haultfœuille 2020, Sun &amp; Abraham 2020, Borusyak et al. 2024) fixed the
+<em>heterogeneous-effects</em> bug in two-way fixed effects, but they still rest
+on parallel trends: absent treatment, treated and comparison cohorts
+would have moved together. When unobserved interactive fixed effects
+(latent unit factors loading on latent time factors) drive selection into
+treatment, parallel trends fails and those estimators are biased –
+exactly the regime Sequential SDiD (Arkhangelsky &amp; Samkov 2025) targets.</p>
+<p>Its bet is to <em>model</em> the confounder. Within a linear interactive-fixed-
+effects model, Sequential SDiD is proven asymptotically equivalent to
+the infeasible oracle OLS that knows the latent factors (Prop. 3.1).
+That equivalence buys three things at once: robustness to parallel-trends
+violations of the IFE type, asymptotic normality with standard
+inference, and the first formal efficiency guarantee for an SC-type
+estimator. The sequential imputation – estimate the earliest cohort,
+subtract its effect, reuse the cleaned panel for later cohorts – gives a
+<em>cohesive</em> analysis of the whole event study, in contrast to per-cohort SC
+methods (<a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a>, Cattaneo et al. 2021) that treat each adoption
+cohort as a separate problem.</p>
+<section id="reach-for-sequential-sdid-when">
+<h3>Reach for Sequential SDiD when<a class="headerlink" href="#reach-for-sequential-sdid-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>You have a staggered-adoption event study and you suspect
+parallel trends fails because of unobserved confounders that look
+like interactive fixed effects (selection on latent trends, not just
+levels).</p></li>
+<li><p>Adoption cohorts are reasonably large. The method averages outcomes
+within each cohort and leans on a law of large numbers to kill
+idiosyncratic noise; this is the estimator’s core requirement and its
+main limitation.</p></li>
+<li><p>You want valid, standard inference (asymptotic normality) and a
+defensible efficiency claim, plus a dynamic event-study path of
+cohort-by-horizon effects.</p></li>
+<li><p>You are in the fixed-<span class="math notranslate nohighlight">\(T\)</span>, large-<span class="math notranslate nohighlight">\(N\)</span> regime typical of
+county/firm/individual panels aggregated into a handful of adoption
+cohorts.</p></li>
+</ul>
+</section>
+<section id="do-not-use-sequential-sdid-when">
+<h3>Do not use Sequential SDiD when<a class="headerlink" href="#do-not-use-sequential-sdid-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Cohorts are small (few units per adoption date, or single-unit
+cohorts). The within-cohort averaging has nothing to average and the
+oracle equivalence does not engage. Use <a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a>, whose partial
+pooling is designed for noisy per-unit cohort fits, or canonical
+<a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> per cohort.</p></li>
+<li><p>There is a single treated unit or one common adoption time. The
+sequential cascade has nothing to cascade; use canonical <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>
+(many units, one time) or classic SC (<a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a>, <a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>,
+<a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a>) for a single unit.</p></li>
+<li><p>Parallel trends is credible and you want the simplest transparent
+thing. Standard staggered-DiD (Callaway-Sant’Anna and relatives) is
+fine; on the Bailey-Goodman-Bacon application where PT holds, Sequential
+SDiD merely reproduces standard DiD.</p></li>
+<li><p>SUTVA is violated by spillovers onto the comparison cohorts – use
+<a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a> or <a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a>.</p></li>
+<li><p>Distributional questions (quantiles, tails) – use <a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a>.</p></li>
+</ul>
+</section>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical Formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading">#</a></h2>
+<section id="notation">
+<h3>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h3>
+<p>Let <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> index the underlying units,
+with generic unit <span class="math notranslate nohighlight">\(i \in \mathcal{N}\)</span>, and let
+<span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span> index the (1-indexed)
+periods. Each unit carries a (possibly infinite) adoption period <span class="math notranslate nohighlight">\(A_i\)</span>,
+the period after which it is treated; the never-treated cohort uses
+<span class="math notranslate nohighlight">\(A_i = +\infty\)</span>. Units are grouped into cohorts indexed by adoption
+period <span class="math notranslate nohighlight">\(a\)</span>, with <span class="math notranslate nohighlight">\(n_a\)</span> units in cohort <span class="math notranslate nohighlight">\(a\)</span>, total
+<span class="math notranslate nohighlight">\(n = \sum_a n_a\)</span>, and cohort share
+<span class="math notranslate nohighlight">\(\pi_a \coloneqq n_a / n\)</span>. The unit-level outcome is <span class="math notranslate nohighlight">\(y_{i, t}\)</span>;
+the cohort-level aggregate</p>
+<div class="math notranslate nohighlight">
+\[y_{a, t}
+\;\coloneqq\;
+\frac{1}{n_a} \sum_{i:\, A_i = a} y_{i, t}\]</div>
+<p>plays the role of a series in <span class="math notranslate nohighlight">\(\mathbb{R}^{T}\)</span>, and the later-adopting
+cohorts of a treated cohort <span class="math notranslate nohighlight">\(a\)</span> (those with adoption period
+<span class="math notranslate nohighlight">\(j &gt; a\)</span>, including the never-treated cohort) form its donor pool, stacked
+into the donor matrix <span class="math notranslate nohighlight">\(\mathbf{Y}_0\)</span>. Unit (donor) weights are the vector
+<span class="math notranslate nohighlight">\(\mathbf{w}\)</span> with entries <span class="math notranslate nohighlight">\(w_j\)</span>, optimiser <span class="math notranslate nohighlight">\(\mathbf{w}^\ast\)</span>;
+time weights are the vector <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}\)</span> with entries
+<span class="math notranslate nohighlight">\(\lambda_l\)</span>. The per-(cohort, horizon) effect is
+<span class="math notranslate nohighlight">\(\tau_{a, k}\)</span> and the pooled horizon effect is <span class="math notranslate nohighlight">\(\tau_k\)</span>; the
+treatment effect is reserved to <span class="math notranslate nohighlight">\(\tau\)</span> throughout, so the regularization
+strength is <span class="math notranslate nohighlight">\(\eta \ge 0\)</span> (never <span class="math notranslate nohighlight">\(\tau\)</span>) and the significance level
+is the bare <span class="math notranslate nohighlight">\(\alpha\)</span> (matching <code class="xref py py-attr docutils literal notranslate"><span class="pre">SequentialSDIDConfig.alpha</span></code>),
+distinct from the subscripted cohort fixed effect <span class="math notranslate nohighlight">\(\alpha_a\)</span> of the model
+in <em>Setup</em>.</p>
+</section>
+<section id="setup">
+<h3>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h3>
+<p>For each cohort the implementation computes the aggregate <span class="math notranslate nohighlight">\(y_{a, t}\)</span>
+above with share <span class="math notranslate nohighlight">\(\pi_a\)</span>. Under Assumption 2.2 of the paper, the
+aggregate outcomes inherit the interactive-fixed-effects structure</p>
+<div class="math notranslate nohighlight">
+\[y_{a, t}
+\;=\;
+\alpha_a + \beta_t + \theta_a^\top \psi_t
++ \mathbf{1}\{a \le t\}\,\tau_{a, t - a} + \epsilon_{a, t},\]</div>
+<p>where <span class="math notranslate nohighlight">\(\theta_a^\top \psi_t\)</span> captures unobserved confounders that
+break parallel trends. Aggregation drives <span class="math notranslate nohighlight">\(\epsilon_{a, t}\)</span> to zero
+under the paper’s “large cohort” asymptotics, leaving the IFE structure
+identifiable.</p>
+</section>
+<section id="identifying-assumptions">
+<h3>Identifying assumptions<a class="headerlink" href="#identifying-assumptions" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Interactive fixed effects (Assumption 2.2). The no-intervention
+outcomes follow the additive-plus-factor structure above: cohort effect
+<span class="math notranslate nohighlight">\(\alpha_a\)</span>, time effect <span class="math notranslate nohighlight">\(\beta_t\)</span>, and a low-rank interactive
+term <span class="math notranslate nohighlight">\(\theta_a^\top \psi_t\)</span> of latent cohort loadings on latent time
+factors, the component that breaks parallel trends.</p>
+<p><em>Remark.</em> It is precisely the <span class="math notranslate nohighlight">\(\theta_a^\top \psi_t\)</span> term that
+defeats standard staggered-DiD: when adoption correlates with the loading
+<span class="math notranslate nohighlight">\(\theta_a\)</span>, comparison cohorts do not trace the treated cohort’s
+counterfactual trend. Sequential SDiD models this term rather than assuming
+it away, which is what buys robustness when parallel trends fails.</p>
+</li>
+<li><p>Large adoption cohorts. Cohort sizes <span class="math notranslate nohighlight">\(n_a\)</span> grow with the sample so
+that aggregation drives the idiosyncratic noise <span class="math notranslate nohighlight">\(\epsilon_{a, t}\)</span> to
+zero, leaving the IFE structure identifiable from the cohort aggregates.</p>
+<p><em>Remark.</em> This is the estimator’s core requirement and its main limitation:
+the within-cohort average must have enough units to average. With single-unit
+or tiny cohorts the law of large numbers does not engage and the oracle
+equivalence (Prop. 3.1) does not hold — use <a class="reference internal" href="ppscm.html"><span class="doc">Partially Pooled SCM (PPSCM)</span></a> or canonical
+<a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a> instead.</p>
+</li>
+<li><p>Donor balance. Each treated cohort <span class="math notranslate nohighlight">\(a\)</span> is balanced only against the
+cohorts adopting after it (<span class="math notranslate nohighlight">\(j &gt; a\)</span>) plus any never-treated cohort, so
+it needs at least two such donor cohorts to balance even a rank-one
+interactive fixed effect — matching a one-dimensional loading and the
+intercept spans <span class="math notranslate nohighlight">\((1, \lambda)\)</span>.</p>
+<p><em>Remark.</em> With a single donor the sum-to-one constraint forces
+<span class="math notranslate nohighlight">\(\mathbf{w} = [1]\)</span> and the cohort effect collapses to an unbalanced
+DiD, biased whenever the loadings differ; that bias also cascades backward
+through the sequential imputation. The latest cohorts are the most exposed,
+so <code class="xref py py-meth docutils literal notranslate"><span class="pre">SequentialSDID.fit()</span></code> warns when a cohort is donor-starved (see
+<em>Limitations</em>).</p>
+</li>
+<li><p>No interference across cohorts (SUTVA). Treating one cohort does not
+change the outcomes of the comparison cohorts that serve as its donors, so
+the donor aggregates carry only no-intervention outcomes.</p>
+<p><em>Remark.</em> Spillovers onto the comparison cohorts contaminate the
+counterfactual; when they are present use <a class="reference internal" href="spsydid.html"><span class="doc">Spatial Synthetic Difference-in-Differences (SpSyDiD)</span></a> or
+<a class="reference internal" href="spillsynth.html"><span class="doc">Spillover-Aware Synthetic Control (SPILLSYNTH)</span></a> rather than Sequential SDiD.</p>
+</li>
+</ol>
+</section>
+<section id="algorithm-1">
+<h3>Algorithm 1<a class="headerlink" href="#algorithm-1" title="Link to this heading">#</a></h3>
+<p>For each horizon <span class="math notranslate nohighlight">\(k = 0, 1, \dots, K\)</span> (outer loop) and each treated
+cohort <span class="math notranslate nohighlight">\(a = a_{\min}, \dots, a_{\max}\)</span> (inner loop), Sequential SDiD
+runs three steps.</p>
+<p>Step 1: Solve two regularized QPs. Both QPs are equality-constrained
+convex quadratic programs (no non-negativity). The unit-weight QP is</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\mathbf{w}}^{(a, k)}, \widehat{w}_0
+\;=\;
+\operatorname*{argmin}_{\sum_{j &gt; a} w_j = 1}
+\quad
+\sum_{l &lt; a + k}
+  \left(
+    w_0
+    + \sum_{j &gt; a} w_j \, y_{j, l}
+    - y_{a, l}
+  \right)^{\!2}
+\;+\;
+\eta^2 \sum_{j &gt; a} \frac{w_j^2}{\pi_j},\]</div>
+<p>and the time-weight QP is</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\boldsymbol{\lambda}}^{(a, k)}, \widehat{\lambda}_0
+\;=\;
+\operatorname*{argmin}_{\sum_{l &lt; a + k} \lambda_l = 1}
+\quad
+\sum_{j &gt; a}
+  \left(
+    \lambda_0
+    + \sum_{l &lt; a + k} \lambda_l \, y_{j, l}
+    - y_{j, a + k}
+  \right)^{\!2}
+\;+\;
+\eta^2 \sum_{l &lt; a + k} \lambda_l^{\,2}.\]</div>
+<p>Both are solved in closed form via their KKT linear systems in
+<a class="reference internal" href="#module-mlsynth.utils.seq_sdid_helpers.weights" title="mlsynth.utils.seq_sdid_helpers.weights"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.seq_sdid_helpers.weights</span></code></a>.</p>
+<p>Step 2: Weighted double-difference.</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\tau}_{a, k}^{\,\mathrm{SSDiD}}
+\;=\;
+\left(
+  y_{a, a + k}
+  -
+  \sum_{j &gt; a} \widehat{w}_j^{(a, k)} \, y_{j, a + k}
+\right)
+\;-\;
+\sum_{l &lt; a + k}
+  \widehat{\lambda}_l^{(a, k)}
+  \left(
+    y_{a, l}
+    -
+    \sum_{j &gt; a} \widehat{w}_j^{(a, k)} \, y_{j, l}
+  \right).\]</div>
+<p>This is the same SDID-style contrast as the canonical estimator, just
+evaluated on cohort-level aggregates.</p>
+<p>Step 3: Sequential imputation.</p>
+<div class="math notranslate nohighlight">
+\[y_{a, a + k} \;\coloneqq\; y_{a, a + k} \;-\; \widehat{\tau}_{a, k}^{\,\mathrm{SSDiD}}.\]</div>
+<p>The treated cell is replaced with its estimated counterfactual <em>in place</em>
+in the panel matrix. When the outer loop advances to a longer horizon or
+the inner loop advances to a later cohort, subsequent QPs use this
+imputed panel — which is the mechanism that prevents bias from cascading
+through the estimator.</p>
+</section>
+<section id="pooled-event-study">
+<h3>Pooled Event Study<a class="headerlink" href="#pooled-event-study" title="Link to this heading">#</a></h3>
+<p>Cohort-specific effects are aggregated into a single event-study trajectory
+via Equation 2.5 of the paper:</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\tau}_k^{\,\mathrm{SSDiD}}(\mu)
+\;=\;
+\sum_{a \in [a_{\min}, a_{\max}]} \mu_a \, \widehat{\tau}_{a, k}^{\,\mathrm{SSDiD}},
+\qquad
+\mu_a \coloneqq \frac{\pi_a}{\sum_{a' \in [a_{\min}, a_{\max}]} \pi_{a'}}.\]</div>
+<p>The default <code class="docutils literal notranslate"><span class="pre">mu</span></code> is proportional to cohort shares (i.e. larger cohorts
+get more weight), recovering the unit-uniform interpretation common in the
+DiD literature. The result lives on <code class="xref py py-attr docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.tau</span></code>.</p>
+</section>
+<section id="the-eta-to-infty-limit">
+<h3>The <span class="math notranslate nohighlight">\(\eta \to \infty\)</span> Limit<a class="headerlink" href="#the-eta-to-infty-limit" title="Link to this heading">#</a></h3>
+<p>Remark 2.2 of the paper notes that as <span class="math notranslate nohighlight">\(\eta \to \infty\)</span>, the unit-
+weight QP’s penalty <span class="math notranslate nohighlight">\(\sum w_j^2 / \pi_j\)</span> forces <span class="math notranslate nohighlight">\(w_j
+\propto \pi_j\)</span> (each unit in the donor pool gets equal weight), and the
+time-weight QP’s penalty <span class="math notranslate nohighlight">\(\sum \lambda_l^{\,2}\)</span> forces
+<span class="math notranslate nohighlight">\(\lambda_l = 1 / (a + k - 1)\)</span> (uniform). The resulting estimator is
+a sequential DiD imputation estimator closely related to Borusyak,
+Jaravel, and Spiess (2024). The <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth</span></code> implementation exposes this
+mode via <code class="xref py py-attr docutils literal notranslate"><span class="pre">SequentialSDIDConfig.mode</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mode</span> <span class="pre">=</span> <span class="pre">&quot;ssdid&quot;</span></code>: paper’s main estimator with finite <code class="docutils literal notranslate"><span class="pre">eta</span></code> (default).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mode</span> <span class="pre">=</span> <span class="pre">&quot;sdid_imputation&quot;</span></code>: forces the <span class="math notranslate nohighlight">\(\eta \to \infty\)</span> limit
+internally and returns the sequential-DiD-style result.</p></li>
+</ul>
+</section>
+<section id="inference-section-2-3">
+<h3>Inference (Section 2.3)<a class="headerlink" href="#inference-section-2-3" title="Link to this heading">#</a></h3>
+<p>Inference uses the Bayesian bootstrap of Rubin (1981) and Chamberlain &amp;
+Imbens (2003). At each bootstrap iteration:</p>
+<ol class="arabic">
+<li><p>Draw independent weights <span class="math notranslate nohighlight">\(\xi_i \sim \mathrm{Exp}(1)\)</span> for every
+underlying unit (not cohort).</p></li>
+<li><p>Reconstruct cohort-level outcomes as weighted means:</p>
+<div class="math notranslate nohighlight">
+\[y_{a, t}(\xi)
+\;=\;
+\frac{\sum_{i:\, A_i = a} y_{i, t} \, \xi_i}{\sum_{i:\, A_i = a} \xi_i}.\]</div>
+</li>
+<li><p>Re-run Algorithm 1 on the perturbed panel.</p></li>
+<li><p>Record the pooled event-study vector.</p></li>
+</ol>
+<p>Standard errors are sample standard deviations of the bootstrap replicates,
+and confidence intervals are Wald-type at <code class="xref py py-attr docutils literal notranslate"><span class="pre">SequentialSDIDConfig.alpha</span></code>.
+The full replicate matrix is retained on
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.bootstrap_draws</span></code> in case quantile-based
+intervals are preferred downstream.</p>
+</section>
+<section id="limitations">
+<h3>Limitations<a class="headerlink" href="#limitations" title="Link to this heading">#</a></h3>
+<p>The paper’s formal guarantees require <em>large adoption cohorts</em> — cohort
+sizes that grow with the sample so the aggregation kills the idiosyncratic
+noise. The algorithm still runs on single-treated-unit panels (e.g., the
+Proposition 99 dataset), but with only one treated cohort and one
+never-treated cohort the time-weight QP becomes effectively
+underdetermined; the practical recommendation is to use canonical
+<code class="xref py py-class docutils literal notranslate"><span class="pre">SDID</span></code> for those panels and reserve Sequential SDiD for genuine
+staggered designs with multiple sizable cohorts.</p>
+<p>A second requirement is <em>donor balance</em>. Each treated cohort <span class="math notranslate nohighlight">\(a\)</span> is
+balanced only against the cohorts adopting after it (<span class="math notranslate nohighlight">\(j &gt; a\)</span>) plus any
+never-treated cohort, so it needs at least two such donor cohorts to
+balance even a rank-one interactive fixed effect — matching a one-dimensional
+loading and the intercept spans <span class="math notranslate nohighlight">\((1, \lambda)\)</span>. With a single donor the
+sum-to-one constraint forces <span class="math notranslate nohighlight">\(\mathbf{w} = [1]\)</span> and the cohort effect
+collapses to an unbalanced DiD, biased whenever the loadings differ; that bias
+also cascades backward through the sequential imputation. On a <em>noiseless</em>
+rank-one factor the estimator recovers the effect exactly for every cohort
+that is balanced, and the entire residual bias is attributable to the
+donor-starved late cohorts. Because the latest cohorts are the most exposed
+(the default <code class="docutils literal notranslate"><span class="pre">a_max</span></code> is the last adopting cohort), <code class="xref py py-meth docutils literal notranslate"><span class="pre">SequentialSDID.fit()</span></code>
+emits a <code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code> naming any donor-starved cohort and the largest
+<code class="docutils literal notranslate"><span class="pre">a_max</span></code> that keeps every estimated cohort balanced — report, don’t silently
+relax.</p>
+</section>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<p>Path B — the paper’s Section-5.2.2 calibrated-panel Monte Carlo (Table 1)
+is reconstructed from its description (the authors’ CPS log-wage panel is not
+public). Under an interactive-fixed-effects violation of parallel trends with
+adoption correlated to the leading loading, standard DiD’s 95% CI coverage
+collapses (<span class="math notranslate nohighlight">\(\approx 0.45\)</span>; paper <span class="math notranslate nohighlight">\(\approx 0.70\)</span>) while Sequential
+SDiD stays near nominal (<span class="math notranslate nohighlight">\(0.945\)</span>) with roughly five-times-smaller bias
+and lower RMSE — the paper’s “DiD severely biased, Sequential SDiD reliable”
+result. A noiseless rank-one IFE corollary pins exact machine-precision
+recovery for every donor-balanced cohort. The durable check is
+<code class="docutils literal notranslate"><span class="pre">benchmarks/cases/seq_sdid_mc.py</span></code>; see the dedicated replication page,
+<a class="reference internal" href="replications/seq_sdid.html"><span class="doc">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</span></a>, for the design, code, and the full table.</p>
+</section>
+<section id="module-mlsynth.estimators.seq_sdid">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.seq_sdid" title="Link to this heading">#</a></h2>
+<p>Sequential Synthetic Difference-in-Differences (Sequential SDiD) estimator.</p>
+<p>Implements:</p>
+<blockquote>
+<div><p>Arkhangelsky, D., &amp; Samkov, A. (2025). “Sequential Synthetic Difference
+in Differences.” arXiv:2404.00164v2.</p>
+</div></blockquote>
+<p>The estimator targets event-study designs with staggered treatment adoption
+and remains robust when the parallel-trends assumption is violated by
+interactive fixed effects. It operates on cohort-level aggregates rather
+than unit-level data, sequentially imputes treated outcomes with their
+estimated counterfactuals, and uses unconstrained-sum weights with a
+population-share-scaled L2 penalty.</p>
+<p>Output is a typed <a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults</span></code></a>
+container exposing:</p>
+<blockquote>
+<div><ul class="simple">
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">cohort_effects</span></code>      cohort-by-horizon point estimates</dt><dd><p><code class="docutils literal notranslate"><span class="pre">tau_hat_{a,</span> <span class="pre">k}^SSDiD</span></code></p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">event_study</span></code>         the pooled horizon-k effects</dt><dd><p><code class="docutils literal notranslate"><span class="pre">tau_hat_k^SSDiD(mu)</span></code> with bootstrap CIs</p>
+</dd>
+</dl>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inference</span></code>           bootstrap configuration summary</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">raw_event_study</span></code>     the non-bootstrap point-estimate vector</p></li>
+</ul>
+</div></blockquote>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.seq_sdid.SequentialSDID">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.seq_sdid.</span></span><span class="sig-name descname"><span class="pre">SequentialSDID</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.SequentialSDIDConfig" title="mlsynth.utils.seq_sdid_helpers.config.SequentialSDIDConfig"><span class="pre">SequentialSDIDConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.seq_sdid.SequentialSDID" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Sequential Synthetic Difference-in-Differences estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>SequentialSDIDConfig or dict</em>) – Configuration object. See
+<a class="reference internal" href="#mlsynth.config_models.SequentialSDIDConfig" title="mlsynth.config_models.SequentialSDIDConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.SequentialSDIDConfig</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>SeqSDIDResults</em> – Typed container with cohort-by-horizon effects, the pooled
+event-study trajectory, and Bayesian-bootstrap SE / CI.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The two-way fixed-effects representation underlying canonical SDiD
+requires parallel trends; Sequential SDiD relaxes this by modelling
+interactive fixed effects directly. The theoretical guarantees in the
+paper require that adoption cohorts be relatively large; on
+single-treated-unit panels the algorithm still runs but the formal
+efficiency results don’t apply.</p>
+<p>Each treated cohort’s counterfactual is balanced against the cohorts that
+adopt <em>after</em> it (plus any never-treated cohort). A cohort therefore needs
+at least two such donor cohorts to balance even a rank-one interactive
+fixed effect – with a single donor its effect collapses to an unbalanced
+DiD and is biased under interactive fixed effects, a bias that also
+cascades backward through the sequential imputation. The latest cohorts are
+the most exposed; <code class="docutils literal notranslate"><span class="pre">fit()</span></code> emits a <code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code> naming any
+donor-starved cohort and the largest <code class="docutils literal notranslate"><span class="pre">a_max</span></code> that keeps every estimated
+cohort balanced.</p>
+<p class="rubric">References</p>
+<p>Arkhangelsky, D., &amp; Samkov, A. (2025). “Sequential Synthetic Difference
+in Differences.” arXiv:2404.00164v2.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">SequentialSDID</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span> <span class="o">=</span> <span class="n">SequentialSDID</span><span class="p">({</span>
+<span class="gp">... </span>    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treated&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;n_bootstrap&quot;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span> <span class="s2">&quot;eta&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span><span class="o">.</span><span class="n">event_study</span><span class="o">.</span><span class="n">tau</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.seq_sdid.SequentialSDID.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults"><span class="pre">SeqSDIDResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.seq_sdid.SequentialSDID.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run Algorithm 1 + bootstrap inference and return the typed result.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">SequentialSDIDConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=0)]</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode:</span> <span class="pre">~typing.Literal['ssdid'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">'sdid_imputation']</span> <span class="pre">=</span> <span class="pre">'ssdid'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K:</span> <span class="pre">~typing.Annotated[int</span> <span class="pre">|</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=0)]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_min:</span> <span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_max:</span> <span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bootstrap:</span> <span class="pre">~typing.Annotated[int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Ge(ge=0)]</span> <span class="pre">=</span> <span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha:</span> <span class="pre">~typing.Annotated[float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Gt(gt=0.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~annotated_types.Lt(lt=1.0)]</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">1400</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Sequential Synthetic Difference-in-Differences estimator.</p>
+<p>Implements Arkhangelsky &amp; Samkov (2025, arXiv:2404.00164v2). Operates on
+cohort-level aggregates and is robust to violations of parallel trends
+induced by interactive fixed effects. Inherits the standard <code class="docutils literal notranslate"><span class="pre">df</span></code> /
+<code class="docutils literal notranslate"><span class="pre">outcome</span></code> / <code class="docutils literal notranslate"><span class="pre">treat</span></code> / <code class="docutils literal notranslate"><span class="pre">unitid</span></code> / <code class="docutils literal notranslate"><span class="pre">time</span></code> panel interface from
+<code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEstimatorConfig</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.K">
+<span class="sig-name descname"><span class="pre">K</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.K" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.a_max">
+<span class="sig-name descname"><span class="pre">a_max</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.a_max" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.a_min">
+<span class="sig-name descname"><span class="pre">a_min</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.a_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.eta">
+<span class="sig-name descname"><span class="pre">eta</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.eta" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'ssdid'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'sdid_imputation'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.mode" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.n_bootstrap">
+<span class="sig-name descname"><span class="pre">n_bootstrap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.n_bootstrap" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.SequentialSDIDConfig.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.SequentialSDIDConfig.seed" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mlsynth.utils.seq_sdid_helpers.setup">
+<span id="helper-modules"></span><h2>Helper Modules<a class="headerlink" href="#module-mlsynth.utils.seq_sdid_helpers.setup" title="Link to this heading">#</a></h2>
+<p>Cohort-level aggregation for Sequential SDiD.</p>
+<p>Reuses <a class="reference internal" href="data.html#mlsynth.utils.datautils.dataprep" title="mlsynth.utils.datautils.dataprep"><code class="xref py py-func docutils literal notranslate"><span class="pre">mlsynth.utils.datautils.dataprep()</span></code></a> to identify treated /
+never-treated units and their adoption periods, then aggregates the
+unit-level outcomes into the cohort-level <code class="docutils literal notranslate"><span class="pre">Y_{a,t}</span></code> panel that
+Algorithm 1 consumes.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.setup.prepare_seq_sdid_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_seq_sdid_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs"><span class="pre">SeqSDIDInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.setup.prepare_seq_sdid_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Aggregate the panel into cohort-level outcomes <code class="docutils literal notranslate"><span class="pre">Y_{a,t}</span></code> and shares.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df, outcome, treat, unitid, time</strong> (<em>standard mlsynth panel inputs.</em>)</p></li>
+<li><p><strong>a_min, a_max</strong> (<em>int, optional</em>) – Earliest / latest treated cohort (1-based time index) to estimate.
+Default: span all treated cohorts in the data.</p></li>
+<li><p><strong>K</strong> (<em>int, optional</em>) – Maximum event-time horizon. Default: <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">-</span> <span class="pre">a_max</span></code> so every
+estimable effect fits inside the panel.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.seq_sdid_helpers.weights">Closed-form QP solvers for the Sequential SDiD weights.</p>
+<p>Both weight problems in Algorithm 1 are equality-constrained convex
+quadratic programs with the simplex sum constraint and <em>no</em> non-negativity
+constraint. We solve them via the KKT linear system rather than handing
+them to cvxpy — the bootstrap calls these tens of thousands of times, and
+the linear system is small (~ N_cohort + 1 unknowns).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.weights.solve_time_qp">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">solve_time_qp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y_pre_donors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_event_donors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.weights.solve_time_qp" title="Link to this definition">#</a></dt>
+<dd><p>Solve the Sequential SDiD time-weight QP for one (a, k) step.</p>
+<p>Optimization (paper Algorithm 1, line 5):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">min</span> <span class="n">over</span> <span class="p">(</span><span class="k">lambda</span><span class="p">,</span> <span class="n">lambda_0</span><span class="p">)</span>
+    <span class="n">sum_</span><span class="p">{</span><span class="n">j</span> <span class="o">&gt;</span> <span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="n">lambda_0</span> <span class="o">+</span> <span class="n">sum_l</span> <span class="n">lambda_l</span> <span class="n">Y_</span><span class="p">{</span><span class="n">j</span><span class="p">,</span> <span class="n">l</span><span class="p">}</span> <span class="o">-</span> <span class="n">Y_</span><span class="p">{</span><span class="n">j</span><span class="p">,</span> <span class="n">a</span> <span class="o">+</span> <span class="n">k</span><span class="p">})</span><span class="o">^</span><span class="mi">2</span>
+    <span class="o">+</span> <span class="n">eta</span><span class="o">^</span><span class="mi">2</span> <span class="o">*</span> <span class="n">sum_l</span> <span class="n">lambda_l</span><span class="o">^</span><span class="mi">2</span>
+<span class="n">s</span><span class="o">.</span><span class="n">t</span><span class="o">.</span>  <span class="n">sum_l</span> <span class="n">lambda_l</span> <span class="o">=</span> <span class="mf">1.</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y_pre_donors</strong> (<em>np.ndarray</em>) – Donor outcomes in the pre-event window, shape <code class="docutils literal notranslate"><span class="pre">(T_pre,</span> <span class="pre">J)</span></code>.</p></li>
+<li><p><strong>y_event_donors</strong> (<em>np.ndarray</em>) – Donor outcomes at event time <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">k</span></code>, shape <code class="docutils literal notranslate"><span class="pre">(J,)</span></code>.</p></li>
+<li><p><strong>eta</strong> (<em>float</em>) – Non-negative regularization parameter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>lambda_w</strong> (<em>np.ndarray</em>) – Optimal time weights, shape <code class="docutils literal notranslate"><span class="pre">(T_pre,)</span></code>, summing to 1.</p></li>
+<li><p><strong>lambda_0</strong> (<em>float</em>) – Optimal intercept.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.weights.solve_unit_qp">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.weights.</span></span><span class="sig-name descname"><span class="pre">solve_unit_qp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y_pre_donors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_pre_treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pi_donors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.weights.solve_unit_qp" title="Link to this definition">#</a></dt>
+<dd><p>Solve the Sequential SDiD unit-weight QP for one (a, k) step.</p>
+<p>Optimization (paper Algorithm 1, line 5):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">min</span> <span class="n">over</span> <span class="p">(</span><span class="n">omega</span><span class="p">,</span> <span class="n">omega_0</span><span class="p">)</span>
+    <span class="n">sum_</span><span class="p">{</span><span class="n">l</span> <span class="o">&lt;</span> <span class="n">a</span> <span class="o">+</span> <span class="n">k</span><span class="p">}</span> <span class="p">(</span><span class="n">omega_0</span> <span class="o">+</span> <span class="n">sum_j</span> <span class="n">omega_j</span> <span class="n">Y_</span><span class="p">{</span><span class="n">j</span><span class="p">,</span> <span class="n">l</span><span class="p">}</span> <span class="o">-</span> <span class="n">Y_</span><span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">l</span><span class="p">})</span><span class="o">^</span><span class="mi">2</span>
+    <span class="o">+</span> <span class="n">eta</span><span class="o">^</span><span class="mi">2</span> <span class="o">*</span> <span class="n">sum_j</span> <span class="n">omega_j</span><span class="o">^</span><span class="mi">2</span> <span class="o">/</span> <span class="n">pi_j</span>
+<span class="n">s</span><span class="o">.</span><span class="n">t</span><span class="o">.</span>  <span class="n">sum_j</span> <span class="n">omega_j</span> <span class="o">=</span> <span class="mf">1.</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y_pre_donors</strong> (<em>np.ndarray</em>) – Pre-event outcomes of later-adopting cohorts, shape
+<code class="docutils literal notranslate"><span class="pre">(T_pre,</span> <span class="pre">J)</span></code> where <code class="docutils literal notranslate"><span class="pre">T_pre</span> <span class="pre">=</span> <span class="pre">a</span> <span class="pre">+</span> <span class="pre">k</span> <span class="pre">-</span> <span class="pre">1</span></code> and <code class="docutils literal notranslate"><span class="pre">J</span></code> is the number
+of donor cohorts (<code class="docutils literal notranslate"><span class="pre">j</span> <span class="pre">&gt;</span> <span class="pre">a</span></code>).</p></li>
+<li><p><strong>y_pre_treated</strong> (<em>np.ndarray</em>) – Pre-event outcomes of the treated cohort, shape <code class="docutils literal notranslate"><span class="pre">(T_pre,)</span></code>.</p></li>
+<li><p><strong>pi_donors</strong> (<em>np.ndarray</em>) – Cohort shares <code class="docutils literal notranslate"><span class="pre">pi_j</span></code> for the donor cohorts, shape <code class="docutils literal notranslate"><span class="pre">(J,)</span></code>.</p></li>
+<li><p><strong>eta</strong> (<em>float</em>) – Non-negative regularization parameter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>omega</strong> (<em>np.ndarray</em>) – Optimal unit weights, shape <code class="docutils literal notranslate"><span class="pre">(J,)</span></code>, summing to 1.</p></li>
+<li><p><strong>omega_0</strong> (<em>float</em>) – Optimal intercept.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.seq_sdid_helpers.algorithm">Algorithm 1: Sequential SDiD outer / inner loop.</p>
+<p>Iterates over <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...,</span> <span class="pre">K</span></code> (outer) and treated cohorts
+<code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">=</span> <span class="pre">a_min,</span> <span class="pre">...,</span> <span class="pre">a_max</span></code> (inner). At each <code class="docutils literal notranslate"><span class="pre">(k,</span> <span class="pre">a)</span></code> step the routine
+solves the two regularized QPs, computes the weighted double-difference
+<code class="docutils literal notranslate"><span class="pre">tau_{a,k}</span></code>, and overwrites <code class="docutils literal notranslate"><span class="pre">Y_{a,</span> <span class="pre">a+k}</span></code> with its estimated
+counterfactual <code class="docutils literal notranslate"><span class="pre">Y_{a,</span> <span class="pre">a+k}</span> <span class="pre">-</span> <span class="pre">tau_{a,k}</span></code>. Later steps therefore see a
+panel where every previously-estimated treated cell has been replaced by
+its imputed counterfactual — this is the sequential cascade that gives
+the estimator its name.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.algorithm.pooled_event_study">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.algorithm.</span></span><span class="sig-name descname"><span class="pre">pooled_event_study</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cohort_effects</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect"><span class="pre">SeqSDIDCohortEffect</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cohort_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.algorithm.pooled_event_study" title="Link to this definition">#</a></dt>
+<dd><p>Aggregate per-cohort effects into horizon-k pooled estimates.</p>
+<p>Implements <code class="docutils literal notranslate"><span class="pre">tau_hat_k^SSDiD(mu)</span> <span class="pre">=</span> <span class="pre">sum_a</span> <span class="pre">mu_a</span> <span class="pre">*</span> <span class="pre">tau_hat_{a,</span> <span class="pre">k}</span></code> with
+<code class="docutils literal notranslate"><span class="pre">mu_a</span> <span class="pre">=</span> <span class="pre">pi_a</span> <span class="pre">/</span> <span class="pre">sum_{a'</span> <span class="pre">in</span> <span class="pre">[a_min,</span> <span class="pre">a_max]}</span> <span class="pre">pi_a'</span></code>, the cohort-share
+weighting recommended in the paper (Eq. 2.5).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cohort_effects</strong> (<em>Dict[(int, int), SeqSDIDCohortEffect]</em>) – Output of <a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.algorithm.run_sequential_sdid" title="mlsynth.utils.seq_sdid_helpers.algorithm.run_sequential_sdid"><code class="xref py py-func docutils literal notranslate"><span class="pre">run_sequential_sdid()</span></code></a>.</p></li>
+<li><p><strong>pi</strong> (<em>np.ndarray</em>) – Cohort shares.</p></li>
+<li><p><strong>cohort_periods</strong> (<em>np.ndarray</em>) – 1-based time indices.</p></li>
+<li><p><strong>a_min, a_max</strong> (<em>int</em>) – Range of treated cohorts that participated in estimation.</p></li>
+<li><p><strong>K</strong> (<em>int</em>) – Maximum horizon.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>np.ndarray</em> – Length-<code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">+</span> <span class="pre">1</span></code> array of pooled effects.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.algorithm.run_sequential_sdid">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.algorithm.</span></span><span class="sig-name descname"><span class="pre">run_sequential_sdid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y_agg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cohort_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_cohort_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">in_place_imputation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect"><span class="pre">SeqSDIDCohortEffect</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.algorithm.run_sequential_sdid" title="Link to this definition">#</a></dt>
+<dd><p>Run Algorithm 1 of Arkhangelsky &amp; Samkov (2025).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y_agg</strong> (<em>np.ndarray</em>) – Cohort-level outcome matrix, shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">A)</span></code>.</p></li>
+<li><p><strong>pi</strong> (<em>np.ndarray</em>) – Cohort shares, length <code class="docutils literal notranslate"><span class="pre">A</span></code>, summing to 1 across the whole sample.</p></li>
+<li><p><strong>cohort_periods</strong> (<em>np.ndarray</em>) – 1-based time index of each cohort’s adoption period, length <code class="docutils literal notranslate"><span class="pre">A</span></code>.
+Never-treated cohorts use <code class="docutils literal notranslate"><span class="pre">np.iinfo(np.int64).max</span></code>.</p></li>
+<li><p><strong>treated_cohort_indices</strong> (<em>np.ndarray</em>) – Column indices into <code class="docutils literal notranslate"><span class="pre">Y_agg</span></code> (and <code class="docutils literal notranslate"><span class="pre">pi</span></code>) identifying the
+finitely-adopting cohorts.</p></li>
+<li><p><strong>a_min, a_max</strong> (<em>int</em>) – Earliest / latest cohort adoption-period index to estimate.</p></li>
+<li><p><strong>K</strong> (<em>int</em>) – Maximum horizon <code class="docutils literal notranslate"><span class="pre">k</span></code> to estimate.</p></li>
+<li><p><strong>eta</strong> (<em>float</em>) – Regularization parameter (&gt;= 0). At <code class="docutils literal notranslate"><span class="pre">eta</span> <span class="pre">-&gt;</span> <span class="pre">infinity</span></code> the unit
+weights collapse to <code class="docutils literal notranslate"><span class="pre">omega_j</span> <span class="pre">proportional</span> <span class="pre">to</span> <span class="pre">pi_j</span></code> and the time
+weights to <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">/</span> <span class="pre">(a</span> <span class="pre">+</span> <span class="pre">k</span> <span class="pre">-</span> <span class="pre">1)</span></code> (Remark 2.2 of the paper).</p></li>
+<li><p><strong>in_place_imputation</strong> (<em>bool</em>) – Whether to update <code class="docutils literal notranslate"><span class="pre">Y_agg[a,</span> <span class="pre">a+k]</span></code> in place with the estimated
+counterfactual. The paper’s Algorithm 1 does this; we expose the
+flag for diagnostics. Default: True. <code class="docutils literal notranslate"><span class="pre">Y_agg</span></code> is copied before
+modification, so the input is never mutated.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>Y_imputed</strong> (<em>np.ndarray</em>) – The (possibly imputed) <code class="docutils literal notranslate"><span class="pre">Y_agg</span></code> matrix.</p></li>
+<li><p><strong>cohort_effects</strong> (<em>Dict[Tuple[int, int], SeqSDIDCohortEffect]</em>) – Per-(cohort_period, k) point estimates plus the fitted weights.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.seq_sdid_helpers.inference">Bayesian-bootstrap inference for Sequential SDiD (paper Section 2.3).</p>
+<p>For each bootstrap iteration we:</p>
+<ol class="arabic simple">
+<li><p>Draw <code class="docutils literal notranslate"><span class="pre">xi_i</span> <span class="pre">~</span> <span class="pre">Exp(1)</span></code> for every underlying unit (not cohort).</p></li>
+<li><p>Re-weight the cohort-level outcomes:
+<code class="docutils literal notranslate"><span class="pre">Y_{a,</span> <span class="pre">t}(xi)</span> <span class="pre">=</span> <span class="pre">sum_{i:</span> <span class="pre">A_i</span> <span class="pre">=</span> <span class="pre">a}</span> <span class="pre">Y_{i,</span> <span class="pre">t}</span> <span class="pre">xi_i</span> <span class="pre">/</span> <span class="pre">sum_{i:</span> <span class="pre">A_i</span> <span class="pre">=</span> <span class="pre">a}</span> <span class="pre">xi_i</span></code>.</p></li>
+<li><p>Re-run Algorithm 1 on the perturbed panel.</p></li>
+<li><p>Record the pooled event-study vector.</p></li>
+</ol>
+<p>Wald-type SE/CI come from the sample standard deviation of the bootstrap
+replicate matrix. Bootstrap draws are also retained on the result object
+in case the user wants quantile-based intervals later.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.inference.bayesian_bootstrap_event_study">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">bayesian_bootstrap_event_study</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bootstrap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.inference.bayesian_bootstrap_event_study" title="Link to this definition">#</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">(n_bootstrap,</span> <span class="pre">K</span> <span class="pre">+</span> <span class="pre">1)</span></code> matrix of bootstrap-replicate event-study vectors.</p>
+<p>The bootstrap reweighting follows Section 2.3 of Arkhangelsky &amp; Samkov
+(2025): independent <code class="docutils literal notranslate"><span class="pre">xi_i</span> <span class="pre">~</span> <span class="pre">Exp(1)</span></code> are drawn for every unit, and the
+cohort-level outcomes are reconstructed as weighted means with those
+weights.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.inference.wald_intervals">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">wald_intervals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tau_hat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bootstrap_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.inference.wald_intervals" title="Link to this definition">#</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">(se,</span> <span class="pre">ci)</span></code> Wald-type SE and confidence intervals.</p>
+<p><code class="docutils literal notranslate"><span class="pre">se</span></code> is the sample standard deviation of the bootstrap replicates;
+<code class="docutils literal notranslate"><span class="pre">ci</span></code> is the standard normal Wald interval centered at <code class="docutils literal notranslate"><span class="pre">tau_hat</span></code>.</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.seq_sdid_helpers.plotter">Event-study chart for Sequential SDiD.</p>
+<p>Plots <code class="docutils literal notranslate"><span class="pre">tau_hat_k^SSDiD</span></code> against the event-time horizon <code class="docutils literal notranslate"><span class="pre">k</span></code>, with the
+bootstrap Wald band as a shaded region. Reuses matplotlib directly to
+stay independent of the existing SDID_plot helper, which is wired for the
+canonical-SDID dict shape.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.plotter.plot_seq_sdid">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.plotter.</span></span><span class="sig-name descname"><span class="pre">plot_seq_sdid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults"><span class="pre">SeqSDIDResults</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Sequential</span> <span class="pre">SDiD</span> <span class="pre">event</span> <span class="pre">study'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.plotter.plot_seq_sdid" title="Link to this definition">#</a></dt>
+<dd><p>Render the event-study trajectory with the bootstrap CI band.</p>
+</dd></dl>
+
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">SequentialSDID.fit()</span></code> returns an
+<code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> on the standardized two-family
+contract. Sequential SDiD is an event-study estimator, so its standardized
+<code class="docutils literal notranslate"><span class="pre">time_series</span></code> is laid out over <em>event-time horizons</em> (<code class="docutils literal notranslate"><span class="pre">res.gap</span></code> is the
+pooled horizon effect <code class="docutils literal notranslate"><span class="pre">tau_hat_k</span></code>) and <code class="docutils literal notranslate"><span class="pre">res.att</span></code> is the simple average
+of those pooled effects. The per-(cohort, horizon) effects, the pooled event
+study, and the bootstrap config stay on <code class="docutils literal notranslate"><span class="pre">res.cohort_effects</span></code> /
+<code class="docutils literal notranslate"><span class="pre">res.event_study</span></code> / <code class="docutils literal notranslate"><span class="pre">res.inference_detail</span></code>.</p>
+</div>
+<p id="module-mlsynth.utils.seq_sdid_helpers.structures">Typed result containers for Sequential SDiD.</p>
+<p>All matrices follow <code class="docutils literal notranslate"><span class="pre">mlsynth</span></code>’s <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N)</span></code> orientation (rows = time,
+columns = cohort).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SeqSDIDCohortEffect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cohort_period</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambda_w</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect" title="Link to this definition">#</a></dt>
+<dd><p>Single cohort-by-horizon estimate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cohort_period</strong> (<em>int</em>) – 1-based time index of the cohort’s adoption period.</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – Horizon (event-time offset), with <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">0</span></code> the first treated period.</p></li>
+<li><p><strong>tau</strong> (<em>float</em>) – Point estimate <code class="docutils literal notranslate"><span class="pre">tau_{a,k}^SSDiD</span></code>.</p></li>
+<li><p><strong>omega</strong> (<em>np.ndarray</em>) – Unit weights solving the (a, k) QP, aligned with the slice of
+<code class="docutils literal notranslate"><span class="pre">Y_agg</span></code> corresponding to later cohorts <code class="docutils literal notranslate"><span class="pre">j</span> <span class="pre">&gt;</span> <span class="pre">a</span></code>.</p></li>
+<li><p><strong>lambda_w</strong> (<em>np.ndarray</em>) – Time weights solving the (a, k) QP, aligned with pre-event periods
+<code class="docutils literal notranslate"><span class="pre">l</span> <span class="pre">&lt;</span> <span class="pre">a</span> <span class="pre">+</span> <span class="pre">k</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.cohort_period">
+<span class="sig-name descname"><span class="pre">cohort_period</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.cohort_period" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.k">
+<span class="sig-name descname"><span class="pre">k</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.k" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.lambda_w">
+<span class="sig-name descname"><span class="pre">lambda_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.lambda_w" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.omega">
+<span class="sig-name descname"><span class="pre">omega</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.omega" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.tau">
+<span class="sig-name descname"><span class="pre">tau</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.tau" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SeqSDIDEventStudy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">horizons</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bootstrap_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy" title="Link to this definition">#</a></dt>
+<dd><p>Pooled horizon-k effects <code class="docutils literal notranslate"><span class="pre">tau_hat_k^SSDiD(mu)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>horizons</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">+</span> <span class="pre">1</span></code> array of event-time horizons <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...,</span> <span class="pre">K</span></code>.</p></li>
+<li><p><strong>tau</strong> (<em>np.ndarray</em>) – Pooled effects aligned with <code class="docutils literal notranslate"><span class="pre">horizons</span></code>.</p></li>
+<li><p><strong>se</strong> (<em>np.ndarray</em>) – Bootstrap standard errors aligned with <code class="docutils literal notranslate"><span class="pre">tau</span></code>.</p></li>
+<li><p><strong>ci</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">(K</span> <span class="pre">+</span> <span class="pre">1,</span> <span class="pre">2)</span></code> array of Wald confidence intervals.</p></li>
+<li><p><strong>bootstrap_draws</strong> (<em>np.ndarray</em>) – Bootstrap replicate matrix of shape <code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">K</span> <span class="pre">+</span> <span class="pre">1)</span></code>, retained for
+downstream diagnostics or alternative quantile-based intervals.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – Significance level used for <code class="docutils literal notranslate"><span class="pre">ci</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.bootstrap_draws">
+<span class="sig-name descname"><span class="pre">bootstrap_draws</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.bootstrap_draws" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.ci">
+<span class="sig-name descname"><span class="pre">ci</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.ci" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.horizons">
+<span class="sig-name descname"><span class="pre">horizons</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.horizons" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.se">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.se" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.tau">
+<span class="sig-name descname"><span class="pre">tau</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.tau" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SeqSDIDInference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_bootstrap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference" title="Link to this definition">#</a></dt>
+<dd><p>Bayesian bootstrap inference summary.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.method">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.method" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.n_bootstrap">
+<span class="sig-name descname"><span class="pre">n_bootstrap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.n_bootstrap" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.seed" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SeqSDIDInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y_agg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cohort_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cohort_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_cohort_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_units</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs" title="Link to this definition">#</a></dt>
+<dd><p>Aggregated cohort-level panel fed into Sequential SDiD.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y_agg</strong> (<em>np.ndarray</em>) – Cohort-level outcome matrix of shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">A)</span></code> where <code class="docutils literal notranslate"><span class="pre">A</span></code> is the
+number of distinct adoption cohorts (treated cohorts in ascending
+order followed by the never-treated cohort, if present).</p></li>
+<li><p><strong>pi</strong> (<em>np.ndarray</em>) – Cohort shares <code class="docutils literal notranslate"><span class="pre">pi_a</span> <span class="pre">=</span> <span class="pre">n_a</span> <span class="pre">/</span> <span class="pre">n</span></code>, length <code class="docutils literal notranslate"><span class="pre">A</span></code>, summing to 1 over
+the entire sample.</p></li>
+<li><p><strong>cohort_periods</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">A</span></code> array of cohort adoption periods (1-based time
+indices). The never-treated cohort is encoded as
+<code class="docutils literal notranslate"><span class="pre">np.iinfo(np.int64).max</span></code> and lives at index <code class="docutils literal notranslate"><span class="pre">A</span> <span class="pre">-</span> <span class="pre">1</span></code>.</p></li>
+<li><p><strong>cohort_labels</strong> (<em>Sequence</em>) – Human-readable labels for each cohort (e.g. adoption year), aligned
+with <code class="docutils literal notranslate"><span class="pre">cohort_periods</span></code>.</p></li>
+<li><p><strong>treated_cohort_indices</strong> (<em>np.ndarray</em>) – Integer indices into <code class="docutils literal notranslate"><span class="pre">Y_agg</span></code>’s second axis identifying treated
+(i.e. finitely-adopting) cohorts.</p></li>
+<li><p><strong>time_labels</strong> (<em>np.ndarray</em>) – Original time labels, length <code class="docutils literal notranslate"><span class="pre">T</span></code>.</p></li>
+<li><p><strong>n_units</strong> (<em>int</em>) – Total number of underlying units.</p></li>
+<li><p><strong>a_min</strong> (<em>int</em>) – Earliest treated cohort to estimate (1-based time index).</p></li>
+<li><p><strong>a_max</strong> (<em>int</em>) – Latest treated cohort to estimate.</p></li>
+<li><p><strong>K</strong> (<em>int</em>) – Maximum event-time horizon to estimate.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.K">
+<span class="sig-name descname"><span class="pre">K</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.K" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.Y_agg">
+<span class="sig-name descname"><span class="pre">Y_agg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.Y_agg" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_max">
+<span class="sig-name descname"><span class="pre">a_max</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_max" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_min">
+<span class="sig-name descname"><span class="pre">a_min</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_labels">
+<span class="sig-name descname"><span class="pre">cohort_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Sequence</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_periods">
+<span class="sig-name descname"><span class="pre">cohort_periods</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_periods" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.n_units">
+<span class="sig-name descname"><span class="pre">n_units</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.n_units" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.pi">
+<span class="sig-name descname"><span class="pre">pi</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.pi" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.treated_cohort_indices">
+<span class="sig-name descname"><span class="pre">treated_cohort_indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.treated_cohort_indices" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.seq_sdid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">SeqSDIDResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">effects</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">EffectsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_diagnostics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">FitDiagnosticsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_series</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">TimeSeriesResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">WeightsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">InferenceResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method_details</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">MethodDetailsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sub_method_results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_outputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw_results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">execution_summary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlotConfig</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs"><span class="pre">SeqSDIDInputs</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cohort_effects</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect"><span class="pre">SeqSDIDCohortEffect</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_study</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy"><span class="pre">SeqSDIDEventStudy</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference_detail</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference"><span class="pre">SeqSDIDInference</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw_event_study</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults" title="Link to this definition">#</a></dt>
+<dd><p>Public <code class="docutils literal notranslate"><span class="pre">SequentialSDID.fit()</span></code> return container.</p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">EffectResult</span></code> (the observational report).
+Sequential SDiD is an event-study estimator, so its standardized
+<code class="docutils literal notranslate"><span class="pre">time_series</span></code> is laid out over <em>event-time horizons</em> rather than calendar
+time: <code class="docutils literal notranslate"><span class="pre">time_periods</span></code> are the horizons <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...,</span> <span class="pre">K</span></code> and <code class="docutils literal notranslate"><span class="pre">gap</span></code> is
+the pooled horizon effect <code class="docutils literal notranslate"><span class="pre">tau_hat_k</span></code> (<code class="docutils literal notranslate"><span class="pre">counterfactual</span></code> is the
+no-effect baseline). The flat <code class="docutils literal notranslate"><span class="pre">att</span></code> is the simple average of the pooled
+horizon effects. The full SSDiD detail – per-(cohort, horizon) effects,
+the pooled event study, and the bootstrap config – stays in the typed
+fields below.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>SeqSDIDInputs</em>) – Aggregated panel + cohort metadata.</p></li>
+<li><p><strong>cohort_effects</strong> (<em>Dict[Tuple[int, int], SeqSDIDCohortEffect]</em>) – Per-(cohort_period, k) effects.</p></li>
+<li><p><strong>event_study</strong> (<em>SeqSDIDEventStudy</em>) – Pooled horizon-k effects with bootstrap inference.</p></li>
+<li><p><strong>inference_detail</strong> (<em>SeqSDIDInference</em>) – Bootstrap configuration summary (was <code class="docutils literal notranslate"><span class="pre">inference</span></code> before the contract
+migration; the standardized <code class="docutils literal notranslate"><span class="pre">inference</span></code> slot holds the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">InferenceResults</span></code>).</p></li>
+<li><p><strong>eta</strong> (<em>float</em>) – Regularization parameter actually used.</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – <code class="docutils literal notranslate"><span class="pre">&quot;ssdid&quot;</span></code> (the paper’s main estimator) or <code class="docutils literal notranslate"><span class="pre">&quot;sdid_imputation&quot;</span></code>
+(the <code class="docutils literal notranslate"><span class="pre">eta</span> <span class="pre">-&gt;</span> <span class="pre">infinity</span></code> Borusyak-style limit from Remark 2.2).</p></li>
+<li><p><strong>raw_event_study</strong> (<em>np.ndarray</em>) – Length-<code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">+</span> <span class="pre">1</span></code> non-bootstrapped pooled effect vector (the same
+numbers as <code class="docutils literal notranslate"><span class="pre">event_study.tau</span></code>; kept separately for clarity).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.cohort_effects">
+<span class="sig-name descname"><span class="pre">cohort_effects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect"><span class="pre">SeqSDIDCohortEffect</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.cohort_effects" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.eta">
+<span class="sig-name descname"><span class="pre">eta</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.eta" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.event_study">
+<span class="sig-name descname"><span class="pre">event_study</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy"><span class="pre">SeqSDIDEventStudy</span></a></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.event_study" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inference_detail">
+<span class="sig-name descname"><span class="pre">inference_detail</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference"><span class="pre">SeqSDIDInference</span></a></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inference_detail" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs" title="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs"><span class="pre">SeqSDIDInputs</span></a></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inputs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.mode" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid',</span> <span class="pre">'frozen':</span> <span class="pre">True,</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.raw_event_study">
+<span class="sig-name descname"><span class="pre">raw_event_study</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.raw_event_study" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">SequentialSDID</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;staggered_panel.csv&quot;</span><span class="p">)</span>  <span class="c1"># state-level panel with treat in {0, 1}</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">SequentialSDID</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span>           <span class="n">df</span><span class="p">,</span>
+    <span class="s2">&quot;outcome&quot;</span><span class="p">:</span>      <span class="s2">&quot;log_wage&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treat&quot;</span><span class="p">:</span>        <span class="s2">&quot;treated&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span>       <span class="s2">&quot;state&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;time&quot;</span><span class="p">:</span>         <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;eta&quot;</span><span class="p">:</span>          <span class="mf">1.0</span><span class="p">,</span>
+    <span class="s2">&quot;K&quot;</span><span class="p">:</span>            <span class="mi">10</span><span class="p">,</span>
+    <span class="s2">&quot;n_bootstrap&quot;</span><span class="p">:</span>  <span class="mi">500</span><span class="p">,</span>
+    <span class="s2">&quot;alpha&quot;</span><span class="p">:</span>        <span class="mf">0.05</span><span class="p">,</span>
+    <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="c1"># Pooled event-study trajectory (Eq. 2.5 of the paper).</span>
+<span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">tau</span><span class="p">,</span> <span class="n">se</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">results</span><span class="o">.</span><span class="n">event_study</span><span class="o">.</span><span class="n">horizons</span><span class="p">,</span>
+                      <span class="n">results</span><span class="o">.</span><span class="n">event_study</span><span class="o">.</span><span class="n">tau</span><span class="p">,</span>
+                      <span class="n">results</span><span class="o">.</span><span class="n">event_study</span><span class="o">.</span><span class="n">se</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;k = </span><span class="si">{</span><span class="n">k</span><span class="si">:</span><span class="s2">&gt;2</span><span class="si">}</span><span class="s2">  tau = </span><span class="si">{</span><span class="n">tau</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">  se = </span><span class="si">{</span><span class="n">se</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Cohort-by-horizon decomposition.</span>
+<span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">k</span><span class="p">),</span> <span class="n">effect</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">cohort_effects</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cohort a = </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2">  horizon k = </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">  tau = </span><span class="si">{</span><span class="n">effect</span><span class="o">.</span><span class="n">tau</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Bayesian-bootstrap replicate matrix (B x (K + 1)) — for quantile CIs</span>
+<span class="c1"># or downstream diagnostics.</span>
+<span class="n">results</span><span class="o">.</span><span class="n">event_study</span><span class="o">.</span><span class="n">bootstrap_draws</span><span class="o">.</span><span class="n">shape</span>
+</pre></div>
+</div>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Arkhangelsky, D., &amp; Samkov, A. (2025). “Sequential Synthetic Difference
+in Differences.” <a class="reference external" href="https://arxiv.org/abs/2404.00164v2">arXiv:2404.00164v2</a>.</p>
+<p>Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., &amp; Wager, S.
+(2021). “Synthetic Difference-in-Differences.” <em>American Economic Review</em>
+111(12): 4088-4118.</p>
+<p>Borusyak, K., Jaravel, X., &amp; Spiess, J. (2024). “Revisiting Event-Study
+Designs: Robust and Efficient Estimation.” <em>Review of Economic Studies.</em></p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="sdid.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Synthetic Difference-in-Differences (SDID)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="ppscm.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Partially Pooled SCM (PPSCM)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-sequential-sdid-when">Reach for Sequential SDiD when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-sequential-sdid-when">Do not use Sequential SDiD when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-assumptions">Identifying assumptions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm-1">Algorithm 1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pooled-event-study">Pooled Event Study</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-eta-to-infty-limit">The <span class="math notranslate nohighlight">\(\eta \to \infty\)</span> Limit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-section-2-3">Inference (Section 2.3)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.seq_sdid">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.seq_sdid.SequentialSDID"><code class="docutils literal notranslate"><span class="pre">SequentialSDID</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.seq_sdid.SequentialSDID.fit"><code class="docutils literal notranslate"><span class="pre">SequentialSDID.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.K"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.K</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.a_max"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.a_max</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.a_min"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.a_min</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.alpha"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.eta"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.eta</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.mode"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.model_config"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.n_bootstrap"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.n_bootstrap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.SequentialSDIDConfig.seed"><code class="docutils literal notranslate"><span class="pre">SequentialSDIDConfig.seed</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.seq_sdid_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.setup.prepare_seq_sdid_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_seq_sdid_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.weights.solve_time_qp"><code class="docutils literal notranslate"><span class="pre">solve_time_qp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.weights.solve_unit_qp"><code class="docutils literal notranslate"><span class="pre">solve_unit_qp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.algorithm.pooled_event_study"><code class="docutils literal notranslate"><span class="pre">pooled_event_study()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.algorithm.run_sequential_sdid"><code class="docutils literal notranslate"><span class="pre">run_sequential_sdid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.inference.bayesian_bootstrap_event_study"><code class="docutils literal notranslate"><span class="pre">bayesian_bootstrap_event_study()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.inference.wald_intervals"><code class="docutils literal notranslate"><span class="pre">wald_intervals()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.plotter.plot_seq_sdid"><code class="docutils literal notranslate"><span class="pre">plot_seq_sdid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.cohort_period"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.cohort_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.k"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.k</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.lambda_w"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.lambda_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.omega"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.omega</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDCohortEffect.tau"><code class="docutils literal notranslate"><span class="pre">SeqSDIDCohortEffect.tau</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.alpha"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.alpha</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.bootstrap_draws"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.bootstrap_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.ci"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.ci</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.horizons"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.horizons</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.se"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDEventStudy.tau"><code class="docutils literal notranslate"><span class="pre">SeqSDIDEventStudy.tau</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.method"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.n_bootstrap"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference.n_bootstrap</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInference.seed"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInference.seed</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.K"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.K</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.Y_agg"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.Y_agg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_max"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.a_max</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.a_min"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.a_min</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_labels"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.cohort_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.cohort_periods"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.cohort_periods</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.n_units"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.n_units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.pi"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.pi</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDInputs.treated_cohort_indices"><code class="docutils literal notranslate"><span class="pre">SeqSDIDInputs.treated_cohort_indices</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.cohort_effects"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.cohort_effects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.eta"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.eta</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.event_study"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.event_study</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inference_detail"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.inference_detail</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.inputs"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.mode"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.model_config"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.seq_sdid_helpers.structures.SeqSDIDResults.raw_event_study"><code class="docutils literal notranslate"><span class="pre">SeqSDIDResults.raw_event_study</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

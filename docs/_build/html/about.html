@@ -1,0 +1,750 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>About mlsynth &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'about';</script>
+    <link rel="author" title="About these documents" href="#" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="A practitioner’s decision tree" href="choose.html" />
+    <link rel="prev" title="Welcome to mlsynth 0.1.2" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/about.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>About mlsynth</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#design-philosophy">Design philosophy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-unified-api-in-action">The unified API in action</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-verification-campaign">The verification campaign</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-cases">Use cases</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#citation">Citation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#acknowledgments">Acknowledgments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#roadmap">Roadmap</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="about-mlsynth">
+<h1>About mlsynth<a class="headerlink" href="#about-mlsynth" title="Link to this heading">#</a></h1>
+<p>Synthetic control, with batteries included. mlsynth is a Python
+package that gives applied researchers and data scientists access to
+the modern synthetic-control literature under a single, unified API.
+You provide a long DataFrame and a configuration dictionary; the
+estimator returns a typed result object with the ATT, the
+counterfactual, donor weights, fit statistics, and (where
+applicable) confidence or credible intervals.</p>
+<p>At the time of writing, mlsynth ships more than thirty estimators
+spanning the full breadth of the synthetic-control literature, from
+the canonical Abadie-Diamond-Hainmueller method through Bayesian
+spike-and-slab variable selection, state-space models,
+matrix completion, synthetic difference-in-differences for staggered
+adoption, instrumental synthetic IV, synthetic-design methods for
+prospective experiments, and more. Every estimator is implemented from its
+original source paper and – for the verified subset – replicates
+the paper’s published numbers in a dedicated <em>Verification</em> section.</p>
+<section id="design-philosophy">
+<h2>Design philosophy<a class="headerlink" href="#design-philosophy" title="Link to this heading">#</a></h2>
+<p>mlsynth is built around three principles.</p>
+<ol class="arabic simple">
+<li><p>Long DataFrame in, ATT out.</p></li>
+</ol>
+<p>Every estimator consumes the same long-format panel: one row per unit
+per time period, with at minimum a unit identifier, a time index, an
+outcome column, and a binary treatment indicator. There is no
+<code class="docutils literal notranslate"><span class="pre">Dataprep</span></code> object to construct, no pivoting to wide form, no
+special-cased input for each method. The same DataFrame that fits a
+<a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a> will fit <a class="reference internal" href="masc.html"><span class="doc">Matching and Synthetic Control (MASC)</span></a>.</p>
+<ol class="arabic simple" start="2">
+<li><p>One config dict, one <code class="docutils literal notranslate"><span class="pre">.fit()</span></code> call.</p></li>
+</ol>
+<p>Estimators take a single configuration dictionary and expose a single <code class="docutils literal notranslate"><span class="pre">.fit()</span></code> method that returns a
+frozen, typed result. There are no separate <code class="docutils literal notranslate"><span class="pre">compute_weights</span></code> /
+<code class="docutils literal notranslate"><span class="pre">compute_counterfactual</span></code> / <code class="docutils literal notranslate"><span class="pre">compute_inference</span></code> steps for the user
+to assemble – the orchestration is the estimator’s job.</p>
+<ol class="arabic simple" start="3">
+<li><p>Every estimator is verified against its source.</p></li>
+</ol>
+<p>Most synthetic-control libraries ship “an implementation”; the user
+trusts it does what the paper says. mlsynth’s <em>Verification campaign</em>
+holds every estimator to a stronger contract: each
+<code class="file docutils literal notranslate"><span class="pre">docs/&lt;estimator&gt;.rst</span></code> page contains (or will contain) a
+<em>Verification</em> section that reproduces one of the source paper’s
+reported numbers – either by replicating an empirical result on the
+authors’ own dataset (“Path A”) or by reproducing a Monte Carlo from
+the paper’s simulation section (“Path B”).</p>
+</section>
+<section id="the-unified-api-in-action">
+<h2>The unified API in action<a class="headerlink" href="#the-unified-api-in-action" title="Link to this heading">#</a></h2>
+<p>The same data, the same DataFrame, four different estimators – with
+only the keys in the configuration dictionary changing. The example
+below moves between vanilla Robust SCM, its convex variant from Dennis
+Shen’s MIT master’s thesis (<a class="reference external" href="https://dspace.mit.edu/bitstream/handle/1721.1/115743/1036986794-MIT.pdf?sequence=1&amp;isAllowed=y">MIT DSpace</a>),
+the clustered variant of <a class="reference external" href="https://arxiv.org/pdf/2503.21629">Rho et al. (2025)</a>, and <a href="#id1"><span class="problematic" id="id2">`the Bayesian variant&lt;https://jmlr.csail.mit.edu/papers/volume19/17-777/17-777.pdf&gt;`_</span></a> – all
+via the same <code class="xref py py-class docutils literal notranslate"><span class="pre">CLUSTERSC</span></code> class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">CLUSTERSC</span>
+
+<span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/&quot;</span>
+       <span class="s2">&quot;main/basedata/basque_data.csv&quot;</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="n">base</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>
+        <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+<span class="n">variants</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s2">&quot;Vanilla RSC&quot;</span><span class="p">,</span>   <span class="p">{</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;PCR&quot;</span><span class="p">,</span> <span class="s2">&quot;objective&quot;</span><span class="p">:</span> <span class="s2">&quot;OLS&quot;</span><span class="p">}),</span>
+    <span class="p">(</span><span class="s2">&quot;Convex RSC&quot;</span><span class="p">,</span>    <span class="p">{</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;PCR&quot;</span><span class="p">,</span> <span class="s2">&quot;objective&quot;</span><span class="p">:</span> <span class="s2">&quot;SIMPLEX&quot;</span><span class="p">}),</span>
+    <span class="p">(</span><span class="s2">&quot;Clustered RSC&quot;</span><span class="p">,</span> <span class="p">{</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;PCR&quot;</span><span class="p">,</span> <span class="s2">&quot;objective&quot;</span><span class="p">:</span> <span class="s2">&quot;OLS&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;cluster&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span>
+    <span class="p">(</span><span class="s2">&quot;Bayesian RSC&quot;</span><span class="p">,</span>  <span class="p">{</span><span class="o">**</span><span class="n">base</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;PCR&quot;</span><span class="p">,</span> <span class="s2">&quot;Frequentist&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                        <span class="s2">&quot;cluster&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span>
+<span class="p">]</span>
+
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">variants</span><span class="p">:</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">CLUSTERSC</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">15</span><span class="si">}</span><span class="s2"> ATT = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">att</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Four estimators, one DataFrame, four lines of differences. The same
+pattern recurs throughout the library, depending on the circumstance.</p>
+</section>
+<section id="the-verification-campaign">
+<h2>The verification campaign<a class="headerlink" href="#the-verification-campaign" title="Link to this heading">#</a></h2>
+<p>mlsynth, as much as possible, reproduces against the source
+paper. Each verified estimator’s documentation page contains a
+replication section showing that the implementation matches one of
+the paper’s headline numbers. We distinguish between Path A (empirical replication
+on the original authors’ dataset, matching their published
+estimates) and Path B (Monte Carlo replication of the paper’s
+simulation section). Where both paths are feasible, both are run;
+where the authors’ data is not redistributable/easily accessible, Path B is used.</p>
+<p>See <a class="reference internal" href="replications.html"><span class="doc">Replications</span></a> for the catalogue of all current
+replications, with headline numbers and per-family coverage status.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
+<p>mlsynth requires Python 3.9 or later and standard scientific
+dependencies. The simplest install is from PyPI:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">mlsynth</span>
+</pre></div>
+</div>
+<p>For the development version directly from GitHub:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">U</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">jgreathouse9</span><span class="o">/</span><span class="n">mlsynth</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
+<p>Confirm the install:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">mlsynth</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mlsynth</span><span class="o">.</span><span class="n">__version__</span>
+</pre></div>
+</div>
+<p>For an isolated environment, the standard
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">venv</span> <span class="pre">mlsynth_env</span> <span class="pre">&amp;&amp;</span> <span class="pre">source</span> <span class="pre">mlsynth_env/bin/activate</span></code>
+pattern works as expected.</p>
+<p>For a fuller tour of which estimator fits which problem, see
+<a class="reference internal" href="choose.html"><span class="doc">A practitioner’s decision tree</span></a>.</p>
+</section>
+<section id="use-cases">
+<h2>Use cases<a class="headerlink" href="#use-cases" title="Link to this heading">#</a></h2>
+<p>mlsynth is a general-purpose synthetic-control toolkit. The
+applications below are the ones the library has been used for most
+heavily in practice.</p>
+<p>Observational causal inference. Estimate the average treatment
+effect of a policy, a regulatory change, a marketing intervention, or
+a supply shock from a panel of already-observed outcomes. This is
+the canonical comparative-case-study setting that synthetic control
+was built for; mlsynth supplies more than two dozen estimators
+covering low-dim, high-dim, staggered, and instrumental variants.</p>
+<p>Experimental design at the market level. When randomising
+individual units is infeasible – as in geo-marketing experiments,
+cluster-level public-health interventions, or market-level pricing
+studies – mlsynth supports the design-stage problem of choosing
+which units to treat, before any intervention takes place. See
+<a class="reference internal" href="syndes.html"><span class="doc">Synthetic Design (SYNDES)</span></a>, <a class="reference internal" href="marex.html"><span class="doc">Synthetic Controls for Experimental Design (MAREX)</span></a>, <a class="reference internal" href="pangeo.html"><span class="doc">Parallel-Trends Supergeo Design (PANGEO)</span></a>, <a class="reference internal" href="spcd.html"><span class="doc">Synthetic Principal Component Design (SPCD)</span></a>, and
+<a class="reference internal" href="lexscm.html"><span class="doc">Lexicographic Synthetic Control (LEXSCM)</span></a>. This use case is described in detail in
+<a class="reference external" href="https://jgreathouse9.github.io/docs/scexp.html">Synthetic Controls for Marketing Experiments</a>.</p>
+<p>High-dimensional donor pools. When <span class="math notranslate nohighlight">\(N \gg T_0\)</span> – as
+arises with commodity-category panels, large product portfolios, or
+fine industry classifications, or we have many covariates to choose from, the classical SC quadratic program
+loses its unique solution. Lasso-style alternatives sometimes over-select.
+<a class="reference internal" href="bvss.html"><span class="doc">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</span></a>, <a class="reference internal" href="clustersc.html"><span class="doc">Cluster Synthetic Controls (CLUSTERSC)</span></a>, <a class="reference internal" href="mlsc.html"><span class="doc">Multi-Level Synthetic Control (mlSC)</span></a>, <a class="reference internal" href="rescm.html"><span class="doc">Relaxed / Penalized Synthetic Control (RESCM)</span></a>,
+<a class="reference internal" href="sparse_sc.html"><span class="doc">Sparse Synthetic Control (SparseSC)</span></a>, <a class="reference internal" href="fscm.html"><span class="doc">Forward-Selected Synthetic Control (FSCM)</span></a>, and <a class="reference internal" href="pda.html"><span class="doc">Panel Data Approach (PDA)</span></a> each address this
+regime with a different selection strategy.</p>
+<p>Special data structures. Multiple outcomes (<a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a>),
+continuous treatments (<a class="reference internal" href="ctsc.html"><span class="doc">Continuous-Treatment Synthetic Control (CTSC)</span></a>), full distributional ATTs
+(<a class="reference internal" href="dsc.html"><span class="doc">Distributional Synthetic Control (DSC)</span></a>), multiple treatment arms (<a class="reference internal" href="si.html"><span class="doc">Synthetic Interventions (SI)</span></a>), individual-level
+units (<a class="reference internal" href="microsynth.html"><span class="doc">MicroSynth (User-Level Balancing SC)</span></a>), missing outcome cells (<a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>,
+<a class="reference internal" href="snn.html"><span class="doc">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</span></a>), and strongly trending series (<a class="reference internal" href="tasc.html"><span class="doc">Time-Aware Synthetic Control (TASC)</span></a>, <a class="reference internal" href="sbc.html"><span class="doc">Synthetic Business Cycle (SBC)</span></a>,
+<a class="reference internal" href="hsc.html"><span class="doc">Harmonic Synthetic Control (HSC)</span></a>) each have estimators built for them.</p>
+</section>
+<section id="citation">
+<h2>Citation<a class="headerlink" href="#citation" title="Link to this heading">#</a></h2>
+<p>If you use mlsynth in academic work, please cite the library as:</p>
+<div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@software</span><span class="p">{</span><span class="nl">mlsynth</span><span class="p">,</span>
+<span class="w">  </span><span class="na">author</span><span class="w">  </span><span class="p">=</span><span class="w"> </span><span class="s">{Greathouse, Jared}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">title</span><span class="w">   </span><span class="p">=</span><span class="w"> </span><span class="s">{{mlsynth}: A Python Toolbox of Synthetic-Control Methods</span>
+<span class="s">             for Program Evaluation}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">year</span><span class="w">    </span><span class="p">=</span><span class="w"> </span><span class="s">{2025}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">version</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{0.1.2}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">url</span><span class="w">     </span><span class="p">=</span><span class="w"> </span><span class="s">{https://github.com/jgreathouse9/mlsynth}</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Please also cite the original source paper of any estimator you use
+in your analysis. The reference for each estimator is listed at the
+top of its documentation page; a consolidated bibliography is in
+<a class="reference internal" href="references.html"><span class="doc">References</span></a>.</p>
+</section>
+<section id="acknowledgments">
+<h2>Acknowledgments<a class="headerlink" href="#acknowledgments" title="Link to this heading">#</a></h2>
+<p>mlsynth was developed by <a class="reference external" href="https://jgreathouse9.github.io/">Jared Greathouse</a> at Georgia State University and
+benefited from advice, code contributions, and methodological
+discussions with <a class="reference external" href="https://aysps.gsu.edu/profile/jason-coupet/">Jason Coupet</a>, <a class="reference external" href="https://sites.utexas.edu/kathleenli/">Kathy Li</a>, <a class="reference external" href="https://www.linkedin.com/in/mani-bayani">Mani Bayani</a>, <a class="reference external" href="https://zhentaoshi.github.io/">Zhentao Shi</a>, and <a class="reference external" href="https://jvivesb.github.io/">Jaume Vives-i-Bastida</a>. The Robust PCA Synthetic Control
+implementation in particular would not exist without Mani Bayani’s
+original code contribution.</p>
+</section>
+<section id="roadmap">
+<h2>Roadmap<a class="headerlink" href="#roadmap" title="Link to this heading">#</a></h2>
+<p>Current development priorities, in roughly the order they will land:</p>
+<ul class="simple">
+<li><p>Verification coverage to 100%. Extend the Path A / Path B
+campaign to every estimator in the library.</p></li>
+<li><p>A unified result-object contract. All estimators currently
+expose an ATT, a counterfactual path, and (where applicable) a CI,
+but the attribute names differ across families. A documented
+minimum contract (<code class="docutils literal notranslate"><span class="pre">result.att</span></code>, <code class="docutils literal notranslate"><span class="pre">result.att_ci</span></code>,
+<code class="docutils literal notranslate"><span class="pre">result.counterfactual</span></code>, <code class="docutils literal notranslate"><span class="pre">result.weights</span></code>, <code class="docutils literal notranslate"><span class="pre">result.pre_rmse</span></code>)
+is in design.</p></li>
+<li><p>Staggered-adoption expansion. Several estimators currently
+built for a single treated unit (the <span class="math notranslate nohighlight">\(\ell_2\)</span> relaxation of
+Shi &amp; Wang, the Factor Model Approach of Li &amp; Sonnier) are in
+principle compatible with staggered adoption; exposing those
+extensions in the API is planned.</p></li>
+<li><p>A comparison matrix. A single table indexing which estimators
+produce CIs, which handle staggered adoption, which scale to
+large <span class="math notranslate nohighlight">\(N\)</span>, which require covariates, etc.</p></li>
+<li><p>Performance work. Several per-unit synthetic-control fits
+currently route through cvxpy’s compilation tax; replacing with
+closed-form simplex projection where possible.</p></li>
+</ul>
+<p>If you would like to contribute to any of the above, see the GitHub
+<a class="reference external" href="https://github.com/jgreathouse9/mlsynth/issues">issue tracker</a>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Welcome to mlsynth 0.1.2</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="choose.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">A practitioner’s decision tree</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#design-philosophy">Design philosophy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-unified-api-in-action">The unified API in action</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-verification-campaign">The verification campaign</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-cases">Use cases</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#citation">Citation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#acknowledgments">Acknowledgments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#roadmap">Roadmap</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

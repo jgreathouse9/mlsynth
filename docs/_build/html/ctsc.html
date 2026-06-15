@@ -1,0 +1,1882 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Continuous-Treatment Synthetic Control (CTSC) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'ctsc';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Distributional Synthetic Control (DSC)" href="dsc.html" />
+    <link rel="prev" title="Synthetic Control with Multiple Outcomes (SCMO)" href="scmo.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rolldid.html">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/ctsc.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Continuous-Treatment Synthetic Control (CTSC)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-ctsc-does">What CTSC does</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-ctsc">When to use CTSC</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-and-how-to-spot-violations">Assumptions (and how to spot violations)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-not-to-use-ctsc">When not to use CTSC</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#model-paper-eq-4">Model (paper eq. 4)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-estimation-paper-eq-5-6">Joint estimation (paper eq. 5-6)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-paper-section-4">Inference (paper Section 4)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#implementation-note">Implementation note</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#calibration-to-the-paper-s-simulation">Calibration to the paper’s simulation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.ctsc">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Implementation note</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ctsc.CTSC"><code class="docutils literal notranslate"><span class="pre">CTSC</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ctsc.CTSC.fit"><code class="docutils literal notranslate"><span class="pre">CTSC.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig"><code class="docutils literal notranslate"><span class="pre">CTSCConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.inference"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.model_config"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.n_draws"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.population_col"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.population_col</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.random_state"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.random_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.treatment_vars"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.treatment_vars</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.use_fit_weights"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.use_fit_weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.ctsc_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.setup.prepare_ctsc_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_ctsc_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.estimate.fit_ctsc"><code class="docutils literal notranslate"><span class="pre">fit_ctsc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.inference.sign_flip_wald_inference"><code class="docutils literal notranslate"><span class="pre">sign_flip_wald_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary"><code class="docutils literal notranslate"><span class="pre">SimulationSummary</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mad"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.ctsc_mad</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mean_bias"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.ctsc_mean_bias</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_rmse"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.ctsc_rmse</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mad"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.fe_mad</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mean_bias"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.fe_mean_bias</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_rmse"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.fe_rmse</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.model"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.model</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.n_sims"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.n_sims</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.generate_model"><code class="docutils literal notranslate"><span class="pre">generate_model()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.run_simulation"><code class="docutils literal notranslate"><span class="pre">run_simulation()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.twoway_fe_effect"><code class="docutils literal notranslate"><span class="pre">twoway_fe_effect()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.pipeline.run_ctsc"><code class="docutils literal notranslate"><span class="pre">run_ctsc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference"><code class="docutils literal notranslate"><span class="pre">CTSCInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.method"><code class="docutils literal notranslate"><span class="pre">CTSCInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.null_value"><code class="docutils literal notranslate"><span class="pre">CTSCInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.wald_stat"><code class="docutils literal notranslate"><span class="pre">CTSCInference.wald_stat</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.p_value"><code class="docutils literal notranslate"><span class="pre">CTSCInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.se"><code class="docutils literal notranslate"><span class="pre">CTSCInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.n_draws"><code class="docutils literal notranslate"><span class="pre">CTSCInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">CTSCInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">CTSCInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">CTSCInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">CTSCInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">CTSCInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">CTSCInference.wald_stat</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs"><code class="docutils literal notranslate"><span class="pre">CTSCInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.Y"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.D"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.treatment_names"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.treatment_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.population_weights"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.population_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.K"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.K</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.T"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.n"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.n</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.population_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.treatment_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults"><code class="docutils literal notranslate"><span class="pre">CTSCResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.inputs"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.average_effect"><code class="docutils literal notranslate"><span class="pre">CTSCResults.average_effect</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_effects"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_effects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_weight_matrix"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.fit_metric"><code class="docutils literal notranslate"><span class="pre">CTSCResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.objective"><code class="docutils literal notranslate"><span class="pre">CTSCResults.objective</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.weights"><code class="docutils literal notranslate"><span class="pre">CTSCResults.weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.inference"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.metadata"><code class="docutils literal notranslate"><span class="pre">CTSCResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">CTSCResults.average_effect</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">CTSCResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id15"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id16"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id17"><code class="docutils literal notranslate"><span class="pre">CTSCResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id18"><code class="docutils literal notranslate"><span class="pre">CTSCResults.objective</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id19"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_effects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id20"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id21"><code class="docutils literal notranslate"><span class="pre">CTSCResults.weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="continuous-treatment-synthetic-control-ctsc">
+<h1>Continuous-Treatment Synthetic Control (CTSC)<a class="headerlink" href="#continuous-treatment-synthetic-control-ctsc" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>CTSC (Powell, D. (2022). <em>“Synthetic Control Estimation Beyond
+Comparative Case Studies: Does the Minimum Wage Reduce Employment?,”</em>
+Journal of Business &amp; Economic Statistics 40(3):1302-1314) generalises
+the synthetic control method to settings the original was never built
+for: continuous and/or multi-valued treatments in panels where there
+is no clean treated / never-treated split.</p>
+<p>The canonical synthetic control estimates the effect of one unit
+adopting a single binary policy, using never-treated units as donors.
+But many policy variables are continuous and adopted (and changed) by
+every unit – every U.S. state has a minimum wage that moves over time,
+so there is no “untreated” state to serve as a clean control. CTSC (the
+paper’s “GSC”) handles exactly this case.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The paper names the estimator GSC (generalized synthetic control).
+mlsynth calls it CTSC to avoid collision with Xu (2017)’s
+differently constructed Generalized Synthetic Control (<code class="docutils literal notranslate"><span class="pre">gsynth</span></code>),
+which is an interactive-fixed-effects estimator.</p>
+</div>
+<section id="what-ctsc-does">
+<h3>What CTSC does<a class="headerlink" href="#what-ctsc-does" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Builds a synthetic control for every unit out of the other units’
+<em>untreated</em> outcomes.</p></li>
+<li><p>Jointly estimates a unit-specific treatment-slope vector
+<span class="math notranslate nohighlight">\(\boldsymbol{\alpha}_i\)</span> (allowing fully heterogeneous marginal
+effects) and the synthetic-control weights.</p></li>
+<li><p>Reports the population-weighted average marginal effect
+<span class="math notranslate nohighlight">\(\alpha^{AE} \coloneqq \sum_{i \in \mathcal{N}} \pi_i\,
+\boldsymbol{\alpha}_i\)</span>.</p></li>
+<li><p>Permits an interactive-fixed-effects (factor) outcome structure, so it
+is consistent when the treatment is correlated with unobserved factors
+and trends – precisely the case where two-way fixed-effects regression
+is badly biased.</p></li>
+</ul>
+</section>
+<section id="when-to-use-ctsc">
+<h3>When to use CTSC<a class="headerlink" href="#when-to-use-ctsc" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The policy variable is continuous or multi-valued (minimum wage,
+tax rate, dosage) rather than a 0/1 indicator.</p></li>
+<li><p>Every unit is “treated” with a time-varying intensity, so there is
+no never-treated donor pool and comparative-case-study SC cannot be
+applied.</p></li>
+<li><p>You suspect the treatment is correlated with unobserved
+trends/factors, making two-way fixed effects inconsistent.</p></li>
+<li><p>You want unit-specific marginal effects (heterogeneity), not just
+an average.</p></li>
+</ul>
+</section>
+<section id="notation">
+<h3>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h3>
+<p>CTSC departs from the single-treated-unit setting, so there is no
+distinguished <span class="math notranslate nohighlight">\(j = 1\)</span>: every unit carries its own treatment intensity.
+Index the units by <span class="math notranslate nohighlight">\(i \in \mathcal{N} \coloneqq \{1, \dots, N\}\)</span> and time
+by <span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span> (1-indexed). The observed
+scalar outcome of unit <span class="math notranslate nohighlight">\(i\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> is <span class="math notranslate nohighlight">\(y_{it}\)</span>, with its
+no-treatment potential outcome (Abadie superscript) written <span class="math notranslate nohighlight">\(y_{it}^N\)</span>.</p>
+<p>The treatment of unit <span class="math notranslate nohighlight">\(i\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> is a <span class="math notranslate nohighlight">\(K\)</span>-vector
+<span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span> of continuous or multi-valued intensities, and
+<span class="math notranslate nohighlight">\(\boldsymbol{\alpha}_i \in \mathbb{R}^{K}\)</span> is its unit-specific
+marginal-effect (slope) vector – the estimand. The factor term
+<span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i\)</span> carries an interactive
+fixed effect, with time factors <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t\)</span> and loadings
+<span class="math notranslate nohighlight">\(\boldsymbol{\mu}_i\)</span>, and <span class="math notranslate nohighlight">\(\epsilon_{it}\)</span> is mean-zero idiosyncratic
+noise. When unit <span class="math notranslate nohighlight">\(i\)</span> is synthesized from the others, its donor weights
+<span class="math notranslate nohighlight">\(\boldsymbol{\phi}^i\)</span> lie on the simplex
+<span class="math notranslate nohighlight">\(\Delta^{N-1} \coloneqq \{\boldsymbol{\phi} \in \mathbb{R}_{\ge 0}^{N-1} :
+\|\boldsymbol{\phi}\|_1 = 1\}\)</span>, and <span class="math notranslate nohighlight">\(\Omega_i\)</span> is its per-unit fit weight.
+The population-weighted average marginal effect is
+<span class="math notranslate nohighlight">\(\alpha^{AE} \coloneqq \sum_{i \in \mathcal{N}} \pi_i\,
+\boldsymbol{\alpha}_i\)</span>, with population shares <span class="math notranslate nohighlight">\(\pi_i\)</span>.</p>
+</section>
+<section id="assumptions-and-how-to-spot-violations">
+<h3>Assumptions (and how to spot violations)<a class="headerlink" href="#assumptions-and-how-to-spot-violations" title="Link to this heading">#</a></h3>
+<p>CTSC is a <em>much</em> more permissive estimator than vanilla SC – it does
+not require a clean treated/control split, it does not assume
+homogeneous effects, and it does not require the analyst to specify the
+number of factors. But it does still rely on a small set of identifying
+assumptions. Each is given here together with the symptom you would see
+if it failed.</p>
+<ol class="arabic">
+<li><p>Interactive fixed-effects DGP for the untreated outcome. The paper assumes
+<span class="math notranslate nohighlight">\(y_{it}^N = \boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i +
+\epsilon_{it}\)</span>, i.e. the counterfactual (no-treatment) outcome is a low-rank
+factor model plus mean-zero idiosyncratic noise.</p>
+<p><em>Remark.</em> This is plausibly violated when the outcome has strong
+unit-specific nonlinear trends, structural breaks affecting only some units,
+or unit-specific deterministic time polynomials that cannot be written as
+<span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i\)</span>. To spot it, fit an
+interactive-FE model (e.g. <code class="docutils literal notranslate"><span class="pre">gsynth</span></code>) to the pre-/non-treatment data and
+inspect the residuals – if there is visible unit-specific curvature left,
+the factor structure is misspecified.</p>
+</li>
+<li><p>Convex-hull condition on donor loadings. For each treated-period observation
+of unit <span class="math notranslate nohighlight">\(i\)</span>, its factor loading <span class="math notranslate nohighlight">\(\boldsymbol{\mu}_i\)</span> must lie
+(approximately) in the convex hull of the other units’ loadings, so that a
+simplex-weighted combination of donors can reproduce its untreated
+trajectory.</p>
+<p><em>Remark.</em> This is plausibly violated when the treated unit is an outlier on
+level, seasonality, or factor exposure – a coastal mega-state with no
+interior analog, a country with idiosyncratic policy that no donor shares.
+To spot it, look at the per-unit fit weights <span class="math notranslate nohighlight">\(\Omega_i\)</span> returned by
+CTSC; units with very poor untreated fit get heavily down-weighted, and if
+most units fall in that bucket the hull condition is failing population-wide.</p>
+</li>
+<li><p>Large <span class="math notranslate nohighlight">\(T\)</span> regime (consistency, not factor count). Powell shows the
+estimator is consistent as <span class="math notranslate nohighlight">\(T \to \infty\)</span> <em>without</em> the user having to
+specify the rank of <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i\)</span>.
+The trade-off is that very short panels leave the simplex weights and slopes
+weakly identified.</p>
+<p><em>Remark.</em> This is plausibly violated when <span class="math notranslate nohighlight">\(T\)</span> is on the order of
+<span class="math notranslate nohighlight">\(N\)</span> or smaller (so the per-unit least squares with <span class="math notranslate nohighlight">\(N-1\)</span> simplex
+weights becomes ill-posed). To spot it, re-run on a longer pre-period or
+aggregate to a coarser frequency and check whether the average effect and
+weights are stable; large swings suggest <span class="math notranslate nohighlight">\(T\)</span> is too short.</p>
+</li>
+<li><p>Linearity of the outcome in the treatment vector. The paper writes
+<span class="math notranslate nohighlight">\(y_{it} = y_{it}^N + \mathbf{D}_{it}^\top \boldsymbol{\alpha}_i\)</span>, i.e.
+the treatment effect is linear in <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span> (with unit-specific
+slopes <span class="math notranslate nohighlight">\(\boldsymbol{\alpha}_i\)</span>). Multi-valued <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span>
+is fine, and interactions/polynomial terms can be entered as extra columns of
+<span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span>, but CTSC does not estimate a fully nonparametric
+dose-response curve.</p>
+<p><em>Remark.</em> This is plausibly violated when the dose-response is strongly
+nonlinear inside the support and you have not encoded the nonlinearity (e.g.
+sharp regime-switching, kinked schedules). To spot it, add a quadratic or
+spline term to <code class="docutils literal notranslate"><span class="pre">treatment_vars</span></code> and test whether the higher-order
+coefficient is jointly significant under the sign-flip distribution.</p>
+</li>
+<li><p>Slope heterogeneity <span class="math notranslate nohighlight">\(\boldsymbol{\alpha}_i\)</span> is unit-specific but
+time-invariant. Each unit gets its own marginal effect, but it does not drift
+over time within a unit.</p>
+<p><em>Remark.</em> This is plausibly violated when the marginal effect itself moves –
+a minimum-wage elasticity that changes after a labour-market reform, a
+dose-response that shifts when patient populations change. To spot it, split
+the post-treatment window in half, refit, and compare the recovered
+<span class="math notranslate nohighlight">\(\widehat{\boldsymbol{\alpha}}_i\)</span>; large within-unit drift indicates
+the time-invariance assumption is binding.</p>
+</li>
+<li><p>No simultaneity in <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span>. CTSC allows
+<span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span> to be correlated with the factors
+<span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i\)</span> (this is the whole
+point), but it still assumes <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span> is mean-independent of
+the idiosyncratic shock <span class="math notranslate nohighlight">\(\epsilon_{it}\)</span>. Reverse causality from
+contemporaneous <span class="math notranslate nohighlight">\(\epsilon_{it}\)</span> to <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span> breaks
+identification.</p>
+<p><em>Remark.</em> This is plausibly violated when the policy responds within the same
+period to the outcome – e.g. the minimum wage being raised <em>because</em>
+employment surprised on the upside this quarter. To spot it, regress
+<span class="math notranslate nohighlight">\(\Delta \mathbf{D}_{it}\)</span> on lagged residuals from a no-treatment factor
+fit; significant feedback is a red flag.</p>
+</li>
+</ol>
+</section>
+<section id="when-not-to-use-ctsc">
+<h3>When not to use CTSC<a class="headerlink" href="#when-not-to-use-ctsc" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Single treated unit with a clean binary policy. A canonical
+comparative-case-study set-up (one state passes one law on one date,
+others never do) is exactly what vanilla SC was built for; CTSC’s
+per-unit weight system is unnecessary overhead and its sign-flip
+inference is weaker than the placebo / conformal inference available
+in the binary-treatment world. Use <a class="reference internal" href="tssc.html"><span class="doc">Two-Step Synthetic Control</span></a> or <a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>.</p></li>
+<li><p>Short panels. Powell’s consistency story is in <span class="math notranslate nohighlight">\(T \to
+\infty\)</span>. With <span class="math notranslate nohighlight">\(T \lesssim N\)</span> the per-unit least squares with
+<span class="math notranslate nohighlight">\(N-1\)</span> simplex weights is ill-posed and the average effect can
+swing dramatically with the seed. Prefer <a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a> (which is
+designed for short panels by stepwise donor selection) or a factor
+estimator that explicitly regularises the rank.</p></li>
+<li><p>Treated trajectory outside the donor convex hull. If the treated
+unit’s untreated trend cannot be expressed as a simplex combination
+of the donors’ untreated trends – coastal vs. interior states, an
+outlier sector, a country with idiosyncratic seasonality – CTSC has
+no fix; the per-unit <span class="math notranslate nohighlight">\(\Omega_i\)</span> will collapse and the average
+effect is dominated by a handful of well-fit units. Use <a class="reference internal" href="fma.html"><span class="doc">Factor Model Approach (FMA)</span></a>
+or <a class="reference internal" href="scmo.html"><span class="doc">Synthetic Control with Multiple Outcomes (SCMO)</span></a> (auxiliary outcomes) to widen the donor information
+set before forcing a hull fit.</p></li>
+<li><p>Treatment effect that drifts over time within a unit. CTSC fixes
+<span class="math notranslate nohighlight">\(\boldsymbol{\alpha}_i\)</span> across time. If the dose-response is genuinely
+time-varying (a minimum-wage elasticity that changes after a recession,
+a drug whose effect attenuates with tolerance), CTSC will return an
+average across the post-window that masks the dynamics. Use a
+time-varying-effects estimator (<a class="reference internal" href="tasc.html"><span class="doc">Time-Aware Synthetic Control (TASC)</span></a> for state-space dynamics,
+<a class="reference internal" href="dscar.html"><span class="doc">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</span></a> for autoregressive treated processes) instead.</p></li>
+<li><p>Strongly nonlinear or kinked dose-response that you cannot encode.
+CTSC is linear in <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span>. If the policy effect has a sharp
+kink or saturation that no parsimonious basis expansion captures,
+fall back to a doubly-robust panel estimator or a changes-in-changes
+design.</p></li>
+<li><p>Contemporaneous reverse causality from outcome to treatment. CTSC
+permits the treatment to be correlated with unobserved factors, but
+not with the <em>same-period</em> idiosyncratic shock. If the policy is set
+in response to within-period outcome surprises, you need an
+instrument or a timing-based identification strategy; CTSC alone is
+not enough.</p></li>
+</ul>
+</section>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical Formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading">#</a></h2>
+<section id="model-paper-eq-4">
+<h3>Model (paper eq. 4)<a class="headerlink" href="#model-paper-eq-4" title="Link to this heading">#</a></h3>
+<div class="math notranslate nohighlight">
+\[y_{it} = \boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i
+         + \mathbf{D}_{it}^\top \boldsymbol{\alpha}_i + \epsilon_{it},\]</div>
+<p>where <span class="math notranslate nohighlight">\(\mathbf{D}_{it}\)</span> is a <span class="math notranslate nohighlight">\(K\)</span>-vector of (continuous/discrete)
+treatment variables, <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i\)</span> is
+an interactive fixed-effects (factor) term, and <span class="math notranslate nohighlight">\(\boldsymbol{\alpha}_i\)</span>
+is the unit-specific slope.</p>
+</section>
+<section id="joint-estimation-paper-eq-5-6">
+<h3>Joint estimation (paper eq. 5-6)<a class="headerlink" href="#joint-estimation-paper-eq-5-6" title="Link to this heading">#</a></h3>
+<p>CTSC minimises, over slopes <span class="math notranslate nohighlight">\(\mathbf{b}\)</span> and per-unit simplex weights
+<span class="math notranslate nohighlight">\(\boldsymbol{\phi}\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\frac{1}{2NT}\sum_{i \in \mathcal{N}} \Omega_i^{-1}
+  \sum_{t \in \mathcal{T}}
+  \Bigl[ y_{it} - \mathbf{D}_{it}^\top \mathbf{b}_i
+         - \sum_{j \ne i} \phi_j^i
+           (y_{jt} - \mathbf{D}_{jt}^\top \mathbf{b}_j) \Bigr]^2,
+\quad \phi_j^i \ge 0,\ \sum_{j \ne i} \phi_j^i = 1,\]</div>
+<p>where <span class="math notranslate nohighlight">\(y_{it} - \mathbf{D}_{it}^\top \mathbf{b}_i\)</span> is unit <span class="math notranslate nohighlight">\(i\)</span>’s
+untreated outcome, its synthetic control is a convex combination of the <em>other</em>
+units’ untreated outcomes, and <span class="math notranslate nohighlight">\(\Omega_i\)</span> is a per-unit fit weight (a
+two-step measure, eq. 6) that down-weights units lacking a good synthetic
+control. The average effect (paper eq. 7) is
+<span class="math notranslate nohighlight">\(\alpha^{AE} \coloneqq \sum_{i \in \mathcal{N}} \pi_i\,
+\boldsymbol{\alpha}_i\)</span>.</p>
+</section>
+<section id="inference-paper-section-4">
+<h3>Inference (paper Section 4)<a class="headerlink" href="#inference-paper-section-4" title="Link to this heading">#</a></h3>
+<p>Because CTSC mechanically correlates units (each control is built from
+the others), inference uses unit-level moment scores at the
+null-restricted estimate and calibrates a Wald statistic with a
+Rademacher (sign-flip) randomization distribution, valid under arbitrary
+within- and cross-unit dependence.</p>
+</section>
+</section>
+<section id="implementation-note">
+<h2>Implementation note<a class="headerlink" href="#implementation-note" title="Link to this heading">#</a></h2>
+<p>The paper minimises the objective with Nelder-Mead over all
+<span class="math notranslate nohighlight">\(NK + N(N-1)\)</span> parameters. mlsynth exploits the biconvex
+structure – weighted linear least squares in the slopes for fixed
+weights (a single closed-form linear solve) and <span class="math notranslate nohighlight">\(N\)</span> independent
+simplex-constrained least squares in the weights for fixed slopes – and
+solves it by block coordinate descent. This optimises the same
+objective with far better stability and speed. The null-restricted fit
+used for inference imposes <span class="math notranslate nohighlight">\(\sum_i \pi_i \boldsymbol{\alpha}_i = a_0\)</span>
+via a KKT-augmented linear system.</p>
+</section>
+<section id="calibration-to-the-paper-s-simulation">
+<h2>Calibration to the paper’s simulation<a class="headerlink" href="#calibration-to-the-paper-s-simulation" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="#module-mlsynth.utils.ctsc_helpers.simulation" title="mlsynth.utils.ctsc_helpers.simulation"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mlsynth.utils.ctsc_helpers.simulation</span></code></a> reproduces the paper’s
+Section 5 / Table 1 Monte Carlo (Models 1-4). The data-generating process
+is</p>
+<div class="math notranslate nohighlight">
+\[y_{it} = \beta_i d_{it} + 5 \sum_{k=1}^{2} \lambda_t^{(k)} \mu_i^{(k)}
+         + \epsilon_{it},\]</div>
+<p>with piecewise factor paths <span class="math notranslate nohighlight">\(\lambda_t^{(k)}\)</span>,
+<span class="math notranslate nohighlight">\(\mu_i^{(k)} \sim U(0,1)\)</span>, <span class="math notranslate nohighlight">\(\epsilon_{it} \sim N(0, \tfrac14)\)</span>,
+and <span class="math notranslate nohighlight">\(\beta_i = \sum_k \mu_i^{(k)} - \tfrac1N \sum_i \sum_k
+\mu_i^{(k)}\)</span> (so the true average effect is exactly zero). The
+continuous treatment <span class="math notranslate nohighlight">\(d_{it}\)</span> is a function of the same factors,
+so it correlates with the interactive fixed effects.</p>
+<p>Reproduced calibration (mlsynth, fewer Monte-Carlo draws than the paper’s
+1000):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Model</p></th>
+<th class="head"><p>CTSC mean bias (paper)</p></th>
+<th class="head"><p>Two-way FE bias (paper)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1 (n=10)</p></td>
+<td><p>~0.00 (0.011)</p></td>
+<td><p>~0.80 (0.850)</p></td>
+</tr>
+<tr class="row-odd"><td><p>2 (n=30)</p></td>
+<td><p>~0.00 (0.005)</p></td>
+<td><p>~0.82 (0.846)</p></td>
+</tr>
+<tr class="row-even"><td><p>3 (within)</p></td>
+<td><p>~0.00 (-0.001)</p></td>
+<td><p>~0.49 (0.423)</p></td>
+</tr>
+<tr class="row-odd"><td><p>4 (T=20)</p></td>
+<td><p>~0.01 (-0.002)</p></td>
+<td><p>~0.53 (0.263)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>CTSC is essentially unbiased across all models while two-way fixed
+effects is badly biased; the inference rejects the (true) zero null at
+roughly the nominal 5% rate (paper Panel B ~0.044).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.ctsc_helpers.simulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_simulation</span>
+
+<span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">run_simulation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">n_sims</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Model </span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">model</span><span class="si">}</span><span class="s2">: CTSC bias=</span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">ctsc_mean_bias</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2"> &quot;</span>
+          <span class="sa">f</span><span class="s2">&quot;MAD=</span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">ctsc_mad</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> | FE bias=</span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">fe_mean_bias</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="module-mlsynth.estimators.ctsc">
+<span id="core-api"></span><h2>Core API<a class="headerlink" href="#module-mlsynth.estimators.ctsc" title="Link to this heading">#</a></h2>
+<p>CTSC: Continuous-Treatment Synthetic Control (Powell 2022).</p>
+<p>Powell, D. (2022). <em>“Synthetic Control Estimation Beyond Comparative Case
+Studies: Does the Minimum Wage Reduce Employment?”</em> Journal of Business &amp;
+Economic Statistics 40(3):1302-1314.</p>
+<p>The synthetic control method was built for a single treated unit adopting
+a binary policy. CTSC generalises it to settings with <strong>continuous and/or
+multi-valued treatments</strong> where there is no clean treated / never-treated
+split – every unit has a time-varying treatment (e.g. every U.S. state
+has a minimum wage that changes over time, so the comparative-case-study
+synthetic control cannot be applied).</p>
+<p>CTSC builds a synthetic control for <em>every</em> unit out of the others’
+untreated outcomes and jointly estimates a unit-specific treatment-slope
+vector <span class="math notranslate nohighlight">\(\alpha_i\)</span> together with the synthetic-control weights. The
+reported effect is the population-weighted average marginal effect
+<span class="math notranslate nohighlight">\(\alpha^{AE} = \sum_i \pi_i \alpha_i\)</span>. Because the outcome model
+allows interactive fixed effects (factor structure) and unit-specific
+slopes, CTSC is consistent where two-way fixed-effects regressions are
+badly biased when the treatment is correlated with unobserved factors.</p>
+<p>The paper names the estimator “GSC”; mlsynth uses <strong>CTSC</strong> to avoid
+collision with Xu (2017)’s differently constructed Generalized Synthetic
+Control (<code class="docutils literal notranslate"><span class="pre">gsynth</span></code>).</p>
+<section id="id1">
+<h3>Implementation note<a class="headerlink" href="#id1" title="Link to this heading">#</a></h3>
+<p>The paper minimises the joint objective (eq. 5) with Nelder-Mead over all
+<span class="math notranslate nohighlight">\(nK + n(n-1)\)</span> parameters. mlsynth exploits the <strong>biconvex</strong>
+structure – weighted linear least squares in the slopes for fixed
+weights, and per-unit simplex-constrained least squares in the weights
+for fixed slopes – and solves it by block coordinate descent, which
+optimises the same objective far more stably. The bundled simulation
+module reproduces the paper’s Table 1 (Models 1-4) as a calibration
+check (CTSC mean bias <span class="math notranslate nohighlight">\(\approx 0\)</span> vs two-way FE bias
+<span class="math notranslate nohighlight">\(\approx 0.85\)</span>).</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.estimators.ctsc.CTSC">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.estimators.ctsc.</span></span><span class="sig-name descname"><span class="pre">CTSC</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.config_models.CTSCConfig" title="mlsynth.utils.ctsc_helpers.config.CTSCConfig"><span class="pre">CTSCConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.estimators.ctsc.CTSC" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Continuous-Treatment Synthetic Control estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>CTSCConfig or dict</em>) – Configuration object. See
+<a class="reference internal" href="#mlsynth.config_models.CTSCConfig" title="mlsynth.config_models.CTSCConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.config_models.CTSCConfig</span></code></a>.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.estimators.ctsc.CTSC.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults" title="mlsynth.utils.ctsc_helpers.structures.CTSCResults"><span class="pre">CTSCResults</span></a></span></span><a class="headerlink" href="#mlsynth.estimators.ctsc.CTSC.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run CTSC and return <code class="xref py py-class docutils literal notranslate"><span class="pre">CTSCResults</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.config_models.</span></span><span class="sig-name descname"><span class="pre">CTSCConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame,</span> <span class="pre">outcome:</span> <span class="pre">str,</span> <span class="pre">treat:</span> <span class="pre">str,</span> <span class="pre">unitid:</span> <span class="pre">str,</span> <span class="pre">time:</span> <span class="pre">str,</span> <span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True,</span> <span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False,</span> <span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black',</span> <span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">treatment_vars:</span> <span class="pre">~typing.List[str],</span> <span class="pre">population_col:</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">use_fit_weights:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True,</span> <span class="pre">inference:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True,</span> <span class="pre">n_draws:</span> <span class="pre">~typing.Annotated[int,</span> <span class="pre">~annotated_types.Ge(ge=100)]</span> <span class="pre">=</span> <span class="pre">2000,</span> <span class="pre">random_state:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.config_models.CTSCConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the Continuous-Treatment Synthetic Control (CTSC).</p>
+<p>Powell, D. (2022). <em>“Synthetic Control Estimation Beyond Comparative
+Case Studies,”</em> Journal of Business &amp; Economic Statistics. Generalises
+synthetic control to continuous / multi-valued treatments with no clean
+treated/never-treated split; jointly estimates unit-specific treatment
+slopes and synthetic controls for all units. (The paper calls it “GSC”;
+mlsynth uses CTSC to avoid collision with Xu (2017)’s GSC.)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>treatment_vars</strong> (<em>list of str</em>) – The <code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code> treatment / explanatory columns (continuous or
+discrete). CTSC estimates an average marginal effect for each.</p></li>
+<li><p><strong>population_col</strong> (<em>str, optional</em>) – Time-invariant per-unit weight column for the average effect
+(e.g. population). Defaults to uniform weights.</p></li>
+<li><p><strong>use_fit_weights</strong> (<em>bool</em>) – Use the two-step per-unit fit weights <code class="docutils literal notranslate"><span class="pre">Omega_i</span></code> (paper eq. 6).
+Default True.</p></li>
+<li><p><strong>inference</strong> (<em>bool</em>) – Run the sign-flip Wald test of <code class="docutils literal notranslate"><span class="pre">H0:</span> <span class="pre">alpha^AE</span> <span class="pre">=</span> <span class="pre">0</span></code>. Default True.</p></li>
+<li><p><strong>n_draws</strong> (<em>int</em>) – Rademacher draws for the randomization test.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – Seed for the randomization-test RNG.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The base <code class="docutils literal notranslate"><span class="pre">treat</span></code> field is unused by CTSC; provide the continuous /
+discrete treatment column(s) via <code class="docutils literal notranslate"><span class="pre">treatment_vars</span></code> instead. Pass any
+existing column name for <code class="docutils literal notranslate"><span class="pre">treat</span></code> to satisfy the base config.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.inference">
+<span class="sig-name descname"><span class="pre">inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.inference" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.n_draws">
+<span class="sig-name descname"><span class="pre">n_draws</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.n_draws" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.population_col">
+<span class="sig-name descname"><span class="pre">population_col</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.population_col" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.random_state">
+<span class="sig-name descname"><span class="pre">random_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.random_state" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.treatment_vars">
+<span class="sig-name descname"><span class="pre">treatment_vars</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.treatment_vars" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.config_models.CTSCConfig.use_fit_weights">
+<span class="sig-name descname"><span class="pre">use_fit_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#mlsynth.config_models.CTSCConfig.use_fit_weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mlsynth.utils.ctsc_helpers.setup">
+<span id="helper-modules"></span><h2>Helper Modules<a class="headerlink" href="#module-mlsynth.utils.ctsc_helpers.setup" title="Link to this heading">#</a></h2>
+<p>Panel ingestion for the CTSC estimator.</p>
+<p>Unlike a binary-treatment estimator, CTSC takes one or more
+<strong>treatment / explanatory</strong> columns (continuous or discrete) that vary
+over units and time, and pivots them into a <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T,</span> <span class="pre">K)</span></code> array
+alongside the <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T)</span></code> outcome.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.setup.prepare_ctsc_inputs">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">prepare_ctsc_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treatment_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">population_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs" title="mlsynth.utils.ctsc_helpers.structures.CTSCInputs"><span class="pre">CTSCInputs</span></a></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.setup.prepare_ctsc_inputs" title="Link to this definition">#</a></dt>
+<dd><p>Pivot a long panel into <code class="xref py py-class docutils literal notranslate"><span class="pre">CTSCInputs</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Balanced long panel; one row per <code class="docutils literal notranslate"><span class="pre">(unit,</span> <span class="pre">time)</span></code>.</p></li>
+<li><p><strong>outcome</strong> (<em>str</em>) – Outcome column.</p></li>
+<li><p><strong>treatment_vars</strong> (<em>sequence of str</em>) – The <code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code> treatment / explanatory columns (continuous or
+discrete). CTSC estimates a marginal effect for each.</p></li>
+<li><p><strong>unitid, time</strong> (<em>str</em>) – Unit-id and time column names.</p></li>
+<li><p><strong>population_col</strong> (<em>str, optional</em>) – Time-invariant per-unit weight column for the average effect
+(e.g. population). Defaults to uniform weights.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.ctsc_helpers.estimate">Core estimation for the Continuous-Treatment Synthetic Control (CTSC).</p>
+<p>Powell, D. (2022). <em>“Synthetic Control Estimation Beyond Comparative Case
+Studies: Does the Minimum Wage Reduce Employment?”</em> Journal of Business &amp;
+Economic Statistics 40(3):1302-1314. (The paper calls the estimator
+“GSC”; mlsynth names it CTSC to avoid collision with Xu (2017)’s
+Generalized Synthetic Control.)</p>
+<p>The estimator jointly fits, for every unit <span class="math notranslate nohighlight">\(i\)</span>, a treatment-slope
+vector <span class="math notranslate nohighlight">\(\alpha_i \in \mathbb{R}^K\)</span> and a synthetic control over the
+<em>other</em> units’ untreated outcomes (paper eq. 5):</p>
+<div class="math notranslate nohighlight">
+\[\min_{b, \phi}\ \frac{1}{2nT}\sum_i \Omega_i^{-1} \sum_t
+  \Bigl[ Y_{it} - D_{it}' b_i
+         - \sum_{j \ne i} \phi_j^i (Y_{jt} - D_{jt}' b_j) \Bigr]^2,
+\quad \phi_j^i \ge 0,\ \sum_{j \ne i} \phi_j^i = 1,\]</div>
+<p>where <span class="math notranslate nohighlight">\(Y_{it} - D_{it}' b_i\)</span> is unit <span class="math notranslate nohighlight">\(i\)</span>’s untreated outcome
+and <span class="math notranslate nohighlight">\(\Omega_i\)</span> is a per-unit fit weight (eq. 6) that down-weights
+units without a good synthetic control.</p>
+<p>The paper minimises this with Nelder-Mead over all
+<span class="math notranslate nohighlight">\(nK + n(n-1)\)</span> parameters. The objective is <strong>biconvex</strong> – a
+weighted linear least squares in the stacked slopes <span class="math notranslate nohighlight">\(b\)</span> for fixed
+weights <span class="math notranslate nohighlight">\(\phi\)</span>, and <span class="math notranslate nohighlight">\(n\)</span> independent simplex-constrained least
+squares in <span class="math notranslate nohighlight">\(\phi\)</span> for fixed <span class="math notranslate nohighlight">\(b\)</span> – so mlsynth uses block
+coordinate descent (a single linear solve alternated with per-unit
+simplex QPs), which optimises the same objective far more stably.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.estimate.fit_ctsc">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.estimate.</span></span><span class="sig-name descname"><span class="pre">fit_ctsc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">population_weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_fit_weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">restrict_ae</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.estimate.fit_ctsc" title="Link to this definition">#</a></dt>
+<dd><p>Fit CTSC and return the unit-specific slopes and the average effect.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Y</strong> (<em>np.ndarray</em>) – Outcomes, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T)</span></code>.</p></li>
+<li><p><strong>D</strong> (<em>np.ndarray</em>) – Treatment / explanatory variables, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T,</span> <span class="pre">K)</span></code>.</p></li>
+<li><p><strong>population_weights</strong> (<em>np.ndarray, optional</em>) – Per-unit weights <span class="math notranslate nohighlight">\(\pi_i\)</span> for the average effect (eq. 7);
+defaults to uniform <code class="docutils literal notranslate"><span class="pre">1/n</span></code>.</p></li>
+<li><p><strong>use_fit_weights</strong> (<em>bool</em>) – If True, use the two-step per-unit fit weights <span class="math notranslate nohighlight">\(\Omega_i\)</span>
+(eq. 6); if False, weight all units equally.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>dict with keys <code class="docutils literal notranslate"><span class="pre">alpha</span></code> (n, K) unit slopes, <code class="docutils literal notranslate"><span class="pre">average_effect</span></code> (K,),</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">weights</span></code> (n, n) synthetic-control matrix, <code class="docutils literal notranslate"><span class="pre">omega</span></code> (n,) fit weights,</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">objective</span></code> (float).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.ctsc_helpers.inference">Wald / sign-flip inference for CTSC (Powell 2022, Section 4).</p>
+<p>CTSC induces mechanical cross-unit correlation (each unit’s control is
+built from the others). The inference procedure forms unit-level moment
+scores at the restricted (null-imposed) estimate and calibrates a Wald
+statistic with a Rademacher (sign-flip) randomization distribution,
+permitting arbitrary within-unit and cross-unit dependence (Canay,
+Romano &amp; Shaikh 2017; Powell 2019).</p>
+<p>For treatment variable <span class="math notranslate nohighlight">\(k\)</span>, the per-unit, per-period moment is
+(paper eq. 10)</p>
+<div class="math notranslate nohighlight">
+\[h_{it}^{(k)} = \Bigl(D_{it}^{(k)} - \sum_{j \ne i} w_j^i D_{jt}^{(k)}\Bigr)
+  \Bigl[ Y_{it} - D_{it}'\alpha_i
+         - \sum_{j \ne i} w_j^i (Y_{jt} - D_{jt}'\alpha_j) \Bigr],\]</div>
+<p>with mean zero under the null. The unit score is the time average
+<span class="math notranslate nohighlight">\(s_i^{(k)} = \tfrac{1}{T}\sum_t h_{it}^{(k)}\)</span>.</p>
+<p>This implementation uses the unit-level scores directly with the
+sign-flip test (a valid randomization test under sign symmetry of the
+unit scores); the paper’s optional PCA orthogonalisation of the scores
+is not applied.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.inference.sign_flip_wald_inference">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.inference.</span></span><span class="sig-name descname"><span class="pre">sign_flip_wald_inference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference" title="mlsynth.utils.ctsc_helpers.structures.CTSCInference"><span class="pre">CTSCInference</span></a></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.inference.sign_flip_wald_inference" title="Link to this definition">#</a></dt>
+<dd><p>Run the sign-flip Wald test of <code class="docutils literal notranslate"><span class="pre">H0:</span> <span class="pre">alpha^AE</span> <span class="pre">=</span> <span class="pre">null_value</span></code>.</p>
+<p>Re-fits CTSC under the average-effect restriction, forms the unit
+scores, and calibrates the Wald statistic by Rademacher sign flips.
+Also returns per-variable joint and marginal p-values and a
+score-spread standard error for the average effect.</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.ctsc_helpers.simulation">Calibrated simulation study from Powell (2022), Section 5 / Table 1.</p>
+<p>Reproduces Models 1-4 of the paper’s Monte Carlo, the data-generating
+process for which is</p>
+<div class="math notranslate nohighlight">
+\[Y_{it} = \beta_i d_{it} + 5 \sum_{k=1}^{2} \lambda_t^{(k)} \mu_i^{(k)}
+         + \epsilon_{it},\]</div>
+<p>with the piecewise factor paths <span class="math notranslate nohighlight">\(\lambda_t^{(1)}, \lambda_t^{(2)}\)</span>
+defined below, <span class="math notranslate nohighlight">\(\mu_i^{(k)} \sim U(0, 1)\)</span>,
+<span class="math notranslate nohighlight">\(\epsilon_{it} \sim N(0, \tfrac14)\)</span>, and unit-specific effects
+<span class="math notranslate nohighlight">\(\beta_i = \sum_k \mu_i^{(k)} - \tfrac1n \sum_i \sum_k \mu_i^{(k)}\)</span>
+(so the true average effect is exactly zero each draw). The treatment
+<span class="math notranslate nohighlight">\(d_{it}\)</span> is continuous and a function of the same factors, so it is
+correlated with the interactive fixed effects – which is why two-way
+fixed effects is badly biased and CTSC is not.</p>
+<p>Model variations:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Model</p></th>
+<th class="head"><p>treatment construction</p></th>
+<th class="head"><p>n</p></th>
+<th class="head"><p>T</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1</p></td>
+<td><p>d = factors + U(0, 10)</p></td>
+<td><p>10</p></td>
+<td><p>50</p></td>
+</tr>
+<tr class="row-odd"><td><p>2</p></td>
+<td><p>d = factors + U(0, 10)</p></td>
+<td><p>30</p></td>
+<td><p>50</p></td>
+</tr>
+<tr class="row-even"><td><p>3</p></td>
+<td><p>d = factors + U(0, 5) * (beta_i + 3)</p></td>
+<td><p>10</p></td>
+<td><p>50</p></td>
+</tr>
+<tr class="row-odd"><td><p>4</p></td>
+<td><p>d = factors + U(0, 10)</p></td>
+<td><p>10</p></td>
+<td><p>20</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The headline calibration target (paper Table 1): CTSC mean bias
+<span class="math notranslate nohighlight">\(\approx 0\)</span> with small MAD/RMSE, while the two-way fixed-effects
+estimator has mean bias <span class="math notranslate nohighlight">\(\approx 0.85\)</span> (Models 1-2).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.simulation.</span></span><span class="sig-name descname"><span class="pre">SimulationSummary</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sims</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctsc_mean_bias</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctsc_mad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctsc_rmse</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fe_mean_bias</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fe_mad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fe_rmse</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary" title="Link to this definition">#</a></dt>
+<dd><p>Monte-Carlo summary for one model (mean bias, MAD, RMSE).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mad">
+<span class="sig-name descname"><span class="pre">ctsc_mad</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mad" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mean_bias">
+<span class="sig-name descname"><span class="pre">ctsc_mean_bias</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mean_bias" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_rmse">
+<span class="sig-name descname"><span class="pre">ctsc_rmse</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_rmse" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mad">
+<span class="sig-name descname"><span class="pre">fe_mad</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mad" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mean_bias">
+<span class="sig-name descname"><span class="pre">fe_mean_bias</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mean_bias" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_rmse">
+<span class="sig-name descname"><span class="pre">fe_rmse</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_rmse" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.model">
+<span class="sig-name descname"><span class="pre">model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.model" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.n_sims">
+<span class="sig-name descname"><span class="pre">n_sims</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.n_sims" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.generate_model">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.simulation.</span></span><span class="sig-name descname"><span class="pre">generate_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Generator</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.generate_model" title="Link to this definition">#</a></dt>
+<dd><p>Draw one panel from Powell (2022) Model <code class="docutils literal notranslate"><span class="pre">model</span></code> in <code class="docutils literal notranslate"><span class="pre">{1,</span> <span class="pre">2,</span> <span class="pre">3,</span> <span class="pre">4}</span></code>.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">(Y,</span> <span class="pre">D,</span> <span class="pre">true_ae)</span></code> where <code class="docutils literal notranslate"><span class="pre">Y</span></code> is <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T)</span></code>, <code class="docutils literal notranslate"><span class="pre">D</span></code> is
+<code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T,</span> <span class="pre">1)</span></code>, and <code class="docutils literal notranslate"><span class="pre">true_ae</span></code> is the true average effect (0).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.run_simulation">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.simulation.</span></span><span class="sig-name descname"><span class="pre">run_simulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sims</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary" title="mlsynth.utils.ctsc_helpers.simulation.SimulationSummary"><span class="pre">SimulationSummary</span></a></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.run_simulation" title="Link to this definition">#</a></dt>
+<dd><p>Run <code class="docutils literal notranslate"><span class="pre">n_sims</span></code> Monte-Carlo draws of <code class="docutils literal notranslate"><span class="pre">model</span></code> and summarise CTSC vs FE.</p>
+<p>The true average effect is zero, so bias equals the mean estimate.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.simulation.twoway_fe_effect">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.simulation.</span></span><span class="sig-name descname"><span class="pre">twoway_fe_effect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.simulation.twoway_fe_effect" title="Link to this definition">#</a></dt>
+<dd><p>Two-way (unit + time) fixed-effects slope on the treatment – the
+biased baseline the paper compares against.</p>
+</dd></dl>
+
+<p id="module-mlsynth.utils.ctsc_helpers.pipeline">Orchestration for the CTSC estimator (Powell 2022).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.pipeline.run_ctsc">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">run_ctsc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs" title="mlsynth.utils.ctsc_helpers.structures.CTSCInputs"><span class="pre">CTSCInputs</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_fit_weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults" title="mlsynth.utils.ctsc_helpers.structures.CTSCResults"><span class="pre">CTSCResults</span></a></span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.pipeline.run_ctsc" title="Link to this definition">#</a></dt>
+<dd><p>Run CTSC and assemble <code class="xref py py-class docutils literal notranslate"><span class="pre">CTSCResults</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>CTSCInputs</em>) – Preprocessed panel.</p></li>
+<li><p><strong>use_fit_weights</strong> (<em>bool</em>) – Use the two-step per-unit fit weights <span class="math notranslate nohighlight">\(\Omega_i\)</span> (eq. 6).</p></li>
+<li><p><strong>inference</strong> (<em>bool</em>) – Run the sign-flip Wald test of <code class="docutils literal notranslate"><span class="pre">H0:</span> <span class="pre">alpha^AE</span> <span class="pre">=</span> <span class="pre">null_value</span></code>.</p></li>
+<li><p><strong>null_value</strong> (<em>np.ndarray, optional</em>) – Per-variable null for the average effect (default zeros).</p></li>
+<li><p><strong>n_draws</strong> (<em>int</em>) – Rademacher draws for the randomization test.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em>) – RNG seed.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-mlsynth.utils.ctsc_helpers.structures">Frozen dataclasses for the Continuous-Treatment Synthetic Control (CTSC).</p>
+<p>Powell, D. (2022). <em>“Synthetic Control Estimation Beyond Comparative Case
+Studies: Does the Minimum Wage Reduce Employment?”</em> Journal of Business &amp;
+Economic Statistics 40(3):1302-1314.</p>
+<p>CTSC generalises synthetic control to <strong>continuous and/or multi-valued
+treatments</strong> in panels where there is no clean treated / never-treated
+split – every unit has a time-varying treatment (e.g. every U.S. state
+has a minimum wage that changes over time). It jointly estimates a
+unit-specific treatment-slope vector <span class="math notranslate nohighlight">\(\alpha_i\)</span> and a synthetic
+control over the other units’ untreated outcomes, and reports a
+population-weighted average marginal effect.</p>
+<p>The paper names the estimator “GSC” (generalized synthetic control);
+mlsynth uses <strong>CTSC</strong> to avoid confusion with Xu (2017)’s differently
+constructed Generalized Synthetic Control (<code class="docutils literal notranslate"><span class="pre">gsynth</span></code>).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">CTSCInference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wald_stat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">se</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference" title="Link to this definition">#</a></dt>
+<dd><p>Wald / sign-flip inference for CTSC (paper Section 4).</p>
+<p>Tests <span class="math notranslate nohighlight">\(H_0: \alpha^{AE,(k)} = a_0\)</span> per treatment variable via a
+Wald statistic on the orthogonal moment scores, calibrated by a
+Rademacher (sign-flip) randomization distribution that permits arbitrary
+within-unit and cross-unit dependence.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.method" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;sign_flip_wald&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference.null_value">
+<span class="sig-name descname"><span class="pre">null_value</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.null_value" title="Link to this definition">#</a></dt>
+<dd><p>Tested null <span class="math notranslate nohighlight">\(a_0\)</span> per variable, shape <code class="docutils literal notranslate"><span class="pre">(K,)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference.wald_stat">
+<span class="sig-name descname"><span class="pre">wald_stat</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.wald_stat" title="Link to this definition">#</a></dt>
+<dd><p>Wald statistics per variable, shape <code class="docutils literal notranslate"><span class="pre">(K,)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference.p_value">
+<span class="sig-name descname"><span class="pre">p_value</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.p_value" title="Link to this definition">#</a></dt>
+<dd><p>Randomization p-values per variable, shape <code class="docutils literal notranslate"><span class="pre">(K,)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference.se">
+<span class="sig-name descname"><span class="pre">se</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.se" title="Link to this definition">#</a></dt>
+<dd><p>Standard errors of the average effect per variable, shape <code class="docutils literal notranslate"><span class="pre">(K,)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInference.n_draws">
+<span class="sig-name descname"><span class="pre">n_draws</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.n_draws" title="Link to this definition">#</a></dt>
+<dd><p>Number of Rademacher draws.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">n_draws</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">null_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">p_value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">se</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">wald_stat</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">CTSCInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treatment_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">population_weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel for CTSC.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.Y" title="Link to this definition">#</a></dt>
+<dd><p>Outcomes, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.D">
+<span class="sig-name descname"><span class="pre">D</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.D" title="Link to this definition">#</a></dt>
+<dd><p>Treatment / explanatory variables, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">T,</span> <span class="pre">K)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.unit_names">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.unit_names" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">n</span></code> unit identifiers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.time_labels">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.time_labels" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">T</span></code> period labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.treatment_names">
+<span class="sig-name descname"><span class="pre">treatment_names</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.treatment_names" title="Link to this definition">#</a></dt>
+<dd><p>Length-<code class="docutils literal notranslate"><span class="pre">K</span></code> names of the treatment / explanatory variables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.population_weights">
+<span class="sig-name descname"><span class="pre">population_weights</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.population_weights" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit weights <span class="math notranslate nohighlight">\(\pi_i\)</span> for the average effect; sum to one.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">D</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.K">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">K</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.K" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.T">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">T</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.T" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCInputs.n">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.n" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">population_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id9" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">time_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">treatment_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id11" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">unit_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id12" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.ctsc_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">CTSCResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs:</span> <span class="pre">~mlsynth.utils.ctsc_helpers.structures.CTSCInputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">average_effect:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_effects:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_weight_matrix:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_metric:</span> <span class="pre">~numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objective:</span> <span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights:</span> <span class="pre">~typing.Any</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference:</span> <span class="pre">~mlsynth.utils.ctsc_helpers.structures.CTSCInference</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults" title="Link to this definition">#</a></dt>
+<dd><p>Top-level container returned by <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlsynth.CTSC.fit()</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.inputs" title="Link to this definition">#</a></dt>
+<dd><p>Preprocessed panel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs" title="mlsynth.utils.ctsc_helpers.structures.CTSCInputs">CTSCInputs</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.average_effect">
+<span class="sig-name descname"><span class="pre">average_effect</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.average_effect" title="Link to this definition">#</a></dt>
+<dd><p>Population-weighted average marginal effect, shape <code class="docutils literal notranslate"><span class="pre">(K,)</span></code>
+(paper eq. 7).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_effects">
+<span class="sig-name descname"><span class="pre">unit_effects</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_effects" title="Link to this definition">#</a></dt>
+<dd><p>Unit-specific treatment slopes <span class="math notranslate nohighlight">\(\alpha_i\)</span>, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">K)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_weight_matrix">
+<span class="sig-name descname"><span class="pre">unit_weight_matrix</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_weight_matrix" title="Link to this definition">#</a></dt>
+<dd><p>All-units synthetic-control weight matrix, shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">n)</span></code>;
+<code class="docutils literal notranslate"><span class="pre">[i,</span> <span class="pre">i]</span> <span class="pre">=</span> <span class="pre">0</span></code>, each row non-negative and summing to one. CTSC
+builds a synthetic control for <em>every</em> unit, so there is no single
+treated-unit donor vector – row <code class="docutils literal notranslate"><span class="pre">i</span></code> is unit <code class="docutils literal notranslate"><span class="pre">i</span></code>’s weights.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.fit_metric">
+<span class="sig-name descname"><span class="pre">fit_metric</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.fit_metric" title="Link to this definition">#</a></dt>
+<dd><p>Per-unit fit weights <span class="math notranslate nohighlight">\(\Omega_i\)</span>, shape <code class="docutils literal notranslate"><span class="pre">(n,)</span></code> (smaller =
+better synthetic control; paper eq. 6).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.objective">
+<span class="sig-name descname"><span class="pre">objective</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.objective" title="Link to this definition">#</a></dt>
+<dd><p>Minimised objective value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.weights">
+<span class="sig-name descname"><span class="pre">weights</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.weights" title="Link to this definition">#</a></dt>
+<dd><p>Standardized weights. Since CTSC has no single treated unit,
+<code class="docutils literal notranslate"><span class="pre">donor_weights</span></code> holds the cross-unit average weight each donor
+receives; the full per-unit matrix is <code class="docutils literal notranslate"><span class="pre">unit_weight_matrix</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>WeightsResults, optional</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.inference">
+<span class="sig-name descname"><span class="pre">inference</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.inference" title="Link to this definition">#</a></dt>
+<dd><p><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference" title="mlsynth.utils.ctsc_helpers.structures.CTSCInference"><code class="xref py py-class docutils literal notranslate"><span class="pre">CTSCInference</span></code></a> when inference is run; <code class="docutils literal notranslate"><span class="pre">None</span></code> otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object, optional</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.ctsc_helpers.structures.CTSCResults.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><a class="headerlink" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.metadata" title="Link to this definition">#</a></dt>
+<dd><p>Free-form diagnostics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">average_effect</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id13" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">fit_metric</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id14" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id15">
+<span class="sig-name descname"><span class="pre">inference</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference" title="mlsynth.utils.ctsc_helpers.structures.CTSCInference"><span class="pre">CTSCInference</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id15" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id16">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs" title="mlsynth.utils.ctsc_helpers.structures.CTSCInputs"><span class="pre">CTSCInputs</span></a></em><a class="headerlink" href="#id16" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id17">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id17" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id18">
+<span class="sig-name descname"><span class="pre">objective</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#id18" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id19">
+<span class="sig-name descname"><span class="pre">unit_effects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id19" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id20">
+<span class="sig-name descname"><span class="pre">unit_weight_matrix</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id20" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id21">
+<span class="sig-name descname"><span class="pre">weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id21" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">CTSC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth.utils.ctsc_helpers.simulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_model</span>
+
+<span class="c1"># A continuous-treatment panel (here from the paper&#39;s Model 1 DGP).</span>
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">Y</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">true_ae</span> <span class="o">=</span> <span class="n">generate_model</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">rng</span><span class="p">)</span>
+<span class="n">n</span><span class="p">,</span> <span class="n">T</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">shape</span>
+<span class="n">rows</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;state&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;s</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;qtr&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&quot;emp&quot;</span><span class="p">:</span> <span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">],</span> <span class="s2">&quot;minwage&quot;</span><span class="p">:</span> <span class="n">D</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="mi">0</span><span class="p">]}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)]</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">CTSC</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span>
+    <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;emp&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;minwage&quot;</span><span class="p">,</span>          <span class="c1"># placeholder for the base config</span>
+    <span class="s2">&quot;treatment_vars&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;minwage&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;qtr&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;average marginal effect = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">average_effect</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">+.4f</span><span class="si">}</span><span class="s2">  &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;(true = </span><span class="si">{</span><span class="n">true_ae</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;sign-flip Wald p-value  = </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Unit-specific slopes (heterogeneity):</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;unit effects:&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">unit_effects</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<p>Abadie, A., Diamond, A., &amp; Hainmueller, J. (2010). “Synthetic Control
+Methods for Comparative Case Studies.” <em>Journal of the American
+Statistical Association</em> 105(490):493-505.</p>
+<p>Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., &amp;
+Wager, S. (2021). “Synthetic Difference-in-Differences.”
+<em>American Economic Review</em> 111(12):4088-4118.</p>
+<p>Canay, I. A., Romano, J. P., &amp; Shaikh, A. M. (2017). “Randomization
+Tests Under an Approximate Symmetry Assumption.” <em>Econometrica</em>
+85(3):1013-1030.</p>
+<p>Dube, A., &amp; Zipperer, B. (2015). “Pooling Multiple Case Studies Using
+Synthetic Controls: An Application to Minimum Wage Policies.” IZA DP.</p>
+<p>Powell, D. (2022). “Synthetic Control Estimation Beyond Comparative Case
+Studies: Does the Minimum Wage Reduce Employment?” <em>Journal of Business &amp;
+Economic Statistics</em> 40(3):1302-1314.</p>
+<p>Xu, Y. (2017). “Generalized Synthetic Control Method: Causal Inference
+with Interactive Fixed Effects Models.” <em>Political Analysis</em> 25(1):57-76.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="scmo.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Synthetic Control with Multiple Outcomes (SCMO)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="dsc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Distributional Synthetic Control (DSC)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-ctsc-does">What CTSC does</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-ctsc">When to use CTSC</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-and-how-to-spot-violations">Assumptions (and how to spot violations)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-not-to-use-ctsc">When not to use CTSC</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#model-paper-eq-4">Model (paper eq. 4)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-estimation-paper-eq-5-6">Joint estimation (paper eq. 5-6)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-paper-section-4">Inference (paper Section 4)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#implementation-note">Implementation note</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#calibration-to-the-paper-s-simulation">Calibration to the paper’s simulation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.estimators.ctsc">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Implementation note</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ctsc.CTSC"><code class="docutils literal notranslate"><span class="pre">CTSC</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.estimators.ctsc.CTSC.fit"><code class="docutils literal notranslate"><span class="pre">CTSC.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig"><code class="docutils literal notranslate"><span class="pre">CTSCConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.inference"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.model_config"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.model_config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.n_draws"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.population_col"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.population_col</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.random_state"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.random_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.treatment_vars"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.treatment_vars</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.config_models.CTSCConfig.use_fit_weights"><code class="docutils literal notranslate"><span class="pre">CTSCConfig.use_fit_weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-mlsynth.utils.ctsc_helpers.setup">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.setup.prepare_ctsc_inputs"><code class="docutils literal notranslate"><span class="pre">prepare_ctsc_inputs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.estimate.fit_ctsc"><code class="docutils literal notranslate"><span class="pre">fit_ctsc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.inference.sign_flip_wald_inference"><code class="docutils literal notranslate"><span class="pre">sign_flip_wald_inference()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary"><code class="docutils literal notranslate"><span class="pre">SimulationSummary</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mad"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.ctsc_mad</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_mean_bias"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.ctsc_mean_bias</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.ctsc_rmse"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.ctsc_rmse</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mad"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.fe_mad</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_mean_bias"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.fe_mean_bias</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.fe_rmse"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.fe_rmse</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.model"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.model</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.SimulationSummary.n_sims"><code class="docutils literal notranslate"><span class="pre">SimulationSummary.n_sims</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.generate_model"><code class="docutils literal notranslate"><span class="pre">generate_model()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.run_simulation"><code class="docutils literal notranslate"><span class="pre">run_simulation()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.simulation.twoway_fe_effect"><code class="docutils literal notranslate"><span class="pre">twoway_fe_effect()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.pipeline.run_ctsc"><code class="docutils literal notranslate"><span class="pre">run_ctsc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference"><code class="docutils literal notranslate"><span class="pre">CTSCInference</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.method"><code class="docutils literal notranslate"><span class="pre">CTSCInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.null_value"><code class="docutils literal notranslate"><span class="pre">CTSCInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.wald_stat"><code class="docutils literal notranslate"><span class="pre">CTSCInference.wald_stat</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.p_value"><code class="docutils literal notranslate"><span class="pre">CTSCInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.se"><code class="docutils literal notranslate"><span class="pre">CTSCInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInference.n_draws"><code class="docutils literal notranslate"><span class="pre">CTSCInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">CTSCInference.method</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">CTSCInference.n_draws</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">CTSCInference.null_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">CTSCInference.p_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">CTSCInference.se</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">CTSCInference.wald_stat</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs"><code class="docutils literal notranslate"><span class="pre">CTSCInputs</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.Y"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.D"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.unit_names"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.unit_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.time_labels"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.treatment_names"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.treatment_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.population_weights"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.population_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.D</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.K"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.K</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.T"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.T</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.Y</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCInputs.n"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.n</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.population_weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.time_labels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.treatment_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">CTSCInputs.unit_names</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults"><code class="docutils literal notranslate"><span class="pre">CTSCResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.inputs"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.average_effect"><code class="docutils literal notranslate"><span class="pre">CTSCResults.average_effect</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_effects"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_effects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.unit_weight_matrix"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.fit_metric"><code class="docutils literal notranslate"><span class="pre">CTSCResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.objective"><code class="docutils literal notranslate"><span class="pre">CTSCResults.objective</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.weights"><code class="docutils literal notranslate"><span class="pre">CTSCResults.weights</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.inference"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.ctsc_helpers.structures.CTSCResults.metadata"><code class="docutils literal notranslate"><span class="pre">CTSCResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">CTSCResults.average_effect</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">CTSCResults.fit_metric</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id15"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inference</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id16"><code class="docutils literal notranslate"><span class="pre">CTSCResults.inputs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id17"><code class="docutils literal notranslate"><span class="pre">CTSCResults.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id18"><code class="docutils literal notranslate"><span class="pre">CTSCResults.objective</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id19"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_effects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id20"><code class="docutils literal notranslate"><span class="pre">CTSCResults.unit_weight_matrix</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id21"><code class="docutils literal notranslate"><span class="pre">CTSCResults.weights</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example">Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

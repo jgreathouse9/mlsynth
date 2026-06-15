@@ -1,0 +1,1157 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Rolling-Transformation DiD (ROLLDID) &#8212; mlsynth 0.1 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=e1a75a79"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"tex": {"tags": "ams", "inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": {"coloneqq": "\\mathrel{:=}", "eqqcolon": "\\mathrel{=:}"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'rolldid';</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Data Utilities" href="data.html" />
+    <link rel="prev" title="Modified Unbiased Synthetic Control" href="musc.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mlsynth 0.1 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Get started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About mlsynth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="choose.html">A practitioner’s decision tree</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="replications.html">Replications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="replications/fdid.html">FDID — Forward Difference-in-Differences (Li 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/tssc.html">TSSC — Two-Step Synthetic Control (Li &amp; Shankar 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/vanillasc.html">VanillaSC — Standard Synthetic Control (ADH 2010/2015; Abadie-Gardeazabal 2003)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ascm_kansas.html">Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller &amp; Rothstein 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sparse_sc.html">SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/nsc.html">NSC — Nonlinear Synthetic Control (Tian 2023)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/sdid.html">SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/mcnnm.html">MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spsydid.html">SpSyDiD — Spatial Synthetic-DiD (Serenini &amp; Masek 2024)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/seq_sdid.html">SEQ_SDID — Sequential Synthetic DiD (Arkhangelsky &amp; Samkov 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/clustersc.html">ClusterSC — Synthetic Control with Donor Selection (Rho et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/lexscm.html">LEXSCM — Synthetic Experimental Design (Abadie-Zhao 2026; Vives-i-Bastida 2022)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/scmo.html">SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rescm.html">RESCM — SCM-relaxation (Liao, Shi &amp; Zheng 2026)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/linf.html">LINF / L1LINF — L-infinity-norm SC (Wang, Xing &amp; Ye 2025)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/geolift.html">GEOLIFT — Meta’s GeoLift walkthrough (augsynth cross-validation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/rolldid.html">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/ppscm.html">PPSCM — augsynth <code class="docutils literal notranslate"><span class="pre">multisynth</span></code> (Paglayan collective bargaining)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/snn.html">SNN — <code class="docutils literal notranslate"><span class="pre">deshen24/syntheticNN</span></code> (Prop 99)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/syndes.html">SYNDES — Doudchenko et al. (2021) BLS Monte Carlo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spcd.html">SPCD — Lu et al. (2022) Prop 99 design study</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/spotsynth.html">SPOTSYNTH — O’Riordan &amp; Gilligan-Lee (2025) spillover detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/marex.html">MAREX — Abadie &amp; Zhao (2026) Walmart design (independent validator)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/dsc.html">DSC — Distributional Synthetic Controls on Dube (2019)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="replications/microsynth.html">MicroSynth — panel method vs the R <code class="docutils literal notranslate"><span class="pre">microsynth</span></code> (Seattle DMI)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: canonical workhorses</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="vanillasc.html">Vanilla Synthetic Control (VanillaSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tssc.html">Two-Step Synthetic Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fdid.html">Forward Difference-in-Differences (FDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: decomposition-first</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sbc.html">Synthetic Business Cycle (SBC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hsc.html">Harmonic Synthetic Control (HSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: generalised estimand / treatment / unit</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="scmo.html">Synthetic Control with Multiple Outcomes (SCMO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ctsc.html">Continuous-Treatment Synthetic Control (CTSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dsc.html">Distributional Synthetic Control (DSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="si.html">Synthetic Interventions (SI)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="microsynth.html">MicroSynth (User-Level Balancing SC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: convex-hull relaxation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="iscm.html">Imperfect Synthetic Controls (ISCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nsc.html">Nonlinear Synthetic Control (NSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: No Donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shc.html">Synthetic Historical Control (SHC)</a></li>
+
+
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: high-dimensional donors</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bvss.html">Bayesian Synthetic Control with a Soft Simplex Constraint (BVS-SS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clustersc.html">Cluster Synthetic Controls (CLUSTERSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlsc.html">Multi-Level Synthetic Control (mlSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fscm.html">Forward-Selected Synthetic Control (FSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="masc.html">Matching and Synthetic Control (MASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="msqrt.html">Multivariate Square-root Lasso Synthetic Control (MSQRT)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sparse_sc.html">Sparse Synthetic Control (SparseSC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pda.html">Panel Data Approach (PDA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescm.html">Relaxed / Penalized Synthetic Control (RESCM)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: time-aware and factor models</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tasc.html">Time-Aware Synthetic Control (TASC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fma.html">Factor Model Approach (FMA)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dscar.html">Dynamic Synthetic Control for Auto-Regressive processes (DSCAR)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: staggered adoption</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sdid.html">Synthetic Difference-in-Differences (SDID)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="seq_sdid.html">Sequential Synthetic Difference-in-Differences (Sequential SDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ppscm.html">Partially Pooled SCM (PPSCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ssc.html">Staggered Synthetic Control (SSC)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: spillover-aware</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="spsydid.html">Spatial Synthetic Difference-in-Differences (SpSyDiD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spillsynth.html">Spillover-Aware Synthetic Control (SPILLSYNTH)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spotsynth.html">Spillover-Detecting Synthetic Control (SPOTSYNTH)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: missing data</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="mcnnm.html">Matrix Completion with Nuclear Norm Minimization (MCNNM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="snn.html">Synthetic Nearest Neighbors / Causal Matrix Completion (SNN)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rmsi.html">Robust Matrix estimation with Side Information (RMSI)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observational: endogenous treatment</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="siv.html">Synthetic IV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="proximal.html">Proximal Inference Synthetic Control (PROXIMAL)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental design</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="lexscm.html">Lexicographic Synthetic Control (LEXSCM)</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="marex.html">Synthetic Controls for Experimental Design (MAREX)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="syndes.html">Synthetic Design (SYNDES)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pangeo.html">Parallel-Trends Supergeo Design (PANGEO)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spcd.html">Synthetic Principal Component Design (SPCD)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="musc.html">Modified Unbiased Synthetic Control</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Rolling-Transformation DiD (ROLLDID)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Utilities and internals</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helpers.html">Helper Utilities</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/rolldid.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Rolling-Transformation DiD (ROLLDID)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-rolldid-when">Reach for ROLLDID when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-rolldid-when">Do not use ROLLDID when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions">Assumptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rolling-transformation">The rolling transformation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-collapse-equivalence">The collapse equivalence</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#per-period-effects-common-timing">Per-period effects (common timing)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#staggered-aggregation">Staggered aggregation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference">Inference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-it-improves-on-sc-sdid">Why it improves on SC / SDID</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-california-proposition-99">Example: California Proposition 99</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#staggered-castle-doctrine-laws">Staggered: castle-doctrine laws</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-api">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.ROLLDID"><code class="docutils literal notranslate"><span class="pre">ROLLDID</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.ROLLDID.fit"><code class="docutils literal notranslate"><span class="pre">ROLLDID.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig"><code class="docutils literal notranslate"><span class="pre">ROLLDIDConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig.model_config"><code class="docutils literal notranslate"><span class="pre">ROLLDIDConfig.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.transformation"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.transformation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.inference_type"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.inference_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.design"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.design</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_period"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.per_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_cohort"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.per_cohort</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.model_config"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.setup.rolldid_setup"><code class="docutils literal notranslate"><span class="pre">rolldid_setup()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.pipeline.estimate"><code class="docutils literal notranslate"><span class="pre">estimate()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.plotter.plot_rolldid"><code class="docutils literal notranslate"><span class="pre">plot_rolldid()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="rolling-transformation-did-rolldid">
+<h1>Rolling-Transformation DiD (ROLLDID)<a class="headerlink" href="#rolling-transformation-did-rolldid" title="Link to this heading">#</a></h1>
+<section id="when-to-use-this-estimator">
+<h2>When to Use This Estimator<a class="headerlink" href="#when-to-use-this-estimator" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ROLLDID</span></code> implements the rolling-transformation difference-in-differences
+estimator of Lee &amp; Wooldridge <a class="reference internal" href="#lw2026" id="id1"><span>[LW2026]</span></a> — a clean-room (MIT) build from the
+paper’s equations. It is for panel DiD when the number of treated units, the
+number of control units, or both is small: the regime where the usual
+cluster-robust / large-<span class="math notranslate nohighlight">\(N\)</span> asymptotics are unreliable and a single
+mis-measured cluster can drive the answer. Its defining feature is that it
+collapses the panel into one cross-sectional observation per unit by a
+pre-treatment transformation, and then reads the treatment effect off an
+ordinary cross-sectional regression. Two consequences follow.</p>
+<p>First, because that regression is cross-sectional with independent observations,
+inference does not require clustering, weak time-series dependence, or a long
+panel: under the classical linear model it is exact in finite samples — valid
+even with a <em>single</em> treated unit (<span class="math notranslate nohighlight">\(N_1 = 1\)</span>) — and it composes naturally
+with randomization inference.</p>
+<p>Second, in its detrending form it allows unit-specific linear trends, a
+strict relaxation of parallel trends. This is what lets it track a treated unit
+whose pre-period drifts away from the donor average — exactly the California
+Proposition 99 picture — without a convex donor combination.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ROLLDID</span></code> is therefore the regression complement to the synthetic-control
+family in mlsynth (<a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>, <a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>, <a class="reference internal" href="vanillasc.html"><span class="doc">Vanilla Synthetic Control (VanillaSC)</span></a>): the same
+small-donor regime, a different identification lever (parallel trends after
+removing unit means or trends, rather than a weighted donor combination). On
+short, donor-starved staggered panels — where SC-style per-cohort weight
+optimisation becomes unstable — it stays well behaved, because it estimates no
+weights at all.</p>
+<section id="reach-for-rolldid-when">
+<h3>Reach for ROLLDID when<a class="headerlink" href="#reach-for-rolldid-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>you have few treated and/or few control units and want inference you can
+defend in finite samples (down to one treated unit);</p></li>
+<li><p>pre-trends are heterogeneous but approximately linear, so detrending buys
+you a weaker identifying assumption than parallel trends;</p></li>
+<li><p>adoption is common-timing or staggered, and you want a per-period event
+study (common timing) or a cohort-share-weighted aggregate (staggered) with
+honest standard errors;</p></li>
+<li><p>you want a transparent, weight-free alternative to SC / SDID to report
+alongside them.</p></li>
+</ul>
+</section>
+<section id="do-not-use-rolldid-when">
+<h3>Do not use ROLLDID when<a class="headerlink" href="#do-not-use-rolldid-when" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>No never-treated units exist (staggered case). The aggregate uses the
+never-treated group as the comparison; with everyone eventually treated use a
+not-yet-treated design or <a class="reference internal" href="sdid.html"><span class="doc">Synthetic Difference-in-Differences (SDID)</span></a>.</p></li>
+<li><p>The treated unit’s pre-trend is non-linear / complex. Linear detrending
+cannot remove it; a synthetic control (<a class="reference internal" href="fdid.html"><span class="doc">Forward Difference-in-Differences (FDID)</span></a>, <a class="reference internal" href="vanillasc.html"><span class="doc">Vanilla Synthetic Control (VanillaSC)</span></a>) or a
+factor model (<a class="reference internal" href="mcnnm.html"><span class="doc">Matrix Completion with Nuclear Norm Minimization (MCNNM)</span></a>) may fit better — plot the pre-period to decide.</p></li>
+<li><p>You want the broader DiD ecosystem — Callaway–Sant’Anna, Sun–Abraham,
+Wooldridge ETWFE, honest-DiD sensitivity, large-<span class="math notranslate nohighlight">\(N\)</span> staggered
+estimators. mlsynth ships <code class="docutils literal notranslate"><span class="pre">ROLLDID</span></code> for the small-<span class="math notranslate nohighlight">\(N\)</span> exact regime
+where it complements synthetic control; it does not aim to cover DiD
+comprehensively. For the full toolkit see the sibling package
+<a class="reference external" href="https://github.com/igerber/diff-diff">diff-diff</a>.</p></li>
+</ul>
+</section>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<p>Let <span class="math notranslate nohighlight">\(\mathcal{N} \coloneqq \{1, \dots, N\}\)</span> index the units and
+<span class="math notranslate nohighlight">\(t \in \mathcal{T} \coloneqq \{1, \dots, T\}\)</span> the periods (1-indexed). Unit
+<span class="math notranslate nohighlight">\(j\)</span> has observed outcome <span class="math notranslate nohighlight">\(y_{jt}\)</span>, with potential outcomes
+<span class="math notranslate nohighlight">\(y_{jt}^{N}\)</span> absent the intervention and <span class="math notranslate nohighlight">\(y_{jt}^{I}\)</span> under it; the
+treatment dummy is <span class="math notranslate nohighlight">\(d_{jt}\)</span>, so
+<span class="math notranslate nohighlight">\(y_{jt} = y_{jt}^{N} + (y_{jt}^{I} - y_{jt}^{N})\,d_{jt}\)</span>. Treatment is
+absorbing: once on it stays on. The unit-level “ever-treated” indicator is</p>
+<div class="math notranslate nohighlight">
+\[d_j \coloneqq \max_{t\in\mathcal{T}} d_{jt} = \mathbf{1}\{\text{unit } j
+\text{ is ever treated}\},\]</div>
+<p>partitioning <span class="math notranslate nohighlight">\(\mathcal{N}\)</span> into the eventually-treated
+<span class="math notranslate nohighlight">\(\mathcal{N}_1 \coloneqq \{j : d_j = 1\}\)</span> (size <span class="math notranslate nohighlight">\(N_1\)</span>) and the
+never-treated <span class="math notranslate nohighlight">\(\mathcal{N}_0 \coloneqq \{j : d_j = 0\}\)</span> (size
+<span class="math notranslate nohighlight">\(N_0\)</span>), with <span class="math notranslate nohighlight">\(N = N_0 + N_1 \ge 3\)</span>.</p>
+<p><em>Common timing.</em> All treated units adopt after period <span class="math notranslate nohighlight">\(T_0\)</span>, splitting
+time into the pre-period <span class="math notranslate nohighlight">\(\mathcal{T}_1 \coloneqq \{t \le T_0\}\)</span> and the
+post-period <span class="math notranslate nohighlight">\(\mathcal{T}_2 \coloneqq \{t &gt; T_0\}\)</span>.</p>
+<p><em>Staggered adoption.</em> Treated unit <span class="math notranslate nohighlight">\(j\)</span> has a cohort
+<span class="math notranslate nohighlight">\(g_j \coloneqq \min\{t : d_{jt} = 1\}\)</span>; its pre-period is
+<span class="math notranslate nohighlight">\(\{t &lt; g_j\}\)</span>. Cohorts are collected in
+<span class="math notranslate nohighlight">\(\mathcal{G} \coloneqq \{g_j : j \in \mathcal{N}_1\}\)</span> with sizes
+<span class="math notranslate nohighlight">\(N_g \coloneqq |\{j : g_j = g\}|\)</span>.</p>
+<p>Transformed series carry a tilde: <span class="math notranslate nohighlight">\(\widetilde{y}_{jt}\)</span> is the residualised
+post-period outcome and <span class="math notranslate nohighlight">\(\widetilde{y}_j\)</span> its collapse to a single scalar
+per unit. The per-period effect is <span class="math notranslate nohighlight">\(\tau_t\)</span> and the ATT is
+<span class="math notranslate nohighlight">\(\widehat{\tau}\)</span> (the <code class="docutils literal notranslate"><span class="pre">gap</span></code> and <code class="docutils literal notranslate"><span class="pre">att</span></code> of the result object).</p>
+</section>
+<section id="assumptions">
+<h2>Assumptions<a class="headerlink" href="#assumptions" title="Link to this heading">#</a></h2>
+<p>Assumption 1 (no anticipation). Treated potential outcomes equal the
+never-treated ones before adoption:
+<span class="math notranslate nohighlight">\(\mathbb{E}[y_{jt}^{I} - y_{jt}^{N} \mid d_j = 1] = 0\)</span> for all
+<span class="math notranslate nohighlight">\(t &lt; g_j\)</span> (sufficient: <span class="math notranslate nohighlight">\(y_{jt}^{I} = y_{jt}^{N}\)</span> for <span class="math notranslate nohighlight">\(t &lt; g_j\)</span>).</p>
+<p><em>Remark.</em> The pre-period mean / trend is estimated only on <span class="math notranslate nohighlight">\(t &lt; g_j\)</span>, so
+anticipation in the final pre-periods would contaminate the baseline. Detrending
+and shorter pre-windows are the sensitivity levers (the package exposes the
+pre-window directly).</p>
+<p>Assumption 2 (parallel trends after the rolling transformation). With the
+within-unit transformed regressand <span class="math notranslate nohighlight">\(\widetilde{y}_j(0)\)</span> formed from the
+<em>untreated</em> potential outcomes (defined in the next section), there is a constant
+<span class="math notranslate nohighlight">\(\alpha\)</span> with</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{E}\!\left[\widetilde{y}_j(0) \mid d_j\right] = \alpha .\]</div>
+<p>Two cases: (a) under demeaning, <span class="math notranslate nohighlight">\(\widetilde{y}_j(0)\)</span> differences
+out a unit-specific <em>level</em>, so <span class="math notranslate nohighlight">\(\alpha\)</span> absorbs an arbitrary common
+trend; (b) under detrending, it differences out a unit-specific <em>linear
+trend</em>, so <span class="math notranslate nohighlight">\(\alpha\)</span> permits unit-specific linear trends.</p>
+<p><em>Remark.</em> Case (b) is strictly weaker than standard parallel trends and is the
+estimator’s edge over SC/SDID when pre-trends are heterogeneous but linear:
+treatment may be correlated with a unit’s <em>level and slope</em> as long as it is
+mean-independent of the post-minus-pre <em>deviation</em>.</p>
+<p>Assumption 3 (classical linear model, for exact inference). In the
+cross-sectional regression error <span class="math notranslate nohighlight">\(u_j\)</span> (next section),</p>
+<div class="math notranslate nohighlight">
+\[u_j \mid d_j \sim \mathcal{N}(0, \sigma^2)
+\quad\text{i.i.d. across } j .\]</div>
+<p><em>Remark.</em> Normality is plausible <em>despite small</em> <span class="math notranslate nohighlight">\(N\)</span> because
+<span class="math notranslate nohighlight">\(\widetilde{y}_j\)</span> averages <span class="math notranslate nohighlight">\(y_{jt}\)</span> over <span class="math notranslate nohighlight">\(\mathcal{T}_2\)</span>: if the
+series is weakly dependent over time, a central limit theorem across time
+makes the average approximately normal. The leverage for inference comes from
+<span class="math notranslate nohighlight">\(T\)</span>, not <span class="math notranslate nohighlight">\(N\)</span>. HC3 relaxes homoskedasticity (Assumption 3 then only
+needs mean-independence) at the cost of requiring a handful of treated <em>and</em>
+control units; randomization inference drops normality entirely.</p>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical Formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading">#</a></h2>
+<section id="the-rolling-transformation">
+<h3>The rolling transformation<a class="headerlink" href="#the-rolling-transformation" title="Link to this heading">#</a></h3>
+<p>Each unit’s outcome is residualised against its own pre-treatment path and
+then averaged over the post window. For cohort <span class="math notranslate nohighlight">\(g\)</span> (in common timing,
+<span class="math notranslate nohighlight">\(g = T_0 + 1\)</span> for every treated unit), <code class="docutils literal notranslate"><span class="pre">rolling=&quot;demean&quot;</span></code> (the paper’s
+Procedure 2.1) removes the pre-period mean,</p>
+<div class="math notranslate nohighlight">
+\[\widetilde{y}_{jt} \coloneqq y_{jt} - \bar{y}_j^{\,\mathrm{pre}(g)},
+\qquad
+\bar{y}_j^{\,\mathrm{pre}(g)} \coloneqq \frac{1}{g-1}\sum_{t &lt; g} y_{jt},
+\qquad t \ge g,\]</div>
+<p>while <code class="docutils literal notranslate"><span class="pre">rolling=&quot;detrend&quot;</span></code> (Procedure 3.1) fits a unit-specific line on the
+pre-period, <span class="math notranslate nohighlight">\((\widehat{a}_j, \widehat{b}_j) =
+\operatorname*{argmin}_{a,b}\sum_{t&lt;g}(y_{jt} - a - b\,t)^2\)</span>, and removes its
+projection into the post-period,</p>
+<div class="math notranslate nohighlight">
+\[\widetilde{y}_{jt} \coloneqq y_{jt} - \bigl(\widehat{a}_j + \widehat{b}_j\,t\bigr),
+\qquad t \ge g .\]</div>
+<p>The unit’s single cross-sectional regressand is the post-average of its
+transformed outcome,</p>
+<div class="math notranslate nohighlight">
+\[\widetilde{y}_j \coloneqq \frac{1}{|\mathcal{T}_2|}\sum_{t\in\mathcal{T}_2}
+\widetilde{y}_{jt}
+\;=\; \bar{y}_j^{\,\mathrm{post}} - \bar{y}_j^{\,\mathrm{pre}}
+\quad\text{(demeaning)} .\]</div>
+</section>
+<section id="the-collapse-equivalence">
+<h3>The collapse equivalence<a class="headerlink" href="#the-collapse-equivalence" title="Link to this heading">#</a></h3>
+<p>The key algebraic fact (Lee &amp; Wooldridge): the panel DiD coefficient equals the
+slope of the cross-sectional regression of <span class="math notranslate nohighlight">\(\widetilde{y}_j\)</span> on the
+ever-treated indicator,</p>
+<div class="math notranslate nohighlight">
+\[\widetilde{y}_j = \alpha + \tau\,d_j + u_j,
+\qquad j \in \mathcal{N},\]</div>
+<p>so that, in closed form,</p>
+<div class="math notranslate nohighlight">
+\[\widehat{\tau}
+= \frac{1}{N_1}\sum_{j\in\mathcal{N}_1}\widetilde{y}_j
+- \frac{1}{N_0}\sum_{j\in\mathcal{N}_0}\widetilde{y}_j
+= \overline{\widetilde{y}}_{\,\text{treated}}
+- \overline{\widetilde{y}}_{\,\text{control}} .\]</div>
+<p>The transformation does two things at once: differencing post-minus-pre within
+each unit cancels any time-constant heterogeneity (a unit fixed effect, even a
+unit root), and collapsing time to a scalar pushes the serial correlation in
+<span class="math notranslate nohighlight">\(\{y_{jt}\}\)</span> <em>inside</em> <span class="math notranslate nohighlight">\(\widetilde{y}_j\)</span>. Across units the
+<span class="math notranslate nohighlight">\(\widetilde{y}_j\)</span> are independent, so the object on which we do inference is
+an ordinary cross-section — no clustering, no large-<span class="math notranslate nohighlight">\(T\)</span> requirement, and
+strong time-series dependence is <em>absorbed</em> rather than modelled.</p>
+</section>
+<section id="per-period-effects-common-timing">
+<h3>Per-period effects (common timing)<a class="headerlink" href="#per-period-effects-common-timing" title="Link to this heading">#</a></h3>
+<p>Rather than collapse, regress the transformed value at each post period on
+<span class="math notranslate nohighlight">\(d_j\)</span> to obtain the event study,</p>
+<div class="math notranslate nohighlight">
+\[\widetilde{y}_{jt} = \alpha_t + \tau_t\,d_j + u_{jt},
+\qquad t \in \mathcal{T}_2 ,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\tau_t\)</span> the coefficient on <span class="math notranslate nohighlight">\(d_j\)</span>. Because OLS is linear and
+<span class="math notranslate nohighlight">\(\widetilde{y}_j = |\mathcal{T}_2|^{-1}\sum_{t}\widetilde{y}_{jt}\)</span>, the
+aggregate is exactly the mean of the per-period effects,
+<span class="math notranslate nohighlight">\(\widehat{\tau} = |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t\)</span>.</p>
+</section>
+<section id="staggered-aggregation">
+<h3>Staggered aggregation<a class="headerlink" href="#staggered-aggregation" title="Link to this heading">#</a></h3>
+<p>With several cohorts, transform each unit relative to every cohort date and
+form, per cohort, <span class="math notranslate nohighlight">\(\widetilde{y}_j^{(g)} \coloneqq (T-g+1)^{-1}\sum_{t\ge g}
+\widetilde{y}_{jt}\)</span>. Using never-treated units as the comparison and cohort
+shares <span class="math notranslate nohighlight">\(\widehat{\omega}_g \coloneqq N_g / N_1\)</span>, the collapsed regressand is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\widetilde{y}_j \coloneqq
+\begin{cases}
+  \widetilde{y}_j^{(g_j)}, &amp; j \in \mathcal{N}_1 \ \text{(its own cohort)},\\[2mm]
+  \displaystyle\sum_{g\in\mathcal{G}} \widehat{\omega}_g\,\widetilde{y}_j^{(g)},
+    &amp; j \in \mathcal{N}_0 \ \text{(never treated)} .
+\end{cases}\end{split}\]</div>
+<p>Running the single cross-sectional regression <span class="math notranslate nohighlight">\(\widetilde{y}_j = \alpha +
+\tau_\omega d_j + u_j\)</span> then returns the cohort-share-weighted aggregate
+<span class="math notranslate nohighlight">\(\widehat{\tau}_\omega\)</span> whose standard error automatically accounts for the
+covariance across cohort effects (it is one regression, not a stitched-together
+sum). Per-cohort effects <span class="math notranslate nohighlight">\(\widehat{\tau}_g\)</span> are the analogous cohort-<span class="math notranslate nohighlight">\(g\)</span>
+vs never-treated contrasts. Using only never-treated comparisons sidesteps the
+“forbidden comparison” / negative-weighting pathologies of two-way fixed effects
+under staggered adoption.</p>
+</section>
+</section>
+<section id="inference">
+<h2>Inference<a class="headerlink" href="#inference" title="Link to this heading">#</a></h2>
+<p>All three modes operate on the cross-sectional regression
+<span class="math notranslate nohighlight">\(\widetilde{y}_j = \alpha + \tau d_j + u_j\)</span> (or its per-period /
+per-cohort variants), with residual degrees of freedom <span class="math notranslate nohighlight">\(N - 2\)</span>.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">inference=&quot;exact&quot;</span></code> — under Assumption 3 the studentised statistic is
+exactly <span class="math notranslate nohighlight">\(t\)</span>-distributed,</p>
+<div class="math notranslate nohighlight">
+\[\frac{\widehat{\tau} - \tau}{\operatorname{se}(\widehat{\tau})}
+\;\sim\; t_{N-2},\]</div>
+<p>giving exact two-sided tests and exact-coverage intervals
+<span class="math notranslate nohighlight">\(\widehat{\tau} \pm t_{1-\alpha/2,\,N-2}\,\operatorname{se}(\widehat{\tau})\)</span>,
+with any <span class="math notranslate nohighlight">\(N \ge 3\)</span>, including <span class="math notranslate nohighlight">\(N_1 = 1\)</span>. (With a single
+treated unit this is the studentised-residual / outlier statistic of Donald &amp;
+Lang.)</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inference=&quot;hc3&quot;</span></code> — heteroskedasticity-robust (MacKinnon–White HC3). Use only
+with a handful of treated and control units: with a single treated unit its
+leverage is <span class="math notranslate nohighlight">\(1\)</span> and HC3 is undefined, so <code class="docutils literal notranslate"><span class="pre">ROLLDID</span></code> raises rather
+than returning a degenerate standard error.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inference=&quot;ri&quot;</span></code> — randomization inference: re-assign the <span class="math notranslate nohighlight">\(N_1\)</span> treated
+labels across units <code class="docutils literal notranslate"><span class="pre">ri_reps</span></code> times and report the permutation
+<span class="math notranslate nohighlight">\(p\)</span>-value <span class="math notranslate nohighlight">\(\Pr(|\widehat{\tau}^{\,\text{perm}}| \ge
+|\widehat{\tau}|)\)</span>, requiring no normality.</p></li>
+</ul>
+<p>The event study (common timing) and the per-cohort table (staggered) carry the
+same effect-size-level uncertainty: each <span class="math notranslate nohighlight">\(\tau_t\)</span> (resp.
+<span class="math notranslate nohighlight">\(\widehat{\tau}_g\)</span>) ships with its own <code class="docutils literal notranslate"><span class="pre">se</span></code>, <code class="docutils literal notranslate"><span class="pre">p_value</span></code> and
+<span class="math notranslate nohighlight">\((1-\alpha)\)</span> confidence band, which is what <code class="docutils literal notranslate"><span class="pre">plot_rolldid</span></code> renders around
+the effect path.</p>
+<section id="why-it-improves-on-sc-sdid">
+<h3>Why it improves on SC / SDID<a class="headerlink" href="#why-it-improves-on-sc-sdid" title="Link to this heading">#</a></h3>
+<p>The synthetic-control family needs the treated unit inside the convex hull of the
+donors and, for inference, large <span class="math notranslate nohighlight">\(N_0, T_0, T_1\)</span> (SDID additionally assumes
+<span class="math notranslate nohighlight">\(I(0)\)</span> weak dependence and normality). ROLLDID needs none of those
+dimensions to grow: the collapse buys exact finite-sample inference from large
+<span class="math notranslate nohighlight">\(T\)</span> alone, and detrending <em>weakens</em> parallel trends rather than requiring a
+donor combination to exist. The trade-off, which the paper is explicit about, is
+efficiency: the cross-sectional estimator can have larger variance than SDID
+when SDID’s assumptions hold — but SDID’s packaged intervals can under-cover,
+whereas ROLLDID’s are exact. It is best read as a complement: a transparent,
+weight-free tool that is the more trustworthy of the two precisely when units or
+periods are scarce, or when the per-cohort weight optimisation of staggered SDID
+becomes ill-posed.</p>
+</section>
+</section>
+<section id="example-california-proposition-99">
+<h2>Example: California Proposition 99<a class="headerlink" href="#example-california-proposition-99" title="Link to this heading">#</a></h2>
+<p>Reproduces the paper’s Table 3 (common timing, single treated unit) on the
+bundled Abadie–Diamond–Hainmueller smoking panel. The outcome is log
+per-capita cigarette sales; California is treated from 1989 against 38
+never-treated states.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">ROLLDID</span>
+
+<span class="n">BASE</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/&quot;</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">BASE</span> <span class="o">+</span> <span class="s2">&quot;smoking_data.csv&quot;</span><span class="p">)</span>          <span class="c1"># 39 states x 1970-2000</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;logcig&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;cigsale&quot;</span><span class="p">])</span>
+<span class="n">df</span><span class="p">[</span><span class="s2">&quot;treat&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Proposition 99&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>       <span class="c1"># W_jt: California from 1989</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">ROLLDID</span><span class="p">({</span>
+    <span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">df</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;logcig&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;treat&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;state&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;rolling&quot;</span><span class="p">:</span> <span class="s2">&quot;detrend&quot;</span><span class="p">,</span> <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="s2">&quot;exact&quot;</span><span class="p">,</span> <span class="s2">&quot;display_graphs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">att</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">standard_error</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span><span class="p">)</span>
+<span class="c1">#  -0.227   0.094   0.021     (paper Table 3)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">per_period</span><span class="p">[[</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;att&quot;</span><span class="p">,</span> <span class="s2">&quot;ci_lower&quot;</span><span class="p">,</span> <span class="s2">&quot;ci_upper&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+<span class="c1">#  tau_2000 = -0.403, 95% CI [-0.712, -0.094]</span>
+</pre></div>
+</div>
+<section id="staggered-castle-doctrine-laws">
+<h3>Staggered: castle-doctrine laws<a class="headerlink" href="#staggered-castle-doctrine-laws" title="Link to this heading">#</a></h3>
+<p>The bundled <code class="docutils literal notranslate"><span class="pre">castle.csv</span></code> panel (50 states, 2000–2010; 21 staggered adopters,
+29 never-treated) gives the cohort-share-weighted aggregate via the same call,
+with the treatment indicator turning on at each state’s adoption year. Then
+<code class="docutils literal notranslate"><span class="pre">res.effects.att</span></code> is <span class="math notranslate nohighlight">\(\widehat{\tau}_\omega\)</span> (<code class="docutils literal notranslate"><span class="pre">0.092</span></code> demeaning /
+<code class="docutils literal notranslate"><span class="pre">0.067</span></code> detrending, matching §7.2) and <code class="docutils literal notranslate"><span class="pre">res.per_cohort</span></code> is the per-cohort
+breakdown with its own confidence intervals.</p>
+</section>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading">#</a></h2>
+<p>Path A, both empirical applications reproduced to the reported precision and
+cross-validated (during development) against the AGPL <code class="docutils literal notranslate"><span class="pre">lwdid</span></code> package used only
+as a black-box oracle — clean-room, sharing no code. California Prop 99
+(Table 3): demeaning ATT <span class="math notranslate nohighlight">\(-0.422\)</span> (se <span class="math notranslate nohighlight">\(0.121\)</span>), detrending
+<span class="math notranslate nohighlight">\(-0.227\)</span> (se <span class="math notranslate nohighlight">\(0.094\)</span>), detrend exact <span class="math notranslate nohighlight">\(p = 0.021\)</span>,
+<span class="math notranslate nohighlight">\(\tau_{2000} = -0.667\)</span> / <span class="math notranslate nohighlight">\(-0.403\)</span>. Castle laws (§7.2, staggered):
+demeaning aggregate <span class="math notranslate nohighlight">\(0.092\)</span> (se <span class="math notranslate nohighlight">\(0.057\)</span>), detrending <span class="math notranslate nohighlight">\(0.067\)</span>
+(HC3 se <span class="math notranslate nohighlight">\(0.055\)</span>). See <a class="reference internal" href="replications/rolldid.html"><span class="doc">ROLLDID — Lee &amp; Wooldridge rolling-transformation DiD</span></a>; the durable case is
+<code class="docutils literal notranslate"><span class="pre">benchmarks/cases/rolldid_lw.py</span></code> and unit-level reproduction is pinned in
+<code class="docutils literal notranslate"><span class="pre">mlsynth/tests/test_rolldid.py</span></code>.</p>
+<div role="list" class="citation-list">
+<div class="citation" id="lw2026" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">LW2026</a><span class="fn-bracket">]</span></span>
+<p>Lee, S. J., &amp; Wooldridge, J. M. (2026). Simple Approaches to
+Inference with Difference-in-Differences Estimators with Small
+Cross-Sectional Sample Sizes.</p>
+</div>
+</div>
+</section>
+<section id="core-api">
+<h2>Core API<a class="headerlink" href="#core-api" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.ROLLDID">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.</span></span><span class="sig-name descname"><span class="pre">ROLLDID</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig" title="mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig"><span class="pre">ROLLDIDConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.ROLLDID" title="Link to this definition">#</a></dt>
+<dd><p>Rolling-transformation difference-in-differences.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>config</strong> (<em>ROLLDIDConfig or dict</em>) – See
+<a class="reference internal" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig" title="mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig</span></code></a> — adds
+<code class="docutils literal notranslate"><span class="pre">rolling</span></code> (<code class="docutils literal notranslate"><span class="pre">demean</span></code>/<code class="docutils literal notranslate"><span class="pre">detrend</span></code>), <code class="docutils literal notranslate"><span class="pre">inference</span></code>
+(<code class="docutils literal notranslate"><span class="pre">exact</span></code>/<code class="docutils literal notranslate"><span class="pre">hc3</span></code>/<code class="docutils literal notranslate"><span class="pre">ri</span></code>), <code class="docutils literal notranslate"><span class="pre">alpha</span></code>, <code class="docutils literal notranslate"><span class="pre">ri_reps</span></code>, <code class="docutils literal notranslate"><span class="pre">seed</span></code> to the base
+<code class="docutils literal notranslate"><span class="pre">df</span></code> / <code class="docutils literal notranslate"><span class="pre">outcome</span></code> / <code class="docutils literal notranslate"><span class="pre">treat</span></code> / <code class="docutils literal notranslate"><span class="pre">unitid</span></code> / <code class="docutils literal notranslate"><span class="pre">time</span></code> fields.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">mlsynth</span><span class="w"> </span><span class="kn">import</span> <span class="n">ROLLDID</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span> <span class="o">=</span> <span class="n">ROLLDID</span><span class="p">({</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="n">panel</span><span class="p">,</span> <span class="s2">&quot;outcome&quot;</span><span class="p">:</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">:</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span>
+<span class="gp">... </span>               <span class="s2">&quot;unitid&quot;</span><span class="p">:</span> <span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;t&quot;</span><span class="p">,</span> <span class="s2">&quot;rolling&quot;</span><span class="p">:</span> <span class="s2">&quot;detrend&quot;</span><span class="p">})</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span><span class="o">.</span><span class="n">effects</span><span class="o">.</span><span class="n">att</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">inference</span><span class="o">.</span><span class="n">p_value</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlsynth.ROLLDID.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults" title="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults"><span class="pre">ROLLDIDResults</span></a></span></span><a class="headerlink" href="#mlsynth.ROLLDID.fit" title="Link to this definition">#</a></dt>
+<dd><p>Run the rolling-DiD estimate and return a standardized result.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rolldid_helpers.config.</span></span><span class="sig-name descname"><span class="pre">ROLLDIDConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df:</span> <span class="pre">~pandas.core.frame.DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unitid:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_graphs:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save:</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counterfactual_color:</span> <span class="pre">~typing.List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treated_color:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot:</span> <span class="pre">~mlsynth.config_models.PlotConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rolling:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'demean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'exact'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ri_reps:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for ROLLDID (Lee &amp; Wooldridge rolling-transformation DiD).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'forbid'}</span></em><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="result-containers">
+<h2>Result Containers<a class="headerlink" href="#result-containers" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ROLLDID.fit()</span></code> returns a
+<a class="reference internal" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults" title="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults"><code class="xref py py-class docutils literal notranslate"><span class="pre">ROLLDIDResults</span></code></a>, a standardized
+<code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEstimatorResults</span></code>: the aggregated ATT is
+<code class="docutils literal notranslate"><span class="pre">res.effects.att</span></code>; <code class="docutils literal notranslate"><span class="pre">res.inference</span></code> carries the standard error, <span class="math notranslate nohighlight">\(p\)</span>-value,
+confidence interval and <code class="docutils literal notranslate"><span class="pre">method</span></code>; <code class="docutils literal notranslate"><span class="pre">res.time_series</span></code> is the event-study path
+(common timing). The rolling-DiD specifics sit alongside — <code class="docutils literal notranslate"><span class="pre">res.transformation</span></code>
+(<code class="docutils literal notranslate"><span class="pre">demean</span></code> / <code class="docutils literal notranslate"><span class="pre">detrend</span></code>), <code class="docutils literal notranslate"><span class="pre">res.inference_type</span></code>, <code class="docutils literal notranslate"><span class="pre">res.design</span></code> (<code class="docutils literal notranslate"><span class="pre">common</span></code> /
+<code class="docutils literal notranslate"><span class="pre">staggered</span></code>), <code class="docutils literal notranslate"><span class="pre">res.n_treated</span></code> / <code class="docutils literal notranslate"><span class="pre">res.n_control</span></code>, and the per-period
+(<code class="docutils literal notranslate"><span class="pre">res.per_period</span></code>) or per-cohort (<code class="docutils literal notranslate"><span class="pre">res.per_cohort</span></code>) effect tables, each with
+its own <code class="docutils literal notranslate"><span class="pre">se</span></code> / <code class="docutils literal notranslate"><span class="pre">p_value</span></code> / <code class="docutils literal notranslate"><span class="pre">ci_lower</span></code> / <code class="docutils literal notranslate"><span class="pre">ci_upper</span></code>.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rolldid_helpers.structures.</span></span><span class="sig-name descname"><span class="pre">ROLLDIDResults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">effects</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">EffectsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_diagnostics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">FitDiagnosticsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_series</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">TimeSeriesResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">WeightsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">InferenceResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method_details</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">MethodDetailsResults</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sub_method_results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_outputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw_results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">execution_summary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlotConfig</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transformation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">design</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_treated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_control</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_period</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_cohort</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">extra_data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults" title="Link to this definition">#</a></dt>
+<dd><p>Rolling-DiD result: a standardized <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEstimatorResults</span></code>
+(<code class="docutils literal notranslate"><span class="pre">effects.att</span></code> = the aggregated ATT, <code class="docutils literal notranslate"><span class="pre">inference</span></code> = SE / p / CI / method,
+<code class="docutils literal notranslate"><span class="pre">time_series</span></code> = the event-study path for common timing) plus the
+rolling-DiD specifics.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.transformation">
+<span class="sig-name descname"><span class="pre">transformation</span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.transformation" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;demean&quot;</span></code> (Procedure 2.1) or <code class="docutils literal notranslate"><span class="pre">&quot;detrend&quot;</span></code> (Procedure 3.1).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.inference_type">
+<span class="sig-name descname"><span class="pre">inference_type</span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.inference_type" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;exact&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;hc3&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;ri&quot;</span></code> as requested.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.design">
+<span class="sig-name descname"><span class="pre">design</span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.design" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;common&quot;</span></code> (single cohort) or <code class="docutils literal notranslate"><span class="pre">&quot;staggered&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">n_treated,</span> <span class="pre">n_control</span></span></dt>
+<dd><p>Eventually-treated and never-treated unit counts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_period">
+<span class="sig-name descname"><span class="pre">per_period</span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_period" title="Link to this definition">#</a></dt>
+<dd><p>Per-period ATTs (common timing): <code class="docutils literal notranslate"><span class="pre">time</span></code> / <code class="docutils literal notranslate"><span class="pre">att</span></code> / <code class="docutils literal notranslate"><span class="pre">se</span></code> / <code class="docutils literal notranslate"><span class="pre">t</span></code> /
+<code class="docutils literal notranslate"><span class="pre">p_value</span></code> / <code class="docutils literal notranslate"><span class="pre">ci_lower</span></code> / <code class="docutils literal notranslate"><span class="pre">ci_upper</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_cohort">
+<span class="sig-name descname"><span class="pre">per_cohort</span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_cohort" title="Link to this definition">#</a></dt>
+<dd><p>Per-cohort ATTs (staggered): <code class="docutils literal notranslate"><span class="pre">cohort</span></code> / <code class="docutils literal notranslate"><span class="pre">n_treated</span></code> / <code class="docutils literal notranslate"><span class="pre">att</span></code> / …</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">ConfigDict</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'arbitrary_types_allowed':</span> <span class="pre">True,</span> <span class="pre">'extra':</span> <span class="pre">'allow',</span> <span class="pre">'json_encoders':</span> <span class="pre">{&lt;class</span> <span class="pre">'numpy.ndarray'&gt;:</span> <span class="pre">&lt;function</span> <span class="pre">BaseEstimatorResults.Config.&lt;lambda&gt;&gt;}}</span></em><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.model_config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="helper-modules">
+<h2>Helper Modules<a class="headerlink" href="#helper-modules" title="Link to this heading">#</a></h2>
+<p>Panel ingestion: resolves the long panel into per-unit series, the treatment
+cohorts, and the never-treated set; checks the absorbing-treatment and
+never-treated conditions.</p>
+<p id="module-mlsynth.utils.rolldid_helpers.setup">Ingestion for ROLLDID: long panel -&gt; per-unit series + cohort structure.</p>
+<p>The rolling-DiD transformation is unit-level, so we need each unit’s full
+outcome series, its treatment <strong>cohort</strong> (the first period in which its
+treatment indicator turns on, <code class="docutils literal notranslate"><span class="pre">g</span></code>), and the set of never-treated units. The
+design is <em>common timing</em> when every treated unit shares one cohort, and
+<em>staggered</em> otherwise.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.setup.rolldid_setup">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rolldid_helpers.setup.</span></span><span class="sig-name descname"><span class="pre">rolldid_setup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcome</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">treat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.setup.rolldid_setup" title="Link to this definition">#</a></dt>
+<dd><p>Resolve the panel into the inputs the rolling-DiD pipeline needs.</p>
+<p>Returns a dict with <code class="docutils literal notranslate"><span class="pre">Ywide</span></code> (<code class="docutils literal notranslate"><span class="pre">time</span> <span class="pre">x</span> <span class="pre">unit</span></code>), <code class="docutils literal notranslate"><span class="pre">cohort_of</span></code> (<code class="docutils literal notranslate"><span class="pre">{unit:</span> <span class="pre">g}</span></code>
+for treated units), <code class="docutils literal notranslate"><span class="pre">never</span></code> (never-treated unit labels), <code class="docutils literal notranslate"><span class="pre">treated</span></code> (all
+eventually-treated labels), <code class="docutils literal notranslate"><span class="pre">times</span></code> (sorted time labels), and <code class="docutils literal notranslate"><span class="pre">design</span></code>
+(<code class="docutils literal notranslate"><span class="pre">&quot;common&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;staggered&quot;</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>MlsynthConfigError</strong> – If a required column is missing.</p></li>
+<li><p><strong>MlsynthDataError</strong> – If the panel is unbalanced, the treatment indicator is not 0/1, there
+    are no treated units, no never-treated controls, or treatment switches
+    off (the indicator must be absorbing once on).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p>The rolling transformations, the cross-sectional estimator (aggregate,
+per-period, per-cohort), and the exact / HC3 / randomization inference.</p>
+<p id="module-mlsynth.utils.rolldid_helpers.pipeline">Estimation + inference for ROLLDID (clean-room from Lee &amp; Wooldridge 2026).</p>
+<p>The method collapses the panel to one cross-sectional observation per unit by a
+pre-treatment <strong>rolling transformation</strong> (demean = Procedure 2.1; detrend =
+Procedure 3.1), then reads the ATT off a cross-sectional regression of the
+transformed post-average on a treatment indicator. Common timing and staggered
+adoption share the same machinery (the staggered aggregate is eq. 7.18-7.19,
+with never-treated units as the comparison). Inference is exact-t (CLM
+normality), HC3, or randomization.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.pipeline.estimate">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rolldid_helpers.pipeline.</span></span><span class="sig-name descname"><span class="pre">estimate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ri_reps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.pipeline.estimate" title="Link to this definition">#</a></dt>
+<dd><p>Run the rolling-DiD estimate end to end and return a result dict.</p>
+</dd></dl>
+
+<p>Event-study / effect plot.</p>
+<p id="module-mlsynth.utils.rolldid_helpers.plotter">Event-study / effect plot for ROLLDID.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mlsynth.utils.rolldid_helpers.plotter.plot_rolldid">
+<span class="sig-prename descclassname"><span class="pre">mlsynth.utils.rolldid_helpers.plotter.</span></span><span class="sig-name descname"><span class="pre">plot_rolldid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">show</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theme</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlsynth.utils.rolldid_helpers.plotter.plot_rolldid" title="Link to this definition">#</a></dt>
+<dd><p>Plot the rolling-DiD effect.</p>
+<p>Common timing: the per-period ATTs (event study) with their confidence band
+and a zero reference line. Staggered: the per-cohort ATTs. Uses the shared
+<code class="docutils literal notranslate"><span class="pre">mlsynth</span></code> house style.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="musc.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Modified Unbiased Synthetic Control</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="data.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Data Utilities</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-estimator">When to Use This Estimator</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-for-rolldid-when">Reach for ROLLDID when</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#do-not-use-rolldid-when">Do not use ROLLDID when</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions">Assumptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mathematical-formulation">Mathematical Formulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rolling-transformation">The rolling transformation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-collapse-equivalence">The collapse equivalence</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#per-period-effects-common-timing">Per-period effects (common timing)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#staggered-aggregation">Staggered aggregation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference">Inference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-it-improves-on-sc-sdid">Why it improves on SC / SDID</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-california-proposition-99">Example: California Proposition 99</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#staggered-castle-doctrine-laws">Staggered: castle-doctrine laws</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification">Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-api">Core API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.ROLLDID"><code class="docutils literal notranslate"><span class="pre">ROLLDID</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.ROLLDID.fit"><code class="docutils literal notranslate"><span class="pre">ROLLDID.fit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig"><code class="docutils literal notranslate"><span class="pre">ROLLDIDConfig</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.config.ROLLDIDConfig.model_config"><code class="docutils literal notranslate"><span class="pre">ROLLDIDConfig.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#result-containers">Result Containers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.transformation"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.transformation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.inference_type"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.inference_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.design"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.design</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_period"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.per_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.per_cohort"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.per_cohort</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.structures.ROLLDIDResults.model_config"><code class="docutils literal notranslate"><span class="pre">ROLLDIDResults.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-modules">Helper Modules</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.setup.rolldid_setup"><code class="docutils literal notranslate"><span class="pre">rolldid_setup()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.pipeline.estimate"><code class="docutils literal notranslate"><span class="pre">estimate()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mlsynth.utils.rolldid_helpers.plotter.plot_rolldid"><code class="docutils literal notranslate"><span class="pre">plot_rolldid()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Jared Greathouse
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, Jared Greathouse.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
