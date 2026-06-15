@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.utils.design_compare import (
     DesignComparison,
     DesignSpec,
@@ -272,3 +273,29 @@ class TestCompareMethods:
             compare_methods(df, outcome="Y", unitid="unit", time="time",
                             treated_size=2, post_col="nope", methods=("SYNDES",),
                             syndes_options=self._SYN)
+
+    def test_deterministic_under_same_options(self):
+        # same data + same options/seed -> byte-identical table (no hidden RNG).
+        df, T, n_post = _shared_panel()
+        kw = dict(outcome="Y", unitid="unit", time="time", treated_size=2,
+                  horizon=5, n_post=n_post, top_K=4,
+                  syndes_options=self._SYN, geolift_options=self._GL)
+        a = compare_methods(df, **kw).table
+        b = compare_methods(df, **kw).table
+        pd.testing.assert_frame_equal(a, b)
+
+    def test_syndes_options_are_forwarded(self):
+        # an unknown key must reach the SYNDES config (extra="forbid") and raise,
+        # proving the override dict is not silently dropped.
+        df, T, n_post = _shared_panel()
+        with pytest.raises(MlsynthConfigError):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, n_post=n_post, methods=("SYNDES",),
+                            syndes_options={"not_a_real_option": 123})
+
+    def test_geolift_options_are_forwarded(self):
+        df, T, n_post = _shared_panel()
+        with pytest.raises(MlsynthConfigError):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, n_post=n_post, methods=("GEOLIFT",),
+                            geolift_options={"not_a_real_option": 123})
