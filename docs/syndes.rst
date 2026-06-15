@@ -873,7 +873,7 @@ the alternative, and the power at :math:`\tau` is the share of that shifted null
 clearing the two-sided critical value.
 
 The example fixes the horizon at five post-periods and overlays both frontiers on
-a 20-market GeoLift subset:
+a 20-market subset of the native GeoLift ``GeoLift_Test`` panel:
 
 .. code-block:: python
 
@@ -881,11 +881,11 @@ a 20-market GeoLift subset:
    from mlsynth import (SYNDES, GEOLIFT, from_syndes, from_geolift,
                         compare_pareto, plot_compare_pareto)
 
-   df = pd.read_csv(
+   df = pd.read_csv(                                       # native GeoLift_Test panel
        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
-       "refs/heads/main/basedata/geolift_market_data.csv"
+       "refs/heads/main/basedata/geolift_test_data.csv"
    )
-   markets = sorted(df["location"].unique())[:20]
+   markets = sorted(df["location"].unique())[:20]         # 20-market subset
    df = df[df["location"].isin(markets)].copy()
    dates = sorted(df["date"].unique())
    n_post = 5                                              # only five post-periods
