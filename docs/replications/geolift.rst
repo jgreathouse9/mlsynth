@@ -11,8 +11,11 @@ GEOLIFT — Meta's GeoLift walkthrough (augsynth cross-validation)
 :Replication type: **Cross-validation** — match an authoritative reference
    implementation (GeoLift/augsynth) value-for-value on the package's own
    published example.
-:Status: **Done** — fully verified; the realized effect report reproduces
-   GeoLift's walkthrough ATT, percent lift, incremental, and conformal p-value.
+:Status: **Done** — fully verified; the realized effect report reproduces both
+   of GeoLift's walkthrough summaries (the unaugmented base model and the
+   ridge-augmented "best" model) — ATT, percent lift, incremental, conformal
+   p-value, L2 imbalance, scaled L2, percent improvement, bias removed, and the
+   donor weights.
 :Durable check: ``benchmarks/cases/geolift.py`` (``geolift_walkthrough``, vs the
    published vignette) and ``benchmarks/cases/geolift_augsynth_ref.py``
    (``geolift_augsynth_ref``, vs **live** augsynth via Rscript); plus
@@ -31,25 +34,34 @@ target for the part of ``GEOLIFT`` that does the causal inference
 (:func:`~mlsynth.utils.geolift_helpers.marketselect.realize.realize_design`).
 
 The walkthrough treats ``chicago`` + ``portland`` over the last 15 of 105 days
-(``GeoLift_Test``: 40 markets, the other 38 as donors) and reports:
+(``GeoLift_Test``: 40 markets, the other 38 as donors) and prints **two**
+summaries — the unaugmented base model (``GeoLift(...)``) and the ridge-augmented
+"best" model (``GeoLift(..., model = "best")``):
 
-============================  =================
-Quantity                      GeoLift
-============================  =================
-Average ATT (per unit/period)  ``155.556``
-Percent Lift                   ``5.4%``
-Incremental Y (summed)         ``4667``
-Conformal p-value              ``0.01``
-============================  =================
+=============================  ==============  ===================
+Quantity                       GeoLift base    GeoLift augmented
+=============================  ==============  ===================
+Average ATT (per unit/period)  ``155.556``     ``156.805``
+Percent Lift                   ``5.4%``        ``5.5%``
+Incremental Y (summed)         ``4667``        ``4704``
+Conformal p-value              ``0.01``        ``0.01``
+L2 imbalance                   ``909.489``     ``903.525``
+Scaled L2                      ``0.1636``      ``0.1626``
+Percent improvement (naive)    ``83.64%``      ``83.74%``
+Avg estimated bias removed     —               ``-1.249``
+=============================  ==============  ===================
 
 .. note::
 
-   The vignette's printed ``155.556`` / ``4667`` is from an **older augsynth
-   release**. Run against augsynth *today* the same fit returns
-   ``ATT = 156.81`` (``λ = 1.673102e9``, 13 donors); ``mlsynth`` reproduces that
-   **live** augsynth output to floating point — see *Live cross-check vs augsynth*
-   below — so the ~0.8 % gap to the printed number is augsynth's own
-   version-to-version drift, not an mlsynth discrepancy.
+   The two columns are two **models**, not two augsynth versions. The base
+   ``GeoLift()`` call is the unaugmented (simplex) fit — ``mlsynth`` reproduces it
+   with ``augment=None`` — and ``model = "best"`` selects the ridge-augmented fit,
+   which ``mlsynth`` reproduces with ``augment="ridge"`` (its default). Both match
+   the printed summaries to the published digits, including the L2 imbalance,
+   scaled L2, and percent-improvement diagnostics (the average bias removed is just
+   the base-minus-augmented ATT gap, ``155.556 - 156.805 = -1.249``). The live
+   augsynth cross-check below independently confirms the ridge fit to floating
+   point.
 
 The walkthrough's public call (``GeoLift`` names the locations and the post
 window — it is an *analysis* of a given test region, not a market search):
@@ -59,7 +71,13 @@ window — it is an *analysis* of a given test region, not a market search):
    GeoLift_Test <- GeoLift(Y_id = "Y", data = GeoTestData_Test,
                            locations = c("chicago", "portland"),
                            treatment_start_time = 91, treatment_end_time = 105)
-   summary(GeoLift_Test)   # ATT 155.556, Lift 5.4%, Incremental 4667, p 0.01
+   summary(GeoLift_Test)   # base:  ATT 155.556, Lift 5.4%, Incremental 4667, p 0.01
+
+   GeoTestBest <- GeoLift(Y_id = "Y", data = GeoTestData_Test,
+                          locations = c("chicago", "portland"),
+                          treatment_start_time = 91, treatment_end_time = 105,
+                          model = "best")
+   summary(GeoTestBest)    # ridge: ATT 156.805, Lift 5.5%, Incremental 4704, p 0.01
 
 ``mlsynth`` reaches the same numbers through its **public estimator** —
 ``GEOLIFT(...).fit()`` with ``fixed_effects=True`` (the default). The estimator is
@@ -82,22 +100,26 @@ analogue of ``summary(GeoLift_Test)``:
        "treatment_size": 2, "to_be_treated": ["chicago", "portland"],
        "durations": [15], "effect_sizes": [0.0, 0.10], "post_col": "post",
        "how": "mean", "fixed_effects": True, "display_graphs": False,
+       "augment": "ridge",   # the "best" model; use augment=None for the base model
    }).fit()
 
    res.selected_units            # ['chicago', 'portland']
-   res.report.effects.att        # 156.8  (GeoLift per-unit ATT 155.6)
-   res.report.inference.p_value  # 0.011  (GeoLift 0.01)
+   res.report.effects.att        # 156.805  (ridge "best"; augment=None gives 155.556)
+   res.report.inference.p_value  # 0.011    (GeoLift 0.01)
    # how="sum" reports the summed incremental: ATT 313.6/period, p identical.
 
 Pinned end-to-end through the public API in ``benchmarks/cases/geolift.py``
-(``geolift_walkthrough``) and ``mlsynth/tests/test_geolift_walkthrough.py``.
+(``geolift_walkthrough``) — both models and every printed quantity (ATT, lift,
+incremental, conformal p, L2 imbalance, scaled L2, percent improvement, bias
+removed, and the 13 donor weights) — and ``mlsynth/tests/
+test_geolift_walkthrough.py``.
 
 Live cross-check vs augsynth
 ----------------------------
 
-Because the printed vignette number has drifted with augsynth's version, the
-durable cross-check fits **augsynth itself** and compares — the gold-standard
-reference rather than a doc string. ``benchmarks/R/augsynth_geolift.R`` runs
+To pin the augmented fit against the gold-standard reference rather than a doc
+string, the durable cross-check fits **augsynth itself** and compares.
+``benchmarks/R/augsynth_geolift.R`` runs
 
 .. code-block:: r
 
@@ -122,8 +144,8 @@ only — GeoLift's fit *is* augsynth, so the heavy ``MarketMatching`` → ``Boom
 chain is not needed). The install is **commit-pinned** — augsynth ``0.2.0 @
 7a90ea4`` and every source-compiled dependency frozen to a SHA (``S7``,
 ``LiblineaR``, ``osqp``) as of 2026-06-12 — so the cross-check runs the *same*
-reference code every time, rather than a moving ``master`` tip (an unpinned tip
-is exactly the drift that staled the vignette's number). The case skips itself
+reference code every time, rather than a moving ``master`` tip whose results
+could shift release to release. The case skips itself
 when ``Rscript`` / ``augsynth`` is absent, so it is a no-op in CI and runs only
 where the reference is installed.
 This is what licenses the strong claim above: ``mlsynth``'s ridge ASCM, its CV
