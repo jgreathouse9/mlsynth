@@ -130,6 +130,14 @@ class GeoLiftConfig(BaseMAREXConfig):
     run_stochastic: bool = Field(default=False, description="Use GeoLift's stochastic paired-jitter generation.")
     stochastic_mode: str = Field(default="global", description="'global' (faithful) or 'per_anchor' (corrected).")
     seed: int = Field(default=0, description="RNG seed (candidate sampling + conformal permutations).")
+    n_jobs: int = Field(
+        default=-1,
+        description="Parallel workers for the candidate search (power simulation "
+        "and per-candidate design fits, via joblib). Default -1 uses all "
+        "available cores; set a positive integer to cap the worker count, or 1 "
+        "to run serially. The candidates are independent and use the fixed seed, "
+        "so any worker count returns the identical shortlist -- only faster.",
+    )
 
     # --- display ---
     display_graphs: bool = Field(

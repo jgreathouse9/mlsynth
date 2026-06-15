@@ -240,13 +240,20 @@ and cold-refitting the base simplex weights. ``mlsynth`` computes the identical
 quantity by a cheaper algebraic route. Within a fold the matrix
 :math:`\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}` and the
 anchor :math:`\mathbf{w}^{\mathrm{scm}}` do not depend on :math:`\lambda`, so a
-single symmetric eigendecomposition
+single matrix factorization serves the whole grid: one symmetric
+eigendecomposition
 :math:`\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}=\mathbf{V}\operatorname{diag}(\mathbf{d})\mathbf{V}^{\top}`
-serves the whole grid via
+gives
 :math:`(\widetilde{\mathbf{Y}}_{0}\widetilde{\mathbf{Y}}_{0}^{\top}+\lambda\mathbf{I})^{-1}=\mathbf{V}\operatorname{diag}\!\bigl(1/(\mathbf{d}+\lambda)\bigr)\mathbf{V}^{\top}`,
-replacing one matrix inversion per penalty with one decomposition per fold; the
-single-penalty correction is taken with a linear solve rather than an explicit
-inverse; and the leave-one-out folds (tiny perturbations of one another) are
+replacing one matrix inversion per penalty with one decomposition per fold. When
+there are more pre-periods than donors (:math:`J < m`, the usual geo case) the
+factorization is taken in *dual* form — an economy singular value decomposition
+of the :math:`m \times J` donor matrix (:math:`J` components, cost
+:math:`O(mJ^2)`) rather than the :math:`m \times m` eigendecomposition (cost
+:math:`O(m^3)`) — which is the cheaper of the two whenever periods outnumber
+donors. The single-penalty correction is taken with a linear solve rather than
+an explicit inverse; and the leave-one-out folds (tiny perturbations of one
+another) are
 warm-started from the previous fold's base weights. Because the base simplex
 objective is strictly convex under full column rank, the cross-validation curve,
 the selected :math:`\lambda`, and the fitted weights are unchanged to numerical
@@ -480,6 +487,12 @@ driven by the data and config (a ``post_col`` triggers realization;
 * ``conformal_type`` — the conformal permutation scheme, ``"iid"`` (default,
   matching GeoLift) or ``"block"`` (moving-block cyclic shifts for
   serially-dependent residuals; GeoLift's ``conformal_type = "block"`` option).
+* ``n_jobs`` — parallel workers for the candidate search (default ``-1``, all
+  cores; set a positive integer to cap the count, or ``1`` to run serially).
+  The search is embarrassingly parallel: each candidate's power simulation and
+  deployable design fit are independent and use the fixed ``seed``, so any
+  worker count spreads the candidates across workers (via joblib) and returns
+  the *identical* shortlist, only faster.
 
 Scanning several ``durations`` yields an MDE *per duration*
 (":math:`\ell = 7` detects 10%, but :math:`\ell = 14` is needed for 5%"):

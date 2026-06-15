@@ -123,6 +123,47 @@ class TestRidgePathParity:
                 solve_ridge(A=A, B=B, W=W, lambda_=lam), rtol=1e-7, atol=1e-8)
 
 
+class TestRidgePathSvdDual:
+    # Long panels (periods m >> donors J) are the GEOLIFT regime; the path uses
+    # the economy SVD of B (the dual) instead of the m x m eigh there. Must still
+    # equal the per-lambda inv solve.
+    @pytest.mark.parametrize("m,J", [(80, 35), (90, 37), (120, 40), (50, 10)])
+    def test_long_panel_matches_inv(self, m, J):
+        rng = _rng(m * 5 + J)
+        B = rng.standard_normal((m, J)); A = rng.standard_normal(m)
+        W = np.clip(rng.standard_normal(J), 0, None)
+        lambdas = np.geomspace(1e-6, 1e3, 21)
+        path = solve_ridge_path(A, B, W, lambdas)
+        for i, lam in enumerate(lambdas):
+            np.testing.assert_allclose(
+                path[i], solve_ridge(A=A, B=B, W=W, lambda_=lam),
+                rtol=1e-6, atol=1e-7)
+
+    def test_wide_panel_matches_inv(self):
+        # m < J: the eigh branch (B B^T is the smaller, m x m, matrix).
+        rng = _rng(3)
+        B = rng.standard_normal((10, 25)); A = rng.standard_normal(10)
+        W = np.clip(rng.standard_normal(25), 0, None)
+        lambdas = np.geomspace(1e-5, 1e2, 12)
+        path = solve_ridge_path(A, B, W, lambdas)
+        for i, lam in enumerate(lambdas):
+            np.testing.assert_allclose(
+                path[i], solve_ridge(A=A, B=B, W=W, lambda_=lam),
+                rtol=1e-7, atol=1e-8)
+
+    def test_collinear_donors_long_panel(self):
+        rng = _rng(9)
+        base = rng.standard_normal((60, 8))
+        B = np.hstack([base, base[:, :3] * 1.5])             # rank 8, 11 cols, m>J
+        A = rng.standard_normal(60); W = np.clip(rng.standard_normal(11), 0, None)
+        lambdas = np.geomspace(1e-5, 1e2, 15)
+        path = solve_ridge_path(A, B, W, lambdas)
+        for i, lam in enumerate(lambdas):
+            np.testing.assert_allclose(
+                path[i], solve_ridge(A=A, B=B, W=W, lambda_=lam),
+                rtol=1e-6, atol=1e-7)
+
+
 # ---------------------------------------------------------------------------
 # cross_validate parity with the naive inv reference
 # ---------------------------------------------------------------------------
