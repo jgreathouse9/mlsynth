@@ -158,6 +158,24 @@ def _syndes_post_fit(inputs, design, inference, alpha):
     return pf
 
 
+def _design_control_weights(design, n_units):
+    """Return the (N,) control-side weight vector for any SYNDES mode.
+
+    Mirrors the contrast bookkeeping in :func:`_syndes_post_fit`: the two-way /
+    equal-weight / annealed modes store the control simplex in
+    ``control_weights`` directly, whereas ``per_unit`` leaves ``control_weights``
+    ``None`` and keeps the per-treated-unit synthetic controls in the ``(K, N)``
+    ``treated_weights`` matrix -- whose column sum is the aggregate control side.
+    """
+    tw_raw = getattr(design, "treated_weights", None)
+    cw_raw = getattr(design, "control_weights", None)
+    if tw_raw is not None and np.asarray(tw_raw).ndim == 2:
+        return np.asarray(tw_raw, dtype=float).sum(axis=0)
+    if cw_raw is not None:
+        return np.asarray(cw_raw, dtype=float).reshape(-1)
+    return np.zeros(n_units)
+
+
 def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
     """Re-score a SYNDES solution pool into a manager-facing menu.
 
@@ -166,10 +184,30 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
     ``power_analysis`` uses -- ``sigma_perm / sqrt(n_post)`` on the design's
     pre-period contrast, as a percent of the treated baseline) and its cost (when
     ``costs`` is supplied). Returned as a list of dicts ranked by MSE.
+
+    Crucially, every entry is *actionable*, not just rankable: it carries the
+    full :class:`SYNDESDesign` under ``"design"`` (treated/control weights and
+    all) and the names of the donor units that form its synthetic control under
+    ``"control_group"`` -- so a manager can pick any entry, not only the rank-1
+    winner kept on ``results.design``, and have everything needed to deploy it.
+    Each entry's keys are:
+
+    * ``"markets"``       -- labels of the treated units (the design's arms).
+    * ``"control_group"`` -- labels of the donor units carrying nonzero control
+      weight (the synthetic-control pool backing the treated arms).
+    * ``"objective"``     -- the MIP objective (fit) the design was ranked by.
+    * ``"pre_fit_rmse"``  -- root-mean-square pre-period contrast.
+    * ``"mde_pct"``       -- minimum detectable effect, % of treated baseline.
+    * ``"cost"``          -- summed cost of the treated units (``None`` if no
+      ``costs`` supplied).
+    * ``"design"``        -- the full :class:`SYNDESDesign` (treated/control/
+      contrast weights) for this entry.
     """
     from scipy.stats import norm
 
     Y_pre = np.asarray(inputs.Y_pre, dtype=float)
+    n_units = Y_pre.shape[1]
+    unit_labels = np.asarray(inputs.unit_index.labels)
     n_post = int(inputs.Y_post.shape[0]) if inputs.Y_post is not None else 4
     z = float(norm.ppf(1.0 - alpha / 2.0) + norm.ppf(power_target))
     costs_arr = None if costs is None else np.asarray(costs, dtype=float).reshape(-1)
@@ -183,12 +221,18 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
         idx = np.asarray(d.selected_unit_indices, dtype=int)
         base = float(np.mean(Y_pre[:, idx])) if idx.size else float("nan")
         mde_pct = 100.0 * mde_abs / abs(base) if abs(base) > 1e-9 else float("nan")
+        # Donor units backing the synthetic control: nonzero control weight.
+        control_w = _design_control_weights(d, n_units)
+        control_idx = np.flatnonzero(np.abs(control_w) > 1e-8)
+        control_group = [x for x in unit_labels[control_idx].tolist()]
         menu.append({
             "markets": [x for x in np.asarray(d.selected_unit_labels).tolist()],
+            "control_group": control_group,
             "objective": float(d.objective_value),
             "pre_fit_rmse": (None if d.pre_fit_rmse is None else float(d.pre_fit_rmse)),
             "mde_pct": float(mde_pct),
             "cost": (None if costs_arr is None else float(costs_arr[idx].sum())),
+            "design": d,
         })
     return menu
 

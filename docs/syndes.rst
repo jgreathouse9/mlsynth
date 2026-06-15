@@ -522,13 +522,26 @@ more detectable, or operationally preferable at a negligible fit cost. Setting
 obtained by *no-good cuts*: after each solve the chosen treated set
 :math:`S` is forbidden (:math:`\sum_{i \in S} D_i \le |S|-1`) and the MIP is
 re-solved for the next-best design. The pool is attached as ``results.pool`` --
-a list of dicts ranked by MSE, each with its ``markets``, ``objective`` (MSE),
-``pre_fit_rmse``, ``mde_pct`` (the same permutation-null MDE
-:func:`~mlsynth.power_analysis` uses), and ``cost`` (when ``costs`` is given).
+a list of dicts ranked by MSE. Each entry is *actionable*, not merely rankable:
+it carries everything needed to deploy that design, not just the rank-1 winner
+kept on ``results.design``. Its keys are:
+
+* ``markets`` -- labels of the treated units (the design's arms).
+* ``control_group`` -- labels of the donor units carrying nonzero control
+  weight (the synthetic-control pool backing the treated arms).
+* ``objective`` -- the MIP objective (fit) the design was ranked by.
+* ``pre_fit_rmse`` -- root-mean-square pre-period contrast.
+* ``mde_pct`` -- minimum detectable effect, as a percent of the treated
+  baseline (the same permutation-null MDE :func:`~mlsynth.power_analysis` uses).
+* ``cost`` -- summed cost of the treated units (``None`` when no ``costs`` given).
+* ``design`` -- the full :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESDesign`
+  for the entry, with its treated, control, and contrast weights.
+
 Because the objective only ranks fit, the value is precisely the re-scoring on
 the dimensions it ignored: a manager can trade a small fit increase for lower
-cost or higher power. ``top_K=1`` (default) is unchanged -- only the optimum is
-returned and ``results.pool`` is ``None``.
+cost or higher power, then read the chosen entry's ``control_group`` and
+``design`` weights to deploy it. ``top_K=1`` (default) is unchanged -- only the
+optimum is returned and ``results.pool`` is ``None``.
 
 The example below imports a subset of the GeoLift pre-test panel (the same
 40-market data the :doc:`geolift` page uses) and returns a five-design menu:
@@ -556,8 +569,13 @@ The example below imports a subset of the GeoLift pre-test panel (the same
 
    print(sorted(res.design.selected_unit_labels.tolist()))   # the MSE-optimal design
    for d in res.pool:                                         # ranked menu, best fit first
-       print(sorted(d["markets"]), round(d["objective"], 1),
-             round(d["mde_pct"], 3), d["cost"])
+       print("treated:", sorted(d["markets"]),
+             "| control:", sorted(d["control_group"]),        # donors backing the SC
+             "| obj:", round(d["objective"], 1),
+             "| mde%:", round(d["mde_pct"], 3))
+   # any entry is deployable: read its control group and weights, not just rank-1
+   chosen = res.pool[1]
+   print(chosen["control_group"], chosen["design"].control_weights)
 
 The lesson is the whole point of the menu: the rank-1 design minimises MSE, but
 fit is not power. On this subset the best-fitting design is not the most
