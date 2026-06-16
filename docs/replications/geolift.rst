@@ -223,6 +223,11 @@ it while GeoLift keeps it. The design's *true* power at ``0.05`` is ~0.8 (with
 so it is a known small-effect / single-placement power-methodology difference,
 not a candidate-generation discrepancy — and it sits below the stable top-five.
 
+Set ``lookback_window > 1`` for a stable MDE/ranking: it is not the treatment
+length (that is ``durations``) but the number of staggered historical placements
+the power is averaged over, so a single placement (the walkthrough's default) is
+a high-variance estimate at borderline designs.
+
 Install the reference once with ``benchmarks/R/install_geolift.sh`` (it builds on
 ``install_augsynth.sh`` and compiles the ``MarketMatching`` → ``CausalImpact`` →
 ``bsts`` → ``Boom`` chain plus ``gsynth`` from GitHub's CRAN mirrors, every
