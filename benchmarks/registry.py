@@ -73,6 +73,8 @@ CASES = {
     "spotsynth_real_data": "benchmarks.cases.spotsynth_real_data",  # SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
     "ctsc_powell_mc": "benchmarks.cases.ctsc_powell_mc",      # Path B: CTSC vs two-way FE bias (Powell 2022 Table 1)
     "siv_syria_mc": "benchmarks.cases.siv_syria_mc",          # Path B: SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
+    "orthsc_carbontax": "benchmarks.cases.orthsc_carbontax",  # Path A: ORTHSC Fry carbon-tax ATT/p/K/CI (Andersson 2019 data, vs live R)
+    "orthsc_size_power": "benchmarks.cases.orthsc_size_power",  # Path B: ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
     "fma_coverage_mc": "benchmarks.cases.fma_coverage_mc",      # Path B: FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
     "pangeo_supergeo_mc": "benchmarks.cases.pangeo_supergeo_mc",  # Path B: PANGEO trajectory match vs scalar (Chen et al.)
     "shc_recovery_mc": "benchmarks.cases.shc_recovery_mc",      # Path B: SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
