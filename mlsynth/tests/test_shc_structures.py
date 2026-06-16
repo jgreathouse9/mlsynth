@@ -99,14 +99,14 @@ def test_shcresults_weights_by_block_property():
     results = SHCResults(
         inputs=inp,
         design=design,
-        att=0.5,
+        att_value=0.5,
         att_percent=10.0,
         observed=np.arange(6, dtype=float),
-        counterfactual=np.arange(6, dtype=float),
-        gap=np.zeros(6),
+        cf_window=np.arange(6, dtype=float),
+        gap_window=np.zeros(6),
         time_labels=np.arange(6),
-        fit_diagnostics={"pre_rmse": 0.1},
-        inference=_make_inference(),
+        fit_diagnostics_detail={"pre_rmse": 0.1},
+        inference_detail=_make_inference(),
     )
     # weights_by_block delegates to design.block_weights.
     assert results.weights_by_block == design.block_weights
@@ -122,13 +122,13 @@ def test_shcresults_inference_optional_default():
     results = SHCResults(
         inputs=inp,
         design=design,
-        att=0.0,
+        att_value=0.0,
         att_percent=0.0,
         observed=np.zeros(6),
-        counterfactual=np.zeros(6),
-        gap=np.zeros(6),
+        cf_window=np.zeros(6),
+        gap_window=np.zeros(6),
         time_labels=np.arange(6),
-        fit_diagnostics={},
+        fit_diagnostics_detail={},
     )
     assert results.inference is None
     assert results.weights_by_block == design.block_weights
