@@ -355,3 +355,70 @@ def test_candidates_free_pool_too_small_raises():
     ranked = rank_markets_by_correlation(planted_panel())   # A, B, C, D
     with pytest.raises(MlsynthConfigError, match="free pool"):
         generate_candidate_markets(ranked, 3, not_to_be_treated={"C", "D"})
+
+
+# === generate_candidate_markets: include_markets is generate-then-filter ===
+# GeoLift (pre_test_power.R) runs stochastic_market_selector ignoring
+# include_markets, then keeps only candidates that already contain the included
+# markets. So a forced unit is never welded onto an anchor it is uncorrelated
+# with: only correlation-natural sets survive.
+
+def _two_pair_panel():
+    """Two correlated pairs with ~zero cross-correlation: A~B and C~D.
+
+    A's nearest neighbour is therefore B (and vice-versa); C's is D. corr(A,C)
+    and corr(A,D) are ~0, so {A, C} / {A, D} are *not* correlation-natural sets.
+    """
+    t = np.arange(8, dtype=float)
+    a = np.sin(2 * np.pi * t / 8.0)
+    c = np.sin(2 * np.pi * 2 * t / 8.0)          # orthogonal to a over the period
+    Ywide = pd.DataFrame(
+        {"A": a, "B": 2.0 * a + 1.0, "C": c, "D": 2.0 * c + 1.0},
+        index=pd.Index(range(8), name="time"),
+    )
+    Ywide.columns.name = "unit"
+    return Ywide
+
+
+def test_candidates_include_filters_out_uncorrelated_pairings():
+    ranked = rank_markets_by_correlation(_two_pair_panel())
+    out = set(generate_candidate_markets(ranked, 2, to_be_treated={"A"}))
+    assert frozenset({"A", "B"}) in out          # A is B's nearest neighbour
+    assert frozenset({"A", "C"}) not in out       # C's nearest is D, not A
+    assert frozenset({"A", "D"}) not in out       # likewise D
+    assert all("A" in s and len(s) == 2 for s in out)
+
+
+def test_candidates_include_filter_yields_fewer_than_reattach():
+    # The old remove-and-reattach welded A onto every anchor (3 pairs here);
+    # generate-then-filter keeps only the correlation-natural one.
+    ranked = rank_markets_by_correlation(_two_pair_panel())
+    out = generate_candidate_markets(ranked, 2, to_be_treated={"A"})
+    assert set(out) == {frozenset({"A", "B"})}
+
+
+def _two_triple_panel():
+    """Two correlated triples (A,B,B2) and (C,D,D2), ~zero cross-correlation.
+
+    Each unit's two nearest neighbours are its own group-mates, so no generated
+    triple mixes the groups: A only ever co-occurs with B/B2, never with C.
+    """
+    t = np.arange(8, dtype=float)
+    a = np.sin(2 * np.pi * t / 8.0)
+    c = np.sin(2 * np.pi * 2 * t / 8.0)
+    Ywide = pd.DataFrame(
+        {"A": a, "B": 2.0 * a + 1.0, "B2": 0.5 * a - 2.0,
+         "C": c, "D": 2.0 * c + 1.0, "D2": 0.5 * c - 2.0},
+        index=pd.Index(range(8), name="time"),
+    )
+    Ywide.columns.name = "unit"
+    return Ywide
+
+
+def test_candidates_include_no_natural_set_raises():
+    # Force two units from different correlation groups (A and C), with a free
+    # slot (n=3) so the equals-size shortcut does not apply. A's two nearest are
+    # B/B2 and C's are D/D2, so no generated triple contains both A and C.
+    ranked = rank_markets_by_correlation(_two_triple_panel())
+    with pytest.raises(MlsynthConfigError, match="no correlation-natural candidate"):
+        generate_candidate_markets(ranked, 3, to_be_treated={"A", "C"})
