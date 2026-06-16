@@ -18,9 +18,10 @@ GEOLIFT — Meta's GeoLift walkthrough (augsynth cross-validation)
    donor weights.
 :Durable check: ``benchmarks/cases/geolift.py`` (``geolift_walkthrough``, vs the
    published vignette), ``benchmarks/cases/geolift_marketselection.py``
-   (``geolift_marketselection``, vs the BestMarkets ranking), and
-   ``benchmarks/cases/geolift_augsynth_ref.py`` (``geolift_augsynth_ref``, vs
-   **live** augsynth via Rscript); plus ``mlsynth/tests/test_geolift_walkthrough.py``.
+   (``geolift_marketselection``, vs the BestMarkets ranking), and the live-Rscript
+   cross-checks ``geolift_augsynth_ref`` (vs **live** augsynth) and
+   ``geolift_marketselection_ref`` (vs **live** ``GeoLiftMarketSelection``); plus
+   ``mlsynth/tests/test_geolift_walkthrough.py``.
 
 Why this is the replication target
 ----------------------------------
@@ -196,22 +197,52 @@ composite rank (the mean of three ``dense_rank``s over |MDE|, power, and
    with. The earlier *remove-and-reattach* approach manufactured low-correlation
    candidates (e.g. ``{chicago, las vegas}``) that GeoLift never forms, which then
    polluted the ranking (the composite ranks on MDE/power, not fit). Only the
-   stable top-five are pinned; the marginal rank-six design differs by augsynth's
-   own version-to-version scoring at the tail.
+   stable top-five are pinned (see the live cross-check below for why).
+
+Live cross-check vs GeoLiftMarketSelection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Beyond the published table, ``benchmarks/cases/geolift_marketselection_ref.py``
+(``geolift_marketselection_ref``) runs the *real* ``GeoLiftMarketSelection`` via
+``Rscript`` and compares its ``BestMarkets`` to mlsynth's pooled selection. On
+the top-five designs mlsynth matches live GeoLift exactly — same candidate sets,
+same rank, investment to the cent, same MDE. Crucially it also reproduces the
+*low-correlation* candidates live GeoLift forms (e.g.
+``{atlanta, chicago, cleveland, las vegas}``), which is what licenses the
+generate-then-filter fix: the two libraries now build the same candidate pool.
+
+The one design that differs is a single N=5 set
+(``{chicago, cincinnati, houston, nashville, san diego}``) at GeoLift's rank six.
+The cause is not selection but the power metric: with ``lookback_window = 1`` the
+power is a *single*-placement binary (detected or not at one flush window), and
+that design's flush-placement conformal p sits right at ``alpha`` — mlsynth gets
+``0.123``, GeoLift just under ``0.10`` — so it falls on opposite sides of the
+threshold, and (its only within-budget effect size being ``0.05``) mlsynth drops
+it while GeoLift keeps it. The design's *true* power at ``0.05`` is ~0.8 (with
+``lookback_window = 5`` the p-values are ``0.123, 0.061, 0.054, 0.016, 0.046``),
+so it is a known small-effect / single-placement power-methodology difference,
+not a candidate-generation discrepancy — and it sits below the stable top-five.
+
+Install the reference once with ``benchmarks/R/install_geolift.sh`` (it builds on
+``install_augsynth.sh`` and compiles the ``MarketMatching`` → ``CausalImpact`` →
+``bsts`` → ``Boom`` chain plus ``gsynth`` from GitHub's CRAN mirrors, every
+package pinned to a CRAN tag / commit, so no CRAN call is needed — the latest
+``Boom`` requires R ≥ 4.5, so the set is frozen to the last R-4.3-compatible
+release). The case skips itself when ``Rscript`` / ``GeoLift`` is absent, so it
+is a no-op in CI.
 
 Pinned in ``benchmarks/cases/geolift_marketselection.py``
-(``geolift_marketselection``); the per-design investment is also pinned
-independently by ``geolift_cpic``.
+(``geolift_marketselection``, vs the published table) and
+``geolift_marketselection_ref`` (vs the live run); the per-design investment is
+also pinned independently by ``geolift_cpic``.
 
 .. note::
 
    The walkthrough's *power curve* (``GeoLiftPower`` over an effect-size grid) is
    published only as a plot, with no numeric table, so it has no value-for-value
    target. The quantities that build it — each design's per-effect-size power and
-   MDE — are the same ones validated by ``geolift_walkthrough`` and
-   ``geolift_marketselection``; a live numeric cross-check would require the full
-   GeoLift R package (the ``MarketMatching`` → ``Boom`` chain), which is heavier
-   than the ``augsynth``-only reference used here.
+   MDE — are the same ones validated by ``geolift_walkthrough``,
+   ``geolift_marketselection``, and the live ``geolift_marketselection_ref``.
 
 What it took to match — the four ingredients
 --------------------------------------------

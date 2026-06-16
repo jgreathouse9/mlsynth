@@ -85,6 +85,7 @@ CASES = {
     "geolift_augsynth_ref": "benchmarks.cases.geolift_augsynth_ref",  # cross-val vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
     "geolift_cpic": "benchmarks.cases.geolift_cpic",  # cross-val vs GeoLiftMarketSelection: CPIC investment value-for-value
     "geolift_marketselection": "benchmarks.cases.geolift_marketselection",  # cross-val vs GeoLiftMarketSelection: pooled N=2-5 BestMarkets top-5 ranking (rank/investment/MDE/abs_lift_in_zero)
+    "geolift_marketselection_ref": "benchmarks.cases.geolift_marketselection_ref",  # cross-val vs LIVE GeoLiftMarketSelection (Rscript): BestMarkets top-5 (skips if absent)
     "geolift_multicell": "benchmarks.cases.geolift_multicell",  # cross-val vs augsynth: multi-cell per-cell ATT + donor exclusion
     "microsynth_seattle": "benchmarks.cases.microsynth_seattle",  # cross-val vs R microsynth panel method (Seattle DMI)
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
