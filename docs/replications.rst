@@ -66,6 +66,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/rescm
    replications/linf
    replications/geolift
+   replications/orthsc
    replications/rolldid
    replications/ppscm
    replications/snn

@@ -358,6 +358,8 @@ A reverse lookup: the symptom, and the method named for it.
      - :doc:`siv`
    * - Endogenous treatment, have proxies / negative controls
      - :doc:`proximal`
+   * - Honest CI / t-test for the ATT despite partially identified weights
+     - :doc:`orthsc`
    * - Parallel trends holds (fixed-T, large-N)
      - difference-in-differences (off-ramp); :doc:`sdid`, :doc:`fdid`
    * - Single treated unit, no complications
