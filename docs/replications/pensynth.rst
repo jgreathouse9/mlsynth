@@ -44,30 +44,32 @@ and compare across a regularisation path.
 Cross-validation — the Prop 99 path
 -----------------------------------
 
-The predictor matrix is the canonical Abadie-Diamond-Hainmueller (2010) Prop 99
-specification, built from mlsynth's vendored ``basedata/augmented_cali_long.csv``
-through :func:`mlsynth.utils.datautils.dataprep` and the same covariate-mean and
-unit-variance machinery :class:`~mlsynth.estimators.vanillasc.VanillaSC` uses — no
-hand-pivoting. California is the treated unit and the remaining 38 states are
-donors, matched on the authors' *original covariate averages* — ln(personal
-income), retail cigarette price and percent aged 15–24 over 1980–1988, beer
-consumption over 1984–1988 — plus cigarette sales in 1975, 1980 and 1988, each
-scaled to unit variance (:math:`\Gamma = I`). The same :math:`X_0`
-(:math:`7 \times 38`) and :math:`X_1` (:math:`7`) are sent to ``wsoll1`` and to
-``penalized_weights`` over the grid
-:math:`\lambda \in \{0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1\}`.
+The predictor matrix is the specification in the authors' own California example
+(``examples/EXA_CaliforniaTobacco.R``): the four MLAB covariate averages —
+ln(personal income), retail cigarette price and percent aged 15–24 over 1980–1988,
+beer consumption over 1984–1988 — stacked with the full pre-treatment
+cigarette-sales path 1970–1988, matched with :math:`V = I` (raw, no rescaling),
+exactly as that script builds :math:`X` and sets ``V = diag(ncol(X))``. It is
+constructed from mlsynth's vendored ``basedata/augmented_cali_long.csv`` through
+:func:`mlsynth.utils.datautils.dataprep` and the covariate-mean helper
+:class:`~mlsynth.estimators.vanillasc.VanillaSC` uses — no hand-pivoting.
+California is the treated unit and the remaining 38 states are donors. The same
+:math:`X_0` (:math:`23 \times 38`) and :math:`X_1` (:math:`23`) are sent to
+``wsoll1`` and to ``penalized_weights`` over the grid
+:math:`\lambda \in \{0.001, 0.01, 0.05, 0.1, 0.25\}` — the penalty path up to the
+nearest-neighbour collapse (beyond :math:`\lambda \approx 0.25` the solution jumps
+to a single donor, a discontinuity that is not a solver-parity test).
 
-At the clean grid points the two implementations agree to four or five decimals:
-at :math:`\lambda = 0.1` the synthetic California loads :math:`\approx 0.65` on
-Colorado, with a post-1989 ATT of :math:`-23.43` packs per capita that matches
-``wsoll1`` to :math:`6\times10^{-5}`. Across the whole path the largest donor-weight
-gap is :math:`\approx 5\times10^{-3}` and the largest ATT gap :math:`\approx
-4\times10^{-2}` packs, both at a single active-set transition where the reference's
-interior-point ``LowRankQP`` stops carrying a sub-1% residual donor weight while
-mlsynth's FISTA reaches the (marginally lower-objective) vertex — the reference
-solver's tolerance, not a methodological difference. As :math:`\lambda` grows the
-weights concentrate, reproducing the paper's penalty-driven interpolation toward
-nearest-neighbour matching.
+Across this path the two implementations agree to solver precision: the largest
+donor-weight difference is :math:`\approx 2\times10^{-4}` and the largest
+post-period ATT difference :math:`\approx 9\times10^{-4}` packs. At small
+:math:`\lambda` the penalized fit recovers the canonical
+Abadie-Diamond-Hainmueller donor pool — Utah, Nevada, Montana, Colorado and
+Connecticut — and at :math:`\lambda = 0.1` the synthetic California loads
+:math:`\approx 0.43` on Montana, with a post-1989 ATT of :math:`-23.3` packs per
+capita matched to :math:`\approx 4\times10^{-4}`. As :math:`\lambda` grows the
+weights concentrate toward the nearest neighbour, reproducing the penalty's
+interpolation property.
 
 Durable benchmark
 -----------------
