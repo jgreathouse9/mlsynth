@@ -28,6 +28,8 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
 - **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
+- **DesignComparison** — Result of :func:`compare_methods`.
+- **DesignSpec** — A design from any estimator, in the common cross-method currency.
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
 - **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
@@ -44,6 +46,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
 - **MicroSynth** — User-level balancing synthetic control estimator.  (config: MicroSynthConfig)
 - **NSC** — Nonlinear Synthetic Control (Tian 2023) estimator.  (config: NSCConfig)
+- **ORTHSC** — Orthogonalized Synthetic Control estimator.
 - **PANGEO** — Parallel-trends supergeo experimental design.  (config: PANGEOConfig)
 - **PDA** — Panel Data Approach estimator (l2 / LASSO / fs).  (config: PDAConfig)
 - **PPSCM** — Partially Pooled SCM estimator (augsynth::multisynth port).  (config: PPSCMConfig)
@@ -64,6 +67,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SSC** — Staggered Synthetic Control estimator.  (config: SSCConfig)
 - **SYNDES** — Synthetic Design (Doudchenko et al. 2021) estimator.  (config: SYNDESConfig)
 - **SYNDESPower** — Per-horizon MDE table for a fitted SYNDES design.
+- **SYNDESRecommendation** — Outcome of scoring a SYNDES pool.
 - **SequentialSDID** — Sequential Synthetic Difference-in-Differences estimator.  (config: SequentialSDIDConfig)
 - **SpSyDiD** — Spatial Synthetic Difference-in-Differences estimator.  (config: SpSyDiDConfig)
 - **SparseSC** — L1-penalized Sparse Synthetic Control estimator.  (config: SparseSCConfig)
