@@ -4,7 +4,8 @@ ORTHSC -- Fry's Orthogonalized Synthetic Control (carbon tax + Monte Carlo)
 ===========================================================================
 
 :Estimator: :doc:`../orthsc` -- :class:`mlsynth.ORTHSC`
-:Source: Fry, J. (2026). "Orthogonalized Synthetic Controls," with the author's
+:Source: Fry, J. (2026). "Orthogonalized Synthetic Controls"
+   (`arXiv:2510.22828 <https://arxiv.org/abs/2510.22828>`_), with the author's
    R reference (``JosephPatrickFry/OrthogonalizedSyntheticControl``).
 :Replication type: Path A (the paper's empirical result on Andersson's data)
    and Path B (the paper's size/power simulation), plus a live cross-check
