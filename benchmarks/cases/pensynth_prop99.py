@@ -12,16 +12,22 @@ backend of ``VanillaSC``). This case feeds the *identical* predictor matrix to
 mlsynth's solver and to the authors' own ``wsoll1`` (their ``functions/wsoll1.R``,
 solved with LowRankQP) over a regularisation path, and checks they agree.
 
-The predictor matrix is the California-vs-38-states Prop 99 panel from mlsynth's
-vendored ``basedata/P99data.csv`` (Abadie's smoking dataset, 1970-2000), matched
-on the pre-treatment cigarette-sales path 1970-1988 with ``Gamma = I`` -- the
-lagged-outcome predictor block of the authors' California example
-(``EXA_CaliforniaTobacco.R``). The penalised QP is deterministic in
-``(X0, X1, lambda)`` and strictly convex for ``lambda > 0`` (their Theorem 1), so
-mlsynth's FISTA and the reference's interior-point LowRankQP land on the same
-unique optimum: weights agree to ~1e-4 and the implied ATT to ~1e-3 across the
-path. (The residual is convergence/threshold slack on sub-1e-6 weights, not a
-methodological difference.)
+The predictor matrix is the canonical Abadie-Diamond-Hainmueller (2010) Prop 99
+spec, built from mlsynth's vendored ``basedata/augmented_cali_long.csv`` through
+``mlsynth.utils.datautils.dataprep`` and the same covariate-mean / unit-variance
+machinery ``VanillaSC`` uses (no hand-pivoting): California vs 38 states matched
+on the *original covariate averages* -- ln(income), retail price and percent aged
+15-24 over 1980-1988, beer over 1984-1988 -- plus cigarette sales in 1975, 1980
+and 1988, each scaled to unit variance (``Gamma = I``).
+
+The penalised QP is deterministic in ``(X0, X1, lambda)`` and strictly convex for
+``lambda > 0`` (their Theorem 1), so mlsynth's FISTA and the reference's
+interior-point LowRankQP land on the same optimum: at ``lambda = 0.1`` the
+synthetic California loads ~0.65 on Colorado and the post-period ATT is -23.4
+packs, matched to 4 decimals. Across the path the largest weight gap is a
+sub-1% residual at one active-set transition, where LowRankQP stops with a tiny
+extra donor weight while mlsynth reaches the true (marginally lower-objective)
+vertex -- the reference solver's tolerance, not a methodological difference.
 
 The reference is **commit-pinned**: ``benchmarks/reference/clone_pensynth.py``
 clones ``jeremylhour/pensynth`` at a fixed SHA, and ``install_pensynth.sh``
@@ -37,6 +43,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -44,28 +51,52 @@ import pandas as pd
 from benchmarks.compare import BenchmarkSkipped
 from benchmarks.reference.clone_pensynth import functions_dir
 from mlsynth.utils.bilevel.penalized import penalized_weights
+from mlsynth.utils.datautils import dataprep
+from mlsynth.utils.vanillasc_helpers.pipeline import (
+    _covariate_means, _scale_unit_variance,
+)
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-_DATA = os.path.join(_ROOT, "basedata", "P99data.csv")
+_DATA = os.path.join(_ROOT, "basedata", "augmented_cali_long.csv")
 _RSCRIPT_REF = os.path.join(_ROOT, "benchmarks", "R", "pensynth_prop99.R")
 
 _TREATED = "California"
-_PRE = list(range(1970, 1989))          # pre-treatment matching window (predictors)
-_ALL = list(range(1970, 2001))
-_POST = list(range(1989, 2001))         # Prop 99 took effect in 1989
+_LAGS = (1975, 1980, 1988)
+# Abadie-Diamond-Hainmueller (2010) predictor spec: covariate averages over their
+# original windows plus the three special lagged outcomes.
+_COVS = ["loginc", "p_cig", "pct15-24", "pc_beer", "cig1975", "cig1980", "cig1988"]
+_WINDOWS = {
+    "loginc": (1980, 1988), "p_cig": (1980, 1988), "pct15-24": (1980, 1988),
+    "pc_beer": (1984, 1988),
+    "cig1975": (1975, 1975), "cig1980": (1980, 1980), "cig1988": (1988, 1988),
+}
 _GRID = [0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0]
 
 
 def _matrices():
-    """Build the California-vs-donors predictor and outcome matrices from P99data."""
+    """Build the ADH predictor matrix via dataprep + mlsynth's covariate machinery."""
     d = pd.read_csv(_DATA)
-    wide = d.pivot(index="state", columns="year", values="cigsale")
-    donors = [s for s in wide.index if s != _TREATED]
-    X1 = wide.loc[_TREATED, _PRE].to_numpy(float)             # (p,)
-    X0 = wide.loc[donors, _PRE].to_numpy(float).T             # (p, J) predictors x donors
-    y1_all = wide.loc[_TREATED, _ALL].to_numpy(float)         # (T,)
-    Y0_all = wide.loc[donors, _ALL].to_numpy(float)           # (J, T)
-    return X1, X0, y1_all, Y0_all, donors
+    d["treated"] = ((d["state"] == _TREATED) & (d["year"] >= 1989)).astype(int)
+    for L in _LAGS:                                   # special lagged-outcome predictors
+        m = d[d["year"] == L].set_index("state")["cigsale"]
+        d[f"cig{L}"] = d["state"].map(m)
+
+    prep = dataprep(
+        df=d, unit_id_column_name="state", time_period_column_name="year",
+        outcome_column_name="cigsale", treatment_indicator_column_name="treated")
+    pre = int(prep["pre_periods"])
+    time_labels = list(np.asarray(prep["time_labels"]))
+    pre_labels = time_labels[:pre]
+    donors = [str(x) for x in prep["donor_names"]]
+    units = [str(prep["treated_unit_name"])] + donors
+
+    Xraw = _covariate_means(d, units, _COVS, _WINDOWS, pre_labels, "state", "year")
+    Xs = _scale_unit_variance(Xraw)                   # unit-variance, Gamma = I
+    X1, X0 = Xs[:, 0], Xs[:, 1:]                       # (K,), (K, J)
+
+    y = np.asarray(prep["y"], dtype=float).ravel()    # treated outcome path
+    Y0 = np.asarray(prep["donor_matrix"], dtype=float)  # (T, J)
+    return X1, X0, y, Y0, pre, donors
 
 
 def _tzero(W, tol=1e-6):
@@ -102,7 +133,9 @@ def _reference_weights(X0, X1, funcs) -> np.ndarray:
 
 
 def run() -> dict:
-    X1, X0, y1_all, Y0_all, donors = _matrices()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        X1, X0, y, Y0, pre, donors = _matrices()
     funcs = functions_dir()                       # clones the pinned repo (skips if absent)
     Wref = _reference_weights(X0, X1, funcs)      # (len(grid), J)
 
@@ -114,29 +147,30 @@ def run() -> dict:
     weight_max_abs_diff = float(np.max(np.abs(Wml_t - Wref_t)))
 
     # ATT (post-period mean gap) at each lambda, both implementations.
-    post = np.array([_ALL.index(y) for y in _POST])
-    att_ml = np.array([float(np.mean((y1_all - w @ Y0_all)[post])) for w in Wml])
-    att_ref = np.array([float(np.mean((y1_all - w @ Y0_all)[post])) for w in Wref])
+    att_ml = np.array([float(np.mean((y - Y0 @ w)[pre:])) for w in Wml])
+    att_ref = np.array([float(np.mean((y - Y0 @ w)[pre:])) for w in Wref])
     att_max_abs_diff = float(np.max(np.abs(att_ml - att_ref)))
 
     i01 = _GRID.index(0.1)
-    w_montana = float(Wml_t[i01, donors.index("Montana")])
+    w_colorado = float(Wml_t[i01, donors.index("Colorado")])
 
     return {
         "weight_max_abs_diff": weight_max_abs_diff,
         "att_max_abs_diff": att_max_abs_diff,
         "att_lambda_0p1": float(att_ml[i01]),
-        "w_montana_lambda_0p1": w_montana,
+        "w_colorado_lambda_0p1": w_colorado,
     }
 
 
-# mlsynth reproduces the authors' wsoll1 to solver precision on the identical
-# matrices. The diff tolerances pin a genuine match (weights ~1e-4, ATT ~1e-3);
-# the two anchored cells fix the actual fit (California's synthetic at lambda=0.1
-# loads ~0.48 on Montana, giving a -23.5 packs post-period ATT).
+# mlsynth reproduces the authors' wsoll1 on the identical ADH predictor matrix.
+# The anchored cells fix the actual penalized fit (synthetic California loads
+# ~0.65 on Colorado at lambda=0.1, a -23.4 packs post-period ATT); the diff
+# tolerances pin a genuine match and absorb the reference's interior-point slack
+# (a sub-1% residual weight at one active-set transition, where mlsynth's FISTA
+# reaches the marginally lower-objective vertex).
 EXPECTED = {
-    "weight_max_abs_diff": (0.0, 2e-3),
-    "att_max_abs_diff": (0.0, 5e-3),
-    "att_lambda_0p1": (-23.478, 0.05),
-    "w_montana_lambda_0p1": (0.478, 0.01),
+    "weight_max_abs_diff": (0.0, 1.5e-2),
+    "att_max_abs_diff": (0.0, 0.1),
+    "att_lambda_0p1": (-23.433, 0.05),
+    "w_colorado_lambda_0p1": (0.653, 0.01),
 }

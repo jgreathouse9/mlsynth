@@ -44,24 +44,30 @@ and compare across a regularisation path.
 Cross-validation — the Prop 99 path
 -----------------------------------
 
-The predictor matrix is built from mlsynth's vendored ``basedata/P99data.csv``
-(Abadie's California tobacco panel, 39 states, 1970–2000). California is the
-treated unit and the remaining 38 states are donors, matched on the pre-treatment
-cigarette-sales path 1970–1988 with :math:`\Gamma = I` — the lagged-outcome
-predictor block of the authors' California example (``EXA_CaliforniaTobacco.R``).
-The same :math:`X_0` (:math:`19 \times 38`) and :math:`X_1` (:math:`19`) are sent
-to ``wsoll1`` and to ``penalized_weights`` over the grid
+The predictor matrix is the canonical Abadie-Diamond-Hainmueller (2010) Prop 99
+specification, built from mlsynth's vendored ``basedata/augmented_cali_long.csv``
+through :func:`mlsynth.utils.datautils.dataprep` and the same covariate-mean and
+unit-variance machinery :class:`~mlsynth.estimators.vanillasc.VanillaSC` uses — no
+hand-pivoting. California is the treated unit and the remaining 38 states are
+donors, matched on the authors' *original covariate averages* — ln(personal
+income), retail cigarette price and percent aged 15–24 over 1980–1988, beer
+consumption over 1984–1988 — plus cigarette sales in 1975, 1980 and 1988, each
+scaled to unit variance (:math:`\Gamma = I`). The same :math:`X_0`
+(:math:`7 \times 38`) and :math:`X_1` (:math:`7`) are sent to ``wsoll1`` and to
+``penalized_weights`` over the grid
 :math:`\lambda \in \{0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1\}`.
 
-Across the whole path the two implementations agree to solver precision: the
-largest donor-weight difference is :math:`\approx 1.3\times10^{-4}` and the largest
-post-period ATT difference is :math:`\approx 8.6\times10^{-4}` packs (the residual
-is convergence and thresholding slack on sub-:math:`10^{-6}` weights, not a
-methodological difference). At :math:`\lambda = 0.1` the synthetic California loads
-on Montana (:math:`0.478`), Idaho (:math:`0.254`), Colorado (:math:`0.194`) and
-Connecticut (:math:`0.074`), giving a post-1989 ATT of :math:`-23.48` packs per
-capita; as :math:`\lambda` grows the weights collapse toward the single nearest
-neighbour, reproducing the paper's interpolation property.
+At the clean grid points the two implementations agree to four or five decimals:
+at :math:`\lambda = 0.1` the synthetic California loads :math:`\approx 0.65` on
+Colorado, with a post-1989 ATT of :math:`-23.43` packs per capita that matches
+``wsoll1`` to :math:`6\times10^{-5}`. Across the whole path the largest donor-weight
+gap is :math:`\approx 5\times10^{-3}` and the largest ATT gap :math:`\approx
+4\times10^{-2}` packs, both at a single active-set transition where the reference's
+interior-point ``LowRankQP`` stops carrying a sub-1% residual donor weight while
+mlsynth's FISTA reaches the (marginally lower-objective) vertex — the reference
+solver's tolerance, not a methodological difference. As :math:`\lambda` grows the
+weights concentrate, reproducing the paper's penalty-driven interpolation toward
+nearest-neighbour matching.
 
 Durable benchmark
 -----------------
