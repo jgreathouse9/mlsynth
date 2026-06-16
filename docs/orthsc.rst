@@ -142,11 +142,12 @@ with :math:`\lambda` itself the smallest achievable slack (an LP), inflated by
 a :math:`\log` factor in the sample size and dimensions.
 
 Step 2: Neyman orthogonalization. Choose moment weights
-:math:`\boldsymbol{\eta}` (normalized so the post-moment entry is one) that
-annihilate the derivative of the combined moment with respect to
-:math:`\mathbf{w}`, i.e. :math:`\partial_{\mathbf{w}}\,
-\boldsymbol{\eta}^\top \mathbf{g} = \mathbf{0}`. The ATT is then read off the
-orthogonalized moment,
+:math:`\boldsymbol{\eta}` (normalized so the post-moment entry is one) that make
+the combined moment insensitive to the control weights to first order -- that
+is, its derivative with respect to :math:`\mathbf{w}` vanishes,
+:math:`\partial_{\mathbf{w}}\,\boldsymbol{\eta}^\top \mathbf{g} = \mathbf{0}`.
+Intuitively, a small error in the estimated weights then does not move the
+equation we solve for the ATT. The ATT is read off the orthogonalized moment,
 
 .. math::
 
@@ -354,6 +355,12 @@ small convex solves, so it takes ~30s):
 
 See :doc:`replications/orthsc` for the live-R cross-check and the demonstrate-
 first port story.
+
+References
+----------
+
+.. [ORTHSC] Fry, J. (2026). Orthogonalized Synthetic Controls. arXiv:2510.22828.
+   https://arxiv.org/abs/2510.22828
 
 Core API
 --------
