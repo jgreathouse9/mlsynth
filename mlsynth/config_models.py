@@ -564,6 +564,7 @@ _RELOCATED_CONFIGS = {
     "RESCMConfig": "mlsynth.utils.laxscm_helpers.config",
     "SYNDESConfig": "mlsynth.utils.syndes_helpers.config",
     "SIVConfig": "mlsynth.utils.siv_helpers.config",
+    "OrthSCConfig": "mlsynth.utils.orthsc_helpers.config",
     "MAREXConfig": "mlsynth.utils.marex_helpers.config",
     "RMSIConfig": "mlsynth.utils.rmsi_helpers.config",
     "SPOTSYNTHConfig": "mlsynth.utils.spotsynth_helpers.config",

@@ -29,17 +29,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
-from mlsynth.utils.osc_helpers.serieshac import (
+from mlsynth.exceptions import (
+    MlsynthConfigError,
+    MlsynthDataError,
+    MlsynthEstimationError,
+)
+from mlsynth.utils.orthsc_helpers.serieshac import (
     orthonormal_basis,
     series_hac_variance,
     cpe_optimal_h,
     ttest_pvalue,
     ttest_ci,
 )
-from mlsynth.utils.osc_helpers.regularized import estimate_delta, estimate_eta
-from mlsynth.utils.osc_helpers.orthogonal import orthogonalized_att
-from mlsynth.utils.osc_helpers.pipeline import orthogonalized_sce
+from mlsynth.utils.orthsc_helpers.regularized import estimate_delta, estimate_eta
+from mlsynth.utils.orthsc_helpers.orthogonal import orthogonalized_att
+from mlsynth.utils.orthsc_helpers.pipeline import orthogonalized_sce
 
 
 # ---------------------------------------------------------------- fixtures ----
@@ -216,3 +220,106 @@ class TestFailures:
         d = exact_sc_panel()
         with pytest.raises((MlsynthEstimationError, MlsynthConfigError)):
             estimate_delta(d["pre_y0"], d["pre_yj"], d["Z"][:0])    # no instruments
+
+
+# ============================ Estimator layer (ORTHSC) ========================
+
+from mlsynth import ORTHSC
+from mlsynth.config_models import BaseEstimatorResults, OrthSCConfig
+
+
+def _long_from_wide(wide, treated, treat_start):
+    """Wide (year x country) -> long df with a treat indicator (treated post)."""
+    rows = []
+    for c in wide.columns:
+        for yr in wide.index:
+            rows.append({"country": c, "year": int(yr), "Y": float(wide.loc[yr, c]),
+                         "treat": int(c == treated and yr >= treat_start)})
+    return pd.DataFrame(rows)
+
+
+def carbontax_long():
+    df = pd.read_stata(os.path.abspath(_DATA))
+    wide = df.pivot(index="year", columns="country", values="CO2_transport_capita")
+    return _long_from_wide(wide, "Sweden", 1990)
+
+
+def synthetic_long(J=6, T0=20, T1=8, tau=-0.4, seed=5):
+    d = exact_sc_panel(J=J, T0=T0, T1=T1, tau=tau, seed=seed)
+    T = T0 + T1
+    years = np.arange(T)
+    cols = {}
+    cols["treated"] = np.concatenate([d["pre_y0"], d["post_y0"]])
+    for j in range(J):
+        cols[f"c{j}"] = np.concatenate([d["pre_yj"][j], d["post_yj"][j]])
+    for q in range(d["Z"].shape[0]):
+        zfull = np.concatenate([d["Z"][q], d["post_yj"][0] * 0 + d["Z"][q].mean()])
+        cols[f"z{q}"] = zfull
+    wide = pd.DataFrame(cols, index=pd.Index(years, name="year"))
+    long = _long_from_wide(wide, "treated", T0)
+    instrs = [f"z{q}" for q in range(d["Z"].shape[0])]
+    controls = [f"c{j}" for j in range(J)]
+    return long, controls, instrs, d["tau"]
+
+
+class TestOrthSCConfig:
+    def test_requires_instruments(self):
+        long, controls, instrs, _ = synthetic_long()
+        with pytest.raises((MlsynthConfigError, Exception)):
+            OrthSCConfig(df=long, outcome="Y", treat="treat", unitid="country",
+                        time="year")              # no instruments
+
+    def test_instruments_controls_disjoint(self):
+        long, controls, instrs, _ = synthetic_long()
+        with pytest.raises((MlsynthConfigError, Exception)):
+            OrthSCConfig(df=long, outcome="Y", treat="treat", unitid="country",
+                        time="year", instruments=instrs,
+                        controls=controls + instrs[:1])   # overlap
+
+
+class TestOrthSCEstimator:
+    def test_fit_smoke_returns_effectresult(self):
+        long, controls, instrs, tau = synthetic_long()
+        res = ORTHSC({"df": long, "outcome": "Y", "treat": "treat",
+                      "unitid": "country", "time": "year",
+                      "instruments": instrs, "controls": controls,
+                      "display_graphs": False}).fit()
+        assert isinstance(res, BaseEstimatorResults)
+        assert np.isfinite(res.att)
+        assert res.att == pytest.approx(tau, abs=0.1)
+        assert res.weights.donor_weights is not None
+
+    def test_fit_matches_R_on_carbontax(self):
+        long = carbontax_long()
+        res = ORTHSC({"df": long, "outcome": "Y", "treat": "treat",
+                      "unitid": "country", "time": "year",
+                      "instruments": _INSTRS, "controls": _CONTROLS,
+                      "display_graphs": False}).fit()
+        assert res.att == pytest.approx(-0.29013, abs=0.01)
+        assert res.inference.p_value < 0.001
+        assert int(res.method_details.parameters_used["smoothing_K"]) == 4
+
+    def test_bad_instrument_name_raises(self):
+        long, controls, instrs, _ = synthetic_long()
+        with pytest.raises((MlsynthConfigError, MlsynthDataError, MlsynthEstimationError)):
+            ORTHSC({"df": long, "outcome": "Y", "treat": "treat",
+                    "unitid": "country", "time": "year",
+                    "instruments": ["not_a_unit"], "controls": controls,
+                    "display_graphs": False}).fit()
+
+
+class TestOrthSCResultContract:
+    def test_two_family_result_contract(self):
+        long, controls, instrs, _ = synthetic_long()
+        res = ORTHSC({"df": long, "outcome": "Y", "treat": "treat",
+                      "unitid": "country", "time": "year",
+                      "instruments": instrs, "controls": controls,
+                      "display_graphs": False}).fit()
+        assert isinstance(res, BaseEstimatorResults)
+        assert res.effects is not None and res.time_series is not None
+        assert res.inference is not None and res.weights is not None
+        # flat accessors resolve
+        assert res.att == res.effects.att
+        lo, hi = res.att_ci
+        assert lo <= res.att <= hi
+        assert res.counterfactual is not None and res.gap is not None
