@@ -6,6 +6,17 @@ from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, model_validator
+
+from ...config_models import (
+    BaseEstimatorResults,
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 
 
 @dataclass(frozen=True)
@@ -115,35 +126,62 @@ class DSCARFit:
     v_diagonal: Optional[np.ndarray] = None
 
 
-@dataclass(frozen=True)
-class DSCARResults:
-    """Top-level DSC result container."""
+class DSCARResults(BaseEstimatorResults):
+    """Top-level DSC result container.
+
+    An :class:`~mlsynth.config_models.EffectResult`: it derives the standardized
+    sub-models (``effects``/``time_series``/``weights``/``inference``) from the
+    ``fit`` so the flat accessors ``att`` / ``counterfactual`` / ``gap`` /
+    ``pre_rmse`` resolve through the base contract. DSCAR's weights are
+    time-varying (a ``(T, J)`` matrix); they live in ``weights.unit_weights`` and
+    are also exposed via the ``weight_matrix`` accessor (the field was named
+    ``weights`` before the result-contract migration).
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: DSCARInputs
     fit: DSCARFit
     method: str = "dsc"
 
-    # ---- Convenience accessors -----------------------------------------
-    @property
-    def att(self) -> float:
-        return self.fit.att
-
+    # ---- Convenience accessors (non-colliding; att/gap/counterfactual now
+    # resolve through the base contract via the populated sub-models) ----------
     @property
     def att_relative(self) -> float:
         return self.fit.att_relative
 
     @property
-    def gap(self) -> np.ndarray:
-        return self.fit.gap
-
-    @property
-    def counterfactual(self) -> np.ndarray:
-        return self.fit.Y0_hat
-
-    @property
-    def weights(self) -> np.ndarray:
-        return self.fit.weights
-
-    @property
     def se(self) -> Optional[float]:
         return self.fit.se
+
+    @property
+    def weight_matrix(self) -> np.ndarray:
+        """The time-varying ``(T, J)`` donor-weight matrix (legacy ``weights``)."""
+        return self.fit.weights
+
+    @model_validator(mode="after")
+    def _populate_contract(self) -> "DSCARResults":
+        if self.effects is not None:           # already populated (e.g. round-trip)
+            return self
+        times = np.asarray(self.inputs.time_labels)
+        fit = self.fit
+        set_ = lambda k, v: object.__setattr__(self, k, v)  # noqa: E731 (frozen)
+        set_("effects", EffectsResults(
+            att=float(fit.att),
+            att_percent=float(fit.att_relative) * 100.0,
+            att_std_err=(None if fit.se is None else float(fit.se)),
+        ))
+        set_("time_series", TimeSeriesResults(
+            observed_outcome=np.asarray(fit.Y_treated_mean, dtype=float),
+            counterfactual_outcome=np.asarray(fit.Y0_hat, dtype=float),
+            estimated_gap=np.asarray(fit.gap, dtype=float),
+            time_periods=times,
+        ))
+        set_("weights", WeightsResults(unit_weights=np.asarray(fit.weights, dtype=float)))
+        if fit.se is not None:
+            set_("inference", InferenceResults(
+                standard_error=float(fit.se),
+                method="DSCAR asymptotic standard error"))
+        set_("fit_diagnostics", FitDiagnosticsResults())
+        set_("method_details", MethodDetailsResults(method_name=f"DSCAR[{self.method}]"))
+        return self
