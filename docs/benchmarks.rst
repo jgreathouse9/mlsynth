@@ -195,6 +195,8 @@ Cross-validation against reference implementations
      - vs authors' repo
    * - ``geolift_augsynth_ref``
      - vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
+   * - ``pensynth_prop99``
+     - vs LIVE pensynth wsoll1 (Rscript+LowRankQP): penalized SC weights/ATT on Prop 99 (skips if absent)
    * - ``geolift_cpic``
      - vs GeoLiftMarketSelection: CPIC investment value-for-value
    * - ``geolift_multicell``

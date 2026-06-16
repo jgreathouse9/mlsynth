@@ -192,7 +192,9 @@ The covariate path exposes three reliable solvers via ``backend=``:
 ``"penalized"``
     Abadie & L'Hour (2021): a pairwise-penalized estimator with
     leave-one-out :math:`\lambda` selection, giving a unique, sparse
-    :math:`\mathbf{w}`. Works with or without covariates.
+    :math:`\mathbf{w}`. Works with or without covariates. The solver is
+    cross-validated against the authors' own ``wsoll1`` (durable case
+    ``pensynth_prop99``); see :doc:`replications/pensynth`.
 
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
