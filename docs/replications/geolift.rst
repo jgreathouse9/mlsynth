@@ -17,9 +17,10 @@ GEOLIFT — Meta's GeoLift walkthrough (augsynth cross-validation)
    p-value, L2 imbalance, scaled L2, percent improvement, bias removed, and the
    donor weights.
 :Durable check: ``benchmarks/cases/geolift.py`` (``geolift_walkthrough``, vs the
-   published vignette) and ``benchmarks/cases/geolift_augsynth_ref.py``
-   (``geolift_augsynth_ref``, vs **live** augsynth via Rscript); plus
-   ``mlsynth/tests/test_geolift_walkthrough.py``.
+   published vignette), ``benchmarks/cases/geolift_marketselection.py``
+   (``geolift_marketselection``, vs the BestMarkets ranking), and
+   ``benchmarks/cases/geolift_augsynth_ref.py`` (``geolift_augsynth_ref``, vs
+   **live** augsynth via Rscript); plus ``mlsynth/tests/test_geolift_walkthrough.py``.
 
 Why this is the replication target
 ----------------------------------
@@ -152,6 +153,65 @@ This is what licenses the strong claim above: ``mlsynth``'s ridge ASCM, its CV
 λ-selection (the 1-SE rule), and its fixed-effect conformal refit are not merely
 *close* to augsynth — they are the **same computation**, to ~7–11 significant
 figures.
+
+Market selection (the BestMarkets ranking)
+------------------------------------------
+
+The walkthrough's other half is the *search* for a test region, run on the
+90-period pre-test panel:
+
+.. code-block:: r
+
+   GeoLiftMarketSelection(data = GeoTestData_PreTest, treatment_periods = c(10, 15),
+       N = c(2, 3, 4, 5), effect_size = seq(0, 0.2, 0.05), include_markets = "chicago",
+       exclude_markets = "honolulu", cpic = 7.50, budget = 1e5, fixed_effects = TRUE,
+       side_of_test = "two_sided")
+
+GeoLift prints a ranked ``BestMarkets`` table; its top five designs are reproduced
+by ``mlsynth`` value-for-value — rank, CPIC investment (exact to the cent), MDE,
+and ``abs_lift_in_zero``:
+
+===========================================  ===  ====  =============  ====
+Design (chicago forced in)                   dur  rank  investment     |MDE
+===========================================  ===  ====  =============  ====
+chicago, portland                            15   1     ``$64,563.75``  0.10
+chicago, cincinnati, houston, portland       15   1     ``$74,118.38``  0.05
+chicago, portland                            10   3     ``$43,646.25``  0.10
+chicago, cincinnati, houston, portland       10   3     ``$99,027.75``  0.10
+chicago, houston, portland                   10   5     ``$75,389.25``  0.10
+===========================================  ===  ====  =============  ====
+
+``mlsynth``'s ``GEOLIFT`` design takes one ``treatment_size``, so the case runs it
+for ``N = 2, 3, 4, 5`` and pools the per-design MDE rows, then applies GeoLift's
+composite rank (the mean of three ``dense_rank``s over |MDE|, power, and
+``abs_lift_in_zero``, ties = ``min``) across the pool — exactly how
+``GeoLiftMarketSelection`` ranks its single results table.
+
+.. note::
+
+   Matching this top-five required fixing ``include_markets`` handling to GeoLift's
+   *generate-then-filter* semantics (``pre_test_power.R``): candidates are
+   generated ignoring the forced markets, then kept only if they already contain
+   them, so a forced market is never welded onto an anchor it is uncorrelated
+   with. The earlier *remove-and-reattach* approach manufactured low-correlation
+   candidates (e.g. ``{chicago, las vegas}``) that GeoLift never forms, which then
+   polluted the ranking (the composite ranks on MDE/power, not fit). Only the
+   stable top-five are pinned; the marginal rank-six design differs by augsynth's
+   own version-to-version scoring at the tail.
+
+Pinned in ``benchmarks/cases/geolift_marketselection.py``
+(``geolift_marketselection``); the per-design investment is also pinned
+independently by ``geolift_cpic``.
+
+.. note::
+
+   The walkthrough's *power curve* (``GeoLiftPower`` over an effect-size grid) is
+   published only as a plot, with no numeric table, so it has no value-for-value
+   target. The quantities that build it — each design's per-effect-size power and
+   MDE — are the same ones validated by ``geolift_walkthrough`` and
+   ``geolift_marketselection``; a live numeric cross-check would require the full
+   GeoLift R package (the ``MarketMatching`` → ``Boom`` chain), which is heavier
+   than the ``augsynth``-only reference used here.
 
 What it took to match — the four ingredients
 --------------------------------------------
