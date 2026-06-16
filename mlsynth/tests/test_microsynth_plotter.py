@@ -77,9 +77,9 @@ def _make_results(*, t_post: int) -> MicroSynthResults:
     )
     gap_traj = np.atleast_1d(gap).astype(float)
     return MicroSynthResults(
-        inputs=inputs, design=design, inference=inference,
-        counterfactual=cf, gap=gap, gap_trajectory=gap_traj,
-        att=float(gap_traj.mean()), donor_weights={"c0": 1.0 / n_C},
+        inputs=inputs, design=design, inference_detail=inference,
+        counterfactual_post=cf, gap_post=gap, gap_trajectory=gap_traj,
+        att_value=float(gap_traj.mean()), donor_weights_map={"c0": 1.0 / n_C},
     )
 
 
