@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read     # dorny/paths-filter reads the PR's changed files
 
 # Cancel superseded runs on the same ref instead of piling up.
 concurrency:
@@ -30,9 +31,26 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25     # a hung suite shouldn't burn a full-length runner slot
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # Decide whether this change can affect the test suite. Docs-only and
+      # benchmarks-only PRs skip the (slow) run -- the job still completes, so a
+      # required "build" check stays satisfiable. Workflow_dispatch always runs.
+      - name: Detect code changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'mlsynth/**'
+              - 'requirements.txt'
+              - 'setup.py'
+              - 'pyproject.toml'
+              - '.github/workflows/build.yml'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,7 +68,11 @@ jobs:
         run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
 
       # A failing test FAILS the job (no continue-on-error). Parallel via -n auto.
+      # Runs on dispatch always; on a PR only when code (not just docs/benchmarks)
+      # changed. Coverage is produced out-of-band by coverage-badge.yml, so the
+      # gate runs pass/fail only -- no --cov overhead here.
       - name: Run tests
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: |
           # PRs run the full suite; dispatch honors the input target.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -63,11 +85,7 @@ jobs:
           if [ "$TARGET" = "smoke" ]; then
             pytest -n auto -k "smoke" --tb=short
           elif [ "$TARGET" = "all" ]; then
-            pytest -n auto \
-                   --cov=mlsynth \
-                   --cov-report=xml \
-                   --cov-report=term-missing \
-                   --tb=short
+            pytest -n auto --tb=short
           else
             MATCH=$(find . -name "$TARGET" | head -n 1)
             if [ -z "$MATCH" ]; then
