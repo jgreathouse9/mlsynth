@@ -54,6 +54,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/tssc
    replications/vanillasc
    replications/ascm_kansas
+   replications/pensynth
    replications/sparse_sc
    replications/nsc
    replications/sdid
