@@ -226,6 +226,7 @@ headline numbers.
    :caption: Observational: endogenous treatment
 
    siv
+   orthsc
    proximal
 
 .. toctree::

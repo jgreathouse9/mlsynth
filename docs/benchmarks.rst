@@ -165,6 +165,10 @@ Path B — Monte Carlo / simulation
      - SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
    * - ``siv_syria_mc``
      - SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
+   * - ``orthsc_carbontax``
+     - ORTHSC carbon-tax ATT/p/K/CI (Fry; Andersson 2019 data, vs live R)
+   * - ``orthsc_size_power``
+     - ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
    * - ``spillsynth_sar_mc``
      - SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
    * - ``spsc_ifem_mc``
