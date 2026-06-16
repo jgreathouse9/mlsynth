@@ -952,6 +952,43 @@ the corrected per-anchor RNG) available as an opt-in, tested swap.
    Conformal Inference Method for Counterfactual and Synthetic Controls.
    *Journal of the American Statistical Association*.
 
+Comparing GeoLift and SYNDES designs on one plane
+-------------------------------------------------
+
+When the same panel could be analysed either with a GeoLift-style design or with
+SYNDES (:doc:`syndes`), :func:`mlsynth.compare_methods` scores every candidate
+design from both methods on one shared fit-versus-power plane, so the choice
+between them is apples-to-apples rather than two different power methodologies.
+Each design reduces to a unit-level contrast over the panel; from that contrast
+follow two comparable numbers -- the pre-period fit RMSE and a simulated minimum
+detectable effect (MDE) at a common horizon -- computed by the same harness for
+both methods.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import compare_methods
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/"
+          "basedata/geolift_market_data.csv")          # 40 markets x 90 periods
+   df = pd.read_csv(url)
+
+   cmp = compare_methods(
+       df, outcome="Y", unitid="location", time="date",
+       treated_size=2, n_post=15,
+       syndes_options={"time_limit": 5.0},              # cap the SYNDES MIP
+   )
+   print(cmp.table)        # columns: method, label, treated, fit_rmse, mde_pct, pareto
+   cmp.plot()              # overlaid per-method Pareto frontiers
+
+``cmp.table`` is one row per candidate design (GeoLift's anchored neighbourhoods
+and SYNDES's pool), with ``fit_rmse`` (lower is a tighter pre-period fit),
+``mde_pct`` (lower is more powerful), and a ``pareto`` flag marking the designs
+on the joint frontier. ``cmp.plot()`` overlays the two methods' frontiers; a
+design from one method that sits below and to the left of the other's frontier
+dominates it on both fit and power. The SYNDES side of the comparison is
+documented in full on the :doc:`syndes` page.
+
 Core API
 --------
 
