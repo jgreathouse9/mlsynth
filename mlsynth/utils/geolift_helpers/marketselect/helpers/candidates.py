@@ -177,44 +177,52 @@ def generate_candidate_markets(
             stochastic_mode=stochastic_mode, rng=rng,
         )
 
-    # Forced-in units join every candidate; the remaining "free" slots are
-    # generated from the pool with both forced-in and forced-out units removed.
-    free_size = n - len(forced_in)
-    if free_size == 0:
+    # Forced-in units fully specify the test set: use it directly.
+    if forced_in and len(forced_in) == n:
         return [frozenset(forced_in)]
 
-    excluded = forced_in | forced_out
-    free_pool = [u for u in ranked.index if u not in excluded]
-    if free_size > len(free_pool):
+    # GeoLift's generate-then-filter (``pre_test_power.R``): generate candidates
+    # from the full ranked table with only the *forbidden* (``not_to_be_treated``)
+    # units removed -- those stay donors -- then keep the candidates that already
+    # contain every forced-in (``include``) unit. GeoLift runs
+    # ``stochastic_market_selector`` ignoring ``include_markets`` and filters the
+    # result afterwards, so a forced unit is never welded onto an anchor it is
+    # uncorrelated with: only correlation-natural sets survive. (Re-attaching the
+    # forced unit to every anchor's neighbourhood -- the previous approach --
+    # manufactured low-correlation candidates GeoLift never forms.)
+    pool = [u for u in ranked.index if u not in forced_out]
+    if n > len(pool):
         raise MlsynthConfigError(
-            f"free pool ({len(free_pool)}) too small for {free_size} free "
-            f"market(s) (treatment_size {n} minus {len(forced_in)} forced-in)."
+            f"free pool ({len(pool)}) too small for {n} market(s) "
+            f"(treatment_size {n} after removing "
+            f"{len(forced_out)} not_to_be_treated)."
         )
 
-    # Restrict each anchor's neighbour list to the free pool (uniform length,
-    # since every unit appears in every original row), then generate + re-attach
-    # the forced-in units.
-    free_pool_set = set(free_pool)
+    # Restrict each anchor's neighbour list to the pool (uniform length, since
+    # every unit appears in every original row).
+    pool_set = set(pool)
     rows = [
         [neighbor for neighbor in ranked.loc[anchor].tolist()
-         if neighbor in free_pool_set]
-        for anchor in free_pool
+         if neighbor in pool_set]
+        for anchor in pool
     ]
     filtered_ranked = pd.DataFrame(
-        rows, index=pd.Index(free_pool, name=ranked.index.name)
+        rows, index=pd.Index(pool, name=ranked.index.name)
     )
     filtered_ranked.columns = range(1, filtered_ranked.shape[1] + 1)
 
-    free_candidates = _generate_from_ranked(
-        filtered_ranked, free_size, run_stochastic=run_stochastic,
+    generated = _generate_from_ranked(
+        filtered_ranked, n, run_stochastic=run_stochastic,
         stochastic_mode=stochastic_mode, rng=rng,
     )
+    if not forced_in:                       # only not_to_be_treated given
+        return generated
 
-    seen: set = set()
-    out: List[frozenset] = []
-    for free in free_candidates:
-        candidate = forced_in | free
-        if candidate not in seen:
-            seen.add(candidate)
-            out.append(candidate)
-    return out
+    kept = [c for c in generated if forced_in <= c]
+    if not kept:
+        raise MlsynthConfigError(
+            "no correlation-natural candidate contains all to_be_treated units "
+            f"{sorted(map(str, forced_in))} at treatment_size {n}; increase "
+            "treatment_size or reduce to_be_treated."
+        )
+    return kept
