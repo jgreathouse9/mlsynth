@@ -44,32 +44,31 @@ and compare across a regularisation path.
 Cross-validation — the Prop 99 path
 -----------------------------------
 
-The predictor matrix is the specification in the authors' own California example
-(``examples/EXA_CaliforniaTobacco.R``): the four MLAB covariate averages —
-ln(personal income), retail cigarette price and percent aged 15–24 over 1980–1988,
-beer consumption over 1984–1988 — stacked with the full pre-treatment
-cigarette-sales path 1970–1988, matched with :math:`V = I` (raw, no rescaling),
-exactly as that script builds :math:`X` and sets ``V = diag(ncol(X))``. It is
+The predictor matrix is the canonical Abadie-Diamond-Hainmueller (2010) MLAB
+vector: the four covariate averages — ln(personal income), retail cigarette price
+and percent aged 15–24 over 1980–1988, beer consumption over 1984–1988 — plus the
+three special lagged outcomes, cigarette sales in 1975, 1980 and 1988, matched
+with :math:`V = I` (raw, no rescaling), the ``V = diag(ncol(X))`` convention of the
+authors' California example (``examples/EXA_CaliforniaTobacco.R``). It is
 constructed from mlsynth's vendored ``basedata/augmented_cali_long.csv`` through
 :func:`mlsynth.utils.datautils.dataprep` and the covariate-mean helper
 :class:`~mlsynth.estimators.vanillasc.VanillaSC` uses — no hand-pivoting.
 California is the treated unit and the remaining 38 states are donors. The same
-:math:`X_0` (:math:`23 \times 38`) and :math:`X_1` (:math:`23`) are sent to
+:math:`X_0` (:math:`7 \times 38`) and :math:`X_1` (:math:`7`) are sent to
 ``wsoll1`` and to ``penalized_weights`` over the grid
-:math:`\lambda \in \{0.001, 0.01, 0.05, 0.1, 0.25\}` — the penalty path up to the
-nearest-neighbour collapse (beyond :math:`\lambda \approx 0.25` the solution jumps
-to a single donor, a discontinuity that is not a solver-parity test).
+:math:`\lambda \in \{0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1\}`.
 
-Across this path the two implementations agree to solver precision: the largest
-donor-weight difference is :math:`\approx 2\times10^{-4}` and the largest
-post-period ATT difference :math:`\approx 9\times10^{-4}` packs. At small
-:math:`\lambda` the penalized fit recovers the canonical
-Abadie-Diamond-Hainmueller donor pool — Utah, Nevada, Montana, Colorado and
-Connecticut — and at :math:`\lambda = 0.1` the synthetic California loads
-:math:`\approx 0.43` on Montana, with a post-1989 ATT of :math:`-23.3` packs per
-capita matched to :math:`\approx 4\times10^{-4}`. As :math:`\lambda` grows the
-weights concentrate toward the nearest neighbour, reproducing the penalty's
-interpolation property.
+Across the whole path the two implementations agree to solver precision: the
+largest donor-weight difference is :math:`\approx 3\times10^{-4}` and the largest
+post-period ATT difference :math:`\approx 2\times10^{-3}` packs. At
+:math:`\lambda = 0.1` the synthetic California loads :math:`\approx 0.54` on Idaho,
+with a post-1989 ATT of :math:`-23.4` packs per capita matched to
+:math:`\approx 4\times10^{-4}`. With :math:`V = I` (no nested :math:`V`
+optimisation) the penalized fit is Idaho-led rather than ADH's published
+Utah/Nevada pool — expected, since here the penalty, not a fitted :math:`V`,
+resolves the donor weights. As :math:`\lambda` grows the weights concentrate
+toward the nearest neighbour (Montana), reproducing the penalty's interpolation
+property.
 
 Durable benchmark
 -----------------

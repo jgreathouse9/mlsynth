@@ -12,25 +12,25 @@ backend of ``VanillaSC``). This case feeds the *identical* predictor matrix to
 mlsynth's solver and to the authors' own ``wsoll1`` (their ``functions/wsoll1.R``,
 solved with LowRankQP) over a regularisation path, and checks they agree.
 
-The predictor matrix is the specification in the authors' own California example
-(``examples/EXA_CaliforniaTobacco.R`` in ``jeremylhour/pensynth``): the four MLAB
-covariate averages -- income, retail price, percent aged 15-24 and beer
-consumption -- stacked with the full pre-treatment cigarette-sales path
-1970-1988, matched with ``V = I`` (raw, no rescaling), exactly as that script
-builds ``X`` and sets ``V = diag(ncol(X))``. It is constructed from mlsynth's
-vendored ``basedata/augmented_cali_long.csv`` through
+The predictor matrix is the canonical Abadie-Diamond-Hainmueller (2010) MLAB
+vector -- the four covariate averages (income, retail price, percent aged 15-24
+and beer consumption, over their original windows) plus the three special lagged
+outcomes, cigarette sales in 1975, 1980 and 1988 -- matched with ``V = I`` (raw,
+no rescaling), the ``V = diag(ncol(X))`` convention of the authors' California
+example (``examples/EXA_CaliforniaTobacco.R`` in ``jeremylhour/pensynth``). It is
+constructed from mlsynth's vendored ``basedata/augmented_cali_long.csv`` through
 :func:`mlsynth.utils.datautils.dataprep` and the covariate-mean helper
 ``VanillaSC`` uses -- no hand-pivoting. California is the treated unit and the
 remaining 38 states are the donors.
 
 The penalised QP is deterministic in ``(X0, X1, lambda)`` and strictly convex for
-``lambda > 0`` (their Theorem 1). Over the penalty path before the nearest-
-neighbour collapse (``lambda`` up to 0.25) mlsynth's FISTA and the reference's
-interior-point LowRankQP land on the same optimum: weights agree to ~2e-4 and the
-post-period ATT to ~1e-3 packs. At small ``lambda`` the fit recovers the canonical
-Abadie-Diamond-Hainmueller donor pool (Utah, Nevada, Montana, Colorado,
-Connecticut); as ``lambda`` grows the weights concentrate toward the nearest
-neighbour (Montana), reproducing the penalty's interpolation property.
+``lambda > 0`` (their Theorem 1), so mlsynth's FISTA and the reference's
+interior-point LowRankQP land on the same optimum across the whole path: weights
+agree to ~3e-4 and the post-period ATT to ~2e-3 packs. With ``V = I`` (no nested
+``V`` optimisation) the penalized fit is Idaho-led rather than ADH's Utah/Nevada
+pool -- expected, since the penalty, not a fitted ``V``, resolves the weights;
+as ``lambda`` grows they concentrate toward the nearest neighbour (Montana),
+reproducing the penalty's interpolation property.
 
 The reference is **commit-pinned**: ``benchmarks/reference/clone_pensynth.py``
 clones ``jeremylhour/pensynth`` at a fixed SHA, and ``install_pensynth.sh``
@@ -62,22 +62,25 @@ _DATA = os.path.join(_ROOT, "basedata", "augmented_cali_long.csv")
 _RSCRIPT_REF = os.path.join(_ROOT, "benchmarks", "R", "pensynth_prop99.R")
 
 _TREATED = "California"
-# EXA_CaliforniaTobacco.R predictors: four MLAB covariate averages over their
-# original windows + the full pre-treatment outcome path; V = diag (raw, no scaling).
-_COVS = ["loginc", "p_cig", "pct15-24", "pc_beer"]
+_LAGS = (1975, 1980, 1988)
+# Abadie-Diamond-Hainmueller (2010) MLAB predictors: four covariate averages over
+# their original windows + three special lagged outcomes; V = diag (raw, no scaling).
+_COVS = ["loginc", "p_cig", "pct15-24", "pc_beer", "cig1975", "cig1980", "cig1988"]
 _WINDOWS = {
     "loginc": (1980, 1988), "p_cig": (1980, 1988),
     "pct15-24": (1980, 1988), "pc_beer": (1984, 1988),
+    "cig1975": (1975, 1975), "cig1980": (1980, 1980), "cig1988": (1988, 1988),
 }
-# Penalty path up to the nearest-neighbour collapse (beyond ~0.25 the solution
-# jumps to a single donor; that discontinuity is not a solver-parity test).
-_GRID = [0.001, 0.01, 0.05, 0.1, 0.25]
+_GRID = [0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0]
 
 
 def _matrices():
-    """Build the EXA predictor matrix via dataprep + mlsynth's covariate helper."""
+    """Build the MLAB predictor matrix via dataprep + mlsynth's covariate helper."""
     d = pd.read_csv(_DATA)
     d["treated"] = ((d["state"] == _TREATED) & (d["year"] >= 1989)).astype(int)
+    for L in _LAGS:                                   # special lagged-outcome predictors
+        m = d[d["year"] == L].set_index("state")["cigsale"]
+        d[f"cig{L}"] = d["state"].map(m)
 
     prep = dataprep(
         df=d, unit_id_column_name="state", time_period_column_name="year",
@@ -91,11 +94,8 @@ def _matrices():
     y = np.asarray(prep["y"], dtype=float).ravel()        # treated outcome path
     Y0 = np.asarray(prep["donor_matrix"], dtype=float)    # (T, J)
 
-    # Covariate-average block (K_cov, N), then the pre-treatment outcome path
-    # (pre, N) with the treated unit first -- the EXA stack, raw (V = I).
-    Xcov = _covariate_means(d, units, _COVS, _WINDOWS, pre_labels, "state", "year")
-    path = np.column_stack([y[:pre], Y0[:pre]])           # (pre, N)
-    X = np.vstack([Xcov, path])                           # (K_cov + pre, N)
+    # MLAB predictor means (K, N), raw (V = I) -- treated first, then donors.
+    X = _covariate_means(d, units, _COVS, _WINDOWS, pre_labels, "state", "year")
     X1, X0 = X[:, 0], X[:, 1:]
     return X1, X0, y, Y0, pre, donors
 
@@ -153,23 +153,23 @@ def run() -> dict:
     att_max_abs_diff = float(np.max(np.abs(att_ml - att_ref)))
 
     i01 = _GRID.index(0.1)
-    w_montana = float(Wml_t[i01, donors.index("Montana")])
+    w_idaho = float(Wml_t[i01, donors.index("Idaho")])
 
     return {
         "weight_max_abs_diff": weight_max_abs_diff,
         "att_max_abs_diff": att_max_abs_diff,
         "att_lambda_0p1": float(att_ml[i01]),
-        "w_montana_lambda_0p1": w_montana,
+        "w_idaho_lambda_0p1": w_idaho,
     }
 
 
-# mlsynth reproduces the authors' wsoll1 on the identical EXA predictor matrix to
-# solver precision (weights ~2e-4, ATT ~1e-3 across the interpolation path). The
+# mlsynth reproduces the authors' wsoll1 on the identical MLAB predictor matrix to
+# solver precision across the whole grid (weights ~3e-4, ATT ~2e-3 packs). The
 # anchored cells fix the actual penalized fit: at lambda=0.1 the synthetic
-# California loads ~0.43 on Montana for a -23.3 packs post-period ATT.
+# California loads ~0.54 on Idaho for a -23.4 packs post-period ATT.
 EXPECTED = {
     "weight_max_abs_diff": (0.0, 2e-3),
     "att_max_abs_diff": (0.0, 5e-3),
-    "att_lambda_0p1": (-23.268, 0.05),
-    "w_montana_lambda_0p1": (0.434, 0.01),
+    "att_lambda_0p1": (-23.423, 0.05),
+    "w_idaho_lambda_0p1": (0.538, 0.01),
 }
