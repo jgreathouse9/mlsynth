@@ -31,6 +31,21 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import numpy as _np
+from pydantic import (
+    ConfigDict as _ConfigDict,
+    Field as _PydField,
+    model_validator as _model_validator,
+)
+
+from ...config_models import (
+    BaseEstimatorResults as _BaseEstimatorResults,
+    EffectsResults as _EffectsResults,
+    FitDiagnosticsResults as _FitDiagnosticsResults,
+    InferenceResults as _InferenceResults,
+    MethodDetailsResults as _MethodDetailsResults,
+    TimeSeriesResults as _TimeSeriesResults,
+)
 
 
 @dataclass(frozen=True)
@@ -74,8 +89,7 @@ class ISCMInputs:
         return self.T - self.T0
 
 
-@dataclass(frozen=True)
-class ISCMResults:
+class ISCMResults(_BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.ISCM.fit`.
 
     Attributes
@@ -117,17 +131,49 @@ class ISCMResults:
         Free-form diagnostics.
     """
 
+    model_config = _ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: ISCMInputs
-    att: float
     unit_weight_matrix: np.ndarray
     fit_metric: np.ndarray
     unit_att: np.ndarray
     contribution: np.ndarray
     residuals: np.ndarray
     exposure: np.ndarray
-    weights: Optional[Any] = None
-    inference: Optional["ISCMInference"] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inference_detail: Optional["ISCMInference"] = None
+    metadata: Dict[str, Any] = _PydField(default_factory=dict)
+
+    @_model_validator(mode="after")
+    def _populate_contract(self) -> "ISCMResults":
+        # Representative treated-average path so the contract's time_series has a
+        # 1-D observed/counterfactual/gap (ISCM identifies the effect across all
+        # contributing units; res.att is the aggregate, populated via effects).
+        set_ = lambda k, v: object.__setattr__(self, k, v)  # noqa: E731 (frozen)
+        if self.time_series is None:
+            Y = _np.asarray(self.inputs.Y, dtype=float)
+            tr = _np.asarray(self.inputs.treated_idx).ravel()
+            W = _np.asarray(self.unit_weight_matrix, dtype=float)
+            obs = Y[tr].mean(axis=0)
+            synth = (W[tr] @ Y).mean(axis=0)
+            times = _np.asarray(self.inputs.time_labels)
+            T0 = int(self.inputs.T0)
+            set_("time_series", _TimeSeriesResults(
+                observed_outcome=obs, counterfactual_outcome=synth,
+                estimated_gap=obs - synth, time_periods=times,
+                intervention_time=(times[T0] if T0 < len(times) else None)))
+        if self.inference is None and self.inference_detail is not None:
+            inf = self.inference_detail
+            ci = getattr(inf, "ci", None)
+            lo = float(ci[0]) if ci is not None and _np.isfinite(ci[0]) else None
+            hi = float(ci[1]) if ci is not None and _np.isfinite(ci[1]) else None
+            set_("inference", _InferenceResults(
+                method=getattr(inf, "method", "ISCM"),
+                ci_lower=lo, ci_upper=hi, details=inf))
+        if self.fit_diagnostics is None:
+            set_("fit_diagnostics", _FitDiagnosticsResults())
+        if self.method_details is None:
+            set_("method_details", _MethodDetailsResults(method_name="ISCM"))
+        return self
 
 
 @dataclass(frozen=True)

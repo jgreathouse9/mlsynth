@@ -165,8 +165,8 @@ class TestEstimator:
         df, _ = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
                     "time": "time", "display_graphs": False, "inference": True, "n_draws": 2000}).fit()
-        assert res.inference is not None
-        inf = res.inference
+        assert res.inference_detail is not None
+        inf = res.inference_detail
         assert inf.method == "ibragimov_muller"
         assert 0.0 <= inf.p_value <= 1.0
         assert inf.ci[0] <= res.att <= inf.ci[1]
