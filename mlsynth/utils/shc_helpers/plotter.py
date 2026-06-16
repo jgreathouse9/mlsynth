@@ -33,14 +33,14 @@ def plot_shc(
     ax.plot(time, results.counterfactual, lw=2, color=counterfactual_color,
             linestyle="--", label="Synthetic Historical Control")
 
-    if results.inference is not None and m < len(time):
+    if results.inference_detail is not None and m < len(time):
         post_time = time[m:]
-        lo = results.inference.conformal_lower
-        hi = results.inference.conformal_upper
+        lo = results.inference_detail.conformal_lower
+        hi = results.inference_detail.conformal_upper
         if lo is not None and hi is not None and len(lo) == len(post_time):
             ax.fill_between(
                 post_time, lo, hi, color=counterfactual_color, alpha=0.15,
-                label=f"{int(results.inference.confidence_level * 100)}% conformal band",
+                label=f"{int(results.inference_detail.confidence_level * 100)}% conformal band",
             )
 
     if m < len(time):

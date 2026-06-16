@@ -7,6 +7,7 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 
+from mlsynth.config_models import EffectsResults
 from mlsynth.utils.iscm_helpers.plotter import plot_iscm
 from mlsynth.utils.iscm_helpers.structures import (
     ISCMInference,
@@ -42,14 +43,14 @@ def _make_results(unit_att=None, contribution=None, inference=None, N=4):
         contribution = np.array([0.4, 0.3, 0.2, 0.1])
     return ISCMResults(
         inputs=inputs,
-        att=0.25,
+        effects=EffectsResults(att=0.25),
         unit_weight_matrix=np.zeros((N, N)),
         fit_metric=np.ones(N),
         unit_att=unit_att,
         contribution=contribution,
         residuals=np.zeros((N, 5)),
         exposure=np.zeros((N, 5)),
-        inference=inference,
+        inference_detail=inference,
     )
 
 

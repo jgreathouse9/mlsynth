@@ -17,6 +17,7 @@ import numpy as np
 from .estimate import fit_metric, residuals_and_exposure, weighted_att
 from .inference import ibragimov_muller_inference
 from ..results_helpers import make_weights_results
+from ...config_models import EffectsResults
 from .structures import ISCMInputs, ISCMResults
 from .weights import all_units_weights
 
@@ -98,7 +99,7 @@ def run_iscm(
 
     return ISCMResults(
         inputs=inputs,
-        att=att,
+        effects=EffectsResults(att=att),
         unit_weight_matrix=W,
         fit_metric=a,
         unit_att=unit_att,
@@ -106,6 +107,6 @@ def run_iscm(
         residuals=R,
         exposure=E,
         weights=weights_res,
-        inference=inf,
+        inference_detail=inf,
         metadata=metadata,
     )

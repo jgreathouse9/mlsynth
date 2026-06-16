@@ -50,8 +50,8 @@ def plot_iscm(
     fig, ax = plt.subplots(figsize=(8, max(3.0, 0.32 * len(order) + 1)))
     y = np.arange(len(order))[::-1]   # highest contribution at top
 
-    if results.inference is not None and np.isfinite(results.inference.ci[0]):
-        lo, hi = results.inference.ci
+    if results.inference_detail is not None and np.isfinite(results.inference_detail.ci[0]):
+        lo, hi = results.inference_detail.ci
         ax.axvspan(lo, hi, color=counterfactual_color, alpha=0.12,
                    label="ATT 95% CI")
     ax.axvline(results.att, color=counterfactual_color, lw=2,

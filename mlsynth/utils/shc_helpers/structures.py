@@ -25,8 +25,23 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import numpy as _np
+from pydantic import (
+    ConfigDict as _ConfigDict,
+    Field as _PydField,
+    model_validator as _model_validator,
+)
 
 from ..helperutils import IndexSet
+from ...config_models import (
+    BaseEstimatorResults as _BaseEstimatorResults,
+    EffectsResults as _EffectsResults,
+    FitDiagnosticsResults as _FitDiagnosticsResults,
+    InferenceResults as _InferenceResults,
+    MethodDetailsResults as _MethodDetailsResults,
+    TimeSeriesResults as _TimeSeriesResults,
+    WeightsResults as _WeightsResults,
+)
 
 
 @dataclass(frozen=True)
@@ -147,8 +162,7 @@ class SHCDesign:
     best_lambda: Optional[float] = None
 
 
-@dataclass(frozen=True)
-class SHCResults:
+class SHCResults(_BaseEstimatorResults):
     """Public container returned by :meth:`mlsynth.SHC.fit`.
 
     Parameters
@@ -178,18 +192,49 @@ class SHCResults:
         Free-form diagnostics (m, n, N, bandwidth, augmentation).
     """
 
+    model_config = _ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: SHCInputs
     design: SHCDesign
-    att: float
     att_percent: float
     observed: np.ndarray
-    counterfactual: np.ndarray
-    gap: np.ndarray
+    cf_window: np.ndarray
+    gap_window: np.ndarray
     time_labels: np.ndarray
-    fit_diagnostics: Dict[str, Any]
-    inference: Optional[SHCInference] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    fit_diagnostics_detail: Dict[str, Any]
+    att_value: float
+    inference_detail: Optional[SHCInference] = None
+    metadata: Dict[str, Any] = _PydField(default_factory=dict)
 
     @property
     def weights_by_block(self) -> Dict[Any, float]:
         return self.design.block_weights
+
+    @_model_validator(mode="after")
+    def _populate_contract(self) -> "SHCResults":
+        if self.effects is not None:
+            return self
+        set_ = lambda k, v: object.__setattr__(self, k, v)  # noqa: E731 (frozen)
+        fd = self.fit_diagnostics_detail or {}
+        times = _np.asarray(self.time_labels)
+        m = int(getattr(self.inputs, "m", 0))
+        set_("effects", _EffectsResults(
+            att=float(self.att_value), att_percent=float(self.att_percent)))
+        set_("time_series", _TimeSeriesResults(
+            observed_outcome=_np.asarray(self.observed, dtype=float),
+            counterfactual_outcome=_np.asarray(self.cf_window, dtype=float),
+            estimated_gap=_np.asarray(self.gap_window, dtype=float),
+            time_periods=times,
+            intervention_time=(times[m] if 0 < m < len(times) else None)))
+        set_("weights", _WeightsResults(donor_weights={
+            str(k): float(v) for k, v in self.design.block_weights.items()}))
+        set_("fit_diagnostics", _FitDiagnosticsResults(
+            rmse_pre=fd.get("rmse_pre"), rmse_post=fd.get("rmse_post"),
+            r_squared_pre=fd.get("r_squared_pre")))
+        if self.inference_detail is not None:
+            inf = self.inference_detail
+            set_("inference", _InferenceResults(
+                method=getattr(inf, "method", None),
+                p_value=getattr(inf, "p_value", None), details=inf))
+        set_("method_details", _MethodDetailsResults(method_name="SHC"))
+        return self

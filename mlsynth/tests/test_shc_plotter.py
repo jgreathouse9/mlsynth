@@ -33,7 +33,7 @@ def test_full_with_inference_band():
     # inference present, m < len(time), conformal lo/hi present & length-matched,
     # treatment axvline drawn, default SHC title.
     res = _fit()
-    assert res.inference is not None and res.inputs.m < len(res.time_labels)
+    assert res.inference_detail is not None and res.inputs.m < len(res.time_labels)
     plot_shc(res)
 
 
@@ -51,7 +51,7 @@ def test_explicit_title():
 
 def test_no_inference_branch():
     res = _fit()
-    res2 = dataclasses.replace(res, inference=None)
+    res2 = res.model_copy(update={"inference_detail": None})
     plot_shc(res2)
 
 
@@ -59,11 +59,11 @@ def test_conformal_bounds_length_mismatch():
     # lo/hi present but length != post_time: fill_between skipped.
     res = _fit()
     bad = dataclasses.replace(
-        res.inference,
+        res.inference_detail,
         conformal_lower=np.array([0.0]),
         conformal_upper=np.array([1.0]),
     )
-    res2 = dataclasses.replace(res, inference=bad)
+    res2 = res.model_copy(update={"inference_detail": bad})
     plot_shc(res2)
 
 
@@ -71,9 +71,9 @@ def test_conformal_bounds_none():
     # lo/hi are None: fill_between skipped even though inference present.
     res = _fit()
     bad = dataclasses.replace(
-        res.inference, conformal_lower=None, conformal_upper=None,
+        res.inference_detail, conformal_lower=None, conformal_upper=None,
     )
-    res2 = dataclasses.replace(res, inference=bad)
+    res2 = res.model_copy(update={"inference_detail": bad})
     plot_shc(res2)
 
 
@@ -82,5 +82,5 @@ def test_m_not_less_than_len_skips_band_and_axvline():
     # axvline are skipped.
     res = _fit()
     big_m = dataclasses.replace(res.inputs, m=len(res.time_labels) + 5)
-    res2 = dataclasses.replace(res, inputs=big_m, inference=None)
+    res2 = res.model_copy(update={"inputs": big_m, "inference_detail": None})
     plot_shc(res2)

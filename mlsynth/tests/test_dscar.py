@@ -161,7 +161,7 @@ class TestEstimator:
             "display_graphs": False,
         }).fit()
         for t in range(res.inputs.T):
-            s = res.weights[t].sum()
+            s = res.weight_matrix[t].sum()
             assert s == pytest.approx(1.0, abs=1e-6), (t, s)
 
 

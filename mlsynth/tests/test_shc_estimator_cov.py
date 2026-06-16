@@ -141,7 +141,7 @@ def test_fit_augmented_path_sets_lambda():
 def test_fit_inference_structure_and_ci_ordering():
     df = _panel()
     res = SHC(_base_config(df)).fit()
-    inf = res.inference
+    inf = res.inference_detail
     assert inf is not None
     assert inf.method == "conformal_permutation"
     assert 0.0 <= inf.p_value <= 1.0

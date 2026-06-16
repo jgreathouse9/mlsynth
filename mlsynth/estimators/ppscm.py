@@ -162,7 +162,7 @@ class PPSCM:
 
             results = PPSCMResults(
                 inputs=inputs, design=design, event_study=event_study,
-                inference=inference, donor_weights=donor_weights,
+                inference_detail=inference, donor_weights_by_cohort=donor_weights,
                 metadata={"n_treated": int(np.isfinite(trt).sum()),
                           "n_control": int((~np.isfinite(trt)).sum())},
             )

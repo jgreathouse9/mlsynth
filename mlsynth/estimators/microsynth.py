@@ -300,12 +300,12 @@ class MicroSynth:
             results = MicroSynthResults(
                 inputs=inputs,
                 design=design,
-                inference=inference,
-                counterfactual=cf_arr,
-                gap=gap_arr,
+                inference_detail=inference,
+                counterfactual_post=cf_arr,
+                gap_post=gap_arr,
                 gap_trajectory=gap_traj,
-                att=att,
-                donor_weights=donor_weights,
+                att_value=att,
+                donor_weights_map=donor_weights,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

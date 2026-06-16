@@ -531,12 +531,12 @@ class TestPanelInferenceIntegration:
             "n_permutations": 60, "permutation_test": "twosided", "seed": 3,
             "display_graphs": False,
         }).fit()
-        assert res.inference.method == "permutation"
-        assert 0.0 <= res.inference.p_value <= 1.0
-        assert res.inference.p_values_by_period.shape == (3,)
-        assert res.inference.test == "twosided"
-        assert np.isfinite(res.inference.se)
-        lo, hi = res.inference.ci
+        assert res.inference_detail.method == "permutation"
+        assert 0.0 <= res.inference_detail.p_value <= 1.0
+        assert res.inference_detail.p_values_by_period.shape == (3,)
+        assert res.inference_detail.test == "twosided"
+        assert np.isfinite(res.inference_detail.se)
+        lo, hi = res.inference_detail.ci
         assert lo <= hi
 
     def test_panel_no_inference_when_disabled(self):
@@ -548,7 +548,7 @@ class TestPanelInferenceIntegration:
             "weight_method": "panel", "run_inference": False,
             "display_graphs": False,
         }).fit()
-        assert res.inference.method == "none"
+        assert res.inference_detail.method == "none"
 
 
 def _cross_section(n=400, seed=0):
@@ -634,12 +634,12 @@ class TestSyntheticRecovery:
             "run_inference": True, "n_bootstrap": 60, "seed": 42,
             "display_graphs": False,
         }).fit()
-        assert res.inference.method == "paired_bootstrap"
-        assert np.isfinite(res.inference.se)
-        assert res.inference.se > 0
-        lo, hi = res.inference.ci
-        assert lo <= res.inference.att <= hi
-        assert res.inference.n_bootstrap > 0
+        assert res.inference_detail.method == "paired_bootstrap"
+        assert np.isfinite(res.inference_detail.se)
+        assert res.inference_detail.se > 0
+        lo, hi = res.inference_detail.ci
+        assert lo <= res.inference_detail.att <= hi
+        assert res.inference_detail.n_bootstrap > 0
 
 
 # ---------------------------------------------------------------------------
@@ -715,7 +715,7 @@ class TestPublicAPI:
         assert isinstance(res, MicroSynthResults)
         assert isinstance(res.inputs, MicroSynthInputs)
         assert isinstance(res.design, MicroSynthDesign)
-        assert isinstance(res.inference, MicroSynthInference)
+        assert isinstance(res.inference_detail, MicroSynthInference)
 
     def test_dict_vs_config_object(self, small_panel):
         df, _ = small_panel
@@ -746,3 +746,28 @@ class TestPublicAPI:
         for k, v in res.donor_weights.items():
             assert isinstance(k, str)
             assert v > 0
+
+
+def test_two_family_result_contract(small_panel):
+    """MicroSynth consumes micro-level data, so it can't join the single-df
+    result-contract loop; pin the same surface in-file."""
+    from mlsynth.config_models import BaseEstimatorResults
+    df, _ = small_panel
+    res = MicroSynth({
+        "df": df, "outcome": "converted", "treat": "saw_ad",
+        "unitid": "user_id", "time": "week", "covariates": COVS,
+        "run_inference": False, "display_graphs": False,
+    }).fit()
+    assert isinstance(res, BaseEstimatorResults)
+    assert res.effects is not None and res.effects.att is not None
+    assert res.time_series is not None
+    assert res.time_series.counterfactual_outcome is not None
+    assert res.weights is not None
+    assert res.method_details is not None and res.method_details.method_name
+    assert res.att == pytest.approx(res.effects.att)
+    cf = np.asarray(res.counterfactual)
+    gap = np.asarray(res.gap)
+    assert cf.shape == gap.shape and cf.ndim == 1
+    assert res.donor_weights is None or isinstance(res.donor_weights, dict)
+    ci = res.att_ci
+    assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])

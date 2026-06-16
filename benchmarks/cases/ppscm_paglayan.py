@@ -90,7 +90,7 @@ def run() -> dict:
         "ppscm_time_cohort_att": float(cohort.att),
         "ppscm_tc_event_study_max_abs_diff": float(np.max(np.abs(tau_tc - AUG_TAU_TC))),
         "ppscm_jackknife_se_max_abs_diff": float(np.max(np.abs(jse - AUG_JACK_SE))),
-        "ppscm_bootstrap_att_se": float(boot.inference.se),
+        "ppscm_bootstrap_att_se": float(boot.inference_detail.se),
         "ppscm_bootstrap_se_max_abs_diff": float(np.max(np.abs(bse - AUG_BOOT_SE))),
         "n_treated": int(d[d.cbr == 1].State.nunique()),
         "n_control": int(d.State.nunique() - d[d.cbr == 1].State.nunique()),

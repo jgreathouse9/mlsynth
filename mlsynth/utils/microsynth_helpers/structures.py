@@ -6,6 +6,21 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
+import numpy as _np
+from pydantic import (
+    ConfigDict as _ConfigDict,
+    model_validator as _model_validator,
+)
+
+from ...config_models import (
+    BaseEstimatorResults as _BaseEstimatorResults,
+    EffectsResults as _EffectsResults,
+    FitDiagnosticsResults as _FitDiagnosticsResults,
+    InferenceResults as _InferenceResults,
+    MethodDetailsResults as _MethodDetailsResults,
+    TimeSeriesResults as _TimeSeriesResults,
+    WeightsResults as _WeightsResults,
+)
 
 
 @dataclass(frozen=True)
@@ -154,8 +169,7 @@ class MicroSynthInference:
     test: Optional[str] = None               # "lower" / "upper" / "twosided"
 
 
-@dataclass(frozen=True)
-class MicroSynthResults:
+class MicroSynthResults(_BaseEstimatorResults):
     """Public return container for ``MicroSynth.fit()``.
 
     Parameters
@@ -181,11 +195,43 @@ class MicroSynthResults:
         ``w_i > 0``.
     """
 
+    model_config = _ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: MicroSynthInputs
     design: MicroSynthDesign
-    inference: MicroSynthInference
-    counterfactual: np.ndarray
-    gap: np.ndarray
+    inference_detail: MicroSynthInference
+    counterfactual_post: np.ndarray
+    gap_post: np.ndarray
     gap_trajectory: np.ndarray
-    att: float
-    donor_weights: Dict[Any, float]
+    att_value: float
+    donor_weights_map: Dict[Any, float]
+
+    @_model_validator(mode="after")
+    def _populate_contract(self) -> "MicroSynthResults":
+        if self.effects is not None:
+            return self
+        cf = _np.atleast_1d(_np.asarray(self.counterfactual_post, dtype=float))
+        gap = _np.atleast_1d(_np.asarray(self.gap_post, dtype=float))
+        inf = self.inference_detail
+        set_ = lambda k, v: object.__setattr__(self, k, v)  # noqa: E731 (frozen)
+        set_("effects", _EffectsResults(
+            att=float(self.att_value),
+            att_std_err=(float(inf.se) if inf is not None and _np.isfinite(inf.se) else None)))
+        # MicroSynth reports post-period series (observed = counterfactual + gap).
+        set_("time_series", _TimeSeriesResults(
+            observed_outcome=cf + gap, counterfactual_outcome=cf,
+            estimated_gap=gap))
+        set_("weights", _WeightsResults(donor_weights={
+            str(k): float(v) for k, v in self.donor_weights_map.items()}))
+        if inf is not None:
+            ci = _np.asarray(getattr(inf, "ci", [_np.nan, _np.nan]), dtype=float)
+            finite = ci.size == 2 and _np.all(_np.isfinite(ci))
+            set_("inference", _InferenceResults(
+                method=getattr(inf, "method", None),
+                standard_error=(float(inf.se) if _np.isfinite(inf.se) else None),
+                p_value=(float(inf.p_value) if _np.isfinite(getattr(inf, "p_value", _np.nan)) else None),
+                ci_lower=(float(ci[0]) if finite else None),
+                ci_upper=(float(ci[1]) if finite else None), details=inf))
+        set_("fit_diagnostics", _FitDiagnosticsResults())
+        set_("method_details", _MethodDetailsResults(method_name="MicroSynth"))
+        return self

@@ -116,7 +116,7 @@ def test_fit_returns_results(panel):
     assert isinstance(res.event_study, PPSCMEventStudy)
     assert res.att < 0
     assert res.event_study.tau.shape == res.event_study.horizons.shape
-    assert all(0 <= w <= 1.0 + 1e-6 for dd in res.donor_weights.values() for w in dd.values())
+    assert all(0 <= w <= 1.0 + 1e-6 for dd in res.donor_weights_by_cohort.values() for w in dd.values())
 
 
 def test_time_cohort_flag(panel):
@@ -127,18 +127,18 @@ def test_time_cohort_flag(panel):
 
 def test_jackknife_inference_runs(panel):
     res = PPSCM(_cfg(panel, run_inference=True)).fit()
-    assert res.inference.method == "jackknife"
-    assert np.isfinite(res.inference.se) and res.inference.se > 0
-    lo, hi = res.inference.ci
+    assert res.inference_detail.method == "jackknife"
+    assert np.isfinite(res.inference_detail.se) and res.inference_detail.se > 0
+    lo, hi = res.inference_detail.ci
     assert lo < res.att < hi
 
 
 def test_bootstrap_inference_runs(panel):
     res = PPSCM(_cfg(panel, run_inference=True, inference_method="bootstrap",
                      n_boot=200, seed=0)).fit()
-    assert res.inference.method == "bootstrap"
-    assert np.isfinite(res.inference.se) and res.inference.se > 0
-    lo, hi = res.inference.ci
+    assert res.inference_detail.method == "bootstrap"
+    assert np.isfinite(res.inference_detail.se) and res.inference_detail.se > 0
+    lo, hi = res.inference_detail.ci
     assert lo < res.att < hi
     assert np.all(np.isfinite(res.event_study.se))
 
@@ -217,7 +217,7 @@ def _vignette_cfg(**kw):
 def test_jackknife_se_matches_augsynth_vignette():
     """mlsynth's delete-one jackknife reproduces augsynth's inf_type='jackknife'."""
     r = PPSCM(_vignette_cfg(inference_method="jackknife")).fit()
-    assert r.inference.method == "jackknife"
+    assert r.inference_detail.method == "jackknife"
     assert np.max(np.abs(np.asarray(r.event_study.se, float) - _AUG_JACK_SE)) < 1.5e-3
 
 
@@ -226,6 +226,25 @@ def test_bootstrap_se_matches_augsynth_vignette():
     """The ported Mammen wild/multiplier bootstrap reproduces augsynth's default
     inf_type='bootstrap' (the vignette's printed SEs)."""
     r = PPSCM(_vignette_cfg(inference_method="bootstrap", n_boot=2000, seed=0)).fit()
-    assert r.inference.method == "bootstrap"
-    assert r.inference.se == pytest.approx(0.022, abs=2e-3)
+    assert r.inference_detail.method == "bootstrap"
+    assert r.inference_detail.se == pytest.approx(0.022, abs=2e-3)
     assert np.max(np.abs(np.asarray(r.event_study.se, float) - _AUG_BOOT_SE)) < 4e-3
+
+
+def test_two_family_result_contract(panel):
+    """PPSCM is staggered (needs a multi-cohort panel), so it can't join the
+    single-df result-contract loop; pin the same surface in-file."""
+    from mlsynth.config_models import BaseEstimatorResults
+    res = PPSCM(_cfg(panel)).fit()
+    assert isinstance(res, BaseEstimatorResults)
+    assert res.effects is not None and res.effects.att is not None
+    assert res.time_series is not None
+    assert res.time_series.counterfactual_outcome is not None
+    assert res.weights is not None
+    assert res.method_details is not None and res.method_details.method_name
+    assert res.att == pytest.approx(res.effects.att)
+    cf = np.asarray(res.counterfactual)
+    gap = np.asarray(res.gap)
+    assert cf.shape == gap.shape and cf.ndim == 1
+    ci = res.att_ci
+    assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])
