@@ -763,13 +763,15 @@ rather than returning a degenerate design.
    prune many nominees, and a very dense border graph can leave none (a reported
    infeasibility, not a silent degenerate design).
 
-A worked design on real borders. The example below is fully self-contained:
-it pulls the real DMA contiguity map and metadata, simulates a grouped linear
-factor model of seasonal weekly sales — latent group structure in the loadings
-(groups = census divisions), in the spirit of Liao, Shi & Zheng (2025) — over a
-real Southeast / Mid-South DMA footprint, then designs a 3-market geo test that is
-non-adjacent on the map and spread across regions (at most two per division).
-It runs in a few seconds.
+Gallery: every constraint on real geography. The block below is a single
+self-contained gallery, mirroring the SYNDES one (:doc:`syndes`): it pulls the
+real DMA contiguity map and metadata, simulates a grouped linear factor model of
+seasonal weekly sales — latent group structure in the loadings (groups = census
+divisions), in the spirit of Liao, Shi & Zheng (2025) — over a real Southeast /
+Mid-South footprint, and then shows each geographic constraint GEOLIFT supports
+as a compact call. The geography is real; the sales outcome is reproducible and
+exists only so the snippets run end to end (a few seconds each). Every block
+below assumes this setup has run.
 
 .. code-block:: python
 
@@ -783,109 +785,108 @@ It runs in a few seconds.
    meta = pd.read_csv(f"{base}/dma_metadata.csv")                   # dma_name, state, ...
 
    # Restrict to a real Southeast / Mid-South footprint; groups = census divisions.
-   division = {"GA": "S. Atlantic", "FL": "S. Atlantic",
-               "TN": "E.S. Central", "AL": "E.S. Central"}
-   meta = meta[meta["state"].isin(division)].copy()
-   meta["division"] = meta["state"].map(division)
+   DIV = {**{s: "S. Atlantic" for s in ["GA", "FL", "SC", "NC", "VA", "WV"]},
+          **{s: "E.S. Central" for s in ["TN", "AL", "KY", "MS"]}}
+   meta = meta[meta["state"].isin(DIV)].copy()
+   meta["division"] = meta["state"].map(DIV)
    names = [n for n in meta["dma_name"] if n in A_full.index]
    meta = meta[meta["dma_name"].isin(names)].reset_index(drop=True)
-   A = A_full.loc[names, names]                                     # real contiguity
+   adj = A_full.loc[names, names]                                   # real contiguity
 
-   # Grouped linear factor model of seasonal weekly sales: the loadings carry a
-   # latent group structure (one loading per division), plus a shared seasonal
-   # swing and idiosyncratic noise.
+   # Grouped linear factor model of seasonal weekly sales (one loading per division).
    rng = np.random.default_rng(0)
    div = meta.set_index("dma_name").loc[names, "division"].to_numpy()
+   state = meta.set_index("dma_name").loc[names, "state"].to_numpy()
    n, r, T = len(names), 3, 60
    group_loading = {g: rng.normal(size=r) for g in sorted(set(div))}
    Lambda = np.array([group_loading[g] for g in div]) + 0.1 * rng.normal(size=(n, r))
    F = np.cumsum(rng.normal(size=(T, r)), axis=0)                   # common factors
    season = 12 * np.sin(2 * np.pi * np.arange(T) / 52)             # annual seasonality
-   sales = (1000 + rng.normal(0, 40, n)                            # market base level
-            + F @ Lambda.T                                         # grouped factor structure
-            + season[:, None]                                      # shared seasonal swing
-            + rng.normal(0, 5, (T, n)))                            # idiosyncratic noise
+   size = np.round(rng.lognormal(12.5, 0.7, n)).astype(int)        # market size
+   sales = (1000 + rng.normal(0, 40, n) + F @ Lambda.T
+            + season[:, None] + rng.normal(0, 5, (T, n)))
    df = pd.DataFrame([
-       {"dma": names[j], "week": t, "sales": float(sales[t, j]), "division": div[j]}
-       for j in range(n) for t in range(T)
-   ])
+       {"dma": names[j], "week": t, "sales": float(sales[t, j]),
+        "division": div[j], "state": state[j], "size": int(size[j])}
+       for j in range(n) for t in range(T)])
 
-   res = GEOLIFT({
-       "df": df, "outcome": "sales", "unitid": "dma", "time": "week",
-       "treatment_size": 3, "durations": [8], "effect_sizes": [0.0, 0.05, 0.10],
-       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
-       "adjacency": A,                          # true DMA borders -> non-adjacent markets
-       "stratum_col": "division", "max_per_stratum": 2,   # spread across regions
-       "display_graphs": False,
-   }).fit()
+   BASE = dict(df=df, outcome="sales", unitid="dma", time="week",
+               durations=[8], effect_sizes=[0.0, 0.10], lookback_window=1,
+               how="mean", ns=40, seed=0, display_graphs=False)
 
-   print("recommended test markets:", res.selected_units)
-   print(res.search.shortlist[["candidate", "duration", "mde", "power"]].head())
+Plain cardinality -- nominate the 3-market test region with the best detectable
+effect; and force one market in, another out (the latter stays a donor):
 
-   # the design honours the geography: no two test markets border each other
+.. code-block:: python
+
+   GEOLIFT({**BASE, "treatment_size": 3}).fit()
+   GEOLIFT({**BASE, "treatment_size": 3, "to_be_treated": ["Atlanta, GA"],
+            "not_to_be_treated": ["Miami-Fort Lauderdale, FL"]}).fit()
+
+Spillover non-interference. No two test markets in the same state (a
+``cluster_col``), or no two sharing a real border (the contiguity matrix). Both
+do double duty: the treated markets are forced apart, and -- the control
+criterion -- each treated market's same-cluster / bordering neighbours are
+dropped from its donor pool, so a spilling-over market never sits in the
+synthetic control:
+
+.. code-block:: python
+
+   GEOLIFT({**BASE, "treatment_size": 3, "cluster_col": "state"}).fit()
+
+   res = GEOLIFT({**BASE, "treatment_size": 3, "adjacency": adj,
+                  "spillover_threshold": 0.5}).fit()
    treated = res.selected_units
-   assert all(A.loc[a, b] == 0 for a in treated for b in treated if a != b)
+   assert all(adj.loc[a, b] == 0 for a in treated for b in treated if a != b)
+   cd = res.search.candidates[0]                    # donors avoid the treated markets' borders
+   nbr = {b for a in cd.candidate for b in names if adj.loc[a, b] == 1}
+   assert all(str(d) not in nbr for d in cd.weights.donor_weights)
 
-Cluster non-interference + spillover donor exclusion. Treat markets in
-different regions, and never let a treated market's same-region neighbours into
-its synthetic control:
-
-.. code-block:: python
-
-   import pandas as pd
-   from mlsynth import GEOLIFT
-
-   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
-          "refs/heads/main/basedata/geolift_market_data.csv")
-   df = pd.read_csv(url)                                   # 40 markets x 90 days
-
-   # Per-market geography. In practice these come from your own region table /
-   # spend data; here they are derived from the panel so the example runs as-is.
-   markets = sorted(df["location"].unique())
-   region = {m: f"R{i % 4}" for i, m in enumerate(markets)}   # 4 illustrative regions
-   df["region"] = df["location"].map(region)
-
-   res = GEOLIFT({
-       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
-       "treatment_size": 2, "durations": [14], "effect_sizes": [0.0, 0.1],
-       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
-       "cluster_col": "region", "display_graphs": False,
-   }).fit()
-
-   print(res.selected_units)                              # markets in distinct regions
-   # invariant: no candidate's donors share a region with its treated markets
-   cd = res.search.candidates[0]
-   treated_regions = {region[str(u)] for u in cd.candidate}
-   assert all(region[str(d)] not in treated_regions for d in cd.weights.donor_weights)
-
-Coverage quota + size band. Cover distinct regions (at most one treated market
-each) and treat only mid-sized markets (drop the largest and smallest):
+Coverage quotas. Require at least one treated market in every region ("test
+everywhere"), or cap the count per region:
 
 .. code-block:: python
 
-   import pandas as pd
-   from mlsynth import GEOLIFT
+   GEOLIFT({**BASE, "treatment_size": 2, "stratum_col": "division",
+            "min_per_stratum": 1}).fit()                # >= 1 test market per division
+   GEOLIFT({**BASE, "treatment_size": 2, "stratum_col": "division",
+            "max_per_stratum": 1}).fit()                # <= 1 test market per division
 
-   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
-          "refs/heads/main/basedata/geolift_market_data.csv")
-   df = pd.read_csv(url)
-   markets = sorted(df["location"].unique())
-   df["region"] = df["location"].map({m: f"R{i % 4}" for i, m in enumerate(markets)})
-   size = df.groupby("location")["Y"].mean()              # avg daily volume = "size"
-   df["size"] = df["location"].map(size)
-   lo, hi = float(size.quantile(0.2)), float(size.quantile(0.8))
+Size band -- only mid-sized markets are eligible for treatment (the rest stay
+donors); the floor is a power minimum and the ceiling encodes synthesizability:
 
-   res = GEOLIFT({
-       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
-       "treatment_size": 3, "durations": [14], "effect_sizes": [0.0, 0.1],
-       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
-       "stratum_col": "region", "max_per_stratum": 1,     # <= 1 treated per region
-       "size_col": "size", "min_size": lo, "max_size": hi,  # mid-sized only
-       "display_graphs": False,
-   }).fit()
+.. code-block:: python
 
-   print(res.selected_units)                              # 3 markets, 3 distinct regions
+   lo, hi = int(np.quantile(size, 0.2)), int(np.quantile(size, 0.8))
+   GEOLIFT({**BASE, "treatment_size": 3, "size_col": "size",
+            "min_size": lo, "max_size": hi}).fit()
+
+Budget planning -- with a cost-per-incremental-conversion and a budget, drop any
+candidate whose detectable investment busts the cap:
+
+.. code-block:: python
+
+   GEOLIFT({**BASE, "treatment_size": 3, "cpic": 7.50, "budget": 100_000.0}).fit()
+
+Everything at once, returning the ranked shortlist. The constraints filter the
+nominated candidates and reshape each one's donor pool, so every design in the
+shortlist already honours the geography:
+
+.. code-block:: python
+
+   res = GEOLIFT({**BASE, "treatment_size": 3, "adjacency": adj,
+                  "spillover_threshold": 0.5, "stratum_col": "division",
+                  "max_per_stratum": 2, "size_col": "size",
+                  "min_size": int(np.quantile(size, 0.1)),
+                  "max_size": int(np.quantile(size, 0.95))}).fit()
+   print(res.selected_units)
    print(res.search.shortlist[["candidate", "duration", "mde", "power"]].head())
+
+When the constraints admit no candidate region (``treatment_size`` exceeds the
+clusters/strata to cover, a border graph too dense to seat that many
+non-adjacent markets, or a size band that leaves too few), :meth:`GEOLIFT.fit`
+raises :class:`~mlsynth.exceptions.MlsynthConfigError` rather than returning a
+degenerate design.
 
 Multi-cell designs
 ------------------
