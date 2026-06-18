@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, List, Literal, Optional
 import warnings
+import pandas as pd
 from pydantic import Field, model_validator
 from ...exceptions import MlsynthConfigError
 from ...config_models import BaseMAREXConfig
@@ -215,12 +216,229 @@ class SYNDESConfig(BaseMAREXConfig):
         default=5, gt=0,
         description="Maximum number of designs in results.recommendation.shortlist.",
     )
+    # ---- design restrictions (geography / clustering / size / forcing) ----
+    # Same vocabulary as GEOLIFT/LEXSCM; translated to linear constraints on the
+    # MIP assignment vector D. Not supported with mode='two_way_global_annealed'
+    # (no MIP) or an 'arm' column (restrictions are global, not per-arm).
+    to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Units forced into the treated set (D_i = 1). Must not "
+        "exceed K, and must be disjoint from not_to_be_treated.",
+    )
+    not_to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Units forbidden from treatment (D_i = 0); they remain "
+        "available as control donors.",
+    )
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column; units sharing a cluster interfere "
+        "(treating both is forbidden), combined with `adjacency` by logical OR.",
+    )
+    adjacency: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Square spillover matrix (DataFrame indexed/columned by unit "
+        "label). Off-diagonal pairs strictly above `spillover_threshold` "
+        "interfere; combined with `cluster_col` by logical OR.",
+    )
+    spillover_threshold: float = Field(
+        default=0.0,
+        description="Off-diagonal `adjacency` entries strictly above this mark a "
+        "conflicting (spillover) pair.",
+    )
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column defining strata for coverage quotas "
+        "via `min_per_stratum` / `max_per_stratum`.",
+    )
+    min_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Minimum treated units in every stratum that contains a "
+        "treatable unit. Requires stratum_col.",
+    )
+    max_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Maximum treated units in any stratum. Requires stratum_col.",
+    )
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant size column; units outside "
+        "[min_size, max_size] lose treatment eligibility (stay donors).",
+    )
+    min_size: Optional[float] = Field(
+        default=None, description="Lower size bound for treatment eligibility.",
+    )
+    max_size: Optional[float] = Field(
+        default=None, description="Upper size bound for treatment eligibility.",
+    )
+    # ---- donor-side restrictions (which units may be a treated unit's donor) ----
+    donor_region_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column; a unit may serve as a donor for a "
+        "treated unit only if they share this column's value (e.g. region). "
+        "Couples to the assignment via the control weights, so it works in every "
+        "mode (in the global modes it forces the treated set into one region).",
+    )
+    exclude_bordering_donors: bool = Field(
+        default=False,
+        description="When True, a treated unit's spillover neighbours (from "
+        "`cluster_col` / `adjacency` + `spillover_threshold`) are dropped from "
+        "its donor pool (the Vives-i-Bastida exclusion restriction). Requires a "
+        "conflict source.",
+    )
+    donor_exclusion: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Explicit donor-exclusion matrix (DataFrame indexed/columned "
+        "by unit label); entry [i, j] > 0 forbids unit j as a donor for treated "
+        "unit i. Combined with `donor_region_col` / `exclude_bordering_donors` by "
+        "union. The most flexible escape hatch.",
+    )
+    selection: Optional[Literal["in_sample", "holdout", "ic"]] = Field(
+        default=None,
+        description=(
+            "Design-selection rule applied to the ``top_K`` candidate pool. "
+            "``None`` (default) infers ``'holdout'`` when ``holdout_frac`` is "
+            "set, otherwise ``'in_sample'`` -- so existing configs are "
+            "unchanged. ``'in_sample'`` keeps the MIP fit optimum (Doudchenko "
+            "et al. 2021). ``'holdout'`` validates candidates on a held-out tail "
+            "and needs ``holdout_frac``. ``'ic'`` ranks candidates by an "
+            "information criterion (in-sample contrast SSR + ``2 sigma^2 df`` "
+            "with ``df = active control donors - 1``, after Pouliot-Xie-Liu) "
+            "over the whole pre-window -- no data split, preferable when the "
+            "pre-period is short. ``'holdout'`` and ``'ic'`` need ``top_K >= 2`` "
+            "and a MIP mode."
+        ),
+    )
+    holdout_frac: Optional[float] = Field(
+        default=None, gt=0.0, lt=1.0,
+        description=(
+            "Out-of-sample design selection. When ``None`` (default) the winning "
+            "design is the MIP's in-sample optimum (Doudchenko et al. 2021 "
+            "behaviour, unchanged). When set to a fraction in (0, 1), SYNDES "
+            "learns the ``top_K`` candidate pool on the leading ``1 - "
+            "holdout_frac`` of the pre-period and selects the candidate whose "
+            "*held-out* contrast error on the trailing ``holdout_frac`` is "
+            "smallest -- a train/validate guard against overfitting transient "
+            "pre-period co-movement (e.g. ``0.3`` for a 70/30 split). Requires "
+            "``top_K >= 2`` (a pool to validate) and a MIP mode (not the "
+            "annealed relaxation). Power and inference are computed exactly as in "
+            "the in-sample path."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_syndes_params(cls, values: Any) -> Any:
         df = values.df
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
+
+        # Resolve the design-selection rule (None infers from holdout_frac).
+        resolved = values.selection or (
+            "holdout" if values.holdout_frac is not None else "in_sample"
+        )
+        # Mutual-exclusion / coherence between selection and holdout_frac.
+        if values.selection == "in_sample" and values.holdout_frac is not None:
+            raise MlsynthConfigError(
+                "selection='in_sample' conflicts with holdout_frac; clear "
+                "holdout_frac or set selection='holdout'."
+            )
+        if values.selection == "ic" and values.holdout_frac is not None:
+            raise MlsynthConfigError(
+                "selection='ic' does not use holdout_frac (it needs no data "
+                "split); clear holdout_frac."
+            )
+        if resolved == "holdout" and values.holdout_frac is None:
+            raise MlsynthConfigError(
+                "selection='holdout' requires holdout_frac in (0, 1)."
+            )
+        # Pool-based selectors need a candidate pool and a MIP mode.
+        if resolved in ("holdout", "ic"):
+            if values.mode == "two_way_global_annealed":
+                raise MlsynthConfigError(
+                    f"selection={resolved!r} is not supported for "
+                    "mode='two_way_global_annealed' (it has no candidate pool); "
+                    "use a MIP mode."
+                )
+            if values.top_K is None or values.top_K < 2:
+                raise MlsynthConfigError(
+                    f"selection={resolved!r} requires top_K >= 2 (a candidate "
+                    f"pool to rank); got top_K={values.top_K!r}."
+                )
+
+        # ---- design restrictions ----
+        _restr_set = (
+            values.to_be_treated is not None or values.not_to_be_treated is not None
+            or values.cluster_col is not None or values.adjacency is not None
+            or values.stratum_col is not None or values.min_per_stratum is not None
+            or values.max_per_stratum is not None or values.size_col is not None
+            or values.min_size is not None or values.max_size is not None
+            or values.donor_region_col is not None
+            or values.exclude_bordering_donors
+            or values.donor_exclusion is not None
+        )
+        if _restr_set:
+            if values.mode == "two_way_global_annealed":
+                raise MlsynthConfigError(
+                    "design restrictions are not supported for "
+                    "mode='two_way_global_annealed' (it has no MIP assignment "
+                    "vector); use a MIP mode."
+                )
+            if values.arm is not None:
+                raise MlsynthConfigError(
+                    "design restrictions are not supported together with an "
+                    "'arm' column (restrictions are global, not per-arm)."
+                )
+        units = set(df[values.unitid].unique())
+        forced = list(values.to_be_treated or [])
+        forbidden = list(values.not_to_be_treated or [])
+        unknown = [u for u in (forced + forbidden) if u not in units]
+        if unknown:
+            raise MlsynthConfigError(
+                "to_be_treated/not_to_be_treated contain units not in df: "
+                f"{sorted(map(str, set(unknown)))}."
+            )
+        clash = set(forced) & set(forbidden)
+        if clash:
+            raise MlsynthConfigError(
+                "units cannot be both to_be_treated and not_to_be_treated: "
+                f"{sorted(map(str, clash))}."
+            )
+        if values.K is not None and len(forced) > values.K:
+            raise MlsynthConfigError(
+                f"to_be_treated ({len(forced)}) cannot exceed K ({values.K})."
+            )
+        for col in ("cluster_col", "stratum_col", "size_col", "donor_region_col"):
+            name = getattr(values, col)
+            if name is not None and name not in df.columns:
+                raise MlsynthConfigError(f"{col} '{name}' is not a column of df.")
+        if values.exclude_bordering_donors and values.cluster_col is None \
+                and values.adjacency is None:
+            raise MlsynthConfigError(
+                "exclude_bordering_donors requires a conflict source "
+                "(cluster_col and/or adjacency)."
+            )
+        if values.min_per_stratum is not None and values.min_per_stratum < 1:
+            raise MlsynthConfigError(
+                f"min_per_stratum must be >= 1; got {values.min_per_stratum}."
+            )
+        if values.max_per_stratum is not None and values.max_per_stratum < 1:
+            raise MlsynthConfigError(
+                f"max_per_stratum must be >= 1; got {values.max_per_stratum}."
+            )
+        if (values.min_per_stratum is not None or values.max_per_stratum is not None) \
+                and values.stratum_col is None:
+            raise MlsynthConfigError(
+                "min_per_stratum / max_per_stratum require stratum_col."
+            )
+        if (values.min_size is not None or values.max_size is not None) \
+                and values.size_col is None:
+            raise MlsynthConfigError("min_size / max_size require size_col.")
+        if values.min_size is not None and values.max_size is not None \
+                and values.min_size > values.max_size:
+            raise MlsynthConfigError(
+                f"min_size ({values.min_size}) must be <= max_size "
+                f"({values.max_size})."
+            )
 
         if values.arm is not None and values.arm in df.columns:
             # K applies within each arm, so validate against the smallest arm.

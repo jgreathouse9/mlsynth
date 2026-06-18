@@ -643,6 +643,240 @@ A budget constraint (``costs`` + ``budget``) adds
 :math:`\sum_i \mathrm{cost}_i D_i \le B` to the MIP; ``mode="two_way_global"``
 also accepts ``K=None`` to let the program choose the number of treated units.
 
+Design restrictions (geography, clustering, size, forcing)
+----------------------------------------------------------
+
+Because SYNDES selects the treated set by a MIP over a binary assignment vector
+:math:`D`, the geographic and clustering restrictions GEOLIFT and LEXSCM expose
+become linear constraints on :math:`D` -- the same vocabulary, enforced exactly
+rather than by filtering enumerated candidates:
+
+* ``to_be_treated`` -- units forced into the treated set
+  (:math:`D_i = 1`); ``not_to_be_treated`` -- units forbidden from treatment
+  (:math:`D_i = 0`), which stay available as control donors.
+* ``cluster_col`` and/or ``adjacency`` with ``spillover_threshold`` -- a
+  spillover/interference conflict graph (built by the same helper LEXSCM uses).
+  Two units that share a cluster, or whose adjacency entry exceeds the
+  threshold, may not both be treated (:math:`D_i + D_j \le 1`), so the design
+  never places treated units where they would interfere.
+* ``stratum_col`` with ``min_per_stratum`` / ``max_per_stratum`` -- coverage
+  quotas: at least ``min_per_stratum`` treated units in every stratum that
+  contains a treatable unit, and at most ``max_per_stratum`` in any stratum
+  (:math:`\min \le \sum_{i \in s} D_i \le \max`).
+* ``size_col`` with ``min_size`` / ``max_size`` -- a treated-unit size band;
+  units outside it lose treatment eligibility (:math:`D_i = 0`) but remain
+  donors.
+
+The ``cluster_col`` / ``stratum_col`` / ``size_col`` columns must be constant
+within each unit. Restrictions compose with each other and with ``costs`` /
+``budget``, and they flow through every selection rule (in-sample, ``holdout``,
+``ic``). They are not available with ``mode="two_way_global_annealed"`` (no MIP)
+or an ``arm`` column (restrictions are global, not per-arm). Infeasible
+combinations -- forcing more units than ``K``, or forbidding so many that fewer
+than ``K`` remain treatable -- raise a translated ``MlsynthConfigError`` rather
+than leaking a solver ``INFEASIBLE``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "to_be_treated": ["chicago"],          # force this market in
+       "cluster_col": "dma",                  # no two treated in one DMA
+       "stratum_col": "region",               # ...
+       "min_per_stratum": 1,                  # at least one treated per region
+       "size_col": "population",              # only mid-sized markets treatable
+       "min_size": 5e5, "max_size": 5e6,
+   }).fit()
+
+   print(sorted(res.design.selected_unit_labels.tolist()))
+
+Restricting the donor pool (region-matched, non-bordering)
+----------------------------------------------------------
+
+The restrictions above constrain *who is treated*. A separate family constrains
+*who may be a treated unit's donor* -- the control side. The primitive is a
+donor-exclusion relation :math:`B_{ij}` ("if :math:`i` is treated, :math:`j` may
+not be its donor"), enforced by coupling the assignment :math:`D` to the mode's
+control weights, so it works in every mode:
+
+.. math::
+
+   \text{one-way global:}\quad & c_j \le 1 - D_i, \\
+   \text{two-way global:}\quad & w_j - q_j \le 1 - D_i, \\
+   \text{per-unit:}\quad       & w_{ij} = 0.
+
+Two convenience knobs (and one escape hatch) fill :math:`B`:
+
+* ``donor_region_col`` -- a donor must share the treated unit's value in this
+  column (e.g. a Census region). So a Midwest market can borrow from another
+  Midwest market but never from a Northeast one.
+* ``exclude_bordering_donors`` -- a treated unit's spillover neighbours (from
+  ``cluster_col`` / ``adjacency`` + ``spillover_threshold``) are dropped from its
+  donor pool, so a donor cannot sit right across the treated unit's border (the
+  Vives-i-Bastida exclusion restriction). Requires a conflict source.
+* ``donor_exclusion`` -- an explicit per-pair matrix (DataFrame keyed by unit
+  label, entry :math:`[i, j] > 0` forbids :math:`j` as a donor for :math:`i`),
+  combined with the above by union. The fully general form.
+
+A subtlety worth knowing: the global modes share *one* donor vector across all
+treated units, so ``donor_region_col`` there forces the treated set into a
+single region (one donor vector cannot be same-region as treated units from two
+regions). The ``per_unit`` mode gives each treated unit its own synthetic
+control, so it supports a genuinely multi-region design -- Detroit drawing from
+the Midwest and a Pennsylvania market drawing from the Northeast, in the same
+fit. (Region exclusion in a global mode emits :math:`O(N^2)` constraints; on a
+very large panel prefer ``per_unit`` or scoping the panel to the region.)
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "dma", "time": "date",
+       "K": 3, "mode": "per_unit", "post_col": "post",
+       "donor_region_col": "census_region",   # donors share the treated region
+       "adjacency": dma_borders,              # contiguity matrix
+       "exclude_bordering_donors": True,      # ...and never a bordering donor
+   }).fit()
+
+Gallery: designing the experiment on real geography
+---------------------------------------------------
+
+Because you are designing the experiment rather than accepting an observed
+treatment, the choice of treated units and donors is a decision variable -- so
+geography, spillover, budget, regional donor pools and forced markets all fold
+straight into one optimisation. The examples below run on the bundled US DMA
+contiguity matrix and metadata (`basedata/markets/
+<https://github.com/jgreathouse9/mlsynth/tree/main/basedata/markets>`_), grouped
+into the four `Census regions
+<https://www.cdc.gov/nchs/hus/sources-definitions/geographic-region.htm>`_. The
+geography is real; the sales outcome is a reproducible region-grouped factor
+model (same-region markets co-move), generated only so the snippets run end to
+end. Each block below assumes this setup has run, and each needs a MIP solver
+(SCIP).
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   RAW = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/markets/")
+   meta = pd.read_csv(RAW + "dma_metadata.csv")
+   adj = pd.read_csv(RAW + "dma_adjacency.csv", index_col=0)   # 206x206 0/1 borders
+
+   CDC = {**{s: "Northeast" for s in
+             ["CT", "ME", "MA", "NH", "RI", "VT", "NJ", "NY", "PA"]},
+          **{s: "Midwest" for s in
+             ["IL", "IN", "MI", "OH", "WI", "IA", "KS", "MN", "MO", "NE", "ND", "SD"]},
+          **{s: "South" for s in
+             ["DE", "FL", "GA", "MD", "NC", "SC", "VA", "DC", "WV", "AL", "KY",
+              "MS", "TN", "AR", "LA", "OK", "TX"]},
+          **{s: "West" for s in
+             ["AZ", "CO", "ID", "MT", "NV", "NM", "UT", "WY", "AK", "CA", "HI",
+              "OR", "WA"]}}
+   meta["region"] = meta["state"].map(CDC)
+
+   # A Midwest/South border zone with real cross-region borders.
+   zone = meta[meta["state"].isin(["OH", "IN", "MI", "KY", "WV", "VA", "TN"])]
+   names = [n for n in zone["dma_name"] if n in adj.index]
+   zone = zone[zone["dma_name"].isin(names)].reset_index(drop=True)
+   adj = adj.loc[names, names]                          # contiguity over the zone
+
+   # Region-grouped linear factor model: same-region DMAs share loadings.
+   rng = np.random.default_rng(11)
+   T, T_post, r = 40, 8, 4
+   reg = zone["region"].values
+   Lam_g = {g: rng.normal(size=r) for g in sorted(set(reg))}
+   Lam = np.array([Lam_g[g] for g in reg]) + 0.15 * rng.normal(size=(len(names), r))
+   F = np.cumsum(rng.normal(size=(T, r)), axis=0)        # random-walk factors
+   pop = np.round(rng.lognormal(12.5, 0.8, len(names))).astype(int)
+   Y = 100 + rng.normal(0, 5, len(names)) + F @ Lam.T + rng.normal(0, 1, (T, len(names)))
+   df = pd.DataFrame([
+       {"dma": names[j], "week": t, "sales": float(Y[t, j]),
+        "post": int(t >= T - T_post), "region": reg[j],
+        "state": zone["state"][j], "population": int(pop[j])}
+       for j in range(len(names)) for t in range(T)])
+
+   # Shared keyword arguments for every design below.
+   BASE = dict(df=df, outcome="sales", unitid="dma", time="week",
+               post_col="post", mode="two_way_global", run_inference=False,
+               solver="SCIP", gap_limit=0.2, time_limit=10.0)
+
+Plain cardinality -- pick the 3 markets whose synthetic design fits best:
+
+.. code-block:: python
+
+   SYNDES({**BASE, "K": 3}).fit()
+
+Force one market in and another out (it stays a donor):
+
+.. code-block:: python
+
+   SYNDES({**BASE, "K": 3, "to_be_treated": ["Detroit, MI"],
+           "not_to_be_treated": ["Cincinnati, OH"]}).fit()
+
+No two treated markets in the same state (a ``cluster_col`` clique), or no two
+sharing a border (the contiguity matrix):
+
+.. code-block:: python
+
+   SYNDES({**BASE, "K": 3, "cluster_col": "state"}).fit()
+   SYNDES({**BASE, "K": 3, "adjacency": adj, "spillover_threshold": 0.5}).fit()
+
+Coverage quota -- at least one treated market in every region; and a size band
+-- only mid-sized markets are treatable (others remain donors):
+
+.. code-block:: python
+
+   SYNDES({**BASE, "K": 3, "stratum_col": "region", "min_per_stratum": 1}).fit()
+   SYNDES({**BASE, "K": 3, "size_col": "population",
+           "min_size": 200_000, "max_size": 2_000_000}).fit()
+
+Donor-pool rules. A treated market may borrow only from its own region; or only
+from markets that do not border it; or -- the motivating case -- only from
+non-bordering markets in its own region:
+
+.. code-block:: python
+
+   SYNDES({**BASE, "K": 3, "donor_region_col": "region"}).fit()
+   SYNDES({**BASE, "K": 3, "adjacency": adj, "spillover_threshold": 0.5,
+           "exclude_bordering_donors": True}).fit()
+   SYNDES({**BASE, "K": 3, "donor_region_col": "region", "adjacency": adj,
+           "spillover_threshold": 0.5, "exclude_bordering_donors": True}).fit()
+
+In the global modes one shared donor vector forces the treated set into a single
+region; switch to ``per_unit`` for a genuinely multi-region design, where each
+treated market draws its own same-region, non-bordering donors:
+
+.. code-block:: python
+
+   SYNDES({**BASE, "K": 3, "mode": "per_unit", "donor_region_col": "region",
+           "adjacency": adj, "spillover_threshold": 0.5,
+           "exclude_bordering_donors": True}).fit()
+
+Everything at once, returning a ranked menu. The restrictions constrain every
+rung of the pool, so each of the (up to) ``top_K`` designs is a full
+restriction-respecting solve with its own fit and power curve:
+
+.. code-block:: python
+
+   res = SYNDES({**BASE, "K": 4, "top_K": 12, "mode": "per_unit",
+                 "cluster_col": "state", "adjacency": adj,
+                 "spillover_threshold": 0.5, "donor_region_col": "region",
+                 "exclude_bordering_donors": True,
+                 "stratum_col": "region", "min_per_stratum": 1}).fit()
+   for e in res.pool:                              # ranked menu of feasible designs
+       print(sorted(e["markets"]), round(e["pre_fit_rmse"], 3), round(e["mde_pct"], 2))
+
+If a restriction set is jointly unsatisfiable for the requested ``K``, SYNDES
+raises a translated ``MlsynthEstimationError`` naming the restrictions rather
+than returning a broken design; if it is satisfiable but only by fewer than
+``top_K`` distinct designs, the menu simply returns however many are feasible.
+
 Solution pool (``top_K``): a menu, not one answer
 -------------------------------------------------
 
@@ -720,6 +954,98 @@ identical objective, can carry a materially smaller minimum detectable effect
 (or a lower ``cost`` once ``costs`` is supplied). The menu lets you choose the
 design that agrees with what you will actually deploy, instead of the one number
 the optimiser happens to minimise.
+
+Out-of-sample selection (``holdout_frac``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The MIP ranks designs by the *in-sample* pre-period contrast, so the winning
+treated set is the one that balances best over the periods it was fit on. When
+the treated unit moves with the donor pool only transiently, that tight balance
+need not persist, and the in-sample optimum can overfit. Setting ``holdout_frac``
+turns selection into a train/validate procedure, in the spirit of the holdout
+split LEXSCM and MAREX use: the ``top_K`` candidate pool is learned on the
+leading :math:`1 - \texttt{holdout\_frac}` of the pre-period, and the winner is
+the candidate whose *held-out* contrast error on the trailing
+``holdout_frac`` is smallest. For example, ``holdout_frac=0.3`` is a 70/30
+split; the out-of-sample error of a design with contrast weights
+:math:`\mathbf{c}` is :math:`\sqrt{\operatorname{mean}((\mathbf{Y}^{\text{val}}
+\mathbf{c})^2)}`, the validation-tail analogue of ``pre_fit_rmse``.
+
+The returned ``results.pool`` is then ranked by this out-of-sample error (rank-1
+is the holdout winner kept on ``results.design``), and each entry carries an
+``oos_rmse`` key alongside the in-sample ``pre_fit_rmse``. Holdout selection
+needs a candidate pool to choose among, so ``top_K >= 2`` is required, and it
+applies to the MIP modes only (not the annealed relaxation). Power and inference
+are computed exactly as in the in-sample path. ``holdout_frac=None`` (the
+default) leaves selection on the in-sample optimum, unchanged.
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "top_K": 5, "holdout_frac": 0.3,            # 70/30 train/validate
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   for d in res.pool:                              # ranked by out-of-sample error
+       print("treated:", sorted(d["markets"]),
+             "| oos:", round(d["oos_rmse"], 3),
+             "| in-sample:", round(d["pre_fit_rmse"], 3))
+
+In the cross-method comparison, :func:`~mlsynth.compare_methods` defaults to this
+holdout selection for SYNDES (``syndes_holdout_frac=0.3``), adds an ``oos_rmse``
+column to the comparison table, and orders the SYNDES rows by it; pass
+``syndes_holdout_frac=None`` to compare in-sample designs instead.
+
+Information-criterion selection (``selection="ic"``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The holdout split spends part of the pre-period on validation, which is noisy
+exactly when the pre-period is short -- the regime SYNDES is built for. An
+information criterion avoids the split: it scores every candidate on the *whole*
+pre-window and penalises the model-selection flexibility directly. Pouliot, Xie
+& Liu (2024) show that in short-:math:`T_0` synthetic-control settings such a
+criterion outperforms cross-validation / holdout. Setting ``selection="ic"``
+ranks the ``top_K`` pool (solved on the full pre-period) by
+
+.. math::
+
+   \mathrm{IC}(d) = \mathrm{SSR}^{\text{pre}}(d)
+                  + 2\,\hat{\sigma}^2\,\mathrm{df}(d),
+
+mirroring Pouliot et al.'s :math:`\mathbb{E}\lVert \mathbf{Y} - \hat{\mathbf{Y}}
+\rVert^2 + 2\sigma^2\,\mathrm{df}`. Here :math:`\mathrm{SSR}^{\text{pre}}` is the
+in-sample contrast sum of squares; :math:`\mathrm{df} = \lvert A\rvert - 1` with
+:math:`A` the active control donors (their closed form for the unpenalised SCM,
+in which searching over *which* donors to use is free); and
+:math:`\hat{\sigma}^2` is a Mallows-:math:`C_p`-style noise estimate -- the
+best-fitting candidate's per-period contrast variance. The candidate with the
+smallest IC wins, so a design that buys a tighter fit by activating more donors
+is penalised for it.
+
+The returned ``results.pool`` is ranked by IC (rank-1 is the winner on
+``results.design``), and each entry carries an ``ic`` value and its ``df``.
+Like holdout, IC selection needs ``top_K >= 2`` and a MIP mode; it does not use
+``holdout_frac``. The ``selection`` field unifies the three rules -- ``None``
+(default) infers ``"holdout"`` when ``holdout_frac`` is set and ``"in_sample"``
+otherwise, so existing configs are unchanged.
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "top_K": 5, "selection": "ic",              # IC over the whole pre-window
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   for d in res.pool:                              # ranked by information criterion
+       print("treated:", sorted(d["markets"]),
+             "| ic:", round(d["ic"], 1), "| df:", d["df"])
+
+Pass ``syndes_options={"selection": "ic"}`` to :func:`~mlsynth.compare_methods`
+to use IC selection there (it overrides the default holdout).
 
 Ranking the menu by power
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

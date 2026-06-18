@@ -299,3 +299,69 @@ class TestCompareMethods:
             compare_methods(df, outcome="Y", unitid="unit", time="time",
                             treated_size=2, n_post=n_post, methods=("GEOLIFT",),
                             geolift_options={"not_a_real_option": 123})
+
+
+# ----------------------------------------------------------------------
+# SYNDES is selected/ranked by out-of-sample (holdout) error
+# ----------------------------------------------------------------------
+
+class TestSyndesOOSRanking:
+    _SYN = {"time_limit": 3.0, "gap_limit": 0.2}
+
+    def test_table_exposes_oos_column(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4, methods=("SYNDES",),
+            syndes_options=self._SYN,
+        )
+        assert "oos_rmse" in cmp.table.columns
+        syn = cmp.table[cmp.table["method"] == "SYNDES"]
+        assert syn["oos_rmse"].notna().all()
+
+    def test_syndes_rows_sorted_by_oos_ascending(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=5, methods=("SYNDES",),
+            syndes_options=self._SYN,
+        )
+        oos = cmp.table[cmp.table["method"] == "SYNDES"]["oos_rmse"].tolist()
+        assert oos == sorted(oos)
+
+    def test_disabling_holdout_yields_no_oos(self):
+        # syndes_options overrides the default holdout -> in-sample selection,
+        # so OOS error is undefined (None/NaN) and nothing crashes.
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4, methods=("SYNDES",),
+            syndes_holdout_frac=None, syndes_options=self._SYN,
+        )
+        syn = cmp.table[cmp.table["method"] == "SYNDES"]
+        assert syn["oos_rmse"].isna().all()
+
+    def test_holdout_default_still_runs_both_methods(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4,
+            syndes_options=self._SYN, geolift_options={"ns": 120},
+        )
+        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT"}
+        # GEOLIFT rows have no OOS notion -> NaN; SYNDES rows are populated.
+        gl = cmp.table[cmp.table["method"] == "GEOLIFT"]
+        assert gl["oos_rmse"].isna().all()
+
+    def test_ic_selection_via_options_does_not_conflict(self):
+        # Requesting IC selection through syndes_options must suppress the
+        # default holdout injection (they are mutually exclusive) and run.
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4, methods=("SYNDES",),
+            syndes_options={**self._SYN, "selection": "ic"},
+        )
+        assert set(cmp.table["method"]) == {"SYNDES"}
+        # IC is in-sample, so there is no holdout OOS error to report.
+        assert cmp.table["oos_rmse"].isna().all()

@@ -207,6 +207,7 @@ def solve_synthetic_design(
     gap_limit: Optional[float] = None,
     time_limit: Optional[float] = None,
     forbidden_sets: Optional[list] = None,
+    restrictions: Optional[Any] = None,
 ) -> SYNDESDesign:
     """
     Solve the SYNDES synthetic design optimization problem.
@@ -282,6 +283,16 @@ def solve_synthetic_design(
         if _fs.size:
             prob_constraints.append(cp.sum(D[_fs]) <= int(_fs.size) - 1)
 
+    # Design restrictions (geography / clustering / size / forcing) as linear
+    # constraints on the assignment vector D, plus donor-side exclusions that
+    # couple D to the mode's control weights.
+    if restrictions is not None and not restrictions.is_empty:
+        from .restrictions import apply_restrictions, donor_constraints
+        prob_constraints += apply_restrictions(D, restrictions)
+        prob_constraints += donor_constraints(
+            mode, components.variables, D, restrictions.donor_exclusion,
+        )
+
     problem = cp.Problem(cp.Minimize(components.objective), prob_constraints)
 
     # Plumb the user-supplied SCIP limits (Abadie & Zhao 2026 p. 13:
@@ -306,7 +317,18 @@ def solve_synthetic_design(
         ) from exc
 
     if problem.status not in _OPTIMAL_STATUSES:
-        raise MlsynthEstimationError(f"SYNDES optimization failed: {problem.status}")
+        msg = f"SYNDES optimization failed: {problem.status}"
+        if (restrictions is not None and not restrictions.is_empty
+                and "infeasible" in str(problem.status).lower()):
+            # Point the user at the most likely cause rather than a bare status:
+            # the active design restrictions are jointly unsatisfiable for this K.
+            msg = (
+                "SYNDES optimization is infeasible under the active design "
+                "restrictions (spillover/adjacency conflict, stratum quotas, "
+                f"forced/forbidden units) for K={K}. No size-K treated set "
+                "satisfies them -- relax the restrictions or reduce K."
+            )
+        raise MlsynthEstimationError(msg)
 
     if D.value is None:
         raise MlsynthEstimationError("SYNDES optimization did not return an assignment.")
@@ -392,6 +414,7 @@ def solve_synthetic_design_pool(
     budget: Optional[float] = None,
     gap_limit: Optional[float] = None,
     time_limit: Optional[float] = None,
+    restrictions: Optional[Any] = None,
 ) -> list:
     """Top-``top_K`` SYNDES designs, ranked by MSE, via no-good cuts.
 
@@ -424,7 +447,7 @@ def solve_synthetic_design_pool(
                 Y=Y, K=K, mode=mode, lam=lam, solver=solver, verbose=verbose,
                 unit_index=unit_index, costs=costs, budget=budget,
                 gap_limit=gap_limit, time_limit=time_limit,
-                forbidden_sets=forbidden,
+                forbidden_sets=forbidden, restrictions=restrictions,
             )
         except MlsynthEstimationError:
             break  # feasible region exhausted (no further distinct design)

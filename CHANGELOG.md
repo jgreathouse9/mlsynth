@@ -8,6 +8,84 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Fixed
+- **SYNDES no longer leaks an `IndexError` when restrictions make the candidate
+  pool empty.** Over-constrained `top_K > 1` designs (in-sample, holdout, or ic
+  selection) whose every MIP solve is infeasible now raise a translated
+  `MlsynthEstimationError` naming the restrictions, instead of a bare "list
+  index out of range". Surfaced while building the docs gallery.
+
+### Added
+- **SYNDES docs gallery** showcasing every design-customisation knob
+  (cardinality, force in/out, no-two-treated conflict, stratum quotas, size
+  bands, region-matched and non-bordering donor pools, per-unit multi-region
+  designs, and the restriction-aware `top_K` menu) as runnable MWEs on the
+  bundled real US DMA geography + Census regions, with a region-grouped linear
+  factor sales model.
+- **SYNDES donor-side restrictions (region-matched / non-bordering donors).**
+  Beyond constraining *who is treated*, SYNDES can now constrain *who may serve
+  as a treated unit's donor*. The primitive is a donor-exclusion relation
+  `B[i,j]` ("if `i` is treated, `j` may not be its donor"), enforced by coupling
+  the assignment `D` to the mode's control weights, so it works in every mode
+  (one-way global `c[j] ≤ 1−D[i]`, two-way global `w[j]−q[j] ≤ 1−D[i]`, per-unit
+  `w[i,j] = 0`). Filled by `donor_region_col` (a donor must share the treated
+  unit's region), `exclude_bordering_donors` (drop a treated unit's spillover
+  neighbours from its donor pool — the Vives-i-Bastida exclusion restriction,
+  reusing the conflict graph), or an explicit `donor_exclusion` matrix (escape
+  hatch), combined by union. In the global modes a region rule forces the treated
+  set into one region; `per_unit` supports a multi-region design (each treated
+  unit draws its own same-region donors). Validated on the bundled DMA borders +
+  CDC Census regions. Helpers `build_restrictions` / `donor_constraints` in
+  `utils/syndes_helpers/restrictions.py`.
+- **SYNDES design restrictions (geography / clustering / size / forcing).**
+  SYNDES now accepts the same restriction vocabulary as GEOLIFT and LEXSCM,
+  enforced exactly as linear constraints on the MIP assignment vector `D`:
+  `to_be_treated` (`D_i = 1`) / `not_to_be_treated` (`D_i = 0`, stays a donor);
+  `cluster_col` and/or `adjacency` + `spillover_threshold` → no two interfering
+  units both treated (`D_i + D_j ≤ 1`, via the shared conflict-graph helper
+  LEXSCM uses); `stratum_col` + `min_per_stratum` / `max_per_stratum` → coverage
+  quotas; `size_col` + `min_size` / `max_size` → a treated-unit size band.
+  Restrictions compose with `costs`/`budget` and flow through every selection
+  rule (in-sample, holdout, ic). Not supported with the annealed mode or an
+  `arm` column. Over-constrained designs return translated errors, never a
+  leaked solver status: config-detectable cases (unknown/overlapping forced
+  units, forcing more than `K`, too few treatable units) raise
+  `MlsynthConfigError`, and a solve-time infeasibility (e.g. asking for more
+  mutually non-adjacent treated markets than the conflict graph allows) raises
+  `MlsynthEstimationError` with a message naming the restrictions as the cause.
+  Validated against the bundled real DMA contiguity matrix
+  (`basedata/markets/`), restricting to Florida + Georgia. New helper module
+  `utils/syndes_helpers/restrictions.py` (`build_restrictions`,
+  `apply_restrictions`, `DesignRestrictions`).
+- **SYNDES information-criterion (IC) design selection.** A new `selection`
+  config field unifies the design-selection rule into `{"in_sample", "holdout",
+  "ic"}` (default `None` infers `"holdout"` when `holdout_frac` is set, else
+  `"in_sample"`, so existing configs are unchanged). `selection="ic"` ranks the
+  `top_K` pool (solved on the whole pre-period — no data split) by an
+  information criterion `IC = SSR_pre + 2·sigma^2·df`, with `df = active control
+  donors − 1` (Pouliot-Xie-Liu's `df = |A| − 1` for the unpenalised SCM) and a
+  Mallows-Cp noise estimate, penalising designs that buy fit by activating more
+  donors. Preferable to holdout when the pre-period is short. Each `results.pool`
+  entry gains `ic` and `df`; requires `top_K >= 2` and a MIP mode. New helper
+  module `utils/syndes_helpers/infocriterion.py` (`design_df`, `select_by_ic`).
+  In `compare_methods`, pass `syndes_options={"selection": "ic"}` to use it
+  (overrides the default holdout).
+- **SYNDES holdout (train/validate) design selection.** A new optional
+  `holdout_frac` config field switches SYNDES from in-sample MIP selection to
+  out-of-sample selection: the `top_K` candidate pool is learned on the leading
+  `1 - holdout_frac` of the pre-period and the winning design is the one whose
+  *held-out* contrast error on the trailing `holdout_frac` is smallest (e.g.
+  `0.3` for a 70/30 split) — a guard against overfitting transient pre-period
+  co-movement. The returned `results.pool` is ranked by OOS error and each entry
+  carries an `oos_rmse`. Requires `top_K >= 2` and a MIP mode; power and
+  inference are unchanged. `holdout_frac=None` (default) preserves the
+  Doudchenko et al. (2021) in-sample behaviour exactly. `compare_methods` now
+  defaults to holdout selection for SYNDES (`syndes_holdout_frac=0.3`), exposes
+  an `oos_rmse` column, and ranks the SYNDES rows by it; pass
+  `syndes_holdout_frac=None` to revert. New helper module
+  `utils/syndes_helpers/holdout.py` (`split_pre`, `oos_contrast_rmse`,
+  `select_by_holdout`).
+
 ### Changed
 - **SpSyDiD migrated onto the two-family result contract** (final estimator of
   the 9-estimator migration). `SpSyDiD.fit()` now returns `SpSyDiDResults` as a

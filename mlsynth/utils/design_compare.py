@@ -45,12 +45,17 @@ class DesignSpec:
         negative and sum to minus one.
     treated : list
         Treated-unit labels (used for the baseline and the label).
+    oos_rmse : float, optional
+        Out-of-sample (holdout) contrast RMSE of the design, when it was
+        selected by SYNDES's holdout selector. ``None`` for in-sample SYNDES
+        designs and for GEOLIFT (which has no holdout notion).
     """
 
     method: str
     label: str
     contrast: Dict[Any, float]
     treated: List[Any]
+    oos_rmse: Optional[float] = None
 
 
 def simulated_mde(
@@ -175,6 +180,8 @@ def compare_pareto(
         rows.append({
             "method": s.method, "label": s.label, "treated": list(s.treated),
             "fit_rmse": fit_rmse, "mde_pct": mde_pct,
+            "oos_rmse": (float(s.oos_rmse) if s.oos_rmse is not None
+                         else float("nan")),
         })
 
     df = pd.DataFrame(rows)
@@ -195,16 +202,17 @@ def from_syndes(res) -> List[DesignSpec]:
     """
     labels = list(np.asarray(res.inputs.unit_index.labels))
 
-    def _spec(design, markets, tag):
+    def _spec(design, markets, tag, oos=None):
         c = np.asarray(design.contrast_weights, dtype=float).reshape(-1)
         contrast = {labels[j]: float(c[j]) for j in range(len(labels))}
-        return DesignSpec("SYNDES", tag, contrast, list(markets))
+        return DesignSpec("SYNDES", tag, contrast, list(markets), oos_rmse=oos)
 
     pool = getattr(res, "pool", None)
     if pool:
         return [
             _spec(e["design"], e["markets"],
-                  f"S{i + 1}:{'+'.join(map(str, sorted(e['markets'])))}")
+                  f"S{i + 1}:{'+'.join(map(str, sorted(e['markets'])))}",
+                  e.get("oos_rmse"))
             for i, e in enumerate(pool)
         ]
     d = res.design
@@ -285,6 +293,7 @@ def compare_methods(
     power_target: float = 0.80,
     effects_pct: Optional[Sequence[float]] = None,
     methods: Sequence[str] = ("SYNDES", "GEOLIFT"),
+    syndes_holdout_frac: Optional[float] = 0.3,
     syndes_options: Optional[Dict[str, Any]] = None,
     geolift_options: Optional[Dict[str, Any]] = None,
 ) -> DesignComparison:
@@ -317,6 +326,14 @@ def compare_methods(
         Common effect grid (percent of baseline) for the MDE simulation.
     methods : sequence of str, default ``("SYNDES", "GEOLIFT")``
         Which methods to fit and compare.
+    syndes_holdout_frac : float or None, default 0.3
+        Holdout fraction for SYNDES design selection: SYNDES learns its pool on
+        the leading ``1 - syndes_holdout_frac`` of the pre-period and is ranked
+        by out-of-sample contrast error on the tail (column ``oos_rmse``; SYNDES
+        rows are ordered ascending by it). ``None`` reverts SYNDES to in-sample
+        selection (``oos_rmse`` is ``NaN``). Ignored when ``top_K < 2`` (a pool
+        is required to validate). An explicit ``holdout_frac`` in
+        ``syndes_options`` overrides this.
     syndes_options, geolift_options : dict, optional
         Per-method overrides merged over the defaults (e.g.
         ``{"time_limit": 20.0}`` to give SYNDES a larger budget).
@@ -359,8 +376,18 @@ def compare_methods(
 
     if "SYNDES" in methods:
         from ..estimators.syndes import SYNDES
+        syn_over = syndes_options or {}
+        # Holdout selection needs a candidate pool (top_K >= 2); fall back to
+        # in-sample otherwise so a top_K=1 caller still works. If the caller
+        # picks a selection rule (or holdout_frac) explicitly, defer to it and
+        # do not inject the default holdout (they are mutually exclusive).
+        explicit = "selection" in syn_over or "holdout_frac" in syn_over
+        holdout = (None if explicit
+                   else (syndes_holdout_frac
+                         if (syndes_holdout_frac is not None and top_K >= 2)
+                         else None))
         sk = {**_SYNDES_DEFAULTS, **common, "K": treated_size, "top_K": top_K,
-              "alpha": alpha, **(syndes_options or {})}
+              "alpha": alpha, "holdout_frac": holdout, **syn_over}
         syn = SYNDES(sk).fit()
         specs += from_syndes(syn)
 
@@ -375,6 +402,14 @@ def compare_methods(
     table = compare_pareto(specs, Ywide, n_pre, horizon=horizon,
                            effects_pct=effects_pct, alpha=alpha,
                            power_target=power_target)
+
+    # Rank the SYNDES block by out-of-sample (holdout) error when it is defined,
+    # keeping every other method's rows in place. Stable sort -> deterministic.
+    syn_mask = table["method"] == "SYNDES"
+    if syn_mask.any() and table.loc[syn_mask, "oos_rmse"].notna().any():
+        syn_sorted = table[syn_mask].sort_values("oos_rmse", kind="stable")
+        table = pd.concat([syn_sorted, table[~syn_mask]], ignore_index=True)
+
     return DesignComparison(table=table, syndes=syn, geolift=gl, specs=specs,
                             horizon=horizon)
 

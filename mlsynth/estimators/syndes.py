@@ -63,10 +63,13 @@ from ..utils.syndes_helpers.inference import (
     permutation_test_global,
     permutation_test_relaxed_global,
 )
+from ..utils.syndes_helpers.holdout import select_by_holdout
+from ..utils.syndes_helpers.infocriterion import select_by_ic
 from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
     solve_synthetic_design_pool,
 )
+from ..utils.syndes_helpers.restrictions import build_restrictions
 from ..utils.syndes_helpers.plotter import plot_syndes_design
 from ..utils.syndes_helpers.power import power_analysis
 from ..utils.syndes_helpers.select import recommend_syndes
@@ -194,7 +197,8 @@ def _syndes_power_curve(results, alpha, horizons=range(1, 13)):
         return None
 
 
-def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
+def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8,
+                      oos_errors=None, ic_values=None, df_values=None):
     """Re-score a SYNDES solution pool into a manager-facing menu.
 
     The MIP ranks designs by fit alone, so each pooled design is annotated with
@@ -235,7 +239,7 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
     z = float(norm.ppf(1.0 - alpha / 2.0) + norm.ppf(power_target))
     costs_arr = None if costs is None else np.asarray(costs, dtype=float).reshape(-1)
     menu = []
-    for d in pool_designs:
+    for entry_i, d in enumerate(pool_designs):
         idx = np.asarray(d.selected_unit_indices, dtype=int)
         base = float(np.mean(Y_pre[:, idx])) if idx.size else float("nan")
 
@@ -273,6 +277,10 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
             "pre_fit_rmse": (None if d.pre_fit_rmse is None else float(d.pre_fit_rmse)),
             "mde_pct": float(mde_pct),
             "cost": (None if costs_arr is None else float(costs_arr[idx].sum())),
+            "oos_rmse": (None if oos_errors is None
+                         else float(oos_errors[entry_i])),
+            "ic": (None if ic_values is None else float(ic_values[entry_i])),
+            "df": (None if df_values is None else int(df_values[entry_i])),
             "design": d,
             "power_curve": power_curve,
         })
@@ -332,6 +340,26 @@ class SYNDES:
         self.power_weight: float = config.power_weight
         self.fit_weight: float = config.fit_weight
         self.max_shortlist: int = config.max_shortlist
+        self.holdout_frac: Optional[float] = config.holdout_frac
+        # Resolve the design-selection rule (None infers from holdout_frac).
+        self.selection: str = config.selection or (
+            "holdout" if config.holdout_frac is not None else "in_sample"
+        )
+        # Design restrictions (geography / clustering / size / forcing).
+        self.to_be_treated = config.to_be_treated
+        self.not_to_be_treated = config.not_to_be_treated
+        self.cluster_col = config.cluster_col
+        self.adjacency = config.adjacency
+        self.spillover_threshold = config.spillover_threshold
+        self.stratum_col = config.stratum_col
+        self.min_per_stratum = config.min_per_stratum
+        self.max_per_stratum = config.max_per_stratum
+        self.size_col = config.size_col
+        self.min_size = config.min_size
+        self.max_size = config.max_size
+        self.donor_region_col = config.donor_region_col
+        self.exclude_bordering_donors = config.exclude_bordering_donors
+        self.donor_exclusion = config.donor_exclusion
 
     # ------------------------------------------------------------------
     # Public API
@@ -397,13 +425,64 @@ class SYNDES:
 
         if self.mode_public == "two_way_global_annealed":
             return self._fit_relaxed(inputs)
-        return self._fit_mip(inputs)
+        restrictions = self._build_restrictions(df, inputs)
+        return self._fit_mip(inputs, restrictions)
+
+    def _build_restrictions(self, df, inputs):
+        """Translate restriction config into an index-level bundle (or None).
+
+        Also runs the cheap feasibility checks that would otherwise surface as an
+        opaque solver ``INFEASIBLE``: forced count and treatable-pool size vs K.
+        """
+        restrictions = build_restrictions(
+            df, self.unitid, inputs.unit_index,
+            to_be_treated=self.to_be_treated,
+            not_to_be_treated=self.not_to_be_treated,
+            cluster_col=self.cluster_col, adjacency=self.adjacency,
+            spillover_threshold=self.spillover_threshold,
+            stratum_col=self.stratum_col,
+            min_per_stratum=self.min_per_stratum,
+            max_per_stratum=self.max_per_stratum,
+            size_col=self.size_col, min_size=self.min_size, max_size=self.max_size,
+            donor_region_col=self.donor_region_col,
+            exclude_bordering_donors=self.exclude_bordering_donors,
+            donor_exclusion=self.donor_exclusion,
+        )
+        if restrictions.is_empty:
+            return None
+        if self.K is not None:
+            n_units = int(inputs.Y_pre.shape[1])
+            treatable = n_units - len(restrictions.forbidden)
+            if treatable < self.K:
+                raise MlsynthConfigError(
+                    f"design restrictions leave only {treatable} treatable "
+                    f"unit(s), fewer than K ({self.K}); relax not_to_be_treated "
+                    "or the size band."
+                )
+        return restrictions
 
     # ------------------------------------------------------------------
     # MIP path
     # ------------------------------------------------------------------
 
-    def _fit_mip(self, inputs) -> SYNDESResults:
+    @staticmethod
+    def _require_feasible_pool(designs):
+        """Raise a translated error when the candidate pool is empty.
+
+        An empty pool means every MIP solve was infeasible -- almost always
+        because the active restrictions are jointly unsatisfiable for the
+        requested ``K``. Without this guard the downstream ``designs[0]`` would
+        leak a bare ``IndexError`` ("list index out of range").
+        """
+        if not designs:
+            raise MlsynthEstimationError(
+                "SYNDES found no feasible design: the active restrictions "
+                "(forced/forbidden units, spillover/adjacency conflict, stratum "
+                "quotas, donor-pool rules) are jointly unsatisfiable for the "
+                "requested K. Relax the restrictions or reduce K."
+            )
+
+    def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
 
         solve_kw = dict(
@@ -411,12 +490,40 @@ class SYNDES:
             solver=self.solver, verbose=self.verbose,
             unit_index=inputs.unit_index, costs=self.costs, budget=self.budget,
             gap_limit=self.gap_limit, time_limit=self.time_limit,
+            restrictions=restrictions,
         )
         pool = None
-        if self.top_K and self.top_K > 1:
+        if self.selection == "holdout":
+            # Holdout selection: learn the candidate pool on the leading
+            # 1 - holdout_frac of the pre-period, then pick the design with the
+            # smallest out-of-sample contrast error on the held-out tail. The
+            # returned pool is ranked by OOS error (rank-1 is the winner).
+            base_kw = {k: v for k, v in solve_kw.items() if k != "Y"}
+            ranked, oos_errors = select_by_holdout(
+                inputs.Y_pre, holdout_frac=self.holdout_frac,
+                top_K=self.top_K, **base_kw,
+            )
+            self._require_feasible_pool(ranked)
+            design = ranked[0]
+            pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
+                                     oos_errors=oos_errors)
+        elif self.selection == "ic":
+            # Information-criterion selection: solve the pool on the whole
+            # pre-period, then re-rank by IC = SSR_pre + 2 sigma^2 df (no data
+            # split). The returned pool is ranked by IC (rank-1 is the winner).
+            pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            self._require_feasible_pool(pool_designs)
+            ranked, ic_values, df_values, _sigma2 = select_by_ic(
+                pool_designs, inputs.Y_pre,
+            )
+            design = ranked[0]
+            pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
+                                     ic_values=ic_values, df_values=df_values)
+        elif self.top_K and self.top_K > 1:
             # Solution pool: top-K distinct designs by no-good cuts. The rank-1
             # design IS the single-solve optimum, so reuse it (no double solve).
             pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            self._require_feasible_pool(pool_designs)
             design = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
         else:
