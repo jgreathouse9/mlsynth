@@ -16,6 +16,13 @@ now returns and the back-compat guarantee.
   index out of range". Surfaced while building the docs gallery.
 
 ### Added
+- **GEOLIFT docs gallery** consolidating every geographic design constraint
+  (cardinality, force in/out, spillover non-interference via `cluster_col` /
+  `adjacency` with the matching donor spillover exclusion, coverage
+  `min`/`max_per_stratum`, size bands, budget planning, and the full shortlist)
+  into one unified showcase on the bundled real US DMA contiguity map + Census
+  divisions, with a grouped linear factor sales model -- mirroring the SYNDES
+  gallery so the two design estimators document the same surface in parallel.
 - **SYNDES docs gallery** showcasing every design-customisation knob
   (cardinality, force in/out, no-two-treated conflict, stratum quotas, size
   bands, region-matched and non-bordering donor pools, per-unit multi-region
