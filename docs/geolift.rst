@@ -815,7 +815,9 @@ below assumes this setup has run.
                how="mean", ns=40, seed=0, display_graphs=False)
 
 Plain cardinality -- nominate the 3-market test region with the best detectable
-effect; and force one market in, another out (the latter stays a donor):
+effect; and force one market in, another out (the latter stays a donor) -- when
+the business has already committed to running the test in a given market, or
+must keep one out (a regulated market, a market already running another test):
 
 .. code-block:: python
 
@@ -824,11 +826,14 @@ effect; and force one market in, another out (the latter stays a donor):
             "not_to_be_treated": ["Miami-Fort Lauderdale, FL"]}).fit()
 
 Spillover non-interference. No two test markets in the same state (a
-``cluster_col``), or no two sharing a real border (the contiguity matrix). Both
-do double duty: the treated markets are forced apart, and -- the control
-criterion -- each treated market's same-cluster / bordering neighbours are
-dropped from its donor pool, so a spilling-over market never sits in the
-synthetic control:
+``cluster_col``), or no two sharing a real border (the contiguity matrix) --
+reach for this when treating two nearby markets would let one's campaign bleed
+into the other (overlapping DMAs/media, cross-border shopping), which biases the
+lift. Both do double duty: the treated markets are forced apart, and -- the
+control criterion -- each treated market's same-cluster / bordering neighbours
+are dropped from its donor pool, so a spilling-over market never sits in the
+synthetic control (a contaminated donor would drag the counterfactual toward the
+treated trend):
 
 .. code-block:: python
 
@@ -843,7 +848,10 @@ synthetic control:
    assert all(str(d) not in nbr for d in cd.weights.donor_weights)
 
 Coverage quotas. Require at least one treated market in every region ("test
-everywhere"), or cap the count per region:
+everywhere"), or cap the count per region -- use ``min_per_stratum`` when
+stakeholders need a read in every region, not just the ones the optimizer finds
+easiest to fit, and ``max_per_stratum`` to keep the test from concentrating in a
+single area:
 
 .. code-block:: python
 
@@ -853,7 +861,9 @@ everywhere"), or cap the count per region:
             "max_per_stratum": 1}).fit()                # <= 1 test market per division
 
 Size band -- only mid-sized markets are eligible for treatment (the rest stay
-donors); the floor is a power minimum and the ceiling encodes synthesizability:
+donors); the floor is a power minimum (a too-small market cannot detect the
+effect) and the ceiling encodes synthesizability (a market far larger than the
+donors cannot sit inside their convex hull):
 
 .. code-block:: python
 

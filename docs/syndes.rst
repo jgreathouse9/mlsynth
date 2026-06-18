@@ -812,7 +812,9 @@ Plain cardinality -- pick the 3 markets whose synthetic design fits best:
 
    SYNDES({**BASE, "K": 3}).fit()
 
-Force one market in and another out (it stays a donor):
+Force one market in and another out (it stays a donor) -- reach for this when
+leadership has already committed to launching in a particular market, or when
+you are contractually, legally, or operationally barred from treating one:
 
 .. code-block:: python
 
@@ -820,15 +822,20 @@ Force one market in and another out (it stays a donor):
            "not_to_be_treated": ["Cincinnati, OH"]}).fit()
 
 No two treated markets in the same state (a ``cluster_col`` clique), or no two
-sharing a border (the contiguity matrix):
+sharing a border (the contiguity matrix) -- use this when treating two nearby
+markets would let one contaminate the other's read (overlapping media buys,
+cross-border shopping, commuting), which would bias the measured lift:
 
 .. code-block:: python
 
    SYNDES({**BASE, "K": 3, "cluster_col": "state"}).fit()
    SYNDES({**BASE, "K": 3, "adjacency": adj, "spillover_threshold": 0.5}).fit()
 
-Coverage quota -- at least one treated market in every region; and a size band
--- only mid-sized markets are treatable (others remain donors):
+Coverage quota -- at least one treated market in every region, for when
+stakeholders need a read *everywhere* (not just the regions the optimizer finds
+easiest to fit); and a size band -- only mid-sized markets are treatable (others
+remain donors), because a market far larger than the donor pool cannot be
+synthesized (its imbalance blows up) and a too-small one cannot power the test:
 
 .. code-block:: python
 
@@ -838,7 +845,10 @@ Coverage quota -- at least one treated market in every region; and a size band
 
 Donor-pool rules. A treated market may borrow only from its own region; or only
 from markets that do not border it; or -- the motivating case -- only from
-non-bordering markets in its own region:
+non-bordering markets in its own region. Reach for these when you only trust
+within-region comparisons (a national donor would compare apples to oranges) and
+when a bordering market is itself partly treated by the very spillover you are
+trying to measure, so it cannot serve as a clean counterfactual:
 
 .. code-block:: python
 
