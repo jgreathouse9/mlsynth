@@ -287,6 +287,25 @@ class TestSYNDESRestrictionsInfeasible:
                     "not_to_be_treated": ["u4", "u5", "u6", "u7"]}).fit()
         assert "restriction" in str(ei.value).lower()
 
+    @pytest.mark.parametrize("extra", [{}, {"holdout_frac": 0.3},
+                                       {"selection": "ic"}])
+    def test_infeasible_pool_reports_cleanly(self, extra):
+        # Same clique infeasibility but via the top_K>1 pool paths (in-sample,
+        # holdout, ic): an empty pool must raise a translated error, never leak
+        # an IndexError ("list index out of range").
+        labels = [f"u{j}" for j in range(8)]
+        A = pd.DataFrame(0.0, index=labels, columns=labels)
+        for a in range(4):
+            for b in range(a + 1, 4):
+                A.loc[labels[a], labels[b]] = A.loc[labels[b], labels[a]] = 1.0
+        with pytest.raises(MlsynthEstimationError) as ei:
+            SYNDES({"df": _panel(), **self._BASE, "K": 3, "top_K": 4,
+                    "adjacency": A, "spillover_threshold": 0.5,
+                    "not_to_be_treated": ["u4", "u5", "u6", "u7"], **extra}).fit()
+        msg = str(ei.value).lower()
+        assert "list index" not in msg
+        assert "feasible" in msg or "restriction" in msg
+
 
 # ----------------------------------------------------------------------
 # Real geography: validate against the bundled DMA contiguity matrix

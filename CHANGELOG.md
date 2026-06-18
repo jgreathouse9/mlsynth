@@ -8,7 +8,20 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Fixed
+- **SYNDES no longer leaks an `IndexError` when restrictions make the candidate
+  pool empty.** Over-constrained `top_K > 1` designs (in-sample, holdout, or ic
+  selection) whose every MIP solve is infeasible now raise a translated
+  `MlsynthEstimationError` naming the restrictions, instead of a bare "list
+  index out of range". Surfaced while building the docs gallery.
+
 ### Added
+- **SYNDES docs gallery** showcasing every design-customisation knob
+  (cardinality, force in/out, no-two-treated conflict, stratum quotas, size
+  bands, region-matched and non-bordering donor pools, per-unit multi-region
+  designs, and the restriction-aware `top_K` menu) as runnable MWEs on the
+  bundled real US DMA geography + Census regions, with a region-grouped linear
+  factor sales model.
 - **SYNDES donor-side restrictions (region-matched / non-bordering donors).**
   Beyond constraining *who is treated*, SYNDES can now constrain *who may serve
   as a treated unit's donor*. The primitive is a donor-exclusion relation

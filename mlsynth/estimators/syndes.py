@@ -465,6 +465,23 @@ class SYNDES:
     # MIP path
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _require_feasible_pool(designs):
+        """Raise a translated error when the candidate pool is empty.
+
+        An empty pool means every MIP solve was infeasible -- almost always
+        because the active restrictions are jointly unsatisfiable for the
+        requested ``K``. Without this guard the downstream ``designs[0]`` would
+        leak a bare ``IndexError`` ("list index out of range").
+        """
+        if not designs:
+            raise MlsynthEstimationError(
+                "SYNDES found no feasible design: the active restrictions "
+                "(forced/forbidden units, spillover/adjacency conflict, stratum "
+                "quotas, donor-pool rules) are jointly unsatisfiable for the "
+                "requested K. Relax the restrictions or reduce K."
+            )
+
     def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
 
@@ -486,6 +503,7 @@ class SYNDES:
                 inputs.Y_pre, holdout_frac=self.holdout_frac,
                 top_K=self.top_K, **base_kw,
             )
+            self._require_feasible_pool(ranked)
             design = ranked[0]
             pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
                                      oos_errors=oos_errors)
@@ -494,6 +512,7 @@ class SYNDES:
             # pre-period, then re-rank by IC = SSR_pre + 2 sigma^2 df (no data
             # split). The returned pool is ranked by IC (rank-1 is the winner).
             pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            self._require_feasible_pool(pool_designs)
             ranked, ic_values, df_values, _sigma2 = select_by_ic(
                 pool_designs, inputs.Y_pre,
             )
@@ -504,6 +523,7 @@ class SYNDES:
             # Solution pool: top-K distinct designs by no-good cuts. The rank-1
             # design IS the single-solve optimum, so reuse it (no double solve).
             pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            self._require_feasible_pool(pool_designs)
             design = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
         else:
