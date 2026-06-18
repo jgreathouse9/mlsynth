@@ -694,6 +694,53 @@ than leaking a solver ``INFEASIBLE``.
 
    print(sorted(res.design.selected_unit_labels.tolist()))
 
+Restricting the donor pool (region-matched, non-bordering)
+----------------------------------------------------------
+
+The restrictions above constrain *who is treated*. A separate family constrains
+*who may be a treated unit's donor* -- the control side. The primitive is a
+donor-exclusion relation :math:`B_{ij}` ("if :math:`i` is treated, :math:`j` may
+not be its donor"), enforced by coupling the assignment :math:`D` to the mode's
+control weights, so it works in every mode:
+
+.. math::
+
+   \text{one-way global:}\quad & c_j \le 1 - D_i, \\
+   \text{two-way global:}\quad & w_j - q_j \le 1 - D_i, \\
+   \text{per-unit:}\quad       & w_{ij} = 0.
+
+Two convenience knobs (and one escape hatch) fill :math:`B`:
+
+* ``donor_region_col`` -- a donor must share the treated unit's value in this
+  column (e.g. a Census region). So a Midwest market can borrow from another
+  Midwest market but never from a Northeast one.
+* ``exclude_bordering_donors`` -- a treated unit's spillover neighbours (from
+  ``cluster_col`` / ``adjacency`` + ``spillover_threshold``) are dropped from its
+  donor pool, so a donor cannot sit right across the treated unit's border (the
+  Vives-i-Bastida exclusion restriction). Requires a conflict source.
+* ``donor_exclusion`` -- an explicit per-pair matrix (DataFrame keyed by unit
+  label, entry :math:`[i, j] > 0` forbids :math:`j` as a donor for :math:`i`),
+  combined with the above by union. The fully general form.
+
+A subtlety worth knowing: the global modes share *one* donor vector across all
+treated units, so ``donor_region_col`` there forces the treated set into a
+single region (one donor vector cannot be same-region as treated units from two
+regions). The ``per_unit`` mode gives each treated unit its own synthetic
+control, so it supports a genuinely multi-region design -- Detroit drawing from
+the Midwest and a Pennsylvania market drawing from the Northeast, in the same
+fit. (Region exclusion in a global mode emits :math:`O(N^2)` constraints; on a
+very large panel prefer ``per_unit`` or scoping the panel to the region.)
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "dma", "time": "date",
+       "K": 3, "mode": "per_unit", "post_col": "post",
+       "donor_region_col": "census_region",   # donors share the treated region
+       "adjacency": dma_borders,              # contiguity matrix
+       "exclude_bordering_donors": True,      # ...and never a bordering donor
+   }).fit()
+
 Solution pool (``top_K``): a menu, not one answer
 -------------------------------------------------
 

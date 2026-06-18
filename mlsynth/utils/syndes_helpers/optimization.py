@@ -284,10 +284,14 @@ def solve_synthetic_design(
             prob_constraints.append(cp.sum(D[_fs]) <= int(_fs.size) - 1)
 
     # Design restrictions (geography / clustering / size / forcing) as linear
-    # constraints on the assignment vector D.
+    # constraints on the assignment vector D, plus donor-side exclusions that
+    # couple D to the mode's control weights.
     if restrictions is not None and not restrictions.is_empty:
-        from .restrictions import apply_restrictions
+        from .restrictions import apply_restrictions, donor_constraints
         prob_constraints += apply_restrictions(D, restrictions)
+        prob_constraints += donor_constraints(
+            mode, components.variables, D, restrictions.donor_exclusion,
+        )
 
     problem = cp.Problem(cp.Minimize(components.objective), prob_constraints)
 

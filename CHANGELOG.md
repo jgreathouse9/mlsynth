@@ -9,6 +9,21 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- **SYNDES donor-side restrictions (region-matched / non-bordering donors).**
+  Beyond constraining *who is treated*, SYNDES can now constrain *who may serve
+  as a treated unit's donor*. The primitive is a donor-exclusion relation
+  `B[i,j]` ("if `i` is treated, `j` may not be its donor"), enforced by coupling
+  the assignment `D` to the mode's control weights, so it works in every mode
+  (one-way global `c[j] ≤ 1−D[i]`, two-way global `w[j]−q[j] ≤ 1−D[i]`, per-unit
+  `w[i,j] = 0`). Filled by `donor_region_col` (a donor must share the treated
+  unit's region), `exclude_bordering_donors` (drop a treated unit's spillover
+  neighbours from its donor pool — the Vives-i-Bastida exclusion restriction,
+  reusing the conflict graph), or an explicit `donor_exclusion` matrix (escape
+  hatch), combined by union. In the global modes a region rule forces the treated
+  set into one region; `per_unit` supports a multi-region design (each treated
+  unit draws its own same-region donors). Validated on the bundled DMA borders +
+  CDC Census regions. Helpers `build_restrictions` / `donor_constraints` in
+  `utils/syndes_helpers/restrictions.py`.
 - **SYNDES design restrictions (geography / clustering / size / forcing).**
   SYNDES now accepts the same restriction vocabulary as GEOLIFT and LEXSCM,
   enforced exactly as linear constraints on the MIP assignment vector `D`:

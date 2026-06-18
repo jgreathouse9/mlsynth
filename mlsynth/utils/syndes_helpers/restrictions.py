@@ -36,7 +36,7 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthConfigError
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..fast_scm_helpers.conflict import build_conflict_matrix
 from ..geolift_helpers.marketselect.helpers.constraints import (
     eligible_by_size,
@@ -62,18 +62,23 @@ class DesignRestrictions:
         Index pairs ``(i, j)``, ``i < j``, that interfere (``D_i + D_j <= 1``).
     strata : list of (tuple of int, int or None, int or None)
         Per-stratum ``(members, lower, upper)`` coverage quotas.
+    donor_exclusion : list of (int, int)
+        Directed pairs ``(i, j)``: if treated unit ``i`` is selected, unit ``j``
+        may not serve as its donor (control). Couples ``D`` to the control
+        weights; see :func:`donor_constraints`.
     """
 
     forced_in: List[int] = field(default_factory=list)
     forbidden: List[int] = field(default_factory=list)
     conflict_pairs: List[Tuple[int, int]] = field(default_factory=list)
     strata: List[Stratum] = field(default_factory=list)
+    donor_exclusion: List[Tuple[int, int]] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
         """True when no restriction is present (the MIP is unconstrained by this)."""
-        return not (self.forced_in or self.forbidden
-                    or self.conflict_pairs or self.strata)
+        return not (self.forced_in or self.forbidden or self.conflict_pairs
+                    or self.strata or self.donor_exclusion)
 
 
 def build_restrictions(
@@ -92,6 +97,9 @@ def build_restrictions(
     size_col: Optional[str] = None,
     min_size: Optional[float] = None,
     max_size: Optional[float] = None,
+    donor_region_col: Optional[str] = None,
+    exclude_bordering_donors: bool = False,
+    donor_exclusion: Optional[Any] = None,
 ) -> DesignRestrictions:
     """Translate label-based design restrictions into an index-level bundle.
 
@@ -177,10 +185,53 @@ def build_restrictions(
             if lo is not None or hi is not None:
                 strata.append((members, lo, hi))
 
+    # ---- donor-side exclusion: (i, j) means "if i is treated, j is not its
+    # donor". Filled by region matching, spillover-neighbour exclusion, and/or
+    # an explicit matrix; combined by union.
+    donor_pairs: set = set()
+    if donor_region_col is not None:
+        region_of = unit_attribute_map(df, unitid, donor_region_col)
+        regions = [region_of.get(lab) for lab in labels]
+        for i in range(len(labels)):
+            for j in range(len(labels)):
+                if i != j and regions[i] != regions[j]:
+                    donor_pairs.add((i, j))
+    if exclude_bordering_donors and conflict is not None:
+        iu, ju = np.where(conflict)            # both directions (symmetric graph)
+        donor_pairs.update(zip(iu.tolist(), ju.tolist()))
+    if donor_exclusion is not None:
+        M = _align_square(donor_exclusion, labels, "donor_exclusion")
+        iu, ju = np.where(M > 0)
+        donor_pairs.update((int(i), int(j)) for i, j in zip(iu, ju) if i != j)
+
     return DesignRestrictions(
         forced_in=forced_in, forbidden=forbidden,
         conflict_pairs=conflict_pairs, strata=strata,
+        donor_exclusion=sorted(donor_pairs),
     )
+
+
+def _align_square(matrix: Any, labels: list, name: str) -> np.ndarray:
+    """Reindex a square label-keyed matrix to ``labels`` order, validating cover."""
+    import pandas as pd
+
+    if isinstance(matrix, pd.DataFrame):
+        missing = [l for l in labels
+                   if l not in matrix.index or l not in matrix.columns]
+        if missing:
+            raise MlsynthDataError(
+                f"{name} is missing rows/columns for units: {missing[:5]}"
+                + (" ..." if len(missing) > 5 else "")
+            )
+        return matrix.reindex(index=labels, columns=labels).to_numpy(dtype=float)
+    M = np.asarray(matrix, dtype=float)
+    if M.shape != (len(labels), len(labels)):
+        raise MlsynthConfigError(
+            f"{name} has shape {M.shape}, expected "
+            f"({len(labels)}, {len(labels)}); pass a DataFrame keyed by unit id "
+            "to avoid relying on ordering."
+        )
+    return M
 
 
 def apply_restrictions(D: Any, restrictions: DesignRestrictions) -> list:
@@ -214,4 +265,41 @@ def apply_restrictions(D: Any, restrictions: DesignRestrictions) -> list:
             cons.append(cp.sum(D[members]) >= lo)
         if hi is not None:
             cons.append(cp.sum(D[members]) <= hi)
+    return cons
+
+
+def donor_constraints(mode: str, variables: dict, D: Any,
+                      donor_exclusion: list) -> list:
+    """cvxpy constraints forbidding donor ``j`` for treated unit ``i``.
+
+    The control weight of ``j`` (toward ``i``) is forced to zero whenever ``i``
+    is treated, encoded per mode against that mode's control variables:
+
+    * ``global_equal_weights`` (one-way): ``c[j] <= 1 - D[i]``;
+    * ``global_2way``:                    ``w[j] - q[j] <= 1 - D[i]``
+      (``w - q`` is the control simplex);
+    * ``per_unit``:                       ``w[i, j] == 0`` (row ``i``'s weight on
+      donor ``j``; only binds when ``i`` is treated since ``w[i, j] <= D[i]``).
+
+    Returns an empty list when ``donor_exclusion`` is empty.
+    """
+    if not donor_exclusion:
+        return []
+    cons: list = []
+    if mode == "global_equal_weights":
+        c = variables["c"]
+        for i, j in donor_exclusion:
+            cons.append(c[j] <= 1 - D[i])
+    elif mode == "global_2way":
+        w, q = variables["w"], variables["q"]
+        for i, j in donor_exclusion:
+            cons.append(w[j] - q[j] <= 1 - D[i])
+    elif mode == "per_unit":
+        w = variables["w"]
+        for i, j in donor_exclusion:
+            cons.append(w[i, j] == 0)
+    else:                                          # pragma: no cover - guarded upstream
+        raise MlsynthConfigError(
+            f"donor restrictions are not supported for mode {mode!r}."
+        )
     return cons

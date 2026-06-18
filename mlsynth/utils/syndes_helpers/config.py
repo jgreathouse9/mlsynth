@@ -271,6 +271,28 @@ class SYNDESConfig(BaseMAREXConfig):
     max_size: Optional[float] = Field(
         default=None, description="Upper size bound for treatment eligibility.",
     )
+    # ---- donor-side restrictions (which units may be a treated unit's donor) ----
+    donor_region_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column; a unit may serve as a donor for a "
+        "treated unit only if they share this column's value (e.g. region). "
+        "Couples to the assignment via the control weights, so it works in every "
+        "mode (in the global modes it forces the treated set into one region).",
+    )
+    exclude_bordering_donors: bool = Field(
+        default=False,
+        description="When True, a treated unit's spillover neighbours (from "
+        "`cluster_col` / `adjacency` + `spillover_threshold`) are dropped from "
+        "its donor pool (the Vives-i-Bastida exclusion restriction). Requires a "
+        "conflict source.",
+    )
+    donor_exclusion: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Explicit donor-exclusion matrix (DataFrame indexed/columned "
+        "by unit label); entry [i, j] > 0 forbids unit j as a donor for treated "
+        "unit i. Combined with `donor_region_col` / `exclude_bordering_donors` by "
+        "union. The most flexible escape hatch.",
+    )
     selection: Optional[Literal["in_sample", "holdout", "ic"]] = Field(
         default=None,
         description=(
@@ -350,6 +372,9 @@ class SYNDESConfig(BaseMAREXConfig):
             or values.stratum_col is not None or values.min_per_stratum is not None
             or values.max_per_stratum is not None or values.size_col is not None
             or values.min_size is not None or values.max_size is not None
+            or values.donor_region_col is not None
+            or values.exclude_bordering_donors
+            or values.donor_exclusion is not None
         )
         if _restr_set:
             if values.mode == "two_way_global_annealed":
@@ -382,10 +407,16 @@ class SYNDESConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 f"to_be_treated ({len(forced)}) cannot exceed K ({values.K})."
             )
-        for col in ("cluster_col", "stratum_col", "size_col"):
+        for col in ("cluster_col", "stratum_col", "size_col", "donor_region_col"):
             name = getattr(values, col)
             if name is not None and name not in df.columns:
                 raise MlsynthConfigError(f"{col} '{name}' is not a column of df.")
+        if values.exclude_bordering_donors and values.cluster_col is None \
+                and values.adjacency is None:
+            raise MlsynthConfigError(
+                "exclude_bordering_donors requires a conflict source "
+                "(cluster_col and/or adjacency)."
+            )
         if values.min_per_stratum is not None and values.min_per_stratum < 1:
             raise MlsynthConfigError(
                 f"min_per_stratum must be >= 1; got {values.min_per_stratum}."

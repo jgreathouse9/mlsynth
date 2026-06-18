@@ -357,6 +357,9 @@ class SYNDES:
         self.size_col = config.size_col
         self.min_size = config.min_size
         self.max_size = config.max_size
+        self.donor_region_col = config.donor_region_col
+        self.exclude_bordering_donors = config.exclude_bordering_donors
+        self.donor_exclusion = config.donor_exclusion
 
     # ------------------------------------------------------------------
     # Public API
@@ -441,6 +444,9 @@ class SYNDES:
             min_per_stratum=self.min_per_stratum,
             max_per_stratum=self.max_per_stratum,
             size_col=self.size_col, min_size=self.min_size, max_size=self.max_size,
+            donor_region_col=self.donor_region_col,
+            exclude_bordering_donors=self.exclude_bordering_donors,
+            donor_exclusion=self.donor_exclusion,
         )
         if restrictions.is_empty:
             return None
