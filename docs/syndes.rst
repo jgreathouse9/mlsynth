@@ -721,6 +721,49 @@ identical objective, can carry a materially smaller minimum detectable effect
 design that agrees with what you will actually deploy, instead of the one number
 the optimiser happens to minimise.
 
+Out-of-sample selection (``holdout_frac``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The MIP ranks designs by the *in-sample* pre-period contrast, so the winning
+treated set is the one that balances best over the periods it was fit on. When
+the treated unit moves with the donor pool only transiently, that tight balance
+need not persist, and the in-sample optimum can overfit. Setting ``holdout_frac``
+turns selection into a train/validate procedure, in the spirit of the holdout
+split LEXSCM and MAREX use: the ``top_K`` candidate pool is learned on the
+leading :math:`1 - \texttt{holdout\_frac}` of the pre-period, and the winner is
+the candidate whose *held-out* contrast error on the trailing
+``holdout_frac`` is smallest. For example, ``holdout_frac=0.3`` is a 70/30
+split; the out-of-sample error of a design with contrast weights
+:math:`\mathbf{c}` is :math:`\sqrt{\operatorname{mean}((\mathbf{Y}^{\text{val}}
+\mathbf{c})^2)}`, the validation-tail analogue of ``pre_fit_rmse``.
+
+The returned ``results.pool`` is then ranked by this out-of-sample error (rank-1
+is the holdout winner kept on ``results.design``), and each entry carries an
+``oos_rmse`` key alongside the in-sample ``pre_fit_rmse``. Holdout selection
+needs a candidate pool to choose among, so ``top_K >= 2`` is required, and it
+applies to the MIP modes only (not the annealed relaxation). Power and inference
+are computed exactly as in the in-sample path. ``holdout_frac=None`` (the
+default) leaves selection on the in-sample optimum, unchanged.
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "top_K": 5, "holdout_frac": 0.3,            # 70/30 train/validate
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   for d in res.pool:                              # ranked by out-of-sample error
+       print("treated:", sorted(d["markets"]),
+             "| oos:", round(d["oos_rmse"], 3),
+             "| in-sample:", round(d["pre_fit_rmse"], 3))
+
+In the cross-method comparison, :func:`~mlsynth.compare_methods` defaults to this
+holdout selection for SYNDES (``syndes_holdout_frac=0.3``), adds an ``oos_rmse``
+column to the comparison table, and orders the SYNDES rows by it; pass
+``syndes_holdout_frac=None`` to compare in-sample designs instead.
+
 Ranking the menu by power
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

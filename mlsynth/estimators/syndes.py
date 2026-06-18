@@ -63,6 +63,7 @@ from ..utils.syndes_helpers.inference import (
     permutation_test_global,
     permutation_test_relaxed_global,
 )
+from ..utils.syndes_helpers.holdout import select_by_holdout
 from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
     solve_synthetic_design_pool,
@@ -194,7 +195,8 @@ def _syndes_power_curve(results, alpha, horizons=range(1, 13)):
         return None
 
 
-def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
+def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8,
+                      oos_errors=None):
     """Re-score a SYNDES solution pool into a manager-facing menu.
 
     The MIP ranks designs by fit alone, so each pooled design is annotated with
@@ -235,7 +237,7 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
     z = float(norm.ppf(1.0 - alpha / 2.0) + norm.ppf(power_target))
     costs_arr = None if costs is None else np.asarray(costs, dtype=float).reshape(-1)
     menu = []
-    for d in pool_designs:
+    for entry_i, d in enumerate(pool_designs):
         idx = np.asarray(d.selected_unit_indices, dtype=int)
         base = float(np.mean(Y_pre[:, idx])) if idx.size else float("nan")
 
@@ -273,6 +275,8 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
             "pre_fit_rmse": (None if d.pre_fit_rmse is None else float(d.pre_fit_rmse)),
             "mde_pct": float(mde_pct),
             "cost": (None if costs_arr is None else float(costs_arr[idx].sum())),
+            "oos_rmse": (None if oos_errors is None
+                         else float(oos_errors[entry_i])),
             "design": d,
             "power_curve": power_curve,
         })
@@ -332,6 +336,7 @@ class SYNDES:
         self.power_weight: float = config.power_weight
         self.fit_weight: float = config.fit_weight
         self.max_shortlist: int = config.max_shortlist
+        self.holdout_frac: Optional[float] = config.holdout_frac
 
     # ------------------------------------------------------------------
     # Public API
@@ -413,7 +418,20 @@ class SYNDES:
             gap_limit=self.gap_limit, time_limit=self.time_limit,
         )
         pool = None
-        if self.top_K and self.top_K > 1:
+        if self.holdout_frac is not None:
+            # Holdout selection: learn the candidate pool on the leading
+            # 1 - holdout_frac of the pre-period, then pick the design with the
+            # smallest out-of-sample contrast error on the held-out tail. The
+            # returned pool is ranked by OOS error (rank-1 is the winner).
+            base_kw = {k: v for k, v in solve_kw.items() if k != "Y"}
+            ranked, oos_errors = select_by_holdout(
+                inputs.Y_pre, holdout_frac=self.holdout_frac,
+                top_K=self.top_K, **base_kw,
+            )
+            design = ranked[0]
+            pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
+                                     oos_errors=oos_errors)
+        elif self.top_K and self.top_K > 1:
             # Solution pool: top-K distinct designs by no-good cuts. The rank-1
             # design IS the single-solve optimum, so reuse it (no double solve).
             pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)

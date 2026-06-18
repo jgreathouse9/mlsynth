@@ -215,12 +215,41 @@ class SYNDESConfig(BaseMAREXConfig):
         default=5, gt=0,
         description="Maximum number of designs in results.recommendation.shortlist.",
     )
+    holdout_frac: Optional[float] = Field(
+        default=None, gt=0.0, lt=1.0,
+        description=(
+            "Out-of-sample design selection. When ``None`` (default) the winning "
+            "design is the MIP's in-sample optimum (Doudchenko et al. 2021 "
+            "behaviour, unchanged). When set to a fraction in (0, 1), SYNDES "
+            "learns the ``top_K`` candidate pool on the leading ``1 - "
+            "holdout_frac`` of the pre-period and selects the candidate whose "
+            "*held-out* contrast error on the trailing ``holdout_frac`` is "
+            "smallest -- a train/validate guard against overfitting transient "
+            "pre-period co-movement (e.g. ``0.3`` for a 70/30 split). Requires "
+            "``top_K >= 2`` (a pool to validate) and a MIP mode (not the "
+            "annealed relaxation). Power and inference are computed exactly as in "
+            "the in-sample path."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_syndes_params(cls, values: Any) -> Any:
         df = values.df
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
+
+        if values.holdout_frac is not None:
+            if values.mode == "two_way_global_annealed":
+                raise MlsynthConfigError(
+                    "holdout_frac selection is not supported for "
+                    "mode='two_way_global_annealed' (it has no candidate pool); "
+                    "use a MIP mode."
+                )
+            if values.top_K is None or values.top_K < 2:
+                raise MlsynthConfigError(
+                    "holdout_frac selection requires top_K >= 2 (a candidate "
+                    f"pool to validate); got top_K={values.top_K!r}."
+                )
 
         if values.arm is not None and values.arm in df.columns:
             # K applies within each arm, so validate against the smallest arm.

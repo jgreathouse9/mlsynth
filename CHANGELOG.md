@@ -8,6 +8,23 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Added
+- **SYNDES holdout (train/validate) design selection.** A new optional
+  `holdout_frac` config field switches SYNDES from in-sample MIP selection to
+  out-of-sample selection: the `top_K` candidate pool is learned on the leading
+  `1 - holdout_frac` of the pre-period and the winning design is the one whose
+  *held-out* contrast error on the trailing `holdout_frac` is smallest (e.g.
+  `0.3` for a 70/30 split) — a guard against overfitting transient pre-period
+  co-movement. The returned `results.pool` is ranked by OOS error and each entry
+  carries an `oos_rmse`. Requires `top_K >= 2` and a MIP mode; power and
+  inference are unchanged. `holdout_frac=None` (default) preserves the
+  Doudchenko et al. (2021) in-sample behaviour exactly. `compare_methods` now
+  defaults to holdout selection for SYNDES (`syndes_holdout_frac=0.3`), exposes
+  an `oos_rmse` column, and ranks the SYNDES rows by it; pass
+  `syndes_holdout_frac=None` to revert. New helper module
+  `utils/syndes_helpers/holdout.py` (`split_pre`, `oos_contrast_rmse`,
+  `select_by_holdout`).
+
 ### Changed
 - **SpSyDiD migrated onto the two-family result contract** (final estimator of
   the 9-estimator migration). `SpSyDiD.fit()` now returns `SpSyDiDResults` as a
