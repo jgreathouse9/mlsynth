@@ -9,6 +9,19 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- **SYNDES design restrictions (geography / clustering / size / forcing).**
+  SYNDES now accepts the same restriction vocabulary as GEOLIFT and LEXSCM,
+  enforced exactly as linear constraints on the MIP assignment vector `D`:
+  `to_be_treated` (`D_i = 1`) / `not_to_be_treated` (`D_i = 0`, stays a donor);
+  `cluster_col` and/or `adjacency` + `spillover_threshold` → no two interfering
+  units both treated (`D_i + D_j ≤ 1`, via the shared conflict-graph helper
+  LEXSCM uses); `stratum_col` + `min_per_stratum` / `max_per_stratum` → coverage
+  quotas; `size_col` + `min_size` / `max_size` → a treated-unit size band.
+  Restrictions compose with `costs`/`budget` and flow through every selection
+  rule (in-sample, holdout, ic). Not supported with the annealed mode or an
+  `arm` column; infeasible combinations raise a translated `MlsynthConfigError`.
+  New helper module `utils/syndes_helpers/restrictions.py` (`build_restrictions`,
+  `apply_restrictions`, `DesignRestrictions`).
 - **SYNDES information-criterion (IC) design selection.** A new `selection`
   config field unifies the design-selection rule into `{"in_sample", "holdout",
   "ic"}` (default `None` infers `"holdout"` when `holdout_frac` is set, else

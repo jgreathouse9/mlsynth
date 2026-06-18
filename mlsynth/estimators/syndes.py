@@ -69,6 +69,7 @@ from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
     solve_synthetic_design_pool,
 )
+from ..utils.syndes_helpers.restrictions import build_restrictions
 from ..utils.syndes_helpers.plotter import plot_syndes_design
 from ..utils.syndes_helpers.power import power_analysis
 from ..utils.syndes_helpers.select import recommend_syndes
@@ -344,6 +345,18 @@ class SYNDES:
         self.selection: str = config.selection or (
             "holdout" if config.holdout_frac is not None else "in_sample"
         )
+        # Design restrictions (geography / clustering / size / forcing).
+        self.to_be_treated = config.to_be_treated
+        self.not_to_be_treated = config.not_to_be_treated
+        self.cluster_col = config.cluster_col
+        self.adjacency = config.adjacency
+        self.spillover_threshold = config.spillover_threshold
+        self.stratum_col = config.stratum_col
+        self.min_per_stratum = config.min_per_stratum
+        self.max_per_stratum = config.max_per_stratum
+        self.size_col = config.size_col
+        self.min_size = config.min_size
+        self.max_size = config.max_size
 
     # ------------------------------------------------------------------
     # Public API
@@ -409,13 +422,44 @@ class SYNDES:
 
         if self.mode_public == "two_way_global_annealed":
             return self._fit_relaxed(inputs)
-        return self._fit_mip(inputs)
+        restrictions = self._build_restrictions(df, inputs)
+        return self._fit_mip(inputs, restrictions)
+
+    def _build_restrictions(self, df, inputs):
+        """Translate restriction config into an index-level bundle (or None).
+
+        Also runs the cheap feasibility checks that would otherwise surface as an
+        opaque solver ``INFEASIBLE``: forced count and treatable-pool size vs K.
+        """
+        restrictions = build_restrictions(
+            df, self.unitid, inputs.unit_index,
+            to_be_treated=self.to_be_treated,
+            not_to_be_treated=self.not_to_be_treated,
+            cluster_col=self.cluster_col, adjacency=self.adjacency,
+            spillover_threshold=self.spillover_threshold,
+            stratum_col=self.stratum_col,
+            min_per_stratum=self.min_per_stratum,
+            max_per_stratum=self.max_per_stratum,
+            size_col=self.size_col, min_size=self.min_size, max_size=self.max_size,
+        )
+        if restrictions.is_empty:
+            return None
+        if self.K is not None:
+            n_units = int(inputs.Y_pre.shape[1])
+            treatable = n_units - len(restrictions.forbidden)
+            if treatable < self.K:
+                raise MlsynthConfigError(
+                    f"design restrictions leave only {treatable} treatable "
+                    f"unit(s), fewer than K ({self.K}); relax not_to_be_treated "
+                    "or the size band."
+                )
+        return restrictions
 
     # ------------------------------------------------------------------
     # MIP path
     # ------------------------------------------------------------------
 
-    def _fit_mip(self, inputs) -> SYNDESResults:
+    def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
 
         solve_kw = dict(
@@ -423,6 +467,7 @@ class SYNDES:
             solver=self.solver, verbose=self.verbose,
             unit_index=inputs.unit_index, costs=self.costs, budget=self.budget,
             gap_limit=self.gap_limit, time_limit=self.time_limit,
+            restrictions=restrictions,
         )
         pool = None
         if self.selection == "holdout":

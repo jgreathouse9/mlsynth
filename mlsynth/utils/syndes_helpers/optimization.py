@@ -207,6 +207,7 @@ def solve_synthetic_design(
     gap_limit: Optional[float] = None,
     time_limit: Optional[float] = None,
     forbidden_sets: Optional[list] = None,
+    restrictions: Optional[Any] = None,
 ) -> SYNDESDesign:
     """
     Solve the SYNDES synthetic design optimization problem.
@@ -281,6 +282,12 @@ def solve_synthetic_design(
         _fs = np.asarray(_fs, dtype=int).reshape(-1)
         if _fs.size:
             prob_constraints.append(cp.sum(D[_fs]) <= int(_fs.size) - 1)
+
+    # Design restrictions (geography / clustering / size / forcing) as linear
+    # constraints on the assignment vector D.
+    if restrictions is not None and not restrictions.is_empty:
+        from .restrictions import apply_restrictions
+        prob_constraints += apply_restrictions(D, restrictions)
 
     problem = cp.Problem(cp.Minimize(components.objective), prob_constraints)
 
@@ -392,6 +399,7 @@ def solve_synthetic_design_pool(
     budget: Optional[float] = None,
     gap_limit: Optional[float] = None,
     time_limit: Optional[float] = None,
+    restrictions: Optional[Any] = None,
 ) -> list:
     """Top-``top_K`` SYNDES designs, ranked by MSE, via no-good cuts.
 
@@ -424,7 +432,7 @@ def solve_synthetic_design_pool(
                 Y=Y, K=K, mode=mode, lam=lam, solver=solver, verbose=verbose,
                 unit_index=unit_index, costs=costs, budget=budget,
                 gap_limit=gap_limit, time_limit=time_limit,
-                forbidden_sets=forbidden,
+                forbidden_sets=forbidden, restrictions=restrictions,
             )
         except MlsynthEstimationError:
             break  # feasible region exhausted (no further distinct design)

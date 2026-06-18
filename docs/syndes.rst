@@ -643,6 +643,57 @@ A budget constraint (``costs`` + ``budget``) adds
 :math:`\sum_i \mathrm{cost}_i D_i \le B` to the MIP; ``mode="two_way_global"``
 also accepts ``K=None`` to let the program choose the number of treated units.
 
+Design restrictions (geography, clustering, size, forcing)
+----------------------------------------------------------
+
+Because SYNDES selects the treated set by a MIP over a binary assignment vector
+:math:`D`, the geographic and clustering restrictions GEOLIFT and LEXSCM expose
+become linear constraints on :math:`D` -- the same vocabulary, enforced exactly
+rather than by filtering enumerated candidates:
+
+* ``to_be_treated`` -- units forced into the treated set
+  (:math:`D_i = 1`); ``not_to_be_treated`` -- units forbidden from treatment
+  (:math:`D_i = 0`), which stay available as control donors.
+* ``cluster_col`` and/or ``adjacency`` with ``spillover_threshold`` -- a
+  spillover/interference conflict graph (built by the same helper LEXSCM uses).
+  Two units that share a cluster, or whose adjacency entry exceeds the
+  threshold, may not both be treated (:math:`D_i + D_j \le 1`), so the design
+  never places treated units where they would interfere.
+* ``stratum_col`` with ``min_per_stratum`` / ``max_per_stratum`` -- coverage
+  quotas: at least ``min_per_stratum`` treated units in every stratum that
+  contains a treatable unit, and at most ``max_per_stratum`` in any stratum
+  (:math:`\min \le \sum_{i \in s} D_i \le \max`).
+* ``size_col`` with ``min_size`` / ``max_size`` -- a treated-unit size band;
+  units outside it lose treatment eligibility (:math:`D_i = 0`) but remain
+  donors.
+
+The ``cluster_col`` / ``stratum_col`` / ``size_col`` columns must be constant
+within each unit. Restrictions compose with each other and with ``costs`` /
+``budget``, and they flow through every selection rule (in-sample, ``holdout``,
+``ic``). They are not available with ``mode="two_way_global_annealed"`` (no MIP)
+or an ``arm`` column (restrictions are global, not per-arm). Infeasible
+combinations -- forcing more units than ``K``, or forbidding so many that fewer
+than ``K`` remain treatable -- raise a translated ``MlsynthConfigError`` rather
+than leaking a solver ``INFEASIBLE``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "to_be_treated": ["chicago"],          # force this market in
+       "cluster_col": "dma",                  # no two treated in one DMA
+       "stratum_col": "region",               # ...
+       "min_per_stratum": 1,                  # at least one treated per region
+       "size_col": "population",              # only mid-sized markets treatable
+       "min_size": 5e5, "max_size": 5e6,
+   }).fit()
+
+   print(sorted(res.design.selected_unit_labels.tolist()))
+
 Solution pool (``top_K``): a menu, not one answer
 -------------------------------------------------
 

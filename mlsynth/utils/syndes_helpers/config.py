@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, List, Literal, Optional
 import warnings
+import pandas as pd
 from pydantic import Field, model_validator
 from ...exceptions import MlsynthConfigError
 from ...config_models import BaseMAREXConfig
@@ -215,6 +216,61 @@ class SYNDESConfig(BaseMAREXConfig):
         default=5, gt=0,
         description="Maximum number of designs in results.recommendation.shortlist.",
     )
+    # ---- design restrictions (geography / clustering / size / forcing) ----
+    # Same vocabulary as GEOLIFT/LEXSCM; translated to linear constraints on the
+    # MIP assignment vector D. Not supported with mode='two_way_global_annealed'
+    # (no MIP) or an 'arm' column (restrictions are global, not per-arm).
+    to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Units forced into the treated set (D_i = 1). Must not "
+        "exceed K, and must be disjoint from not_to_be_treated.",
+    )
+    not_to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Units forbidden from treatment (D_i = 0); they remain "
+        "available as control donors.",
+    )
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column; units sharing a cluster interfere "
+        "(treating both is forbidden), combined with `adjacency` by logical OR.",
+    )
+    adjacency: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Square spillover matrix (DataFrame indexed/columned by unit "
+        "label). Off-diagonal pairs strictly above `spillover_threshold` "
+        "interfere; combined with `cluster_col` by logical OR.",
+    )
+    spillover_threshold: float = Field(
+        default=0.0,
+        description="Off-diagonal `adjacency` entries strictly above this mark a "
+        "conflicting (spillover) pair.",
+    )
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column defining strata for coverage quotas "
+        "via `min_per_stratum` / `max_per_stratum`.",
+    )
+    min_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Minimum treated units in every stratum that contains a "
+        "treatable unit. Requires stratum_col.",
+    )
+    max_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Maximum treated units in any stratum. Requires stratum_col.",
+    )
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant size column; units outside "
+        "[min_size, max_size] lose treatment eligibility (stay donors).",
+    )
+    min_size: Optional[float] = Field(
+        default=None, description="Lower size bound for treatment eligibility.",
+    )
+    max_size: Optional[float] = Field(
+        default=None, description="Upper size bound for treatment eligibility.",
+    )
     selection: Optional[Literal["in_sample", "holdout", "ic"]] = Field(
         default=None,
         description=(
@@ -286,6 +342,72 @@ class SYNDESConfig(BaseMAREXConfig):
                     f"selection={resolved!r} requires top_K >= 2 (a candidate "
                     f"pool to rank); got top_K={values.top_K!r}."
                 )
+
+        # ---- design restrictions ----
+        _restr_set = (
+            values.to_be_treated is not None or values.not_to_be_treated is not None
+            or values.cluster_col is not None or values.adjacency is not None
+            or values.stratum_col is not None or values.min_per_stratum is not None
+            or values.max_per_stratum is not None or values.size_col is not None
+            or values.min_size is not None or values.max_size is not None
+        )
+        if _restr_set:
+            if values.mode == "two_way_global_annealed":
+                raise MlsynthConfigError(
+                    "design restrictions are not supported for "
+                    "mode='two_way_global_annealed' (it has no MIP assignment "
+                    "vector); use a MIP mode."
+                )
+            if values.arm is not None:
+                raise MlsynthConfigError(
+                    "design restrictions are not supported together with an "
+                    "'arm' column (restrictions are global, not per-arm)."
+                )
+        units = set(df[values.unitid].unique())
+        forced = list(values.to_be_treated or [])
+        forbidden = list(values.not_to_be_treated or [])
+        unknown = [u for u in (forced + forbidden) if u not in units]
+        if unknown:
+            raise MlsynthConfigError(
+                "to_be_treated/not_to_be_treated contain units not in df: "
+                f"{sorted(map(str, set(unknown)))}."
+            )
+        clash = set(forced) & set(forbidden)
+        if clash:
+            raise MlsynthConfigError(
+                "units cannot be both to_be_treated and not_to_be_treated: "
+                f"{sorted(map(str, clash))}."
+            )
+        if values.K is not None and len(forced) > values.K:
+            raise MlsynthConfigError(
+                f"to_be_treated ({len(forced)}) cannot exceed K ({values.K})."
+            )
+        for col in ("cluster_col", "stratum_col", "size_col"):
+            name = getattr(values, col)
+            if name is not None and name not in df.columns:
+                raise MlsynthConfigError(f"{col} '{name}' is not a column of df.")
+        if values.min_per_stratum is not None and values.min_per_stratum < 1:
+            raise MlsynthConfigError(
+                f"min_per_stratum must be >= 1; got {values.min_per_stratum}."
+            )
+        if values.max_per_stratum is not None and values.max_per_stratum < 1:
+            raise MlsynthConfigError(
+                f"max_per_stratum must be >= 1; got {values.max_per_stratum}."
+            )
+        if (values.min_per_stratum is not None or values.max_per_stratum is not None) \
+                and values.stratum_col is None:
+            raise MlsynthConfigError(
+                "min_per_stratum / max_per_stratum require stratum_col."
+            )
+        if (values.min_size is not None or values.max_size is not None) \
+                and values.size_col is None:
+            raise MlsynthConfigError("min_size / max_size require size_col.")
+        if values.min_size is not None and values.max_size is not None \
+                and values.min_size > values.max_size:
+            raise MlsynthConfigError(
+                f"min_size ({values.min_size}) must be <= max_size "
+                f"({values.max_size})."
+            )
 
         if values.arm is not None and values.arm in df.columns:
             # K applies within each arm, so validate against the smallest arm.
