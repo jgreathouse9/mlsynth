@@ -9,6 +9,19 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- **SYNDES information-criterion (IC) design selection.** A new `selection`
+  config field unifies the design-selection rule into `{"in_sample", "holdout",
+  "ic"}` (default `None` infers `"holdout"` when `holdout_frac` is set, else
+  `"in_sample"`, so existing configs are unchanged). `selection="ic"` ranks the
+  `top_K` pool (solved on the whole pre-period — no data split) by an
+  information criterion `IC = SSR_pre + 2·sigma^2·df`, with `df = active control
+  donors − 1` (Pouliot-Xie-Liu's `df = |A| − 1` for the unpenalised SCM) and a
+  Mallows-Cp noise estimate, penalising designs that buy fit by activating more
+  donors. Preferable to holdout when the pre-period is short. Each `results.pool`
+  entry gains `ic` and `df`; requires `top_K >= 2` and a MIP mode. New helper
+  module `utils/syndes_helpers/infocriterion.py` (`design_df`, `select_by_ic`).
+  In `compare_methods`, pass `syndes_options={"selection": "ic"}` to use it
+  (overrides the default holdout).
 - **SYNDES holdout (train/validate) design selection.** A new optional
   `holdout_frac` config field switches SYNDES from in-sample MIP selection to
   out-of-sample selection: the `top_K` candidate pool is learned on the leading

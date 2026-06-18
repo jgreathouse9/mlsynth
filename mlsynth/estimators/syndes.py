@@ -64,6 +64,7 @@ from ..utils.syndes_helpers.inference import (
     permutation_test_relaxed_global,
 )
 from ..utils.syndes_helpers.holdout import select_by_holdout
+from ..utils.syndes_helpers.infocriterion import select_by_ic
 from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
     solve_synthetic_design_pool,
@@ -196,7 +197,7 @@ def _syndes_power_curve(results, alpha, horizons=range(1, 13)):
 
 
 def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8,
-                      oos_errors=None):
+                      oos_errors=None, ic_values=None, df_values=None):
     """Re-score a SYNDES solution pool into a manager-facing menu.
 
     The MIP ranks designs by fit alone, so each pooled design is annotated with
@@ -277,6 +278,8 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8,
             "cost": (None if costs_arr is None else float(costs_arr[idx].sum())),
             "oos_rmse": (None if oos_errors is None
                          else float(oos_errors[entry_i])),
+            "ic": (None if ic_values is None else float(ic_values[entry_i])),
+            "df": (None if df_values is None else int(df_values[entry_i])),
             "design": d,
             "power_curve": power_curve,
         })
@@ -337,6 +340,10 @@ class SYNDES:
         self.fit_weight: float = config.fit_weight
         self.max_shortlist: int = config.max_shortlist
         self.holdout_frac: Optional[float] = config.holdout_frac
+        # Resolve the design-selection rule (None infers from holdout_frac).
+        self.selection: str = config.selection or (
+            "holdout" if config.holdout_frac is not None else "in_sample"
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -418,7 +425,7 @@ class SYNDES:
             gap_limit=self.gap_limit, time_limit=self.time_limit,
         )
         pool = None
-        if self.holdout_frac is not None:
+        if self.selection == "holdout":
             # Holdout selection: learn the candidate pool on the leading
             # 1 - holdout_frac of the pre-period, then pick the design with the
             # smallest out-of-sample contrast error on the held-out tail. The
@@ -431,6 +438,17 @@ class SYNDES:
             design = ranked[0]
             pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
                                      oos_errors=oos_errors)
+        elif self.selection == "ic":
+            # Information-criterion selection: solve the pool on the whole
+            # pre-period, then re-rank by IC = SSR_pre + 2 sigma^2 df (no data
+            # split). The returned pool is ranked by IC (rank-1 is the winner).
+            pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            ranked, ic_values, df_values, _sigma2 = select_by_ic(
+                pool_designs, inputs.Y_pre,
+            )
+            design = ranked[0]
+            pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
+                                     ic_values=ic_values, df_values=df_values)
         elif self.top_K and self.top_K > 1:
             # Solution pool: top-K distinct designs by no-good cuts. The rank-1
             # design IS the single-solve optimum, so reuse it (no double solve).

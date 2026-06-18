@@ -764,6 +764,55 @@ holdout selection for SYNDES (``syndes_holdout_frac=0.3``), adds an ``oos_rmse``
 column to the comparison table, and orders the SYNDES rows by it; pass
 ``syndes_holdout_frac=None`` to compare in-sample designs instead.
 
+Information-criterion selection (``selection="ic"``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The holdout split spends part of the pre-period on validation, which is noisy
+exactly when the pre-period is short -- the regime SYNDES is built for. An
+information criterion avoids the split: it scores every candidate on the *whole*
+pre-window and penalises the model-selection flexibility directly. Pouliot, Xie
+& Liu (2024) show that in short-:math:`T_0` synthetic-control settings such a
+criterion outperforms cross-validation / holdout. Setting ``selection="ic"``
+ranks the ``top_K`` pool (solved on the full pre-period) by
+
+.. math::
+
+   \mathrm{IC}(d) = \mathrm{SSR}^{\text{pre}}(d)
+                  + 2\,\hat{\sigma}^2\,\mathrm{df}(d),
+
+mirroring Pouliot et al.'s :math:`\mathbb{E}\lVert \mathbf{Y} - \hat{\mathbf{Y}}
+\rVert^2 + 2\sigma^2\,\mathrm{df}`. Here :math:`\mathrm{SSR}^{\text{pre}}` is the
+in-sample contrast sum of squares; :math:`\mathrm{df} = \lvert A\rvert - 1` with
+:math:`A` the active control donors (their closed form for the unpenalised SCM,
+in which searching over *which* donors to use is free); and
+:math:`\hat{\sigma}^2` is a Mallows-:math:`C_p`-style noise estimate -- the
+best-fitting candidate's per-period contrast variance. The candidate with the
+smallest IC wins, so a design that buys a tighter fit by activating more donors
+is penalised for it.
+
+The returned ``results.pool`` is ranked by IC (rank-1 is the winner on
+``results.design``), and each entry carries an ``ic`` value and its ``df``.
+Like holdout, IC selection needs ``top_K >= 2`` and a MIP mode; it does not use
+``holdout_frac``. The ``selection`` field unifies the three rules -- ``None``
+(default) infers ``"holdout"`` when ``holdout_frac`` is set and ``"in_sample"``
+otherwise, so existing configs are unchanged.
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "top_K": 5, "selection": "ic",              # IC over the whole pre-window
+       "gap_limit": 0.2, "time_limit": 10.0,
+   }).fit()
+
+   for d in res.pool:                              # ranked by information criterion
+       print("treated:", sorted(d["markets"]),
+             "| ic:", round(d["ic"], 1), "| df:", d["df"])
+
+Pass ``syndes_options={"selection": "ic"}`` to :func:`~mlsynth.compare_methods`
+to use IC selection there (it overrides the default holdout).
+
 Ranking the menu by power
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

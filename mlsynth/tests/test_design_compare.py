@@ -352,3 +352,16 @@ class TestSyndesOOSRanking:
         # GEOLIFT rows have no OOS notion -> NaN; SYNDES rows are populated.
         gl = cmp.table[cmp.table["method"] == "GEOLIFT"]
         assert gl["oos_rmse"].isna().all()
+
+    def test_ic_selection_via_options_does_not_conflict(self):
+        # Requesting IC selection through syndes_options must suppress the
+        # default holdout injection (they are mutually exclusive) and run.
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4, methods=("SYNDES",),
+            syndes_options={**self._SYN, "selection": "ic"},
+        )
+        assert set(cmp.table["method"]) == {"SYNDES"}
+        # IC is in-sample, so there is no holdout OOS error to report.
+        assert cmp.table["oos_rmse"].isna().all()

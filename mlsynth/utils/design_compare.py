@@ -376,12 +376,18 @@ def compare_methods(
 
     if "SYNDES" in methods:
         from ..estimators.syndes import SYNDES
+        syn_over = syndes_options or {}
         # Holdout selection needs a candidate pool (top_K >= 2); fall back to
-        # in-sample selection otherwise so a top_K=1 caller still works.
-        holdout = syndes_holdout_frac if (syndes_holdout_frac is not None
-                                          and top_K >= 2) else None
+        # in-sample otherwise so a top_K=1 caller still works. If the caller
+        # picks a selection rule (or holdout_frac) explicitly, defer to it and
+        # do not inject the default holdout (they are mutually exclusive).
+        explicit = "selection" in syn_over or "holdout_frac" in syn_over
+        holdout = (None if explicit
+                   else (syndes_holdout_frac
+                         if (syndes_holdout_frac is not None and top_K >= 2)
+                         else None))
         sk = {**_SYNDES_DEFAULTS, **common, "K": treated_size, "top_K": top_K,
-              "alpha": alpha, "holdout_frac": holdout, **(syndes_options or {})}
+              "alpha": alpha, "holdout_frac": holdout, **syn_over}
         syn = SYNDES(sk).fit()
         specs += from_syndes(syn)
 

@@ -215,6 +215,22 @@ class SYNDESConfig(BaseMAREXConfig):
         default=5, gt=0,
         description="Maximum number of designs in results.recommendation.shortlist.",
     )
+    selection: Optional[Literal["in_sample", "holdout", "ic"]] = Field(
+        default=None,
+        description=(
+            "Design-selection rule applied to the ``top_K`` candidate pool. "
+            "``None`` (default) infers ``'holdout'`` when ``holdout_frac`` is "
+            "set, otherwise ``'in_sample'`` -- so existing configs are "
+            "unchanged. ``'in_sample'`` keeps the MIP fit optimum (Doudchenko "
+            "et al. 2021). ``'holdout'`` validates candidates on a held-out tail "
+            "and needs ``holdout_frac``. ``'ic'`` ranks candidates by an "
+            "information criterion (in-sample contrast SSR + ``2 sigma^2 df`` "
+            "with ``df = active control donors - 1``, after Pouliot-Xie-Liu) "
+            "over the whole pre-window -- no data split, preferable when the "
+            "pre-period is short. ``'holdout'`` and ``'ic'`` need ``top_K >= 2`` "
+            "and a MIP mode."
+        ),
+    )
     holdout_frac: Optional[float] = Field(
         default=None, gt=0.0, lt=1.0,
         description=(
@@ -238,17 +254,37 @@ class SYNDESConfig(BaseMAREXConfig):
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
 
-        if values.holdout_frac is not None:
+        # Resolve the design-selection rule (None infers from holdout_frac).
+        resolved = values.selection or (
+            "holdout" if values.holdout_frac is not None else "in_sample"
+        )
+        # Mutual-exclusion / coherence between selection and holdout_frac.
+        if values.selection == "in_sample" and values.holdout_frac is not None:
+            raise MlsynthConfigError(
+                "selection='in_sample' conflicts with holdout_frac; clear "
+                "holdout_frac or set selection='holdout'."
+            )
+        if values.selection == "ic" and values.holdout_frac is not None:
+            raise MlsynthConfigError(
+                "selection='ic' does not use holdout_frac (it needs no data "
+                "split); clear holdout_frac."
+            )
+        if resolved == "holdout" and values.holdout_frac is None:
+            raise MlsynthConfigError(
+                "selection='holdout' requires holdout_frac in (0, 1)."
+            )
+        # Pool-based selectors need a candidate pool and a MIP mode.
+        if resolved in ("holdout", "ic"):
             if values.mode == "two_way_global_annealed":
                 raise MlsynthConfigError(
-                    "holdout_frac selection is not supported for "
+                    f"selection={resolved!r} is not supported for "
                     "mode='two_way_global_annealed' (it has no candidate pool); "
                     "use a MIP mode."
                 )
             if values.top_K is None or values.top_K < 2:
                 raise MlsynthConfigError(
-                    "holdout_frac selection requires top_K >= 2 (a candidate "
-                    f"pool to validate); got top_K={values.top_K!r}."
+                    f"selection={resolved!r} requires top_K >= 2 (a candidate "
+                    f"pool to rank); got top_K={values.top_K!r}."
                 )
 
         if values.arm is not None and values.arm in df.columns:
