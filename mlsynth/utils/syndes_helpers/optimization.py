@@ -313,7 +313,18 @@ def solve_synthetic_design(
         ) from exc
 
     if problem.status not in _OPTIMAL_STATUSES:
-        raise MlsynthEstimationError(f"SYNDES optimization failed: {problem.status}")
+        msg = f"SYNDES optimization failed: {problem.status}"
+        if (restrictions is not None and not restrictions.is_empty
+                and "infeasible" in str(problem.status).lower()):
+            # Point the user at the most likely cause rather than a bare status:
+            # the active design restrictions are jointly unsatisfiable for this K.
+            msg = (
+                "SYNDES optimization is infeasible under the active design "
+                "restrictions (spillover/adjacency conflict, stratum quotas, "
+                f"forced/forbidden units) for K={K}. No size-K treated set "
+                "satisfies them -- relax the restrictions or reduce K."
+            )
+        raise MlsynthEstimationError(msg)
 
     if D.value is None:
         raise MlsynthEstimationError("SYNDES optimization did not return an assignment.")

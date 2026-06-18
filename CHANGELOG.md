@@ -19,8 +19,15 @@ now returns and the back-compat guarantee.
   quotas; `size_col` + `min_size` / `max_size` → a treated-unit size band.
   Restrictions compose with `costs`/`budget` and flow through every selection
   rule (in-sample, holdout, ic). Not supported with the annealed mode or an
-  `arm` column; infeasible combinations raise a translated `MlsynthConfigError`.
-  New helper module `utils/syndes_helpers/restrictions.py` (`build_restrictions`,
+  `arm` column. Over-constrained designs return translated errors, never a
+  leaked solver status: config-detectable cases (unknown/overlapping forced
+  units, forcing more than `K`, too few treatable units) raise
+  `MlsynthConfigError`, and a solve-time infeasibility (e.g. asking for more
+  mutually non-adjacent treated markets than the conflict graph allows) raises
+  `MlsynthEstimationError` with a message naming the restrictions as the cause.
+  Validated against the bundled real DMA contiguity matrix
+  (`basedata/markets/`), restricting to Florida + Georgia. New helper module
+  `utils/syndes_helpers/restrictions.py` (`build_restrictions`,
   `apply_restrictions`, `DesignRestrictions`).
 - **SYNDES information-criterion (IC) design selection.** A new `selection`
   config field unifies the design-selection rule into `{"in_sample", "holdout",

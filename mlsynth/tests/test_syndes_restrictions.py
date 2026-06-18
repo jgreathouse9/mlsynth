@@ -17,18 +17,26 @@ config/failure semantics (translated ``MlsynthConfigError``).
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from mlsynth import SYNDES
-from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.exceptions import (
+    MlsynthConfigError,
+    MlsynthDataError,
+    MlsynthEstimationError,
+)
 from mlsynth.utils.fast_scm_helpers.structure import IndexSet
 from mlsynth.utils.syndes_helpers.restrictions import (
     DesignRestrictions,
     build_restrictions,
     apply_restrictions,
 )
+
+_MARKETS = Path(__file__).resolve().parents[2] / "basedata" / "markets"
 
 
 _CLUSTER = {f"u{j}": f"c{j // 2}" for j in range(8)}      # u0,u1->c0 ; u2,u3->c1 ; ...
@@ -251,3 +259,104 @@ class TestSYNDESRestrictionsConfig:
     def test_forbidden_leaves_too_few_treatable(self):
         with pytest.raises(MlsynthConfigError):
             self._make(K=3, not_to_be_treated=[f"u{j}" for j in range(6)]).fit()
+
+
+# ----------------------------------------------------------------------
+# Infeasibility: over-constrained restrictions return a translated, informative
+# error (not a leaked solver INFEASIBLE).
+# ----------------------------------------------------------------------
+
+class TestSYNDESRestrictionsInfeasible:
+    _BASE = dict(outcome="Y", unitid="unit", time="time", post_col="post",
+                 mode="two_way_global", run_inference=False, solver="SCIP",
+                 gap_limit=0.2, time_limit=8.0)
+
+    def test_adjacency_clique_is_infeasible_and_reported(self):
+        # u0..u3 form a conflict clique (all mutually adjacent); u4..u7 forbidden.
+        # Only the clique is treatable, but no two of its members can both be
+        # treated -> K=3 is infeasible. The error must be translated and name the
+        # restrictions, not leak a bare solver status.
+        labels = [f"u{j}" for j in range(8)]
+        A = pd.DataFrame(0.0, index=labels, columns=labels)
+        for a in range(4):
+            for b in range(a + 1, 4):
+                A.loc[labels[a], labels[b]] = A.loc[labels[b], labels[a]] = 1.0
+        with pytest.raises(MlsynthEstimationError) as ei:
+            SYNDES({"df": _panel(), **self._BASE, "K": 3,
+                    "adjacency": A, "spillover_threshold": 0.5,
+                    "not_to_be_treated": ["u4", "u5", "u6", "u7"]}).fit()
+        assert "restriction" in str(ei.value).lower()
+
+
+# ----------------------------------------------------------------------
+# Real geography: validate against the bundled DMA contiguity matrix
+# (basedata/markets/), restricting to Florida + Georgia.
+# ----------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def dma():
+    adj = pd.read_csv(_MARKETS / "dma_adjacency.csv", index_col=0)
+    meta = pd.read_csv(_MARKETS / "dma_metadata.csv")
+    return adj, meta
+
+
+def _flga(meta):
+    return meta[meta["state"].isin(["FL", "GA"])]["dma_name"].tolist()
+
+
+def _geo_panel(units, T=16, n_post=4, seed=0):
+    rng = np.random.default_rng(seed)
+    F = rng.normal(size=(T, 2))
+    L = rng.uniform(0.3, 1.0, (len(units), 2))
+    lvl = rng.uniform(8.0, 12.0, len(units))
+    Y = lvl + F @ L.T + rng.normal(scale=0.3, size=(T, len(units)))
+    rows = [{"market": u, "t": t, "Y": float(Y[t, j]),
+             "post": int(t >= T - n_post)}
+            for j, u in enumerate(units) for t in range(T)]
+    return pd.DataFrame(rows)
+
+
+class TestSYNDESRealDMAGeography:
+    _BASE = dict(outcome="Y", unitid="market", time="t", post_col="post",
+                 mode="two_way_global", run_inference=False, solver="SCIP",
+                 gap_limit=0.2, time_limit=12.0)
+
+    def test_feasible_design_respects_real_borders(self, dma):
+        adj, meta = dma
+        units = _flga(meta)
+        res = SYNDES({"df": _geo_panel(units), **self._BASE, "K": 4,
+                      "adjacency": adj, "spillover_threshold": 0.5}).fit()
+        treated = [str(x) for x in np.asarray(res.selected_unit_labels).tolist()]
+        assert len(treated) == 4
+        sub = adj.reindex(index=treated, columns=treated).to_numpy()
+        assert int(np.triu(sub, 1).sum()) == 0          # no two share a border
+
+    def test_full_matrix_auto_subsets_to_panel(self, dma):
+        # Passing the full 206x206 matrix for a 16-unit panel must subset, not error.
+        adj, meta = dma
+        res = SYNDES({"df": _geo_panel(_flga(meta)), **self._BASE, "K": 3,
+                      "adjacency": adj, "spillover_threshold": 0.5}).fit()
+        assert len(np.asarray(res.selected_unit_labels)) == 3
+
+    def test_restricting_treatment_to_flga_too_few_for_K(self, dma):
+        adj, meta = dma
+        flga = _flga(meta)
+        donors = meta[meta["state"].isin(["AL", "SC"])]["dma_name"].tolist()[:6]
+        forbid = donors                                  # treat only FL+GA (16)
+        with pytest.raises(MlsynthConfigError):
+            SYNDES({"df": _geo_panel(flga + donors), **self._BASE, "K": 20,
+                    "not_to_be_treated": forbid}).fit()
+
+    def test_adjacency_missing_a_panel_unit(self, dma):
+        adj, meta = dma
+        units = _flga(meta)[:8] + ["Atlantis, XX"]       # fake DMA not in matrix
+        with pytest.raises(MlsynthDataError):
+            SYNDES({"df": _geo_panel(units), **self._BASE, "K": 3,
+                    "adjacency": adj, "spillover_threshold": 0.5}).fit()
+
+    def test_over_constrained_borders_infeasible(self, dma):
+        adj, meta = dma
+        units = _flga(meta)                              # 16 bordering DMAs
+        with pytest.raises(MlsynthEstimationError):      # K=14 > max independent set
+            SYNDES({"df": _geo_panel(units), **self._BASE, "K": 14,
+                    "adjacency": adj, "spillover_threshold": 0.5}).fit()
