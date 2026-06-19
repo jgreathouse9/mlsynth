@@ -17,7 +17,7 @@ counterfactual quantile function is a weighted average of the donors'
 Data
 ----
 
-``basedata/dube_minwage.csv`` -- the ``DiSCo`` package's ``dube`` dataset (Dube
+``basedata/dube_minwage.parquet`` -- the ``DiSCo`` package's ``dube`` dataset (Dube
 2019; ``adj0contpov`` by state-year), exported from ``dube.rda`` and **subsampled
 to 250 observations per state-year cell** (fixed seed) so the micro-panel is
 ~1 MB rather than 15 MB. 34 states (33 donors) x 7 years (1998-2004); Alaska

@@ -3,7 +3,7 @@
 Reproduces the L2-relaxation PDA paper's *multiple-treated-units* application
 (Section 6.2): the effect of the 23 June 2016 Brexit referendum on the daily
 stock returns of **UK firms**, treated as a cross-section against a pool of
-non-UK/non-EU control firms, on ``basedata/brexit_long.csv`` (52 UK treated +
+non-UK/non-EU control firms, on ``basedata/brexit_long.parquet`` (52 UK treated +
 300 control series; 253 pre + 21 post trading days).
 
 Each UK firm's counterfactual is fit by standardised L2-relaxation against the
@@ -35,7 +35,7 @@ import warnings
 import numpy as np
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
-                     "basedata", "brexit_long.csv")
+                     "basedata", "brexit_long.parquet")
 _GRID = np.exp(np.linspace(np.log(1e-2), np.log(1.0), 8))
 
 
@@ -43,7 +43,7 @@ def run() -> dict:
     import pandas as pd
     from mlsynth.utils.pda_helpers.multitreat import run_pda_multitreat
 
-    df = pd.read_csv(os.path.abspath(_DATA))
+    df = pd.read_parquet(os.path.abspath(_DATA))
     w = df.pivot(index="time", columns="unit", values="y").sort_index()
     grp = df.drop_duplicates("unit").set_index("unit")["group"]
     uk = [u for u in w.columns if grp[u] == "UK"]

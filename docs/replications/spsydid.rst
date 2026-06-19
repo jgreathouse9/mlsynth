@@ -34,7 +34,7 @@ The DGP (State-Level Monte Carlo)
 ---------------------------------
 
 * **Panel:** 49 contiguous US states, monthly unemployment 1976-2014
-  (``basedata/state_unemployment.csv``); queen-contiguity :math:`W`
+  (``basedata/state_unemployment.parquet``); queen-contiguity :math:`W`
   (``basedata/US_no_islands_matrix.gal``), row-standardised.
 * **Windows:** for each 3-year rolling window the third year is the
   post-period (:math:`T_0 = 24`, :math:`T_1 = 12`). Panels are deterministic.

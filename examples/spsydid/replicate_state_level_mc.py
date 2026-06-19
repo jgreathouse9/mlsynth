@@ -55,7 +55,7 @@ def _load_state_panel_and_W() -> Tuple[pd.DataFrame, np.ndarray, list]:
     import libpysal                                       # noqa: F401  (gal reader)
 
     base = Path(__file__).resolve().parents[2] / "basedata"
-    df = pd.read_csv(base / "state_unemployment.csv")
+    df = pd.read_parquet(base / "state_unemployment.parquet")
     wq = libpysal.io.open(str(base / "US_no_islands_matrix.gal")).read()
     wq.transform = "r"
     W1, _ = wq.full()

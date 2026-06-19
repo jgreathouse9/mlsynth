@@ -338,8 +338,8 @@ class TestPathBReplication:
         except ImportError:
             pytest.skip("libpysal not installed; state-level MC needs it.")
         base = Path(__file__).resolve().parents[2] / "basedata"
-        if not (base / "state_unemployment.csv").exists():
-            pytest.skip("state_unemployment.csv not present.")
+        if not (base / "state_unemployment.parquet").exists():
+            pytest.skip("state_unemployment.parquet not present.")
         if not (base / "US_no_islands_matrix.gal").exists():
             pytest.skip("US_no_islands_matrix.gal not present.")
         from examples.spsydid.replicate_state_level_mc import run_state_level_mc
