@@ -373,6 +373,12 @@ References
     https://github.com/PanJi-0/scmrelax); the Brexit / UK real-GDP
     empirical application: https://github.com/YapengZheng/Relaxed_SC
 
+.. [SCInfoCrit]
+    Pouliot, Guillaume Allaire, Zhen Xie, and Ziyi Liu.
+    *"Degrees of Freedom and Information Criteria for the Synthetic Control Method."*
+    Working Paper, 2022 (revised 2026).
+    arXiv: https://arxiv.org/abs/2207.02943.
+
 .. [BVSS]
     Xu, Yihong and Zhou, Quan.
     "Bayesian Synthetic Control with a Soft Simplex Constraint."
