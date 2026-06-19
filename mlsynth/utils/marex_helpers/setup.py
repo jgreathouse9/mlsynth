@@ -8,17 +8,28 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ..datautils import build_covariate_matrix
+from ..datautils import build_covariate_matrix, geoex_dataprep
+from ..fast_scm_helpers.structure import IndexSet
 
 
 @dataclass(frozen=True)
 class MAREXPanel:
-    """Prepared MAREX inputs."""
+    """Prepared MAREX inputs.
+
+    ``unit_index`` / ``time_index`` are the single source of truth for unit and
+    time identity (label <-> integer index). ``Y_full`` rows align to
+    ``unit_index.labels`` and its columns to ``time_index.labels``; the clusters
+    vector is in ``unit_index`` order. Every downstream consumer (optimizer,
+    orchestrator, restriction builder) indexes through these IndexSets rather
+    than re-deriving identity from a DataFrame.
+    """
 
     Y_full: pd.DataFrame          # units x time, indexed by unit label
     clusters: np.ndarray          # cluster label per unit, shape (N,)
     T0: int
     blank_periods: int
+    unit_index: IndexSet          # canonical unit identity (rows of Y_full)
+    time_index: IndexSet          # canonical time identity (columns of Y_full)
     covariates: Optional[np.ndarray] = None   # time-invariant predictors, (N, R)
     covariate_names: Tuple[str, ...] = ()     # column names aligned to ``covariates``
 
@@ -49,15 +60,24 @@ def prepare_marex_panel(
     to the combined ``[Y_fit; covariate_weight * Z]`` predictor matrix in
     :mod:`marex_helpers.optimization`) keeps its previous behaviour.
     """
+    # Canonical ingestion: geoex_dataprep enforces a strongly balanced panel and
+    # returns the wide outcome matrix + unit/time labels. We preserve the
+    # caller's unit order (df[unitid].unique()) so numerics are unchanged, then
+    # build the IndexSets that carry identity from here on.
+    prep = geoex_dataprep(df, unitid, time, outcome)
     unit_labels = df[unitid].unique()
+    Ywide = prep["Ywide"].reindex(columns=unit_labels)    # time x unit, caller order
+    Y_full = Ywide.T                                       # units x time
+    unit_index = IndexSet.from_labels(unit_labels)
+    time_index = IndexSet.from_labels(np.asarray(Ywide.index))
+
     if cluster is not None:
         clusters = (df.drop_duplicates(subset=[unitid]).set_index(unitid)[cluster]
                     .reindex(unit_labels).to_numpy())
     else:
         clusters = np.zeros(len(unit_labels), dtype=int)
 
-    Y_full = df.pivot(index=unitid, columns=time, values=outcome).reindex(unit_labels)
-    T_total = df[time].nunique()
+    T_total = int(prep["n_periods"])
     T0_eff = T0 if T0 is not None else T_total - 1
 
     cov: Optional[np.ndarray] = None
@@ -83,5 +103,6 @@ def prepare_marex_panel(
         )
 
     return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff,
-                      blank_periods=blanks, covariates=cov,
+                      blank_periods=blanks, unit_index=unit_index,
+                      time_index=time_index, covariates=cov,
                       covariate_names=tuple(covariates) if covariates else ())

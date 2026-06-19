@@ -50,6 +50,8 @@ def solve_marex(
     alpha=0.05,
     max_combinations=1000,
     random_state=42,
+    unit_index=None,
+    time_index=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -70,7 +72,14 @@ def solve_marex(
 
     df = raw["df"]
     Y_full_np = df.to_numpy() if hasattr(df, "to_numpy") else np.asarray(df)
-    unit_labels = list(df.index) if hasattr(df, "index") else list(range(Y_full_np.shape[0]))
+    # Identity comes from the IndexSet (the single source of truth); fall back to
+    # the frame's own index only when a caller does not supply one.
+    if unit_index is not None:
+        unit_labels = list(unit_index.labels)
+    elif hasattr(df, "index"):
+        unit_labels = list(df.index)
+    else:
+        unit_labels = list(range(Y_full_np.shape[0]))
     w_opt, v_opt, z_opt = raw["w_opt"], raw["v_opt"], raw.get("z_opt")
     clusters_vec = raw["original_cluster_vector"]
     cluster_labels = raw["cluster_labels"]
@@ -194,7 +203,8 @@ def solve_marex(
         },
     )
     # The realized effect as a standardized EffectResult (the family adapter).
-    time_periods = (np.asarray(df.columns) if hasattr(df, "columns") else None)
+    time_periods = (np.asarray(time_index.labels) if time_index is not None
+                    else (np.asarray(df.columns) if hasattr(df, "columns") else None))
     intervention = (time_periods[T0_eff]
                     if time_periods is not None and T0_eff < time_periods.shape[0]
                     else None)

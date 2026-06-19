@@ -134,6 +134,7 @@ class MAREX:
                 standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
+                unit_index=panel.unit_index, time_index=panel.time_index,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
