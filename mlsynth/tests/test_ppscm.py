@@ -66,6 +66,30 @@ def test_prepare_inputs(panel):
     assert inp.n_pre == 20                            # periods before last adoption (offset 20)
 
 
+def test_prepare_inputs_datetime_time():
+    """A datetime ``time`` column must not break the adoption-time check.
+
+    The adoption time of each treated unit is a ``pd.Timestamp`` when ``time`` is
+    datetime; the never-treated sentinel stays ``np.inf``. The treated/never-
+    treated split must come out identical to the integer-time panel.
+    """
+    df = _staggered_panel()
+    df["date"] = pd.to_datetime(df["year"].astype(str) + "-01-01")
+    inp = prepare_ppscm_inputs(df, outcome="y", treat="tr", unitid="unit", time="date")
+    assert isinstance(inp, PPSCMInputs)
+    assert np.isfinite(inp.trt).sum() == 3        # three treated cohorts
+    assert (~np.isfinite(inp.trt)).sum() == 8     # eight never-treated controls
+    assert inp.n_pre == 20
+
+
+def test_fit_with_datetime_time_runs():
+    """End-to-end PPSCM fit succeeds on a datetime ``time`` column."""
+    df = _staggered_panel()
+    df["date"] = pd.to_datetime(df["year"].astype(str) + "-01-01")
+    res = PPSCM(_cfg(df, time="date")).fit()
+    assert np.isfinite(res.effects.att)
+
+
 def test_fit_feff_two_way_keys_and_shape():
     rng = np.random.default_rng(0)
     Xy = rng.standard_normal((6, 8))
