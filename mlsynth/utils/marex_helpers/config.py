@@ -30,7 +30,16 @@ class MAREXConfig(BaseMAREXConfig):
             "and an explicit ``T0`` argument is ignored."
         ),
     )
-    cluster: Optional[str] = Field(default=None, description="Column name for cluster membership.")
+    cluster: Optional[str] = Field(
+        default=None,
+        description="Column name for cluster membership. Each cluster is a "
+        "distinct experimental design with its own representativeness target "
+        "(its predictor mean Xbar_k) -- this is part of the objective, not a "
+        "constraint, and the per-cluster m_min/m_max IS the stratum quota. It is "
+        "the MAREX analog of SYNDES's `arm`, but baked into the objective rather "
+        "than run as separate solves, so the geographic restrictions compose "
+        "with it (they apply within each cluster). None (default) = one global "
+        "cluster (a single design against the whole-population mean).")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Time-invariant covariate columns matched on alongside pre-period outcomes (the paper's X = [Y^E ; Z]).")
     covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
@@ -71,6 +80,40 @@ class MAREXConfig(BaseMAREXConfig):
     # --- NEW inference options ---
     inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
     T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
+
+    # --- geographic design restrictions ---
+    # MAREX already covers region-clustering (`cluster`), stratum quotas
+    # (`m_min`/`m_max`), cost/budget, and same-region donors natively. These add
+    # the remaining SYNDES/GEOLIFT capabilities as constraints on the MIP. Only
+    # supported in the exact MIQP (not `relaxed=True`, whose post-hoc rounding
+    # cannot guarantee them).
+    to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Units forced into the treated set; must be disjoint from "
+        "not_to_be_treated.")
+    not_to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Units forbidden from treatment; they remain donors.")
+    adjacency: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Square border/spillover matrix (DataFrame keyed by unit "
+        "label); off-diagonal pairs above `spillover_threshold` may not both be "
+        "treated, and (with `exclude_bordering_donors`) are dropped from each "
+        "other's donor pool.")
+    spillover_threshold: float = Field(
+        default=0.0,
+        description="Off-diagonal `adjacency` entries strictly above this mark a "
+        "conflicting (bordering) pair.")
+    exclude_bordering_donors: bool = Field(
+        default=False,
+        description="Drop a treated market's bordering neighbours from its "
+        "(within-cluster) control pool. Requires `adjacency`.")
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant size column; units outside "
+        "[min_size, max_size] lose treatment eligibility (stay donors).")
+    min_size: Optional[float] = Field(default=None, description="Lower size bound.")
+    max_size: Optional[float] = Field(default=None, description="Upper size bound.")
 
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
@@ -230,6 +273,51 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthDataError(
                 f"blank_periods must satisfy 0 <= blank_periods < T0 "
                 f"(T0={T0_eff}, got {values.blank_periods})."
+            )
+
+        # --- geographic design restrictions ---
+        _restr = (values.to_be_treated is not None
+                  or values.not_to_be_treated is not None
+                  or values.adjacency is not None
+                  or values.exclude_bordering_donors
+                  or values.size_col is not None
+                  or values.min_size is not None or values.max_size is not None)
+        if _restr and values.relaxed:
+            raise MlsynthConfigError(
+                "design restrictions are only supported in the exact MIQP, not "
+                "with relaxed=True (its post-hoc rounding cannot guarantee them)."
+            )
+        units = set(df[values.unitid].unique())
+        forced = list(values.to_be_treated or [])
+        forbidden = list(values.not_to_be_treated or [])
+        unknown = [u for u in (forced + forbidden) if u not in units]
+        if unknown:
+            raise MlsynthConfigError(
+                "to_be_treated/not_to_be_treated contain units not in df: "
+                f"{sorted(map(str, set(unknown)))}."
+            )
+        clash = set(forced) & set(forbidden)
+        if clash:
+            raise MlsynthConfigError(
+                "units cannot be both to_be_treated and not_to_be_treated: "
+                f"{sorted(map(str, clash))}."
+            )
+        if values.size_col is not None and values.size_col not in df.columns:
+            raise MlsynthConfigError(
+                f"size_col '{values.size_col}' is not a column of df."
+            )
+        if (values.min_size is not None or values.max_size is not None) \
+                and values.size_col is None:
+            raise MlsynthConfigError("min_size / max_size require size_col.")
+        if values.min_size is not None and values.max_size is not None \
+                and values.min_size > values.max_size:
+            raise MlsynthConfigError(
+                f"min_size ({values.min_size}) must be <= max_size "
+                f"({values.max_size})."
+            )
+        if values.exclude_bordering_donors and values.adjacency is None:
+            raise MlsynthConfigError(
+                "exclude_bordering_donors requires an adjacency matrix."
             )
 
         return values

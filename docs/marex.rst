@@ -163,6 +163,105 @@ predictor distribution and limits interpolation bias (paper OA.1). Per-unit
 ``costs`` and a ``budget`` (scalar or per-cluster) add a knapsack constraint
 :math:`\sum_j c_j w_j \le B`, so the chosen treatment group respects a spend cap.
 
+Geographic design restrictions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+MAREX already carries most geographic structure natively. Its ``cluster`` field
+*is* the paper's "region as a distinct experimental design" (p.13: weather
+patterns dependent across cities in the same region motivate treating each region
+separately); ``m_min`` / ``m_max`` per cluster is a stratum quota ("at least /
+at most this many treated per region"); ``costs`` / ``budget`` is the cost bound;
+and because each cluster's control synthetic :math:`v_{\cdot,k}` is built only
+from cluster-``k`` members, donors are automatically same-region. The same
+restriction vocabulary SYNDES and GEOLIFT expose then adds the rest, as
+constraints on the MIP:
+
+* ``to_be_treated`` / ``not_to_be_treated`` -- force a market in (one leadership
+  already committed to) or out (a regulated market, or one already under another
+  test); a forbidden market stays a donor.
+* ``adjacency`` + ``spillover_threshold`` -- no two treated markets may share a
+  border (:math:`\sum_k z_{ik} + \sum_k z_{jk} \le 1`), for when one test
+  market's campaign would bleed into a neighbouring one and bias the lift.
+* ``size_col`` + ``min_size`` / ``max_size`` -- a treated-unit size band (the
+  floor is a power minimum, the ceiling is synthesizability); out-of-band markets
+  stay donors.
+* ``exclude_bordering_donors`` -- drop a treated market's bordering neighbours
+  from its (within-cluster) control pool, so a market partly treated by spillover
+  never sits in its counterfactual. Requires ``adjacency``.
+
+These are supported in the exact MIQP only (not ``relaxed=True``, whose post-hoc
+rounding cannot guarantee them). An over-constrained design -- e.g. forbidding
+every market of a region, leaving its required treated synthetic with no member
+-- raises a translated :class:`~mlsynth.exceptions.MlsynthEstimationError` naming
+the restrictions. The example below runs on the bundled real US DMA contiguity
+map and Census regions, with a region-grouped linear factor sales model (after
+Liao, Shi & Zheng [RelaxSC]_); the geography is real, the sales reproducible.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import MAREX
+
+   base = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+           "refs/heads/main/basedata/markets")
+   adj = pd.read_csv(f"{base}/dma_adjacency.csv", index_col=0)
+   meta = pd.read_csv(f"{base}/dma_metadata.csv")
+   CDC = {**{s: "Midwest" for s in ["OH", "IN", "MI", "KY"]},
+          **{s: "South" for s in ["WV", "VA", "TN", "GA", "FL", "SC"]}}
+   meta = meta[meta["state"].isin(CDC)].copy()
+   meta["region"] = meta["state"].map(CDC)
+   names = [n for n in meta["dma_name"] if n in adj.index]
+   meta = meta[meta["dma_name"].isin(names)].reset_index(drop=True)
+   adj = adj.loc[names, names]
+
+   rng = np.random.default_rng(7)
+   reg = meta["region"].to_numpy(); n, r, T, T0 = len(names), 3, 30, 24
+   Lam = (np.array([{g: rng.normal(size=r) for g in sorted(set(reg))}[g] for g in reg])
+          + 0.15 * rng.normal(size=(n, r)))
+   F = np.cumsum(rng.normal(size=(T, r)), axis=0)
+   pop = np.round(rng.lognormal(12.5, 0.7, n)).astype(int)
+   Y = 100 + rng.normal(0, 5, n) + F @ Lam.T + rng.normal(0, 1, (T, n))
+   df = pd.DataFrame([{"dma": names[j], "week": t, "sales": float(Y[t, j]),
+                       "region": reg[j], "population": int(pop[j])}
+                      for j in range(n) for t in range(T)])
+
+   B = dict(df=df, outcome="sales", unitid="dma", time="week",
+            cluster="region", T0=T0)                    # cluster = Census region
+
+   MAREX({**B, "m_max": 2}).fit()                       # native quota: <=2 per region
+   MAREX({**B, "m_max": 2, "to_be_treated": ["Atlanta, GA"],
+          "not_to_be_treated": ["Miami-Fort Lauderdale, FL"]}).fit()
+   MAREX({**B, "m_max": 2, "adjacency": adj,
+          "spillover_threshold": 0.5}).fit()            # no two treated border
+   MAREX({**B, "m_max": 2, "size_col": "population",
+          "min_size": 200_000, "max_size": 3_000_000}).fit()
+   MAREX({**B, "m_max": 1, "adjacency": adj, "spillover_threshold": 0.5,
+          "exclude_bordering_donors": True}).fit()      # non-bordering donors
+
+Across groups: cluster vs. quotas vs. restrictions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Three mechanisms touch on grouping/geography; they are distinct, not
+interchangeable, and ``cluster`` is *not* made obsolete by the restrictions:
+
+* A *separate experiment per group* -- each group's own representativeness
+  target and donor pool: ``cluster``. This is the design's objective, not a
+  constraint: each cluster ``k`` reconstructs its own predictor mean
+  :math:`\overline{X}_k`. It is the SYNDES analog of that estimator's ``arm``
+  (:doc:`syndes`), but baked into the objective rather than run as separate
+  solves -- which is why, in MAREX, the restrictions compose *with* ``cluster``
+  (they apply within each cluster) and the per-cluster cardinality ``m_min`` /
+  ``m_max`` *is* the stratum quota.
+* *One* design with geographic / forcing limits within those clusters: the
+  restriction suite above (force in/out, border conflict, size band, donor
+  exclusion).
+
+So a stratum quota is not an alternative to ``cluster``; in MAREX it is a
+property *of* the clustering. Drop ``cluster`` (a single global cluster) and you
+recover one design against the whole-population mean -- a different estimand, not
+a constrained version of the clustered one.
+
 Inference
 ^^^^^^^^^
 

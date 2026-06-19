@@ -8,6 +8,28 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Added
+- **MAREX geographic design restrictions.** MAREX gains the SYNDES/GEOLIFT
+  restriction vocabulary, on top of what it already had natively (region
+  clustering, `m_min`/`m_max` stratum quotas, cost/budget, same-region donors):
+  `to_be_treated` / `not_to_be_treated`, `adjacency` + `spillover_threshold`
+  (no two treated markets border each other), `size_col` + `min/max_size`, and
+  `exclude_bordering_donors` (drop a treated market's neighbours from its
+  within-cluster control pool). Enforced as constraints on the MIP's `z`/`v`,
+  reusing the shared estimator-agnostic `DesignRestrictions` / `build_restrictions`
+  (new `marex_helpers/restrictions.apply_restrictions_marex` for the applier).
+  MIQP-only (rejected with `relaxed=True`); infeasible combinations raise a
+  translated `MlsynthEstimationError`. Docs gallery on real DMA geography.
+
+### Changed
+- **MAREX routes unit/time identity through `IndexSet` + `geoex_dataprep`.**
+  `prepare_marex_panel` now ingests via the canonical `geoex_dataprep` (which
+  enforces a strongly balanced panel) and carries `unit_index` / `time_index`
+  IndexSets as the single source of truth, threaded through the optimizer and
+  orchestrator instead of being re-derived from the frame. Unit order is
+  preserved, so numerics are unchanged; the only behavioural change is that an
+  unbalanced panel now raises a translated `MlsynthDataError`.
+
 ### Fixed
 - **SYNDES no longer leaks an `IndexError` when restrictions make the candidate
   pool empty.** Over-constrained `top_K > 1` designs (in-sample, holdout, or ic

@@ -598,6 +598,30 @@ compatible with the global ``costs``/``budget`` constraint (the cost vector is
 defined over all units, not per arm). When ``arm`` is ``None`` (default), a
 single :class:`SYNDESResults` is returned, exactly as before.
 
+Across groups: arm vs. quotas vs. restrictions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three mechanisms touch on grouping/geography; they are distinct, not
+interchangeable. Pick by what you actually want:
+
+* A *separate experiment per group* -- its own estimand, its own donor pool:
+  ``arm`` (above). This is the SYNDES analog of MAREX's ``cluster``
+  (:doc:`marex`), which bakes the same idea into a per-cluster objective.
+  ``arm`` partitions the units and solves an independent design in each.
+* *One* design representative of *every* group (coverage): ``stratum_col`` with
+  ``min_per_stratum`` / ``max_per_stratum`` -- one shared donor pool, one
+  estimand, with a quota of treated units per group.
+* *One* design with geographic / forcing limits: the restriction suite (force
+  in/out, border conflict, size band, donor rules).
+
+A constraint cannot split one design into ``K`` independent designs, so ``arm``
+is not a special case of the quota -- it is a different object (``K`` estimands
+and ``K`` disjoint donor pools). Note the asymmetry with MAREX: there the
+restrictions compose *with* ``cluster`` (they apply within each cluster), because
+``cluster`` lives in the objective; in SYNDES ``arm`` runs separate solves and
+does **not** combine with the restriction fields -- to get both, loop a
+restricted ``SYNDES`` over each arm's sub-panel.
+
 Example
 -------
 
