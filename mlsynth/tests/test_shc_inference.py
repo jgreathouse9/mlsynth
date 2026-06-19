@@ -254,6 +254,55 @@ def test_run_conformal_inference_returns_inference_object():
     assert res.num_resamples == 200
 
 
+def test_run_conformal_inference_exact_method_moving_block():
+    T, T0, m = 12, 9, 3
+    n = T - T0
+    inputs = _make_inputs(T, T0, m)
+    design = _make_design(T0, m, n)
+    rng = np.random.default_rng(1)
+    observed = rng.standard_normal(m + n)
+    counterfactual = observed - 0.2
+
+    res = run_conformal_inference(
+        inputs, design, observed, counterfactual,
+        method="exact", permutation_scheme="moving_block",
+    )
+    assert isinstance(res, SHCInference)
+    assert res.method == "conformal_exact_moving_block"
+    # moving block enumerates T = T0 + n cyclic shifts.
+    assert res.null_distribution.shape == (T0 + n,)
+    assert res.num_resamples == T0 + n
+    assert 0.0 <= res.p_value <= 1.0
+
+
+def test_run_conformal_inference_exact_method_iid():
+    T, T0, m = 12, 9, 3
+    n = T - T0
+    inputs = _make_inputs(T, T0, m)
+    design = _make_design(T0, m, n)
+    rng = np.random.default_rng(2)
+    observed = rng.standard_normal(m + n)
+    counterfactual = observed - 0.2
+
+    res = run_conformal_inference(
+        inputs, design, observed, counterfactual,
+        method="exact", permutation_scheme="iid", num_permutations=250,
+    )
+    assert res.method == "conformal_exact_iid"
+    assert res.num_resamples == 250
+
+
+def test_run_conformal_inference_bad_method_raises():
+    inputs = _make_inputs()
+    design = _make_design()
+    observed = np.zeros(6)
+    counterfactual = np.zeros(6)
+    with pytest.raises(MlsynthConfigError):
+        run_conformal_inference(
+            inputs, design, observed, counterfactual, method="bogus",
+        )
+
+
 def test_run_conformal_inference_custom_miscoverage_rate():
     T, T0, m = 12, 9, 3
     n = T - T0
