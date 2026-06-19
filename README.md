@@ -18,7 +18,43 @@ between, say, Forward DiD, TASC, and SPCD is a one-line change.
 pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 ```
 
-`mlsynth` supports Python 3.9 and later.
+`mlsynth` supports Python 3.9 and later. The base install pulls in every core
+dependency and runs every estimator except two that lean on heavier, specialised
+backends. Those two backends are packaged as optional *extras*, so you only
+install the weight you actually use:
+
+| Extra | Adds | Needed for |
+| --- | --- | --- |
+| `design` | `pyscipopt` (the SCIP mixed-integer solver) | the experimental-design estimators `SYNDES` and `MAREX`, whose market-selection step is a MIQP |
+| `bayes` | `numpyro` (JAX-based MCMC) | `SPOTSYNTH`'s Bayesian synthetic-control mode |
+| `all` | both of the above | the full feature set |
+
+Request an extra with the usual bracket syntax (quote it so the shell does not
+glob the brackets):
+
+```bash
+# SCIP solver for SYNDES / MAREX
+pip install -U "mlsynth[design] @ git+https://github.com/jgreathouse9/mlsynth.git"
+
+# NumPyro for SPOTSYNTH's Bayesian mode
+pip install -U "mlsynth[bayes] @ git+https://github.com/jgreathouse9/mlsynth.git"
+
+# everything
+pip install -U "mlsynth[all] @ git+https://github.com/jgreathouse9/mlsynth.git"
+```
+
+A few nuances worth knowing:
+
+- The two extra backends are imported lazily, so `import mlsynth` and importing
+  any estimator class always works on the base install. The extra is consulted
+  only when you actually call the design optimiser (`SYNDES` / `MAREX`) or
+  `SPOTSYNTH`'s Bayesian path; without it those raise a clear error pointing you
+  at the missing package, while everything else runs unchanged.
+- `pyscipopt` ships prebuilt wheels (bundling SCIP) for the common platforms, so
+  `mlsynth[design]` is normally a plain `pip install` with no separate SCIP
+  system install.
+- The test suite is a development artifact and is not shipped in the installed
+  package — clone the repository if you want to run `pytest`.
 
 ## Quickstart
 

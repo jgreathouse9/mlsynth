@@ -86,6 +86,60 @@ mlsynth builds on top of `numpy <https://numpy.org/>`_,
 `statsmodels <https://www.statsmodels.org/>`_; convex programs are routed
 through cvxpy's solver stack.
 
+Installation.
+
+Install the latest version straight from GitHub:
+
+.. code:: bash
+
+   pip install -U git+https://github.com/jgreathouse9/mlsynth.git
+
+mlsynth runs on Python 3.9 and later. The base install carries every core
+dependency and runs every estimator except two that rely on heavier,
+specialised backends. Those backends ship as optional *extras*, so you install
+only the weight you use:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 30 58
+
+   * - Extra
+     - Adds
+     - Needed for
+   * - ``design``
+     - ``pyscipopt`` (the SCIP mixed-integer solver)
+     - the experimental-design estimators :doc:`syndes` and :doc:`marex`, whose
+       market-selection step is a mixed-integer quadratic program
+   * - ``bayes``
+     - ``numpyro`` (JAX-based MCMC)
+     - :doc:`spotsynth`'s Bayesian synthetic-control mode
+   * - ``all``
+     - both of the above
+     - the full feature set
+
+Request an extra with bracket syntax, quoting the specifier so the shell does
+not glob the brackets:
+
+.. code:: bash
+
+   # SCIP solver for SYNDES / MAREX
+   pip install -U "mlsynth[design] @ git+https://github.com/jgreathouse9/mlsynth.git"
+
+   # NumPyro for SPOTSYNTH's Bayesian mode
+   pip install -U "mlsynth[bayes] @ git+https://github.com/jgreathouse9/mlsynth.git"
+
+   # everything
+   pip install -U "mlsynth[all] @ git+https://github.com/jgreathouse9/mlsynth.git"
+
+Both extra backends are imported lazily, so ``import mlsynth`` and importing any
+estimator class always succeed on the base install; the extra is consulted only
+when you actually run the design optimiser (SYNDES / MAREX) or SPOTSYNTH's
+Bayesian path, which otherwise raise a clear error naming the missing package.
+``pyscipopt`` ships prebuilt wheels that bundle SCIP, so ``mlsynth[design]`` is
+normally a plain install with no separate solver setup. The test suite is a
+development artifact and is not shipped in the installed package -- clone the
+repository to run ``pytest``.
+
 Not sure which estimator to use? Walk the :doc:`choose` decision tree --
 a sequence of identification and design questions that funnels you from
 "what kind of problem do I have?" down to one or two methods, with the
