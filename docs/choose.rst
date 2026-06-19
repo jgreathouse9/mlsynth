@@ -339,6 +339,23 @@ so the untreated markets form a clean control, often under a budget?
   level at once) -- :doc:`multicellgeolift` extends the selection to multiple
   cells simultaneously.
 
+Q3.5 · Designing across groups (regions / arms / strata)? Three mechanisms look
+similar but are distinct -- pick by what you want, not by the word "group":
+
+* A *separate experiment per group* -- its own estimand and donor pool:
+  :doc:`marex`'s ``cluster`` (baked into the per-cluster objective) or
+  :doc:`syndes`'s ``arm`` (separate solves). Use when each region/arm is its own
+  study.
+* *One* design representative of *every* group (coverage): the stratum quota
+  ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` -- one shared donor
+  pool, one estimand. In MAREX this quota is just the per-cluster cardinality.
+* *One* design with geographic / forcing limits: the restriction suite (force
+  in/out, border conflict, size band, donor rules) on SYNDES, MAREX, or GEOLIFT.
+
+A constraint cannot turn one design into K designs, so ``cluster`` / ``arm`` are
+not special cases of the quota; the quota is the lighter choice when you only
+need coverage in a single design.
+
 Failure-mode index
 ------------------
 

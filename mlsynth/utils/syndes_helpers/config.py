@@ -193,7 +193,14 @@ class SYNDESConfig(BaseMAREXConfig):
             "When given, SYNDES solves its design independently within each "
             "arm's units and returns SYNDESMultiArmResults (a dict of per-arm "
             "results); when None (default), a single SYNDESResults is "
-            "returned. K (if set) then applies per arm."
+            "returned. K (if set) then applies per arm. This is the SYNDES "
+            "analog of MAREX's `cluster` (a separate design per group, with "
+            "disjoint donor pools and K estimands); for one shared design that "
+            "merely covers every group, use the stratum quota (`stratum_col` + "
+            "`min_per_stratum`/`max_per_stratum`) instead. `arm` runs separate "
+            "solves, so it does not combine with the geographic restriction "
+            "fields -- loop a restricted SYNDES over each arm's sub-panel for "
+            "both."
         ),
     )
     power_weight: float = Field(

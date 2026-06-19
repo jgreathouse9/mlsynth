@@ -239,6 +239,29 @@ Liao, Shi & Zheng [RelaxSC]_); the geography is real, the sales reproducible.
    MAREX({**B, "m_max": 1, "adjacency": adj, "spillover_threshold": 0.5,
           "exclude_bordering_donors": True}).fit()      # non-bordering donors
 
+Across groups: cluster vs. quotas vs. restrictions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Three mechanisms touch on grouping/geography; they are distinct, not
+interchangeable, and ``cluster`` is *not* made obsolete by the restrictions:
+
+* A *separate experiment per group* -- each group's own representativeness
+  target and donor pool: ``cluster``. This is the design's objective, not a
+  constraint: each cluster ``k`` reconstructs its own predictor mean
+  :math:`\overline{X}_k`. It is the SYNDES analog of that estimator's ``arm``
+  (:doc:`syndes`), but baked into the objective rather than run as separate
+  solves -- which is why, in MAREX, the restrictions compose *with* ``cluster``
+  (they apply within each cluster) and the per-cluster cardinality ``m_min`` /
+  ``m_max`` *is* the stratum quota.
+* *One* design with geographic / forcing limits within those clusters: the
+  restriction suite above (force in/out, border conflict, size band, donor
+  exclusion).
+
+So a stratum quota is not an alternative to ``cluster``; in MAREX it is a
+property *of* the clustering. Drop ``cluster`` (a single global cluster) and you
+recover one design against the whole-population mean -- a different estimand, not
+a constrained version of the clustered one.
+
 Inference
 ^^^^^^^^^
 

@@ -30,7 +30,16 @@ class MAREXConfig(BaseMAREXConfig):
             "and an explicit ``T0`` argument is ignored."
         ),
     )
-    cluster: Optional[str] = Field(default=None, description="Column name for cluster membership.")
+    cluster: Optional[str] = Field(
+        default=None,
+        description="Column name for cluster membership. Each cluster is a "
+        "distinct experimental design with its own representativeness target "
+        "(its predictor mean Xbar_k) -- this is part of the objective, not a "
+        "constraint, and the per-cluster m_min/m_max IS the stratum quota. It is "
+        "the MAREX analog of SYNDES's `arm`, but baked into the objective rather "
+        "than run as separate solves, so the geographic restrictions compose "
+        "with it (they apply within each cluster). None (default) = one global "
+        "cluster (a single design against the whole-population mean).")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Time-invariant covariate columns matched on alongside pre-period outcomes (the paper's X = [Y^E ; Z]).")
     covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
