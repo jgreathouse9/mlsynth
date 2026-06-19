@@ -1,3 +1,9 @@
+from importlib.metadata import version as _version, PackageNotFoundError
+try:
+    __version__ = _version("mlsynth")
+except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
+    __version__ = "0.1.2"
+
 from .estimators.tssc import TSSC ## Check
 from .estimators.fma import FMA ## Check
 from .estimators.pda import PDA ## Check

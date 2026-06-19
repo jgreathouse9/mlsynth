@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlsynth"
+version = "0.1.2"
+description = "Synthetic control and experimental-design estimators for causal inference on panel data."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Jared Greathouse", email = "jgreathouse3@student.gsu.edu" }]
+keywords = [
+    "synthetic control",
+    "causal inference",
+    "panel data",
+    "difference-in-differences",
+    "experimental design",
+    "econometrics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+# Core runtime dependencies. The two heavy, estimator-specific dependencies are
+# optional extras (below): `pyscipopt` (the SCIP MIP solver, needed only by the
+# SYNDES / MAREX experimental designs) and `numpyro` (JAX-based, needed only by
+# SPOTSYNTH's Bayesian mode). Both are imported lazily, so the base install
+# imports and runs every other estimator without them.
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+    "scikit-optimize>=0.9.0",
+    "statsmodels>=0.14.0",
+    "cvxpy>=1.4.0",
+    "pydantic>=2.0.0",
+    "pyarrow>=14.0.0",
+    "screenot",
+    "ecos",
+]
+
+[project.optional-dependencies]
+# SYNDES / MAREX mixed-integer experimental designs (SCIP solver).
+design = ["pyscipopt>=4.4.0"]
+# SPOTSYNTH Bayesian synthetic control (NumPyro / JAX).
+bayes = ["numpyro"]
+# Everything optional, for the full feature set.
+all = ["pyscipopt>=4.4.0", "numpyro"]
+
+[project.urls]
+Homepage = "https://github.com/jgreathouse9/mlsynth"
+Documentation = "https://mlsynth.readthedocs.io"
+Repository = "https://github.com/jgreathouse9/mlsynth"
+Issues = "https://github.com/jgreathouse9/mlsynth/issues"
+
+[tool.setuptools.packages.find]
+# Package the library only; the test suite is a development artifact (clone the
+# repo to run it) and the repo-root `basedata/` is not shipped in the wheel.
+include = ["mlsynth*"]
+exclude = ["mlsynth.tests*"]
+
+[tool.setuptools.package-data]
+# The agent-facing guides shipped inside the package (was MANIFEST.in).
+mlsynth = ["guides/*.txt"]
