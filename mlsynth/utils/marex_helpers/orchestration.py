@@ -52,6 +52,7 @@ def solve_marex(
     random_state=42,
     unit_index=None,
     time_index=None,
+    restrictions=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -60,7 +61,7 @@ def solve_marex(
     placebo inference is computed for every cluster and the aggregate.
     """
     solve = solve_design_relaxed if relaxed else solve_design
-    raw = solve(
+    solve_kw = dict(
         Y_full=Y_full, T0=T0, clusters=clusters, blank_periods=blank_periods,
         m_eq=m_eq, m_min=m_min, m_max=m_max, exclusive=exclusive, design=design,
         beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
@@ -69,6 +70,11 @@ def solve_marex(
         covariate_weight=covariate_weight, standardize=standardize,
         solver=solver, verbose=verbose,
     )
+    # Restrictions are MIQP-only (the relaxed path's rounding can't guarantee
+    # them); the config rejects the combination, so only the exact solver sees it.
+    if not relaxed:
+        solve_kw["restrictions"] = restrictions
+    raw = solve(**solve_kw)
 
     df = raw["df"]
     Y_full_np = df.to_numpy() if hasattr(df, "to_numpy") else np.asarray(df)

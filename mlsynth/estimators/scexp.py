@@ -87,6 +87,15 @@ class MAREX:
         self.T_post = config.T_post
         self.relaxed: bool = getattr(config, "relaxed", False)
         self.display_graph: bool = config.display_graph
+        # geographic design restrictions
+        self.to_be_treated = config.to_be_treated
+        self.not_to_be_treated = config.not_to_be_treated
+        self.adjacency = config.adjacency
+        self.spillover_threshold = config.spillover_threshold
+        self.exclude_bordering_donors = config.exclude_bordering_donors
+        self.size_col = config.size_col
+        self.min_size = config.min_size
+        self.max_size = config.max_size
 
         if self.cluster and self.cluster not in self.df.columns:
             raise MlsynthDataError(f"Cluster column '{self.cluster}' not found in DataFrame.")
@@ -119,6 +128,19 @@ class MAREX:
         except Exception as exc:
             raise MlsynthDataError(f"Error preparing MAREX inputs: {exc}") from exc
 
+        # Build the geographic restriction bundle against the panel's unit
+        # IndexSet -- the single source of truth for who is who.
+        from ..utils.marex_helpers.restrictions import build_restrictions
+        restrictions = build_restrictions(
+            self.df, self.unitid, panel.unit_index,
+            to_be_treated=self.to_be_treated,
+            not_to_be_treated=self.not_to_be_treated,
+            adjacency=self.adjacency, spillover_threshold=self.spillover_threshold,
+            size_col=self.size_col, min_size=self.min_size, max_size=self.max_size,
+            exclude_bordering_donors=self.exclude_bordering_donors,
+        )
+        restrictions = None if restrictions.is_empty else restrictions
+
         try:
             import cvxpy as cp
             results = solve_marex(
@@ -135,6 +157,7 @@ class MAREX:
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
                 unit_index=panel.unit_index, time_index=panel.time_index,
+                restrictions=restrictions,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

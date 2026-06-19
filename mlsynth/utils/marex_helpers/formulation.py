@@ -142,8 +142,10 @@ def init_cvxpy_variables(N, K, boolean=True):
 
 
 def build_constraints(w, v, z, M, cluster_members, cluster_labels,
-                      m_eq, m_min, m_max, costs, budget_dict, exclusive):
-    """Simplex, disjointness, cardinality, cost, and exclusivity constraints."""
+                      m_eq, m_min, m_max, costs, budget_dict, exclusive,
+                      restrictions=None):
+    """Simplex, disjointness, cardinality, cost, exclusivity, and (optional)
+    geographic-restriction constraints."""
     N, K = M.shape
     constraints = []
     for k in range(K):
@@ -178,6 +180,10 @@ def build_constraints(w, v, z, M, cluster_members, cluster_labels,
     if exclusive:
         for j in range(N):
             constraints += [cp.sum(z[j, :]) <= 1]
+
+    if restrictions is not None:
+        from .restrictions import apply_restrictions_marex
+        constraints += apply_restrictions_marex(z, v, M, restrictions)
     return constraints
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import cvxpy as cp
 import numpy as np
 
+from ...exceptions import MlsynthEstimationError
 from .formulation import (
     build_constraints,
     build_objective,
@@ -64,7 +65,7 @@ def solve_design(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
-    solver=cp.SCIP, verbose=False,
+    solver=cp.SCIP, verbose=False, restrictions=None,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
@@ -79,13 +80,21 @@ def solve_design(
 
     w, v, z = init_cvxpy_variables(N, K)
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
-                                    m_eq, m_min, m_max, costs_np, budget_dict, exclusive)
+                                    m_eq, m_min, m_max, costs_np, budget_dict,
+                                    exclusive, restrictions=restrictions)
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
                                lambda1_unit, lambda2_unit, D1, D2_list)
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=solver, verbose=verbose)
 
+    if z.value is None or w.value is None:
+        msg = f"MAREX optimization failed: {prob.status}"
+        if restrictions is not None and "infeasible" in str(prob.status).lower():
+            msg = ("MAREX design is infeasible under the active restrictions "
+                   "(forced/forbidden units, border conflicts, size band) and "
+                   "the cluster cardinality (m_min/m_max). Relax them.")
+        raise MlsynthEstimationError(msg)
     w_opt, v_opt, z_opt = w.value, v.value, z.value
     Y_full_T = Y_full_np.T
     rmse_cluster = []
