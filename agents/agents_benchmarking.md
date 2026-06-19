@@ -118,6 +118,141 @@ Regardless of path or scenario, a benchmark is *done* only when **all** of:
 6. Confirm `python benchmarks/run_benchmarks.py --case <name>` passes, then
    `--all` to confirm no regression.
 
+## Provisioning and running the full reference stack
+
+The cross-validation cases skip themselves when their reference toolchain is
+absent, so a bare `--all` run is **green-but-incomplete** — it silently skips
+every R and external-Python reference. To actually exercise the cross-checks
+(the strongest evidence we have) you must stand up the whole reference stack.
+This section is the recipe, learned by doing it end-to-end in a sandboxed cloud
+environment. It complements `benchmarks/README.md` (which lists the cases) with
+the *how to provision the toolchain* that neither doc previously captured.
+
+### Know your network profile first — it dictates everything
+
+The install strategy is entirely determined by what the environment can reach.
+**Probe before you install** (`curl -sS -m 12 -o /dev/null -w "%{http_code}"`):
+
+| Endpoint | Cloud sandbox (observed) | Consequence |
+|---|---|---|
+| CRAN (`cloud.r-project.org`) | **403 blocked** | `install.packages()` / `Rscript requirements.R` **do not work**. You cannot pull R packages the normal way. |
+| GitHub codeload (`codeload.github.com`) | **200 open** | This is the *only* way in for R packages: compile from the CRAN GitHub mirror (`cran/<pkg>`) and from upstream repos at pinned commits. Reference-repo clones also work. |
+| PyPI (`pypi.org`) | **200 open** | Python reference deps install normally; one (`scmrelax`) comes from a git URL. |
+| apt (Ubuntu main) | reachable | Prebuilt `r-cran-*` packages (the bulk of R dependencies) install fast — *if* you fix the broken PPAs first. |
+
+This is exactly why `benchmarks/R/install_*.sh` are written the way they are:
+**apt for the prebuilt majority, `codeload.github.com/cran/<pkg>/tar.gz/<ref>` +
+`R CMD INSTALL` for the leaves, never a CRAN call.** Trust those scripts; they
+encode the pinned commits/tags that keep the cross-check byte-stable.
+
+### R: the install order that works from a CRAN-blocked box
+
+1. **Disable broken third-party PPAs, then `apt-get update`.** The sandbox ships
+   `deadsnakes` and `ondrej/php` PPAs that are unsigned/403 and make
+   `apt-get update` error out (which then aborts installs). Move them aside:
+   `mv /etc/apt/sources.list.d/*deadsnakes* …disabled` (same for `ondrej`),
+   then `apt-get update`.
+2. **apt-install the prebuilt R deps.** `r-base r-base-dev build-essential cmake
+   gfortran` plus the `r-cran-*` dependency closure (dplyr, tidyr, magrittr,
+   rlang, purrr, fnn, rcpp, rcpparmadillo, rcppeigen, bh, glmnet, mass, matrix,
+   kernlab, optimx, rgenoud, survey, …). **A single bad package name aborts the
+   whole `apt-get install` — it installs nothing.** Verify names with
+   `apt-cache policy <pkg>` first: `r-cran-optmatch`, `r-cran-microsynth`,
+   `r-cran-synth`, `r-cran-synthdid`, `r-cran-did` are **not** in apt and must
+   come from the GitHub mirror.
+3. **Compile the non-apt leaves from the GitHub CRAN mirror.** Helper:
+   `curl -sL https://codeload.github.com/$REPO/tar.gz/$REF -o p.tgz && tar xzf
+   p.tgz && R CMD INSTALL --no-docs --no-help <dir>`. `Synth` (needs kernlab,
+   optimx, rgenoud — all apt) and `microsynth` (needs survey — apt) install from
+   `cran/Synth` / `cran/microsynth`.
+4. **Run the pinned install scripts in dependency order, one at a time:**
+   - `benchmarks/R/install_augsynth.sh` → `augsynth` + `osqp` + `S7` +
+     `LiblineaR` (for `geolift_augsynth_ref`, `ascm_kansas`).
+   - `benchmarks/R/install_pensynth.sh` → `LowRankQP` (for `pensynth_prop99`;
+     the authors' `wsoll1.R`/`TZero.R` are *cloned* separately by
+     `clone_pensynth.py`, not installed).
+   - `benchmarks/R/install_geolift.sh` → re-runs install_augsynth.sh, then the
+     heavy `Boom → BoomSpikeSlab → bsts → CausalImpact → MarketMatching → gsynth
+     → GeoLift` chain (for `geolift_marketselection_ref`). **`Boom` is a
+     ~15–25 min single C++ compile** — it dominates the whole provisioning time.
+     The chain is frozen to the last R-4.3-compatible release set (newer `Boom`
+     needs R ≥ 4.5).
+   - `Synth`/`synthdid`/`did` in `requirements.R` go via CRAN, which is blocked
+     — pull `Synth` from the mirror (above); `synthdid`/`did` are not actually
+     `library()`-d by any current case (the `sdid`/`did` cross-checks use the
+     Python `causaltensor` reference), so skip them unless a new case needs them.
+
+   **Do not run two apt-using scripts concurrently** — they collide on the dpkg
+   lock. Serialize them (each `install_*.sh` calls `apt-get`).
+
+### External Python references: install individually, mind two apt-managed traps
+
+The cross-val cases that use a Python reference need these — but **install them
+one at a time**, because a batched `pip install a b c …` aborts wholesale on the
+first failure and leaves none installed:
+
+| Package | Source | Cases |
+|---|---|---|
+| `causaltensor` | PyPI | `sdid_prop99`, `mcnnm_prop99` |
+| `cvxopt` | PyPI | `linf_crossval_ref` |
+| `cvxpy` | PyPI | `rescm_relax_ref` |
+| `libpysal` | PyPI | `spsydid_state_mc` (reads `.gal` weights) |
+| `kneed` | PyPI | `clustersc_subgroups_ref` (authors' `syclib`) |
+| `toolz` | PyPI | `rsc_shen_coverage` (authors' `var.py`) |
+| `scmrelax` | **git**: `git+https://github.com/PanJi-0/scmrelax.git` (not on PyPI) | `rescm_relax_ref` |
+
+Two environment traps that masquerade as install failures:
+
+- **`beautifulsoup4` is apt-managed with no `RECORD` file**, so when `libpysal`'s
+  deps try to upgrade it pip dies with `Cannot uninstall beautifulsoup4 … RECORD
+  file not found` and aborts the transaction. Pre-empt with
+  `pip install --ignore-installed beautifulsoup4` once, then install `libpysal`.
+- **`numpy`'s apt-installed dist-info has invalid metadata**, so pip prints
+  `Skipping …numpy-…dist-info due to invalid metadata` warnings. Harmless on its
+  own, but combined with a batched install it can confuse the resolver — another
+  reason to install one package per `pip` call.
+- **`causaltensor` pins `numpy<2.0`** but imports and runs fine under the
+  installed `numpy 2.4.x`. Do **not** downgrade numpy globally to satisfy it —
+  that would break mlsynth itself. The pin is advisory; the cases pass.
+
+Reference *repos* (not packages) clone lazily on first case run into
+`benchmarks/reference/.cache/` (git-ignored) via the `clone_*.py` pins. GitHub
+is open, so they just work; no pre-step needed (running `clone_*.py` directly
+needs the repo root on `PYTHONPATH`, e.g. `python -m benchmarks.reference.clone_x`).
+
+### Running it, and reading the result honestly
+
+- **`--with-reference` is currently a forward-compat no-op:**
+  `registry.NEEDS_REFERENCE` is empty, so every one of the ~86 cases already runs
+  under `--all` and each *self-skips* (`[SKIP]`, never a fail) when its reference
+  is missing. The flag exists for cases that would be *gated out* of `--all`;
+  pass it anyway for intent, but know `--all` already attempts every reference.
+- **Verify references individually before the full sweep.** A full
+  `--all --with-reference` run is 30–60 min; iterate with
+  `--case <name> --with-reference` per reference case to confirm each passes
+  *live* (fast feedback, isolates a broken install to one line).
+- **Do the installs first, then run the suite — never overlap them.** Running
+  `--all` *while* R packages compile starves the Python process of CPU; a slow
+  Monte-Carlo case (e.g. `msqrt_sim`) then looks hung when it is merely waiting.
+  Kill any sweep you started before provisioning finished and re-run clean.
+- **The clean end state:** with the stack up, all reference cases flip
+  `[SKIP] → [PASS]`. In the reference run this means the 7 external-Python cases
+  (causaltensor ×2, libpysal, kneed, toolz, scmrelax/cvxopt, cvxpy), the 9 R
+  cross-checks (`masc_basque`, `microsynth_seattle`, `nsc_prop99`,
+  `pensynth_prop99`, `pda_luxurywatch`, `scmo_concatenated_mc`, `siv_syria_mc`,
+  `cwz_ttest`, `cwz_mc`), and the GeoLift cases (`geolift_augsynth_ref`,
+  `geolift_marketselection`, `geolift_marketselection_ref` against *live*
+  `GeoLiftMarketSelection`) all pass alongside the ~67 pure-Python cases.
+
+### If you had to do it again
+
+Wrap the whole thing in a provisioning script (the obvious next step is the
+deferred `benchmarks/Dockerfile` → GHCR image baking exactly these `apt` +
+`codeload` + `pip` steps, so the Boom compile happens once). Until then: probe
+the network, disable the bad PPAs, apt the prebuilt R closure, run the three
+`install_*.sh` in order (budget for Boom), `pip install` the Python refs one at
+a time with the bs4 pre-empt, then verify case-by-case before the full sweep.
+
 ## Field notes (hard-won)
 
 Patterns and traps from building the SEQ_SDID, SPARSE_SC, NSC, VanillaSC, MASC,
