@@ -332,7 +332,7 @@ High-dimensional donor pools
   :math:`-6.40\%` (:math:`t = -3.61`); the gap is mlsynth's
   time-respecting sequential CV vs the paper's future-leaking 5-block
   K-fold (durable: ``pda_ppi``). Path A (multi-treat): the Shi &
-  Wang (2024) Brexit study on ``brexit_long.csv`` -- 52 UK firms
+  Wang (2024) Brexit study on ``brexit_long.parquet`` -- 52 UK firms
   treated as a cross-section against 300 controls; on the first
   post-referendum day the L2-relaxation per-period ATE on UK returns
   is :math:`-4.50\%` (:math:`t = -7.5`), reproducing the paper's

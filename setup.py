@@ -26,6 +26,7 @@ setup(
         "scikit-optimize>=0.9.0",
         "statsmodels>=0.14.0",
         "cvxpy>=1.4.0",
+        "pyarrow>=14.0.0",
         "pyscipopt>=4.4.0",
         "pydantic>=2.0.0",
     ],

@@ -10,7 +10,7 @@ driven by :mod:`benchmarks.reference.spsydid_ref`).
 DGP (matches the notebook)
 --------------------------
 * Panel: 49 contiguous US states, monthly unemployment 1976-2014
-  (``state_unemployment.csv``); queen-contiguity W (``US_no_islands_matrix.gal``),
+  (``state_unemployment.parquet``); queen-contiguity W (``US_no_islands_matrix.gal``),
   row-standardised.
 * For each 3-year rolling window (post = the 3rd year, so T0 = 24, T1 = 12),
   Arkansas (FIPS 5) is the directly-treated state. Outcome
@@ -19,7 +19,7 @@ DGP (matches the notebook)
 
 Provenance
 ----------
-* Data: ``basedata/{state_unemployment.csv,US_no_islands_matrix.gal}``
+* Data: ``basedata/{state_unemployment.parquet,US_no_islands_matrix.gal}``
   (vendored from the authors' ``Data/`` directory).
 * Reference: serenini/spatial_SDID @ e43427d (pinned), cloned on demand by
   :mod:`benchmarks.reference.clone_spsydid` -- the repo carries no licence, so it
@@ -54,7 +54,7 @@ def _load_state_panel_and_W() -> Tuple[pd.DataFrame, np.ndarray, List[int]]:
     except ImportError as exc:  # pragma: no cover - optional dep
         raise BenchmarkSkipped("libpysal not installed "
                                "(needed to read the .gal weights)") from exc
-    df = pd.read_csv(_BASE / "state_unemployment.csv")
+    df = pd.read_parquet(_BASE / "state_unemployment.parquet")
     wq = libpysal.io.open(str(_BASE / "US_no_islands_matrix.gal")).read()
     wq.transform = "r"
     W1, _ = wq.full()

@@ -443,7 +443,7 @@ asserts per-rep agreement; see the dedicated page
 The reference panels and adjacency matrices ship with mlsynth in
 ``basedata/``:
 
-* ``state_unemployment.csv`` -- BLS monthly state unemployment 1976-2014.
+* ``state_unemployment.parquet`` -- BLS monthly state unemployment 1976-2014.
 * ``US_no_islands_matrix.gal`` -- queen-contiguity W for the 49
   contiguous states.
 * ``spsydid_bls_county_subset.csv`` -- the BLS county-employment slice
