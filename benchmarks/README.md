@@ -89,14 +89,28 @@ to catch real regressions.
 
 Some cross-validation cases run against a Python reference implementation. They
 are part of the default `--all` set but **skip gracefully** when their optional
-dependency is absent — install these to actually exercise them:
+dependency is absent. Install them **one at a time** (a batched `pip install`
+aborts wholesale on the first failure):
 
 ```bash
-pip install causaltensor      # sdid_prop99, mcnnm_prop99
-pip install libpysal          # spsydid_state_mc (reads the .gal spatial weights)
+pip install causaltensor       # sdid_prop99, mcnnm_prop99 (pins numpy<2 but runs fine under 2.x)
+pip install cvxopt             # linf_crossval_ref
+pip install cvxpy              # rescm_relax_ref
 pip install kneed scikit-learn # clustersc_subgroups_ref (the authors' syclib deps)
 pip install toolz scikit-learn # rsc_shen_coverage (the authors' var.py deps)
+pip install --ignore-installed beautifulsoup4 && pip install libpysal  # spsydid_state_mc; bs4 pre-empt avoids the apt-managed-RECORD clash
+pip install git+https://github.com/PanJi-0/scmrelax.git                # rescm_relax_ref (not on PyPI)
 ```
+
+The R cross-checks (`masc_basque`, `microsynth_seattle`, `nsc_prop99`,
+`pensynth_prop99`, `pda_luxurywatch`, `scmo_concatenated_mc`, `siv_syria_mc`,
+`cwz_*`, and the `geolift_*` cases) need a full R toolchain. In an environment
+where CRAN is blocked, install it with apt + the pinned GitHub-mirror scripts:
+`R/install_augsynth.sh`, `R/install_pensynth.sh`, and `R/install_geolift.sh`
+(the last bakes the heavy `Boom -> bsts -> GeoLift` chain). The end-to-end
+provisioning recipe — network probe, PPA fix, install order, and the gotchas —
+lives in [`agents/agents_benchmarking.md`](../agents/agents_benchmarking.md)
+under "Provisioning and running the full reference stack".
 
 `spsydid_state_mc`, `clustersc_subgroups_ref`, and `rsc_shen_coverage`
 additionally **clone** the authors' reference repos (`serenini/spatial_SDID`,
