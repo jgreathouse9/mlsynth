@@ -753,8 +753,9 @@ contiguity matrix and metadata (`basedata/markets/
 into the four `Census regions
 <https://www.cdc.gov/nchs/hus/sources-definitions/geographic-region.htm>`_. The
 geography is real; the sales outcome is a reproducible region-grouped factor
-model (same-region markets co-move), generated only so the snippets run end to
-end. Each block below assumes this setup has run, and each needs a MIP solver
+model (same-region markets co-move, after the grouped factor structure of Liao,
+Shi & Zheng [RelaxSC]_), generated only so the snippets run end to end. Each
+block below assumes this setup has run, and each needs a MIP solver
 (SCIP).
 
 .. code-block:: python
@@ -1015,8 +1016,8 @@ The holdout split spends part of the pre-period on validation, which is noisy
 exactly when the pre-period is short -- the regime SYNDES is built for. An
 information criterion avoids the split: it scores every candidate on the *whole*
 pre-window and penalises the model-selection flexibility directly. Pouliot, Xie
-& Liu (2024) show that in short-:math:`T_0` synthetic-control settings such a
-criterion outperforms cross-validation / holdout. Setting ``selection="ic"``
+& Liu [SCInfoCrit]_ show that in short-:math:`T_0` synthetic-control settings
+such a criterion outperforms cross-validation / holdout. Setting ``selection="ic"``
 ranks the ``top_K`` pool (solved on the full pre-period) by
 
 .. math::

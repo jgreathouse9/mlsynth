@@ -1268,8 +1268,9 @@ Example: South & Midwest design with grouped factors
 This example exercises every selection constraint at once on real geography. We
 take the South and Midwest DMAs from the bundled map, group them by census
 division (South Atlantic, East/West South Central, East/West North Central),
-and draw outcomes from a grouped linear factor model: markets in the same
-division share factor loadings, so they co-move -- the latent-group structure the
+and draw outcomes from a grouped linear factor model (after the grouped factor
+structure of Liao, Shi & Zheng [RelaxSC]_): markets in the same division share
+factor loadings, so they co-move -- the latent-group structure the
 constraints are designed for. Each division is both a *stratum* (for coverage /
 quota) and, through the DMA borders, a source of *spillover*.
 

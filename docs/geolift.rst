@@ -767,7 +767,7 @@ Gallery: every constraint on real geography. The block below is a single
 self-contained gallery, mirroring the SYNDES one (:doc:`syndes`): it pulls the
 real DMA contiguity map and metadata, simulates a grouped linear factor model of
 seasonal weekly sales — latent group structure in the loadings (groups = census
-divisions), in the spirit of Liao, Shi & Zheng (2025) — over a real Southeast /
+divisions), in the spirit of Liao, Shi & Zheng [RelaxSC]_ — over a real Southeast /
 Mid-South footprint, and then shows each geographic constraint GEOLIFT supports
 as a compact call. The geography is real; the sales outcome is reproducible and
 exists only so the snippets run end to end (a few seconds each). Every block
