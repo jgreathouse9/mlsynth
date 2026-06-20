@@ -621,6 +621,32 @@ class TestNodeBudgetAndGap:
         assert stats["certified"] is True
         assert stats["optimality_gap"] == 0.0
 
+    def test_scip_backend_unavailable_raises_clear_error(self, monkeypatch):
+        # When pyscipopt is not installed, requesting the SCIP backend must fail
+        # with a translated, actionable error rather than a raw ImportError.
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name.startswith("pyscipopt") or "scip" in name.split(".")[-1:]:
+                raise ImportError("no pyscipopt")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        rng = np.random.default_rng(0)
+        X = rng.standard_normal((20, 4))
+        y = rng.standard_normal(20)
+        with pytest.raises(MlsynthEstimationError, match="pyscipopt"):
+            best_subset_select(y, X, 20, criterion="AICc", backend="scip")
+
+    def test_unknown_backend_raises(self):
+        rng = np.random.default_rng(1)
+        X = rng.standard_normal((20, 4))
+        y = rng.standard_normal(20)
+        with pytest.raises(MlsynthEstimationError, match="backend"):
+            best_subset_select(y, X, 20, criterion="AICc", backend="nonsense")
+
 
 class TestInfoCriterion:
 
@@ -862,6 +888,23 @@ class TestHCWConfig:
         with pytest.raises(Exception):
             PDAConfig(df=self._df(), outcome="GDP", treat="Integration",
                       unitid="Country", time="Time", method="hcw", hcw_nvmax=0)
+
+    def test_default_backend_is_fw(self):
+        cfg = PDAConfig(df=self._df(), outcome="GDP", treat="Integration",
+                        unitid="Country", time="Time", method="hcw")
+        assert cfg.hcw_backend == "fw"
+
+    def test_scip_backend_accepted(self):
+        cfg = PDAConfig(df=self._df(), outcome="GDP", treat="Integration",
+                        unitid="Country", time="Time", method="hcw",
+                        hcw_backend="scip")
+        assert cfg.hcw_backend == "scip"
+
+    def test_invalid_backend_rejected(self):
+        with pytest.raises(Exception):
+            PDAConfig(df=self._df(), outcome="GDP", treat="Integration",
+                      unitid="Country", time="Time", method="hcw",
+                      hcw_backend="gurobi")
 
 
 # =========================================================================

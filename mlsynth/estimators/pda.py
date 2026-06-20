@@ -104,6 +104,7 @@ class PDA:
                        l2_standardize=self.config.l2_standardize,
                        hcw_criterion=self.config.hcw_criterion,
                        hcw_nvmax=self.config.hcw_nvmax,
+                       hcw_backend=self.config.hcw_backend,
                        prediction_intervals=self.config.prediction_intervals,
                        pi_n_boot=self.config.pi_n_boot,
                        pi_seed=self.config.pi_seed)

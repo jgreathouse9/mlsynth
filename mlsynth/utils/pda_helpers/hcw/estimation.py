@@ -217,16 +217,20 @@ def best_subset_select(
     criterion: str = "AICc",
     nvmax: Optional[int] = None,
     node_budget: Optional[int] = _DEFAULT_NODE_BUDGET,
+    backend: str = "fw",
     stats: Optional[dict] = None,
 ) -> List[int]:
     """Best-subset donor selection by ``criterion`` (HCW Section 5 / ``pampe``).
 
     For every model size ``r = 0, 1, ..., nvmax`` the subset of ``r`` donors with
     the smallest pre-period RSS is found, and the size (and subset) minimising
-    ``criterion`` is returned. The Furnival-Wilson search is exact; for a large
-    pool it stops at ``node_budget`` and returns the best incumbent found with an
-    optimality gap rather than refusing. Pass a ``stats`` dict to receive the
-    node count, gap and certification (see :func:`_best_subset_fw`).
+    ``criterion`` is returned. The default ``backend="fw"`` is the exact
+    Furnival-Wilson search; for a large pool it stops at ``node_budget`` and
+    returns the best incumbent found with an optimality gap rather than refusing.
+    ``backend="scip"`` selects the optional SCIP mixed-integer solver (requires
+    ``pyscipopt``), which certifies the optimum at larger pool sizes. Pass a
+    ``stats`` dict to receive the search diagnostics (node count / gap /
+    certification).
 
     Returns the selected donor column indices (a possibly empty list).
     """
@@ -243,6 +247,23 @@ def best_subset_select(
     # then reads each subset's RSS off a sweep of the augmented cross-products,
     # never re-solving an OLS from scratch.
     G, Zty, yty = _gram(y_pre, X_pre)
+
+    if backend == "scip":
+        try:
+            from .scip import best_subset_scip
+        except ImportError as exc:                # pyscipopt not installed
+            raise MlsynthEstimationError(
+                "The HCW 'scip' backend requires pyscipopt, which is not "
+                "installed. Install it with 'pip install pyscipopt' (or "
+                "'pip install mlsynth[scip]'), or use the default exact "
+                "Furnival-Wilson backend (backend='fw')."
+            ) from exc
+        return best_subset_scip(G, Zty, yty, N, T0, r_max, criterion, stats=stats)
+    if backend != "fw":
+        raise MlsynthEstimationError(
+            f"Unknown HCW backend {backend!r}; use 'fw' or 'scip'."
+        )
+
     return _best_subset_fw(
         G, Zty, yty, N, T0, r_max, criterion,
         node_budget=node_budget, _stats=stats,
@@ -543,6 +564,7 @@ def fit_hcw(
     *,
     criterion: str = "AICc",
     nvmax: Optional[int] = None,
+    backend: str = "fw",
     select_stats: Optional[dict] = None,
 ) -> Tuple[List[int], np.ndarray, float, np.ndarray]:
     """HCW best-subset fit: select donors, refit OLS, extrapolate counterfactual.
@@ -550,14 +572,16 @@ def fit_hcw(
     Returns ``(selected_indices, beta_full, intercept, counterfactual)`` where
     ``beta_full`` is an ``N``-vector with zeros off the selected support and the
     counterfactual is the OLS extrapolation ``X @ beta_full + intercept`` over
-    all periods. Pass a ``select_stats`` dict to receive the best-subset search
-    diagnostics (node count, optimality gap, certification).
+    all periods. ``backend`` selects the search engine ('fw' or 'scip'); pass a
+    ``select_stats`` dict to receive the best-subset search diagnostics (node
+    count, optimality gap, certification).
     """
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
     N = X.shape[1]
     selected = best_subset_select(
-        y, X, T0, criterion=criterion, nvmax=nvmax, stats=select_stats)
+        y, X, T0, criterion=criterion, nvmax=nvmax, backend=backend,
+        stats=select_stats)
 
     beta_full = np.zeros(N)
     if not selected:                             # intercept-only counterfactual

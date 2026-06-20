@@ -19,7 +19,7 @@ _NORMALIZE = {"l2": L2, "L2": L2, "LASSO": LASSO, "lasso": LASSO, "fs": FS,
 
 
 def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alpha,
-                 hcw_criterion="AICc", hcw_nvmax=None):
+                 hcw_criterion="AICc", hcw_nvmax=None, hcw_backend="fw"):
     """A bootstrap refit callback for the engine: ``y_boot -> (cf, support_idx)``.
 
     Each variant refits on the bootstrap pre-period at *fixed* tuning parameters
@@ -40,7 +40,8 @@ def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alph
             return cf, np.asarray(sel_idx, dtype=int)
     elif method == HCW:
         def refit(y_boot):
-            sel_idx, _, _, cf = fit_hcw(y_boot, X, T0, criterion=hcw_criterion, nvmax=hcw_nvmax)
+            sel_idx, _, _, cf = fit_hcw(y_boot, X, T0, criterion=hcw_criterion,
+                                        nvmax=hcw_nvmax, backend=hcw_backend)
             return cf, np.asarray(sel_idx, dtype=int)
     else:  # pragma: no cover - guarded by resolve_methods
         raise ValueError(f"Unknown PDA method: {method!r}")
@@ -62,6 +63,7 @@ def run_pda(
     fs_intercept: bool = False, lrvar_lag: Optional[int] = None,
     l2_standardize: bool = True, l2_tau_grid: Optional[Sequence[float]] = None,
     hcw_criterion: str = "AICc", hcw_nvmax: Optional[int] = None,
+    hcw_backend: str = "fw",
     prediction_intervals: bool = False, pi_n_boot: int = 999,
     pi_seed: Optional[int] = 0,
 ) -> Dict[str, PDAMethodFit]:
@@ -100,7 +102,7 @@ def run_pda(
             select_stats: dict = {}
             sel_idx, beta, intercept, cf = fit_hcw(
                 y, X, T0, criterion=hcw_criterion, nvmax=hcw_nvmax,
-                select_stats=select_stats)
+                backend=hcw_backend, select_stats=select_stats)
             att, se, ci, p = hcw_ate_inference(y, cf, T0, alpha=alpha, lrvar_lag=lrvar_lag)
             support_idx = np.asarray(sel_idx, dtype=int)
             selected = [labels[i] for i in sel_idx]
@@ -118,7 +120,7 @@ def run_pda(
                 m, X, T0, tau=meta.get("tau", tau),
                 l2_standardize=l2_standardize, fs_intercept=fs_intercept,
                 lasso_alpha=lasso_alpha, hcw_criterion=hcw_criterion,
-                hcw_nvmax=hcw_nvmax)
+                hcw_nvmax=hcw_nvmax, hcw_backend=hcw_backend)
             pis = pda_prediction_intervals(
                 y, X, T0, counterfactual=cf, support=support_idx, refit=refit,
                 alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)
