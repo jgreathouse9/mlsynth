@@ -302,7 +302,113 @@ def _best_subset_bnb(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
     return best["idx"]
 
 
-def _best_subset_fw(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
+def _centered_gram(G: np.ndarray, Zty: np.ndarray, yty: float, n: int):
+    """Mean-centred donor cross-products ``(Sxx, Sxy, syy)`` from the raw Gram.
+
+    Regressing ``y`` on ``[1, X_S]`` is equivalent to regressing the centred
+    response on the centred donors, so the discrete first-order warm start works
+    on ``Sxx = X'X - (X'1)(1'X)/n``, ``Sxy = X'y - (X'1)(1'y)/n`` and
+    ``syy = y'y - (1'y)^2/n`` -- all recovered from the augmented Gram without
+    touching the raw data.
+    """
+    sx = G[0, 1:]                                # column sums of X (= 1'X)
+    sy = float(Zty[0])                           # 1'y
+    Sxx = G[1:, 1:] - np.outer(sx, sx) / n
+    Sxy = Zty[1:] - sx * sy / n
+    syy = yty - sy * sy / n
+    return Sxx, Sxy, float(syy)
+
+
+def _ls_on_support(Sxx: np.ndarray, Sxy: np.ndarray, support, N: int):
+    """Least-squares coefficients on ``support`` (centred), and the explained SS.
+
+    Returns ``(beta_full, explained)`` where ``beta_full`` is an ``N``-vector
+    zero off the support and ``explained = Sxy_S' (Sxx_SS)^{-1} Sxy_S`` is the
+    drop in centred RSS from fitting that support (larger is better). A least-
+    norm solve covers a collinear support.
+    """
+    beta = np.zeros(N)
+    support = list(support)
+    if not support:
+        return beta, 0.0
+    A = Sxx[np.ix_(support, support)]
+    b = Sxy[support]
+    try:
+        sol = np.linalg.solve(A, b)
+    except np.linalg.LinAlgError:
+        sol, *_ = np.linalg.lstsq(A, b, rcond=None)
+    beta[support] = sol
+    return beta, float(b @ sol)
+
+
+def _discrete_first_order(
+    Sxx: np.ndarray,
+    Sxy: np.ndarray,
+    k: int,
+    L: float,
+    *,
+    restarts: int = 3,
+    max_iter: int = 100,
+    rng: Optional[np.random.Generator] = None,
+) -> List[int]:
+    """Best-subset warm start by the Bertsimas-King-Mazumder (2016) method.
+
+    Algorithm 1 of BKM: projected-gradient hard-thresholding for the
+    cardinality-constrained least squares ``min ||y - X beta||^2`` s.t.
+    ``||beta||_0 <= k``. From each start we iterate
+    ``beta <- H_k(beta - (1/L) (Sxx beta - Sxy))`` -- a gradient step followed by
+    the hard-threshold ``H_k`` (keep the ``k`` largest-magnitude entries) -- with
+    a least-squares correction on the active set each step (the fully corrective
+    variant, which converges in a few iterations). ``L`` must upper-bound the
+    largest eigenvalue of ``Sxx``. Several starts (the univariate top-``k`` plus
+    random supports) are tried and the support with the largest explained sum of
+    squares is returned.
+
+    This is a heuristic: the support need not be optimal. It only seeds the
+    incumbent of the exact Furnival-Wilson search, which still certifies the true
+    optimum -- so a good warm start prunes more, and a poor one costs nothing but
+    correctness is never at risk.
+    """
+    N = Sxx.shape[0]
+    k = min(k, N)
+    if k <= 0:
+        return []
+    if rng is None:
+        rng = np.random.default_rng(0)
+    if not np.isfinite(L) or L <= 0:
+        L = 1.0
+
+    starts = [np.argsort(-np.abs(Sxy))[:k]]      # univariate top-k
+    for _ in range(restarts):
+        starts.append(rng.choice(N, size=k, replace=False))
+
+    best_support: List[int] = []
+    best_expl = -np.inf
+    for s0 in starts:
+        support = sorted({int(i) for i in s0})
+        beta, _ = _ls_on_support(Sxx, Sxy, support, N)
+        for _ in range(max_iter):
+            grad = Sxx @ beta - Sxy
+            c = beta - grad / L
+            top = np.arange(N) if k >= N else np.argpartition(-np.abs(c), k - 1)[:k]
+            new_support = sorted(int(i) for i in top)
+            if new_support == support:
+                break
+            support = new_support
+            beta, _ = _ls_on_support(Sxx, Sxy, support, N)
+        _, expl = _ls_on_support(Sxx, Sxy, support, N)
+        if expl > best_expl:
+            best_expl, best_support = expl, support
+    return best_support
+
+
+def _best_subset_fw(
+    G, Zty, yty, N, n, r_max, criterion,
+    *,
+    warm_start: bool = True,
+    seed: int = 0,
+    _stats: Optional[dict] = None,
+) -> List[int]:
     """Best subset by the Furnival-Wilson leaps-and-bounds engine.
 
     The canonical ``leaps::regsubsets`` algorithm: a depth-first search over
@@ -317,6 +423,12 @@ def _best_subset_fw(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
     lower bound on the information criterion, so the returned subset is identical
     to :func:`_best_subset_exhaustive`; the IC optimum is always the best-RSS
     subset at its own size, so this best-subset-then-criterion search returns it.
+
+    With ``warm_start`` the incumbent is seeded from the Bertsimas-King-Mazumder
+    discrete first-order method (:func:`_discrete_first_order`) at every size,
+    which tightens the bound from the outset and prunes more subtrees. It can
+    only lower the incumbent, never raise it, so the certified optimum is
+    unchanged. ``_stats`` (if given) receives the explored node count.
     """
     M = _augmented(G, Zty, yty, N)
     y_idx = N + 1
@@ -338,7 +450,26 @@ def _best_subset_fw(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
     best_rss = np.full(r_max + 1, np.inf)
     best_rss[0] = tss
 
+    if warm_start and r_max >= 1:
+        Sxx, Sxy, _ = _centered_gram(G, Zty, yty, n)
+        L = float(np.linalg.eigvalsh(Sxx)[-1]) if N else 1.0
+        rng = np.random.default_rng(seed)
+        for k_size in range(1, r_max + 1):
+            supp = _discrete_first_order(Sxx, Sxy, k_size, L, rng=rng)
+            if not supp:                          # pragma: no cover - DFO returns
+                continue                          # a non-empty support for k>=1
+            rss = _subset_rss(G, Zty, yty, supp)
+            ic = info_criterion(rss, n, len(supp) + 1, criterion)
+            if ic < best_ic[0]:
+                best_ic[0] = ic
+                best_idx[:] = supp
+            if rss < best_rss[len(supp)]:
+                best_rss[len(supp)] = rss
+
+    nodes = [0]
+
     def recurse(chosen: List[int], pos: int, k: int) -> None:
+        nodes[0] += 1
         if k >= r_max or pos >= N:
             return
         cur_rss = M[y_idx, y_idx]
@@ -367,6 +498,8 @@ def _best_subset_fw(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
                 _unsweep(M, idx)                 # restore for the next branch
 
     recurse([], 0, 0)
+    if _stats is not None:
+        _stats["nodes"] = nodes[0]
     return sorted(best_idx)
 
 

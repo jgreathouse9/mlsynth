@@ -36,6 +36,9 @@ from mlsynth.utils.pda_helpers.hcw.estimation import (
     _rss,
     _all_in_rss,
     _augmented,
+    _centered_gram,
+    _discrete_first_order,
+    _ls_on_support,
     _subset_rss,
     _sweep,
     _unsweep,
@@ -330,6 +333,197 @@ class TestFurnivalWilson:
         ex = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, "AICc")
         fw = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc")
         assert sorted(fw) == sorted(ex)
+
+
+class TestDiscreteFirstOrder:
+    """The Bertsimas-King-Mazumder (2016) discrete first-order method.
+
+    Algorithm 1 of BKM: projected-gradient hard-thresholding,
+    ``beta <- H_k(beta - (1/L) grad)`` with ``L`` an upper bound on the largest
+    eigenvalue of the centred donor Gram. It produces a near-optimal size-<=k
+    support that warm-starts the exact search. It need not be optimal -- the
+    Furnival-Wilson search still certifies the true optimum -- so the invariants
+    we pin are that it returns a valid support and never does worse than the
+    univariate top-k start it is seeded from.
+    """
+
+    def _centred(self, y, X):
+        G, Zty, yty = _gram(y, X)
+        return _centered_gram(G, Zty, yty, len(y))
+
+    def test_returns_valid_support_of_size_at_most_k(self):
+        rng = np.random.default_rng(0)
+        T0, N = 30, 8
+        X = rng.standard_normal((T0, N))
+        y = X @ rng.standard_normal(N) + 0.5 * rng.standard_normal(T0)
+        Sxx, Sxy, _ = self._centred(y, X)
+        L = float(np.linalg.eigvalsh(Sxx)[-1])
+        for k in range(1, 6):
+            s = _discrete_first_order(Sxx, Sxy, k, L, restarts=3,
+                                      max_iter=100, rng=np.random.default_rng(k))
+            assert isinstance(s, list)
+            assert len(s) <= k
+            assert len(set(s)) == len(s)
+            assert all(0 <= i < N for i in s)
+
+    def test_never_worse_than_univariate_start(self):
+        # The univariate top-k support is one of its starts; the returned support
+        # must explain at least as much variance (lower centred RSS).
+        rng = np.random.default_rng(4)
+        T0, N = 28, 9
+        X = rng.standard_normal((T0, N))
+        y = X[:, [1, 3, 6]] @ np.array([2.0, -1.5, 1.0]) + 0.4 * rng.standard_normal(T0)
+        Sxx, Sxy, syy = self._centred(y, X)
+        L = float(np.linalg.eigvalsh(Sxx)[-1])
+
+        def centred_rss(support):
+            if not support:
+                return syy
+            A = Sxx[np.ix_(support, support)]
+            b = Sxy[list(support)]
+            sol, *_ = np.linalg.lstsq(A, b, rcond=None)
+            return syy - float(b @ sol)
+
+        for k in range(1, 6):
+            uni = sorted(np.argsort(-np.abs(Sxy))[:k].tolist())
+            s = _discrete_first_order(Sxx, Sxy, k, L, restarts=4,
+                                      max_iter=200, rng=np.random.default_rng(10 + k))
+            assert centred_rss(s) <= centred_rss(uni) + 1e-8
+
+    def test_recovers_strong_sparse_support(self):
+        # High SNR, near-orthogonal design: hard-thresholding should land on the
+        # true support at the right size.
+        rng = np.random.default_rng(2)
+        T0, N = 200, 10
+        X = rng.standard_normal((T0, N))
+        truth = [2, 5, 8]
+        y = X[:, truth] @ np.array([3.0, -4.0, 2.5]) + 0.01 * rng.standard_normal(T0)
+        Sxx, Sxy, _ = self._centred(y, X)
+        L = float(np.linalg.eigvalsh(Sxx)[-1])
+        s = _discrete_first_order(Sxx, Sxy, 3, L, restarts=5, max_iter=300,
+                                  rng=np.random.default_rng(99))
+        assert sorted(s) == truth
+
+    def test_k_zero_returns_empty(self):
+        rng = np.random.default_rng(0)
+        Sxx = np.eye(4)
+        Sxy = rng.standard_normal(4)
+        assert _discrete_first_order(Sxx, Sxy, 0, 1.0) == []
+
+    def test_default_rng_when_none(self):
+        # rng omitted: the method falls back to a deterministic default and runs.
+        rng = np.random.default_rng(5)
+        T0, N = 25, 6
+        X = rng.standard_normal((T0, N))
+        y = X[:, [0, 2]] @ np.array([1.0, -1.0]) + 0.3 * rng.standard_normal(T0)
+        Sxx, Sxy, _ = self._centred(y, X)
+        L = float(np.linalg.eigvalsh(Sxx)[-1])
+        s = _discrete_first_order(Sxx, Sxy, 2, L)
+        assert isinstance(s, list) and 0 < len(s) <= 2
+
+    def test_nonpositive_lipschitz_is_handled(self):
+        # A degenerate (non-positive / non-finite) L must not divide-by-zero;
+        # it is clamped to a safe step and a valid support still comes back.
+        rng = np.random.default_rng(6)
+        T0, N = 22, 5
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        Sxx, Sxy, _ = self._centred(y, X)
+        s = _discrete_first_order(Sxx, Sxy, 2, 0.0, rng=np.random.default_rng(1))
+        assert isinstance(s, list) and len(s) <= 2
+
+    def test_ls_on_support_empty(self):
+        # The empty support fits nothing: zero coefficients, zero explained SS.
+        Sxx = np.eye(3)
+        Sxy = np.array([1.0, 2.0, 3.0])
+        beta, expl = _ls_on_support(Sxx, Sxy, [], 3)
+        np.testing.assert_array_equal(beta, np.zeros(3))
+        assert expl == 0.0
+
+    def test_centered_gram_matches_direct(self):
+        rng = np.random.default_rng(1)
+        T0, N = 24, 5
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        Sxx, Sxy, syy = _centered_gram(G, Zty, yty, T0)
+        Xc = X - X.mean(0)
+        yc = y - y.mean()
+        np.testing.assert_allclose(Sxx, Xc.T @ Xc, atol=1e-8)
+        np.testing.assert_allclose(Sxy, Xc.T @ yc, atol=1e-8)
+        assert abs(syy - float(yc @ yc)) < 1e-8
+
+
+class TestFWWarmStart:
+    """The discrete-first-order warm start tightens pruning without changing the
+    answer.
+
+    Seeding the incumbent (and per-size RSS records) from the BKM near-optimal
+    supports can only prune more subtrees -- the bound is unchanged and still a
+    true lower bound -- so the certified optimum is identical to the cold search
+    and to exhaustive, while exploring no more nodes.
+    """
+
+    @pytest.mark.parametrize("criterion", ["AICc", "AIC", "BIC"])
+    @pytest.mark.parametrize("seed", range(10))
+    def test_warm_matches_exhaustive(self, criterion, seed):
+        rng = np.random.default_rng(seed)
+        T0 = int(rng.integers(16, 34))
+        N = int(rng.integers(4, 11))
+        X = rng.standard_normal((T0 + 6, N))
+        k_true = int(rng.integers(1, min(N, 4) + 1))
+        support = rng.choice(N, size=k_true, replace=False)
+        y = X[:, support] @ rng.standard_normal(k_true) + 0.4 * rng.standard_normal(T0 + 6)
+        G, Zty, yty = _gram(y[:T0], X[:T0])
+        r_max = min(N, max(T0 - 2, 0))
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, criterion)
+        warm = _best_subset_fw(G, Zty, yty, N, T0, r_max, criterion, warm_start=True)
+        assert sorted(warm) == sorted(ex)
+
+    @pytest.mark.parametrize("seed", range(8))
+    def test_warm_agrees_with_cold(self, seed):
+        rng = np.random.default_rng(300 + seed)
+        T0 = int(rng.integers(18, 32))
+        N = int(rng.integers(4, 11))
+        X = rng.standard_normal((T0, N))
+        y = X @ rng.standard_normal(N) + 0.3 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        r_max = min(N, max(T0 - 2, 0))
+        cold = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc", warm_start=False)
+        warm = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc", warm_start=True)
+        assert sorted(warm) == sorted(cold)
+
+    def test_warm_start_prunes_no_more_nodes(self):
+        # Across a battery the warm search visits <= the cold node count, and
+        # strictly fewer on a pool big enough for the seed to bite.
+        strictly_fewer = 0
+        for seed in range(12):
+            rng = np.random.default_rng(400 + seed)
+            T0, N = 30, 10
+            X = rng.standard_normal((T0, N))
+            k_true = 3
+            support = rng.choice(N, size=k_true, replace=False)
+            y = X[:, support] @ rng.standard_normal(k_true) + 0.6 * rng.standard_normal(T0)
+            G, Zty, yty = _gram(y, X)
+            r_max = min(N, T0 - 2)
+            cold_stats, warm_stats = {}, {}
+            _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc",
+                            warm_start=False, _stats=cold_stats)
+            _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc",
+                            warm_start=True, _stats=warm_stats)
+            assert warm_stats["nodes"] <= cold_stats["nodes"]
+            if warm_stats["nodes"] < cold_stats["nodes"]:
+                strictly_fewer += 1
+        assert strictly_fewer >= 1
+
+    def test_warm_start_handles_no_donor_budget(self):
+        # r_max = 0: warm start has nothing to seed; must not crash, returns [].
+        rng = np.random.default_rng(7)
+        T0, N = 20, 5
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        assert _best_subset_fw(G, Zty, yty, N, T0, 0, "AICc", warm_start=True) == []
 
 
 class TestInfoCriterion:
