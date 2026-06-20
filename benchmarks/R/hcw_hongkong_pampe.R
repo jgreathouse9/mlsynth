@@ -1,21 +1,25 @@
 #!/usr/bin/env Rscript
-# HCW (Hsiao-Ching-Wan 2012) best-subset on the Hong Kong data -- a faithful
-# base-R reference for mlsynth's PDA(method="hcw").
+# HCW (Hsiao-Ching-Wan 2012) best-subset on the Hong Kong data -- the R-side
+# reference for mlsynth's PDA(method="hcw").
 #
-# This mirrors the pampe R package's pipeline value-for-value: best subset over
-# the control economies (leaps::regsubsets enumerates the lowest-RSS subset of
-# each size), the size chosen by AICc, and the counterfactual refit by lm with
-# an intercept. We reimplement that pipeline in base R (no pampe/leaps needed,
-# so it runs without CRAN access) -- and, when the pampe package *is* installed,
-# the same numbers fall out of leaps::regsubsets, since this is precisely what
-# it computes. The AICc uses the pampe / HCW Table XVI convention K = p + 2
-# (donors + intercept + error variance), which reproduces AICc = -171.771.
+# pampe's engine is leaps::regsubsets (the original Furnival-Wilson "leaps and
+# bounds" best-subset Fortran) + an AICc choice of model size + lm with an
+# intercept. We call leaps::regsubsets directly -- the genuine engine pampe
+# wraps -- so this is a true cross-language check of the Python Furnival-Wilson
+# search, not a re-implementation. (The pampe package itself is archived on CRAN
+# and not packaged for Debian; leaps is: `apt-get install r-cran-leaps`.) When
+# leaps is unavailable we fall back to an exhaustive base-R enumeration, which
+# computes exactly the same best-subset-of-each-size.
 #
-# Output: one "key=value" line per quantity, for the Python harness to parse.
+# The AICc uses the pampe / HCW Table XVI convention K = p + 2 (donors +
+# intercept + error variance), which reproduces AICc = -171.771.
+#
+# Output: one "key=value" line per quantity, for a Python harness to parse.
 
 suppressWarnings(suppressMessages({
   args <- commandArgs(trailingOnly = TRUE)
   data_path <- if (length(args) >= 1) args[1] else "basedata/HongKong.csv"
+  have_leaps <- requireNamespace("leaps", quietly = TRUE)
 }))
 
 cands <- c("China", "Indonesia", "Japan", "Korea", "Malaysia",
@@ -36,52 +40,57 @@ X_all <- as.matrix(wide[, cands])
 y  <- y_all[1:T0]
 X  <- X_all[1:T0, , drop = FALSE]
 n  <- T0
+N  <- ncol(X)
 
 # pampe / HCW AICc convention: K = (#donors) + intercept + error variance.
-aicc <- function(rss, n, p) {
+aicc <- function(rss, p) {
   K <- p + 2
   if (rss <= 0 || n - K - 1 <= 0) return(Inf)
   n * log(rss / n) + 2 * K + 2 * K * (K + 1) / (n - K - 1)
 }
 
-rss_of <- function(cols) {
-  if (length(cols) == 0) {
-    fit <- lm(y ~ 1)
-  } else {
-    fit <- lm(y ~ ., data = as.data.frame(X[, cols, drop = FALSE]))
-  }
-  sum(residuals(fit)^2)
-}
+rss0 <- sum((y - mean(y))^2)          # intercept-only model (size 0)
 
-# Best subset of each size by RSS (leaps::regsubsets), then min AICc over sizes.
-N <- ncol(X)
-best_ic <- aicc(rss_of(integer(0)), n, 0)
-best_cols <- integer(0)
-for (r in 1:N) {
-  combos <- combn(N, r)
-  # lowest-RSS subset of this size
-  rss_r <- apply(combos, 2, function(cc) rss_of(cc))
-  j <- which.min(rss_r)
-  ic <- aicc(rss_r[j], n, r)
-  if (ic < best_ic) {
-    best_ic <- ic
-    best_cols <- combos[, j]
+if (have_leaps) {
+  engine <- "leaps::regsubsets"
+  reg <- leaps::regsubsets(X, y, nvmax = N, method = "exhaustive", intercept = TRUE)
+  s <- summary(reg)
+  # leaps returns the lowest-RSS subset of each size r = 1..N.
+  rss_by_size <- c(rss0, s$rss)
+  ics <- vapply(0:N, function(r) aicc(rss_by_size[r + 1], r), numeric(1))
+  best <- which.min(ics) - 1
+  best_cols <- if (best == 0) integer(0) else unname(which(s$which[best, -1]))
+} else {
+  engine <- "base-R exhaustive"
+  rss_of <- function(cols) {
+    fit <- if (length(cols) == 0) lm(y ~ 1)
+           else lm(y ~ ., data = as.data.frame(X[, cols, drop = FALSE]))
+    sum(residuals(fit)^2)
+  }
+  best_ic <- aicc(rss0, 0); best_cols <- integer(0)
+  for (r in 1:N) {
+    combos <- combn(N, r)
+    rss_r <- apply(combos, 2, rss_of)
+    j <- which.min(rss_r)
+    ic <- aicc(rss_r[j], r)
+    if (ic < best_ic) { best_ic <- ic; best_cols <- combos[, j] }
   }
 }
 
 sel <- cands[best_cols]
 safe <- make.names(sel)                  # lm mangles "United States" -> "United.States"
-# Refit OLS (with intercept) on the selected support; extrapolate full sample.
 df_pre <- as.data.frame(X[, best_cols, drop = FALSE]); names(df_pre) <- safe
 fit <- lm(y ~ ., data = df_pre)
 coefs <- coef(fit)
 rss_pre <- sum(residuals(fit)^2)
 r2_pre <- 1 - rss_pre / sum((y - mean(y))^2)
+best_ic <- aicc(rss_pre, length(best_cols))
 
 df_all <- as.data.frame(X_all[, best_cols, drop = FALSE]); names(df_all) <- safe
 yhat_all <- predict(fit, newdata = df_all)
 att <- mean((y_all - yhat_all)[(T0 + 1):length(y_all)])
 
+cat(sprintf("engine=%s\n", engine))
 cat(sprintf("selected=%s\n", paste(sort(sel), collapse = ",")))
 cat(sprintf("n_selected=%d\n", length(sel)))
 cat(sprintf("aicc=%.4f\n", best_ic))
