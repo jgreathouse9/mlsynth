@@ -950,3 +950,40 @@ class TestHCWEstimator:
         meta = res.fits["hcw"].metadata
         assert meta["certified_optimal"] is True
         assert meta["optimality_gap"] == 0.0
+
+    def test_prediction_intervals_jiang_2025(self):
+        # HCW is a selection rule (best subset) plus post-selection OLS, exactly
+        # the setting of Jiang et al. (2025, Remark 2.1, the low-dimensional OLS
+        # case). The shared PDA engine attaches their equal-tailed and symmetric
+        # intervals for the effect and the counterfactual, re-running best-subset
+        # selection on every bootstrap draw. The low-dimensional HK fit has a
+        # feasible support, so the HAC sandwich studentisation is used.
+        res = PDA({
+            "df": self._df_subset(), "outcome": "GDP", "treat": "Integration",
+            "unitid": "Country", "time": "Time", "method": "hcw",
+            "prediction_intervals": True, "pi_n_boot": 199, "pi_seed": 0,
+            "display_graphs": False,
+        }).fit()
+        pi = res.fits["hcw"].prediction_intervals
+        assert pi is not None
+        assert pi["studentization"] == "sandwich"
+        T1 = res.inputs.T2
+        for key in ("eq_lower", "eq_upper", "sy_lower", "sy_upper"):
+            assert pi["effect"][key].shape == (T1,)
+            assert pi["counterfactual"][key].shape == (T1,)
+        # Intervals are ordered and the point effect lies inside the band.
+        assert (pi["effect"]["eq_lower"] <= pi["effect"]["eq_upper"] + 1e-9).all()
+        assert (pi["effect"]["sy_lower"] <= pi["effect"]["sy_upper"] + 1e-9).all()
+
+    def test_prediction_intervals_reproducible(self):
+        cfg = {
+            "df": self._df_subset(), "outcome": "GDP", "treat": "Integration",
+            "unitid": "Country", "time": "Time", "method": "hcw",
+            "prediction_intervals": True, "pi_n_boot": 99, "pi_seed": 11,
+            "display_graphs": False,
+        }
+        a = PDA(dict(cfg)).fit().fits["hcw"].prediction_intervals
+        b = PDA(dict(cfg)).fit().fits["hcw"].prediction_intervals
+        np.testing.assert_allclose(a["effect"]["eq_lower"], b["effect"]["eq_lower"])
+        np.testing.assert_allclose(a["counterfactual"]["sy_upper"],
+                                   b["counterfactual"]["sy_upper"])

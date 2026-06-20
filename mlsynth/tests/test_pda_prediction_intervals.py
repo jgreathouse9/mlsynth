@@ -277,7 +277,7 @@ def _pda_cfg(df, **kw):
 
 
 class TestPDAWiring:
-    @pytest.mark.parametrize("method", ["l2", "LASSO", "fs"])
+    @pytest.mark.parametrize("method", ["l2", "LASSO", "fs", "hcw"])
     def test_prediction_intervals_attached(self, method):
         from mlsynth import PDA
         from mlsynth.config_models import PDAConfig
