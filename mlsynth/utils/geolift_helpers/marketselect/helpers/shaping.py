@@ -6,6 +6,8 @@ treated series and the donor pool. Each helper does a single trivial reshaping
 step — and nothing else — so they stay easy to reason about, debug, and test.
 """
 
+from __future__ import annotations
+
 from typing import Iterable, List, Optional
 
 import pandas as pd
