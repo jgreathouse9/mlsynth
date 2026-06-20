@@ -83,6 +83,38 @@ def _rss(y: np.ndarray, Z: np.ndarray) -> float:
     return float(e @ e)
 
 
+def _gram(y_pre: np.ndarray, X_pre: np.ndarray):
+    """Pre-period sufficient statistics for OLS-by-subset.
+
+    Returns ``(G, Zty, yty)`` for the augmented design ``Z = [1, X_pre]``:
+    ``G = Z'Z`` (``(N+1, N+1)``), ``Zty = Z'y`` (``(N+1,)``) and ``yty = y'y``.
+    Computed once; every subset's RSS then comes from a small submatrix solve,
+    so the best-subset search costs no SVD and is independent of ``T0`` per
+    subset.
+    """
+    Z = np.column_stack([np.ones(len(y_pre)), X_pre])
+    return Z.T @ Z, Z.T @ y_pre, float(y_pre @ y_pre)
+
+
+def _subset_rss(G: np.ndarray, Zty: np.ndarray, yty: float, cols) -> float:
+    """RSS of OLS on the intercept + donor columns ``cols`` via the normal eqs.
+
+    ``RSS = y'y - (Z_S'y)' (Z_S'Z_S)^{-1} (Z_S'y)`` over the submatrix indexed by
+    the intercept (column 0) and ``cols`` (shifted by +1). Falls back to a
+    least-norm solve when the submatrix is singular (collinear donors), so the
+    result matches the lstsq reference on rank-deficient subsets too.
+    """
+    idx = [0]
+    idx.extend(c + 1 for c in cols)
+    Gs = G[np.ix_(idx, idx)]
+    bs = Zty[idx]
+    try:
+        sol = np.linalg.solve(Gs, bs)
+    except np.linalg.LinAlgError:                # collinear subset -> min-norm
+        sol, *_ = np.linalg.lstsq(Gs, bs, rcond=None)
+    return yty - float(bs @ sol)
+
+
 def _resolve_nvmax(nvmax: Optional[int], N: int, T0: int) -> int:
     """Largest model size to search: bounded by donors and the OLS df."""
     cap = min(N, max(T0 - 2, 0))                 # need n > params for a fit
@@ -127,14 +159,15 @@ def best_subset_select(
             "the scalable 'fs' / 'LASSO' / 'l2' PDA variants instead."
         )
 
-    ones = np.ones((T0, 1))
+    # Precompute the Gram sufficient statistics once; each subset's RSS is then
+    # an O(r^3) submatrix solve rather than an O(T0 r^2) SVD.
+    G, Zty, yty = _gram(y_pre, X_pre)
     best_idx: List[int] = []
-    # Intercept-only baseline (no donors).
-    best_ic = info_criterion(_rss(y_pre, ones), T0, 1, criterion)
+    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), T0, 1, criterion)
     for r in range(1, r_max + 1):
         for combo in combinations(range(N), r):
-            Z = np.column_stack([ones, X_pre[:, combo]])
-            ic = info_criterion(_rss(y_pre, Z), T0, r + 1, criterion)
+            ic = info_criterion(
+                _subset_rss(G, Zty, yty, combo), T0, r + 1, criterion)
             if ic < best_ic:
                 best_ic, best_idx = ic, list(combo)
     return best_idx

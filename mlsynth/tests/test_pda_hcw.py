@@ -29,6 +29,9 @@ from mlsynth.config_models import PDAConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 
 from mlsynth.utils.pda_helpers.hcw.estimation import (
+    _gram,
+    _rss,
+    _subset_rss,
     best_subset_select,
     fit_hcw,
     info_criterion,
@@ -54,6 +57,46 @@ def hk_table16():
 # =========================================================================
 # INFORMATION CRITERION
 # =========================================================================
+
+class TestGramRSS:
+    """The Gram-based per-subset RSS must equal the direct OLS RSS exactly.
+
+    best_subset_select precomputes Z'Z, Z'y and y'y once and gets each subset's
+    residual sum of squares from the relevant submatrix solve, instead of a
+    fresh SVD per subset. This pins that fast path to the lstsq reference so the
+    selection is provably unchanged -- only faster.
+    """
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_subset_rss_matches_direct_lstsq(self, seed):
+        rng = np.random.default_rng(seed)
+        T0, N = 22, 6
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        ones = np.ones((T0, 1))
+        subsets = [[], [0], [2, 4], [0, 1, 3, 5], list(range(N))]
+        for cols in subsets:
+            Z = np.column_stack([ones, X[:, cols]]) if cols else ones
+            got = _subset_rss(G, Zty, yty, cols)
+            ref = _rss(y, Z)
+            assert abs(got - ref) < 1e-7 * max(ref, 1.0)
+
+    def test_subset_rss_collinear_subset_is_finite(self):
+        # A collinear donor block makes the Gram submatrix singular; the fast
+        # path must fall back gracefully (no exception, finite RSS).
+        rng = np.random.default_rng(1)
+        T0 = 20
+        x = rng.standard_normal((T0, 1))
+        X = np.column_stack([x[:, 0], x[:, 0], rng.standard_normal(T0)])  # cols 0,1 identical
+        y = rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        rss = _subset_rss(G, Zty, yty, [0, 1, 2])
+        assert np.isfinite(rss)
+        # Same fitted subspace as the full-rank {0, 2} design.
+        ref = _rss(y, np.column_stack([np.ones(T0), X[:, [0, 2]]]))
+        assert abs(rss - ref) < 1e-6 * max(ref, 1.0)
+
 
 class TestInfoCriterion:
 
