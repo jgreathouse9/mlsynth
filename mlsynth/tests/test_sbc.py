@@ -326,6 +326,40 @@ class TestSolveSBCWeights:
         assert w.shape == (4,)
         assert isinstance(b, float)
 
+    def test_simplex_matches_cvxpy_reference(self):
+        # The simplex solve now runs through the in-house FISTA QP
+        # (bilevel.simplex.simplex_lstsq) rather than cvxpy. Guard against
+        # drift by checking it against a direct cvxpy solve of the same
+        # program: min ||ct - cd w||^2 s.t. w >= 0, sum(w) = 1.
+        import cvxpy as cp
+
+        rng = np.random.default_rng(7)
+        ct = rng.standard_normal(40)
+        cd = rng.standard_normal((40, 5))
+        w, _ = solve_sbc_weights(ct, cd, weights_mode="simplex")
+
+        wv = cp.Variable(5, nonneg=True)
+        prob = cp.Problem(
+            cp.Minimize(cp.sum_squares(ct - cd @ wv)), [cp.sum(wv) == 1]
+        )
+        prob.solve(solver=cp.CLARABEL)
+        w_ref = np.asarray(wv.value, dtype=float)
+
+        # Objective values should agree even if the argmin is non-unique.
+        obj = float(np.sum((ct - cd @ w) ** 2))
+        obj_ref = float(np.sum((ct - cd @ w_ref) ** 2))
+        assert abs(obj - obj_ref) < 1e-4
+        np.testing.assert_allclose(w, w_ref, atol=1e-3)
+
+    def test_simplex_single_donor(self):
+        # Degenerate one-donor case: the only feasible weight is 1.0.
+        ct = np.arange(10, dtype=float)
+        cd = (2.0 * ct).reshape(-1, 1)
+        w, b = solve_sbc_weights(ct, cd, weights_mode="simplex")
+        assert w.shape == (1,)
+        np.testing.assert_allclose(w, [1.0])
+        assert b is None
+
     def test_unknown_mode_rejected(self):
         with pytest.raises(MlsynthEstimationError):
             solve_sbc_weights(np.zeros(5), np.zeros((5, 2)),

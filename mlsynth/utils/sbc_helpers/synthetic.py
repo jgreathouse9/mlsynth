@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..bilevel.simplex import simplex_lstsq
 
 
 def solve_sbc_weights(
@@ -69,25 +69,13 @@ def solve_sbc_weights(
         )
 
     if weights_mode == "simplex":
-        w = cp.Variable(n_donors, nonneg=True)
-        problem = cp.Problem(
-            cp.Minimize(cp.sum_squares(cycles_treated - cycles_donors @ w)),
-            [cp.sum(w) == 1],
-        )
-        # OSQP first (fast, and the historical default); fall back to more
-        # robust conic solvers when it stalls on large-magnitude cycles.
-        for solver in (cp.OSQP, cp.CLARABEL, cp.ECOS, cp.SCS):
-            try:
-                problem.solve(solver=solver, verbose=False)
-            except (cp.error.SolverError, Exception):
-                continue
-            if w.value is not None and problem.status in (
-                "optimal", "optimal_inaccurate"
-            ):
-                return np.asarray(w.value, dtype=float), None
-        raise MlsynthEstimationError(
-            "Simplex SCM on cycles failed to converge with all solvers."
-        )
+        # Eq. (3) is a simplex-constrained least squares
+        #   argmin_w ||cycles_treated - cycles_donors w||^2
+        #   s.t.  w >= 0,  sum(w) = 1.
+        # Solved in-house with the accelerated projected-gradient (FISTA)
+        # primitive, avoiding any external QP/conic solver dependency.
+        w = simplex_lstsq(cycles_donors, cycles_treated)
+        return np.asarray(w, dtype=float), None
 
     # Unrestricted: closed-form OLS with intercept.
     X = np.column_stack([np.ones(T_eff), cycles_donors])
