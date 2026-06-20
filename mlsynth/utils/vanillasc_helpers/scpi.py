@@ -282,7 +282,7 @@ def scpi_intervals(
     hi = np.full((sims, n_rows), np.nan)   # max-branch  p'(w - x)
 
     def _solve(prob):
-        for solver in (cp.ECOS, cp.CLARABEL):
+        for solver in (cp.CLARABEL,):
             try:
                 prob.solve(solver=solver, warm_start=True)
                 if prob.status in ("optimal", "optimal_inaccurate") and x.value is not None:
