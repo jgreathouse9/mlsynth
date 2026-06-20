@@ -693,6 +693,122 @@ effort; do not merge or benchmark the sklearn version.
 
 ---
 
+## 8. AFS -- Adaptive Forward Stepwise (shrinkage-bridged FS <-> LASSO selection)
+
+**Status: Planned (paper read in full; no code). Natural successor to ``fs`` in
+the PDA family, parallel to the parked ``rfPDA`` (#7).**
+
+### Source
+
+> Zhang, I., & Tibshirani, R. (2026). "Adaptive Forward Stepwise: A Method for
+> High Sparsity Regression." *Journal of Machine Learning Research*, 27, 1-24.
+> (A Python + R package is "forthcoming" per the paper's discussion.)
+
+Sits on the same FS <-> best-subset <-> LASSO axis as the work already in the
+library; it cites, and is motivated by, two papers we already lean on:
+
+> Hastie, Tibshirani & Tibshirani (2020) ``[HTT2020]`` -- FS underperforms the
+> LASSO in low SNR (the gap AFS exists to close).
+> Bertsimas, King & Mazumder (2016) ``[BKM2016]`` -- the best-subset reference
+> behind the HCW ``fw`` / ``scip`` engines.
+
+Parent method for the PDA framing:
+
+> Shi & Huang (2023) ``[fsPDA]`` -- forward-selected PDA, mlsynth's ``fs``. AFS
+> is forward selection with shrinkage, so an AFS-PDA generalizes ``fs`` directly.
+
+### The idea in one line
+
+Forward stepwise jumps straight to the active-set OLS fit (no shrinkage -> high
+variance, weak in low SNR); the LASSO shrinks but over-selects in medium/high
+SNR. AFS adds a single step-size ``rho in (0,1]`` and updates by a *shrunken
+convex combination* toward the active-set OLS instead of jumping:
+
+```
+j*_m   = argmax_j | x_j' (y - X beta_{m-1}) |     # same criterion as FS / LAR
+nu_m   = OLS(y ~ X_{A_m})                          # refit on the active set
+beta_m = (1 - rho) * beta_{m-1} + rho * nu_m       # fractional, shrunken step
+```
+
+``rho = 1`` *is* Forward Stepwise; ``rho -> 0`` traces LAR (hence ~the LASSO,
+their Theorem 2). Intermediate ``rho`` is a genuine, CV-tuned middle ground. A
+variable can be re-selected across steps, so its coefficient builds up
+geometrically toward OLS while staying shrunk -- under orthogonal design this is
+an approximate soft-thresholding estimator (Theorem 3) and a cousin of
+L2Boosting. Stop at ``m = M`` or when ``||beta||_1`` reaches the LASSO path's max
+ell-1 norm; tune ``rho`` and the step count by CV (df is intractable here, so no
+Cp/AIC/BIC).
+
+### Why this is attractive (and where it fits)
+
+- **Closes the exact gap our own results just exposed.** On the China luxury-
+  watch panel (87 controls, T0=35, low SNR, n<p) ``fs`` gave a significant
+  -3.09%, while the uncertified HCW best-subset gave an insignificant -1.44%
+  (gap=inf -- it could not certify). That low-SNR, n<<p regime is precisely where
+  HTT2020 say unshrunk FS and best-subset struggle and where AFS's shrinkage is
+  designed to help. AFS is the principled "shrunk forward path" for this case.
+- **Drops into the PDA control-selection slot.** Same shape as ``rfPDA`` (#7): a
+  new ``method="afs"`` selector that produces a support + counterfactual, then
+  reuses the existing ``fsPDA`` post-selection HAC t-test (``fs``'s inference is
+  valid for any pre-period-only selection rule under the sample-splitting
+  argument). The AFS coefficients are shrunk, but the ATE inference rides on the
+  post-period gap, so the existing HAC machinery applies.
+- **Sparser than LASSO, with shrinkage FS lacks** -- the paper's headline: lowest
+  or near-lowest MSE across SNR x correlation x dimension while staying much
+  sparser than the LASSO (which carries ~0.15 FPR). Computationally cheap (rank-
+  one inverse updates on the active set), comparable to our other PDA solves.
+- **GLM-ready (their Algorithm 2):** swap the OLS refit + squared-error residual
+  for a GLM fit + score residual. Not needed for PDA (continuous outcomes) but
+  noted for any future classification use.
+
+### Two integration framings
+
+1. **Standalone sparse-regression estimator / utility.** A general
+   ``utils/afs.py`` (or an estimator) implementing Algorithm 1 with CV over
+   ``(rho, steps)`` -- usable anywhere mlsynth needs a sparse linear fit. Cleanest
+   if we want AFS reusable beyond PDA.
+2. **A PDA variant ``method="afs"`` (recommended first slice).** Forward path
+   with ``rho``-shrinkage as the control selector; OLS-PDA counterfactual on the
+   selected support; ``fsPDA`` HAC inference. Mirrors the ``fs`` plumbing exactly
+   (``pda_helpers/afs/{estimation,inference}.py``, wired through ``PDAConfig`` /
+   orchestration), with ``afs_rho`` (or CV) and ``afs_max_steps`` knobs. Lets us
+   benchmark AFS directly against ``fs`` / ``lasso`` / ``l2`` / ``hcw`` on Hong
+   Kong and the watch panel.
+
+### Caveats / open questions (decide before building)
+
+- **Tuning cost.** AFS needs CV over ``rho`` *and* step count; on short PDA
+  pre-periods CV is data-hungry and noisy (the same fragility that sank the
+  ``rfPDA`` ``argmin``-over-held-out-MSE selection -- see #7). Consider the
+  Pouliot et al. SURE information criterion (#1) as a CV-free selector instead,
+  or a fixed/small ``rho`` grid with a 1-SE rule. This interaction with #1 and #7
+  is the main design question.
+- **Weak spot is our regime.** The paper reports AFS is beaten by the relaxed
+  LASSO in the high-dimensional, high-correlation ``n << p`` setting -- which
+  describes the watch panel (87 correlated commodity-import series). So benchmark
+  AFS *and* RLASSO there; AFS may not dominate exactly where we'd most want it.
+- **Inference validity.** ``fsPDA``'s post-selection t-test is justified for
+  forward selection's support; AFS's shrunk coefficients change the *fit* but the
+  selection is still pre-period-only, so the sample-splitting argument should
+  carry -- but confirm the HAC test's size on a quick Monte Carlo before trusting
+  it (AFS is not in the fsPDA theory as written).
+- **No reference implementation yet.** The paper's package is "forthcoming", so
+  there is nothing to pin against value-for-value today; validate against the
+  paper's simulation *geometry* (Figs 1-3, 6-7: AFS path between FS and LASSO,
+  lower FPR than LASSO) rather than a cell-for-cell port. Revisit once the
+  authors' package ships.
+
+### Verdict
+
+Genuinely in-lane and well-motivated -- it is the shrinkage upgrade to ``fs``
+that HTT2020 (and our own watch-panel result) say is missing, and it slots into
+the existing PDA selector plumbing. Build it test-first as ``method="afs"`` when
+there is appetite, leading with the ``fs`` parallel; settle the tuning question
+(CV vs the #1 SURE-IC) first, and benchmark against RLASSO in the ``n << p``
+regime where the paper itself cedes ground.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
