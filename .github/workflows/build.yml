@@ -108,14 +108,14 @@ jobs:
   # is the required gate); this job exercises the rest of the supported range so
   # the `requires-python` floor and the Python classifiers in pyproject.toml are
   # backed by an actual test run, not just an assertion. 3.11 is omitted here to
-  # avoid duplicating `build`.
+  # avoid duplicating `build`. 3.9 is handled separately (see `py39-smoke`).
   pyversions:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.12", "3.13"]
+        python-version: ["3.10", "3.12", "3.13"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -151,3 +151,57 @@ jobs:
       - name: Run tests
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: pytest -n auto --tb=short
+
+  # Python 3.9 is supported (it is the `requires-python` floor) but gets a fast
+  # smoke job rather than the full suite. Reason: 3.9's newest scipy is 1.13,
+  # whose regressed `nnls` is unusable on the MSCMT big-M solve, so MSCMT falls
+  # back to the in-house pure-NumPy NNLS -- correct, but far too slow for the
+  # differential-evolution tests to fit a CI budget. This job proves 3.9 imports
+  # (the union-annotation fix) and that the in-house solver and a representative
+  # set of non-DE estimators pass; the DE-heavy suite is covered on 3.10-3.13
+  # (fast scipy) and validated locally on 3.9.
+  py39-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect code changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'mlsynth/**'
+              - 'requirements.txt'
+              - 'pyproject.toml'
+              - '.github/workflows/build.yml'
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+
+      - name: Install dependencies
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-xdist
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
+
+      - name: Import + in-house NNLS + representative estimators
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: |
+          python -c "import mlsynth; print('import mlsynth OK on 3.9')"
+          pytest -n auto --tb=short \
+            mlsynth/tests/test_bilevel_nnls.py \
+            mlsynth/tests/test_sbc.py \
+            mlsynth/tests/test_fdid.py \
+            mlsynth/tests/test_mcnnm.py \
+            mlsynth/tests/test_clustersc.py

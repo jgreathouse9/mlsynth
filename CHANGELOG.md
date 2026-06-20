@@ -20,10 +20,18 @@ First stable release, published to PyPI (``pip install mlsynth``).
   `license-files = ["LICENSE.md"]`), dropping the deprecated
   `License :: OSI Approved :: MIT License` classifier; build backend bumped to
   `setuptools>=77`.
-- The supported Python range (3.9-3.13) is now exercised by a CI matrix
-  (`pyversions` job in `build.yml`), so the `requires-python` floor and the
-  Python classifiers are test-backed rather than asserted. Development status
-  promoted to Production/Stable.
+- The supported Python range (3.9-3.13) is now exercised in CI: the full suite
+  runs on 3.10-3.13 (`pyversions` matrix) plus 3.11 (`build`), and 3.9 gets a
+  fast smoke job (`py39-smoke`) -- import, the in-house NNLS, and representative
+  non-DE estimators -- because 3.9's pinned scipy 1.13 makes the MSCMT
+  differential-evolution suite too slow for a full CI run. The `requires-python`
+  floor and the Python classifiers are thus test-backed, not asserted.
+  Development status promoted to Production/Stable.
+- MSCMT no longer depends on scipy's `nnls` being a working release: the inner
+  non-negative least squares selects scipy's compiled solver where it is the
+  fixed, fast version (>= 1.15) and an in-house pure-NumPy Lawson-Hanson solver
+  otherwise (e.g. scipy 1.13 on Python 3.9, whose `nnls` regressed). Same
+  optimum either way; this is what makes the 3.9 floor viable.
 
 ### Added
 - **MAREX geographic design restrictions.** MAREX gains the SYNDES/GEOLIFT
