@@ -53,7 +53,8 @@ with honest post-selection inference regardless of sparsity.
 Notation
 --------
 
-We adopt the notation of Shi & Wang [l2relax]_. For a positive integer ``n``,
+We use mlsynth's standard notation, with the two sample operators of Shi & Wang
+[l2relax]_ defined below. For a positive integer ``n``,
 :math:`[n] = \{1, \ldots, n\}`; :math:`\mathbf{I}_n` is the identity,
 :math:`\mathbf{1}_n`, :math:`\mathbf{0}_n` the all-ones/zeros vectors. For a
 matrix :math:`\mathbf{A} = (a_{ij})` and index sets
@@ -91,15 +92,15 @@ treated unit, with treated series
 The shared model
 ^^^^^^^^^^^^^^^^
 
-All three methods rest on a common latent-factor data-generating process: for
+All four methods rest on a common latent-factor data-generating process: for
 :math:`t \in \mathcal{T}`,
 
 .. math::
 
-   y_{jt}^0 = \mu_j + \boldsymbol{\lambda}_j' \mathbf{f}_t + u_{jt},
+   y_{jt}^N = \mu_j + \boldsymbol{\lambda}_j' \mathbf{f}_t + u_{jt},
    \quad j \in \{1\}\cup\mathcal{N}_0,
 
-with :math:`\mathbf{f}_t` a :math:`q`-vector of latent common factors,
+with :math:`\mathbf{f}_t` an :math:`r`-vector of latent common factors,
 :math:`\boldsymbol{\lambda}_j` factor loadings, and :math:`u_{jt}` a
 weakly-dependent idiosyncratic error orthogonal to the factors. Because the
 common factors drive both the treated unit and the donors, the untreated
@@ -123,47 +124,76 @@ inference theory each paper proves for :math:`\widehat{\tau}`.
 Original best subset (``hcw``, Hsiao-Ching-Wan)
 -----------------------------------------------
 
-Idea. This is the method that started the literature [HCW2012]_. The
-counterfactual is an unrestricted OLS regression -- with an intercept, no
-simplex and no shrinkage -- of the treated unit's pre-period outcome on a
-*best subset* of the donors. The question HCW pose in their Section 5 is *which*
-donors and *how many*: among all subsets of the candidate pool, pick the one
-that best trades pre-period fit against model size by an information criterion.
-For a support :math:`\mathcal{S}\subseteq\mathcal{N}_0` of size
-:math:`r = |\mathcal{S}|`, write the pre-period residual sum of squares of the
-OLS fit on the intercept and the donors in :math:`\mathcal{S}` as
+Idea. This is the method that started the literature [HCW2012]_. The recipe is
+the plainest one in the family -- ordinary least squares of the treated unit's
+pre-period outcome on a handful of control series, extrapolated past the
+intervention -- with one twist: *which* controls, and *how many*, are chosen for
+you rather than fixed in advance. HCW's Section 5 turns that choice into a
+model-selection problem. It helps to walk through it as four steps.
+
+Step 1 -- measure how well a candidate set of controls fits. Pick any subset
+:math:`\mathcal{S}\subseteq\mathcal{N}_0` of the donors. Regress the treated
+pre-period outcome on those donors and an intercept by OLS, and record the
+residual sum of squares -- the total squared pre-period miss,
 
 .. math::
 
    \mathrm{RSS}(\mathcal{S}) = \min_{\alpha,\,\boldsymbol{\beta}_{\mathcal{S}}}
        \sum_{t\in\mathcal{T}_1}
        \bigl(y_{1t} - \alpha - \mathbf{x}_{t,\mathcal{S}}'
-             \boldsymbol{\beta}_{\mathcal{S}}\bigr)^2 .
+             \boldsymbol{\beta}_{\mathcal{S}}\bigr)^2 ,
+   \qquad \mathbf{x}_{t,\mathcal{S}} = (y_{jt})_{j\in\mathcal{S}}.
 
-The default criterion is the small-sample-corrected AICc (also AIC and BIC),
+A smaller :math:`\mathrm{RSS}` means a tighter pre-period fit. By itself it is
+not a usable score, though: adding *any* control can only lower
+:math:`\mathrm{RSS}`, so "smallest RSS" always points at the largest possible
+model, which memorises the short pre-period and extrapolates badly past the cut.
+
+Step 2 -- charge for complexity with an information criterion. To stop the
+search from simply taking every donor, each subset is scored by an *information
+criterion*: the (log) fit plus a penalty that grows with the number of
+parameters. The default is the small-sample-corrected AICc (AIC and BIC are the
+same shape with a lighter or heavier penalty),
 
 .. math::
 
-   \mathrm{AICc}(\mathcal{S}) = T_0 \log\!\frac{\mathrm{RSS}(\mathcal{S})}{T_0}
-       + 2K + \frac{2K(K+1)}{T_0 - K - 1},
-   \qquad K = r + 2,
+   \mathrm{AICc}(\mathcal{S}) = \underbrace{T_0 \log\!\frac{\mathrm{RSS}
+       (\mathcal{S})}{T_0}}_{\text{rewards fit}}
+       + \underbrace{2K + \frac{2K(K+1)}{T_0 - K - 1}}_{\text{charges for size}},
+   \qquad K = r + 2,\;\; r = |\mathcal{S}|.
 
-where the penalised parameter count :math:`K` adds, to the :math:`r` donors,
-the intercept and the error variance -- the convention of the ``pampe`` R
-package (``leaps::regsubsets`` + AICc + ``lm``), which reproduces HCW Table XVI
-value-for-value (the sovereignty study selects
-:math:`\{\text{Japan},\text{Korea},\text{Taiwan},\text{USA}\}` with
-:math:`\mathrm{AICc} = -171.771`). The selected support is the global minimiser
+Lower is better. The first term falls as the fit improves; the second rises with
+the model size :math:`r`, so the criterion bottoms out where one more donor stops
+paying for the variance it adds -- the bias-variance trade-off turned into a
+single number. The penalised parameter count :math:`K = r + 2` counts the
+:math:`r` donors, the intercept, and the error variance (the convention of the
+``pampe`` R package, ``leaps::regsubsets`` + AICc + ``lm``); the small-sample
+correction :math:`2K(K+1)/(T_0-K-1)` matters because PDA's pre-period is short.
+
+Step 3 -- keep the subset with the best score. The selected controls are the
+global minimiser
 
 .. math::
 
    \widehat{\mathcal{S}} = \operatorname*{argmin}_{\mathcal{S}\subseteq
-       \mathcal{N}_0,\; |\mathcal{S}|\le r_{\max}} \mathrm{AICc}(\mathcal{S}),
+       \mathcal{N}_0,\; |\mathcal{S}|\le r_{\max}} \mathrm{AICc}(\mathcal{S}).
 
-with :math:`r_{\max}` (``hcw_nvmax``, pampe's ``nvmax``) capping the search at a
-maximum model size, bounded by the pre-period degrees of freedom. The
-counterfactual is then the OLS extrapolation on :math:`\widehat{\mathcal{S}}`,
-as in the shared model.
+In practice this is computed the way ``leaps`` does it (HCW Section 5): for each
+model size :math:`r` find the *single* lowest-:math:`\mathrm{RSS}` subset of that
+size, then choose the size whose best subset minimises the criterion -- a "best
+of each size, then choose the size" search. The cap :math:`r_{\max}`
+(``hcw_nvmax``, pampe's ``nvmax``) limits the largest size considered and cannot
+exceed the pre-period degrees of freedom (the criterion is undefined once the
+donors plus intercept use up the :math:`T_0` observations).
+
+Step 4 -- refit and extrapolate. Re-fit OLS on the chosen controls
+:math:`\widehat{\mathcal{S}}` over the pre-period, then carry the coefficients
+forward: the counterfactual is that fitted line evaluated on the post-period
+control values, and the per-period effect is treated minus counterfactual,
+exactly as in the shared model above. On HCW's Hong Kong sovereignty study this
+selects :math:`\{\text{Japan},\text{Korea},\text{Taiwan},\text{USA}\}` with
+:math:`\mathrm{AICc} = -171.771`, reproducing Table XVI value-for-value
+(cross-validated against ``pampe`` -- see the benchmark below).
 
 Best subset selection is HCW's classical, low-dimensional choice: AICc / AIC /
 BIC are only defined while :math:`r < T_0`, and the search is combinatorial in
@@ -291,7 +321,7 @@ of each block.
 Assumptions (Shi & Wang).
 
 *Assumption 1 (loadings).* :math:`\|\boldsymbol{\lambda}_1\|_\infty +
-\|\boldsymbol{\Lambda}\|_\infty \le C`, and there is a :math:`q`-unit subset
+\|\boldsymbol{\Lambda}\|_\infty \le C`, and there is an :math:`r`-unit subset
 making :math:`\boldsymbol{\Lambda}_{\mathcal{Q}\cdot}` full column rank; the
 average factor strength :math:`\xi_N = \phi_{\min}(\boldsymbol{\Lambda}'
 \boldsymbol{\Lambda}/N)` may vanish (weak factors allowed).
@@ -546,11 +576,11 @@ fit :math:`\boldsymbol\beta`, but they share the same identifying
 stack. Stated formally:
 
 A1 (Latent factor model for untreated outcomes). All
-:math:`N + 1` units share at most :math:`q` common latent factors,
+:math:`N + 1` units share at most :math:`r` common latent factors,
 
 .. math::
 
-   y_{jt}^0 \;=\; \mu_j \;+\; \boldsymbol\lambda_j' \mathbf f_t
+   y_{jt}^N \;=\; \mu_j \;+\; \boldsymbol\lambda_j' \mathbf f_t
               \;+\; u_{jt},
    \qquad j \in \{1\} \cup \mathcal N_0, \;\; t \in \mathcal T,
 
@@ -854,7 +884,7 @@ Empirical Illustration: Hong Kong economic integration
 
 The original HCW [HCW]_ application -- and Shi & Huang's Example 1 -- evaluates
 the effect of economic integration with mainland China on Hong Kong's quarterly
-real-GDP growth, using 24 comparison economies. Here all three PDA variants run
+real-GDP growth, using 24 comparison economies. Here all four PDA methods run
 on the same data, and the package returns the time-varying effect, the ATE, and
 a HAC confidence interval for each.
 
@@ -868,26 +898,30 @@ a HAC confidence interval for each.
 
    res = PDA({"df": df, "outcome": "GDP", "treat": "Integration",
               "unitid": "Country", "time": "Time",
-              "methods": ["l2", "LASSO", "fs"], "alpha": 0.05,
+              "methods": ["hcw", "l2", "LASSO", "fs"], "alpha": 0.05,
               "display_graphs": True}).fit()
 
    for name, fit in res.fits.items():
-       sel = "-" if fit.selected_donors is None else len(fit.selected_donors)
        print(f"{name:6s} ATE {fit.att:.4f}  SE {fit.att_se:.4f}  "
-             f"95% CI ({fit.ci[0]:.4f}, {fit.ci[1]:.4f})  p={fit.p_value:.3f}  donors={sel}")
+             f"95% CI ({fit.ci[0]:.4f}, {fit.ci[1]:.4f})  p={fit.p_value:.3f}  "
+             f"donors={len(fit.donor_weights)}")
 
 This prints::
 
-   l2     ATE 0.0248  SE 0.0032  95% CI (0.0185, 0.0311)  p=0.000  donors=24
+   hcw    ATE 0.0403  SE 0.0057  95% CI (0.0292, 0.0514)  p=0.000  donors=6
+   l2     ATE 0.0261  SE 0.0033  95% CI (0.0195, 0.0326)  p=0.000  donors=24
    lasso  ATE 0.0330  SE 0.0054  95% CI (0.0224, 0.0436)  p=0.000  donors=11
-   fs     ATE 0.0285  SE 0.0059  95% CI (0.0169, 0.0401)  p=0.000  donors=7
+   fs     ATE 0.0395  SE 0.0059  95% CI (0.0280, 0.0510)  p=0.000  donors=9
 
-All three find a significant positive integration effect on Hong Kong's
-GDP growth -- roughly +2.5 to +3.3 percentage points -- differing only by their
-selection philosophy: ``l2`` keeps all 24 controls with dense, signed
-coefficients (pre-RMSE 0.013); ``lasso`` keeps 11; ``fs`` keeps a parsimonious
-7 (Malaysia, New Zealand, Norway, Austria, Canada, Thailand, Australia). The
-estimates bracket the Forward-DiD result on the same data (0.025), a useful
+All four find a significant positive integration effect on Hong Kong's GDP
+growth -- between +2.6 and +4.0 percentage points per quarter -- differing only
+in how they choose controls. ``hcw`` runs the exact best-subset search and
+certifies a parsimonious six-economy model (Austria, Italy, Korea, Mexico,
+Norway, Singapore): on this pool the long 44-quarter pre-period gives the
+branch-and-bound room to certify the global optimum (``certified_optimal`` is
+``True``, gap 0) even over 24 donors. ``l2`` keeps all 24 controls with dense,
+signed coefficients (pre-RMSE 0.012); ``lasso`` keeps 11; ``fs`` grows to 9. The
+four estimates bracket the Forward-DiD result on the same data (0.025), a useful
 cross-method check.
 
 Prediction intervals
@@ -919,25 +953,62 @@ dense L2-relaxation when the controls outnumber the pre-periods.
 .. code-block:: python
 
    res = PDA({"df": df, "outcome": "GDP", "treat": "Integration",
-              "unitid": "Country", "time": "Time", "method": "fs",
-              "prediction_intervals": True, "pi_n_boot": 999,
+              "unitid": "Country", "time": "Time",
+              "methods": ["l2", "LASSO", "fs"],
+              "prediction_intervals": True, "pi_n_boot": 199, "pi_seed": 0,
               "display_graphs": False}).fit()
 
-   pi = res.fits["fs"].prediction_intervals
-   print(pi["studentization"])          # 'sandwich'
-   eff = pi["effect"]                    # per-post-period effect intervals
+   for name, fit in res.fits.items():
+       eff = fit.prediction_intervals["effect"]
+       print(name, fit.prediction_intervals["studentization"])
+       for k in range(3):                       # first three post-quarters
+           lo, hi = eff["eq_lower"][k], eff["eq_upper"][k]
+           print(f"  t+{k+1}: effect {eff['point'][k]:+.4f}  95% PI ({lo:+.4f}, {hi:+.4f})")
+
+The pointwise 95% effect intervals for the first three post-quarters (decimal
+GDP growth)::
+
+   method  studentization   t+1                          t+2                          t+3
+   l2      sandwich         +0.0203 (-0.0128, +0.0411)   +0.0427 (+0.0076, +0.0658)   +0.0023 (-0.0347, +0.0272)
+   lasso   sandwich         +0.0312 (-0.0066, +0.0499)   +0.0519 (+0.0165, +0.0706)   +0.0152 (-0.0198, +0.0397)
+   fs      sandwich         +0.0249 (-0.0079, +0.0521)   +0.0467 (+0.0158, +0.0719)   +0.0103 (-0.0237, +0.0351)
+
+Each band is wider than the ATE confidence interval, because it carries the
+out-of-sample prediction error on top of the estimation error, and it tightens
+or widens quarter by quarter as the fitted controls track each period better or
+worse.
+
+``hcw`` produces these same intervals, with one practical caveat: the bootstrap
+refits the entire selection on every draw, and HCW's refit re-runs the
+best-subset search. On the 24-economy pool that is roughly ten seconds a draw, so
+its prediction intervals there cost minutes -- while the certified point estimate
+and the HAC ATE interval need no resampling and return at once. On HCW's
+intended, pre-screened pool (the ten candidate economies of the sovereignty
+study) the search is tiny and the intervals come straight back:
+
+.. code-block:: python
+
+   cands = ["China", "Indonesia", "Japan", "Korea", "Malaysia", "Philippines",
+            "Singapore", "Taiwan", "Thailand", "United States"]
+   sub = df[df["Country"].isin(["Hong Kong"] + cands)]
+
+   hk = PDA({"df": sub, "outcome": "GDP", "treat": "Integration",
+             "unitid": "Country", "time": "Time", "method": "hcw",
+             "prediction_intervals": True, "pi_n_boot": 199,
+             "display_graphs": False}).fit()
+   eff = hk.fits["hcw"].prediction_intervals["effect"]
    lo, hi = eff["eq_lower"][0], eff["eq_upper"][0]
-   print(f"Delta_1 = {eff['point'][0]:.4f}  95% PI ({lo:.4f}, {hi:.4f})")
+   print(f"t+1: effect {eff['point'][0]:+.4f}  95% PI ({lo:+.4f}, {hi:+.4f})")
+   # t+1: effect +0.0304  95% PI (-0.0227, +0.0703)
 
 Verification
 ------------
 
 .. note::
 
-   Empirical (Path A, Hong Kong). All three high-dimensional variants run on
-   the HCW Hong Kong panel (above) and agree on a significant positive
-   integration effect, consistent with the literature and the Forward-DiD
-   cross-check (0.025).
+   Empirical (Path A, Hong Kong). All four PDA methods run on the HCW Hong Kong
+   panel (above) and agree on a significant positive integration effect,
+   consistent with the literature and the Forward-DiD cross-check (0.025).
 
    Original HCW (Path A, best subset). ``benchmarks/cases/pda_hcw_hongkong.py``
    reproduces Hsiao, Ching & Wan (2012) Tables XVI-XVII value-for-value with
@@ -1129,7 +1200,7 @@ unit/time ``IndexSet``\es, and splits pre/post.
    :undoc-members:
 
 Shared HAC long-run-variance machinery (Bartlett/Newey-West) and the N(0,1)
-test used by all three variants.
+test used by every PDA variant.
 
 .. automodule:: mlsynth.utils.pda_helpers.inference
    :members:
