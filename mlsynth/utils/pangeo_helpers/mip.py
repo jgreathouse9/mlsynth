@@ -15,7 +15,8 @@ per-pair score is the difference-in-differences parallelism of
    M^\\top x = \\mathbf 1 \\ (\\text{exact cover}),\\;
    \\mathbf 1^\\top x \\ge \\kappa\\ (\\text{min pairs}).
 
-Solved with cvxpy using the HiGHS mixed-integer backend.
+Solved with cvxpy using the first installed mixed-integer backend (HiGHS by
+preference, else SCIP / GLPK_MI / CBC).
 """
 
 from __future__ import annotations
@@ -26,6 +27,26 @@ import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+
+
+# MILP-capable cvxpy solvers, in preference order. The partition is a boolean
+# exact-cover MIP; HiGHS is preferred but is not wired into every cvxpy build
+# (e.g. some Python 3.10 wheels), so fall back to the next installed solver --
+# SCIP ships with the ``design`` extra's ``pyscipopt``.
+_MILP_SOLVERS = ("HIGHS", "SCIP", "GLPK_MI", "CBC")
+
+
+def _pick_milp_solver():
+    """First installed cvxpy MILP solver, else a clear translated error."""
+    installed = set(cp.installed_solvers())
+    for name in _MILP_SOLVERS:
+        if name in installed:
+            return getattr(cp, name)
+    raise MlsynthEstimationError(
+        "PANGEO needs a mixed-integer solver, but none of "
+        f"{_MILP_SOLVERS} is installed in cvxpy. Install pyscipopt "
+        '(``pip install "mlsynth[design]"``) or a HiGHS-enabled cvxpy.'
+    )
 
 
 def solve_partition(
@@ -71,7 +92,7 @@ def solve_partition(
         constraints.append(cp.sum(x) >= min_pairs)
     problem = cp.Problem(cp.Minimize(cost @ x), constraints)
     try:
-        problem.solve(solver=cp.HIGHS)
+        problem.solve(solver=_pick_milp_solver())
     except cp.error.SolverError as exc:
         raise MlsynthEstimationError(
             f"PANGEO partition MIP failed: {exc}"

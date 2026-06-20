@@ -8,7 +8,39 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-20
+
+First stable release, published to PyPI (``pip install mlsynth``).
+
+### Packaging
+- Distribution publishes to PyPI via OIDC Trusted Publishing
+  (`.github/workflows/release.yml`) on each GitHub Release -- no stored API
+  token. `python -m build` + `twine check` gate the artifacts first.
+- License metadata modernised to the SPDX form (`license = "MIT"` +
+  `license-files = ["LICENSE.md"]`), dropping the deprecated
+  `License :: OSI Approved :: MIT License` classifier; build backend bumped to
+  `setuptools>=77`.
+- The supported Python range (3.10-3.13) is now exercised in CI: the full suite
+  runs on 3.10, 3.12 and 3.13 (`pyversions` matrix) plus 3.11 (`build`), so the
+  `requires-python` floor and the Python classifiers are test-backed, not
+  asserted. Development status promoted to Production/Stable.
+- MSCMT no longer depends on scipy's `nnls` being a working release: the inner
+  non-negative least squares selects scipy's compiled solver where it is the
+  fixed, fast version (>= 1.15) and an in-house pure-NumPy Lawson-Hanson solver
+  otherwise (e.g. the regressed `nnls` in scipy 1.13). Same optimum either way.
+
 ### Added
+- **PDA gains the original HCW best-subset method (`method="hcw"`).**
+  Hsiao-Ching-Wan (2012): the treated unit's counterfactual is unrestricted OLS
+  on the AICc/AIC/BIC best subset of controls. The combinatorial search is exact
+  and fast -- a Furnival-Wilson sweep-operator branch-and-bound, a
+  Bertsimas-King-Mazumder discrete first-order warm start, and a node budget that
+  returns the incumbent with a certified optimality gap instead of refusing large
+  pools -- with an optional SCIP mixed-integer backend (`hcw_backend="scip"`,
+  behind the new `scip` extra) for exact certification past the branch-and-bound's
+  reach. Jiang et al. (2025) prediction intervals carry over. 100% covered;
+  reproduces HCW Table XVI value-for-value, cross-validated against the `pampe`
+  R package.
 - **MAREX geographic design restrictions.** MAREX gains the SYNDES/GEOLIFT
   restriction vocabulary, on top of what it already had natively (region
   clustering, `m_min`/`m_max` stratum quotas, cost/budget, same-region donors):

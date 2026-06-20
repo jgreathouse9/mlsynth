@@ -18,9 +18,10 @@ and the same Section 3.1 global-optimum certificate; they differ only in how
 the predictor weights are searched, which matters when the optimal ``V`` is
 interior rather than a single corner.
 
-The inner ``V``-weighted simplex least squares is solved with
-:func:`scipy.optimize.nnls` (non-negativity) plus a big-M row for the
-sum-to-one equality. The outer differential-evolution population is evaluated
+The inner ``V``-weighted simplex least squares is solved with the in-house
+Lawson-Hanson :func:`~mlsynth.utils.bilevel.nnls.nnls` (non-negativity) plus a
+big-M row for the sum-to-one equality. The outer differential-evolution
+population is evaluated
 *vectorised* (one objective call per generation), and the donor pool is first
 reduced to its **sunny** donors (the Becker-Kloessner LP reduction): shady
 donors can never carry positive inner weight for any ``V`` and are dropped
@@ -33,9 +34,18 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-from scipy.optimize import nnls
 
+from .nnls import nnls_select
 from .simplex import mspe
+
+# Resolve the NNLS backend once, by capability. scipy's compiled ``nnls`` is the
+# fast path, but its 1.12-1.14 rewrite regressed on the ill-conditioned big-M
+# system below -- it grinds for thousands of iterations and raises
+# ``RuntimeError`` (e.g. scipy 1.13, the newest scipy on Python 3.9), where it is
+# both ~24x slower than and less robust than the in-house Lawson-Hanson solver.
+# So we use scipy where it is the fixed, fast version (>= 1.15) and our own
+# solver everywhere else; both return the identical optimum.
+nnls = nnls_select()
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
 
@@ -50,12 +60,14 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
 
     Solves ``min_W ||diag(V)^{1/2} (X1 - X0 W)||^2`` over ``{W >= 0, 1'W = 1}``
     -- the MSCMT inner objective (Eq. 8'). The non-negativity constraint is
-    handled by :func:`scipy.optimize.nnls` (an active-set solver, robust on the
-    ill-conditioned predictor blocks where a first-order method would crawl);
-    the sum-to-one constraint is enforced by appending a large-penalty row
-    ``M * 1' W = M``. ``nnls`` is used (rather than the pure-NumPy FISTA
-    primitive) because the global outer search invokes the inner solve tens of
-    thousands of times, where its accuracy and per-solve cost matter. The hot
+    handled by the in-house Lawson-Hanson :func:`~mlsynth.utils.bilevel.nnls.nnls`
+    (an active-set solver, robust on the ill-conditioned predictor blocks where
+    a first-order method would crawl); the sum-to-one constraint is enforced by
+    appending a large-penalty row ``M * 1' W = M``. An active-set NNLS is used
+    (rather than the pure-NumPy FISTA primitive) because the global outer search
+    invokes the inner solve tens of thousands of times, where its accuracy and
+    per-solve cost matter; the bespoke solver also makes the result independent
+    of the installed scipy version. The hot
     loop in :func:`solve_mscmt` uses a preallocated, in-place variant of this;
     this reference form is kept for the single-predictor path and tests.
     """
