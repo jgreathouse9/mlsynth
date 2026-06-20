@@ -26,7 +26,7 @@ import pytest
 
 from mlsynth import PDA
 from mlsynth.config_models import PDAConfig
-from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
+from mlsynth.exceptions import MlsynthEstimationError
 
 from mlsynth.utils.pda_helpers.hcw.estimation import (
     _best_subset_bnb,
@@ -526,6 +526,102 @@ class TestFWWarmStart:
         assert _best_subset_fw(G, Zty, yty, N, T0, 0, "AICc", warm_start=True) == []
 
 
+class TestNodeBudgetAndGap:
+    """The budgeted search returns a certified gap instead of refusing.
+
+    With no budget the Furnival-Wilson search runs to completion and certifies
+    the optimum (gap 0). With a budget that bites, it stops early but still
+    brackets the optimum: the reported lower bound never exceeds the true
+    optimum and the incumbent never beats it, so ``optimality_gap = incumbent -
+    lower_bound`` is a valid suboptimality certificate (the Bertsimas-King-
+    Mazumder gap, obtained here from the branch-and-bound's own bounds without
+    any solver).
+    """
+
+    def _opt_ic(self, G, Zty, yty, T0, sel, crit):
+        return info_criterion(_subset_rss(G, Zty, yty, sel), T0, len(sel) + 1, crit)
+
+    @pytest.mark.parametrize("criterion", ["AICc", "AIC", "BIC"])
+    def test_unlimited_search_is_certified(self, criterion):
+        rng = np.random.default_rng(1)
+        T0, N = 28, 8
+        X = rng.standard_normal((T0, N))
+        y = X[:, [1, 5]] @ np.array([1.5, -1.0]) + 0.4 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        r_max = min(N, T0 - 2)
+        stats: dict = {}
+        sel = _best_subset_fw(G, Zty, yty, N, T0, r_max, criterion,
+                              node_budget=None, _stats=stats)
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, criterion)
+        assert sorted(sel) == sorted(ex)
+        assert stats["budget_hit"] is False
+        assert stats["certified"] is True
+        assert stats["optimality_gap"] == 0.0
+
+    def test_budget_brackets_the_optimum(self):
+        rng = np.random.default_rng(5)
+        T0, N = 30, 11
+        X = rng.standard_normal((T0, N))
+        support = [2, 6, 9]
+        y = X[:, support] @ np.array([1.0, -1.2, 0.8]) + 0.6 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        r_max = min(N, T0 - 2)
+        opt = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, "AICc")
+        opt_ic = self._opt_ic(G, Zty, yty, T0, opt, "AICc")
+
+        stats: dict = {}
+        sel = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc",
+                              warm_start=False, node_budget=15, _stats=stats)
+        assert stats["budget_hit"] is True
+        # The incumbent is a feasible upper bound; the lower bound never exceeds
+        # the true optimum -- together they bracket it.
+        sel_ic = self._opt_ic(G, Zty, yty, T0, sel, "AICc")
+        assert stats["lower_bound"] <= opt_ic + 1e-9
+        assert sel_ic >= opt_ic - 1e-9
+        assert stats["incumbent_ic"] <= sel_ic + 1e-9
+        assert stats["optimality_gap"] >= 0.0
+        assert abs(stats["optimality_gap"]
+                   - (stats["incumbent_ic"] - stats["lower_bound"])) < 1e-9
+
+    def test_large_budget_certifies_optimum(self):
+        rng = np.random.default_rng(7)
+        T0, N = 26, 9
+        X = rng.standard_normal((T0, N))
+        y = X @ rng.standard_normal(N) + 0.3 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        r_max = min(N, T0 - 2)
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, "AICc")
+        stats: dict = {}
+        sel = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc",
+                              node_budget=10_000_000, _stats=stats)
+        assert sorted(sel) == sorted(ex)
+        assert stats["certified"] is True
+        assert stats["optimality_gap"] == 0.0
+
+    def test_warm_start_skipped_for_large_pool(self):
+        # N beyond the warm-start ceiling: the seed is skipped (its cost would
+        # not pay off) but the budgeted search still returns a valid selection.
+        rng = np.random.default_rng(8)
+        T0, N = 145, 135                          # N > _WARMSTART_MAX_N (128)
+        X = rng.standard_normal((T0, N))
+        y = X[:, [3, 80, 130]] @ np.array([1.0, -1.0, 0.5]) + rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        r_max = min(N, T0 - 2)
+        stats: dict = {}
+        sel = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc",
+                              warm_start=True, node_budget=40, _stats=stats)
+        assert isinstance(sel, list)
+        assert len(sel) <= r_max
+
+    def test_fit_hcw_reports_certification(self, hk_table16):
+        y, X, labels, T0 = hk_table16
+        stats: dict = {}
+        fit_hcw(y, X, T0, criterion="AICc", select_stats=stats)
+        # The HK pool is tiny: the search certifies the optimum.
+        assert stats["certified"] is True
+        assert stats["optimality_gap"] == 0.0
+
+
 class TestInfoCriterion:
 
     def test_aicc_matches_pampe_convention(self):
@@ -620,15 +716,20 @@ class TestBestSubset:
         with pytest.raises(MlsynthEstimationError):
             best_subset_select(y, X, 20, criterion="AIC", nvmax=0)
 
-    def test_pool_too_large_raises(self):
-        # Exhaustive best subset is combinatorial; an oversized pool with a
-        # high nvmax must raise a clear, translated error (not hang).
+    def test_large_pool_returns_with_gap_instead_of_raising(self):
+        # A large pool no longer refuses: the budgeted search returns a valid
+        # (possibly uncertified) selection and reports an optimality gap.
         rng = np.random.default_rng(2)
         T0, N = 60, 40
         X = rng.standard_normal((T0, N))
         y = rng.standard_normal(T0)
-        with pytest.raises((MlsynthEstimationError, MlsynthConfigError)):
-            best_subset_select(y, X, T0, criterion="AICc", nvmax=40)
+        stats: dict = {}
+        sel = best_subset_select(y, X, T0, criterion="AICc", nvmax=40,
+                                 node_budget=2000, stats=stats)
+        assert isinstance(sel, list)
+        assert len(sel) <= 40
+        assert "certified" in stats and "optimality_gap" in stats
+        assert stats["optimality_gap"] >= 0.0
 
 
 # =========================================================================
@@ -794,3 +895,15 @@ class TestHCWEstimator:
         sub = res.fits["hcw"]
         assert sub.selected_donors is not None
         assert len(sub.selected_donors) >= 1
+
+    def test_reports_optimality_certification(self):
+        # The small HCW pool certifies the exact optimum; the estimator surfaces
+        # the certification and a zero gap in the method metadata.
+        res = PDA({
+            "df": self._df_subset(), "outcome": "GDP", "treat": "Integration",
+            "unitid": "Country", "time": "Time", "method": "hcw",
+            "display_graphs": False,
+        }).fit()
+        meta = res.fits["hcw"].metadata
+        assert meta["certified_optimal"] is True
+        assert meta["optimality_gap"] == 0.0

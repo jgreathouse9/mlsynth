@@ -20,17 +20,21 @@ variants.
 from __future__ import annotations
 
 from itertools import combinations
-from math import comb
 from typing import List, Optional, Tuple
 
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
 
-# Guard on the exhaustive search: refuse pools whose subset count would make the
-# best-subset enumeration intractable (≈ the regime where pampe's leaps would
-# also strain). Callers should cap ``nvmax`` or use fs / LASSO / l2 instead.
-_MAX_SUBSETS = 2_000_000
+# Default cap on the number of branch-and-bound nodes explored. HCW's intended
+# small pools (a few dozen donors) certify the optimum in far fewer; a large
+# pool stops at the budget and returns the best incumbent with a valid
+# optimality gap rather than refusing. ~200k nodes is a few seconds at worst.
+_DEFAULT_NODE_BUDGET = 200_000
+
+# Past this many donors the discrete first-order warm start is skipped: seeding
+# every model size costs more than the pruning it would buy at that scale.
+_WARMSTART_MAX_N = 128
 
 _CRITERIA = ("AICc", "AIC", "BIC")
 
@@ -212,12 +216,17 @@ def best_subset_select(
     *,
     criterion: str = "AICc",
     nvmax: Optional[int] = None,
+    node_budget: Optional[int] = _DEFAULT_NODE_BUDGET,
+    stats: Optional[dict] = None,
 ) -> List[int]:
     """Best-subset donor selection by ``criterion`` (HCW Section 5 / ``pampe``).
 
     For every model size ``r = 0, 1, ..., nvmax`` the subset of ``r`` donors with
-    the smallest pre-period RSS is found by exhaustive enumeration, and the size
-    (and subset) minimising ``criterion`` is returned.
+    the smallest pre-period RSS is found, and the size (and subset) minimising
+    ``criterion`` is returned. The Furnival-Wilson search is exact; for a large
+    pool it stops at ``node_budget`` and returns the best incumbent found with an
+    optimality gap rather than refusing. Pass a ``stats`` dict to receive the
+    node count, gap and certification (see :func:`_best_subset_fw`).
 
     Returns the selected donor column indices (a possibly empty list).
     """
@@ -230,22 +239,14 @@ def best_subset_select(
     N = X_pre.shape[1]
     r_max = _resolve_nvmax(nvmax, N, T0)
 
-    total = sum(comb(N, r) for r in range(0, r_max + 1))
-    if total > _MAX_SUBSETS:
-        raise MlsynthEstimationError(
-            f"HCW best-subset over {N} donors up to size {r_max} has a "
-            f"worst-case {total:,} subsets (> {_MAX_SUBSETS:,}). Branch-and-bound "
-            "prunes most of these, but the worst case is not guaranteed, so the "
-            "pool is refused. Cap 'hcw_nvmax', restrict the donor pool (as HCW "
-            "limited Hong Kong to ten economies), or use the scalable 'fs' / "
-            "'LASSO' / 'l2' PDA variants instead."
-        )
-
     # Precompute the Gram sufficient statistics once; the Furnival-Wilson engine
     # then reads each subset's RSS off a sweep of the augmented cross-products,
     # never re-solving an OLS from scratch.
     G, Zty, yty = _gram(y_pre, X_pre)
-    return _best_subset_fw(G, Zty, yty, N, T0, r_max, criterion)
+    return _best_subset_fw(
+        G, Zty, yty, N, T0, r_max, criterion,
+        node_budget=node_budget, _stats=stats,
+    )
 
 
 def _best_subset_exhaustive(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
@@ -407,6 +408,7 @@ def _best_subset_fw(
     *,
     warm_start: bool = True,
     seed: int = 0,
+    node_budget: Optional[int] = None,
     _stats: Optional[dict] = None,
 ) -> List[int]:
     """Best subset by the Furnival-Wilson leaps-and-bounds engine.
@@ -428,7 +430,17 @@ def _best_subset_fw(
     discrete first-order method (:func:`_discrete_first_order`) at every size,
     which tightens the bound from the outset and prunes more subtrees. It can
     only lower the incumbent, never raise it, so the certified optimum is
-    unchanged. ``_stats`` (if given) receives the explored node count.
+    unchanged. (The seed is skipped past ``_WARMSTART_MAX_N`` donors, where its
+    cost would outweigh the pruning it buys.)
+
+    ``node_budget`` caps the number of explored nodes. If the search completes
+    within it, the result is the certified optimum. If the budget is hit, the
+    search stops early and returns the best incumbent found together with a
+    valid lower bound -- the smallest subtree bound it never got to explore --
+    so ``optimality_gap = incumbent - lower_bound`` certifies how far the
+    returned subset can be from optimal (zero means provably optimal). ``_stats``
+    (if given) receives ``nodes``, ``budget_hit``, ``lower_bound``,
+    ``incumbent_ic``, ``optimality_gap`` and ``certified``.
     """
     M = _augmented(G, Zty, yty, N)
     y_idx = N + 1
@@ -450,7 +462,7 @@ def _best_subset_fw(
     best_rss = np.full(r_max + 1, np.inf)
     best_rss[0] = tss
 
-    if warm_start and r_max >= 1:
+    if warm_start and r_max >= 1 and N <= _WARMSTART_MAX_N:
         Sxx, Sxy, _ = _centered_gram(G, Zty, yty, n)
         L = float(np.linalg.eigvalsh(Sxx)[-1]) if N else 1.0
         rng = np.random.default_rng(seed)
@@ -467,6 +479,8 @@ def _best_subset_fw(
                 best_rss[len(supp)] = rss
 
     nodes = [0]
+    budget_hit = [False]
+    frontier_lb = [np.inf]
 
     def recurse(chosen: List[int], pos: int, k: int) -> None:
         nodes[0] += 1
@@ -477,7 +491,14 @@ def _best_subset_fw(
         rss_all = _all_in_rss(M, rem_idx, y_idx, cur_rss)
         # Lower bound over the subtree: descendants have size >= k+1, so pair the
         # all-in RSS with the (k+1)-donor penalty. Prune if it cannot improve.
-        if info_criterion(rss_all, n, k + 2, criterion) >= best_ic[0]:
+        lb = info_criterion(rss_all, n, k + 2, criterion)
+        if lb >= best_ic[0]:
+            return
+        # Over budget: leave this (un-prunable) subtree unexplored, but record its
+        # lower bound so the reported gap stays a valid certificate.
+        if node_budget is not None and nodes[0] >= node_budget:
+            budget_hit[0] = True
+            frontier_lb[0] = min(frontier_lb[0], lb)
             return
         for p in range(pos, N):
             d = order[p]
@@ -498,8 +519,20 @@ def _best_subset_fw(
                 _unsweep(M, idx)                 # restore for the next branch
 
     recurse([], 0, 0)
+    if budget_hit[0]:
+        lower_bound = min(frontier_lb[0], best_ic[0])
+    else:                                        # search completed -> optimum certified
+        lower_bound = best_ic[0]
+    gap = max(0.0, best_ic[0] - lower_bound)
     if _stats is not None:
-        _stats["nodes"] = nodes[0]
+        _stats.update(
+            nodes=nodes[0],
+            budget_hit=budget_hit[0],
+            lower_bound=lower_bound,
+            incumbent_ic=best_ic[0],
+            optimality_gap=gap,
+            certified=gap <= 1e-9,
+        )
     return sorted(best_idx)
 
 
@@ -510,18 +543,21 @@ def fit_hcw(
     *,
     criterion: str = "AICc",
     nvmax: Optional[int] = None,
+    select_stats: Optional[dict] = None,
 ) -> Tuple[List[int], np.ndarray, float, np.ndarray]:
     """HCW best-subset fit: select donors, refit OLS, extrapolate counterfactual.
 
     Returns ``(selected_indices, beta_full, intercept, counterfactual)`` where
     ``beta_full`` is an ``N``-vector with zeros off the selected support and the
     counterfactual is the OLS extrapolation ``X @ beta_full + intercept`` over
-    all periods.
+    all periods. Pass a ``select_stats`` dict to receive the best-subset search
+    diagnostics (node count, optimality gap, certification).
     """
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
     N = X.shape[1]
-    selected = best_subset_select(y, X, T0, criterion=criterion, nvmax=nvmax)
+    selected = best_subset_select(
+        y, X, T0, criterion=criterion, nvmax=nvmax, stats=select_stats)
 
     beta_full = np.zeros(N)
     if not selected:                             # intercept-only counterfactual

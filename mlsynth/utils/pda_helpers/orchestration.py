@@ -97,12 +97,16 @@ def run_pda(
             support_idx = np.asarray(sel_idx, dtype=int)
             selected = [labels[i] for i in sel_idx]
         elif m == HCW:
+            select_stats: dict = {}
             sel_idx, beta, intercept, cf = fit_hcw(
-                y, X, T0, criterion=hcw_criterion, nvmax=hcw_nvmax)
+                y, X, T0, criterion=hcw_criterion, nvmax=hcw_nvmax,
+                select_stats=select_stats)
             att, se, ci, p = hcw_ate_inference(y, cf, T0, alpha=alpha, lrvar_lag=lrvar_lag)
             support_idx = np.asarray(sel_idx, dtype=int)
             selected = [labels[i] for i in sel_idx]
             meta["criterion"] = hcw_criterion
+            meta["certified_optimal"] = select_stats.get("certified")
+            meta["optimality_gap"] = select_stats.get("optimality_gap")
         else:
             raise ValueError(f"Unknown PDA method: {m!r}")
 
