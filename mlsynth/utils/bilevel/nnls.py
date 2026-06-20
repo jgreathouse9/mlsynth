@@ -22,9 +22,33 @@ tolerance. The ``maxiter`` guard only protects against cycling on degenerate
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
+
+
+def nnls_select() -> Callable[..., Tuple[np.ndarray, float]]:
+    """Return the best available NNLS backend ``(w, rnorm) = f(A, b, maxiter=...)``.
+
+    scipy's compiled ``nnls`` is preferred when it is a release that solves the
+    ill-conditioned big-M synthetic-control system correctly and quickly. Its
+    1.12-1.14 rewrite regressed there (slow, and raises ``RuntimeError`` on the
+    iteration cap -- e.g. scipy 1.13, the newest scipy for Python 3.9); the fix
+    landed in 1.15. For anything older, or if scipy is unavailable, fall back to
+    the in-house :func:`nnls`, which is version-independent and, on that system,
+    both faster and more robust than the regressed scipy. Both return the same
+    optimum, so the choice never changes results -- only speed.
+    """
+    try:
+        import scipy
+        from scipy.optimize import nnls as scipy_nnls
+
+        major, minor = (int(p) for p in scipy.__version__.split(".")[:2])
+        if (major, minor) >= (1, 15):
+            return scipy_nnls
+    except Exception:  # pragma: no cover - scipy missing/unparseable version
+        pass
+    return nnls
 
 
 def nnls(

@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.nnls import nnls
+from mlsynth.utils.bilevel.nnls import nnls, nnls_select
 
 
 def _kkt_residual(A: np.ndarray, b: np.ndarray, w: np.ndarray) -> float:
@@ -101,6 +101,35 @@ class TestCorrectness:
         assert np.all(w >= 0.0)
         # After the big-M row, the weights should nearly sum to one.
         assert abs(w.sum() - 1.0) < 1e-3
+
+
+class TestBackendSelection:
+
+    def test_select_returns_callable_that_solves(self):
+        # Whatever backend is chosen, it must honour the (w, rnorm) contract and
+        # return the correct optimum for a simple problem.
+        solver = nnls_select()
+        A = np.array([[2.0, 0.0], [0.0, 3.0]])
+        b = np.array([2.0, 3.0])
+        w, rnorm = solver(A, b)
+        np.testing.assert_allclose(w, [1.0, 1.0], atol=1e-8)
+        assert rnorm < 1e-8
+
+    def test_select_prefers_fixed_scipy_else_inhouse(self):
+        # The selector must pick scipy only on the versions that solve the big-M
+        # system correctly (>= 1.15), and our solver otherwise.
+        solver = nnls_select()
+        try:
+            import scipy
+            from scipy.optimize import nnls as scipy_nnls
+
+            major, minor = (int(p) for p in scipy.__version__.split(".")[:2])
+            if (major, minor) >= (1, 15):
+                assert solver is scipy_nnls
+            else:
+                assert solver is nnls
+        except Exception:  # pragma: no cover - scipy unavailable
+            assert solver is nnls
 
 
 class TestEdgeCases:

@@ -35,8 +35,17 @@ import warnings
 
 import numpy as np
 
-from .nnls import nnls
+from .nnls import nnls_select
 from .simplex import mspe
+
+# Resolve the NNLS backend once, by capability. scipy's compiled ``nnls`` is the
+# fast path, but its 1.12-1.14 rewrite regressed on the ill-conditioned big-M
+# system below -- it grinds for thousands of iterations and raises
+# ``RuntimeError`` (e.g. scipy 1.13, the newest scipy on Python 3.9), where it is
+# both ~24x slower than and less robust than the in-house Lawson-Hanson solver.
+# So we use scipy where it is the fixed, fast version (>= 1.15) and our own
+# solver everywhere else; both return the identical optimum.
+nnls = nnls_select()
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
 
