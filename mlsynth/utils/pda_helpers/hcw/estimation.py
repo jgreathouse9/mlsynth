@@ -115,6 +115,86 @@ def _subset_rss(G: np.ndarray, Zty: np.ndarray, yty: float, cols) -> float:
     return yty - float(bs @ sol)
 
 
+def _sweep(M: np.ndarray, k: int) -> None:
+    """Symmetric Gauss-Jordan sweep of ``M`` on pivot ``k``, in place.
+
+    The sweep operator (Goodnight 1979) is the Furnival-Wilson regression
+    engine. Sweeping the intercept and a set of donor columns into the augmented
+    cross-product matrix ``M = [1, X, y]'[1, X, y]`` leaves, in the (y, y)
+    diagonal, the residual sum of squares of regressing ``y`` on those columns.
+    A depth-first search can therefore add a donor on the way down (this forward
+    sweep) and remove it on the way back up (:func:`_unsweep`, the reverse
+    sweep) in ``O(p^2)`` apiece, never re-solving an OLS from scratch. (Pivots
+    must be non-degenerate; the caller skips any pivot whose diagonal has
+    collapsed to zero, i.e. a donor collinear with the set already swept in.)
+
+    Note the forward sweep is not its own inverse: applying it twice negates the
+    pivot row and column, so removal must go through :func:`_unsweep`.
+    """
+    D = M[k, k]
+    col = M[:, k].copy()
+    row = M[k, :].copy()
+    M -= np.outer(col, row) / D                  # a_ij - a_ik a_kj / a_kk
+    M[k, :] = row / D                            # row k:  a_kj / a_kk
+    M[:, k] = col / D                            # col k:  a_ik / a_kk
+    M[k, k] = -1.0 / D                           # pivot:  -1 / a_kk
+
+
+def _unsweep(M: np.ndarray, k: int) -> None:
+    """Reverse sweep of ``M`` on pivot ``k``, in place: the inverse of :func:`_sweep`.
+
+    Identical to the forward sweep except the pivot row and column are negated,
+    which is exactly what undoes a prior :func:`_sweep` on the same pivot
+    (``_sweep`` then ``_unsweep`` restores ``M`` to machine precision). This is
+    how the search removes a donor when it backtracks.
+    """
+    D = M[k, k]
+    col = M[:, k].copy()
+    row = M[k, :].copy()
+    M -= np.outer(col, row) / D
+    M[k, :] = -row / D
+    M[:, k] = -col / D
+    M[k, k] = -1.0 / D
+
+
+def _augmented(G: np.ndarray, Zty: np.ndarray, yty: float, N: int) -> np.ndarray:
+    """Assemble the augmented cross-product matrix ``[1, X, y]'[1, X, y]``.
+
+    Intercept at index 0, donors at 1..N, the response at N+1, so a donor with
+    column index ``j`` lives at sweep index ``j + 1`` and the response diagonal
+    ``M[N+1, N+1]`` holds the running RSS once the predictors are swept in.
+    """
+    M = np.empty((N + 2, N + 2))
+    M[: N + 1, : N + 1] = G
+    M[: N + 1, N + 1] = Zty
+    M[N + 1, : N + 1] = Zty
+    M[N + 1, N + 1] = yty
+    return M
+
+
+def _all_in_rss(M: np.ndarray, rem_idx: List[int], y_idx: int, cur_rss: float) -> float:
+    """RSS of adding *every* remaining donor to the currently swept set.
+
+    Given ``M`` swept on the intercept and the chosen donors, the un-swept block
+    ``M[rem, rem]`` is the residual cross-product of the remaining donors and
+    ``M[rem, y]`` their residual covariance with the response (Schur
+    complements). Including all of them drops the RSS by the regression sum of
+    squares ``M[y, rem] (M[rem, rem])^{-1} M[rem, y]``. This is the smallest RSS
+    any descendant subset can reach (RSS is monotone in the variable set), so it
+    is the lower-bound ingredient for pruning. A least-norm solve covers a
+    rank-deficient remaining block.
+    """
+    if not rem_idx:
+        return cur_rss
+    A = M[np.ix_(rem_idx, rem_idx)]
+    b = M[rem_idx, y_idx]
+    try:
+        sol = np.linalg.solve(A, b)
+    except np.linalg.LinAlgError:                # collinear remainder -> min-norm
+        sol, *_ = np.linalg.lstsq(A, b, rcond=None)
+    return cur_rss - float(b @ sol)
+
+
 def _resolve_nvmax(nvmax: Optional[int], N: int, T0: int) -> int:
     """Largest model size to search: bounded by donors and the OLS df."""
     cap = min(N, max(T0 - 2, 0))                 # need n > params for a fit
@@ -161,10 +241,11 @@ def best_subset_select(
             "'LASSO' / 'l2' PDA variants instead."
         )
 
-    # Precompute the Gram sufficient statistics once; each subset's RSS is then
-    # an O(r^3) submatrix solve rather than an O(T0 r^2) SVD.
+    # Precompute the Gram sufficient statistics once; the Furnival-Wilson engine
+    # then reads each subset's RSS off a sweep of the augmented cross-products,
+    # never re-solving an OLS from scratch.
     G, Zty, yty = _gram(y_pre, X_pre)
-    return _best_subset_bnb(G, Zty, yty, N, T0, r_max, criterion)
+    return _best_subset_fw(G, Zty, yty, N, T0, r_max, criterion)
 
 
 def _best_subset_exhaustive(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
@@ -219,6 +300,74 @@ def _best_subset_bnb(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
 
     recurse([], 0)
     return best["idx"]
+
+
+def _best_subset_fw(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
+    """Best subset by the Furnival-Wilson leaps-and-bounds engine.
+
+    The canonical ``leaps::regsubsets`` algorithm: a depth-first search over
+    donor subsets driven by the sweep operator, so a donor's residual sum of
+    squares is read off the swept augmented matrix in ``O(1)`` (after the
+    ``O(p^2)`` descent sweep) rather than re-solved. Donors are ordered
+    strongest-first so the incumbent tightens early. Each subtree is lower
+    bounded by ``n log(rss_all_in / n) + penalty(k+1)`` -- the smallest RSS the
+    subtree can reach (include every remaining donor) paired with the smallest
+    penalty any descendant can carry (one more donor than the current node) --
+    and pruned when that bound cannot beat the incumbent. The bound is a true
+    lower bound on the information criterion, so the returned subset is identical
+    to :func:`_best_subset_exhaustive`; the IC optimum is always the best-RSS
+    subset at its own size, so this best-subset-then-criterion search returns it.
+    """
+    M = _augmented(G, Zty, yty, N)
+    y_idx = N + 1
+    _sweep(M, 0)                                 # intercept always in
+    tss = M[y_idx, y_idx]                         # intercept-only RSS
+
+    # Strongest-first donor order by univariate (post-intercept) RSS reduction;
+    # ``d0`` is each donor's standalone residual variance, the scale against
+    # which a collapsed pivot signals collinearity with the swept set.
+    d0 = np.array([M[j + 1, j + 1] for j in range(N)])
+    red = np.array([
+        (M[j + 1, y_idx] ** 2 / d0[j]) if d0[j] > 1e-14 else 0.0
+        for j in range(N)
+    ])
+    order = sorted(range(N), key=lambda j: red[j], reverse=True)
+
+    best_ic = [info_criterion(tss, n, 1, criterion)]
+    best_idx: List[int] = []
+    best_rss = np.full(r_max + 1, np.inf)
+    best_rss[0] = tss
+
+    def recurse(chosen: List[int], pos: int, k: int) -> None:
+        if k >= r_max or pos >= N:
+            return
+        cur_rss = M[y_idx, y_idx]
+        rem_idx = [order[p] + 1 for p in range(pos, N)]
+        rss_all = _all_in_rss(M, rem_idx, y_idx, cur_rss)
+        # Lower bound over the subtree: descendants have size >= k+1, so pair the
+        # all-in RSS with the (k+1)-donor penalty. Prune if it cannot improve.
+        if info_criterion(rss_all, n, k + 2, criterion) >= best_ic[0]:
+            return
+        for p in range(pos, N):
+            d = order[p]
+            idx = d + 1
+            collinear = M[idx, idx] <= 1e-9 * d0[d] or M[idx, idx] <= 1e-14
+            if not collinear:
+                _sweep(M, idx)
+            rss = M[y_idx, y_idx]
+            k2 = k + 1
+            ic = info_criterion(rss, n, k2 + 1, criterion)
+            if ic < best_ic[0]:
+                best_ic[0] = ic
+                best_idx[:] = chosen + [d]
+            if rss < best_rss[k2]:
+                best_rss[k2] = rss
+            recurse(chosen + [d], p + 1, k2)
+            if not collinear:
+                _unsweep(M, idx)                 # restore for the next branch
+
+    recurse([], 0, 0)
+    return sorted(best_idx)
 
 
 def fit_hcw(

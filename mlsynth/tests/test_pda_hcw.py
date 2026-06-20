@@ -31,9 +31,14 @@ from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.pda_helpers.hcw.estimation import (
     _best_subset_bnb,
     _best_subset_exhaustive,
+    _best_subset_fw,
     _gram,
     _rss,
+    _all_in_rss,
+    _augmented,
     _subset_rss,
+    _sweep,
+    _unsweep,
     best_subset_select,
     fit_hcw,
     info_criterion,
@@ -148,6 +153,183 @@ class TestBranchAndBound:
                                      min(X.shape[1], T0 - 2), "AICc")
         got = best_subset_select(y, X, T0, criterion="AICc")
         assert sorted(got) == sorted(ex)
+
+
+class TestSweepOperator:
+    """The sweep operator is the FW regression engine.
+
+    Sweeping the intercept and a donor subset into the augmented cross-product
+    matrix must read off the OLS residual sum of squares in the y diagonal, and
+    a forward sweep followed by a reverse sweep on the same pivot must restore
+    the matrix exactly. These two invariants are what make the O(p^2) reversible
+    add/remove descent of :func:`_best_subset_fw` correct.
+    """
+
+    def _augmented(self, y, X):
+        # M = [1, X, y]' [1, X, y]: intercept at 0, donors at 1..N, y at N+1.
+        N = X.shape[1]
+        G, Zty, yty = _gram(y, X)
+        M = np.empty((N + 2, N + 2))
+        M[: N + 1, : N + 1] = G
+        M[: N + 1, N + 1] = Zty
+        M[N + 1, : N + 1] = Zty
+        M[N + 1, N + 1] = yty
+        return M, N
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_swept_y_diagonal_is_rss(self, seed):
+        rng = np.random.default_rng(100 + seed)
+        T0, N = 24, 6
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        for cols in ([], [0], [2, 4], [0, 1, 3, 5], list(range(N))):
+            M, _ = self._augmented(y, X)
+            _sweep(M, 0)                       # intercept always in
+            for c in cols:
+                _sweep(M, c + 1)
+            got = M[N + 1, N + 1]
+            ref = _subset_rss(G, Zty, yty, cols)
+            assert abs(got - ref) < 1e-7 * max(ref, 1.0)
+
+    def test_unsweep_restores_matrix(self):
+        # A forward sweep then a reverse sweep on the same pivot is the identity
+        # (the forward sweep alone is not -- sweeping twice negates the pivot
+        # row/column, which is why removal must go through _unsweep).
+        rng = np.random.default_rng(7)
+        T0, N = 18, 4
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        M, _ = self._augmented(y, X)
+        original = M.copy()
+        _sweep(M, 2)
+        assert not np.allclose(M, original)    # actually changed something
+        twice = M.copy()
+        _sweep(M, 2)                           # forward twice != identity
+        assert not np.allclose(M, original)
+        M = twice.copy()
+        _unsweep(M, 2)                         # reverse sweep undoes it
+        np.testing.assert_allclose(M, original, atol=1e-9)
+
+    def test_all_in_rss_matches_full_subset(self):
+        # With the intercept and a chosen subset swept in, _all_in_rss must give
+        # the RSS of chosen + every remaining donor (the subtree's RSS floor).
+        rng = np.random.default_rng(13)
+        T0, N = 26, 6
+        X = rng.standard_normal((T0, N))
+        y = X[:, [1, 4]] @ np.array([1.0, -0.5]) + 0.3 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        chosen, remaining = [0, 2], [1, 3, 4, 5]
+        M = _augmented(G, Zty, yty, N)
+        _sweep(M, 0)
+        for c in chosen:
+            _sweep(M, c + 1)
+        cur = M[N + 1, N + 1]
+        got = _all_in_rss(M, [r + 1 for r in remaining], N + 1, cur)
+        ref = _subset_rss(G, Zty, yty, chosen + remaining)
+        assert abs(got - ref) < 1e-6 * max(ref, 1.0)
+        # Empty remainder: nothing to add, RSS is unchanged.
+        assert _all_in_rss(M, [], N + 1, cur) == cur
+
+
+class TestFurnivalWilson:
+    """The Furnival-Wilson leaps-and-bounds search must equal exhaustive search.
+
+    ``_best_subset_fw`` is the canonical regsubsets-style engine: a sweep-driven
+    best-subset-of-each-size search whose size is then chosen by the information
+    criterion (HCW Section 5 / pampe two-step). It is validated against the
+    brute-force oracle across the same battery as branch-and-bound -- the IC
+    optimum is always the best-RSS subset at its own size, so the per-size search
+    plus IC selection returns the identical set.
+    """
+
+    @pytest.mark.parametrize("criterion", ["AICc", "AIC", "BIC"])
+    @pytest.mark.parametrize("seed", range(12))
+    def test_fw_matches_exhaustive(self, criterion, seed):
+        rng = np.random.default_rng(seed)
+        T0 = int(rng.integers(14, 35))
+        N = int(rng.integers(3, 11))
+        X = rng.standard_normal((T0 + 6, N))
+        k_true = int(rng.integers(1, min(N, 4) + 1))
+        support = rng.choice(N, size=k_true, replace=False)
+        y = X[:, support] @ rng.standard_normal(k_true) + 0.4 * rng.standard_normal(T0 + 6)
+
+        G, Zty, yty = _gram(y[:T0], X[:T0])
+        r_max = min(N, max(T0 - 2, 0))
+        exhaustive = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, criterion)
+        fw = _best_subset_fw(G, Zty, yty, N, T0, r_max, criterion)
+        assert sorted(fw) == sorted(exhaustive)
+
+    @pytest.mark.parametrize("criterion", ["AICc", "AIC", "BIC"])
+    @pytest.mark.parametrize("seed", range(8))
+    def test_fw_agrees_with_bnb(self, criterion, seed):
+        # Two independent exact searches must always concur.
+        rng = np.random.default_rng(200 + seed)
+        T0 = int(rng.integers(16, 32))
+        N = int(rng.integers(3, 10))
+        X = rng.standard_normal((T0, N))
+        y = X @ rng.standard_normal(N) + 0.3 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        r_max = min(N, max(T0 - 2, 0))
+        bnb = _best_subset_bnb(G, Zty, yty, N, T0, r_max, criterion)
+        fw = _best_subset_fw(G, Zty, yty, N, T0, r_max, criterion)
+        assert sorted(fw) == sorted(bnb)
+
+    @pytest.mark.parametrize("seed", range(6))
+    def test_fw_respects_nvmax(self, seed):
+        rng = np.random.default_rng(60 + seed)
+        T0, N = 30, 9
+        X = rng.standard_normal((T0, N))
+        y = X @ rng.standard_normal(N) + 0.1 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, 3, "AIC")
+        fw = _best_subset_fw(G, Zty, yty, N, T0, 3, "AIC")
+        assert len(fw) <= 3
+        assert sorted(fw) == sorted(ex)
+
+    def test_fw_r_max_zero_is_intercept_only(self):
+        rng = np.random.default_rng(1)
+        T0, N = 20, 5
+        X = rng.standard_normal((T0, N))
+        y = rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        assert _best_subset_fw(G, Zty, yty, N, T0, 0, "AICc") == []
+
+    def test_fw_single_donor(self):
+        rng = np.random.default_rng(2)
+        T0 = 20
+        x = rng.standard_normal((T0, 1))
+        y = 2.0 * x[:, 0] + 0.05 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, x)
+        ex = _best_subset_exhaustive(G, Zty, yty, 1, T0, 1, "AICc")
+        fw = _best_subset_fw(G, Zty, yty, 1, T0, 1, "AICc")
+        assert sorted(fw) == sorted(ex)
+
+    def test_fw_collinear_pool_matches_oracle_objective(self):
+        # A duplicated donor makes some subset Grams singular; FW must skip the
+        # redundant pivot (no RSS reduction, min-norm behaviour) and reach the
+        # same criterion value as the exhaustive search.
+        rng = np.random.default_rng(3)
+        T0 = 22
+        x = rng.standard_normal((T0, 1))
+        X = np.column_stack([x[:, 0], x[:, 0], rng.standard_normal(T0),
+                             rng.standard_normal(T0)])     # cols 0,1 identical
+        y = 1.5 * x[:, 0] + 0.05 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        N, r_max = X.shape[1], min(X.shape[1], T0 - 2)
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, "AICc")
+        fw = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc")
+        ic_ex = info_criterion(_subset_rss(G, Zty, yty, ex), T0, len(ex) + 1, "AICc")
+        ic_fw = info_criterion(_subset_rss(G, Zty, yty, fw), T0, len(fw) + 1, "AICc")
+        assert abs(ic_fw - ic_ex) < 1e-7 * max(abs(ic_ex), 1.0)
+
+    def test_fw_matches_exhaustive_on_hk(self, hk_table16):
+        y, X, labels, T0 = hk_table16
+        G, Zty, yty = _gram(y[:T0], X[:T0])
+        N, r_max = X.shape[1], min(X.shape[1], T0 - 2)
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, "AICc")
+        fw = _best_subset_fw(G, Zty, yty, N, T0, r_max, "AICc")
+        assert sorted(fw) == sorted(ex)
 
 
 class TestInfoCriterion:
