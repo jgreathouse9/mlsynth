@@ -18,10 +18,18 @@ combination of the controls' paths plus an orthogonal error.
 The challenge is which controls and how many. Classical PDA was built
 for low dimensions (few controls relative to pre-periods) and chooses controls
 by AIC/BIC, which break down once the number of controls ``N`` approaches or
-exceeds the pre-period length ``T0``. ``mlsynth`` packages three
-high-dimensional PDA variants that resolve this differently, each with the
-estimation and inference theory of its own paper:
+exceeds the pre-period length ``T0``. ``mlsynth`` packages the original
+Hsiao-Ching-Wan method together with three high-dimensional variants that
+resolve the ``N``-near-``T0`` problem differently, each with the estimation and
+inference theory of its own paper:
 
+* Original best-subset (``hcw``; Hsiao, Ching & Wan [HCW2012]_) -- the method
+  that started the literature. The counterfactual is an *unrestricted* OLS
+  regression (with intercept) of the treated pre-period on the **best subset**
+  of controls, the subset and its size chosen by AICc (also AIC / BIC). Built
+  for the low-dimensional regime (a moderate, pre-screened candidate pool); the
+  best-subset search is combinatorial, so cap ``hcw_nvmax`` or pre-restrict the
+  pool for large ``N``. The three estimators below are its scalable descendants.
 * L2-relaxation (``l2``; Shi & Wang [l2relax]_) -- a *dense* estimator (a
   "cousin of ridge") for when the factor model makes the projection
   coefficients dense; tolerates ``N > T0``; prediction is robust to
@@ -32,8 +40,9 @@ estimation and inference theory of its own paper:
 * Forward selection (``fs``; Shi & Huang [fsPDA]_) -- a greedy procedure
   that grows the control set one unit at a time, with valid post-selection
   inference and no sparsity requirement (works for dense *or* sparse models).
+  The scalable replacement for ``hcw``'s combinatorial best-subset search.
 
-All three target the single-treated-unit, many-candidate-controls regime
+All variants target the single-treated-unit, many-candidate-controls regime
 and produce a time-varying treatment effect and an average treatment effect
 (ATE) with a HAC-based confidence interval. The practical choice among them
 (detailed below) follows the authors' own arguments: ``l2`` when the
@@ -110,6 +119,125 @@ with :math:`\mathbb{E}[\mathbf{x}_t \epsilon_t] = \mathbf{0}`. PDA fits
 :math:`\widehat{\tau} = \mathcal{E}_{\mathcal{T}_2}(\tau_t)`. The methods
 differ in how they estimate :math:`\boldsymbol{\beta}` and, crucially, in the
 inference theory each paper proves for :math:`\widehat{\tau}`.
+
+Original best subset (``hcw``, Hsiao-Ching-Wan)
+-----------------------------------------------
+
+Idea. This is the method that started the literature [HCW2012]_. The
+counterfactual is an unrestricted OLS regression -- with an intercept, no
+simplex and no shrinkage -- of the treated unit's pre-period outcome on a
+*best subset* of the donors. The question HCW pose in their Section 5 is *which*
+donors and *how many*: among all subsets of the candidate pool, pick the one
+that best trades pre-period fit against model size by an information criterion.
+For a support :math:`\mathcal{S}\subseteq\mathcal{N}_0` of size
+:math:`r = |\mathcal{S}|`, write the pre-period residual sum of squares of the
+OLS fit on the intercept and the donors in :math:`\mathcal{S}` as
+
+.. math::
+
+   \mathrm{RSS}(\mathcal{S}) = \min_{\alpha,\,\boldsymbol{\beta}_{\mathcal{S}}}
+       \sum_{t\in\mathcal{T}_1}
+       \bigl(y_{1t} - \alpha - \mathbf{x}_{t,\mathcal{S}}'
+             \boldsymbol{\beta}_{\mathcal{S}}\bigr)^2 .
+
+The default criterion is the small-sample-corrected AICc (also AIC and BIC),
+
+.. math::
+
+   \mathrm{AICc}(\mathcal{S}) = T_0 \log\!\frac{\mathrm{RSS}(\mathcal{S})}{T_0}
+       + 2K + \frac{2K(K+1)}{T_0 - K - 1},
+   \qquad K = r + 2,
+
+where the penalised parameter count :math:`K` adds, to the :math:`r` donors,
+the intercept and the error variance -- the convention of the ``pampe`` R
+package (``leaps::regsubsets`` + AICc + ``lm``), which reproduces HCW Table XVI
+value-for-value (the sovereignty study selects
+:math:`\{\text{Japan},\text{Korea},\text{Taiwan},\text{USA}\}` with
+:math:`\mathrm{AICc} = -171.771`). The selected support is the global minimiser
+
+.. math::
+
+   \widehat{\mathcal{S}} = \operatorname*{argmin}_{\mathcal{S}\subseteq
+       \mathcal{N}_0,\; |\mathcal{S}|\le r_{\max}} \mathrm{AICc}(\mathcal{S}),
+
+with :math:`r_{\max}` (``hcw_nvmax``, pampe's ``nvmax``) capping the search at a
+maximum model size, bounded by the pre-period degrees of freedom. The
+counterfactual is then the OLS extrapolation on :math:`\widehat{\mathcal{S}}`,
+as in the shared model.
+
+Best subset selection is HCW's classical, low-dimensional choice: AICc / AIC /
+BIC are only defined while :math:`r < T_0`, and the search is combinatorial in
+:math:`N_0`. HCW therefore pre-screened the donor pool (limiting Hong Kong to
+ten candidate economies). [HTT2020]_ place best subset alongside its two cheaper
+relatives -- forward stepwise and the lasso -- and show forward stepwise tracks
+best subset closely, which is exactly why ``fs`` is ``hcw``'s scalable
+descendant; ``lasso`` and ``l2`` are the others. Use ``hcw`` when the candidate
+pool is moderate and pre-screened, when you want the original method or to
+reproduce HCW / ``pampe``, and when an exact, certified optimum is the point.
+
+Computing the best subset: the optimisation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are :math:`2^{N_0}` candidate subsets, each an OLS fit, so naive
+enumeration is the regime where even ``leaps`` strains. ``mlsynth`` solves the
+problem exactly with a branch-and-bound built on three ideas, plus an optional
+fourth that hands the problem to a mixed-integer solver.
+
+*Furnival-Wilson sweep engine.* The default is the canonical
+``leaps::regsubsets`` algorithm [FurnivalWilson]_: a depth-first search over
+subsets driven by the symmetric sweep operator on the augmented cross-product
+matrix :math:`[\mathbf{1},\mathbf{X},\mathbf{y}]'
+[\mathbf{1},\mathbf{X},\mathbf{y}]`. Sweeping a donor in leaves the running
+:math:`\mathrm{RSS}` in the response diagonal in :math:`O(p^2)`, and the reverse
+sweep removes it on backtracking, so no OLS is ever re-solved from scratch. Each
+subtree is bounded below by the smallest :math:`\mathrm{RSS}` it can reach
+(include *every* remaining donor -- :math:`\mathrm{RSS}` is monotone in the
+variable set) paired with the smallest information-criterion penalty any
+descendant can carry; when that lower bound cannot beat the incumbent, the
+whole subtree is pruned. The bound is a true lower bound, so the returned subset
+is the exact global optimum -- identical to exhaustive enumeration, at a small
+fraction of the cost.
+
+*Discrete first-order warm start.* The incumbent is seeded, at every model
+size, with the Bertsimas-King-Mazumder projected-gradient hard-thresholding
+method [BKM2016]_ (their Algorithm 1): iterate
+:math:`\boldsymbol{\beta}\leftarrow H_r\!\bigl(\boldsymbol{\beta} - \tfrac{1}{L}
+\nabla g(\boldsymbol{\beta})\bigr)`, where :math:`H_r` keeps the :math:`r`
+largest-magnitude coordinates and :math:`L` upper-bounds the largest eigenvalue
+of the centred donor Gram, with a least-squares refit on the active set and
+several restarts. A near-optimal incumbent tightens the bound from the outset
+and prunes more subtrees; because the seed can only lower the incumbent, the
+certified optimum is unchanged.
+
+*Node budget and a certified optimality gap.* For a pool too large to certify
+quickly, the search stops at a node budget and returns the best incumbent found
+together with a valid lower bound -- the smallest subtree bound it never reached.
+The reported :math:`\text{optimality gap} = \text{incumbent} - \text{lower
+bound}` is then a genuine suboptimality certificate (zero means provably
+optimal), the Bertsimas-King-Mazumder gap obtained from the branch-and-bound's
+own bounds with no solver. This replaces an outright refusal of large pools:
+``fits["hcw"].metadata`` reports ``certified_optimal`` and ``optimality_gap``.
+
+*Optional exact mixed-integer backend.* Setting ``hcw_backend="scip"`` certifies
+the optimum at pool sizes beyond the branch-and-bound's exact reach via the SCIP
+solver. It casts the size-:math:`r` problem as the Bertsimas-King-Mazumder
+cardinality-constrained least squares -- binary indicators :math:`z_i`, an SOS-1
+coupling forcing :math:`z_i = 0 \Rightarrow \beta_i = 0`, and
+:math:`\sum_i z_i \le r` -- solved once per size, then chooses the size by the
+criterion. The dependency is optional: ``pyscipopt`` is imported only on demand
+(``pip install mlsynth[scip]``). The default ``fw`` backend needs no solver and
+is all the low-dimensional regime ``hcw`` targets requires.
+
+Assumptions and inference. ``hcw`` shares the identifying stack documented
+under :ref:`Shared assumptions across the PDA class <pda-shared-assumptions>`
+(the latent factor model A1, single absorbing treatment A2, weak temporal
+dependence A3), specialised to the low-dimensional regime :math:`N_0 < T_0` that
+makes the information criteria well-defined. Inference mirrors the post-selection
+HAC machinery of the scalable variants: the average effect carries a
+Newey-West / Bartlett long-run-variance confidence interval (prewhitened by
+default; ``lrvar_lag`` switches to a fixed-lag Bartlett estimator), and
+``prediction_intervals=True`` attaches the Jiang et al. per-period intervals
+described below.
 
 L2-relaxation (``l2``, Shi & Wang)
 ----------------------------------
@@ -407,6 +535,8 @@ Choosing among the three
      - large pool; predictive ensemble; cheap; honest post-selection inference
 
 
+
+.. _pda-shared-assumptions:
 
 Shared assumptions across the PDA class
 ---------------------------------------
@@ -780,9 +910,11 @@ The implementation lives at the shared :func:`mlsynth.utils.inferutils.pda_predi
 so any panel-data estimator can reuse it. Both the equal-tailed (``eq``) and
 symmetric (``sy``) intervals are returned, and each variant reports which
 studentization it used: ``sandwich`` for the post-selection OLS HAC variance
-:math:`\widehat V_t` (``lasso`` and ``fs``, which select then run OLS), or the
-``sigma2`` fallback when that sandwich is undefined -- as for the dense
-L2-relaxation when the controls outnumber the pre-periods.
+:math:`\widehat V_t` (``hcw``, ``lasso`` and ``fs``, which all select then run
+OLS -- ``hcw`` is exactly the low-dimensional post-selection-OLS case of Jiang
+et al.'s Remark 2.1, with best subset as the selector re-run on each bootstrap
+draw), or the ``sigma2`` fallback when that sandwich is undefined -- as for the
+dense L2-relaxation when the controls outnumber the pre-periods.
 
 .. code-block:: python
 
@@ -802,9 +934,17 @@ Verification
 
 .. note::
 
-   Empirical (Path A, Hong Kong). All three variants run on the HCW Hong
-   Kong panel (above) and agree on a significant positive integration effect,
-   consistent with the literature and the Forward-DiD cross-check (0.025).
+   Empirical (Path A, Hong Kong). All three high-dimensional variants run on
+   the HCW Hong Kong panel (above) and agree on a significant positive
+   integration effect, consistent with the literature and the Forward-DiD
+   cross-check (0.025).
+
+   Original HCW (Path A, best subset). ``benchmarks/cases/pda_hcw_hongkong.py``
+   reproduces Hsiao, Ching & Wan (2012) Tables XVI-XVII value-for-value with
+   ``method="hcw"``: on the sovereignty study (ten candidate economies,
+   T0 = 18), AICc selects {Japan, Korea, Taiwan, USA} with the published OLS
+   weights, pre-period :math:`R^2 = 0.9314`, and an insignificant average
+   effect of -3.96% -- cross-validating against the ``pampe`` R package.
 
    Prediction intervals (Path B, coverage). The bootstrap prediction
    intervals are validated by ``benchmarks/cases/pda_pi_coverage.py``, which

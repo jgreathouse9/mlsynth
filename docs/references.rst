@@ -7,6 +7,8 @@ References
 
 .. [LASSOPDA] Li, Kathleen T., and David R. Bell. *"Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation."* J. Econom., vol. 197, no. 1, March 2017, pp. 65–75. https://doi.org/10.1016/j.jeconom.2016.01.011.
 
+.. [HCW2012] Hsiao, Cheng, H. Steve Ching, and Shui Ki Wan. *"A Panel Data Approach for Program Evaluation: Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China."* Journal of Applied Econometrics, vol. 27, no. 5, 2012, pp. 705–740. https://doi.org/10.1002/jae.1230.
+
 
 
 .. [Amjad2018] Amjad, Muhammad, Devavrat Shah, and Dennis Shen. *"Robust Synthetic Control."* Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.
@@ -69,6 +71,12 @@ References
 .. [l2relax] Zhentao Shi and Yishu Wang. *"L2-relaxation for Economic Prediction."* November 2024. `doi:10.13140/RG.2.2.11670.97609 <https://doi.org/10.13140/RG.2.2.11670.97609>`_.
 
 .. [pdapi] Hongyi Jiang, Xingyu Li, Yan Shen, and Qiankun Zhou. *"Prediction Intervals of Panel Data Approach for Programme Evaluation."* *Journal of Applied Econometrics*, 40(5): 655-668, 2025. `doi:10.1002/jae.3134 <https://doi.org/10.1002/jae.3134>`_.
+
+.. [FurnivalWilson] George M. Furnival and Robert W. Wilson. *"Regressions by Leaps and Bounds."* *Technometrics*, 16(4): 499-511, 1974. `doi:10.1080/00401706.1974.10489231 <https://doi.org/10.1080/00401706.1974.10489231>`_.
+
+.. [BKM2016] Dimitris Bertsimas, Angela King, and Rahul Mazumder. *"Best Subset Selection via a Modern Optimization Lens."* *The Annals of Statistics*, 44(2): 813-852, 2016. `doi:10.1214/15-AOS1388 <https://doi.org/10.1214/15-AOS1388>`_.
+
+.. [HTT2020] Trevor Hastie, Robert Tibshirani, and Ryan Tibshirani. *"Best Subset, Forward Stepwise or Lasso? Analysis and Recommendations Based on Extensive Comparisons."* *Statistical Science*, 35(4): 579-592, 2020. `doi:10.1214/19-STS733 <https://doi.org/10.1214/19-STS733>`_.
 
 
 .. [fsPDA]

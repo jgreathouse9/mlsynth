@@ -9,6 +9,7 @@ inference theory from its own paper:
 * ``l2``    -- L2-relaxation (Shi & Wang 2024).
 * ``lasso`` -- L1/LASSO (Li & Bell 2017).
 * ``fs``    -- forward-selected PDA (Shi & Huang 2023).
+* ``hcw``   -- original best-subset PDA (Hsiao, Ching & Wan 2012).
 
 Everything below is pure NumPy; units/time are addressed through
 :class:`IndexSet`. The only DataFrame touchpoint is ``setup``.
@@ -38,6 +39,7 @@ from ..fast_scm_helpers.structure import IndexSet
 L2 = "l2"
 LASSO = "lasso"
 FS = "fs"
+HCW = "hcw"
 
 
 @dataclass(frozen=True)
