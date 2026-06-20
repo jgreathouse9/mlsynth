@@ -119,7 +119,9 @@ def _subset_rss(G: np.ndarray, Zty: np.ndarray, yty: float, cols) -> float:
     bs = Zty[idx]
     w, V = np.linalg.eigh(Gs)                     # Gs is symmetric PSD
     tol = max(Gs.shape) * np.finfo(float).eps * max(float(w[-1]), 1.0)
-    inv_w = np.where(w > tol, 1.0 / w, 0.0)       # pseudo-inverse: drop ~null dirs
+    inv_w = np.zeros_like(w)                       # pseudo-inverse: drop ~null dirs
+    keep = w > tol
+    inv_w[keep] = 1.0 / w[keep]
     sol = V @ (inv_w * (V.T @ bs))
     return max(yty - float(bs @ sol), 0.0)
 
@@ -200,7 +202,9 @@ def _all_in_rss(M: np.ndarray, rem_idx: List[int], y_idx: int, cur_rss: float) -
     b = M[rem_idx, y_idx]
     w, V = np.linalg.eigh(A)
     tol = max(A.shape) * np.finfo(float).eps * max(float(w[-1]), 1.0)
-    inv_w = np.where(w > tol, 1.0 / w, 0.0)
+    inv_w = np.zeros_like(w)
+    keep = w > tol
+    inv_w[keep] = 1.0 / w[keep]
     sol = V @ (inv_w * (V.T @ b))
     return max(cur_rss - float(b @ sol), 0.0)
 
