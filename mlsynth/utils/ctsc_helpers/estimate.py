@@ -35,9 +35,13 @@ from __future__ import annotations
 from typing import Optional, Tuple
 
 import numpy as np
-from scipy.optimize import nnls
 
 from ...exceptions import MlsynthEstimationError
+from ..bilevel.nnls import nnls_select
+
+# scipy's nnls where it is a fixed, fast release (>= 1.15), else the in-house
+# solver (scipy 1.12-1.14 regressed -- raises on the iteration cap).
+nnls = nnls_select()
 
 _TOL = 1e-9
 

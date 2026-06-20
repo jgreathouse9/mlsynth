@@ -204,4 +204,5 @@ jobs:
             mlsynth/tests/test_sbc.py \
             mlsynth/tests/test_fdid.py \
             mlsynth/tests/test_mcnnm.py \
-            mlsynth/tests/test_clustersc.py
+            mlsynth/tests/test_clustersc.py \
+            mlsynth/tests/test_ctsc.py

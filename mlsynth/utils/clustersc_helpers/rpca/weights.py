@@ -18,9 +18,13 @@ interpretable.
 from __future__ import annotations
 
 import numpy as np
-from scipy.optimize import nnls
 
 from ....exceptions import MlsynthEstimationError
+from ...bilevel.nnls import nnls_select
+
+# scipy's compiled nnls where it is a fixed, fast release (>= 1.15), else the
+# in-house solver (scipy 1.12-1.14 regressed -- raises on the iteration cap).
+nnls = nnls_select()
 
 
 def solve_nnls(
