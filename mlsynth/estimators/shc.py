@@ -95,6 +95,9 @@ class SHC:
         self.m: int = config.m
         self.use_augmented: bool = config.use_augmented
         self.bandwidth_grid = config.bandwidth_grid
+        self.inference_method: str = config.inference_method
+        self.permutation_scheme: str = config.permutation_scheme
+        self.num_permutations = config.num_permutations
 
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, str] = config.save
@@ -127,6 +130,9 @@ class SHC:
              window_time, fit_diagnostics) = summarize_effects(inputs, design)
             inference = run_conformal_inference(
                 inputs, design, observed, counterfactual,
+                method=self.inference_method,
+                permutation_scheme=self.permutation_scheme,
+                num_permutations=self.num_permutations,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

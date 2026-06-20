@@ -245,12 +245,147 @@ def shc_conformal_test(
 
 
 
+def cwz_conformal_test(
+    pre_intervention_residuals: np.ndarray,
+    post_intervention_residuals: np.ndarray,
+    q: float = 1.0,
+    scheme: str = "moving_block",
+    num_permutations: int | None = None,
+    levels: Tuple[float, ...] = (0.01, 0.05, 0.10),
+    random_state: int = 0,
+) -> dict:
+    r"""Exact permutation conformal test of Chernozhukov, Wuthrich & Zhu (2021).
+
+    This is the *exact* conformal inference of CWZ (2021), as opposed to the
+    Chen-Yang-Yang (2024, footnote 21) with-replacement residual bootstrap in
+    :func:`shc_conformal_test`. It tests the sharp null
+    :math:`H_0: \delta_t = 0` over the post window using the CWZ statistic
+    (their Definition 1)
+
+    .. math::
+
+       S_q(u) = \Bigl( \tfrac{1}{\sqrt{n}}
+                 \sum_{t = T_o + 1}^{T_o + n} |u_t|^q \Bigr)^{1/q},
+
+    evaluated on the trailing ``n`` positions of the full residual vector
+    :math:`u = (\hat\varepsilon_1^0, \dots, \hat\varepsilon_{T_o}^0,
+    \hat\delta_1, \dots, \hat\delta_n)` of length :math:`T = T_o + n`. The
+    reference distribution is obtained by *permuting* ``u`` (CWZ Definition 2,
+    Figure 2), not by resampling from the pre-period pool:
+
+    * ``scheme="moving_block"`` -- the :math:`T` cyclic shifts
+      :math:`\Pi_{\rightarrow}` (:math:`\pi_j(i) = i + j \bmod T`), valid under
+      stationary weak dependence. The set is fully enumerated, so the test is
+      deterministic and its p-values lie on the :math:`1/T` grid.
+    * ``scheme="iid"`` -- random permutations from :math:`\Pi_{\mathrm{all}}`,
+      exact under exchangeability; ``num_permutations`` are drawn (the identity
+      is always included so :math:`\hat p \ge 1/|\Pi|`).
+
+    Parameters
+    ----------
+    pre_intervention_residuals : np.ndarray
+        Pre-period residuals :math:`\hat\varepsilon_t^0`, shape ``(T_o,)``.
+    post_intervention_residuals : np.ndarray
+        Post-period residuals (estimated gaps), shape ``(n,)``.
+    q : float, optional
+        Norm exponent of the test statistic. Default ``1.0`` (CWZ's :math:`S_1`,
+        which matches the bootstrap statistic in :func:`shc_conformal_test`).
+    scheme : {"moving_block", "iid"}, optional
+        Permutation family. Default ``"moving_block"``.
+    num_permutations : int or None, optional
+        Number of permutations for ``scheme="iid"`` (>= 2). Ignored for
+        ``"moving_block"`` (always ``T``). Defaults to ``1000`` for ``"iid"``.
+    levels : tuple of float, optional
+        Significance levels for critical values / reject decisions.
+    random_state : int, optional
+        Seed for the ``"iid"`` permutation RNG (unused for ``"moving_block"``).
+
+    Returns
+    -------
+    dict
+        Keys ``test_statistic``, ``p_value`` (:math:`\Pr(S^* \ge S)`),
+        ``critical_values``, ``reject``, ``null_distribution``,
+        ``num_permutations``, ``scheme``, ``q``, ``levels``.
+
+    Raises
+    ------
+    MlsynthDataError
+        If either residual array is empty.
+    MlsynthConfigError
+        If ``q <= 0``, ``scheme`` is unknown, or ``num_permutations < 2``.
+    """
+    pre = np.asarray(pre_intervention_residuals, dtype=float).ravel()
+    post = np.asarray(post_intervention_residuals, dtype=float).ravel()
+    if pre.size == 0:
+        raise MlsynthDataError("pre_intervention_residuals cannot be empty.")
+    if post.size == 0:
+        raise MlsynthDataError("post_intervention_residuals cannot be empty.")
+    if not q > 0:
+        raise MlsynthConfigError("q must be positive.")
+    if scheme not in ("moving_block", "iid"):
+        raise MlsynthConfigError(
+            f"scheme must be 'moving_block' or 'iid', got {scheme!r}."
+        )
+
+    n = post.size
+    T0 = pre.size
+    u = np.concatenate([pre, post])           # full residual vector, length T
+    T = u.size
+    inv_sqrt_n = 1.0 / np.sqrt(n)
+
+    def stat(block: np.ndarray) -> float:
+        return float((inv_sqrt_n * np.sum(np.abs(block) ** q)) ** (1.0 / q))
+
+    test_statistic = stat(post)
+
+    if scheme == "moving_block":
+        # The T cyclic shifts; trailing-n block of np.roll(u, -j) for j=0..T-1.
+        # j = 0 is the identity (the observed statistic), so it is included.
+        null_distribution = np.array(
+            [stat(np.roll(u, -j)[T0:]) for j in range(T)], dtype=float
+        )
+        num_permutations = T
+    else:  # scheme == "iid"
+        if num_permutations is None:
+            num_permutations = 1000
+        if num_permutations < 2:
+            raise MlsynthConfigError("num_permutations must be >= 2 for 'iid'.")
+        rng = np.random.default_rng(random_state)
+        stats = np.empty(num_permutations, dtype=float)
+        stats[0] = test_statistic                     # identity always included
+        for i in range(1, num_permutations):
+            stats[i] = stat(rng.permutation(u)[T0:])
+        null_distribution = stats
+
+    p_value = float(np.mean(null_distribution >= test_statistic))
+    critical_values = {
+        lvl: float(np.quantile(null_distribution, 1.0 - lvl)) for lvl in levels
+    }
+    reject = {lvl: bool(test_statistic > critical_values[lvl]) for lvl in levels}
+
+    return {
+        "test_statistic": test_statistic,
+        "p_value": p_value,
+        "critical_values": critical_values,
+        "reject": reject,
+        "null_distribution": null_distribution,
+        "num_permutations": int(num_permutations),
+        "scheme": scheme,
+        "q": float(q),
+        "levels": tuple(levels),
+    }
+
+
 def run_conformal_inference(
     inputs: SHCInputs,
     design: SHCDesign,
     observed: np.ndarray,
     counterfactual: np.ndarray,
     *,
+    method: str = "bootstrap",
+    permutation_scheme: str = "moving_block",
+    num_permutations: int | None = None,
+    q: float = 1.0,
     miscoverage_rate: float = 0.10,
     num_resamples: int = 1000,
     levels: Sequence[float] = (0.01, 0.05, 0.10),
@@ -266,10 +401,26 @@ def run_conformal_inference(
         Fitted design (supplies ``latent_pre`` for the pre-period residuals).
     observed, counterfactual : np.ndarray
         Observed and SHC series over the ``m + n`` block window.
+    method : {"bootstrap", "exact"}
+        ``"bootstrap"`` (default) is the Chen-Yang-Yang (2024) with-replacement
+        residual bootstrap (:func:`shc_conformal_test`); ``"exact"`` is the
+        Chernozhukov-Wuthrich-Zhu (2021) permutation test
+        (:func:`cwz_conformal_test`).
+    permutation_scheme : {"moving_block", "iid"}
+        Permutation family for ``method="exact"``.
+    num_permutations : int or None
+        Permutation count for ``method="exact"`` with ``permutation_scheme="iid"``.
+    q : float
+        Norm exponent of the exact-test statistic.
     miscoverage_rate : float
         ``1 - coverage`` for the Andrews-Genton bands (0.10 -> 90%).
     num_resamples, levels, random_state
-        Forwarded to :func:`shc_conformal_test`.
+        Forwarded to the selected test.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If ``method`` is not ``"bootstrap"`` or ``"exact"``.
     """
     m = inputs.m
     T0 = inputs.T0
@@ -279,13 +430,32 @@ def run_conformal_inference(
     pre_residuals = inputs.y[:T0] - np.asarray(design.latent_pre).ravel()
     post_residuals = observed[m:] - counterfactual[m:]
 
-    test = shc_conformal_test(
-        pre_intervention_residuals=pre_residuals,
-        post_intervention_residuals=post_residuals,
-        num_resamples=num_resamples,
-        levels=tuple(levels),
-        random_state=random_state,
-    )
+    if method == "bootstrap":
+        test = shc_conformal_test(
+            pre_intervention_residuals=pre_residuals,
+            post_intervention_residuals=post_residuals,
+            num_resamples=num_resamples,
+            levels=tuple(levels),
+            random_state=random_state,
+        )
+        method_label = "conformal_permutation"
+        n_draws = test["num_resamples"]
+    elif method == "exact":
+        test = cwz_conformal_test(
+            pre_intervention_residuals=pre_residuals,
+            post_intervention_residuals=post_residuals,
+            q=q,
+            scheme=permutation_scheme,
+            num_permutations=num_permutations,
+            levels=tuple(levels),
+            random_state=random_state,
+        )
+        method_label = f"conformal_exact_{test['scheme']}"
+        n_draws = test["num_permutations"]
+    else:
+        raise MlsynthConfigError(
+            f"method must be 'bootstrap' or 'exact', got {method!r}."
+        )
 
     lower, upper = ag_conformal(
         actual_outcomes_pre_treatment=observed[:m],
@@ -296,12 +466,12 @@ def run_conformal_inference(
     )
 
     return SHCInference(
-        method="conformal_permutation",
+        method=method_label,
         test_statistic=test["test_statistic"],
         p_value=test["p_value"],
         critical_values=test["critical_values"],
         reject=test["reject"],
-        num_resamples=test["num_resamples"],
+        num_resamples=n_draws,
         null_distribution=test["null_distribution"],
         conformal_lower=lower[m:],
         conformal_upper=upper[m:],
