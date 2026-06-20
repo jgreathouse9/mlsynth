@@ -29,6 +29,8 @@ from mlsynth.config_models import PDAConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 
 from mlsynth.utils.pda_helpers.hcw.estimation import (
+    _best_subset_bnb,
+    _best_subset_exhaustive,
     _gram,
     _rss,
     _subset_rss,
@@ -96,6 +98,56 @@ class TestGramRSS:
         # Same fitted subspace as the full-rank {0, 2} design.
         ref = _rss(y, np.column_stack([np.ones(T0), X[:, [0, 2]]]))
         assert abs(rss - ref) < 1e-6 * max(ref, 1.0)
+
+
+class TestBranchAndBound:
+    """Branch-and-bound must return the *same* optimum as exhaustive search.
+
+    The bound (min RSS = include all remaining donors; min penalty = stop now)
+    is a true lower bound on the criterion over each subtree, so pruning never
+    discards the optimum. We pin B&B to the exhaustive optimum across many
+    random designs, sizes, and criteria -- both the selected set and the
+    achieved criterion value.
+    """
+
+    @pytest.mark.parametrize("criterion", ["AICc", "AIC", "BIC"])
+    @pytest.mark.parametrize("seed", range(12))
+    def test_bnb_matches_exhaustive(self, criterion, seed):
+        rng = np.random.default_rng(seed)
+        T0 = int(rng.integers(14, 35))
+        N = int(rng.integers(3, 11))
+        X = rng.standard_normal((T0 + 6, N))
+        # A genuine signal on a random sparse support, plus noise.
+        k_true = int(rng.integers(1, min(N, 4) + 1))
+        support = rng.choice(N, size=k_true, replace=False)
+        y = X[:, support] @ rng.standard_normal(k_true) + 0.4 * rng.standard_normal(T0 + 6)
+
+        G, Zty, yty = _gram(y[:T0], X[:T0])
+        r_max = min(N, max(T0 - 2, 0))
+        exhaustive = _best_subset_exhaustive(G, Zty, yty, N, T0, r_max, criterion)
+        bnb = _best_subset_bnb(G, Zty, yty, N, T0, r_max, criterion)
+        assert sorted(bnb) == sorted(exhaustive)
+
+    @pytest.mark.parametrize("seed", range(6))
+    def test_bnb_respects_nvmax(self, seed):
+        rng = np.random.default_rng(50 + seed)
+        T0, N = 30, 9
+        X = rng.standard_normal((T0, N))
+        y = X @ rng.standard_normal(N) + 0.1 * rng.standard_normal(T0)
+        G, Zty, yty = _gram(y, X)
+        ex = _best_subset_exhaustive(G, Zty, yty, N, T0, 3, "AIC")
+        bb = _best_subset_bnb(G, Zty, yty, N, T0, 3, "AIC")
+        assert len(bb) <= 3
+        assert sorted(bb) == sorted(ex)
+
+    def test_public_select_matches_exhaustive_on_hk(self, hk_table16):
+        # The public path (now B&B) must still select HCW's Table XVI set.
+        y, X, labels, T0 = hk_table16
+        G, Zty, yty = _gram(y[:T0], X[:T0])
+        ex = _best_subset_exhaustive(G, Zty, yty, X.shape[1], T0,
+                                     min(X.shape[1], T0 - 2), "AICc")
+        got = best_subset_select(y, X, T0, criterion="AICc")
+        assert sorted(got) == sorted(ex)
 
 
 class TestInfoCriterion:

@@ -153,24 +153,72 @@ def best_subset_select(
     total = sum(comb(N, r) for r in range(0, r_max + 1))
     if total > _MAX_SUBSETS:
         raise MlsynthEstimationError(
-            f"HCW best-subset search over {N} donors up to size {r_max} needs "
-            f"{total:,} OLS fits (> {_MAX_SUBSETS:,}). Cap 'hcw_nvmax', restrict "
-            "the donor pool (as HCW limited Hong Kong to ten economies), or use "
-            "the scalable 'fs' / 'LASSO' / 'l2' PDA variants instead."
+            f"HCW best-subset over {N} donors up to size {r_max} has a "
+            f"worst-case {total:,} subsets (> {_MAX_SUBSETS:,}). Branch-and-bound "
+            "prunes most of these, but the worst case is not guaranteed, so the "
+            "pool is refused. Cap 'hcw_nvmax', restrict the donor pool (as HCW "
+            "limited Hong Kong to ten economies), or use the scalable 'fs' / "
+            "'LASSO' / 'l2' PDA variants instead."
         )
 
     # Precompute the Gram sufficient statistics once; each subset's RSS is then
     # an O(r^3) submatrix solve rather than an O(T0 r^2) SVD.
     G, Zty, yty = _gram(y_pre, X_pre)
+    return _best_subset_bnb(G, Zty, yty, N, T0, r_max, criterion)
+
+
+def _best_subset_exhaustive(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
+    """Brute-force best subset: score every subset up to ``r_max`` by criterion.
+
+    The reference search -- correct by construction and the oracle that
+    :func:`_best_subset_bnb` is validated against.
+    """
     best_idx: List[int] = []
-    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), T0, 1, criterion)
+    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion)
     for r in range(1, r_max + 1):
         for combo in combinations(range(N), r):
-            ic = info_criterion(
-                _subset_rss(G, Zty, yty, combo), T0, r + 1, criterion)
+            ic = info_criterion(_subset_rss(G, Zty, yty, combo), n, r + 1, criterion)
             if ic < best_ic:
                 best_ic, best_idx = ic, list(combo)
     return best_idx
+
+
+def _best_subset_bnb(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
+    """Best subset by branch-and-bound (Furnival-Wilson style pruning).
+
+    Donors are ordered strongest-first (smallest univariate RSS) so the
+    incumbent tightens early. At each node the criterion is lower-bounded over
+    the whole subtree by the smallest achievable RSS (include *all* remaining
+    donors -- RSS is monotone in the variable set) paired with the smallest
+    feasible penalty (stop now); if that bound is no better than the incumbent,
+    the subtree is pruned. The bound is a true lower bound, so the returned
+    optimum is identical to :func:`_best_subset_exhaustive`.
+    """
+    uni = [_subset_rss(G, Zty, yty, (j,)) for j in range(N)]
+    order = sorted(range(N), key=lambda j: uni[j])
+
+    best = {"ic": info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion),
+            "idx": []}
+
+    def recurse(chosen: List[int], pos: int) -> None:
+        k = len(chosen)
+        if k >= 1:
+            ic = info_criterion(_subset_rss(G, Zty, yty, chosen), n, k + 1, criterion)
+            if ic < best["ic"]:
+                best["ic"], best["idx"] = ic, list(chosen)
+        if k >= r_max or pos >= N:
+            return
+        remaining = order[pos:]
+        # Lower bound over the subtree: include every remaining donor (minimum
+        # RSS) at the smallest feasible model size (minimum penalty).
+        rss_lb = _subset_rss(G, Zty, yty, chosen + remaining)
+        if info_criterion(rss_lb, n, max(k, 1) + 1, criterion) >= best["ic"]:
+            return
+        for p in range(pos, N):
+            recurse(chosen + [order[p]], p + 1)
+
+    recurse([], 0)
+    return best["idx"]
 
 
 def fit_hcw(
