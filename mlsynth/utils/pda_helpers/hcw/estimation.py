@@ -101,22 +101,27 @@ def _gram(y_pre: np.ndarray, X_pre: np.ndarray):
 
 
 def _subset_rss(G: np.ndarray, Zty: np.ndarray, yty: float, cols) -> float:
-    """RSS of OLS on the intercept + donor columns ``cols`` via the normal eqs.
+    """RSS of OLS on the intercept + donor columns ``cols`` from the Gram.
 
-    ``RSS = y'y - (Z_S'y)' (Z_S'Z_S)^{-1} (Z_S'y)`` over the submatrix indexed by
-    the intercept (column 0) and ``cols`` (shifted by +1). Falls back to a
-    least-norm solve when the submatrix is singular (collinear donors), so the
-    result matches the lstsq reference on rank-deficient subsets too.
+    ``RSS = y'y - (Z_S'y)' (Z_S'Z_S)^{+} (Z_S'y)`` over the submatrix indexed by
+    the intercept (column 0) and ``cols`` (shifted by +1). The solve goes through
+    a symmetric eigendecomposition, dropping the near-null spectrum a collinear
+    donor subset produces: solving the singular normal equations with ``lstsq``
+    instead keeps a ~machine-epsilon direction and can return a garbage, even
+    negative, RSS (platform-dependent). The eigen solve matches the full-rank
+    direct solve and the min-norm fit on rank-deficient subsets alike; the result
+    is clamped to be non-negative against residual cancellation near a perfect
+    fit.
     """
     idx = [0]
     idx.extend(c + 1 for c in cols)
     Gs = G[np.ix_(idx, idx)]
     bs = Zty[idx]
-    try:
-        sol = np.linalg.solve(Gs, bs)
-    except np.linalg.LinAlgError:                # collinear subset -> min-norm
-        sol, *_ = np.linalg.lstsq(Gs, bs, rcond=None)
-    return yty - float(bs @ sol)
+    w, V = np.linalg.eigh(Gs)                     # Gs is symmetric PSD
+    tol = max(Gs.shape) * np.finfo(float).eps * max(float(w[-1]), 1.0)
+    inv_w = np.where(w > tol, 1.0 / w, 0.0)       # pseudo-inverse: drop ~null dirs
+    sol = V @ (inv_w * (V.T @ bs))
+    return max(yty - float(bs @ sol), 0.0)
 
 
 def _sweep(M: np.ndarray, k: int) -> None:
@@ -183,20 +188,21 @@ def _all_in_rss(M: np.ndarray, rem_idx: List[int], y_idx: int, cur_rss: float) -
     ``M[rem, rem]`` is the residual cross-product of the remaining donors and
     ``M[rem, y]`` their residual covariance with the response (Schur
     complements). Including all of them drops the RSS by the regression sum of
-    squares ``M[y, rem] (M[rem, rem])^{-1} M[rem, y]``. This is the smallest RSS
+    squares ``M[y, rem] (M[rem, rem])^{+} M[rem, y]``. This is the smallest RSS
     any descendant subset can reach (RSS is monotone in the variable set), so it
-    is the lower-bound ingredient for pruning. A least-norm solve covers a
-    rank-deficient remaining block.
+    is the lower-bound ingredient for pruning. The symmetric-PSD eigen solve (as
+    in :func:`_subset_rss`) drops the near-null spectrum of a rank-deficient
+    remaining block, keeping the bound finite and non-negative.
     """
     if not rem_idx:
         return cur_rss
     A = M[np.ix_(rem_idx, rem_idx)]
     b = M[rem_idx, y_idx]
-    try:
-        sol = np.linalg.solve(A, b)
-    except np.linalg.LinAlgError:                # collinear remainder -> min-norm
-        sol, *_ = np.linalg.lstsq(A, b, rcond=None)
-    return cur_rss - float(b @ sol)
+    w, V = np.linalg.eigh(A)
+    tol = max(A.shape) * np.finfo(float).eps * max(float(w[-1]), 1.0)
+    inv_w = np.where(w > tol, 1.0 / w, 0.0)
+    sol = V @ (inv_w * (V.T @ b))
+    return max(cur_rss - float(b @ sol), 0.0)
 
 
 def _resolve_nvmax(nvmax: Optional[int], N: int, T0: int) -> int:
