@@ -117,13 +117,7 @@ through cvxpy's solver stack.
 
 Installation.
 
-Install from PyPI:
-
-.. code:: bash
-
-   pip install mlsynth
-
-or get the latest development version straight from GitHub:
+Install the latest version straight from GitHub:
 
 .. code:: bash
 
@@ -158,13 +152,13 @@ not glob the brackets:
 .. code:: bash
 
    # SCIP solver for SYNDES / MAREX
-   pip install "mlsynth[design]"
+   pip install -U "mlsynth[design] @ git+https://github.com/jgreathouse9/mlsynth.git"
 
    # NumPyro for SPOTSYNTH's Bayesian mode
-   pip install "mlsynth[bayes]"
+   pip install -U "mlsynth[bayes] @ git+https://github.com/jgreathouse9/mlsynth.git"
 
    # everything
-   pip install "mlsynth[all]"
+   pip install -U "mlsynth[all] @ git+https://github.com/jgreathouse9/mlsynth.git"
 
 Both extra backends are imported lazily, so ``import mlsynth`` and importing any
 estimator class always succeed on the base install; the extra is consulted only
