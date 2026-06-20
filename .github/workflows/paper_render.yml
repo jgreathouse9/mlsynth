@@ -1,0 +1,103 @@
+name: Render Quarto Report
+
+on:
+  push:
+    paths:
+      - '**.qmd'
+      - '**/requirements.txt'
+  workflow_dispatch:
+    inputs:
+      target_qmd:
+        description: 'Path to a specific .qmd file to render (e.g., Docs/Report/writeup.qmd)'
+        required: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository (full history)
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.13'
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: "1.7.8"
+
+      - name: Install TinyTeX
+        run: |
+          quarto install tinytex
+
+      - name: Determine target .qmd file
+        id: select_qmd
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.target_qmd }}" ]; then
+            echo "Using manually specified .qmd: ${{ github.event.inputs.target_qmd }}"
+            echo "target_qmd=${{ github.event.inputs.target_qmd }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Selecting last modified .qmd file from recent commits..."
+            last_qmd=$(git diff --name-only origin/main...HEAD | grep '\.qmd$' | tail -n 1)
+            if [ -z "$last_qmd" ]; then
+              echo "No changes from origin/main...HEAD — falling back to HEAD~1"
+              last_qmd=$(git diff --name-only HEAD~1 | grep '\.qmd$' | tail -n 1)
+            fi
+
+            if [ -z "$last_qmd" ]; then
+              echo "No .qmd file changes detected. Exiting."
+              exit 1
+            fi
+
+            echo "Found modified .qmd file: $last_qmd"
+            echo "target_qmd=$last_qmd" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install requirements one level below .qmd file
+        run: |
+          qmd_file="${{ steps.select_qmd.outputs.target_qmd }}"
+          qmd_dir=$(dirname "$qmd_file")
+
+          req_file=$(find "$qmd_dir" -mindepth 1 -maxdepth 2 -type f -name "requirements.txt" | head -n 1)
+
+          if [ -n "$req_file" ]; then
+            echo "Installing dependencies from $req_file"
+            pip install -r "$req_file"
+          else
+            echo "No requirements.txt found below $qmd_dir"
+          fi
+
+      - name: Render selected .qmd file
+        run: |
+          qmd_file="${{ steps.select_qmd.outputs.target_qmd }}"
+          dir=$(dirname "$qmd_file")
+          echo "Rendering $qmd_file in $dir"
+
+          (cd "$dir" && quarto render "$(basename "$qmd_file")")
+
+          rm -f "$dir"/*.aux "$dir"/*.bbl "$dir"/*.blg "$dir"/*.log
+
+      - name: Commit rendered outputs
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add **/*.pdf || echo "No PDFs to add"
+          git commit -m "Rendered PDF from GitHub Actions" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload rendered PDFs (for verification)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-pdf
+          path: '**/*.pdf'
+
+permissions:
+  contents: write
+  pull-requests: write
