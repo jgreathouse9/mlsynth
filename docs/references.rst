@@ -72,6 +72,12 @@ References
 
 .. [pdapi] Hongyi Jiang, Xingyu Li, Yan Shen, and Qiankun Zhou. *"Prediction Intervals of Panel Data Approach for Programme Evaluation."* *Journal of Applied Econometrics*, 40(5): 655-668, 2025. `doi:10.1002/jae.3134 <https://doi.org/10.1002/jae.3134>`_.
 
+.. [FurnivalWilson] George M. Furnival and Robert W. Wilson. *"Regressions by Leaps and Bounds."* *Technometrics*, 16(4): 499-511, 1974. `doi:10.1080/00401706.1974.10489231 <https://doi.org/10.1080/00401706.1974.10489231>`_.
+
+.. [BKM2016] Dimitris Bertsimas, Angela King, and Rahul Mazumder. *"Best Subset Selection via a Modern Optimization Lens."* *The Annals of Statistics*, 44(2): 813-852, 2016. `doi:10.1214/15-AOS1388 <https://doi.org/10.1214/15-AOS1388>`_.
+
+.. [HTT2020] Trevor Hastie, Robert Tibshirani, and Ryan Tibshirani. *"Best Subset, Forward Stepwise or Lasso? Analysis and Recommendations Based on Extensive Comparisons."* *Statistical Science*, 35(4): 579-592, 2020. `doi:10.1214/19-STS733 <https://doi.org/10.1214/19-STS733>`_.
+
 
 .. [fsPDA]
     Shi, Zhentao and Huang, Jingyi. 
