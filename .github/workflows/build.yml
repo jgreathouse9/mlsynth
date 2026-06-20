@@ -103,3 +103,51 @@ jobs:
         with:
           name: mlsynth-dist
           path: dist/
+
+  # Cross-version coverage: the `build` job above runs the suite on 3.11 (and
+  # is the required gate); this job exercises the rest of the supported range so
+  # the `requires-python` floor and the Python classifiers in pyproject.toml are
+  # backed by an actual test run, not just an assertion. 3.11 is omitted here to
+  # avoid duplicating `build`.
+  pyversions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.12", "3.13"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect code changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'mlsynth/**'
+              - 'requirements.txt'
+              - 'pyproject.toml'
+              - '.github/workflows/build.yml'
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-xdist
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
+
+      - name: Run tests
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: pytest -n auto --tb=short

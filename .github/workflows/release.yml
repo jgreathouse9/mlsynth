@@ -1,0 +1,70 @@
+name: Publish to PyPI
+
+# Publishes mlsynth to PyPI via OIDC Trusted Publishing (no stored API token).
+# Triggered when a GitHub Release is published; the build job is also runnable
+# on demand (workflow_dispatch) to validate the artifacts without uploading.
+#
+# One-time setup on PyPI (https://pypi.org/manage/account/publishing/):
+#   * Project name:      mlsynth
+#   * Owner:             jgreathouse9
+#   * Repository name:   mlsynth
+#   * Workflow filename: release.yml
+#   * Environment name:  pypi
+# and create a GitHub Environment named "pypi" (Settings -> Environments).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Check metadata
+        run: |
+          python -m pip install twine
+          python -m twine check dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlsynth-dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Only publish on an actual release, never on manual dispatch.
+    if: github.event_name == 'release'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mlsynth
+    permissions:
+      id-token: write   # OIDC token for Trusted Publishing
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: mlsynth-dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

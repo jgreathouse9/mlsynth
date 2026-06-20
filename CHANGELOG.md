@@ -8,6 +8,23 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-20
+
+First stable release, published to PyPI (``pip install mlsynth``).
+
+### Packaging
+- Distribution publishes to PyPI via OIDC Trusted Publishing
+  (`.github/workflows/release.yml`) on each GitHub Release -- no stored API
+  token. `python -m build` + `twine check` gate the artifacts first.
+- License metadata modernised to the SPDX form (`license = "MIT"` +
+  `license-files = ["LICENSE.md"]`), dropping the deprecated
+  `License :: OSI Approved :: MIT License` classifier; build backend bumped to
+  `setuptools>=77`.
+- The supported Python range (3.9-3.13) is now exercised by a CI matrix
+  (`pyversions` job in `build.yml`), so the `requires-python` floor and the
+  Python classifiers are test-backed rather than asserted. Development status
+  promoted to Production/Stable.
+
 ### Added
 - **MAREX geographic design restrictions.** MAREX gains the SYNDES/GEOLIFT
   restriction vocabulary, on top of what it already had natively (region
