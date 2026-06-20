@@ -2,7 +2,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to mlsynth 0.1.2
+Welcome to mlsynth 1.0.0
 ========================
 
 .. meta::
@@ -34,36 +34,65 @@ long-DataFrame API. Every estimator's documentation page includes a
 *Verification* section that reproduces the original paper's reported numbers
 where applicable.
 
-For example, the following code replicates Abadie, Diamond and Hainmueller's
-Proposition 99 study end-to-end. It loads the panel shipped with the
-library, fits TSSC (which auto-selects between four SC-class variants based
-on a pre-trends test), and prints the recommended ATT with a 95%
-subsampling confidence interval:
+For example, the following code reproduces Abadie, Diamond and Hainmueller's
+Proposition 99 study and cross-checks it against a robust variant. It loads
+the California tobacco panel shipped with the library, fits the classical
+synthetic control on the canonical predictor set, then fits an
+ordinary-least-squares principal-component-regression control on the same
+outcomes, and prints both estimated effects:
 
 .. code:: python
 
     import pandas as pd
-    from mlsynth import TSSC
+    from mlsynth import VanillaSC, CLUSTERSC
 
-    # Long panel: 50 US states x 31 years of per-capita cigarette sales.
+    # California tobacco panel, 1970-2000: per-capita cigarette sales plus the
+    # Abadie-Diamond-Hainmueller predictors.
     url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
-           "main/basedata/prop99_packsales.csv")
+           "main/basedata/augmented_cali_long.csv")
     df = pd.read_csv(url)
-    df["treat"] = ((df["state"] == "California")
-                    & (df["year"] >= 1989)).astype(int)
+    df = df[df["year"] <= 2000].copy()
+    df["treated"] = ((df["state"] == "California")
+                     & (df["year"] >= 1989)).astype(int)
 
-    res = TSSC({"df": df, "outcome": "cigsale", "unitid": "state",
-                 "time": "year", "treat": "treat",
-                 "display_graphs": False, "seed": 0}).fit()
+    # Three lagged-outcome predictors, as in ADH (2010), Table 2.
+    for L in (1975, 1980, 1988):
+        df[f"cig{L}"] = df["state"].map(
+            df[df["year"] == L].set_index("state")["cigsale"])
 
-    print(f"recommended: {res.recommended_method}")
-    print(f"ATT = {res.att:+.2f} packs/yr  "
-           f"(95% CI: {res.att_ci[0]:+.2f}, {res.att_ci[1]:+.2f})")
+    covariates = ["loginc", "p_cig", "pct15-24", "pc_beer",
+                  "cig1975", "cig1980", "cig1988"]
+    windows = {"loginc": (1980, 1988), "p_cig": (1980, 1988),
+               "pct15-24": (1980, 1988), "pc_beer": (1984, 1988),
+               "cig1975": (1975, 1975), "cig1980": (1980, 1980),
+               "cig1988": (1988, 1988)}
+
+    common = dict(df=df, outcome="cigsale", treat="treated",
+                  unitid="state", time="year", display_graphs=False)
+
+    # Classical synthetic control on the canonical predictor set.
+    sc = VanillaSC({**common, "covariates": covariates,
+                    "covariate_windows": windows,
+                    "backend": "mscmt", "canonical_v": "min.loss.w",
+                    "seed": 0}).fit()
+
+    # Robust principal-component-regression control on the same outcomes.
+    pcr = CLUSTERSC({**common, "method": "pcr",
+                     "pcr_objective": "OLS"}).fit()
+
+    print(f"VanillaSC ATT = {sc.att:+.2f} packs/yr")
+    print(f"OLS-PCR   ATT = {pcr.att:+.2f} packs/yr")
 
 prints::
 
-    recommended: SC
-    ATT = -14.95 packs/yr  (95% CI: -16.06, -9.65)
+    VanillaSC ATT = -18.98 packs/yr
+    OLS-PCR   ATT = -21.39 packs/yr
+
+The classical synthetic control reproduces ADH's headline estimate -- a
+drop of about nineteen packs per capita -- and the principal-component
+control, built on a different identifying assumption, agrees on a large
+reduction. Fitting an estimator and then stress-testing the finding against
+a second one is the everyday way mlsynth is used.
 
 This short script is a representative example of what mlsynth can do. In
 addition to classical SC, mlsynth also supports Bayesian variable selection
@@ -88,7 +117,13 @@ through cvxpy's solver stack.
 
 Installation.
 
-Install the latest version straight from GitHub:
+Install from PyPI:
+
+.. code:: bash
+
+   pip install mlsynth
+
+or get the latest development version straight from GitHub:
 
 .. code:: bash
 
@@ -123,13 +158,13 @@ not glob the brackets:
 .. code:: bash
 
    # SCIP solver for SYNDES / MAREX
-   pip install -U "mlsynth[design] @ git+https://github.com/jgreathouse9/mlsynth.git"
+   pip install "mlsynth[design]"
 
    # NumPyro for SPOTSYNTH's Bayesian mode
-   pip install -U "mlsynth[bayes] @ git+https://github.com/jgreathouse9/mlsynth.git"
+   pip install "mlsynth[bayes]"
 
    # everything
-   pip install -U "mlsynth[all] @ git+https://github.com/jgreathouse9/mlsynth.git"
+   pip install "mlsynth[all]"
 
 Both extra backends are imported lazily, so ``import mlsynth`` and importing any
 estimator class always succeed on the base install; the extra is consulted only
