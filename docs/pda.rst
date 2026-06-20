@@ -18,10 +18,18 @@ combination of the controls' paths plus an orthogonal error.
 The challenge is which controls and how many. Classical PDA was built
 for low dimensions (few controls relative to pre-periods) and chooses controls
 by AIC/BIC, which break down once the number of controls ``N`` approaches or
-exceeds the pre-period length ``T0``. ``mlsynth`` packages three
-high-dimensional PDA variants that resolve this differently, each with the
-estimation and inference theory of its own paper:
+exceeds the pre-period length ``T0``. ``mlsynth`` packages the original
+Hsiao-Ching-Wan method together with three high-dimensional variants that
+resolve the ``N``-near-``T0`` problem differently, each with the estimation and
+inference theory of its own paper:
 
+* Original best-subset (``hcw``; Hsiao, Ching & Wan [HCW2012]_) -- the method
+  that started the literature. The counterfactual is an *unrestricted* OLS
+  regression (with intercept) of the treated pre-period on the **best subset**
+  of controls, the subset and its size chosen by AICc (also AIC / BIC). Built
+  for the low-dimensional regime (a moderate, pre-screened candidate pool); the
+  best-subset search is combinatorial, so cap ``hcw_nvmax`` or pre-restrict the
+  pool for large ``N``. The three estimators below are its scalable descendants.
 * L2-relaxation (``l2``; Shi & Wang [l2relax]_) -- a *dense* estimator (a
   "cousin of ridge") for when the factor model makes the projection
   coefficients dense; tolerates ``N > T0``; prediction is robust to
@@ -32,8 +40,9 @@ estimation and inference theory of its own paper:
 * Forward selection (``fs``; Shi & Huang [fsPDA]_) -- a greedy procedure
   that grows the control set one unit at a time, with valid post-selection
   inference and no sparsity requirement (works for dense *or* sparse models).
+  The scalable replacement for ``hcw``'s combinatorial best-subset search.
 
-All three target the single-treated-unit, many-candidate-controls regime
+All variants target the single-treated-unit, many-candidate-controls regime
 and produce a time-varying treatment effect and an average treatment effect
 (ATE) with a HAC-based confidence interval. The practical choice among them
 (detailed below) follows the authors' own arguments: ``l2`` when the
@@ -802,9 +811,17 @@ Verification
 
 .. note::
 
-   Empirical (Path A, Hong Kong). All three variants run on the HCW Hong
-   Kong panel (above) and agree on a significant positive integration effect,
-   consistent with the literature and the Forward-DiD cross-check (0.025).
+   Empirical (Path A, Hong Kong). All three high-dimensional variants run on
+   the HCW Hong Kong panel (above) and agree on a significant positive
+   integration effect, consistent with the literature and the Forward-DiD
+   cross-check (0.025).
+
+   Original HCW (Path A, best subset). ``benchmarks/cases/pda_hcw_hongkong.py``
+   reproduces Hsiao, Ching & Wan (2012) Tables XVI-XVII value-for-value with
+   ``method="hcw"``: on the sovereignty study (ten candidate economies,
+   T0 = 18), AICc selects {Japan, Korea, Taiwan, USA} with the published OLS
+   weights, pre-period :math:`R^2 = 0.9314`, and an insignificant average
+   effect of -3.96% -- cross-validating against the ``pampe`` R package.
 
    Prediction intervals (Path B, coverage). The bootstrap prediction
    intervals are validated by ``benchmarks/cases/pda_pi_coverage.py``, which

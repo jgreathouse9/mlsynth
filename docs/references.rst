@@ -7,6 +7,8 @@ References
 
 .. [LASSOPDA] Li, Kathleen T., and David R. Bell. *"Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation."* J. Econom., vol. 197, no. 1, March 2017, pp. 65–75. https://doi.org/10.1016/j.jeconom.2016.01.011.
 
+.. [HCW2012] Hsiao, Cheng, H. Steve Ching, and Shui Ki Wan. *"A Panel Data Approach for Program Evaluation: Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China."* Journal of Applied Econometrics, vol. 27, no. 5, 2012, pp. 705–740. https://doi.org/10.1002/jae.1230.
+
 
 
 .. [Amjad2018] Amjad, Muhammad, Devavrat Shah, and Dennis Shen. *"Robust Synthetic Control."* Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.

@@ -4,9 +4,12 @@ A thin, NumPy-first orchestration over :mod:`mlsynth.utils.pda_helpers`. PDA
 (Hsiao, Ching & Wan 2012) predicts a single treated unit's untreated
 counterfactual by a linear regression on the control units fit over the
 pre-treatment window, then extrapolates out-of-sample to estimate the ATE.
-Three high-dimensional variants are supported, each with the inference theory
-from its own paper:
+Four variants are supported, each with the inference theory from its own paper:
 
+* ``hcw``   -- the original best-subset PDA (Hsiao, Ching & Wan 2012):
+  unrestricted OLS (with intercept) on the best subset of controls, the subset
+  chosen by AICc (also AIC / BIC); HAC t-test on the ATE. Matches the ``pampe``
+  R package and HCW Table XVI value-for-value.
 * ``l2``    -- L2-relaxation (Shi & Wang 2024): dense ridge-like coefficients
   via ``min ||beta||_2^2 s.t. ||eta_hat - Sigma_hat beta||_inf <= tau``; ATE
   inference combines pre-residual and post-effect HAC long-run variances.
@@ -14,6 +17,7 @@ from its own paper:
   LASSO; HAC t-test on the ATE with a first-stage variance term.
 * ``fs``    -- forward selection (Shi & Huang 2023): greedy R^2 selection with
   a modified-BIC stopping rule; post-selection HAC t-test (sample splitting).
+  The scalable descendant of ``hcw``'s combinatorial search.
 
 Set ``method`` for one variant or ``methods`` to run several at once.
 """
@@ -98,6 +102,8 @@ class PDA:
                        fs_intercept=self.config.fs_intercept,
                        lrvar_lag=self.config.lrvar_lag,
                        l2_standardize=self.config.l2_standardize,
+                       hcw_criterion=self.config.hcw_criterion,
+                       hcw_nvmax=self.config.hcw_nvmax,
                        prediction_intervals=self.config.prediction_intervals,
                        pi_n_boot=self.config.pi_n_boot,
                        pi_seed=self.config.pi_seed)

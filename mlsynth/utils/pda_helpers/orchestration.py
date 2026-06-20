@@ -6,17 +6,20 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-from .structures import FS, L2, LASSO, PDAInputs, PDAMethodFit
+from .structures import FS, HCW, L2, LASSO, PDAInputs, PDAMethodFit
 from .l2 import fit_l2, l2_ate_inference
 from .lasso import fit_lasso, lasso_ate_inference, lasso_cv_alpha
 from .fs import forward_select, fs_ate_inference
+from .hcw import fit_hcw, hcw_ate_inference
 from ..inferutils import pda_prediction_intervals
 
 # Map config method strings to internal keys.
-_NORMALIZE = {"l2": L2, "L2": L2, "LASSO": LASSO, "lasso": LASSO, "fs": FS, "FS": FS}
+_NORMALIZE = {"l2": L2, "L2": L2, "LASSO": LASSO, "lasso": LASSO, "fs": FS,
+              "FS": FS, "hcw": HCW, "HCW": HCW}
 
 
-def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alpha):
+def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alpha,
+                 hcw_criterion="AICc", hcw_nvmax=None):
     """A bootstrap refit callback for the engine: ``y_boot -> (cf, support_idx)``.
 
     Each variant refits on the bootstrap pre-period at *fixed* tuning parameters
@@ -34,6 +37,10 @@ def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alph
     elif method == FS:
         def refit(y_boot):
             sel_idx, _, _, cf = forward_select(y_boot, X, T0, intercept=fs_intercept)
+            return cf, np.asarray(sel_idx, dtype=int)
+    elif method == HCW:
+        def refit(y_boot):
+            sel_idx, _, _, cf = fit_hcw(y_boot, X, T0, criterion=hcw_criterion, nvmax=hcw_nvmax)
             return cf, np.asarray(sel_idx, dtype=int)
     else:  # pragma: no cover - guarded by resolve_methods
         raise ValueError(f"Unknown PDA method: {method!r}")
@@ -54,6 +61,7 @@ def run_pda(
     inputs: PDAInputs, methods: List[str], tau: Optional[float], alpha: float,
     fs_intercept: bool = False, lrvar_lag: Optional[int] = None,
     l2_standardize: bool = True, l2_tau_grid: Optional[Sequence[float]] = None,
+    hcw_criterion: str = "AICc", hcw_nvmax: Optional[int] = None,
     prediction_intervals: bool = False, pi_n_boot: int = 999,
     pi_seed: Optional[int] = 0,
 ) -> Dict[str, PDAMethodFit]:
@@ -88,6 +96,13 @@ def run_pda(
             att, se, ci, p = fs_ate_inference(y, cf, T0, alpha=alpha, lrvar_lag=lrvar_lag)
             support_idx = np.asarray(sel_idx, dtype=int)
             selected = [labels[i] for i in sel_idx]
+        elif m == HCW:
+            sel_idx, beta, intercept, cf = fit_hcw(
+                y, X, T0, criterion=hcw_criterion, nvmax=hcw_nvmax)
+            att, se, ci, p = hcw_ate_inference(y, cf, T0, alpha=alpha, lrvar_lag=lrvar_lag)
+            support_idx = np.asarray(sel_idx, dtype=int)
+            selected = [labels[i] for i in sel_idx]
+            meta["criterion"] = hcw_criterion
         else:
             raise ValueError(f"Unknown PDA method: {m!r}")
 
@@ -98,7 +113,8 @@ def run_pda(
             refit = _build_refit(
                 m, X, T0, tau=meta.get("tau", tau),
                 l2_standardize=l2_standardize, fs_intercept=fs_intercept,
-                lasso_alpha=lasso_alpha)
+                lasso_alpha=lasso_alpha, hcw_criterion=hcw_criterion,
+                hcw_nvmax=hcw_nvmax)
             pis = pda_prediction_intervals(
                 y, X, T0, counterfactual=cf, support=support_idx, refit=refit,
                 alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)
