@@ -299,8 +299,9 @@ treatment had reached some of your control units, you dropped them and hoped the
 survivors still formed a credible donor pool --- trading a SUTVA violation for a
 smaller, often weaker comparison. A more recent literature keeps the units and
 models the spillover instead: @caodowd2023, the inclusive SCM of
-@distefanomellace2024, the iterative "waterfall" of @melnychuk2024, and the
-penalised estimator of @grossi2024. Each, though, arrived as its
+@distefano2024inclusivesyntheticcontrolmethod, the iterative "waterfall" of
+@melnychuk2024syntheticcontrolsspillovereffects, and the penalised estimator of
+@grossi2025. Each, though, arrived as its
 own R package or replication repository with its own conventions; running even one
 dataset through all of them meant installing several codebases and reconciling
 their data formats and call signatures by hand.
