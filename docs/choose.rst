@@ -372,6 +372,36 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
 * Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
   staggered missingness natively).
 
+*Which staggered synthetic control?* Three SC-family methods target this same
+setting on different arguments, and the choice turns on your donor pool, sample
+length, and estimand. Staggered :doc:`vanillasc` (Cattaneo, Feng, Palomba and
+Titiunik, 2025) fits the canonical *convex* SC for each treated unit on a
+*never-treated* donor pool and is built around *non-asymptotic* (finite-sample)
+prediction intervals -- the authors stress these precisely because SC
+applications usually have small samples; reach for it when you have clean
+never-treated donors, want non-extrapolating convex weights, and need valid
+intervals even with a short pre-period. :doc:`ppscm` (Ben-Michael, Feller and
+Rothstein, 2022) instead targets the *average* effect across treated units: it
+shows that fitting weights separately per unit (good unit fits, poor average) or
+pooling them (good average, poor unit fits) each biases one of the two
+imbalances, and proposes *partially pooled* SCM that trades them off, with a
+de-meaning (intercept) step that turns it into a weighted
+difference-in-differences; reach for it when the average ATT is the headline
+estimand and a level shift between treated units and donors must be absorbed.
+:doc:`ssc` (Cao, Lu and Wu, 2026) drops the never-treated requirement
+altogether -- it builds each unit's control from *all other units,
+not-yet-treated included*, explicitly because methods that lean on never-treated
+units deteriorate when those are scarce -- and bases inference on Andrews'
+end-of-sample test under large-:math:`T` asymptotics; reach for it when most
+units are eventually treated, the pre-period is long, and you want event-time ATT
+inference without parallel trends. The distinct case of *many* treated units in a
+high-dimensional, disaggregated panel adopting at the *same* time (Q2.1) is
+:doc:`msqrt` (Shen, Song and Abadie, 2025): it pools the treated units into one
+matrix regression with a tuning-free square-root-lasso, chosen for computational
+efficiency and to preserve *individual* counterfactuals where fitting each unit
+separately is slow and aggregating them would blur unit-level effects or add
+interpolation bias.
+
 Part 3 — Designing an experiment
 --------------------------------
 
