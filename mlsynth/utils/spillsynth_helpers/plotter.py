@@ -96,7 +96,7 @@ def _plot_single_treated(
     t_treat_cutoff = t[inputs.T0 - 1] if inputs.T0 >= 1 else None  # pragma: no branch
 
     y_treated = inputs.Y[0]
-    if results.method in ("iscm", "grossi"):
+    if results.method in ("iscm", "grossi", "iterative"):
         # These methods have no Cao-Dowd a/B artifacts; the treated unit's
         # pre-period synthetic is stored directly.
         sc_full_pre = np.asarray(cd.treated_synthetic_pre)

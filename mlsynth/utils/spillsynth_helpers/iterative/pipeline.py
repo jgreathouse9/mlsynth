@@ -106,5 +106,6 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
         cleaned_units=[names[i] for i in affected],
         n_clean=len(clean),
         pre_rmspe=float(pre_rmspe),
+        treated_synthetic_pre=np.asarray(cf_f[:T0]),
         bilevel_solver=solver_label,
     )

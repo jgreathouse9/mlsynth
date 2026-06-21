@@ -444,6 +444,12 @@ class IterativeFit:
         Number of clean (never-affected) controls.
     pre_rmspe : float
         Treated unit's pre-treatment RMSPE on the cleaned pool.
+    treated_synthetic_pre : np.ndarray
+        Treated unit's pre-treatment synthetic fit, shape ``(T0,)`` -- the same
+        series ``ISCMFit`` and ``GrossiFit`` expose, so observed-vs-fitted plots
+        and pre-treatment RMSE are uniform across every spillover method. By
+        construction ``sqrt(mean((Y_treated_pre - treated_synthetic_pre)**2))``
+        equals ``pre_rmspe``.
     bilevel_solver : str
         Backend used for the per-unit SCM (``"mscmt"`` / ``"malo"`` /
         ``"outcome-only"``).
@@ -461,6 +467,7 @@ class IterativeFit:
     cleaned_units: list
     n_clean: int
     pre_rmspe: float
+    treated_synthetic_pre: np.ndarray
     bilevel_solver: str = "mscmt"
 
     # SP-dialect aliases for the shared accessors / plotter.
