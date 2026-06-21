@@ -221,11 +221,32 @@ a persistent level difference remains -- SCM is biased, while PDA's free weights
 and intercept stay unbiased, and PDA's accuracy improves as the pre-period
 lengthens. So prefer SCM when you have a genuine convex match; prefer :doc:`pda`
 when the treated unit sits outside the hull or at a different level. With a large
-donor pool the unconstrained regression must be regularised: best-subset / AICc
-(the original Hsiao--Ching--Wan, ``method="hcw"``) or Lasso when only a few
-donors matter, and L2-relaxation (Shi and Wang 2024, ``method="l2"``) when the
-donors instead share a dense latent-factor structure with no sparse few standing
-out.
+donor pool the unconstrained regression must be regularised -- which PDA variant
+to use is the next remark.
+
+*Within PDA: which regulariser?* :doc:`pda` bundles four ways to fit the
+unconstrained regression, and the choice is governed by the size of the donor
+pool relative to the pre-period and by whether a few donors or many carry the
+signal. The original Hsiao--Ching--Wan best subset (``method="hcw"``) picks the
+donor subset by AICc; it is exact and certifiable but enumerates :math:`2^N`
+candidate models and, being least squares, needs fewer donors than pre-periods
+(:math:`N < T_0`) -- so it suits a *small* pool. When the pool is large,
+best-subset becomes infeasible and HCW's fixed-:math:`N`, large-:math:`T`
+asymptotics degrade. Li and Bell (2017) propose **Lasso** (``method="lasso"``)
+for exactly this case: it allows more donors than pre-periods (:math:`N > T_0`),
+is far cheaper than AICc/BIC, and lowers the ATE's predictive error -- use it when
+a *sparse* handful of donors is plausibly relevant. Shi and Huang (2023) propose
+**forward selection** (``method="fs"``): a sequence of OLS fits that approximates
+best-subset at scale (valid even as :math:`N/T \to \infty`) and -- its headline
+contribution -- supplies *valid post-selection inference* on the ATE (a
+conditional :math:`t`-test), whether the underlying coefficients are sparse *or*
+dense; use it when you want HCW-style selection with a defensible standard error
+in a large pool. Shi and Wang (2024) **L2-relaxation** (``method="l2"``) targets
+the opposite end of the sparse--dense axis: when the donors share a latent-factor
+structure so that *all* of them are weakly relevant and no sparse few stand out,
+its dense weighting diversifies prediction risk and attains oracle accuracy. In
+short: small pool -> ``hcw``; large and sparse -> ``lasso`` (or ``fs`` when you
+also want inference); large and dense -> ``l2``.
 
 Q1.3 · Is the outcome nonstationary, so a tight pre-fit might be a *spurious*
 match?
