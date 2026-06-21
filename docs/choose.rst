@@ -672,6 +672,34 @@ You are choosing *whom* to treat, not estimating an effect; these return
 assignments and power / MDE curves, not ATTs. Order by what estimand you care
 about, easiest target first.
 
+*Why design at all, and which design method.* The shared premise of this family,
+argued most directly by Doudchenko et al. (2021) and Abadie and Zhao (2026), is
+that when treatment can only be applied to a few large, expensive units (media
+markets, regions, whole products) randomization is unbiased *ex ante* but, over
+the single assignment you actually run, routinely hands you treated and control
+groups with very different baselines -- a draw you cannot average away. If you
+hold pre-treatment panel data, you can do better by *choosing* the split. The
+methods then split on two axes: the estimand they target, and how they solve the
+(NP-hard) assignment problem. Doudchenko et al. cast the joint choice of treated
+set and donor weights as a mixed-integer program that directly minimises the
+*ATT estimator's* mean squared error (:doc:`syndes`) -- provably optimal but
+combinatorial. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
+balancing design but reformulate it as a phase-synchronisation problem solved by
+a spectrally-initialised power method (:doc:`spcd`), trading the MIP's
+exactness for a *global* optimality guarantee under the linear factor model and
+a runtime in seconds rather than minutes -- prefer it when the unit count makes
+the MIP slow. Abadie and Zhao instead target the *population* ATE: they choose
+synthetic-treated and synthetic-control groups whose pre-experiment predictors
+match the population means (:doc:`marex`), a convex design that lowers bias
+relative to randomization and (their Theorem 1) shifts structure from unobserved
+loadings into observed covariates. Vives-i-Bastida (2022) extends that framework
+to multiple outcomes and adds the minimum-detectable-effect machinery and
+practical exclusion / fairness constraints that :doc:`lexscm` uses to optimise
+validity first and power second. The two geo-rollout members -- :doc:`pangeo`
+(no unit left untreated, trajectory-matched supergeos) and :doc:`geolift` /
+:doc:`multicellgeolift` (market selection under a budget) -- are the
+applied-marketing specialisations; the questions below route to each.
+
 Q3.1 · Do you only care about the ATT (the effect on the treated units)?
 
 * Yes -- :doc:`syndes` (a MIP that minimises the *ATT estimator's* MSE, exactly
