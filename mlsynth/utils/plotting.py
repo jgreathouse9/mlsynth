@@ -259,7 +259,7 @@ class Plotter:
                             label=interval_label)
         if intervention is not None:
             ax.axvline(intervention, color=self.intervention_color,
-                       linestyle=":", linewidth=1.2, label="Intervention")
+                       linestyle="-", linewidth=1.2, label="Intervention")
         ax.set_xlabel(time)
         ax.set_ylabel(outcome)
         ax.set_title(title)
@@ -295,7 +295,7 @@ class Plotter:
         ax.axhline(0.0, color="black", linewidth=0.8)
         if intervention is not None:
             ax.axvline(intervention, color=self.intervention_color,
-                       linestyle=":", linewidth=1.2, label="Intervention")
+                       linestyle="-", linewidth=1.2, label="Intervention")
         ax.set_xlabel(time)
         ax.set_ylabel(outcome or "Treated - counterfactual")
         ax.set_title(title)

@@ -69,8 +69,10 @@ import matplotlib.pyplot as plt
 
 import mlsynth
 from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH, GEOLIFT
+from mlsynth.utils.plotting import apply_mlsynth_style
 
-plt.rcParams.update({"figure.dpi": 150, "font.size": 9})
+apply_mlsynth_style()                                     # mlsynth house style for every figure
+plt.rcParams.update({"figure.dpi": 150, "font.size": 9})  # keep the paper's resolution/size
 
 
 def find_data(name):
@@ -456,7 +458,7 @@ automatically.
 
 ```{python}
 #| label: fig-prop99-sc
-#| fig-cap: "Simplex synthetic control on Abadie's canonical 38-state donor pool, drawn by VanillaSC itself. Observed California cigarette sales versus the synthetic control, with the Cattaneo-Feng-Titiunik 90% prediction band over the post-treatment window. The dotted vertical line marks the 1988 passage of Proposition 99."
+#| fig-cap: "Simplex synthetic control on Abadie's canonical 38-state donor pool, drawn by VanillaSC itself. Observed California cigarette sales versus the synthetic control, with the Cattaneo-Feng-Titiunik 90% prediction band over the post-treatment window. The solid vertical line marks the 1988 passage of Proposition 99."
 
 vsc = VanillaSC({**sc_base, "inference": "scpi", "alpha": 0.10,
                  "display_graphs": True}).fit()
@@ -480,7 +482,7 @@ same either way.
 
 ```{python}
 #| label: fig-prop99-sdid
-#| fig-cap: "Synthetic difference-in-differences on the same 38-state pool, reached by swapping the estimator class. Observed California cigarette sales versus the intercept-adjusted SDID counterfactual; the dotted vertical line marks the 1988 passage of Proposition 99."
+#| fig-cap: "Synthetic difference-in-differences on the same 38-state pool, reached by swapping the estimator class. Observed California cigarette sales versus the intercept-adjusted SDID counterfactual; the solid vertical line marks the 1988 passage of Proposition 99."
 
 sdid = SDID({**sc_base, "display_graphs": True, "B": 2000,
              "intercept_adjust": True}).fit()
@@ -498,7 +500,7 @@ effect, read off the standardized result below.
 
 ```{python}
 #| label: fig-prop99-pcr
-#| fig-cap: "Principal-component (HSVT) synthetic control on the full donor pool, drawn by CLUSTERSC itself. Observed California cigarette sales versus the principal-component counterfactual; the dotted vertical line marks the 1988 passage of Proposition 99."
+#| fig-cap: "Principal-component (HSVT) synthetic control on the full donor pool, drawn by CLUSTERSC itself. Observed California cigarette sales versus the principal-component counterfactual; the solid vertical line marks the 1988 passage of Proposition 99."
 
 pcr = CLUSTERSC({**pcr_base, "method": "pcr", "display_graphs": True}).fit()
 att_pcr = float(pcr.effects.att)
@@ -623,7 +625,7 @@ for ax, case in zip(axes, cases):
         ax.plot(years, list(pre) + list(sub.counterfactual_sp),
                 color=color, ls=ls, lw=1.2, label=m)
         records.append({"case": case["name"], "method": m, "ATT": fit.att})
-    ax.axvline(case["t0"], color="0.6", ls=":", lw=0.8)
+    ax.axvline(case["t0"], color="0.4", ls="-", lw=1.0)
     ax.set_title(case["name"], fontsize=8)
     ax.set_xlabel("year"); ax.set_ylabel(case["ylab"], fontsize=8)
 axes[0].legend(fontsize=6, ncol=2)
