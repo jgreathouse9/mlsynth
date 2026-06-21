@@ -56,6 +56,26 @@ def test_iterative_outcome_only_structure(german_panel):
     assert f.spillover_panel["Austria"].shape == (T1,)
 
 
+def test_iterative_exposes_treated_synthetic_pre(german_panel):
+    """iterative must expose the pre-period synthetic series, like iscm/grossi,
+    so observed-vs-fitted plots and pre-treatment RMSE are uniform across every
+    spillover method in the dispatcher (previously only ``pre_rmspe`` was given,
+    forcing callers to special-case this method)."""
+    res = SPILLSYNTH(_cfg(german_panel, iscm_intercept=True)).fit()
+    f = res.iterative
+    T0 = int(german_panel.year.lt(1990).groupby(german_panel.country).sum().max())
+    # the pre-period synthetic is exposed, correctly shaped and finite
+    assert f.treated_synthetic_pre is not None
+    assert f.treated_synthetic_pre.shape == (T0,)
+    assert np.all(np.isfinite(f.treated_synthetic_pre))
+    # and it is exactly consistent with the reported pre-treatment RMSPE
+    obs_pre = (german_panel[(german_panel.country == "West Germany")
+                            & (german_panel.year < 1990)]
+               .sort_values("year")["gdp"].to_numpy())
+    rmse = float(np.sqrt(np.mean((obs_pre - f.treated_synthetic_pre) ** 2)))
+    assert rmse == pytest.approx(f.pre_rmspe, rel=1e-9, abs=1e-9)
+
+
 def test_iterative_cleans_only_post_period(german_panel):
     # The waterfall replaces affected donors' POST outcomes only; the treated
     # unit's pre-fit is therefore the naive pre-fit (weights unchanged).
