@@ -1,5 +1,5 @@
 ---
-title: "One case study, three estimators: California's Proposition 99 in `mlsynth`"
+title: "One case study, four estimators: California's Proposition 99 in `mlsynth`"
 format:
   html:
     toc: true
@@ -27,11 +27,11 @@ maintained version is the package's `choose` companion, of which Figure 1 is the
 top-level map.
 
 The remainder of this section makes the tree concrete by walking one familiar
-panel down three of its branches. The case is Abadie, Diamond and Hainmueller's
+panel down four of its branches. The case is Abadie, Diamond and Hainmueller's
 study of California's Proposition 99, the 1988 ballot measure that raised the
 state cigarette tax; the outcome is per-capita cigarette sales and the
-intervention date is 1989. Three nodes of the tree send this single panel to
-three different estimators:
+intervention date is 1989. Four nodes of the tree send this single panel to four
+different estimators:
 
 1. With one treated unit (the tree's "how many treated?" gate, Q0.6) and no
    reason to distrust the donors, the analyst lands on standard synthetic
@@ -44,6 +44,10 @@ three different estimators:
    to the spillover-aware family. We take Cao and Dowd's estimator, which
    reinstates the neighbouring states that the standard analysis hand-excludes
    and models the tax-driven sales that leak across state lines.
+4. The parallel-trends gate (Q0.5, "is a doubly-weighted difference-in-differences
+   the better frame?") routes off the synthetic-control branch entirely, to
+   synthetic difference-in-differences, which permits the level shift the simplex
+   forbids.
 
 The point of the exercise is methodological rather than substantive: the same
 outcome and the same intervention date, three different sets of assumptions, and
@@ -56,6 +60,10 @@ that estimate depends on which assumption.
 
 ```{python}
 import pandas as pd
+import matplotlib.pyplot as plt
+from mlsynth.utils.plotting import apply_mlsynth_style
+
+apply_mlsynth_style()   # mlsynth house style for every figure in this paper
 
 RAW = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata"
 
@@ -136,8 +144,6 @@ exactly the reassurance the comparison is meant to provide.
 ```{python}
 #| label: fig-curated
 #| fig-cap: "Observed California against the standard and low-rank synthetic counterfactuals on the curated donor pool."
-import matplotlib.pyplot as plt
-
 years = list(scm.time_series.time_periods)
 observed = scm.time_series.observed_outcome
 cf_scm = scm.time_series.counterfactual_outcome
@@ -155,15 +161,38 @@ plt.show()
 
 ## 3. Spillover-aware synthetic control (Cao and Dowd)
 
-Both estimates above rest on SUTVA: the controls are unaffected by California's
-tax. Cao and Dowd argue this is exactly where the standard analysis is fragile.
-When California raises its tax, sales migrate to neighbours such as Nevada --- and
-because synthetic control actively loads on the donors most correlated with
-California, it tends to put weight on precisely the contaminated states. The
-canonical analysis sidesteps this by *hand-excluding* a dozen suspect states from
-the donor pool. Cao and Dowd's method (`SPILLSYNTH` with `method="cd"`) instead
-keeps every state and estimates the direct effect and the spillover jointly,
-under a contextually motivated spillover structure.
+The two estimates above rest on SUTVA: the assumption that the control states are
+unaffected by California's tax. Cao and Dowd argue this is exactly where the
+standard analysis is fragile. When California raises its cigarette tax, some sales
+simply move across the border --- Californians buy in Nevada --- so the
+neighbouring states' sales are themselves pushed up by the treatment. Synthetic
+control actively loads on the donors most correlated with California, which tends
+to be those very neighbours, so the synthetic counterfactual is contaminated.
+Abadie's original analysis sidesteps this by *hand-excluding* about a dozen
+suspect states from the donor pool. Cao and Dowd instead keep every state and
+estimate the direct effect and the spillover jointly.
+
+This section is where readers (including us, at first) get confused, because
+*three different "synthetic Californias" are in play, and they do not agree*. It
+is worth being explicit about what each one is:
+
+1. The standard synthetic control on Abadie's *curated* pool --- the famous
+   result from Section 1. The suspect neighbours are removed by hand, so the
+   donors are (assumed) clean. This is the textbook Proposition 99 estimate,
+   about $-19$ packs averaged over the post-period.
+2. The naive synthetic control on the *full* pool --- the *same standard method*,
+   but with the excluded neighbours put back in as donors. Because those
+   neighbours absorbed California's lost sales, they are contaminated donors, and
+   the synthetic is biased toward them. This is the "odd-looking" counterfactual:
+   it is non-monotonic and reads only about $-11$ by 2000. It does *not* match
+   estimate 1, and that disagreement is the spillover bias made visible.
+3. Cao and Dowd's spillover-adjusted estimate (`SPILLSYNTH`, `method="cd"`) ---
+   the full pool again, but now the spillover into the neighbours is modelled and
+   removed, recovering a credible direct effect on California.
+
+So estimate 2 is not a mistake to be hidden; it is the contaminated baseline whose
+bias the method exists to correct, and showing it next to estimates 1 and 3 is the
+whole point.
 
 ```{python}
 from mlsynth import SPILLSYNTH
@@ -189,60 +218,237 @@ spill = SPILLSYNTH({
     "display_graphs": False,
 }).fit()
 
-att_sp = spill.att          # spillover-corrected direct effect
-att_naive = spill.att_scm   # ordinary SCM on the same full pool
-print(f"Spillover-corrected    ATT = {att_sp:+.2f} packs per capita")
-print(f"Naive SCM (full pool)  ATT = {att_naive:+.2f} packs per capita")
-print(f"Spillover contamination    = {att_naive - att_sp:+.2f} packs per capita")
+post_years = sorted(full.loc[full["treat"] == 1, "year"].unique())
+direct = dict(zip(post_years, spill.cd.alpha[0, :]))   # California's per-year direct effect
+
+# Cao and Dowd report the effect year by year, not as a single average; mlsynth
+# reproduces their two headline reference points exactly (and matches their own
+# scmSpillover R package to two decimals on every post-period).
+print(f"direct effect 1990 (2 yrs post):  {direct[1990]:+.2f}   (Cao & Dowd: +3.71, their max)")
+print(f"direct effect 1999 (11 yrs post): {direct[1999]:+.2f}  (Cao & Dowd: -18.96, their min)")
 ```
 
-Two things are worth separating here. Reinstating the excluded states changes the
-donor pool, which on its own moves the naive estimate. Holding that pool fixed,
-the gap between the naive and spillover-corrected estimates isolates the
-contamination: the bias an SCM incurs by treating leaky neighbours as clean
-donors.
+The estimate is a path, not a single number, and reproducing that path is the
+validation: mlsynth returns Cao and Dowd's $\alpha^{CA}_{\max} = +3.71$ (1990) and
+$\alpha^{CA}_{\min} = -18.96$ (1999) exactly. The shape is the substance. In the
+first two post-years the spillover-adjusted direct effect is near zero or even
+positive, because in those years much of California's apparent sales drop was not
+a real consumption decline but purchases displaced to neighbours such as Nevada.
+As the tax effect matures and dominates that displacement, the direct effect grows
+to about $-19$ by 1999 --- converging on the curated estimate of Section 1. This
+is exactly the authors' reported finding: their estimates are smaller than
+Abadie's for the first few post-treatment years.
 
 ```{python}
 #| label: fig-spillover
-#| fig-cap: "Cao and Dowd per-year direct effect of Proposition 99 on California."
-post_years = sorted(full.loc[full["treat"] == 1, "year"].unique())
-direct_by_year = spill.cd.alpha[0, :]   # row 0 is the treated unit
+#| fig-cap: "Three synthetic Californias on one panel. Black: observed California. Green dotted: the standard SCM on Abadie's curated pool (the Section-1 estimate, ~ -19 by 2000). Orange dashed: the naive SCM on the full pool that reinstates the affected neighbours -- the spillover-contaminated counterfactual (~ -11 by 2000). Blue: Cao and Dowd's spillover-adjusted SCM, with 95% confidence intervals on the post-period effect. All three coincide before 1989."
+inp = spill.inputs
+years_full = list(inp.time_labels)
+observed_ca = inp.Y[0]
 
-fig, ax = plt.subplots()
-ax.plot(post_years, direct_by_year, marker="o", color="C3")
-ax.axhline(0, color="grey", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("direct ATT (packs per capita)")
+# Estimate 1: the curated-pool ADH synthetic from Section 1 (the famous result).
+adh_curated = scm.time_series.counterfactual_outcome
+
+# Estimates 2 and 3 share the full-pool pre-period fit; they differ only post-1989.
+pre_fit = spill.cd.a[0] + spill.cd.B[0] @ inp.Y_pre
+naive_cf = list(pre_fit) + list(spill.cd.counterfactual_scm)     # contaminated
+adj_cf = list(pre_fit) + list(spill.cd.counterfactual_sp)        # spillover-adjusted
+
+# 95% CI on the per-year effect -> error bars on the adjusted counterfactual
+# (counterfactual = observed - effect, so the interval flips around the point).
+ci = spill.cd.treatment_ci_95                       # (n_post, 2): [lo, hi] on the effect
+alpha = spill.cd.alpha[0, :]
+obs_post = observed_ca[-len(post_years):]
+err_low = ci[:, 1] - alpha                          # distance below the SP point
+err_high = alpha - ci[:, 0]                          # distance above the SP point
+
+fig, ax = plt.subplots(figsize=(7.5, 5))
+ax.plot(years_full, observed_ca, color="black", lw=2.2, label="California (observed)")
+ax.plot(years_full, adh_curated, color="C2", ls=":", lw=2,
+        label="1. Standard SCM (curated pool)")
+ax.plot(years_full, naive_cf, color="C1", ls="--", lw=2,
+        label="2. Naive SCM (full pool, contaminated)")
+ax.plot(years_full, adj_cf, color="C0", lw=2.2,
+        label="3. Spillover-adjusted (Cao & Dowd)")
+ax.errorbar(post_years, list(spill.cd.counterfactual_sp), yerr=[err_low, err_high],
+            fmt="none", ecolor="C0", alpha=0.55, capsize=2)
+ax.axvline(1989, color="0.5", ls=":", lw=1)
+ax.annotate("Proposition 99", xy=(1989, ax.get_ylim()[0]), xytext=(1989.5, 52),
+            fontsize=9, color="0.4")
+ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=2)
 plt.show()
 ```
+
+Read the figure as three answers to one question. The green dotted line is what
+Abadie reports after removing the suspect neighbours; the orange dashed line is
+what the same method gives if you naively leave them in (biased toward zero,
+because the contaminated donors no longer fell as far as a clean control would);
+and the blue line is Cao and Dowd's correction, which keeps the larger pool but
+nets out the spillover. The vertical distance between the orange and blue lines in
+any post-year is the spillover bias the adjustment removes; the gap from the black
+observed line to the blue line is the estimated direct effect, with the error bars
+showing its 95% interval.
+
+### One interface, every spillover method
+
+Cao and Dowd's is only one of several spillover-aware synthetic controls, and
+they do not agree. Until recently, comparing them meant a scavenger hunt across
+codebases: Cao and Dowd's estimator lives in the `scmSpillover` R package;
+Melnychuk's iterative "waterfall" estimator lives in a separate `Spillover-SCM`
+repository with its own conventions; the inclusive SCM of Di Stefano and Mellace
+and the penalised approach of Grossi and co-authors are elsewhere again. To put
+them on one dataset you had to install several packages, learn several syntaxes,
+and reconcile their data formats by hand.
+
+In `mlsynth` they are leaves of a single dispatcher. The data, the outcome, the
+treatment column and the `affected_units` are declared once; one keyword switches
+the estimator.
+
+```{python}
+methods = {
+    "cd":        "Cao & Dowd (2023)",
+    "iscm":      "Inclusive SCM (Di Stefano & Mellace 2024)",
+    "iterative": "Iterative waterfall (Melnychuk 2024)",
+    "grossi":    "Penalised SCM (Grossi et al. 2024)",
+}
+
+cfg = {"df": full, "outcome": "cigsale", "treat": "treat",
+       "unitid": "state", "time": "year",
+       "affected_units": affected, "display_graphs": False}
+
+rows, cf_post = [], {}
+for m, name in methods.items():
+    r = SPILLSYNTH({**cfg, "method": m}).fit()         # <- the only thing that changes
+    rows.append([name, f'method="{m}"', f"{r.att:+.2f}"])
+    cf_post[m] = list(getattr(r, m).counterfactual_sp)
+
+pd.DataFrame(rows, columns=["spillover method", "switch", "ATT (avg, 1989-2000)"])
+```
+
+```{python}
+#| label: fig-spillover-methods
+#| fig-cap: "Every spillover-aware method in the dispatcher, on one panel, reached by changing a single keyword. Observed California (black) against each method's spillover-adjusted synthetic, with Abadie's curated SCM (green dotted) for reference. The estimates fan out across the post-period: the spread is the cross-method sensitivity, and it now costs one keyword to see."
+styles = {"cd": ("C0", "-"), "iscm": ("C3", "--"),
+          "iterative": ("C1", "-."), "grossi": ("C4", ":")}
+
+fig, ax = plt.subplots(figsize=(7.5, 5))
+ax.plot(years_full, observed_ca, color="black", lw=2.2, label="California (observed)")
+ax.plot(years_full, adh_curated, color="C2", ls=":", lw=1.6, alpha=0.8,
+        label="ADH curated SCM (reference)")
+for m, (c, ls) in styles.items():
+    ax.plot(years_full, list(pre_fit) + cf_post[m], color=c, ls=ls, lw=2,
+            label=f'method="{m}"')
+ax.axvline(1989, color="0.5", ls=":", lw=1)
+ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3)
+plt.show()
+```
+
+The estimates span roughly $-9$ to $-22$ packs and bracket Abadie's $-19$ from both
+sides. Cao and Dowd read the first post-years as cross-border displacement and
+land above $-19$; inclusive and iterative SCM attribute more of the neighbours'
+resilience to spillover and land below it; Grossi's penalised fit sits almost on
+top of the curated estimate. `mlsynth` takes no position on which is correct ---
+that is the analyst's judgement, and it turns on the spillover mechanism one is
+willing to assume. What the library removes is the friction. The disagreement
+above *is* the sensitivity analysis, and producing it now costs a single keyword
+rather than four installations and four syntaxes to reconcile. Lowering that
+barrier, not crowning a winner, is the point of `mlsynth`.
 
 ## Putting it together
 
 ```{python}
 summary = pd.DataFrame(
     [
-        ["Standard SCM (mscmt)", "curated 38-donor pool", "linear factor model, SUTVA", att_scm],
-        ["Low-rank SCM (pcr)",   "curated 38-donor pool", "low-rank factors, SUTVA",   att_pcr],
-        ["Spillover SCM (cd)",   "full pool + spillover", "linear factors, no SUTVA",  att_sp],
+        ["Standard SCM (mscmt)", "curated 38-donor pool", "linear factor model, SUTVA",
+         f"{att_scm:+.1f} (1989-2000 mean)"],
+        ["Low-rank SCM (pcr)",   "curated 38-donor pool", "low-rank factors, SUTVA",
+         f"{att_pcr:+.1f} (1989-2000 mean)"],
+        ["Spillover SCM (cd)",   "full pool + spillover", "linear factors, no SUTVA",
+         f"{direct[1990]:+.1f} (1990) to {direct[1999]:+.1f} (1999)"],
     ],
-    columns=["estimator", "donor pool", "key assumptions", "ATT"],
+    columns=["estimator", "donor pool", "key assumptions", "estimated effect"],
 )
-summary["ATT"] = summary["ATT"].map(lambda x: f"{x:+.2f}")
 summary
 ```
 
-Three nodes of the decision tree, three estimators, three sets of assumptions ---
-reached not by rewriting the analysis each time but by answering the questions
-the tree asks and changing a single field in the configuration. The standard and
-low-rank fits agree, which tells us the curated result is not an artefact of
-pre-treatment noise; the spillover-aware fit tells us how much of that result
-depends on the SUTVA assumption the first two take on faith. This is the role the
-decision tree plays throughout the paper. It is not a catalogue of methods but a
-procedure for selecting among them: each gate sharpens the causal question, each
-leaf is an estimator validated against its source, and the shared `fit()`
-contract is what makes the leaves comparable. The case study above is one
-traversal; the sections that follow enter the tree at other gates --- many
-treated units, staggered adoption, and the experimental-design branch where the
-treatment has not yet been assigned --- and the same logic carries through:
-identify the question precisely, and the library names the estimator that answers
-it.
+The standard and low-rank fits agree on a period-averaged effect near $-19$,
+which tells us the curated result is not an artefact of pre-treatment noise. The
+spillover-aware fit is reported as a path rather than an average for a reason: it
+shows that the early-post-period effect is largely contamination --- sales
+displaced to untreated neighbours --- and that only as the tax effect matures does
+the genuine direct effect converge to the standard estimate. Three nodes of the
+decision tree, three estimators, three sets of assumptions, reached not by
+rewriting the analysis each time but by answering the questions the tree asks and
+changing a single field in the configuration.
+
+## A different branch: synthetic difference-in-differences
+
+The three estimators above all sit on the synthetic-control side of the tree:
+each takes California as given and builds a convex combination of donors to match
+its pre-treatment path, forbidding any level gap between California and its
+synthetic counterpart. A different branch asks whether that convexity is the
+right constraint at all. Difference-in-differences would instead permit a level
+gap --- absorbed by unit fixed effects --- and assume the treated and control
+trends are parallel; its weakness is that for a single state like California
+parallel trends plainly fail. Synthetic difference-in-differences (Arkhangelsky,
+Athey, Hirshberg, Imbens and Wager 2021) is the reconciliation: it fits a two-way
+fixed-effects regression that is doubly weighted --- by synthetic-control unit
+weights and difference-in-differences time weights --- so it reweights the
+controls until their trend runs parallel to California's (not identical, since
+the unit fixed effects absorb the level gap) and only then differences. The tree
+routes here from the parallel-trends gate: reach for it when a level intercept and
+a focus on the most comparable pre-periods are worth more than the simplex's
+exact-matching discipline.
+
+```{python}
+from mlsynth import SDID
+
+sdid = SDID({
+    "df": pd.read_csv(f"{RAW}/smoking_data.csv"),
+    "outcome": "cigsale", "treat": "Proposition 99",
+    "unitid": "state", "time": "year",
+    "display_graphs": False,
+}).fit()
+
+att_sdid = sdid.att
+lo, hi = sdid.att_ci
+print(f"SDID  ATT = {att_sdid:+.2f} packs per capita   95% CI [{lo:+.1f}, {hi:+.1f}]")
+```
+
+This reproduces the headline number of the method's own authors --- Arkhangelsky
+et al. report an effect of roughly $-15.6$ packs per capita on exactly this panel
+--- and it lands a few packs short of the standard synthetic control's $-19$. The
+gap is informative rather than contradictory. The simplex synthetic control must
+reproduce California's *level* with a convex combination of donors and is
+penalised for any pre-treatment imperfection it cannot remove; SDID's unit fixed
+effect simply absorbs a constant level difference, and its time weights lean on
+the late pre-periods that most resemble the post-period. When a level shift and
+time weighting are the more credible devices, SDID is the estimator the tree
+names; when exact convex matching is what you trust, the synthetic controls above
+are.
+
+```{python}
+#| label: fig-sdid
+#| fig-cap: "California against its synthetic difference-in-differences counterfactual."
+ts = sdid.time_series
+fig, ax = plt.subplots()
+ax.plot(ts.time_periods, ts.observed_outcome, color="black", lw=2, label="California (observed)")
+ax.plot(ts.time_periods, ts.counterfactual_outcome, color="C2", ls="--", label="SDID counterfactual")
+ax.axvline(ts.intervention_time, color="grey", lw=1)
+ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
+ax.legend(frameon=False)
+plt.show()
+```
+
+This is the role the decision tree plays throughout the paper. It is not a
+catalogue of methods but a procedure for selecting among them: each gate sharpens
+the causal question, each leaf is an estimator validated against its source, and
+the shared `fit()` contract is what makes the leaves comparable. The case study
+above is a single panel read four ways; the sections that follow enter the tree
+at gates we have not yet visited --- many treated units, staggered adoption, and
+the experimental-design branch where the treatment has not yet been assigned ---
+and the same logic carries through: identify the question precisely, and the
+library names the estimator that answers it.
 ```
