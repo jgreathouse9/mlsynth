@@ -153,6 +153,36 @@ the ATT still be biased.
 * Neither -- selection is on the latent factors only (SC's standard premise) --
   continue.
 
+*Within the proximal family: instrument, two proxies, one proxy, or surrogates.*
+These methods share a single premise -- some donors are not valid members of the
+synthetic control but are still informative about the latent confounder, so they
+can be repurposed as proxies (or negative controls) rather than discarded -- yet
+the authors motivate four distinct entry points. Shi, Li, Miao and Tchetgen
+Tchetgen (2026) give the foundational :doc:`proximal` framework: classical SC was
+built for settings with a near-perfect pre-treatment fit, and when that fit is
+poor even with a long pre-period, control units that do not help the fit can
+serve as proxies of the unmeasured confounders, identifying the ATT through a
+confounding bridge function (and extending naturally to nonlinear, binary, and
+count outcomes the standard linear SC literature leaves understudied). Their
+construction needs two kinds of proxy. Qiu, Shi, Miao, Dobriban and Tchetgen
+Tchetgen (2024) relax the modelling burden: their doubly robust variant pairs an
+outcome model with a weighting model and stays consistent if *either* is correct,
+so you are not forced to specify the confounding-bridge outcome model exactly.
+Park and Tchetgen Tchetgen (2025) cut the proxy requirement instead of the model
+requirement: their single-proxy approach views the donor outcomes themselves as
+the only proxies needed -- no separate group of treatment proxies -- and pairs it
+with conformal inference, which buys valid intervals without a long
+post-treatment series. Liu, Tchetgen Tchetgen and Varjão (2024) point the
+framework forward in time: when the pre-period is short or the post-period long,
+post-intervention *surrogates* (time-varying correlates of the effect) sharpen
+estimation, and they show conditions under which post-treatment data alone can
+identify the effect. So reach for :doc:`siv` when you hold a genuine instrument
+and the worry is endogenous exposure; reach for :doc:`proximal` when you hold
+proxies/negative controls instead -- the doubly robust route when you distrust
+your outcome model, the single-proxy route when you have only one kind of proxy
+and a short post-period, and the surrogate route when the leverage is in
+post-treatment correlates rather than a long clean pre-period.
+
 Q0.5 · Do parallel trends hold, and are you in a fixed-T / large-N regime?
 
 * Yes -- you may not need synthetic control at all: plain
