@@ -136,7 +136,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
+          # No pip cache here. This job's install step is conditional (skipped on
+          # docs/benchmarks-only PRs), and setup-python's cache post-step errors
+          # when nothing was installed -- which failed this job on every docs-only
+          # PR. The build job above keeps the cache (its install is unconditional).
 
       - name: Install dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
