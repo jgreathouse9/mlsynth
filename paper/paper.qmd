@@ -1,5 +1,5 @@
 ---
-title: "One case study, three estimators: California's Proposition 99 in `mlsynth`"
+title: "One case study, four estimators: California's Proposition 99 in `mlsynth`"
 format:
   html:
     toc: true
@@ -27,11 +27,11 @@ maintained version is the package's `choose` companion, of which Figure 1 is the
 top-level map.
 
 The remainder of this section makes the tree concrete by walking one familiar
-panel down three of its branches. The case is Abadie, Diamond and Hainmueller's
+panel down four of its branches. The case is Abadie, Diamond and Hainmueller's
 study of California's Proposition 99, the 1988 ballot measure that raised the
 state cigarette tax; the outcome is per-capita cigarette sales and the
-intervention date is 1989. Three nodes of the tree send this single panel to
-three different estimators:
+intervention date is 1989. Four nodes of the tree send this single panel to four
+different estimators:
 
 1. With one treated unit (the tree's "how many treated?" gate, Q0.6) and no
    reason to distrust the donors, the analyst lands on standard synthetic
@@ -44,6 +44,10 @@ three different estimators:
    to the spillover-aware family. We take Cao and Dowd's estimator, which
    reinstates the neighbouring states that the standard analysis hand-excludes
    and models the tax-driven sales that leak across state lines.
+4. The parallel-trends gate (Q0.5, "is a doubly-weighted difference-in-differences
+   the better frame?") routes off the synthetic-control branch entirely, to
+   synthetic difference-in-differences, which permits the level shift the simplex
+   forbids.
 
 The point of the exercise is methodological rather than substantive: the same
 outcome and the same intervention date, three different sets of assumptions, and
@@ -235,14 +239,74 @@ reached not by rewriting the analysis each time but by answering the questions
 the tree asks and changing a single field in the configuration. The standard and
 low-rank fits agree, which tells us the curated result is not an artefact of
 pre-treatment noise; the spillover-aware fit tells us how much of that result
-depends on the SUTVA assumption the first two take on faith. This is the role the
-decision tree plays throughout the paper. It is not a catalogue of methods but a
-procedure for selecting among them: each gate sharpens the causal question, each
-leaf is an estimator validated against its source, and the shared `fit()`
-contract is what makes the leaves comparable. The case study above is one
-traversal; the sections that follow enter the tree at other gates --- many
-treated units, staggered adoption, and the experimental-design branch where the
-treatment has not yet been assigned --- and the same logic carries through:
-identify the question precisely, and the library names the estimator that answers
-it.
+depends on the SUTVA assumption the first two take on faith.
+
+## A different branch: synthetic difference-in-differences
+
+The three estimators above all sit on the synthetic-control side of the tree:
+each takes California as given and builds a convex combination of donors to match
+its pre-treatment path, forbidding any level gap between California and its
+synthetic counterpart. A different branch asks whether that convexity is the
+right constraint at all. Difference-in-differences would instead permit a level
+gap --- absorbed by unit fixed effects --- and assume the treated and control
+trends are parallel; its weakness is that for a single state like California
+parallel trends plainly fail. Synthetic difference-in-differences (Arkhangelsky,
+Athey, Hirshberg, Imbens and Wager 2021) is the reconciliation: it fits a two-way
+fixed-effects regression that is doubly weighted --- by synthetic-control unit
+weights and difference-in-differences time weights --- so it reweights the
+controls until their trend runs parallel to California's (not identical, since
+the unit fixed effects absorb the level gap) and only then differences. The tree
+routes here from the parallel-trends gate: reach for it when a level intercept and
+a focus on the most comparable pre-periods are worth more than the simplex's
+exact-matching discipline.
+
+```{python}
+from mlsynth import SDID
+
+sdid = SDID({
+    "df": pd.read_csv(f"{RAW}/smoking_data.csv"),
+    "outcome": "cigsale", "treat": "Proposition 99",
+    "unitid": "state", "time": "year",
+    "display_graphs": False,
+}).fit()
+
+att_sdid = sdid.att
+lo, hi = sdid.att_ci
+print(f"SDID  ATT = {att_sdid:+.2f} packs per capita   95% CI [{lo:+.1f}, {hi:+.1f}]")
+```
+
+This reproduces the headline number of the method's own authors --- Arkhangelsky
+et al. report an effect of roughly $-15.6$ packs per capita on exactly this panel
+--- and it lands a few packs short of the standard synthetic control's $-19$. The
+gap is informative rather than contradictory. The simplex synthetic control must
+reproduce California's *level* with a convex combination of donors and is
+penalised for any pre-treatment imperfection it cannot remove; SDID's unit fixed
+effect simply absorbs a constant level difference, and its time weights lean on
+the late pre-periods that most resemble the post-period. When a level shift and
+time weighting are the more credible devices, SDID is the estimator the tree
+names; when exact convex matching is what you trust, the synthetic controls above
+are.
+
+```{python}
+#| label: fig-sdid
+#| fig-cap: "California against its synthetic difference-in-differences counterfactual."
+ts = sdid.time_series
+fig, ax = plt.subplots()
+ax.plot(ts.time_periods, ts.observed_outcome, color="black", lw=2, label="California (observed)")
+ax.plot(ts.time_periods, ts.counterfactual_outcome, color="C2", ls="--", label="SDID counterfactual")
+ax.axvline(ts.intervention_time, color="grey", lw=1)
+ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
+ax.legend(frameon=False)
+plt.show()
+```
+
+This is the role the decision tree plays throughout the paper. It is not a
+catalogue of methods but a procedure for selecting among them: each gate sharpens
+the causal question, each leaf is an estimator validated against its source, and
+the shared `fit()` contract is what makes the leaves comparable. The case study
+above is a single panel read four ways; the sections that follow enter the tree
+at gates we have not yet visited --- many treated units, staggered adoption, and
+the experimental-design branch where the treatment has not yet been assigned ---
+and the same logic carries through: identify the question precisely, and the
+library names the estimator that answers it.
 ```
