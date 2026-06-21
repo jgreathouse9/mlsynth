@@ -342,15 +342,5 @@ def scpi_intervals(
         metadata={"sims": sims, "u_alpha": u_alpha, "e_alpha": e_alpha,
                   "df": df, "rho": rho, "e_method": e_method,
                   "u_missp": bool(u_missp), "n_active": int(idxw.sum()),
-                  "att": att, "att_lower": att_lower, "att_upper": att_upper,
-                  # Components for exact cross-unit aggregation (staggered SCPI).
-                  # ``insample_draws_{lo,hi}`` are the per-simulation worst-case
-                  # in-sample errors p'(W - x) for each predictor row: columns
-                  # 0..T_post-1 are the per-period rows, column T_post is the
-                  # averaged (ATT) predictand row. ``oos_{lb,ub}_rows`` are the
-                  # out-of-sample band per row (same row layout); ``cf`` / ``obs``
-                  # are the per-period synthetic and observed post outcomes.
-                  "insample_draws_lo": lo, "insample_draws_hi": hi,
-                  "oos_lb_rows": e_lb_aug, "oos_ub_rows": e_ub_aug,
-                  "cf": cf, "obs": obs, "n_post": int(T_post)},
+                  "att": att, "att_lower": att_lower, "att_upper": att_upper},
     )

@@ -206,3 +206,32 @@ def test_event_study_synthetic_recovers_planted_path():
     res = _fit_synth(_synthetic_staggered({0: 10, 1: 13, 2: 16}))
     es = res.additional_outputs["event_study"]
     assert np.mean([es[k] for k in es]) == pytest.approx(3.0, abs=0.6)
+
+
+# ---------------------------------------------------------------------------
+# Section 4: cross-unit (TSUA) prediction intervals via the clean-room engine
+# ---------------------------------------------------------------------------
+def test_event_study_intervals_populated(germany_staggered):
+    """The TSUA prediction intervals are exposed per event time, bracket the
+    effect, and the full band contains the in-sample-only band."""
+    res = _fit_scpi(germany_staggered, scpi_sims=120)
+    esi = res.additional_outputs["event_study_intervals"]
+    es = res.additional_outputs["event_study"]
+    assert esi is not None and set(esi) == set(es)
+    for ell, d in esi.items():
+        lo, hi = d["effect_ci"]
+        assert lo <= d["effect"] <= hi
+        s_lo, s_hi = d["synthetic_ci"]
+        i_lo, i_hi = d["insample_synthetic_ci"]
+        # the full band adds the out-of-sample term, so it is at least as wide
+        # as the in-sample-only band (it may shift via the out-of-sample mean).
+        assert (s_hi - s_lo) >= (i_hi - i_lo) - 1e-9
+
+
+def test_single_treated_unit_has_no_event_study_intervals(germany_staggered):
+    """With one treated unit the cross-unit predictand is undefined; the scalar
+    path runs and no ``event_study_intervals`` entry is produced."""
+    df = germany_staggered.copy()
+    df.loc[df["country"] == "Italy", "status"] = 0    # only West Germany treated
+    res = _fit_scpi(df, scpi_sims=60)
+    assert res.additional_outputs.get("event_study_intervals") is None

@@ -102,6 +102,35 @@ def _event_study(unit_fits: Dict[str, StaggeredUnitFit]) -> Dict[int, float]:
     return out
 
 
+def _event_study_intervals(config) -> Dict[int, Dict[str, Any]]:
+    """Cross-unit (TSUA) prediction intervals via the clean-room engine.
+
+    Returns, keyed by 1-indexed event time, the synthetic-prediction band
+    ``synthetic_ci`` (directly comparable to ``scpi``'s ``CI_all_gaussian``) and
+    the synthetic point. ``config.scpi_compat`` selects the ``1/iota`` (correct,
+    default) vs ``1/iota**2`` (``scpi``-matching) in-sample scaling.
+    """
+    from .staggered_engine import staggered_pi_bands
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        bands = staggered_pi_bands(
+            config.df, outcome=config.outcome, unitid=config.unitid,
+            time=config.time, treat=config.treat, effect="time",
+            sims=config.scpi_sims, u_alpha=config.alpha, e_alpha=config.alpha,
+            seed=config.seed, scpi_compat=config.scpi_compat,
+        )
+    out: Dict[int, Dict[str, Any]] = {}
+    for k, lab in enumerate(list(bands["index"])):
+        ell = int(lab[-1]) if isinstance(lab, tuple) else int(lab)
+        out[ell] = {
+            "synthetic_ci": (float(bands["lb"][k]), float(bands["ub"][k])),
+            "insample_synthetic_ci": (float(bands["insample_lb"][k]),
+                                      float(bands["insample_ub"][k])),
+            "synthetic_point": float(bands["point"][k]),
+        }
+    return out
+
+
 def _unit_scpi(config, y: np.ndarray, Y0: np.ndarray, pre: int,
                W: np.ndarray) -> Dict[str, Any]:
     """Per-unit CFT prediction bands, via the same engine the scalar path uses."""
@@ -207,6 +236,28 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
 
     event_study = _event_study(unit_fits)
 
+    # Cross-unit (TSUA) prediction intervals for the event-study series. The
+    # engine returns the band on the synthetic prediction; the treatment-effect
+    # interval is observed - synthetic (bounds reverse). Only meaningful with
+    # more than one treated unit (otherwise the per-unit band already covers it).
+    event_study_intervals = None
+    if do_scpi and len(unit_fits) > 1 and event_study:
+        es_bands = _event_study_intervals(config)
+        event_study_intervals = {}
+        for ell, eff in event_study.items():
+            band = es_bands.get(ell)
+            if band is None:
+                continue
+            s_lb, s_ub = band["synthetic_ci"]
+            s_pt = band["synthetic_point"]
+            obs_avg = eff + s_pt                       # observed = effect + synthetic
+            event_study_intervals[ell] = {
+                "effect": eff,
+                "effect_ci": (obs_avg - s_ub, obs_avg - s_lb),
+                "synthetic_ci": (s_lb, s_ub),
+                "insample_synthetic_ci": band["insample_synthetic_ci"],
+            }
+
     inference = _aggregate_att_interval(unit_fits, overall_att, config) if do_scpi else None
 
     return BaseEstimatorResults(
@@ -236,6 +287,7 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
         additional_outputs={
             "adoption_times": sorted(cohorts.keys()),
             "event_study": event_study,
+            "event_study_intervals": event_study_intervals,
             "per_unit_att": {n: f.att for n, f in unit_fits.items()},
         },
     )

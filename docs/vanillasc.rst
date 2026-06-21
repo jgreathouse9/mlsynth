@@ -308,6 +308,14 @@ Five inference modes are available via ``inference=``:
        error (see ``test_scpi_matches_reference_package``, which is skipped
        unless ``scpi_pkg`` happens to be installed).
 
+       Under staggered adoption (several treated units adopting at possibly
+       different times), the same ``inference="scpi"`` produces the
+       Cattaneo-Feng-Palomba-Titiunik (2025) cross-unit causal-predictand
+       intervals via a dedicated clean-room engine. These reproduce ``scpi``'s
+       event-time band to solver tolerance; ``scpi_compat`` selects the
+       statistically correct (default) vs. ``scpi``-matching in-sample scaling.
+       See :doc:`replications/vanillasc_staggered`.
+
 ``"lto"`` -- leave-two-out refined placebo (Lei & Sudijono 2025)
     A design-based randomization test that fixes the two structural weaknesses
     of the ordinary placebo test -- its coarse :math:`\{1/N, 2/N, \dots\}`
