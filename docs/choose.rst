@@ -92,6 +92,7 @@ At a glance
    Same adoption time?  ─► SDID            (micro units ─► MicroSynth; two-level ─► MLSC)
      + many treated at once, disaggregated/high-dim donors ─► MSQRT
    Staggered (different times)?  ─► SDID · ROLLDID (rolling-transformation DiD)
+     + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
@@ -201,7 +202,8 @@ spillovers (a true outlier)?
 
 * No -- next question.
 * Yes -- relax the simplex: :doc:`nsc` (affine weights), :doc:`rescm`
-  (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda`.
+  (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda` (the
+  Hsiao--Ching--Wan panel-data regression and its modern penalised cousins).
 
 Q1.3 · Is the outcome nonstationary, so a tight pre-fit might be a *spurious*
 match?
@@ -229,9 +231,11 @@ the pre-period and predict the post-period worse.
 
 * No -- next question.
 * Yes -- escalate, roughly easiest first: :doc:`fscm` (tune the donor *count*),
-  :doc:`sparse_sc` (L1 predictor/covariate selection), :doc:`pda`
-  (L2-relaxation / Lasso / forward), :doc:`rescm` (one program from simplex SC
-  to :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
+  :doc:`sparse_sc` (L1 predictor/covariate selection), :doc:`pda` (the Panel Data
+  Approach: L2-relaxation, Lasso, Shi--Huang forward selection, or the original
+  Hsiao--Ching--Wan best-subset regression -- ``method="hcw"``, the classic
+  unconstrained PDA), :doc:`rescm` (one program from simplex SC to
+  :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
   :doc:`bvss` (Bayesian spike-and-slab with a soft simplex).
 
 Q1.7 · Are there missing cells in the panel?
@@ -297,6 +301,22 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   included), so it needs no never-treated pool, and gives event-time ATTs with
   Andrews end-of-sample inference. Best with a long pre-period (large :math:`T`,
   moderate :math:`N`).
+* Staggered, with a clean never-treated donor pool, and you want the *simplex*
+  synthetic-control answer -- one synthetic control per treated unit, on its own
+  pre-period -- with the full Cattaneo--Feng--Palomba--Titiunik causal
+  predictands (per-unit ATTs, the event-time average effect, the overall ATT)
+  and their prediction intervals -- :doc:`vanillasc` handles staggered adoption
+  natively. It detects the multiple treated units from the treatment column,
+  fits each on the never-treated donors and aggregates, with or without
+  covariate (multi-feature) matching, reproducing the ``scpi`` package. It is the
+  staggered counterpart of the textbook simplex SC from Part 1, and the same
+  trade-off decides between it and the :doc:`sdid` base case: prefer :doc:`sdid`
+  when matching the cohorts adequately *requires* an intercept (a level shift
+  between a cohort and its synthetic control) or time weights -- which SDID
+  carries and vanilla SCM, by construction, does not -- and prefer staggered
+  :doc:`vanillasc` when the simplex fit already tracks the cohorts on levels, so
+  you keep genuine convex synthetic-control weights and the CFPT prediction
+  intervals without leaning on a DiD intercept or reweighted periods.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
 * Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
   staggered missingness natively).
@@ -416,7 +436,8 @@ A reverse lookup: the symptom, and the method named for it.
    * - Many treated at once, high-dimensional donor pool (block design)
      - :doc:`msqrt`
    * - Many treated, staggered adoption
-     - :doc:`sdid`, :doc:`rolldid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
+     - :doc:`sdid`, :doc:`vanillasc` (simplex SC per unit, CFPT intervals),
+       :doc:`rolldid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
    * - Staggered, long pre-period, few never-treated (event study)
      - :doc:`ssc`
    * - Designing for the ATT
