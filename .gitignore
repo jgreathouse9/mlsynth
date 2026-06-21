@@ -23,3 +23,7 @@ y_lexplot.png
 
 # on-demand reference clones (benchmarks)
 benchmarks/reference/.cache/
+
+# Quarto render artifacts
+paper/paper.html
+paper/paper_files/
