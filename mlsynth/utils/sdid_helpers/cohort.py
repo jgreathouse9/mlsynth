@@ -348,9 +348,12 @@ def estimate_cohort_sdid_effects(
         "pre_effects": pre_effects_array,
         "post_effects": post_effects_array,
         "actual": cohort_mean_treated_outcome_series,
-        "counterfactual": raw_synthetic_control_series, 
+        "counterfactual": raw_synthetic_control_series,
         "fitted_counterfactual": raw_synthetic_control_series + bias_correction,
         "att": average_treatment_effect_cohort,
         "treatment_effects_series": cohort_treatment_effects_series_tau,
         "ell": event_times_relative_to_cohort_treatment,
+        "unit_weights": final_optimal_unit_weights,
+        "time_weights": final_optimal_time_weights,
+        "unit_intercept": optimal_unit_weight_intercept,
     }

@@ -1,0 +1,6 @@
+# Render environment for paper/paper.qmd (consumed by .github/workflows/paper_render.yml).
+# Installs the library from the repo checkout so the paper reflects current code,
+# plus the Jupyter engine Quarto uses to execute the Python chunks.
+-e .[design]
+jupyter
+matplotlib

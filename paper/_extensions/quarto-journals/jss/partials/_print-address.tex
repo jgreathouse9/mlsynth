@@ -1,0 +1,42 @@
+$it.name.literal$\\
+$if(it.affiliations)$
+$for(it.affiliations)$
+$if(it.department)$
+$it.department$\\
+$endif$
+$if(it.group)$
+$it.group$\\
+$endif$
+$if(it.name)$
+$it.name$\\
+$endif$
+$if(it.address)$
+$it.address$\\
+$endif$
+$if(it.postal-code)$
+$it.postal-code$$if(it.city)$ $it.city$$endif$$if(it.region)$, $it.region$$endif$$if(it.country)$, $it.country$$endif$\\
+$elseif(it.city)$
+$it.city$$if(it.region)$, $it.region$$endif$$if(it.country)$, $it.country$$endif$\\
+$elseif(it.region)$
+$it.region$$if(it.country)$, $it.country$$endif$\\
+$elseif(it.country)$
+$it.country$\\
+$endif$
+$sep$
+\emph{and}\\
+$endfor$
+$endif$
+$if(it.phone)$
+Telephone: $it.phone$\\
+$endif$
+$if(it.fax)$
+Fax: $it.fax$\\
+$endif$
+$if(it.email)$
+E-mail: \email{$it.email$}\\
+$endif$
+$if(it.url)$
+URL: \url{$it.url$}\\
+$endif$
+\\~
+

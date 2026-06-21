@@ -77,4 +77,6 @@ def prepare_clustersc_inputs(
         T=T,
         T0=T0,
         time_labels=time_labels,
+        outcome_name=outcome,
+        time_name=time,
     )

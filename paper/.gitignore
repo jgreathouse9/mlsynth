@@ -1,0 +1,26 @@
+# Quarto render intermediates. The final PDF (paper.pdf) is produced and
+# committed by the paper_render.yml GitHub Actions workflow, so it is not
+# ignored here; everything else below is a local build artifact.
+/.quarto/
+paper.tex
+paper.html
+paper_files/
+*_files/
+
+# JSS class files are vendored under _extensions/quarto-journals/jss/; Quarto
+# copies them next to the output at render time, so the copies here are
+# build artifacts.
+/jss.cls
+/jss.bst
+/jsslogo.jpg
+
+# Unzipped upstream JSS template kept only as local reference. The original
+# archive (Template_for_Journal_of_Statistical_Software__JSS_.zip) is tracked.
+/jss/
+
+# LaTeX byproducts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out

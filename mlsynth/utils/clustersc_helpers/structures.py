@@ -57,6 +57,10 @@ class CLUSTERSCInputs:
         Number of pre-treatment periods.
     time_labels : np.ndarray
         Length-``T`` labels of the time periods.
+    outcome_name : str
+        Name of the outcome column, used for axis labelling.
+    time_name : str
+        Name of the time column, used for axis labelling.
     """
 
     treated_outcome: np.ndarray
@@ -66,6 +70,8 @@ class CLUSTERSCInputs:
     T: int
     T0: int
     time_labels: np.ndarray
+    outcome_name: str = ""
+    time_name: str = ""
 
     @property
     def J(self) -> int:

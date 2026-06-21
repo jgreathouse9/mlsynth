@@ -46,8 +46,14 @@ def _placebo_p_value(att: float, placebo: np.ndarray) -> float:
 
 def _assemble_cohort(period: int, raw_cohort_summary: Dict[str, Any],
                      cohort_input: Dict[str, Any],
-                     per_cohort_full: Dict[str, Any]) -> SDIDCohort:
-    """Convert one cohort's raw dict into a typed ``SDIDCohort``."""
+                     per_cohort_full: Dict[str, Any],
+                     intercept_adjust: bool = False) -> SDIDCohort:
+    """Convert one cohort's raw dict into a typed ``SDIDCohort``.
+
+    ``intercept_adjust`` selects which counterfactual the cohort carries: the
+    raw weighted-donor series (default) or the intercept-shifted series that is
+    level-matched to the treated unit over the pre-period.
+    """
 
     event_effects = {
         int(ell): SDIDEventEffect(
@@ -60,6 +66,9 @@ def _assemble_cohort(period: int, raw_cohort_summary: Dict[str, Any],
     }
 
     att_ci = raw_cohort_summary.get("att_ci", [float("nan"), float("nan")])
+    cf_key = "fitted_counterfactual" if intercept_adjust else "counterfactual"
+    unit_w = per_cohort_full.get("unit_weights")
+    time_w = per_cohort_full.get("time_weights")
     return SDIDCohort(
         adoption_period=int(period),
         n_treated=len(cohort_input.get("treated_indices", [])),
@@ -70,13 +79,36 @@ def _assemble_cohort(period: int, raw_cohort_summary: Dict[str, Any],
         event_effects=event_effects,
         actual=np.asarray(per_cohort_full.get("actual"), dtype=float),
         counterfactual=np.asarray(
-            per_cohort_full.get("fitted_counterfactual", per_cohort_full.get("counterfactual")),
+            per_cohort_full.get(cf_key, per_cohort_full.get("counterfactual")),
             dtype=float,
         ),
+        unit_weights=None if unit_w is None else np.asarray(unit_w, dtype=float),
+        time_weights=None if time_w is None else np.asarray(time_w, dtype=float),
     )
 
 
-def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any]) -> SDIDResults:
+def _donor_weight_map(inputs: SDIDInputs, cohorts: Dict[int, SDIDCohort]):
+    """Map donor names to SDID unit weights for the single-cohort (block) case.
+
+    With one treated cohort the donor columns line up with ``inputs.donor_names``,
+    so the unit weights ``omega`` become a readable ``{donor: weight}`` mapping.
+    Staggered designs vary the donor set by cohort, so the per-cohort weights are
+    left on each ``SDIDCohort.unit_weights`` instead.
+    """
+    if len(cohorts) != 1:
+        return None
+    cohort = next(iter(cohorts.values()))
+    if cohort.unit_weights is None:
+        return None
+    names = list(map(str, np.asarray(inputs.donor_names)))
+    weights = np.asarray(cohort.unit_weights, dtype=float)
+    if len(names) != weights.shape[0]:
+        return None
+    return {name: float(w) for name, w in zip(names, weights)}
+
+
+def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any],
+                     intercept_adjust: bool = False) -> SDIDResults:
     """Wrap the raw dict from ``estimate_event_study_sdid`` into typed objects."""
 
     # Pooled event-study estimator (Equation 6).
@@ -109,6 +141,7 @@ def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any]) -> SDIDResults:
             raw_cohort_summary=cohort_summaries.get(period, {}),
             cohort_input=inputs.cohorts_dict[int(period)],
             per_cohort_full=per_cohort_full.get(period, {}),
+            intercept_adjust=intercept_adjust,
         )
         for period in inputs.cohorts_dict
     }
@@ -170,6 +203,7 @@ def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any]) -> SDIDResults:
             time_periods=labels,
             intervention_time=(labels[n_pre] if 0 <= n_pre < labels.shape[0] else None)),
         weights=WeightsResults(
+            donor_weights=_donor_weight_map(inputs, cohorts),
             summary_stats={"constraint": "SDID unit + time weights (per cohort)"}),
         fit_diagnostics=FitDiagnosticsResults(rmse_pre=pre_rmse),
         inference=std_inference,
@@ -185,6 +219,7 @@ def run_sdid(
     time: str,
     B: int = 500,
     seed: int = 1400,
+    intercept_adjust: bool = False,
 ) -> SDIDResults:
     """End-to-end SDID pipeline producing a typed ``SDIDResults`` object."""
 
@@ -196,4 +231,5 @@ def run_sdid(
         placebo_iterations=int(B),
         seed=int(seed),
     )
-    return assemble_results(inputs=inputs, raw=raw)
+    return assemble_results(inputs=inputs, raw=raw,
+                            intercept_adjust=intercept_adjust)
