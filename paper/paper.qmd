@@ -193,29 +193,39 @@ spill = SPILLSYNTH({
     "display_graphs": False,
 }).fit()
 
-att_sp = spill.att          # spillover-corrected direct effect
-att_naive = spill.att_scm   # ordinary SCM on the same full pool
-print(f"Spillover-corrected    ATT = {att_sp:+.2f} packs per capita")
-print(f"Naive SCM (full pool)  ATT = {att_naive:+.2f} packs per capita")
-print(f"Spillover contamination    = {att_naive - att_sp:+.2f} packs per capita")
+post_years = sorted(full.loc[full["treat"] == 1, "year"].unique())
+direct = dict(zip(post_years, spill.cd.alpha[0, :]))   # California per-year direct effect
+
+# Cao and Dowd report the effect year by year, not as a single average. mlsynth
+# reproduces their two headline reference points exactly.
+print(f"direct effect 1990 (2 yrs post):  {direct[1990]:+.2f}   (Cao & Dowd: +3.71, their max)")
+print(f"direct effect 1999 (11 yrs post): {direct[1999]:+.2f}  (Cao & Dowd: -18.96, their min)")
+print(f"naive SCM on the same full pool:  {spill.att_scm:+.2f}  (averaged over 1989-2000)")
 ```
 
-Two things are worth separating here. Reinstating the excluded states changes the
-donor pool, which on its own moves the naive estimate. Holding that pool fixed,
-the gap between the naive and spillover-corrected estimates isolates the
-contamination: the bias an SCM incurs by treating leaky neighbours as clean
-donors.
+Unlike the standard and low-rank fits, the Cao and Dowd estimate is reported as a
+path, not a single number, and reproducing that path is the validation: mlsynth
+returns their $\alpha^{CA}_{\max} = +3.71$ (1990) and $\alpha^{CA}_{\min} = -18.96$
+(1999) to the reported precision. The shape is the substance. In the first two
+post-years the spillover-corrected direct effect is near zero or even positive,
+then it grows steadily to roughly $-19$ by 1999. This is precisely Cao and Dowd's
+finding: their estimates are smaller than Abadie's in the early post-years because
+much of the early apparent drop in California was sales displaced to neighbours
+such as Nevada --- contamination the standard analysis cannot see --- and only as
+the tax effect matures does the direct effect converge to the level the standard
+synthetic control reports. Reading a single average over this path (it happens to
+be about $-9$) hides exactly the time structure that is the point.
 
 ```{python}
 #| label: fig-spillover
-#| fig-cap: "Cao and Dowd per-year direct effect of Proposition 99 on California."
-post_years = sorted(full.loc[full["treat"] == 1, "year"].unique())
-direct_by_year = spill.cd.alpha[0, :]   # row 0 is the treated unit
-
+#| fig-cap: "Cao and Dowd per-year direct effect of Proposition 99 on California. The effect is near zero early (sales displaced to neighbours) and matures to the standard SCM's level by 1999."
 fig, ax = plt.subplots()
-ax.plot(post_years, direct_by_year, marker="o", color="C3")
+ax.plot(post_years, [direct[y] for y in post_years], marker="o", color="C3")
 ax.axhline(0, color="grey", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("direct ATT (packs per capita)")
+for y in (1990, 1999):                       # Cao and Dowd's two reference points
+    ax.annotate(f"{direct[y]:+.1f}", (y, direct[y]),
+                textcoords="offset points", xytext=(0, 8), ha="center")
+ax.set_xlabel("year"); ax.set_ylabel("direct effect (packs per capita)")
 plt.show()
 ```
 
@@ -224,22 +234,27 @@ plt.show()
 ```{python}
 summary = pd.DataFrame(
     [
-        ["Standard SCM (mscmt)", "curated 38-donor pool", "linear factor model, SUTVA", att_scm],
-        ["Low-rank SCM (pcr)",   "curated 38-donor pool", "low-rank factors, SUTVA",   att_pcr],
-        ["Spillover SCM (cd)",   "full pool + spillover", "linear factors, no SUTVA",  att_sp],
+        ["Standard SCM (mscmt)", "curated 38-donor pool", "linear factor model, SUTVA",
+         f"{att_scm:+.1f} (1989-2000 mean)"],
+        ["Low-rank SCM (pcr)",   "curated 38-donor pool", "low-rank factors, SUTVA",
+         f"{att_pcr:+.1f} (1989-2000 mean)"],
+        ["Spillover SCM (cd)",   "full pool + spillover", "linear factors, no SUTVA",
+         f"{direct[1990]:+.1f} (1990) to {direct[1999]:+.1f} (1999)"],
     ],
-    columns=["estimator", "donor pool", "key assumptions", "ATT"],
+    columns=["estimator", "donor pool", "key assumptions", "estimated effect"],
 )
-summary["ATT"] = summary["ATT"].map(lambda x: f"{x:+.2f}")
 summary
 ```
 
-Three nodes of the decision tree, three estimators, three sets of assumptions ---
-reached not by rewriting the analysis each time but by answering the questions
-the tree asks and changing a single field in the configuration. The standard and
-low-rank fits agree, which tells us the curated result is not an artefact of
-pre-treatment noise; the spillover-aware fit tells us how much of that result
-depends on the SUTVA assumption the first two take on faith.
+The standard and low-rank fits agree on a period-averaged effect near $-19$,
+which tells us the curated result is not an artefact of pre-treatment noise. The
+spillover-aware fit is reported as a path rather than an average for a reason: it
+shows that the early-post-period effect is largely contamination --- sales
+displaced to untreated neighbours --- and that only as the tax effect matures does
+the genuine direct effect converge to the standard estimate. Three nodes of the
+decision tree, three estimators, three sets of assumptions, reached not by
+rewriting the analysis each time but by answering the questions the tree asks and
+changing a single field in the configuration.
 
 ## A different branch: synthetic difference-in-differences
 
