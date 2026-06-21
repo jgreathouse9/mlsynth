@@ -11,9 +11,51 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ...config_models import BaseEstimatorConfig
+
+
+class StaggeredSCMSpec(BaseModel):
+    """Covariate (multi-feature) matching spec for staggered VanillaSC.
+
+    Mirrors the ``scpi`` package's ``scdataMulti`` specification, applied
+    uniformly to every treated unit. The treated units are detected from the
+    treatment indicator -- the spec never names them. When a ``staggered_spec``
+    is attached to a multi-treated panel, ``VanillaSC`` builds one synthetic
+    control per treated unit on these features and reproduces the Cattaneo-Feng-
+    Palomba-Titiunik (2025) point estimates and prediction intervals for all
+    three causal predictands.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    features: List[str] = Field(
+        ...,
+        description="Matching features (outcome-like series), shared across all "
+                    "treated units. Must include the outcome.",
+    )
+    cov_adj: Optional[List[Any]] = Field(
+        default=None,
+        description="Covariate-adjustment terms per feature (e.g. "
+                    "['constant', 'trend']). None -> no adjustment.",
+    )
+    constant: bool = Field(
+        default=False,
+        description="Include a global constant (scpi's 'constant').",
+    )
+    cointegrated: bool = Field(
+        default=False,
+        description="Difference the data for cointegration (scpi's "
+                    "'cointegrated_data').",
+    )
+
+    @field_validator("features")
+    @classmethod
+    def _features_nonempty(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("staggered_spec.features must be non-empty.")
+        return v
 
 
 class VanillaSCConfig(BaseEstimatorConfig):
@@ -139,6 +181,15 @@ class VanillaSCConfig(BaseEstimatorConfig):
     scpi_e_method: Literal["gaussian", "empirical"] = Field(
         default="gaussian",
         description="SCPI out-of-sample location-scale tabulation.",
+    )
+    staggered_spec: Optional[StaggeredSCMSpec] = Field(
+        default=None,
+        description="Staggered adoption only. Covariate (multi-feature) matching "
+                    "spec (scpi's scdataMulti specification). When set on a "
+                    "multi-treated panel, VanillaSC reproduces the Cattaneo-Feng-"
+                    "Palomba-Titiunik (2025) point estimates and prediction "
+                    "intervals for all three predictands with covariates. None "
+                    "(default) -> outcome-only staggered matching.",
     )
     scpi_compat: bool = Field(
         default=False,

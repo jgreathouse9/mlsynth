@@ -1091,6 +1091,26 @@ def scpi(est, sims=200, u_alpha=0.05, e_alpha=0.05, rho='type-2', rho_max=0.2,
 # ===========================================================================
 # Public entry point: outcome-only staggered VanillaSC prediction intervals
 # ===========================================================================
+def _normalize_spec(features, cov_adj, feature_constant, cointegrated,
+                    outcome, treated_units):
+    """Map a user spec (outcome-only, shared, or per-unit) to the engine's
+    ``scdata_multi`` argument forms. ``features`` / ``cov_adj`` may be a list
+    (shared across units) or a ``{unit: ...}`` dict; ``feature_constant`` /
+    ``cointegrated`` may be a bool or a per-unit dict."""
+    if features is None:
+        return ({tr: [outcome] for tr in treated_units},
+                {tr: None for tr in treated_units}, False, False)
+    feats = ({"features": list(features)}
+             if isinstance(features, (list, tuple)) else dict(features))
+    if cov_adj is None:
+        cadj = {tr: None for tr in treated_units}
+    elif isinstance(cov_adj, (list, tuple)):
+        cadj = {"cov_adj": list(cov_adj)}
+    else:
+        cadj = dict(cov_adj)
+    return feats, cadj, feature_constant, cointegrated
+
+
 def staggered_pi_bands(
     df,
     *,
@@ -1104,13 +1124,18 @@ def staggered_pi_bands(
     e_alpha=0.05,
     seed=8894,
     scpi_compat=False,
+    features=None,
+    cov_adj=None,
+    feature_constant=False,
+    cointegrated=False,
 ):
-    """Outcome-only staggered synthetic-control prediction intervals.
+    """Staggered synthetic-control prediction intervals for one predictand.
 
-    Drives the clean-room engine on a long panel for one causal predictand and
-    returns the point estimates and prediction-interval bands. Outcome-only
-    (no covariate adjustment, simplex weights), matching the scalar ``VanillaSC``
-    contract; the donor pool is the never-treated units.
+    Drives the clean-room engine on a long panel and returns the synthetic
+    (counterfactual) point estimates and prediction-interval bands. Outcome-only
+    by default (simplex weights, never-treated donor pool); pass ``features`` /
+    ``cov_adj`` / ``feature_constant`` / ``cointegrated`` to reproduce scpi's
+    covariate (multi-feature) staggered specification.
 
     Parameters
     ----------
@@ -1129,8 +1154,19 @@ def staggered_pi_bands(
         Seed for the in-sample Gaussian draws.
     scpi_compat : bool
         When True, reproduce ``scpi``'s ``1 / iota**2`` in-sample scaling of the
-        time-aggregated band; when False (default), use the statistically
-        correct ``1 / iota``. Only affects ``effect="time"``.
+        time-aggregated band; when False (default), the statistically correct
+        ``1 / iota``. Only affects ``effect="time"``.
+    features : list or {unit: list}, optional
+        Matching features (outcome-like series). A list is shared across units;
+        a dict gives per-unit feature sets. ``None`` -> outcome-only.
+    cov_adj : list or {unit: ...}, optional
+        Covariate-adjustment terms (e.g. ``["constant", "trend"]``), shared or
+        per-unit.
+    feature_constant : bool or {unit: bool}
+        Whether to include a global constant (scpi's ``constant``).
+    cointegrated : bool or {unit: bool}
+        Whether to difference the data for cointegration (scpi's
+        ``cointegrated_data``).
 
     Returns
     -------
@@ -1144,11 +1180,11 @@ def staggered_pi_bands(
     data = df.rename(columns=ren).copy()
     treated_units = sorted(
         data.loc[data["status"] == 1, "country"].unique().tolist())
-    features = {tr: [outcome] for tr in treated_units}
-    cov_adj = {tr: None for tr in treated_units}
+    feats, cadj, const, coint = _normalize_spec(
+        features, cov_adj, feature_constant, cointegrated, outcome, treated_units)
 
-    md = scdata_multi(data, outcome, features, cov_adj,
-                      constant=False, cointegrated_data=False, effect=effect)
+    md = scdata_multi(data, outcome, feats, cadj,
+                      constant=const, cointegrated_data=coint, effect=effect)
     est = scest(md)
     out = scpi(est, sims=sims, u_alpha=u_alpha, e_alpha=e_alpha, seed=seed,
                tsua_double_divide=scpi_compat)

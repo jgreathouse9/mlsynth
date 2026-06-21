@@ -181,8 +181,134 @@ def _aggregate_att_interval(unit_fits: Dict[str, StaggeredUnitFit],
     )
 
 
+def _covariate_observed(config):
+    """Per-unit post-treatment treated outcomes keyed by ``(unit, year)`` and
+    the adoption year per unit (from the 0/1 treatment indicator)."""
+    df = config.df
+    treated = df[df[config.treat] == 1]
+    obs = {(str(u), int(y)): float(v) for u, y, v in zip(
+        treated[config.unitid], treated[config.time], treated[config.outcome])}
+    adopt = {str(u): int(y) for u, y in
+             treated.groupby(config.unitid)[config.time].min().items()}
+    return obs, adopt
+
+
+def _effect_from_band(band, observed):
+    """Treatment effect point and intervals from a synthetic-prediction band.
+
+    The engine returns the band on the synthetic (counterfactual) prediction;
+    the effect is ``observed - synthetic`` (bounds reverse). Returns
+    ``(effect, effect_lo, effect_hi)`` plus the synthetic full and in-sample
+    bands as ``(lo, hi)`` tuples.
+    """
+    syn = band["point"]
+    eff = observed - syn
+    return (eff, observed - band["ub"], observed - band["lb"],
+            (band["lb"], band["ub"]), (band["insample_lb"], band["insample_ub"]))
+
+
+def _run_covariate_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResults:
+    """Staggered VanillaSC with covariate (multi-feature) matching.
+
+    Drives the clean-room engine for all three causal predictands (per-unit,
+    unit-time, event-time) under the ``staggered_spec`` matching specification,
+    reproducing scpi's covariate staggered illustration through ``fit()``.
+    """
+    from .staggered_engine import staggered_pi_bands
+
+    spec = config.staggered_spec
+    common = dict(
+        outcome=config.outcome, unitid=config.unitid, time=config.time,
+        treat=config.treat, sims=config.scpi_sims, u_alpha=config.alpha,
+        e_alpha=config.alpha, seed=config.seed, scpi_compat=config.scpi_compat,
+        features=spec.features, cov_adj=spec.cov_adj,
+        feature_constant=spec.constant, cointegrated=spec.cointegrated,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        b_unit = staggered_pi_bands(config.df, effect="unit", **common)
+        b_time = staggered_pi_bands(config.df, effect="time", **common)
+        b_ut = staggered_pi_bands(config.df, effect="unit-time", **common)
+    obs, adopt = _covariate_observed(config)
+
+    # per-unit average effect (TAUS)
+    units = [str(lab[0]) for lab in b_unit["index"]]
+    obs_unit = np.array([np.mean([v for (uu, _), v in obs.items() if uu == u])
+                         for u in units])
+    eff_u, lo_u, hi_u, _, _ = _effect_from_band(b_unit, obs_unit)
+    per_unit_att = {u: float(eff_u[i]) for i, u in enumerate(units)}
+    per_unit_ci = {u: (float(lo_u[i]), float(hi_u[i])) for i, u in enumerate(units)}
+
+    # event-time average effect (TSUA)
+    ev = [int(lab) for lab in b_time["index"]]
+    obs_time = np.array([
+        np.mean([obs[(u, adopt[u] + ell - 1)] for u in adopt
+                 if (u, adopt[u] + ell - 1) in obs]) for ell in ev])
+    eff_t, lo_t, hi_t, (slb, sub), (silb, siub) = _effect_from_band(b_time, obs_time)
+    event_study = {ell: float(eff_t[i]) for i, ell in enumerate(ev)}
+    event_study_intervals = {
+        ell: {"effect": float(eff_t[i]),
+              "effect_ci": (float(lo_t[i]), float(hi_t[i])),
+              "synthetic_ci": (float(slb[i]), float(sub[i])),
+              "insample_synthetic_ci": (float(silb[i]), float(siub[i]))}
+        for i, ell in enumerate(ev)}
+
+    # per-cell (TSUS) and overall (TAUA)
+    cells = [(str(lab[0]), int(lab[1])) for lab in b_ut["index"]]
+    obs_ut = np.array([obs[c] for c in cells])
+    eff_ut, lo_ut, hi_ut, _, _ = _effect_from_band(b_ut, obs_ut)
+    overall_att = float(np.mean(eff_ut))
+    overall_lo = float(np.mean(lo_ut))
+    overall_hi = float(np.mean(hi_ut))
+
+    inference = InferenceResults(
+        ci_lower=overall_lo, ci_upper=overall_hi,
+        confidence_level=1.0 - 2.0 * config.alpha,
+        method=("staggered SCPI prediction intervals, covariate matching "
+                "(Cattaneo, Feng, Palomba & Titiunik 2025)"),
+        details={"aggregation": "pointwise mean of per-cell effect intervals",
+                 "per_unit_att_ci": per_unit_ci},
+    )
+
+    return BaseEstimatorResults(
+        effects=EffectsResults(
+            att=overall_att,
+            additional_effects={
+                "aggregation": "unit-time", "n_treated_units": len(units),
+                "per_unit_att": per_unit_att},
+        ),
+        time_series=TimeSeriesResults(),
+        weights=WeightsResults(summary_stats={
+            "constraint": "per-unit simplex (staggered, covariate matching)"}),
+        inference=inference,
+        fit_diagnostics=FitDiagnosticsResults(),
+        method_details=MethodDetailsResults(
+            method_name="VanillaSC[staggered,covariate]",
+            parameters_used={
+                "n_treated_units": len(units), "donor_pool": "never-treated",
+                "features": spec.features, "cov_adj": spec.cov_adj,
+                "constant": spec.constant, "cointegrated": spec.cointegrated},
+        ),
+        sub_method_results={
+            u: {"att": per_unit_att[u], "att_ci": per_unit_ci[u]} for u in units},
+        additional_outputs={
+            "event_study": event_study,
+            "event_study_intervals": event_study_intervals,
+            "per_unit_att": per_unit_att,
+            "per_unit_intervals": per_unit_ci,
+            "per_cell_effects": {cells[i]: float(eff_ut[i]) for i in range(len(cells))},
+            "per_cell_intervals": {
+                cells[i]: (float(lo_ut[i]), float(hi_ut[i])) for i in range(len(cells))},
+            "predictand_spec": "covariate (multi-feature) matching",
+        },
+    )
+
+
 def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResults:
     """Fit per-unit synthetic controls under staggered adoption and aggregate."""
+    if getattr(config, "staggered_spec", None) is not None:
+        return _run_covariate_staggered(config, prep)
+
     cohorts = prep["cohorts"]
     time_labels = np.asarray(prep.get("time_labels"))
 
