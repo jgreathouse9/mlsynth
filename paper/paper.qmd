@@ -9,32 +9,48 @@ format:
 jupyter: python3
 ---
 
-## Why one example, three estimators
+# The decision tree as the paper's spine
 
-The hardest part of a synthetic-control analysis is rarely the arithmetic; it is
-deciding *which* estimator the data and the design call for. `mlsynth` organises
-that decision as a tree: a short sequence of questions about your panel --- how
-many units are treated, whether latent factors drive the outcome, whether the
-treatment leaks onto the controls --- each of which routes you to a different
-member of the library, all behind one `config -> fit() -> results` contract.
+A practitioner who arrives with a panel and a causal question does not face one
+synthetic-control estimator but several dozen, each making different assumptions
+and each appropriate in a different corner of the design space. The contribution
+of `mlsynth` is not only that it implements these methods behind a single
+`config -> fit() -> results` contract, but that it encodes the expertise for
+*choosing* among them. That expertise is laid out as a decision tree (Figure 1):
+a short sequence of questions about the panel --- is the treatment already
+assigned or still to be designed? is it endogenous in a way the controls cannot
+absorb? how many units are treated? do persistent latent factors drive the
+outcome? do the donors themselves absorb some of the treatment? --- each of
+which routes the analyst to a specific estimator. Every branch of the tree is
+grounded in the arguments its methods' own authors give for them; the full,
+maintained version is the package's `choose` companion, of which Figure 1 is the
+top-level map.
 
-This section walks a single, familiar panel down three branches of that tree.
-The case is Abadie, Diamond and Hainmueller's study of California's Proposition
-99, the 1988 ballot measure that raised the state cigarette tax. We estimate its
-effect on per-capita cigarette sales three ways, relaxing one assumption at each
-step:
+The remainder of this section makes the tree concrete by walking one familiar
+panel down three of its branches. The case is Abadie, Diamond and Hainmueller's
+study of California's Proposition 99, the 1988 ballot measure that raised the
+state cigarette tax; the outcome is per-capita cigarette sales and the
+intervention date is 1989. Three nodes of the tree send this single panel to
+three different estimators:
 
-1. Standard synthetic control with the full predictor specification, solved with
-   the MSCMT nested-optimisation backend. This is the canonical analysis.
-2. A low-rank synthetic control (principal component regression), which first
-   denoises the donor pool by assuming the outcomes follow a few latent factors
-   --- the answer the tree gives when you suspect factor structure and noise.
-3. A spillover-aware synthetic control (Cao and Dowd), which drops the SUTVA
-   assumption: it reinstates the neighbouring states that the standard analysis
-   hand-excludes and models the tax-driven sales that leak across state lines.
+1. With one treated unit (the tree's "how many treated?" gate, Q0.6) and no
+   reason to distrust the donors, the analyst lands on standard synthetic
+   control. We fit it with Abadie's full predictor specification, solved by the
+   MSCMT nested-optimisation backend.
+2. The latent-factor gate (Q1.4, "do persistent factors and noise drive the
+   outcome?") routes to the low-rank family. We take its principal-component-
+   regression member, which denoises the donor pool before fitting.
+3. The SUTVA gate (Q1.1, "are your donors contaminated by the treatment?") routes
+   to the spillover-aware family. We take Cao and Dowd's estimator, which
+   reinstates the neighbouring states that the standard analysis hand-excludes
+   and models the tax-driven sales that leak across state lines.
 
-The same outcome, the same intervention date, three different sets of
-assumptions --- and three estimators that share an interface.
+The point of the exercise is methodological rather than substantive: the same
+outcome and the same intervention date, three different sets of assumptions, and
+--- because the tree dispatches to estimators that share one interface --- three
+analyses that differ by only a field or two in the configuration. Reading them
+side by side is what turns a single estimate into an argument about how much of
+that estimate depends on which assumption.
 
 ## Setup
 
@@ -214,13 +230,19 @@ summary["ATT"] = summary["ATT"].map(lambda x: f"{x:+.2f}")
 summary
 ```
 
-One panel, three estimators, three sets of assumptions --- selected not by
-rewriting the analysis each time but by answering the questions the `mlsynth`
-decision tree asks and changing a single field in the configuration. The
-standard and low-rank fits agree, which tells us the curated result is not an
-artefact of pre-treatment noise; the spillover-aware fit tells us how much of
-that result depends on the SUTVA assumption the first two take on faith. The
-decision tree is what makes the three comparable: each estimator answers a
-sharper version of the same causal question, and the library makes moving between
-them a one-line change.
+Three nodes of the decision tree, three estimators, three sets of assumptions ---
+reached not by rewriting the analysis each time but by answering the questions
+the tree asks and changing a single field in the configuration. The standard and
+low-rank fits agree, which tells us the curated result is not an artefact of
+pre-treatment noise; the spillover-aware fit tells us how much of that result
+depends on the SUTVA assumption the first two take on faith. This is the role the
+decision tree plays throughout the paper. It is not a catalogue of methods but a
+procedure for selecting among them: each gate sharpens the causal question, each
+leaf is an estimator validated against its source, and the shared `fit()`
+contract is what makes the leaves comparable. The case study above is one
+traversal; the sections that follow enter the tree at other gates --- many
+treated units, staggered adoption, and the experimental-design branch where the
+treatment has not yet been assigned --- and the same logic carries through:
+identify the question precisely, and the library names the estimator that answers
+it.
 ```
