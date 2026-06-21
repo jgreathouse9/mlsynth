@@ -539,6 +539,31 @@ Q2.1 · Do all treated units adopt at the same time?
   treated units instead of fitting each noisily on its own.
 * No -- adoption is staggered -- continue.
 
+*Micro-level versus disaggregated: two ways to use granular data.* :doc:`microsynth`
+and :doc:`mlsc` both reach below the level at which treatment is assigned, but
+they answer different questions and the authors motivate them differently.
+Robbins, Saunders and Kilmer (2017) design :doc:`microsynth` for settings where
+the treated region itself is a bundle of many micro-units (census blocks in a
+neighbourhood) measured on many covariates and several outcomes at once. Their
+contribution is *calibration*: weights are chosen so the synthetic control
+matches the treated region exactly across all of those covariates and outcomes
+simultaneously -- a survey-weighting construction rather than a single-outcome
+fit -- and inference comes from a permutation procedure over placebo areas plus
+an omnibus statistic that tests jointly across outcomes and post-periods, so the
+many-outcome problem is handled without ad hoc multiple-comparison patching. Use
+it when the granularity is in the *treated unit* and you need one set of weights
+to balance a wide panel of characteristics and outcomes. Bottmer (2025) frames
+:doc:`mlsc` around a different decision: when outcomes are observed below the
+assignment level (county outcomes under a state policy), should you fit
+aggregated, disaggregated, or some blend? Disaggregating the *controls* expands
+the donor pool and can sharply improve aggregate-level precision, but enlarging
+it past the pre-period count risks overfitting and non-uniqueness. mlSC makes the
+aggregation choice data-driven, regularising toward the classical aggregated SC
+and letting the data decide how much disaggregated control variation to exploit.
+Prefer :doc:`mlsc` when the question is how aggressively to disaggregate a donor
+pool, and :doc:`microsynth` when the treated side is a granular many-outcome
+bundle you need to balance exactly.
+
 Q2.2 · Staggered: do you just want the overall / event-study ATT?
 
 * Yes, just staggered -- :doc:`sdid` (per-cohort + aggregate) is the simplest. A
