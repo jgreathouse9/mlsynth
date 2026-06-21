@@ -5,10 +5,14 @@ intervals of Cattaneo, Feng, Palomba & Titiunik (2025), Section 4. No part of
 the GPL ``scpi`` package is imported: data preparation, simplex weight
 estimation, the in-sample conic prediction intervals (sub-Gaussian / location-
 scale / quantile out-of-sample, plus the joint/uniform band) are all
-reimplemented from the published methodology. Convex programs are solved with
-``cvxpy`` (CLARABEL backend, the library default). The engine has been validated
-numerically against ``scpi`` to solver tolerance on the canonical Germany
-reunification panel (per-cell and event-time bands agree to ~3-4 decimals).
+reimplemented from the published methodology. Weight estimation uses ``cvxpy``
+(CLARABEL); the in-sample conic prediction-interval program uses ``scpi``'s exact
+second-order-cone construction solved directly with ``ecos`` (a cvxpy
+reformulation diverges on the near-null directions the per-cell predictand
+exercises). The engine has been validated numerically against ``scpi`` to solver
+tolerance on the canonical Germany reunification panel -- point estimates and the
+unit / unit-time / time prediction intervals, with and without covariates, agree
+to a few decimals.
 
 The cross-unit (effect="time", TSUA) in-sample interval carries a subtle scaling
 choice. ``scpi`` divides the predictand matrix ``P`` by the number of treated
@@ -30,8 +34,10 @@ import numpy as np
 import pandas as pd
 from math import sqrt, log, ceil
 import scipy.linalg
+from scipy import sparse
 from scipy.linalg import eigh, sqrtm
 import cvxpy as cp
+import ecos
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 
@@ -592,53 +598,89 @@ def u_sigma_est_HC1(u_mean, res, Z, V, TT, df):
 # ---------------------------------------------------------------------------
 # Conic in-sample optimisation (mirrors scpi_in_diag, simplex)
 # ---------------------------------------------------------------------------
-def _Qfactor(Q):
-    """Return F (r x n) with F'F = Q, dropping ~0 eigen-directions (matRegularize)."""
-    wv, V = eigh(np.asarray(Q, dtype=float))
+def mat_regularize(Q):
+    """Reduce ``Q`` to its non-null factor ``Qreg`` (rows x n) with
+    ``Qreg' Qreg = Q / scale`` on the kept subspace, dropping near-null
+    eigen-directions. Returns ``(scale, Qreg)``; ``Qreg`` is empty when ``Q`` is
+    ~0. Mirrors scpi's ``matRegularize``."""
+    Qa = np.asarray(Q, dtype=float)
+    n = Qa.shape[0]
+    w, V = eigh(Qa)
     cond = 1e6 * np.finfo(float).eps
-    scale = max(abs(wv))
+    scale = float(np.max(np.abs(w))) if w.size else 0.0
     if scale < cond:
-        return np.zeros((0, Q.shape[0]))
-    wsc = wv / scale
-    mask = wsc > cond
-    F = (V[:, mask] * np.sqrt(wsc[mask] * scale)).T
-    return F
+        return 0.0, np.zeros((0, n))
+    wsc = w / scale
+    maskp = wsc > cond
+    Qreg = (V[:, maskp] * np.sqrt(wsc[maskp])).T      # (nkeep, n), Qreg'Qreg = Q/scale
+    return scale, Qreg
+
+
+def _ecos_simplex_dims_AB(n, J, Qsum, red):
+    """Constant ECOS pieces for the single-unit simplex QCQP: cone dims, the
+    sum-to-one equality (A, b). ``ns = 1`` slack (the SOC epigraph ``t``)."""
+    ns = 1
+    dims = {"l": J + 1, "q": [n + 2 - red]}
+    A = np.zeros((1, n + ns))
+    A[0, 0:J] = 1.0
+    A = sparse.csc_matrix(A)
+    b = np.array([Qsum], dtype=float)
+    return ns, dims, A, b
 
 
 def conic_bounds_unit(beta, Q, P_rows, lb, Qsum, zeta_unit, sims):
-    """For one treated unit, solve min/max p.(beta-x) over the localized set
-    for every simulation draw and every post-treatment horizon."""
+    """For one treated unit, solve min/max ``p.(beta-x)`` over the localized set
+    for every simulation draw and post-treatment horizon, using scpi's exact
+    ECOS second-order-cone construction.
+
+    The constraint ``(x-beta)'Q(x-beta) - 2 G'(x-beta) <= 0`` is encoded as a
+    rotated SOC with the scaled, dimension-reduced factor ``Qreg`` (see
+    :func:`mat_regularize`): the linear part uses the full ``Q`` (via ``beta_q``,
+    ``beta_q_beta``) and the cone uses ``Qreg`` / ``scale``. Solving with ``ecos``
+    (rather than a cvxpy reformulation) reproduces scpi cell-for-cell, including
+    the near-null-direction handling that the per-cell predictands exercise.
+    """
+    beta = np.asarray(beta, dtype=float)
     n = len(beta)
     J = len(lb)
-    F = _Qfactor(Q)
+    Qa = np.asarray(Q, dtype=float)
+    lb = np.asarray(lb, dtype=float)
+
+    scale, Qreg = mat_regularize(Qa)
+    red = n - Qreg.shape[0]
+    ns, dims, A, b = _ecos_simplex_dims_AB(n, J, Qsum, red)
+
+    beta_q = beta.dot(Qa)                 # full Q, as in scpi
+    beta_q_beta = float(beta.dot(Qa.dot(beta)))
+
+    # constant G rows (lower bounds + SOC epigraph + quadratic), built once
+    G_lb = np.concatenate((-np.eye(J), np.zeros((J, n - J + ns))), axis=1)
+    G_soc_t = np.array([[0.0] * n + [-1.0], [0.0] * n + [1.0]])
+    G_quad = -2.0 * np.concatenate((Qreg, np.zeros((Qreg.shape[0], ns))), axis=1)
+    h_const_tail = np.concatenate(([-ll for ll in lb], [1.0, 1.0],
+                                   np.zeros(Qreg.shape[0])))
+
     res_lb = np.full((sims, len(P_rows)), np.nan)
     res_ub = np.full((sims, len(P_rows)), np.nan)
-
-    x = cp.Variable(n)
-    G = cp.Parameter(n)
-    pt = cp.Parameter(n)
-    base = [cp.sum(x[0:J]) == Qsum, x[0:J] >= np.asarray(lb)]
-    quad = cp.sum_squares(F @ (x - beta)) - 2 * G @ (x - beta) <= 0
-    cons = base + [quad]
-    prob_max = cp.Problem(cp.Maximize(pt @ x), cons)   # lb bound
-    prob_min = cp.Problem(cp.Minimize(pt @ x), cons)   # ub bound
+    OK = ("Optimal solution found", "Close to optimal solution found")
 
     for s in range(sims):
-        G.value = zeta_unit[:, s]
-        for h, p in enumerate(P_rows):
-            pt.value = p
-            try:
-                prob_max.solve(solver=cp.CLARABEL, warm_start=True)
-                if prob_max.status in ('optimal', 'optimal_inaccurate'):
-                    res_lb[s, h] = float(p @ (beta - x.value))
-            except cp.error.SolverError:
-                pass
-            try:
-                prob_min.solve(solver=cp.CLARABEL, warm_start=True)
-                if prob_min.status in ('optimal', 'optimal_inaccurate'):
-                    res_ub[s, h] = float(p @ (beta - x.value))
-            except cp.error.SolverError:
-                pass
+        Gd = zeta_unit[:, s]
+        a = -2.0 * Gd - 2.0 * beta_q
+        d = 2.0 * float(Gd.dot(beta)) + beta_q_beta
+        G_lin = np.concatenate((a, [scale]))[None, :]
+        Gmat = sparse.csc_matrix(np.concatenate((G_lin, G_lb, G_soc_t, G_quad), axis=0))
+        h = np.concatenate(([-d], h_const_tail))
+        for hor, p in enumerate(P_rows):
+            p = np.asarray(p, dtype=float)
+            c_lb = np.concatenate((-p, np.zeros(ns)))
+            sol = ecos.solve(c_lb, Gmat, h, dims, A=A, b=b, verbose=False)
+            if sol["info"]["infostring"] in OK:
+                res_lb[s, hor] = float(p.dot(beta - sol["x"][0:n]))
+            c_ub = np.concatenate((p, np.zeros(ns)))
+            sol = ecos.solve(c_ub, Gmat, h, dims, A=A, b=b, verbose=False)
+            if sol["info"]["infostring"] in OK:
+                res_ub[s, hor] = float(p.dot(beta - sol["x"][0:n]))
     return res_lb, res_ub
 
 
@@ -1049,6 +1091,26 @@ def scpi(est, sims=200, u_alpha=0.05, e_alpha=0.05, rho='type-2', rho_max=0.2,
 # ===========================================================================
 # Public entry point: outcome-only staggered VanillaSC prediction intervals
 # ===========================================================================
+def _normalize_spec(features, cov_adj, feature_constant, cointegrated,
+                    outcome, treated_units):
+    """Map a user spec (outcome-only, shared, or per-unit) to the engine's
+    ``scdata_multi`` argument forms. ``features`` / ``cov_adj`` may be a list
+    (shared across units) or a ``{unit: ...}`` dict; ``feature_constant`` /
+    ``cointegrated`` may be a bool or a per-unit dict."""
+    if features is None:
+        return ({tr: [outcome] for tr in treated_units},
+                {tr: None for tr in treated_units}, False, False)
+    feats = ({"features": list(features)}
+             if isinstance(features, (list, tuple)) else dict(features))
+    if cov_adj is None:
+        cadj = {tr: None for tr in treated_units}
+    elif isinstance(cov_adj, (list, tuple)):
+        cadj = {"cov_adj": list(cov_adj)}
+    else:
+        cadj = dict(cov_adj)
+    return feats, cadj, feature_constant, cointegrated
+
+
 def staggered_pi_bands(
     df,
     *,
@@ -1062,13 +1124,18 @@ def staggered_pi_bands(
     e_alpha=0.05,
     seed=8894,
     scpi_compat=False,
+    features=None,
+    cov_adj=None,
+    feature_constant=False,
+    cointegrated=False,
 ):
-    """Outcome-only staggered synthetic-control prediction intervals.
+    """Staggered synthetic-control prediction intervals for one predictand.
 
-    Drives the clean-room engine on a long panel for one causal predictand and
-    returns the point estimates and prediction-interval bands. Outcome-only
-    (no covariate adjustment, simplex weights), matching the scalar ``VanillaSC``
-    contract; the donor pool is the never-treated units.
+    Drives the clean-room engine on a long panel and returns the synthetic
+    (counterfactual) point estimates and prediction-interval bands. Outcome-only
+    by default (simplex weights, never-treated donor pool); pass ``features`` /
+    ``cov_adj`` / ``feature_constant`` / ``cointegrated`` to reproduce scpi's
+    covariate (multi-feature) staggered specification.
 
     Parameters
     ----------
@@ -1087,8 +1154,19 @@ def staggered_pi_bands(
         Seed for the in-sample Gaussian draws.
     scpi_compat : bool
         When True, reproduce ``scpi``'s ``1 / iota**2`` in-sample scaling of the
-        time-aggregated band; when False (default), use the statistically
-        correct ``1 / iota``. Only affects ``effect="time"``.
+        time-aggregated band; when False (default), the statistically correct
+        ``1 / iota``. Only affects ``effect="time"``.
+    features : list or {unit: list}, optional
+        Matching features (outcome-like series). A list is shared across units;
+        a dict gives per-unit feature sets. ``None`` -> outcome-only.
+    cov_adj : list or {unit: ...}, optional
+        Covariate-adjustment terms (e.g. ``["constant", "trend"]``), shared or
+        per-unit.
+    feature_constant : bool or {unit: bool}
+        Whether to include a global constant (scpi's ``constant``).
+    cointegrated : bool or {unit: bool}
+        Whether to difference the data for cointegration (scpi's
+        ``cointegrated_data``).
 
     Returns
     -------
@@ -1102,11 +1180,11 @@ def staggered_pi_bands(
     data = df.rename(columns=ren).copy()
     treated_units = sorted(
         data.loc[data["status"] == 1, "country"].unique().tolist())
-    features = {tr: [outcome] for tr in treated_units}
-    cov_adj = {tr: None for tr in treated_units}
+    feats, cadj, const, coint = _normalize_spec(
+        features, cov_adj, feature_constant, cointegrated, outcome, treated_units)
 
-    md = scdata_multi(data, outcome, features, cov_adj,
-                      constant=False, cointegrated_data=False, effect=effect)
+    md = scdata_multi(data, outcome, feats, cadj,
+                      constant=const, cointegrated_data=coint, effect=effect)
     est = scest(md)
     out = scpi(est, sims=sims, u_alpha=u_alpha, e_alpha=e_alpha, seed=seed,
                tsua_double_divide=scpi_compat)

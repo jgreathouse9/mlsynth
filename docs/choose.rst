@@ -92,6 +92,7 @@ At a glance
    Same adoption time?  ─► SDID            (micro units ─► MicroSynth; two-level ─► MLSC)
      + many treated at once, disaggregated/high-dim donors ─► MSQRT
    Staggered (different times)?  ─► SDID · ROLLDID (rolling-transformation DiD)
+     + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
@@ -152,6 +153,36 @@ the ATT still be biased.
 * Neither -- selection is on the latent factors only (SC's standard premise) --
   continue.
 
+*Within the proximal family: instrument, two proxies, one proxy, or surrogates.*
+These methods share a single premise -- some donors are not valid members of the
+synthetic control but are still informative about the latent confounder, so they
+can be repurposed as proxies (or negative controls) rather than discarded -- yet
+the authors motivate four distinct entry points. Shi, Li, Miao and Tchetgen
+Tchetgen (2026) give the foundational :doc:`proximal` framework: classical SC was
+built for settings with a near-perfect pre-treatment fit, and when that fit is
+poor even with a long pre-period, control units that do not help the fit can
+serve as proxies of the unmeasured confounders, identifying the ATT through a
+confounding bridge function (and extending naturally to nonlinear, binary, and
+count outcomes the standard linear SC literature leaves understudied). Their
+construction needs two kinds of proxy. Qiu, Shi, Miao, Dobriban and Tchetgen
+Tchetgen (2024) relax the modelling burden: their doubly robust variant pairs an
+outcome model with a weighting model and stays consistent if *either* is correct,
+so you are not forced to specify the confounding-bridge outcome model exactly.
+Park and Tchetgen Tchetgen (2025) cut the proxy requirement instead of the model
+requirement: their single-proxy approach views the donor outcomes themselves as
+the only proxies needed -- no separate group of treatment proxies -- and pairs it
+with conformal inference, which buys valid intervals without a long
+post-treatment series. Liu, Tchetgen Tchetgen and Varjão (2024) point the
+framework forward in time: when the pre-period is short or the post-period long,
+post-intervention *surrogates* (time-varying correlates of the effect) sharpen
+estimation, and they show conditions under which post-treatment data alone can
+identify the effect. So reach for :doc:`siv` when you hold a genuine instrument
+and the worry is endogenous exposure; reach for :doc:`proximal` when you hold
+proxies/negative controls instead -- the doubly robust route when you distrust
+your outcome model, the single-proxy route when you have only one kind of proxy
+and a short post-period, and the surrogate route when the leverage is in
+post-treatment correlates rather than a long clean pre-period.
+
 Q0.5 · Do parallel trends hold, and are you in a fixed-T / large-N regime?
 
 * Yes -- you may not need synthetic control at all: plain
@@ -182,6 +213,28 @@ if the Forward Parallel Trends Assumption does not hold and you want a formal
 pre-trends test, use :doc:`tssc`. If none of the escalations below applies, you
 are done.
 
+*FDID versus SCM.* Forward DiD is arguably simpler than synthetic control and, as
+Li (2024) frames it, the natural first stop. Standard difference-in-differences
+puts *equal* weights on *all* donors and so needs every donor to parallel-trend
+with the treated unit -- usually too much to ask; synthetic control instead
+solves for *convex* weights, which is more flexible but estimates one weight per
+donor (and can overfit), requires the treated unit inside the donors' convex hull,
+carries no intercept, and -- Li stresses -- relies on inference theory that does
+not hold under nonstationarity of unknown structure. Forward DiD splits the
+difference: it forward-*selects* the subset of donors that best matches the
+treated unit's pre-period and then runs plain DiD on that subset. Each candidate
+model has a *single* unknown parameter (the DiD intercept :math:`\alpha`), so
+there is no overfitting however many donors there are; the intercept absorbs a
+level gap (as in DiD, unlike SCM); the pre-period :math:`R^2` is a transparent fit
+diagnostic; and the inference is valid for stationary *and* nonstationary data. So
+when a selected subset of donors genuinely parallel-trends with the treated unit
+-- a condition you can read off that :math:`R^2` -- Forward DiD is the simpler,
+lower-variance choice and you need go no further. Escalate to :doc:`vanillasc`
+when even the best equal-weighted subset cannot track the treated unit and you
+need flexible convex weights to balance heterogeneous factor loadings: that is the
+off-ramp back to SCM, taken only when FDID's parallel-trends-on-a-subset
+assumption fails.
+
 Now walk the escalations, easy to hard:
 
 Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
@@ -196,12 +249,95 @@ Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
 * Yes, and the treated unit sits outside the donor hull (but is itself a useful
   donor for others) -- :doc:`iscm`.
 
+*Which spillover method? (the beast).* mlsynth offers a whole family here because
+spillover problems differ along three axes: whether you *know which* donors are
+contaminated, whether the contamination is *spatial / network-structured*, and
+whether the spillover is a *nuisance to purge* or an *effect to estimate*. Take
+them in turn. When you do **not** know which donors are affected -- a large pool
+with no a-priori validity knowledge, or a suspiciously good-fitting donor --
+:doc:`spotsynth` (O'Riordan and Gilligan-Lee, 2025) *detects* it: a theorem from
+proximal causal inference says a clean donor's post-treatment values are
+forecastable from pre-treatment data alone, so a donor that fails that forecast
+test has either changed regime or been hit by spillover; it screens out the
+failures and bounds the residual bias by sensitivity analysis. When you **do**
+know the affected set, the rest of the family (the :doc:`spillsynth` dispatcher,
+plus :doc:`spsydid`) divides as follows. If the spillover is *spatial* with a
+known weight matrix :math:`W`: :doc:`spsydid` (Serenini and Masek) extends
+*synthetic* DiD, so it keeps SyDiD's intercept and time weights (a robust direct
+effect under relaxed parallel trends) and splits the effect into direct and
+indirect parts -- use it when you want the spillover *and* DiD-style robustness;
+``method="sar"`` (Sakaguchi and Tagawa, 2026) instead models the outcomes with a
+spatial-autoregressive process and does *Bayesian* inference (horseshoe priors),
+the better choice in small samples (few units, short pre-period). If the spillover
+is not spatial but its *structure* is specifiable (linear in unknown parameters),
+``method="cd"`` (Cao and Dowd) estimates direct and spillover effects from *all*
+units -- the one option that still works when *every* unit is contaminated, and it
+ships a test for the assumed structure. If the spillover is itself a quantity of
+*interest* and you have clean, far-away donors that still fit well,
+``method="grossi"`` (Grossi et al., 2025) restricts the pool to the unaffected
+units and estimates direct *and* spillover effects under partial interference.
+Finally, if excluding the affected donors would *wreck* the pre-treatment fit --
+the textbook case being a heavily weighted affected donor, like Austria's 42
+percent in synthetic West Germany -- ``method="iscm"`` (Di Stefano and Mellace,
+2024; also :doc:`iscm`) *keeps* those donors and nets out their intervention
+effects through a small system of equations; Melnychuk's (2024) simulation study
+finds iSCM the most accurate of the family, with his ``method="iterative"``
+waterfall a close, simpler-to-implement second. In short: unknown affected set ->
+``spotsynth``; spatial -> :doc:`spsydid` (robust direct effect) or ``sar``
+(Bayesian, small samples); specifiable structure with everyone possibly hit ->
+``cd``; spillover of interest with clean donors -> ``grossi``; affected donors
+too good to drop -> ``iscm`` (or ``iterative`` for simplicity).
+
 Q1.2 · Is the treated unit outside the donors' convex hull even without
 spillovers (a true outlier)?
 
 * No -- next question.
 * Yes -- relax the simplex: :doc:`nsc` (affine weights), :doc:`rescm`
-  (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda`.
+  (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda` (the
+  Hsiao--Ching--Wan panel-data regression and its modern penalised cousins).
+
+*PDA versus SCM.* This convex-hull gate is exactly where the panel data approach
+and synthetic control part ways, and the two camps argue it on their own terms.
+Wan, Xie and Hsiao (2018) cast it as constrained versus unconstrained
+regression: SCM forces convex weights (non-negative, summing to one) and no
+intercept, whereas PDA leaves the weights free and adds an intercept that absorbs
+a level (fixed-effect) gap between the treated unit and its donors. When SCM's
+constraints hold -- the treated unit lies in the donors' convex hull and shares
+their level -- they are *valid* restrictions and SCM is the more efficient
+estimator; Gardeazabal and Vega-Bayo (2017) find it then gives a smaller,
+tighter-spread post-treatment error (more so with covariates and a longer
+pre-period) and is more robust to changes in the donor pool. When the constraints
+are *invalid* -- no convex combination of donors reproduces the treated unit, or
+a persistent level difference remains -- SCM is biased, while PDA's free weights
+and intercept stay unbiased, and PDA's accuracy improves as the pre-period
+lengthens. So prefer SCM when you have a genuine convex match; prefer :doc:`pda`
+when the treated unit sits outside the hull or at a different level. With a large
+donor pool the unconstrained regression must be regularised -- which PDA variant
+to use is the next remark.
+
+*Within PDA: which regulariser?* :doc:`pda` bundles four ways to fit the
+unconstrained regression, and the choice is governed by the size of the donor
+pool relative to the pre-period and by whether a few donors or many carry the
+signal. The original Hsiao--Ching--Wan best subset (``method="hcw"``) picks the
+donor subset by AICc; it is exact and certifiable but enumerates :math:`2^N`
+candidate models and, being least squares, needs fewer donors than pre-periods
+(:math:`N < T_0`) -- so it suits a *small* pool. When the pool is large,
+best-subset becomes infeasible and HCW's fixed-:math:`N`, large-:math:`T`
+asymptotics degrade. Li and Bell (2017) propose **Lasso** (``method="lasso"``)
+for exactly this case: it allows more donors than pre-periods (:math:`N > T_0`),
+is far cheaper than AICc/BIC, and lowers the ATE's predictive error -- use it when
+a *sparse* handful of donors is plausibly relevant. Shi and Huang (2023) propose
+**forward selection** (``method="fs"``): a sequence of OLS fits that approximates
+best-subset at scale (valid even as :math:`N/T \to \infty`) and -- its headline
+contribution -- supplies *valid post-selection inference* on the ATE (a
+conditional :math:`t`-test), whether the underlying coefficients are sparse *or*
+dense; use it when you want HCW-style selection with a defensible standard error
+in a large pool. Shi and Wang (2024) **L2-relaxation** (``method="l2"``) targets
+the opposite end of the sparse--dense axis: when the donors share a latent-factor
+structure so that *all* of them are weakly relevant and no sparse few stand out,
+its dense weighting diversifies prediction risk and attains oracle accuracy. In
+short: small pool -> ``hcw``; large and sparse -> ``lasso`` (or ``fs`` when you
+also want inference); large and dense -> ``l2``.
 
 Q1.3 · Is the outcome nonstationary, so a tight pre-fit might be a *spurious*
 match?
@@ -210,13 +346,98 @@ match?
 * Yes -- decompose first: :doc:`sbc` (Hamilton trend/cycle split, match the
   cycle) or :doc:`hsc` (soft levels-vs-differences allocation).
 
+*Spurious fit on nonstationary data -- SBC versus HSC versus plain SC.* Both
+papers behind this gate warn that the standard synthetic control of Part 1 is
+unsafe on nonstationary macro series: a convex combination of donors can track
+the treated unit's pre-period through *coincidental* co-movement of unit-specific
+stochastic trends, giving an excellent in-sample fit with no out-of-sample
+validity -- the *spurious synthetic control* problem (Shi, Xi and Xie, 2025; Liu
+and Xu, 2026), an instance of spurious regression that, crucially, does *not* go
+away as the pre-period lengthens. So plain :doc:`vanillasc` is appropriate only
+when the outcome is stationary (or its stochastic trend is genuinely shared
+across units). The two fixes differ in how much they assume. :doc:`sbc` (Shi, Xi
+and Xie, 2025) commits to a trend/cycle split: it treats the nonstationary
+*trend* as unit-specific and forecasts it from the treated unit's own history,
+and uses the donors *only* for the common business *cycle* -- the right division
+when comovement genuinely lives in the cycle (a country's idiosyncratic growth
+path plus a synchronised global cycle). :doc:`hsc` (Liu and Xu, 2026) refuses to
+commit, because whether the stochastic trend is *shared* (which SC should keep for
+matching) or *idiosyncratic* (which it must remove) is usually unknown ex ante,
+and a binary choice to difference or not fails in whichever regime is wrong. HSC
+instead *softly allocates* between donor matching and a treated-unit-specific
+self-forecast, with a tuning parameter chosen by rolling-origin cross-validation
+that interpolates continuously between SC on differenced outcomes and SC on raw
+outcomes with a trend; it adapts across regimes where an estimator fixed to one
+can fail. So prefer :doc:`sbc` when you are confident the matchable comovement is
+the business cycle and the trend is the treated unit's own; prefer :doc:`hsc`
+when you are unsure whether the nonstationarity is shared or idiosyncratic and
+want the data to decide.
+
 Q1.4 · Are there persistent latent factors / time-varying dynamics / heavy
 observation noise?
 
 * No -- next question.
-* Yes -- :doc:`tasc` (time-aware state-space model), :doc:`fma` (PC factors with
-  a residual-bootstrap test), or :doc:`dscar` (time-varying weights for strongly
-  autocorrelated panels with time-varying confounders).
+* Yes -- :doc:`tasc` (time-aware state-space model) or :doc:`fma` (PC factors
+  with a residual-bootstrap test). (For micro panels with observed time-varying
+  *confounders* and autoregressive outcomes, :doc:`dscar` is a different
+  paradigm -- see the remark below.)
+
+*DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
+of the synthetic control above; it is best understood by contrast with the vanilla
+method. Standard SC builds *fixed* weights that match the treated unit's whole
+pre-treatment outcome *trajectory*, identifies the counterfactual through a latent
+factor model and the convex hull, and is built for a single aggregate treated unit
+with no time-varying confounders. DSCAR changes nearly all of that. It is designed
+for *micro-level* panels -- many units, often many treated ones (monitoring sites,
+wearables, individuals) -- in which the outcome is strongly *autoregressive*, the
+confounders are *time-varying* and observed, and the units are *spatially
+dependent*. Instead of one fixed weight vector it constructs *dynamic*
+(time-varying) weights by maximising an empirical likelihood subject to matching
+the *current* state of the time-varying confounders and the lagged outcome at each
+period; because the match is to the current confounder state rather than to a long
+pre-treatment path, an exact match is attainable with probability approaching one.
+And it identifies the effect through *unconfoundedness* conditional on the
+covariates and the lagged outcome -- a selection-on-observables assumption testable
+on the pre-period -- rather than SC's factor structure. So prefer :doc:`dscar` over
+:doc:`vanillasc` when the data are micro-level with observed time-varying
+confounders, autocorrelated outcomes, spatial dependence, or multiple treated
+units; stay with the vanilla synthetic control when you have a single aggregate
+treated unit, time-invariant structure, and the factor-model / convex-hull premise
+is what you are willing to assume.
+
+*Low-rank (matrix) methods -- when the donor matrix has factor structure.* This
+gate is also the entry point to a family that takes the latent-factor view
+literally: if a few common factors drive every unit, the untreated outcome matrix
+is approximately *low-rank*, so one can *denoise* or *complete* it before fitting
+weights. They divide by what corruption they guard against. When the data are
+*disaggregate* (individual-level: health records, income, store sales) so the
+donor count dwarfs the pre-period (:math:`n \gg T_0`) and the panel is noisy,
+:doc:`clustersc` (Rho et al., 2025) first *clusters* donors by their
+latent-factor signature -- keeping only the group that behaves like the target --
+then denoises: ``method="pcr"`` keeps the top singular values by hard thresholding
+(Amjad et al., 2018; Agarwal et al., 2021), good for *Gaussian* noise, while
+``method="rpca"`` uses robust PCA / principal component pursuit (Candes et al.),
+separating a low-rank part from a *sparse* one and so tolerating *outliers and
+missing entries*. :doc:`fma` (Li and Sonnier, 2023) takes the factor model
+head-on -- it projects the donors onto a low-dimensional factor space and
+regresses the treated unit on the estimated loadings with *no* simplex or
+convex-hull constraint, so it handles a treated unit *outside* the donors' range
+and many treated units; its contribution is a *formal* inference theory (valid
+confidence intervals without the equal-variance assumption the usual factor-model
+bootstrap needs), at the cost of overfitting if the donor pool is large.
+:doc:`tasc` (Rho et al., 2025) observes that all of the above are *time-agnostic*
+-- permuting the time index leaves the matrix spectrum unchanged -- and embeds the
+low-rank panel in a *state-space* model (Kalman filter / RTS smoother) to exploit
+the temporal structure too, which pays off under *strong trends and high
+observation noise*. And :doc:`rmsi` (Agarwal et al., 2026) extends low-rank
+*completion* to use row- and column-side *covariates*, decomposing the matrix into
+covariate-driven and residual low-rank parts -- preferable when you have
+informative side information and *missing* cells (including the block-missing
+pattern of a causal panel). Rule of thumb: disaggregate and noisy ->
+:doc:`clustersc` (``pcr`` for noise, ``rpca`` for outliers/missing); treated
+outside the hull or you need valid factor-model inference -> :doc:`fma`; strong
+trends plus noise -> :doc:`tasc`; informative covariates with missing cells ->
+:doc:`rmsi`.
 
 Q1.5 · Is the untreated outcome a nonlinear function of the predictors?
 
@@ -229,10 +450,34 @@ the pre-period and predict the post-period worse.
 
 * No -- next question.
 * Yes -- escalate, roughly easiest first: :doc:`fscm` (tune the donor *count*),
-  :doc:`sparse_sc` (L1 predictor/covariate selection), :doc:`pda`
-  (L2-relaxation / Lasso / forward), :doc:`rescm` (one program from simplex SC
-  to :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
+  :doc:`sparse_sc` (L1 predictor/covariate selection), :doc:`pda` (the Panel Data
+  Approach: L2-relaxation, Lasso, Shi--Huang forward selection, or the original
+  Hsiao--Ching--Wan best-subset regression -- ``method="hcw"``, the classic
+  unconstrained PDA), :doc:`rescm` (one program from simplex SC to
+  :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
   :doc:`bvss` (Bayesian spike-and-slab with a soft simplex).
+
+*Dense versus sparse weights -- when to relax SCM.* Standard synthetic control
+constrains the weights to the simplex, which (as Doudchenko and Imbens (2016)
+observe) tends to produce *sparse* solutions loading on a handful of donors. Two
+recent papers argue this sparsity is a mechanical byproduct of the optimisation
+rather than a virtue, and motivate the :doc:`rescm` family -- a relaxed program
+spanning simplex SC, the :math:`L_\infty` (dense) norm, and DiD. Liao, Shi and
+Zheng (2025) note that once you have invested in a large donor pool there is
+often no reason to believe only a few controls are relevant: a *dense* scheme
+that uses them all -- spreading weight evenly within latent donor groups --
+diversifies prediction risk and reaches oracle accuracy even when the donor count
+exceeds the pre-period (:math:`J \gg T_0`). Wang, Xing and Ye (2025) make the same
+case via the :math:`L_\infty` norm: concentrating weight on a few units amplifies
+sensitivity to their idiosyncrasies (higher variance, and bias if one key donor
+deviates), which bites hardest in volatile environments or when control units
+differ in dynamics; their dense scheme reduces that over-reliance, raises the
+chance of satisfying parallel trends, and -- like DiD -- admits a level intercept
+and valid long-panel asymptotics. So prefer :doc:`rescm` over standard SCM when
+the donor pool is large and broadly relevant, when robustness to any single donor
+matters, or when the outcome is volatile; keep the sparse, transparent standard
+SC when a few genuinely similar donors match well in a stable setting (the
+canonical Proposition 99 case).
 
 Q1.7 · Are there missing cells in the panel?
 
@@ -244,6 +489,33 @@ Q1.7 · Are there missing cells in the panel?
   nuclear-norm completion) to impute the treated counterfactual; it reduces to a
   low-rank completion when the covariates are uninformative.
 
+*Which matrix-completion estimator -- and why the missingness mechanism decides.*
+The three estimators differ less in the imputation machinery than in what they
+assume about *why* cells are missing. :doc:`mcnnm` (Athey, Bayati, Doudchenko,
+Imbens and Khosravi (2021)) imputes the untreated potential outcomes by
+nuclear-norm-regularised low-rank completion of the whole panel, with two-way
+fixed effects. Their headline argument is regime-robustness: synthetic control
+and the unconfoundedness/horizontal regression each work well only in one shape
+of panel -- unconfoundedness fails when :math:`T \gg N`, synthetic control fails
+when :math:`N \gg T` -- whereas the completion objective nests both as special
+cases (differing only in how hard a restriction they place on the factorisation)
+and stays accurate across all regimes and arbitrary, staggered missing patterns.
+That argument presumes the *pattern* of missingness is essentially ignorable
+(missing at random given the low-rank structure). :doc:`snn` (Agarwal, Dahleh,
+Shah and Shen (2021)) is built for exactly the case MCNNM sets aside: missingness
+that is *not* at random -- the probability a cell is observed depends on the
+cell's own latent value (a policymaker adopts where outcomes are favourable; a
+user only rates films they chose to watch), entries can be deterministically
+missing (positivity violated), and the missingness of one cell can depend on
+others. SNN imputes each target cell from a fully observed *anchor* block of rows
+and columns and delivers entry-wise (max-norm) guarantees -- accurate inference
+for each individual :math:`(i,j)` cell rather than for a row average. So prefer
+:doc:`mcnnm` when the gaps are plausibly incidental and you want one estimator
+that travels across short, long, and square panels; prefer :doc:`snn` when the
+gaps are informative -- selected on the outcome itself -- and you need a credible
+counterfactual for specific cells; reach for :doc:`rmsi` when the missing block is
+the treated region and you have margin covariates that carry signal about it.
+
 Q1.8 · Is your estimand or treatment effect non-standard (not a scalar mean ATT
 for one binary treatment)?
 
@@ -252,6 +524,20 @@ for one binary treatment)?
 * A continuous or multi-valued dose with no clean control -- :doc:`ctsc`.
 * Several related outcomes (helps most with a short pre-period) -- :doc:`scmo`.
 * Several distinct intervention arms to compare -- :doc:`si`.
+
+*When to reach for Synthetic Interventions.* :doc:`si` (Agarwal, Shah and Shen
+(2024)) is the multi-arm member of this same low-rank family, and the comparison
+is cleanest stated through the question it answers. Standard synthetic control
+recovers one slice of the potential-outcomes array -- outcomes under a single
+treatment, usually control -- because its matrix factor model carries latent
+factors only for units and time. SI lifts that to a *tensor* factor model with an
+added latent factorisation over treatments, so the same panel can be completed
+under interventions a unit never actually received: what would California's
+cigarette sales have been under a tax increase rather than the program it
+adopted? Prefer :doc:`si` when you have several intervention arms and want each
+unit's counterfactual under arms it did not take -- the multi-treatment
+generalisation Abadie (2021) posed as an open question -- rather than a single
+average contrast against one control condition.
 
 Q1.9 · Are you worried about interpolation bias -- the synthetic control having
 to *interpolate* across donors that are individually far from the treated unit,
@@ -283,6 +569,31 @@ Q2.1 · Do all treated units adopt at the same time?
   treated units instead of fitting each noisily on its own.
 * No -- adoption is staggered -- continue.
 
+*Micro-level versus disaggregated: two ways to use granular data.* :doc:`microsynth`
+and :doc:`mlsc` both reach below the level at which treatment is assigned, but
+they answer different questions and the authors motivate them differently.
+Robbins, Saunders and Kilmer (2017) design :doc:`microsynth` for settings where
+the treated region itself is a bundle of many micro-units (census blocks in a
+neighbourhood) measured on many covariates and several outcomes at once. Their
+contribution is *calibration*: weights are chosen so the synthetic control
+matches the treated region exactly across all of those covariates and outcomes
+simultaneously -- a survey-weighting construction rather than a single-outcome
+fit -- and inference comes from a permutation procedure over placebo areas plus
+an omnibus statistic that tests jointly across outcomes and post-periods, so the
+many-outcome problem is handled without ad hoc multiple-comparison patching. Use
+it when the granularity is in the *treated unit* and you need one set of weights
+to balance a wide panel of characteristics and outcomes. Bottmer (2025) frames
+:doc:`mlsc` around a different decision: when outcomes are observed below the
+assignment level (county outcomes under a state policy), should you fit
+aggregated, disaggregated, or some blend? Disaggregating the *controls* expands
+the donor pool and can sharply improve aggregate-level precision, but enlarging
+it past the pre-period count risks overfitting and non-uniqueness. mlSC makes the
+aggregation choice data-driven, regularising toward the classical aggregated SC
+and letting the data decide how much disaggregated control variation to exploit.
+Prefer :doc:`mlsc` when the question is how aggressively to disaggregate a donor
+pool, and :doc:`microsynth` when the treated side is a granular many-outcome
+bundle you need to balance exactly.
+
 Q2.2 · Staggered: do you just want the overall / event-study ATT?
 
 * Yes, just staggered -- :doc:`sdid` (per-cohort + aggregate) is the simplest. A
@@ -297,9 +608,62 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   included), so it needs no never-treated pool, and gives event-time ATTs with
   Andrews end-of-sample inference. Best with a long pre-period (large :math:`T`,
   moderate :math:`N`).
+* Staggered, with a clean never-treated donor pool, and you want the *simplex*
+  synthetic-control answer -- one synthetic control per treated unit, on its own
+  pre-period -- with the full Cattaneo--Feng--Palomba--Titiunik causal
+  predictands (per-unit ATTs, the event-time average effect, the overall ATT)
+  and their prediction intervals -- :doc:`vanillasc` handles staggered adoption
+  natively. It detects the multiple treated units from the treatment column,
+  fits each on the never-treated donors and aggregates, with or without
+  covariate (multi-feature) matching, reproducing the ``scpi`` package. The
+  choice between it and the :doc:`sdid` base case follows the two methods' own
+  arguments. Arkhangelsky et al. (2021) motivate SDID by its unit fixed effects,
+  which match cohorts on pre-treatment *trends* rather than levels -- absorbing a
+  constant level gap, and so deliberately loosening synthetic control's
+  requirement that the treated unit lie inside the donors' convex hull -- plus
+  time weights that downweight uninformative pre-periods. Cattaneo, Feng, Palomba
+  and Titiunik (2025) build instead on the canonical *convex* (simplex) SC, which
+  does not extrapolate, and contribute non-asymptotic prediction intervals whose
+  guarantees hold in the small samples SC applications typically have. So prefer
+  :doc:`sdid` when no convex combination of donors can match a cohort's *level*
+  (you need the intercept to absorb the gap) or some pre-periods are
+  unrepresentative; prefer staggered :doc:`vanillasc` when the simplex fit
+  already tracks the cohorts on levels -- keeping interpretable, non-extrapolating
+  weights and the finite-sample CFPT intervals, with no DiD intercept or
+  reweighted periods.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
 * Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
   staggered missingness natively).
+
+*Which staggered synthetic control?* Three SC-family methods target this same
+setting on different arguments, and the choice turns on your donor pool, sample
+length, and estimand. Staggered :doc:`vanillasc` (Cattaneo, Feng, Palomba and
+Titiunik, 2025) fits the canonical *convex* SC for each treated unit on a
+*never-treated* donor pool and is built around *non-asymptotic* (finite-sample)
+prediction intervals -- the authors stress these precisely because SC
+applications usually have small samples; reach for it when you have clean
+never-treated donors, want non-extrapolating convex weights, and need valid
+intervals even with a short pre-period. :doc:`ppscm` (Ben-Michael, Feller and
+Rothstein, 2022) instead targets the *average* effect across treated units: it
+shows that fitting weights separately per unit (good unit fits, poor average) or
+pooling them (good average, poor unit fits) each biases one of the two
+imbalances, and proposes *partially pooled* SCM that trades them off, with a
+de-meaning (intercept) step that turns it into a weighted
+difference-in-differences; reach for it when the average ATT is the headline
+estimand and a level shift between treated units and donors must be absorbed.
+:doc:`ssc` (Cao, Lu and Wu, 2026) drops the never-treated requirement
+altogether -- it builds each unit's control from *all other units,
+not-yet-treated included*, explicitly because methods that lean on never-treated
+units deteriorate when those are scarce -- and bases inference on Andrews'
+end-of-sample test under large-:math:`T` asymptotics; reach for it when most
+units are eventually treated, the pre-period is long, and you want event-time ATT
+inference without parallel trends. The distinct case of *many* treated units in a
+high-dimensional, disaggregated panel adopting at the *same* time (Q2.1) is
+:doc:`msqrt` (Shen, Song and Abadie, 2025): it pools the treated units into one
+matrix regression with a tuning-free square-root-lasso, chosen for computational
+efficiency and to preserve *individual* counterfactuals where fitting each unit
+separately is slow and aggregating them would blur unit-level effects or add
+interpolation bias.
 
 Part 3 — Designing an experiment
 --------------------------------
@@ -307,6 +671,34 @@ Part 3 — Designing an experiment
 You are choosing *whom* to treat, not estimating an effect; these return
 assignments and power / MDE curves, not ATTs. Order by what estimand you care
 about, easiest target first.
+
+*Why design at all, and which design method.* The shared premise of this family,
+argued most directly by Doudchenko et al. (2021) and Abadie and Zhao (2026), is
+that when treatment can only be applied to a few large, expensive units (media
+markets, regions, whole products) randomization is unbiased *ex ante* but, over
+the single assignment you actually run, routinely hands you treated and control
+groups with very different baselines -- a draw you cannot average away. If you
+hold pre-treatment panel data, you can do better by *choosing* the split. The
+methods then split on two axes: the estimand they target, and how they solve the
+(NP-hard) assignment problem. Doudchenko et al. cast the joint choice of treated
+set and donor weights as a mixed-integer program that directly minimises the
+*ATT estimator's* mean squared error (:doc:`syndes`) -- provably optimal but
+combinatorial. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
+balancing design but reformulate it as a phase-synchronisation problem solved by
+a spectrally-initialised power method (:doc:`spcd`), trading the MIP's
+exactness for a *global* optimality guarantee under the linear factor model and
+a runtime in seconds rather than minutes -- prefer it when the unit count makes
+the MIP slow. Abadie and Zhao instead target the *population* ATE: they choose
+synthetic-treated and synthetic-control groups whose pre-experiment predictors
+match the population means (:doc:`marex`), a convex design that lowers bias
+relative to randomization and (their Theorem 1) shifts structure from unobserved
+loadings into observed covariates. Vives-i-Bastida (2022) extends that framework
+to multiple outcomes and adds the minimum-detectable-effect machinery and
+practical exclusion / fairness constraints that :doc:`lexscm` uses to optimise
+validity first and power second. The two geo-rollout members -- :doc:`pangeo`
+(no unit left untreated, trajectory-matched supergeos) and :doc:`geolift` /
+:doc:`multicellgeolift` (market selection under a budget) -- are the
+applied-marketing specialisations; the questions below route to each.
 
 Q3.1 · Do you only care about the ATT (the effect on the treated units)?
 
@@ -416,7 +808,8 @@ A reverse lookup: the symptom, and the method named for it.
    * - Many treated at once, high-dimensional donor pool (block design)
      - :doc:`msqrt`
    * - Many treated, staggered adoption
-     - :doc:`sdid`, :doc:`rolldid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
+     - :doc:`sdid`, :doc:`vanillasc` (simplex SC per unit, CFPT intervals),
+       :doc:`rolldid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
    * - Staggered, long pre-period, few never-treated (event study)
      - :doc:`ssc`
    * - Designing for the ATT

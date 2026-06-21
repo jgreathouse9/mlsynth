@@ -894,6 +894,46 @@ event-time bands reproduce ``scpi``'s to solver tolerance (durable benchmarks
 ``scpi_staggered`` and ``scpi_staggered_pi``). See
 :doc:`replications/vanillasc_staggered`.
 
+Covariate (multi-feature) matching
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Everything above matches on the outcome alone. To match on several series at
+once -- scpi's *features* framework, with covariate adjustment and cointegration
+-- attach a ``staggered_spec`` to the config. The spec is shared across treated
+units and never names them; the treated units come from the treatment indicator,
+as everywhere else in mlsynth.
+
+.. code-block:: python
+
+   res = VanillaSC({"df": df, "outcome": "gdp", "treat": "status",
+                    "unitid": "country", "time": "year",
+                    "inference": "scpi", "display_graphs": False,
+                    "staggered_spec": {
+                        "features": ["gdp", "trade"],     # match GDP and trade
+                        "cov_adj": ["constant", "trend"], # per-feature adjustment
+                        "constant": True,                 # global constant
+                        "cointegrated": True}}).fit()     # difference the data
+
+With a ``staggered_spec`` each treated unit is fit on the stacked features with
+the covariate-adjustment terms partialled out (and the data differenced when
+``cointegrated`` is set), and ``fit()`` returns the same three predictands -- the
+per-unit ATTs, the event study and the overall ATT -- now with covariate
+matching. The spec mirrors scpi's ``scdataMulti`` arguments (``features``,
+``cov_adj``, ``constant``, ``cointegrated_data``) but applies them uniformly:
+mlsynth detects who is treated, so there is no per-unit naming. This reproduces
+scpi's multiple-treated illustration; on the Germany panel the per-unit average
+effects match scpi's ``scest`` (West Germany :math:`-1.75`, Italy
+:math:`-0.89`) and the event-time prediction intervals match its
+``CI_all_gaussian`` (durable benchmark ``scpi_staggered_covariate``).
+
+.. note::
+
+   scpi's multi-feature design produces duplicate donor-column names that recent
+   ``scikit-learn`` releases reject, so the upstream package cannot compute these
+   covariate prediction intervals in a current environment; mlsynth's clean-room
+   engine does, and was validated against scpi with a one-line column-name
+   coercion.
+
 Ridge augmentation (Augmented SCM)
 ----------------------------------
 

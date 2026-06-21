@@ -1,7 +1,7 @@
 .. _replication-vanillasc-staggered:
 
 VanillaSC — Staggered-Adoption Prediction Intervals (Cattaneo et al. 2025)
-=========================================================================
+==========================================================================
 
 :Estimator: :doc:`../vanillasc` — :class:`mlsynth.VanillaSC`
 :Source: Cattaneo, Matias D., Yingjie Feng, Filippo Palomba and Rocío
@@ -124,3 +124,24 @@ within five percent (it agrees to about 0.05 percent) and that the correct
 default in-sample band is exactly :math:`\iota` times the compatibility band.
 The point-estimate benchmark lives in ``benchmarks/cases/scpi_staggered.py``.
 Both skip themselves when ``scpi_pkg`` is not installed.
+
+Covariate matching
+------------------
+
+The same engine reproduces scpi's *covariate* multiple-treated illustration
+(``scpi_illustration-multi.py``): multi-feature matching (GDP and trade) with a
+constant-and-trend covariate adjustment and cointegrated differencing, supplied
+through a shared ``staggered_spec`` (the treated units are still detected from
+the treatment indicator, never named). On the Germany panel the per-unit average
+effects reproduce scpi's ``scest`` (West Germany :math:`-1.75`, Italy
+:math:`-0.89`) and the event-time bands match its ``CI_all_gaussian``.
+
+The in-sample conic here uses scpi's exact second-order-cone construction solved
+with ``ecos``: the per-cell predictand exercises the near-null directions of a
+rank-deficient :math:`\mathbf{Q}` (collinear covariates under cointegration),
+where a generic cvxpy reformulation diverged. Because scpi's multi-feature design
+produces duplicate donor-column names that recent ``scikit-learn`` rejects, the
+upstream package cannot compute these covariate intervals in a current
+environment; the reference was generated with a one-line column-name coercion,
+and the durable benchmark ``benchmarks/cases/scpi_staggered_covariate.py`` pins
+the resulting ``scpi`` numbers and checks ``fit()`` against them.

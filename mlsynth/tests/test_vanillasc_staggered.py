@@ -235,3 +235,33 @@ def test_single_treated_unit_has_no_event_study_intervals(germany_staggered):
     df.loc[df["country"] == "Italy", "status"] = 0    # only West Germany treated
     res = _fit_scpi(df, scpi_sims=60)
     assert res.additional_outputs.get("event_study_intervals") is None
+
+
+# ---------------------------------------------------------------------------
+# Covariate (multi-feature) staggered matching -- scpi's multi illustration
+# ---------------------------------------------------------------------------
+def test_covariate_staggered_matches_scpi_per_unit():
+    """With a shared multi-feature spec (gdp+trade, constant+trend, cointegrated)
+    the per-unit average effects reproduce scpi's scest to the published digits.
+    The spec never names treated units -- they come from the treatment column."""
+    df = pd.read_csv(os.path.abspath(_DATA))     # full panel (trade, infrate, ...)
+    df["status"] = 0
+    df.loc[(df["country"] == "West Germany") & (df["year"] >= 1991), "status"] = 1
+    df.loc[(df["country"] == "Italy") & (df["year"] >= 1992), "status"] = 1
+    res = VanillaSC({
+        "df": df, "outcome": "gdp", "treat": "status",
+        "unitid": "country", "time": "year", "display_graphs": False,
+        "inference": "scpi", "scpi_sims": 80, "seed": 8894, "scpi_compat": True,
+        "staggered_spec": {"features": ["gdp", "trade"],
+                           "cov_adj": ["constant", "trend"],
+                           "constant": True, "cointegrated": True},
+    }).fit()
+    pu = res.additional_outputs["per_unit_att"]
+    assert pu["Italy"] == pytest.approx(-0.8902, abs=2e-3)        # scpi scest
+    assert pu["West Germany"] == pytest.approx(-1.7467, abs=2e-3)
+    # full predictand set is populated, with intervals
+    esi = res.additional_outputs["event_study_intervals"]
+    assert esi and all("synthetic_ci" in d and "effect_ci" in d for d in esi.values())
+    assert res.inference is not None
+    assert np.isfinite(res.effects.att)
+    assert len(res.additional_outputs["per_cell_effects"]) == 25

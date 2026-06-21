@@ -91,6 +91,8 @@ Path A — empirical replications
      - scpi staggered point estimates, Germany (Cattaneo et al. 2025)
    * - ``scpi_staggered_pi``
      - scpi staggered TSUA prediction intervals, Germany (Cattaneo et al. 2025)
+   * - ``scpi_staggered_covariate``
+     - scpi covariate (multi-feature) staggered illustration, Germany (Cattaneo et al. 2025)
    * - ``sparse_sc_prop99``
      - L1 predictor selection (Prop 99)
    * - ``spcd_prop99``
