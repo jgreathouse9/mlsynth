@@ -28,12 +28,15 @@ abstract: |
   unrelated tools but one family built on a shared factor-model projection, so a
   unified interface is what makes them directly comparable -- and what lets the
   library reach a capability the surrounding ecosystem never packaged for
-  practitioners: experimental design. We demonstrate the library with two worked
-  illustrations. The first re-estimates the canonical California tobacco-control
-  study with two synthetic-control variants and attaches Cattaneo, Feng, and
-  Titiunik prediction intervals. The second reproduces, to within numerical
-  tolerance, Meta's published `GeoLift` geo-experiment walkthrough, and shows how
-  the same interface exposes the broader experimental-design family.
+  practitioners: experimental design. We demonstrate the library with three
+  worked illustrations, organised by the regime they address. The first
+  re-estimates the canonical California tobacco-control study with three
+  synthetic-control variants and attaches Cattaneo, Feng, and Titiunik prediction
+  intervals. The second relaxes the no-interference assumption, running four
+  spillover-aware estimators -- each otherwise a separate codebase -- across two
+  case studies through a single dispatcher. The third reproduces, to within
+  numerical tolerance, Meta's published `GeoLift` geo-experiment walkthrough, and
+  shows how the same interface exposes the broader experimental-design family.
 keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
 keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
 bibliography: paper.bib
@@ -65,7 +68,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import mlsynth
-from mlsynth import VanillaSC, SDID, CLUSTERSC, GEOLIFT
+from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH, GEOLIFT
 
 plt.rcParams.update({"figure.dpi": 150, "font.size": 9})
 
@@ -386,7 +389,7 @@ code (plotting, tables, comparison across estimators) is written once and works
 for every method. The two illustrations below read effects, time series, and
 inference off this common object without any estimator-specific glue.
 
-## Illustration: estimating a treatment effect {#sec-estimation}
+## A single treated unit {#sec-estimation}
 
 We begin with the study that made the method famous. In 1988 California passed
 Proposition 99, a large tobacco-control program; @abadie2010synthetic estimated
@@ -546,7 +549,110 @@ sdid_weights = pd.Series(sdid.weights.donor_weights, name="weight")
 sdid_weights.sort_values(ascending=False).head(8).round(3).rename_axis("donor state").to_frame()
 ```
 
-## Illustration: designing an experiment {#sec-design}
+## Spillovers {#sec-spillovers}
+
+The illustration so far treats the donor pool as clean: untreated units are
+assumed unaffected by the treatment, the stable-unit-treatment-value assumption
+(SUTVA) that synthetic control inherits from the broader causal-inference
+literature. That assumption is often indefensible. When California raised its
+cigarette tax, some sales simply crossed the border into Nevada, so a neighbouring
+state's outcomes were themselves moved by the treatment; using it as a donor
+contaminates the counterfactual. For most of the method's history the remedy was
+subtractive -- drop the units you suspect, as @abadie2010synthetic do -- trading a
+SUTVA violation for a smaller, weaker comparison. A more recent literature instead
+keeps the units and models the spillover: @cao2023estimation,
+@distefano2024inclusive, @melnychuk2024synthetic, and @grossi2025direct each
+estimate the direct effect and the leakage jointly.
+
+These four estimators arrived as four separate codebases, in another language,
+with four data conventions. `mlsynth` exposes them through one dispatcher,
+[SPILLSYNTH]{.pkg}, selected by a `method` keyword; the treated unit, the donor
+pool, and the units suspected of absorbing spillover are declared once. The
+demonstration we want is therefore not of any single estimator but of the
+consolidation: with a common interface, comparing four spillover-aware methods
+across two unrelated case studies is a loop, not a porting project. We run all
+four on the California tobacco panel -- with the dozen neighbours
+@abadie2010synthetic discard reinstated as suspected spillover recipients -- and
+on West Germany's 1990 reunification [@abadie2015comparative], with Austria,
+France, and the Netherlands as the recipients, plotting each method's
+spillover-adjusted counterfactual against the observed treated unit.
+
+```{python}
+#| label: fig-spillovers
+#| fig-cap: "Four spillover-aware estimators on two case studies, reached by changing one `method` keyword in a loop. Each panel plots the observed treated unit (black) against each method's spillover-adjusted synthetic counterfactual. On Proposition 99 (left) the methods disagree substantially -- spillover into the reinstated neighbours is large; on German reunification (right) they nearly coincide -- the declared spillover is small. The spread within a panel is a cross-method sensitivity check that the shared interface makes free."
+
+adh_covariates = ["trade", "infrate", "industry", "schooling",
+                  "invest60", "invest70", "invest80"]
+cases = [
+    dict(name="Proposition 99", file="prop99_with_dc.csv", span=(1970, 2000),
+         outcome="cigsale", unit="state", time="year", treated="California",
+         t0=1989, ylab="cigarette sales (packs p.c.)", covariates=None,
+         affected=["Alaska", "Arizona", "District of Columbia", "Florida",
+                   "Hawaii", "Massachusetts", "Maryland", "Michigan",
+                   "New Jersey", "Nevada", "New York", "Oregon", "Washington"]),
+    dict(name="Reunification", file="scpi_germany.csv", span=(1960, 2003),
+         outcome="gdp", unit="country", time="year", treated="West Germany",
+         t0=1990, ylab="GDP p.c. (000s USD)", covariates=adh_covariates,
+         affected=["Austria", "France", "Netherlands"]),
+]
+methods = {"cd": ("C0", "-"), "iscm": ("C3", "--"),
+           "iterative": ("C1", "-."), "grossi": ("C4", ":")}
+
+fig, axes = plt.subplots(1, 2, figsize=(7, 3))
+records = []
+for ax, case in zip(axes, cases):
+    df = pd.read_csv(find_data(case["file"]))
+    df = df[df[case["time"]].between(*case["span"])].copy()
+    df["treat"] = ((df[case["unit"]] == case["treated"])
+                   & (df[case["time"]] >= case["t0"])).astype(int)
+    cfg = dict(df=df, outcome=case["outcome"], treat="treat", unitid=case["unit"],
+               time=case["time"], affected_units=case["affected"],
+               display_graphs=False)
+    years = sorted(df[case["time"]].unique())
+    obs = (df[df[case["unit"]] == case["treated"]]
+           .sort_values(case["time"])[case["outcome"]].to_numpy())
+    ax.plot(years, obs, color="black", lw=1.6, label="observed")
+    for m, (color, ls) in methods.items():
+        kw = {**cfg, "method": m}
+        if m == "iscm" and case["covariates"]:
+            kw["covariates"] = case["covariates"]      # only iscm matches on covariates
+        fit = SPILLSYNTH(kw).fit()                      # the one line that varies
+        sub = getattr(fit, m)
+        pre = (sub.a[0] + sub.B[0] @ fit.inputs.Y_pre if m == "cd"
+               else sub.treated_synthetic_pre)
+        ax.plot(years, list(pre) + list(sub.counterfactual_sp),
+                color=color, ls=ls, lw=1.2, label=m)
+        records.append({"case": case["name"], "method": m, "ATT": fit.att})
+    ax.axvline(case["t0"], color="0.6", ls=":", lw=0.8)
+    ax.set_title(case["name"], fontsize=8)
+    ax.set_xlabel("year"); ax.set_ylabel(case["ylab"], fontsize=8)
+axes[0].legend(fontsize=6, ncol=2)
+fig.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: tbl-spillover-att
+#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study, read from the same `att` field. On Proposition 99 the estimates span roughly nine to twenty-two packs; on reunification they cluster within a few hundred dollars of one another."
+(pd.DataFrame(records)
+   .pivot(index="method", columns="case", values="ATT")
+   .round(2))
+```
+
+The two panels make the same point from opposite directions. On Proposition 99 the
+four methods disagree by more than a factor of two, because the treatment genuinely
+leaks into the reinstated neighbours and each estimator apportions that leakage
+differently; on reunification, where only three modest neighbours are declared
+affected, the corrections are small and the four counterfactuals nearly coincide.
+The disagreement is information, not defect: its size tracks how much spillover
+there is to model, and reading it off costs one loop over a `method` keyword rather
+than four installations across two languages. As with the single-unit
+illustration, `mlsynth` takes no position on which estimator is correct -- that
+judgement belongs to the analyst and the application. What the package supplies is
+the cheaper, prior thing: the ability to run all of them, on any of your panels,
+behind one interface.
+
+## Experimental design {#sec-design}
 
 The second illustration moves to the design question, where `mlsynth` reaches
 capability that the surrounding ecosystem has not packaged for practitioners. We
@@ -734,12 +840,15 @@ largely incidental: most of these estimators are variations on one factor-model
 projection, differing in how they constrain or denoise the same underlying fit.
 `mlsynth` takes that observation seriously, placing more than forty estimators
 behind one data contract, one validated configuration-and-fit interface, and one
-standardized result. The two illustrations show what the consolidation buys.
+standardized result. The three illustrations show what the consolidation buys.
 Estimation becomes a genuine comparison -- a simplex synthetic control, a
 synthetic difference-in-differences design, and a robust principal-component
 estimator on the California data, each run as its authors prescribed yet reached
-by a one-line change of class against an unchanged data frame. And design becomes
-available at all: the library reproduces Meta's
+by a one-line change of class against an unchanged data frame. Relaxing the
+no-interference assumption becomes a loop: four spillover-aware estimators,
+otherwise four separate codebases in another language, run across two case studies
+behind one keyword. And design becomes available at all: the library reproduces
+Meta's
 `GeoLift` walkthrough to within numerical tolerance and then opens it onto a
 broader experimental-design family that the surrounding ecosystem has never
 packaged for applied users. The value of having all of this in one place is not
