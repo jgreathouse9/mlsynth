@@ -205,6 +205,28 @@ spillovers (a true outlier)?
   (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda` (the
   Hsiao--Ching--Wan panel-data regression and its modern penalised cousins).
 
+*PDA versus SCM.* This convex-hull gate is exactly where the panel data approach
+and synthetic control part ways, and the two camps argue it on their own terms.
+Wan, Xie and Hsiao (2018) cast it as constrained versus unconstrained
+regression: SCM forces convex weights (non-negative, summing to one) and no
+intercept, whereas PDA leaves the weights free and adds an intercept that absorbs
+a level (fixed-effect) gap between the treated unit and its donors. When SCM's
+constraints hold -- the treated unit lies in the donors' convex hull and shares
+their level -- they are *valid* restrictions and SCM is the more efficient
+estimator; Gardeazabal and Vega-Bayo (2017) find it then gives a smaller,
+tighter-spread post-treatment error (more so with covariates and a longer
+pre-period) and is more robust to changes in the donor pool. When the constraints
+are *invalid* -- no convex combination of donors reproduces the treated unit, or
+a persistent level difference remains -- SCM is biased, while PDA's free weights
+and intercept stay unbiased, and PDA's accuracy improves as the pre-period
+lengthens. So prefer SCM when you have a genuine convex match; prefer :doc:`pda`
+when the treated unit sits outside the hull or at a different level. With a large
+donor pool the unconstrained regression must be regularised: best-subset / AICc
+(the original Hsiao--Ching--Wan, ``method="hcw"``) or Lasso when only a few
+donors matter, and L2-relaxation (Shi and Wang 2024, ``method="l2"``) when the
+donors instead share a dense latent-factor structure with no sparse few standing
+out.
+
 Q1.3 · Is the outcome nonstationary, so a tight pre-fit might be a *spurious*
 match?
 
