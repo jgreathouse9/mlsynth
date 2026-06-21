@@ -260,6 +260,28 @@ the pre-period and predict the post-period worse.
   :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
   :doc:`bvss` (Bayesian spike-and-slab with a soft simplex).
 
+*Dense versus sparse weights -- when to relax SCM.* Standard synthetic control
+constrains the weights to the simplex, which (as Doudchenko and Imbens (2016)
+observe) tends to produce *sparse* solutions loading on a handful of donors. Two
+recent papers argue this sparsity is a mechanical byproduct of the optimisation
+rather than a virtue, and motivate the :doc:`rescm` family -- a relaxed program
+spanning simplex SC, the :math:`L_\infty` (dense) norm, and DiD. Liao, Shi and
+Zheng (2025) note that once you have invested in a large donor pool there is
+often no reason to believe only a few controls are relevant: a *dense* scheme
+that uses them all -- spreading weight evenly within latent donor groups --
+diversifies prediction risk and reaches oracle accuracy even when the donor count
+exceeds the pre-period (:math:`J \gg T_0`). Wang, Xing and Ye (2025) make the same
+case via the :math:`L_\infty` norm: concentrating weight on a few units amplifies
+sensitivity to their idiosyncrasies (higher variance, and bias if one key donor
+deviates), which bites hardest in volatile environments or when control units
+differ in dynamics; their dense scheme reduces that over-reliance, raises the
+chance of satisfying parallel trends, and -- like DiD -- admits a level intercept
+and valid long-panel asymptotics. So prefer :doc:`rescm` over standard SCM when
+the donor pool is large and broadly relevant, when robustness to any single donor
+matters, or when the outcome is volatile; keep the sparse, transparent standard
+SC when a few genuinely similar donors match well in a stable setting (the
+canonical Proposition 99 case).
+
 Q1.7 · Are there missing cells in the panel?
 
 * No -- next question.
