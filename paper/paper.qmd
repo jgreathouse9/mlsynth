@@ -216,16 +216,37 @@ the tax effect matures does the direct effect converge to the level the standard
 synthetic control reports. Reading a single average over this path (it happens to
 be about $-9$) hides exactly the time structure that is the point.
 
+The figure makes the mechanism visible. Both lines are fit on the full pool with
+the affected neighbours reinstated, so they share an identical pre-period fit and
+separate only after 1989. The dashed line is the naive synthetic control on that
+pool --- the counterfactual that is *susceptible* to spillover, because it treats
+the contaminated neighbours as clean donors. The solid line is Cao and Dowd's
+spillover-adjusted synthetic. (Note this naive line is not the Section-1 estimate:
+that one used Abadie's curated 38-donor pool with the suspect neighbours
+hand-excluded, and a simplex fit; here the pool is full and the baseline is a
+demeaned synthetic control. The honest comparison is dashed against solid, on the
+same pool.) California's direct effect is the gap from the observed line to the
+solid, spillover-adjusted counterfactual; the distance between the two synthetics
+is the spillover bias the adjustment removes.
+
 ```{python}
 #| label: fig-spillover
-#| fig-cap: "Cao and Dowd per-year direct effect of Proposition 99 on California. The effect is near zero early (sales displaced to neighbours) and matures to the standard SCM's level by 1999."
+#| fig-cap: "Observed California against the full-pool counterfactuals: the naive synthetic control (susceptible to spillover, since the donor pool now includes the affected neighbours) and Cao and Dowd's spillover-adjusted synthetic. The two share a pre-period fit and separate after 1989."
+inp = spill.inputs
+years_full = list(inp.time_labels)
+observed_ca = inp.Y[0]
+# Pre-period synthetic fit (donor-weighted), then the two post counterfactuals.
+pre_fit = spill.cd.a[0] + spill.cd.B[0] @ inp.Y_pre
+naive_cf = list(pre_fit) + list(spill.cd.counterfactual_scm)
+adj_cf = list(pre_fit) + list(spill.cd.counterfactual_sp)
+
 fig, ax = plt.subplots()
-ax.plot(post_years, [direct[y] for y in post_years], marker="o", color="C3")
-ax.axhline(0, color="grey", lw=1)
-for y in (1990, 1999):                       # Cao and Dowd's two reference points
-    ax.annotate(f"{direct[y]:+.1f}", (y, direct[y]),
-                textcoords="offset points", xytext=(0, 8), ha="center")
-ax.set_xlabel("year"); ax.set_ylabel("direct effect (packs per capita)")
+ax.plot(years_full, observed_ca, color="black", lw=2, label="California (observed)")
+ax.plot(years_full, adj_cf, color="C3", lw=2, label="Spillover-adjusted synthetic (Cao & Dowd)")
+ax.plot(years_full, naive_cf, color="C0", ls="--", lw=2, label="Naive synthetic (full pool)")
+ax.axvline(1989, color="grey", ls=":")
+ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
+ax.legend(frameon=False, fontsize=9)
 plt.show()
 ```
 
