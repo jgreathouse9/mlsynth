@@ -459,6 +459,33 @@ Q1.7 · Are there missing cells in the panel?
   nuclear-norm completion) to impute the treated counterfactual; it reduces to a
   low-rank completion when the covariates are uninformative.
 
+*Which matrix-completion estimator -- and why the missingness mechanism decides.*
+The three estimators differ less in the imputation machinery than in what they
+assume about *why* cells are missing. :doc:`mcnnm` (Athey, Bayati, Doudchenko,
+Imbens and Khosravi (2021)) imputes the untreated potential outcomes by
+nuclear-norm-regularised low-rank completion of the whole panel, with two-way
+fixed effects. Their headline argument is regime-robustness: synthetic control
+and the unconfoundedness/horizontal regression each work well only in one shape
+of panel -- unconfoundedness fails when :math:`T \gg N`, synthetic control fails
+when :math:`N \gg T` -- whereas the completion objective nests both as special
+cases (differing only in how hard a restriction they place on the factorisation)
+and stays accurate across all regimes and arbitrary, staggered missing patterns.
+That argument presumes the *pattern* of missingness is essentially ignorable
+(missing at random given the low-rank structure). :doc:`snn` (Agarwal, Dahleh,
+Shah and Shen (2021)) is built for exactly the case MCNNM sets aside: missingness
+that is *not* at random -- the probability a cell is observed depends on the
+cell's own latent value (a policymaker adopts where outcomes are favourable; a
+user only rates films they chose to watch), entries can be deterministically
+missing (positivity violated), and the missingness of one cell can depend on
+others. SNN imputes each target cell from a fully observed *anchor* block of rows
+and columns and delivers entry-wise (max-norm) guarantees -- accurate inference
+for each individual :math:`(i,j)` cell rather than for a row average. So prefer
+:doc:`mcnnm` when the gaps are plausibly incidental and you want one estimator
+that travels across short, long, and square panels; prefer :doc:`snn` when the
+gaps are informative -- selected on the outcome itself -- and you need a credible
+counterfactual for specific cells; reach for :doc:`rmsi` when the missing block is
+the treated region and you have margin covariates that carry signal about it.
+
 Q1.8 · Is your estimand or treatment effect non-standard (not a scalar mean ATT
 for one binary treatment)?
 
@@ -467,6 +494,20 @@ for one binary treatment)?
 * A continuous or multi-valued dose with no clean control -- :doc:`ctsc`.
 * Several related outcomes (helps most with a short pre-period) -- :doc:`scmo`.
 * Several distinct intervention arms to compare -- :doc:`si`.
+
+*When to reach for Synthetic Interventions.* :doc:`si` (Agarwal, Shah and Shen
+(2024)) is the multi-arm member of this same low-rank family, and the comparison
+is cleanest stated through the question it answers. Standard synthetic control
+recovers one slice of the potential-outcomes array -- outcomes under a single
+treatment, usually control -- because its matrix factor model carries latent
+factors only for units and time. SI lifts that to a *tensor* factor model with an
+added latent factorisation over treatments, so the same panel can be completed
+under interventions a unit never actually received: what would California's
+cigarette sales have been under a tax increase rather than the program it
+adopted? Prefer :doc:`si` when you have several intervention arms and want each
+unit's counterfactual under arms it did not take -- the multi-treatment
+generalisation Abadie (2021) posed as an open question -- rather than a single
+average contrast against one control condition.
 
 Q1.9 · Are you worried about interpolation bias -- the synthetic control having
 to *interpolate* across donors that are individually far from the treated unit,
