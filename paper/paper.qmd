@@ -6,6 +6,7 @@ format:
     code-fold: false
     fig-width: 7
     fig-height: 4.2
+bibliography: references.bib
 jupyter: python3
 ---
 
@@ -27,8 +28,8 @@ maintained version is the package's `choose` companion, of which Figure 1 is the
 top-level map.
 
 The remainder of this section makes the tree concrete by walking one familiar
-panel down four of its branches. The case is Abadie, Diamond and Hainmueller's
-study of California's Proposition 99, the 1988 ballot measure that raised the
+panel down four of its branches. The case is the @abadie2010 study of
+California's Proposition 99, the 1988 ballot measure that raised the
 state cigarette tax; the outcome is per-capita cigarette sales and the
 intervention date is 1989. Four nodes of the tree send this single panel to four
 different estimators:
@@ -50,8 +51,8 @@ different estimators:
    forbids.
 
 The point of the exercise is methodological rather than substantive: the same
-outcome and the same intervention date, three different sets of assumptions, and
---- because the tree dispatches to estimators that share one interface --- three
+outcome and the same intervention date, four different sets of assumptions, and
+--- because the tree dispatches to estimators that share one interface --- four
 analyses that differ by only a field or two in the configuration. Reading them
 side by side is what turns a single estimate into an argument about how much of
 that estimate depends on which assumption.
@@ -290,71 +291,101 @@ any post-year is the spillover bias the adjustment removes; the gap from the bla
 observed line to the blue line is the estimated direct effect, with the error bars
 showing its 95% interval.
 
-### One interface, every spillover method
+### One interface, every spillover method --- and every dataset
 
-Cao and Dowd's is only one of several spillover-aware synthetic controls, and
-they do not agree. Until recently, comparing them meant a scavenger hunt across
-codebases: Cao and Dowd's estimator lives in the `scmSpillover` R package;
-Melnychuk's iterative "waterfall" estimator lives in a separate `Spillover-SCM`
-repository with its own conventions; the inclusive SCM of Di Stefano and Mellace
-and the penalised approach of Grossi and co-authors are elsewhere again. To put
-them on one dataset you had to install several packages, learn several syntaxes,
-and reconcile their data formats by hand.
+Spillover bias is a familiar econometric problem. For most of the history of
+synthetic control the standard remedy was subtractive: when you suspected the
+treatment had reached some of your control units, you dropped them and hoped the
+survivors still formed a credible donor pool --- trading a SUTVA violation for a
+smaller, often weaker comparison. A more recent literature keeps the units and
+models the spillover instead: @caodowd2023, the inclusive SCM of
+@distefanomellace2024, the iterative "waterfall" of @melnychuk2024, and the
+penalised estimator of @grossi2024. Each, though, arrived as its
+own R package or replication repository with its own conventions; running even one
+dataset through all of them meant installing several codebases and reconciling
+their data formats and call signatures by hand.
 
-In `mlsynth` they are leaves of a single dispatcher. The data, the outcome, the
-treatment column and the `affected_units` are declared once; one keyword switches
-the estimator.
-
-```{python}
-methods = {
-    "cd":        "Cao & Dowd (2023)",
-    "iscm":      "Inclusive SCM (Di Stefano & Mellace 2024)",
-    "iterative": "Iterative waterfall (Melnychuk 2024)",
-    "grossi":    "Penalised SCM (Grossi et al. 2024)",
-}
-
-cfg = {"df": full, "outcome": "cigsale", "treat": "treat",
-       "unitid": "state", "time": "year",
-       "affected_units": affected, "display_graphs": False}
-
-rows, cf_post = [], {}
-for m, name in methods.items():
-    r = SPILLSYNTH({**cfg, "method": m}).fit()         # <- the only thing that changes
-    rows.append([name, f'method="{m}"', f"{r.att:+.2f}"])
-    cf_post[m] = list(getattr(r, m).counterfactual_sp)
-
-pd.DataFrame(rows, columns=["spillover method", "switch", "ATT (avg, 1989-2000)"])
-```
+Because `mlsynth` puts them behind a single dispatcher with one calling
+convention, that comparison stops being a porting exercise and becomes a loop ---
+and, since the interface does not change with the panel, the loop runs over *case
+studies* as readily as over methods. Each study is a handful of fields: the file,
+the outcome and unit columns, the treated unit, the adoption year, and the units
+suspected of absorbing spillover. Below we run all four methods on two very
+different cases at once --- Proposition 99 again, and West Germany's 1990
+reunification [@abadie2015], declaring Austria, France
+and the Netherlands the suspected recipients.
 
 ```{python}
 #| label: fig-spillover-methods
-#| fig-cap: "Every spillover-aware method in the dispatcher, on one panel, reached by changing a single keyword. Observed California (black) against each method's spillover-adjusted synthetic, with Abadie's curated SCM (green dotted) for reference. The estimates fan out across the post-period: the spread is the cross-method sensitivity, and it now costs one keyword to see."
-styles = {"cd": ("C0", "-"), "iscm": ("C3", "--"),
-          "iterative": ("C1", "-."), "grossi": ("C4", ":")}
+#| fig-cap: "Four spillover-aware methods on two case studies, produced by one loop. Panel A (Proposition 99): large cross-border spillover, the methods fan from -9 to -22 packs. Panel B (reunification): small spillover into three neighbours, the methods collapse to -1.0 to -1.5k USD. Black is the observed treated unit; each coloured line is a method's spillover-adjusted synthetic. The spread within a panel is the cross-method sensitivity; that it differs so much between panels is the point."
+ADH = ["trade", "infrate", "industry", "schooling", "invest60", "invest70", "invest80"]
 
-fig, ax = plt.subplots(figsize=(7.5, 5))
-ax.plot(years_full, observed_ca, color="black", lw=2.2, label="California (observed)")
-ax.plot(years_full, adh_curated, color="C2", ls=":", lw=1.6, alpha=0.8,
-        label="ADH curated SCM (reference)")
-for m, (c, ls) in styles.items():
-    ax.plot(years_full, list(pre_fit) + cf_post[m], color=c, ls=ls, lw=2,
-            label=f'method="{m}"')
-ax.axvline(1989, color="0.5", ls=":", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
-ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3)
+cases = [
+    dict(name="A. Proposition 99 (California, 1989)", file="prop99_with_dc.csv",
+         span=(1970, 2000), outcome="cigsale", unit="state", time="year",
+         treated="California", t0=1989, ylab="cigarette sales (packs p.c.)",
+         covariates=None, affected=[
+             "Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii",
+             "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada",
+             "New York", "Oregon", "Washington"]),
+    dict(name="B. Reunification (West Germany, 1990)", file="scpi_germany.csv",
+         span=(1960, 2003), outcome="gdp", unit="country", time="year",
+         treated="West Germany", t0=1990, ylab="GDP p.c. (000s USD)",
+         covariates=ADH, affected=["Austria", "France", "Netherlands"]),
+]
+methods = {"cd": ("C0", "-"), "iscm": ("C3", "--"),
+           "iterative": ("C1", "-."), "grossi": ("C4", ":")}
+
+fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.6))
+records = []
+for ax, case in zip(axes, cases):
+    df = pd.read_csv(f"{RAW}/{case['file']}")
+    df = df[df[case["time"]].between(*case["span"])].copy()
+    df["treat"] = ((df[case["unit"]] == case["treated"])
+                   & (df[case["time"]] >= case["t0"])).astype(int)
+    cfg = dict(df=df, outcome=case["outcome"], treat="treat", unitid=case["unit"],
+               time=case["time"], affected_units=case["affected"], display_graphs=False)
+    yrs = sorted(df[case["time"]].unique())
+    obs = (df[df[case["unit"]] == case["treated"]]
+           .sort_values(case["time"])[case["outcome"]].to_numpy())
+    ax.plot(yrs, obs, color="black", lw=2.3, label="observed")
+    for m, (c, ls) in methods.items():
+        kw = {**cfg, "method": m}
+        if m == "iscm" and case["covariates"]:
+            kw["covariates"] = case["covariates"]       # only iscm matches on covariates
+        r = SPILLSYNTH(kw).fit()                         # the one line that varies
+        sub = getattr(r, m)
+        pre = (sub.a[0] + sub.B[0] @ r.inputs.Y_pre if m == "cd"
+               else sub.treated_synthetic_pre)
+        ax.plot(yrs, list(pre) + list(sub.counterfactual_sp),
+                color=c, ls=ls, lw=1.8, label=m)
+        records.append({"case": case["name"][0], "method": m, "ATT": round(r.att, 2)})
+    ax.axvline(case["t0"], color="0.5", ls=":"); ax.set_title(case["name"], fontsize=10)
+    ax.set_xlabel("year"); ax.set_ylabel(case["ylab"])
+axes[0].legend(fontsize=8, ncol=2, loc="upper right")
+fig.tight_layout()
 plt.show()
 ```
 
-The estimates span roughly $-9$ to $-22$ packs and bracket Abadie's $-19$ from both
-sides. Cao and Dowd read the first post-years as cross-border displacement and
-land above $-19$; inclusive and iterative SCM attribute more of the neighbours'
-resilience to spillover and land below it; Grossi's penalised fit sits almost on
-top of the curated estimate. `mlsynth` takes no position on which is correct ---
-that is the analyst's judgement, and it turns on the spillover mechanism one is
-willing to assume. What the library removes is the friction. The disagreement
-above *is* the sensitivity analysis, and producing it now costs a single keyword
-rather than four installations and four syntaxes to reconcile. Lowering that
-barrier, not crowning a winner, is the point of `mlsynth`.
+```{python}
+pd.DataFrame(records).pivot(index="method", columns="case", values="ATT")
+```
+
+The contrast is the payoff. On Proposition 99 (Panel A) the four methods disagree
+sharply, because the tax genuinely leaks across state lines; on reunification
+(Panel B), with only three modest neighbours declared affected, the corrections
+barely move and all four hug the no-spillover fit. The spread within a panel is a
+cross-method sensitivity analysis, and it is large precisely when spillover
+matters and negligible when it does not --- a diagnostic the comparison yields for
+free.
+
+The deeper point is the code that produced both panels. Two datasets, two treated
+units, two outcomes, two affected-unit lists and four estimators --- a comparison
+that not long ago meant several package installations across two languages and a
+day of reconciling syntaxes --- here is one loop over a list of small
+dictionaries, a few dozen lines. `mlsynth` takes no position on which spillover
+method is correct; it makes running all of them, on all of your cases, cheap
+enough that you can find out for yourself.
 
 ## Putting it together
 
@@ -392,8 +423,8 @@ synthetic counterpart. A different branch asks whether that convexity is the
 right constraint at all. Difference-in-differences would instead permit a level
 gap --- absorbed by unit fixed effects --- and assume the treated and control
 trends are parallel; its weakness is that for a single state like California
-parallel trends plainly fail. Synthetic difference-in-differences (Arkhangelsky,
-Athey, Hirshberg, Imbens and Wager 2021) is the reconciliation: it fits a two-way
+parallel trends plainly fail. Synthetic difference-in-differences
+[@arkhangelsky2021] is the reconciliation: it fits a two-way
 fixed-effects regression that is doubly weighted --- by synthetic-control unit
 weights and difference-in-differences time weights --- so it reweights the
 controls until their trend runs parallel to California's (not identical, since
@@ -417,8 +448,8 @@ lo, hi = sdid.att_ci
 print(f"SDID  ATT = {att_sdid:+.2f} packs per capita   95% CI [{lo:+.1f}, {hi:+.1f}]")
 ```
 
-This reproduces the headline number of the method's own authors --- Arkhangelsky
-et al. report an effect of roughly $-15.6$ packs per capita on exactly this panel
+This reproduces the headline number of the method's own authors --- @arkhangelsky2021
+report an effect of roughly $-15.6$ packs per capita on exactly this panel
 --- and it lands a few packs short of the standard synthetic control's $-19$. The
 gap is informative rather than contradictory. The simplex synthetic control must
 reproduce California's *level* with a convex combination of donors and is
@@ -452,3 +483,7 @@ the experimental-design branch where the treatment has not yet been assigned ---
 and the same logic carries through: identify the question precisely, and the
 library names the estimator that answers it.
 ```
+## References
+
+::: {#refs}
+:::
