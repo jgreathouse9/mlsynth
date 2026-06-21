@@ -60,6 +60,10 @@ that estimate depends on which assumption.
 
 ```{python}
 import pandas as pd
+import matplotlib.pyplot as plt
+from mlsynth.utils.plotting import apply_mlsynth_style
+
+apply_mlsynth_style()   # mlsynth house style for every figure in this paper
 
 RAW = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata"
 
@@ -140,8 +144,6 @@ exactly the reassurance the comparison is meant to provide.
 ```{python}
 #| label: fig-curated
 #| fig-cap: "Observed California against the standard and low-rank synthetic counterfactuals on the curated donor pool."
-import matplotlib.pyplot as plt
-
 years = list(scm.time_series.time_periods)
 observed = scm.time_series.observed_outcome
 cf_scm = scm.time_series.counterfactual_outcome
@@ -260,19 +262,21 @@ obs_post = observed_ca[-len(post_years):]
 err_low = ci[:, 1] - alpha                          # distance below the SP point
 err_high = alpha - ci[:, 0]                          # distance above the SP point
 
-fig, ax = plt.subplots()
-ax.plot(years_full, observed_ca, color="black", lw=2, label="California (observed)")
+fig, ax = plt.subplots(figsize=(7.5, 5))
+ax.plot(years_full, observed_ca, color="black", lw=2.2, label="California (observed)")
 ax.plot(years_full, adh_curated, color="C2", ls=":", lw=2,
-        label="1. Standard SCM, curated pool (Abadie, Section 1)")
+        label="1. Standard SCM (curated pool)")
 ax.plot(years_full, naive_cf, color="C1", ls="--", lw=2,
-        label="2. Naive SCM, full pool (spillover-contaminated)")
-ax.plot(years_full, adj_cf, color="C0", lw=2,
-        label="3. Spillover-adjusted SCM (Cao & Dowd)")
+        label="2. Naive SCM (full pool, contaminated)")
+ax.plot(years_full, adj_cf, color="C0", lw=2.2,
+        label="3. Spillover-adjusted (Cao & Dowd)")
 ax.errorbar(post_years, list(spill.cd.counterfactual_sp), yerr=[err_low, err_high],
-            fmt="none", ecolor="C0", alpha=0.6, capsize=2)
-ax.axvline(1989, color="grey", ls=":")
+            fmt="none", ecolor="C0", alpha=0.55, capsize=2)
+ax.axvline(1989, color="0.5", ls=":", lw=1)
+ax.annotate("Proposition 99", xy=(1989, ax.get_ylim()[0]), xytext=(1989.5, 52),
+            fontsize=9, color="0.4")
 ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
-ax.legend(frameon=False, fontsize=8)
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=2)
 plt.show()
 ```
 
