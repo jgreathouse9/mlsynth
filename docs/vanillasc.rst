@@ -728,6 +728,172 @@ replication page, :doc:`replications/vanillasc`, for the full datasets, code and
 donor-weight tables. These are locked as regression tests in
 ``mlsynth/tests/test_vanillasc_replications.py``.
 
+Staggered adoption: multiple treated units
+-------------------------------------------
+
+Everything above concerns a single treated unit. ``VanillaSC`` also handles the
+case where several units adopt treatment, at possibly different times -- the
+*staggered adoption* design of Cattaneo, Feng, Palomba and Titiunik (2025). The
+switch is automatic: when ``dataprep`` finds more than one treated unit it groups
+them into adoption *cohorts* (one per distinct treatment-start time) instead of
+raising, and ``fit()`` returns the aggregated design described here. No new
+configuration is required; ``inference="scpi"`` extends to the cross-unit
+intervals.
+
+Let there be :math:`\iota` treated units, indexed :math:`i = 1, \dots, \iota`,
+with unit :math:`i` adopting at :math:`T_0^{(i)}` and observed for
+:math:`T_1^{(i)}` post-treatment periods. The donor pool is the set of units that
+are *never* treated over the whole sample. Each treated unit is fit on its own
+pre-treatment window with its own simplex synthetic control -- exactly the
+outcome-only program above, run :math:`\iota` times,
+
+.. math::
+
+   \widehat{\mathbf{w}}^{(i)} = \operatorname*{argmin}_{\mathbf{w}\in\Delta^{N_0}}
+   \bigl\| \mathbf{y}^{(i)}_{1,\mathcal{T}_1^{(i)}}
+   - \mathbf{Y}_{0,\mathcal{T}_1^{(i)}}\mathbf{w} \bigr\|_2^2 ,
+
+so the per-unit counterfactual is
+:math:`\widehat{y}^{(i)}_{1t} = (\mathbf{Y}_0\widehat{\mathbf{w}}^{(i)})_t` and
+the per-unit, per-period effect is the gap
+:math:`\widehat{\tau}_{i,t} = y^{(i)}_{1t} - \widehat{y}^{(i)}_{1t}`. Indexing by
+*event time* :math:`\ell \ge 1` (the :math:`\ell`-th post-treatment period for a
+unit, so calendar time :math:`T_0^{(i)} + \ell`) lines the units up on a common
+clock, :math:`\widehat{\tau}_{i,\ell}`.
+
+The four identifying assumptions carry over unit by unit (each treated unit must
+admit a convex-hull pre-fit, no anticipation, a stable outcome model). Staggered
+adoption adds two requirements. First, the donor pool must stay clean for every
+cohort: the never-treated units are untreated throughout, and the treated units
+are excluded from each other's donor pools, so no treated unit's effect leaks
+into another's counterfactual (no cross-unit interference). Second, the
+event-time average is only comparable across units where all are observed, which
+is why the event study below is *balanced* -- truncated at
+:math:`\ell \le \min_i T_1^{(i)}`.
+
+How the staggered ATT is computed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The per-unit gaps aggregate into the causal predictands of Cattaneo, Feng,
+Palomba and Titiunik (2025). Writing :math:`\mathcal{N}_{\text{tr}}` for the
+treated units and :math:`\mathcal{P}_i` for unit :math:`i`'s post periods:
+
+* TSUS -- the unit-by-period effect :math:`\widehat{\tau}_{i,t}` itself (no
+  aggregation).
+* TAUS -- the per-unit time average,
+  :math:`\widehat{\tau}^{\text{TAUS}}_i = \tfrac{1}{|\mathcal{P}_i|}
+  \sum_{t\in\mathcal{P}_i}\widehat{\tau}_{i,t}`. This is each treated unit's own
+  ATT and is reported per unit.
+* TSUA -- the event-time average treatment effect on the treated, averaging
+  across the units present at event time :math:`\ell`,
+
+  .. math::
+
+     \widehat{\tau}^{\text{TSUA}}_\ell
+     = \frac{1}{\iota}\sum_{i=1}^{\iota}\widehat{\tau}_{i,\ell},
+     \qquad \ell = 1,\dots,\min_i T_1^{(i)} ,
+
+  the staggered analogue of an event study: it is the ATT by time-since-adoption,
+  not by calendar period.
+* TAUA -- the overall ATT, the cell-weighted average of every post-treatment
+  unit/period effect,
+  :math:`\widehat{\tau}^{\text{TAUA}}
+  = \bigl(\sum_i|\mathcal{P}_i|\bigr)^{-1}
+  \sum_i\sum_{t\in\mathcal{P}_i}\widehat{\tau}_{i,t}`.
+
+The overall number reported in ``res.effects.att`` is :math:`\widehat{\tau}^{
+\text{TAUA}}` (the post-period-weighted mean of the per-unit ATTs); the
+event-study series :math:`\{\widehat{\tau}^{\text{TSUA}}_\ell\}` is in
+``res.additional_outputs["event_study"]``.
+
+Inference for the aggregated predictands
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With ``inference="scpi"`` each treated unit carries the single-unit SCPI band of
+the previous section, and the cross-unit (TSUA) intervals are built by a
+dedicated, self-contained engine
+(:mod:`mlsynth.utils.vanillasc_helpers.staggered_engine`) that reimplements the
+multiple-treated-unit construction from the published methodology. It does not
+import the GPL ``scpi`` package and is validated against it to solver tolerance.
+
+The prediction error of an aggregated predictand decomposes, as in the scalar
+case, into an in-sample term (the weight-estimation error) and an out-of-sample
+term (the irreducible forecast error), and the band is
+:math:`[\,\text{point} - \overline{M}_{\text{in}} - \overline{M}_{\text{out}},\;
+\text{point} - M_{\text{in}} - M_{\text{out}}\,]`.
+
+* In-sample. The :math:`\iota` per-unit conic programs (step 5 of the scalar
+  machinery) are simulated under a *joint* Gaussian draw whose covariance is
+  block-diagonal across units -- the units' weight-estimation errors are taken as
+  independent, which is what licenses averaging them. For each draw the worst-case
+  prediction errors are combined with the predictand's loadings (for TSUA, weight
+  :math:`1/\iota` on each unit at event time :math:`\ell`) and the
+  :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles are read off the aggregated
+  draws.
+* Out-of-sample. The per-unit location-scale models are aggregated the same way
+  -- averaged across the units at each event time -- to give the out-of-sample
+  bounds for the averaged forecast.
+
+A scaling subtlety is worth stating because it controls the width of the
+event-time band. The average of :math:`\iota` independent per-unit in-sample
+errors has an interval that scales as :math:`1/\iota`. The ``scpi`` package, by
+contrast, scales its published time-aggregated in-sample interval as
+:math:`1/\iota^{2}` (it divides the predictand matrix by :math:`\iota` once when
+forming the average and again when simulating the draws). ``VanillaSC`` defaults
+to the statistically correct :math:`1/\iota` and exposes a ``scpi_compat`` flag
+to reproduce ``scpi``'s published numbers exactly:
+
+.. code-block:: python
+
+   VanillaSC({..., "inference": "scpi", "scpi_compat": False}).fit()  # default, 1/iota
+   VanillaSC({..., "inference": "scpi", "scpi_compat": True}).fit()   # matches scpi, 1/iota^2
+
+With :math:`\iota = 2` the default in-sample band is exactly twice ``scpi``'s at
+every event time; the point estimates and the out-of-sample term are identical
+either way. The discrepancy, and the machine-precision check that isolates it,
+are documented on the replication page :doc:`replications/vanillasc_staggered`.
+
+What ``fit()`` returns
+^^^^^^^^^^^^^^^^^^^^^^^
+
+A staggered fit populates:
+
+* ``res.effects.att`` -- the overall ATT (TAUA), with ``additional_effects``
+  carrying ``per_unit_att`` and the cohort count;
+* ``res.sub_method_results`` -- a per-unit record (keyed by treated-unit name)
+  with that unit's weights, observed and counterfactual paths, gap, ATT and,
+  under ``inference="scpi"``, its per-period and average-effect bands;
+* ``res.additional_outputs["event_study"]`` -- the balanced TSUA series
+  :math:`\{\widehat{\tau}^{\text{TSUA}}_\ell\}` keyed by event time;
+* ``res.additional_outputs["event_study_intervals"]`` -- under
+  ``inference="scpi"`` with more than one treated unit, the TSUA prediction
+  intervals per event time: the ``effect_ci`` on
+  :math:`\widehat{\tau}^{\text{TSUA}}_\ell`, the ``synthetic_ci`` on the averaged
+  counterfactual (directly comparable to ``scpi``'s ``CI_all_gaussian``), and the
+  in-sample-only band.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import VanillaSC
+
+   df = pd.read_csv("basedata/scpi_germany.csv")
+   df["status"] = 0
+   df.loc[(df.country == "West Germany") & (df.year >= 1991), "status"] = 1
+   df.loc[(df.country == "Italy") & (df.year >= 1992), "status"] = 1
+
+   res = VanillaSC({"df": df, "outcome": "gdp", "treat": "status",
+                    "unitid": "country", "time": "year",
+                    "inference": "scpi", "display_graphs": False}).fit()
+   res.effects.att                                   # overall ATT (TAUA)
+   res.additional_outputs["event_study"]             # TSUA by event time
+   res.additional_outputs["event_study_intervals"]   # TSUA prediction intervals
+
+The construction is cross-validated against ``scpi`` on this exact panel: the
+event-time bands reproduce ``scpi``'s to solver tolerance (durable benchmarks
+``scpi_staggered`` and ``scpi_staggered_pi``). See
+:doc:`replications/vanillasc_staggered`.
+
 Ridge augmentation (Augmented SCM)
 ----------------------------------
 
