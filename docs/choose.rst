@@ -347,9 +347,33 @@ Q1.4 · Are there persistent latent factors / time-varying dynamics / heavy
 observation noise?
 
 * No -- next question.
-* Yes -- :doc:`tasc` (time-aware state-space model), :doc:`fma` (PC factors with
-  a residual-bootstrap test), or :doc:`dscar` (time-varying weights for strongly
-  autocorrelated panels with time-varying confounders).
+* Yes -- :doc:`tasc` (time-aware state-space model) or :doc:`fma` (PC factors
+  with a residual-bootstrap test). (For micro panels with observed time-varying
+  *confounders* and autoregressive outcomes, :doc:`dscar` is a different
+  paradigm -- see the remark below.)
+
+*DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
+of the synthetic control above; it is best understood by contrast with the vanilla
+method. Standard SC builds *fixed* weights that match the treated unit's whole
+pre-treatment outcome *trajectory*, identifies the counterfactual through a latent
+factor model and the convex hull, and is built for a single aggregate treated unit
+with no time-varying confounders. DSCAR changes nearly all of that. It is designed
+for *micro-level* panels -- many units, often many treated ones (monitoring sites,
+wearables, individuals) -- in which the outcome is strongly *autoregressive*, the
+confounders are *time-varying* and observed, and the units are *spatially
+dependent*. Instead of one fixed weight vector it constructs *dynamic*
+(time-varying) weights by maximising an empirical likelihood subject to matching
+the *current* state of the time-varying confounders and the lagged outcome at each
+period; because the match is to the current confounder state rather than to a long
+pre-treatment path, an exact match is attainable with probability approaching one.
+And it identifies the effect through *unconfoundedness* conditional on the
+covariates and the lagged outcome -- a selection-on-observables assumption testable
+on the pre-period -- rather than SC's factor structure. So prefer :doc:`dscar` over
+:doc:`vanillasc` when the data are micro-level with observed time-varying
+confounders, autocorrelated outcomes, spatial dependence, or multiple treated
+units; stay with the vanilla synthetic control when you have a single aggregate
+treated unit, time-invariant structure, and the factor-model / convex-hull premise
+is what you are willing to assume.
 
 Q1.5 · Is the untreated outcome a nonlinear function of the predictors?
 
