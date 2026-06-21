@@ -255,6 +255,33 @@ match?
 * Yes -- decompose first: :doc:`sbc` (Hamilton trend/cycle split, match the
   cycle) or :doc:`hsc` (soft levels-vs-differences allocation).
 
+*Spurious fit on nonstationary data -- SBC versus HSC versus plain SC.* Both
+papers behind this gate warn that the standard synthetic control of Part 1 is
+unsafe on nonstationary macro series: a convex combination of donors can track
+the treated unit's pre-period through *coincidental* co-movement of unit-specific
+stochastic trends, giving an excellent in-sample fit with no out-of-sample
+validity -- the *spurious synthetic control* problem (Shi, Xi and Xie, 2025; Liu
+and Xu, 2026), an instance of spurious regression that, crucially, does *not* go
+away as the pre-period lengthens. So plain :doc:`vanillasc` is appropriate only
+when the outcome is stationary (or its stochastic trend is genuinely shared
+across units). The two fixes differ in how much they assume. :doc:`sbc` (Shi, Xi
+and Xie, 2025) commits to a trend/cycle split: it treats the nonstationary
+*trend* as unit-specific and forecasts it from the treated unit's own history,
+and uses the donors *only* for the common business *cycle* -- the right division
+when comovement genuinely lives in the cycle (a country's idiosyncratic growth
+path plus a synchronised global cycle). :doc:`hsc` (Liu and Xu, 2026) refuses to
+commit, because whether the stochastic trend is *shared* (which SC should keep for
+matching) or *idiosyncratic* (which it must remove) is usually unknown ex ante,
+and a binary choice to difference or not fails in whichever regime is wrong. HSC
+instead *softly allocates* between donor matching and a treated-unit-specific
+self-forecast, with a tuning parameter chosen by rolling-origin cross-validation
+that interpolates continuously between SC on differenced outcomes and SC on raw
+outcomes with a trend; it adapts across regimes where an estimator fixed to one
+can fail. So prefer :doc:`sbc` when you are confident the matchable comovement is
+the business cycle and the trend is the treated unit's own; prefer :doc:`hsc`
+when you are unsure whether the nonstationarity is shared or idiosyncratic and
+want the data to decide.
+
 Q1.4 · Are there persistent latent factors / time-varying dynamics / heavy
 observation noise?
 
