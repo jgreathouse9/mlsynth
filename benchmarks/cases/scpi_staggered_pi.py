@@ -1,31 +1,34 @@
 """Cross-validation benchmark: staggered VanillaSC prediction intervals vs scpi.
 
-Path A (empirical, runnable Python reference). Reproduces the multiple-treated-
-unit *prediction intervals* of Cattaneo, Feng, Palomba & Titiunik (2025),
-Section 4 -- the cross-unit (event-time, TSUA) bands -- on the canonical Germany
-reunification panel (``basedata/scpi_germany.csv``), driven through the public
-``VanillaSC.fit()`` with ``inference="scpi"``.
+Path A (empirical). Reproduces the multiple-treated-unit *prediction intervals*
+of Cattaneo, Feng, Palomba & Titiunik (2025), Section 4 -- the cross-unit
+(event-time, TSUA) bands -- on the Germany reunification panel
+(``basedata/scpi_germany.csv``), driven through the public ``VanillaSC.fit()``
+with ``inference="scpi"``.
 
 Two treated units adopt at different times (West Germany 1991, Italy 1992) with
-the 15 never-treated countries as donors. Outcome-only, simplex weights. The
-``scpi`` package's ``scpi`` (with ``scdataMulti(effect="time")``) produces the
-event-time prediction intervals; ``mlsynth``'s clean-room staggered engine
-reproduces the full sub-Gaussian band to solver tolerance in ``scpi``-compat
-mode (``scpi_compat=True``).
+the 15 never-treated countries as donors. Outcome-only, simplex weights. In
+``scpi``-compatibility mode the event-time band reproduces ``scpi``'s
+``scpi(scdataMulti(effect="time"))`` band (its ``CI_all_gaussian``) to solver
+tolerance.
+
+The ``scpi`` reference is hard-coded below rather than computed live: ``scpi`` is
+GPL-licensed and ``mlsynth`` is MIT, so the benchmark records ``scpi``'s numbers
+once (here, ``effect="time"``, ``seed=1234``, ``sims=500``) and checks ``fit()``
+against them, with no run-time dependency on ``scpi_pkg``.
 
 This case also documents a published-quirk finding. ``scpi`` divides the
 predictand matrix ``P`` by the number of treated units ``iota`` in
 ``scdataMulti`` (correct -- it forms the average) and then divides the simulated
 in-sample draws by ``iota`` a *second* time in ``scpi_in_diag``, so its
 time-aggregated in-sample interval carries a ``1 / iota**2`` scaling, while the
-point estimate and out-of-sample term use the statistically correct single
-``1 / iota``. Verified against ``scpi`` at machine precision: with iota = 2 the
-correct (default) in-sample band is exactly 2x wider than ``scpi``'s at every
-event time. ``mlsynth`` defaults to the correct ``1 / iota`` and exposes
-``scpi_compat=True`` to reproduce ``scpi`` bit-for-bit; both are checked here
-through ``fit()``.
+point estimate and out-of-sample term use the correct single ``1 / iota``.
+Verified against ``scpi`` at machine precision: with iota = 2 the correct
+(default) in-sample band is exactly 2x wider than ``scpi``'s at every event time.
+``mlsynth`` defaults to the correct ``1 / iota`` and exposes ``scpi_compat=True``
+to reproduce ``scpi`` bit-for-bit; both are checked here through ``fit()``.
 
-Reference: ``scpi_pkg`` (PyPI). Skips itself (``BenchmarkSkipped``) when absent.
+Reference: ``scpi_pkg`` (PyPI), ``scpi`` / ``scdataMulti``.
 """
 from __future__ import annotations
 
@@ -35,13 +38,20 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from benchmarks.compare import BenchmarkSkipped
-
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "scpi_germany.csv")
 _ADOPT = {"West Germany": 1991, "Italy": 1992}
 _SIMS = 500
 _SEED = 1234
+
+# scpi reference: CI_all_gaussian for effect="time" (outcome-only simplex),
+# seed=1234, sims=500. Lower / upper synthetic-prediction band per event time.
+_SCPI_BAND_LO = np.array([
+    20.1216, 20.7404, 21.4774, 22.4745, 23.2487, 24.1386,
+    24.9211, 25.9213, 27.6635, 28.9156, 29.6055, 30.2987])
+_SCPI_BAND_HI = np.array([
+    20.6777, 21.1925, 21.8918, 22.9157, 23.9393, 25.1013,
+    25.8044, 27.0253, 29.0674, 30.6037, 31.4226, 32.0415])
 
 
 def _panel() -> pd.DataFrame:
@@ -69,41 +79,18 @@ def _fit_tsua(df: pd.DataFrame, *, scpi_compat: bool):
     return ells, full, insample
 
 
-def _scpi_tsua(df: pd.DataFrame) -> np.ndarray:
-    """scpi effect='time' full sub-Gaussian band (CI_all_gaussian)."""
-    from scpi_pkg.scdataMulti import scdataMulti
-    from scpi_pkg.scpi import scpi
-    aux = scdataMulti(df=df, id_var="country", time_var="year", outcome_var="gdp",
-                      treatment_var="status", features=None, cov_adj=None,
-                      constant=False, cointegrated_data=False, effect="time")
-    np.random.seed(_SEED)
-    res = scpi(aux, w_constr={"name": "simplex"}, sims=_SIMS, cores=1,
-               e_method="gaussian", u_alpha=0.05, e_alpha=0.05)
-    ci = res.CI_all_gaussian
-    return np.column_stack([np.asarray(ci.iloc[:, 0], float),
-                            np.asarray(ci.iloc[:, 1], float)])
-
-
 def run() -> dict:
-    try:
-        import scpi_pkg  # noqa: F401
-    except ImportError as exc:  # pragma: no cover - optional reference dep
-        raise BenchmarkSkipped("scpi_pkg not installed "
-                               "(`pip install scpi_pkg`)") from exc
-
     df = _panel()
-
-    # --- mlsynth through fit(): scpi-compat (matches scpi) and default (correct) ---
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         _, full_compat, insample_compat = _fit_tsua(df, scpi_compat=True)
         _, _, insample_default = _fit_tsua(df, scpi_compat=False)
-        sc_band = _scpi_tsua(df)
 
+    sc_band = np.column_stack([_SCPI_BAND_LO, _SCPI_BAND_HI])
     n = min(len(full_compat), len(sc_band))
     fc, scb = full_compat[:n], sc_band[:n]
 
-    # full-band agreement (the reproduction claim, through fit())
+    # full-band agreement with the recorded scpi band (the reproduction claim)
     sc_w = scb[:, 1] - scb[:, 0]
     ml_w = fc[:, 1] - fc[:, 0]
     tsua_width_max_rel = float(np.max(np.abs(ml_w - sc_w) / sc_w))
@@ -123,9 +110,10 @@ def run() -> dict:
     }
 
 
-# scpi-compat fit() reproduces scpi's event-time bands to solver tolerance; the
-# correct default in-sample band is exactly iota (= 2) times scpi's, documenting
-# the 1/iota**2 scaling in scpi's time-aggregated in-sample interval.
+# scpi-compat fit() reproduces scpi's recorded event-time band to solver
+# tolerance; the correct default in-sample band is exactly iota (= 2) times
+# scpi's, documenting the 1/iota**2 scaling in scpi's time-aggregated in-sample
+# interval.
 EXPECTED = {
     "tsua_full_band_width_max_rel_diff_vs_scpi": (0.0, 0.05),    # within 5%
     "tsua_full_band_endpoint_max_abs_diff_vs_scpi": (0.0, 0.05),

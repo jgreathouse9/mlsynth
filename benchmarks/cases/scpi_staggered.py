@@ -1,9 +1,9 @@
 """Cross-validation benchmark: staggered VanillaSC vs the ``scpi`` package.
 
-Path A (empirical, runnable Python reference). Reproduces Cattaneo, Feng, Palomba
-and Titiunik's (2025) multiple-treated-unit synthetic control on the canonical
-Germany reunification panel (the public ``scpi_germany.csv`` shipped with the
-``scpi`` distribution), driven entirely through the public ``VanillaSC.fit()``.
+Path A (empirical). Reproduces Cattaneo, Feng, Palomba and Titiunik's (2025)
+multiple-treated-unit synthetic control on the canonical Germany reunification
+panel (``basedata/scpi_germany.csv``), driven entirely through the public
+``VanillaSC.fit()``.
 
 Two treated units adopt at different times -- West Germany in 1991 and Italy in
 1992 (the placebo unit from the package's own illustration) -- with the 15
@@ -12,14 +12,13 @@ never-treated countries as donors. Run outcome-only with a simplex constraint,
 per-unit, event-time, and overall *causal predictand* point estimates derived
 from them are reproduced by ``mlsynth`` to a few thousandths.
 
-Reference: ``scpi_pkg`` (PyPI, pinned at 4.0.0), ``scest`` /  ``scdataMulti``.
-The point estimates are deterministic SC quantities, so they match to the
-published digits. NOTE: this case validates the *point-estimate* family
-(``effect="unit"`` / ``"time"`` / ``"unit-time"``). The cross-unit prediction
-*intervals* (TSUA / TAUA) are not yet reproduced and are out of scope here.
+The ``scpi`` reference is hard-coded below rather than computed live: ``scpi`` is
+GPL-licensed and ``mlsynth`` is MIT, so the benchmark records ``scpi``'s ``scest``
+numbers once and checks ``fit()`` against them, with no run-time dependency on
+``scpi_pkg``. The point estimates are deterministic SC quantities, so they match
+to the published digits.
 
-Skips itself (``BenchmarkSkipped``) when ``scpi_pkg`` is absent, so it runs under
-``--all`` without a hard dependency.
+Reference: ``scpi_pkg`` (PyPI), ``scest`` / ``scdataMulti``.
 """
 from __future__ import annotations
 
@@ -29,11 +28,16 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from benchmarks.compare import BenchmarkSkipped
-
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "scpi_germany.csv")
 _ADOPT = {"West Germany": 1991, "Italy": 1992}
+
+# scpi reference (scest, outcome-only simplex): per-unit average effects, the
+# overall unit-time ATT, and the event-time (effect="time") series.
+_SCPI_ATT = {"West Germany": -1.8476, "Italy": -1.1211, "overall": -1.4989}
+_SCPI_EVENT_TIME = np.array([
+    0.131, 0.0316, -0.4255, -0.67, -0.9013, -1.2304,
+    -1.2529, -1.6015, -2.2758, -2.6734, -2.8457, -3.0832])
 
 
 def _panel() -> pd.DataFrame:
@@ -44,39 +48,10 @@ def _panel() -> pd.DataFrame:
     return df
 
 
-def _scpi_gaps(df: pd.DataFrame) -> pd.Series:
-    """Per-cell post-treatment gaps from scpi's scest (effect='unit-time')."""
-    from scpi_pkg.scdataMulti import scdataMulti
-    from scpi_pkg.scest import scest
-    aux = scdataMulti(df=df, id_var="country", time_var="year",
-                      outcome_var="gdp", treatment_var="status", features=None,
-                      cov_adj=None, constant=False, cointegrated_data=False,
-                      effect="unit-time")
-    res = scest(aux, w_constr={"name": "simplex"})
-    gap = np.asarray(res.Y_post).ravel() - np.asarray(res.Y_post_fit).ravel()
-    return pd.Series(gap, index=res.Y_post.index)   # index: (unit, year)
-
-
-def _event_study(gaps_by_unit: dict, min_post: int) -> np.ndarray:
-    """Balanced event-study series: mean gap across units at each event time."""
-    return np.array([
-        np.mean([gaps_by_unit[u][ell] for u in gaps_by_unit])
-        for ell in range(min_post)
-    ])
-
-
 def run() -> dict:
-    try:
-        import scpi_pkg  # noqa: F401
-    except ImportError as exc:  # pragma: no cover - optional reference dep
-        raise BenchmarkSkipped("scpi_pkg not installed "
-                               "(`pip install scpi_pkg==4.0.0`)") from exc
-
     from mlsynth import VanillaSC
 
     df = _panel()
-
-    # --- mlsynth, through the public fit() ---
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         res = VanillaSC({"df": df, "outcome": "gdp", "treat": "status",
@@ -87,37 +62,24 @@ def run() -> dict:
     ml_event = res.additional_outputs["event_study"]            # {ell: effect}
     ml_overall = float(res.effects.att)
 
-    # --- scpi reference ---
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        gaps = _scpi_gaps(df)
-    sc_by_unit = {}
-    sc_unit = {}
-    for unit, yr in _ADOPT.items():
-        g = gaps.xs(unit, level=0).sort_index()
-        sc_by_unit[unit] = g.to_numpy(float)
-        sc_unit[unit] = float(g.mean())
-    sc_overall = float(gaps.mean())
-    min_post = min(len(v) for v in sc_by_unit.values())
-    sc_event = _event_study(sc_by_unit, min_post)
-    ml_event_arr = np.array([ml_event[k] for k in sorted(ml_event)])[:min_post]
+    ev = np.array([ml_event[k] for k in sorted(ml_event)])
+    n = min(len(ev), len(_SCPI_EVENT_TIME))
 
     return {
-        # mlsynth's own values (pinned to the published SC numbers)
         "att_west_germany": ml_unit["West Germany"],
         "att_italy": ml_unit["Italy"],
         "att_overall": ml_overall,
-        # cell-by-cell agreement with scpi (driven through fit())
+        # agreement with the recorded scpi reference (driven through fit())
         "per_unit_max_abs_diff_vs_scpi": max(
-            abs(ml_unit[u] - sc_unit[u]) for u in _ADOPT),
+            abs(ml_unit[u] - _SCPI_ATT[u]) for u in _ADOPT),
         "event_study_max_abs_diff_vs_scpi": float(
-            np.max(np.abs(ml_event_arr - sc_event))),
-        "overall_abs_diff_vs_scpi": abs(ml_overall - sc_overall),
+            np.max(np.abs(ev[:n] - _SCPI_EVENT_TIME[:n]))),
+        "overall_abs_diff_vs_scpi": abs(ml_overall - _SCPI_ATT["overall"]),
     }
 
 
-# Deterministic SC point estimates: mlsynth's fit() reproduces scpi's scest to a
-# few thousandths across the per-unit, event-time, and overall predictands.
+# Deterministic SC point estimates: mlsynth's fit() reproduces scpi's recorded
+# scest numbers across the per-unit, event-time, and overall predictands.
 EXPECTED = {
     "att_west_germany": (-1.8476, 0.01),     # scpi scest, effect="unit"
     "att_italy": (-1.1211, 0.01),
