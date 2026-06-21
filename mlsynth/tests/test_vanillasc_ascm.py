@@ -205,11 +205,15 @@ def test_nan_covariate_means_raises_data_error():
                    "backend": "mscmt"}).fit()
 
 
-def test_multiple_treated_units_raises_data_error():
+def test_multiple_treated_units_handled_as_staggered():
+    """Multiple treated units are now handled as a staggered design (this used
+    to raise MlsynthDataError; VanillaSC now fits one SC per treated unit)."""
     df = _panel()
     df.loc[(df["unit"] == "u1") & (df["time"] >= 13), "treated"] = 1
-    with pytest.raises(MlsynthDataError):
-        VanillaSC({"df": df, **_BASE, "inference": False}).fit()
+    res = VanillaSC({"df": df, **_BASE, "inference": False}).fit()
+    assert res.sub_method_results is not None
+    assert set(res.sub_method_results) == {"u0", "u1"}
+    assert res.effects.att is not None
 
 
 def test_scpi_plot_band_padding(tmp_path):

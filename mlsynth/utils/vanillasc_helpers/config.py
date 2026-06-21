@@ -140,6 +140,19 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default="gaussian",
         description="SCPI out-of-sample location-scale tabulation.",
     )
+    scpi_compat: bool = Field(
+        default=False,
+        description="Staggered adoption only. When True, the cross-unit "
+                    "(TSUA / TAUA) in-sample prediction intervals reproduce the "
+                    "scpi package's published numbers bit-for-bit, including its "
+                    "1/iota**2 scaling of the time-aggregated in-sample term "
+                    "(scdataMulti divides the predictand matrix P by the number "
+                    "of treated units iota, and scpi_in_diag divides the "
+                    "simulated draws by iota a second time). The statistically "
+                    "correct scaling for the average of iota independent per-unit "
+                    "errors is a single 1/iota, which is the default (False). "
+                    "Use True only to match scpi exactly.",
+    )
     lto_max_pairs: Optional[int] = Field(
         default=None, ge=1,
         description="Cap on donor pairs for the 'lto' test (None -> all pairs).",

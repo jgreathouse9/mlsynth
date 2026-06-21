@@ -87,6 +87,10 @@ Path A — empirical replications
      - SBC German reunification
    * - ``scmo_germany``
      - Tian et al. West Germany balance
+   * - ``scpi_staggered``
+     - scpi staggered point estimates, Germany (Cattaneo et al. 2025)
+   * - ``scpi_staggered_pi``
+     - scpi staggered TSUA prediction intervals, Germany (Cattaneo et al. 2025)
    * - ``sparse_sc_prop99``
      - L1 predictor selection (Prop 99)
    * - ``spcd_prop99``

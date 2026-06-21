@@ -183,10 +183,15 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         outcome_column_name=config.outcome,
         treatment_indicator_column_name=config.treat,
     )
+    if "cohorts" in prep:
+        # Staggered adoption (several treated units, possibly at different times):
+        # fit one synthetic control per treated unit on the never-treated donors.
+        from .staggered import run_vanillasc_staggered
+        return run_vanillasc_staggered(config, prep)
     if "y" not in prep or "donor_matrix" not in prep:
         raise MlsynthDataError(
-            "VanillaSC requires a single treated unit (dataprep returned a "
-            "multi-cohort structure)."
+            "VanillaSC could not prepare the data (dataprep returned neither a "
+            "single-treated nor a multi-cohort structure)."
         )
     y = np.asarray(prep["y"], dtype=float).ravel()
     Y0 = np.asarray(prep["donor_matrix"], dtype=float)

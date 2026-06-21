@@ -53,6 +53,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/fdid
    replications/tssc
    replications/vanillasc
+   replications/vanillasc_staggered
    replications/ascm_kansas
    replications/pensynth
    replications/sparse_sc
@@ -103,6 +104,14 @@ Canonical workhorses
   Connecticut 0.068, each within 0.005 of the paper; durable:
   ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`vanillasc` (staggered adoption) -- Cattaneo, Feng, Palomba &
+  Titiunik (2025) multiple-treated-unit prediction intervals. Cross-validation
+  vs the ``scpi`` package on the Germany reunification panel: the event-time
+  (TSUA) bands reproduce ``scpi``'s ``CI_all_gaussian`` to solver tolerance
+  (~0.05 percent), and the page records a :math:`1/\iota^{2}` scaling in
+  ``scpi``'s published in-sample band (durable: ``scpi_staggered``,
+  ``scpi_staggered_pi``).
+  → dedicated page: :doc:`replications/vanillasc_staggered`.
 * :doc:`ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
   (the ridge-augmentation layer on VanillaSC). Cross-validation vs
   ``augsynth``\ : the canonical Kansas tax-cut ladder reproduced
