@@ -354,3 +354,60 @@ class TestPublicAPI:
         r1 = SDID(cfg_dict).fit()
         r2 = SDID(cfg_obj).fit()
         assert r1.inference_detail.att == pytest.approx(r2.inference_detail.att)
+
+
+# ---------------------------------------------------------------------------
+# Exposed unit weights + intercept-adjusted counterfactual toggle
+# ---------------------------------------------------------------------------
+
+class TestWeightsAndInterceptToggle:
+    """SDID exposes its unit weights, and the counterfactual can optionally be
+    intercept-adjusted (off by default)."""
+
+    def test_donor_weights_exposed_on_simplex(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=10)).fit()
+        dw = res.weights.donor_weights
+        assert isinstance(dw, dict) and len(dw) > 0
+        vals = np.array(list(dw.values()), dtype=float)
+        assert (vals >= -1e-8).all()
+        assert vals.sum() == pytest.approx(1.0, abs=1e-6)
+
+    def test_cohort_carries_unit_weights(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=10)).fit()
+        for cohort in res.cohorts.values():
+            assert cohort.unit_weights is not None
+            assert np.asarray(cohort.unit_weights).ndim == 1
+
+    def _pre_gap(self, res):
+        yr = np.asarray(res.time_series.time_periods).ravel()
+        obs = np.asarray(res.time_series.observed_outcome, dtype=float)
+        cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
+        pre = yr < res.time_series.intervention_time
+        return abs(float((obs[pre] - cf[pre]).mean()))
+
+    def test_default_counterfactual_is_not_intercept_adjusted(self, smoking_panel):
+        """By default the counterfactual is the raw weighted-donor series, which
+        sits at a different level than the treated unit in the pre-period."""
+        res = SDID(_base_config(smoking_panel, B=10)).fit()
+        assert self._pre_gap(res) > 10.0
+
+    def test_intercept_adjust_tracks_treated(self, smoking_panel):
+        """With the toggle on, the counterfactual is level-matched to the treated
+        unit over the pre-period."""
+        res = SDID(_base_config(smoking_panel, B=10, intercept_adjust=True)).fit()
+        assert self._pre_gap(res) < 5.0
+
+    def test_toggle_leaves_att_unchanged(self, smoking_panel):
+        raw = SDID(_base_config(smoking_panel, B=10, seed=1400)).fit()
+        adj = SDID(_base_config(smoking_panel, B=10, seed=1400,
+                                intercept_adjust=True)).fit()
+        assert raw.effects.att == pytest.approx(adj.effects.att, abs=1e-9)
+
+    def test_intercept_shift_is_constant(self, smoking_panel):
+        """The two counterfactuals differ by a single constant (the intercept)."""
+        raw = SDID(_base_config(smoking_panel, B=10)).fit()
+        adj = SDID(_base_config(smoking_panel, B=10, intercept_adjust=True)).fit()
+        diff = (np.asarray(adj.time_series.counterfactual_outcome, dtype=float)
+                - np.asarray(raw.time_series.counterfactual_outcome, dtype=float))
+        assert np.ptp(diff) == pytest.approx(0.0, abs=1e-6)
+        assert abs(float(diff.mean())) > 1e-6

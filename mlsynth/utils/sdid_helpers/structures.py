@@ -101,6 +101,8 @@ class SDIDCohort:
     event_effects: Dict[int, SDIDEventEffect]
     actual: np.ndarray
     counterfactual: np.ndarray
+    unit_weights: Optional[np.ndarray] = None
+    time_weights: Optional[np.ndarray] = None
 
 
 @dataclass(frozen=True)

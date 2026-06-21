@@ -111,6 +111,7 @@ class SDID:
         self.time: str = config.time
         self.B: int = config.B
         self.seed: int = config.seed
+        self.intercept_adjust: bool = config.intercept_adjust
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -129,6 +130,7 @@ class SDID:
                 time=self.time,
                 B=self.B,
                 seed=self.seed,
+                intercept_adjust=self.intercept_adjust,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

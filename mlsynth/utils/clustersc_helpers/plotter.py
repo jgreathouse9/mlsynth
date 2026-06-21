@@ -1,4 +1,10 @@
-"""Diagnostic plot for CLUSTERSC results."""
+"""Display plot for CLUSTERSC results.
+
+A single-panel observed-vs-counterfactual chart drawn through the shared in-house
+``Plotter`` (``mlsynth.utils.plotting``), so CLUSTERSC looks like every other
+estimator. When both the PCR and RPCA estimators are run, their counterfactuals
+are overlaid on the one panel.
+"""
 
 from __future__ import annotations
 
@@ -6,52 +12,46 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ...exceptions import MlsynthPlottingError
+from ..plotting import Plotter, mlsynth_style
 from .structures import CLUSTERSCResults
 
 
 def plot_clustersc(results: CLUSTERSCResults) -> None:
-    """Two-panel plot: trajectories + gap, both with PCR / RPCA overlays."""
+    """Observed treated series vs the PCR / RPCA counterfactual(s)."""
 
     inputs = results.inputs
     t = np.asarray(inputs.time_labels)
     if t.size != inputs.T:
         t = np.arange(inputs.T)
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
-
-    ax = axes[0]
-    ax.plot(t, inputs.treated_outcome, "k-", lw=2,
-            label=str(inputs.treated_unit_name))
+    counterfactuals: list[np.ndarray] = []
+    labels: list[str] = []
     if results.pcr is not None:
-        ax.plot(t, results.pcr.counterfactual, "r--", lw=2,
-                label="PCR counterfactual")
+        counterfactuals.append(np.asarray(results.pcr.counterfactual, dtype=float))
+        labels.append("PCR counterfactual")
     if results.rpca is not None:
-        ax.plot(t, results.rpca.counterfactual, "b-.", lw=2,
-                label="RPCA counterfactual")
-    if 0 <= inputs.T0 - 1 < t.size:
-        ax.axvline(t[inputs.T0 - 1], color="grey", ls=":", alpha=0.7)
-    ax.set_xlabel("time")
-    ax.set_ylabel("outcome")
-    ax.set_title("CLUSTERSC trajectories")
-    ax.legend(loc="best")
-    ax.grid(alpha=0.2)
+        counterfactuals.append(np.asarray(results.rpca.counterfactual, dtype=float))
+        labels.append("RPCA counterfactual")
 
-    ax = axes[1]
-    ax.axhline(0.0, color="grey", lw=0.8)
-    if results.pcr is not None:
-        ax.plot(t, results.pcr.gap, "r-", lw=2, label="PCR gap")
-    if results.rpca is not None:
-        ax.plot(t, results.rpca.gap, "b-", lw=2, label="RPCA gap")
-    if 0 <= inputs.T0 - 1 < t.size:
-        ax.axvline(t[inputs.T0 - 1], color="grey", ls=":", alpha=0.7)
-    ax.set_xlabel("time")
-    ax.set_ylabel("treatment effect")
-    ax.set_title("CLUSTERSC gap")
-    ax.legend(loc="best")
-    ax.grid(alpha=0.2)
+    intervention = t[inputs.T0] if 0 <= inputs.T0 < t.size else None
 
-    plt.tight_layout()
-    try:
-        plt.show()
-    except Exception as exc:
-        raise MlsynthPlottingError(f"CLUSTERSC plotting failed: {exc}") from exc
+    with mlsynth_style():
+        plotter = Plotter.from_config(None)
+        ax = plotter.observed_vs_counterfactual(
+            times=t,
+            observed=np.asarray(inputs.treated_outcome, dtype=float),
+            counterfactuals=counterfactuals,
+            labels=labels,
+            treated_label=str(inputs.treated_unit_name),
+            intervention=intervention,
+            outcome=inputs.outcome_name or "outcome",
+            time=inputs.time_name or "time",
+            title=f"CLUSTERSC: {inputs.treated_unit_name}",
+        )
+        fig = ax.figure
+        try:
+            plt.show()
+        except Exception as exc:
+            raise MlsynthPlottingError(f"CLUSTERSC plotting failed: {exc}") from exc
+        finally:
+            plt.close(fig)

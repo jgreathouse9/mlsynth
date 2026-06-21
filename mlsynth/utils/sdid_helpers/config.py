@@ -32,3 +32,14 @@ class SDIDConfig(BaseEstimatorConfig):
         default=1400,
         description="Random seed used for the placebo resampling.",
     )
+    intercept_adjust: bool = Field(
+        default=False,
+        description=(
+            "Whether the counterfactual exposed in ``time_series`` is shifted by "
+            "the SDID intercept (the constant level difference between the treated "
+            "unit and its weighted donors). When False (default), the raw "
+            "weighted-donor series is reported, as in Arkhangelsky et al. (2021) "
+            "Figure 1; when True it is level-matched to the treated unit over the "
+            "pre-period. The point estimate and inference are unaffected either way."
+        ),
+    )

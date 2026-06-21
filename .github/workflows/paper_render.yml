@@ -91,6 +91,10 @@ jobs:
           rm -f "$dir"/*.aux "$dir"/*.bbl "$dir"/*.blg "$dir"/*.log
 
       - name: Commit rendered outputs
+        # Only commit the rendered PDF on main. On PR branches this bot commit
+        # would become the head and (being a GITHUB_TOKEN push) would not trigger
+        # the required build checks, de-heading CI on every render.
+        if: github.ref == 'refs/heads/main'
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"

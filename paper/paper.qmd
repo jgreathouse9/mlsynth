@@ -1,490 +1,865 @@
 ---
-title: "One case study, four estimators: California's Proposition 99 in `mlsynth`"
+title: "Synthetic Control and Experimental Design in One Validated Interface: The `mlsynth` Package for Python"
+title-plain: "Synthetic Control and Experimental Design in One Validated Interface: The mlsynth Package for Python"
+short-title: "`mlsynth`: Synthetic Control and Design in Python"
+author:
+  - name: Jared Greathouse
+    email: jgreathouse3@student.gsu.edu
+    url: https://jgreathouse9.github.io/
+    affiliations:
+      - department: Department of Economics, Andrew Young School of Policy Studies
+        name: Georgia State University
+        city: Atlanta
+        region: GA
+        country: United States
+abstract: |
+  Synthetic control and its many descendants have become a default tool for
+  estimating the effect of a policy, product, or intervention that lands on a
+  small number of aggregate units. The methodological literature has since
+  fractured into dozens of variants -- robust, penalized, factor-model,
+  proximal, forward-selected, and matrix-completion estimators, alongside a
+  newer family of experimental-design methods that choose which units to treat
+  before an intervention is run. Each variant typically arrives as a separate
+  package, with its own data conventions, its own notion of a result, and its
+  own (or no) inference. This paper introduces `mlsynth`, a strongly typed
+  Python library that places more than forty of these estimators behind a single
+  data-preparation step, a single validated configuration-and-fit interface, and
+  a single standardized result object. We argue that these methods are not forty
+  unrelated tools but one family built on a shared factor-model projection, so a
+  unified interface is what makes them directly comparable -- and what lets the
+  library reach a capability the surrounding ecosystem never packaged for
+  practitioners: experimental design. We demonstrate the library with three
+  worked illustrations, organised by the regime they address. The first
+  re-estimates the canonical California tobacco-control study with three
+  synthetic-control variants and attaches Cattaneo, Feng, and Titiunik prediction
+  intervals. The second relaxes the no-interference assumption, running four
+  spillover-aware estimators -- each otherwise a separate codebase -- across two
+  case studies through a single dispatcher. The third reproduces, to within
+  numerical tolerance, Meta's published `GeoLift` geo-experiment walkthrough, and
+  shows how the same interface exposes the broader experimental-design family.
+keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
+keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
+bibliography: paper.bib
 format:
-  html:
-    toc: true
-    code-fold: false
-    fig-width: 7
-    fig-height: 4.2
-bibliography: references.bib
+  jss-pdf:
+    keep-tex: true
+    pdf-engine: pdflatex
+    number-sections: true
+  jss-html: default
+execute:
+  echo: true
+  warning: false
+  cache: false
 jupyter: python3
 ---
 
-# The decision tree as the paper's spine
-
-A practitioner who arrives with a panel and a causal question does not face one
-synthetic-control estimator but several dozen, each making different assumptions
-and each appropriate in a different corner of the design space. The contribution
-of `mlsynth` is not only that it implements these methods behind a single
-`config -> fit() -> results` contract, but that it encodes the expertise for
-*choosing* among them. That expertise is laid out as a decision tree (Figure 1):
-a short sequence of questions about the panel --- is the treatment already
-assigned or still to be designed? is it endogenous in a way the controls cannot
-absorb? how many units are treated? do persistent latent factors drive the
-outcome? do the donors themselves absorb some of the treatment? --- each of
-which routes the analyst to a specific estimator. Every branch of the tree is
-grounded in the arguments its methods' own authors give for them; the full,
-maintained version is the package's `choose` companion, of which Figure 1 is the
-top-level map.
-
-The remainder of this section makes the tree concrete by walking one familiar
-panel down four of its branches. The case is the @abadie2010 study of
-California's Proposition 99, the 1988 ballot measure that raised the
-state cigarette tax; the outcome is per-capita cigarette sales and the
-intervention date is 1989. Four nodes of the tree send this single panel to four
-different estimators:
-
-1. With one treated unit (the tree's "how many treated?" gate, Q0.6) and no
-   reason to distrust the donors, the analyst lands on standard synthetic
-   control. We fit it with Abadie's full predictor specification, solved by the
-   MSCMT nested-optimisation backend.
-2. The latent-factor gate (Q1.4, "do persistent factors and noise drive the
-   outcome?") routes to the low-rank family. We take its principal-component-
-   regression member, which denoises the donor pool before fitting.
-3. The SUTVA gate (Q1.1, "are your donors contaminated by the treatment?") routes
-   to the spillover-aware family. We take Cao and Dowd's estimator, which
-   reinstates the neighbouring states that the standard analysis hand-excludes
-   and models the tax-driven sales that leak across state lines.
-4. The parallel-trends gate (Q0.5, "is a doubly-weighted difference-in-differences
-   the better frame?") routes off the synthetic-control branch entirely, to
-   synthetic difference-in-differences, which permits the level shift the simplex
-   forbids.
-
-The point of the exercise is methodological rather than substantive: the same
-outcome and the same intervention date, four different sets of assumptions, and
---- because the tree dispatches to estimators that share one interface --- four
-analyses that differ by only a field or two in the configuration. Reading them
-side by side is what turns a single estimate into an argument about how much of
-that estimate depends on which assumption.
-
-## Setup
-
 ```{python}
+#| label: setup
+#| include: false
+
+import warnings
+warnings.simplefilter("ignore")
+
+import inspect
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+import mlsynth
+from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH, GEOLIFT
 from mlsynth.utils.plotting import apply_mlsynth_style
 
-apply_mlsynth_style()   # mlsynth house style for every figure in this paper
+apply_mlsynth_style()                                     # mlsynth house style for every figure
+plt.rcParams.update({"figure.dpi": 150, "font.size": 9})  # keep the paper's resolution/size
 
-RAW = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata"
 
-# Curated Abadie sample: California plus 38 control states, with the full
-# predictor set (retail price, income, demographics, lagged sales).
-cal = pd.read_csv(f"{RAW}/augmented_cali_long.csv")
+def find_data(name):
+    """Locate a CSV in the repository's basedata/ directory, regardless of the
+    working directory Quarto renders from (paper/, repo root, or project)."""
+    here = Path.cwd().resolve()
+    for base in [here, *here.parents]:
+        candidate = base / "basedata" / name
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"could not locate basedata/{name} above {here}")
 
-# Predictors of Abadie's specification.
-predictors = ["p_cig", "loginc", "pct15-24", "pc_beer", "smk_75", "smk_80", "smk_88"]
 
-cal[["state", "year", "cigsale", "Proposition 99"] + predictors].head()
+# A reproducible count of the estimators the package ships: public classes that
+# implement the fit() contract.
+n_estimators = sum(
+    1
+    for name in mlsynth.__all__
+    if inspect.isclass(getattr(mlsynth, name)) and hasattr(getattr(mlsynth, name), "fit")
+)
+mlsynth_version = mlsynth.__version__ if hasattr(mlsynth, "__version__") else "1.0.0"
 ```
 
-The outcome is `cigsale` (per-capita packs), treatment is the `Proposition 99`
-indicator (California from 1989 on), and the panel runs 1970--2000.
+## Introduction {#sec-intro}
 
-## 1. Standard synthetic control (full covariate specification)
+A recurring problem in applied work is estimating what would have happened to a
+single unit -- a state, a country, a market, a product line -- had some
+intervention not occurred. Randomized experiments are usually impossible at this
+level of aggregation: there is one California, and it either passed an
+anti-smoking proposition or it did not. The synthetic control method
+[@abadie2003economic; @abadie2010synthetic] answered this by constructing the
+missing counterfactual as a weighted average of untreated units -- a *synthetic*
+California assembled from other states -- chosen so that the weighted donors
+track the treated unit over a pre-intervention training window. The method has
+become one of the most widely used tools in the program-evaluation toolkit
+[@abadie2021using], and the original software, the `Synth` package
+[@abadie2011synth], was itself published in this journal.
 
-The textbook estimator takes the treated unit as given and chooses donor weights
-so the synthetic California matches the real one on a set of pre-treatment
-predictors --- here Abadie's retail price, log income, the share aged 15--24,
-beer consumption, and cigarette sales in 1975, 1980 and 1988. Matching on
-predictors (rather than outcomes alone) requires the nested
-predictor-weight / donor-weight optimisation of the MSCMT package, exposed in
-`mlsynth` as `backend="mscmt"`.
+In the fifteen years since, the single method has become a research program. The
+simplex-weighted original now sits alongside robust low-rank variants
+[@amjad2018robust], penalized and regularized weights, augmented estimators that
+debias the fit with an outcome model [@benmichael2021augmented], factor-model and
+interactive-fixed-effects approaches [@bai2009panel; @xu2017generalized], matrix
+completion [@athey2021matrix], the panel-data forward-selection approach of
+@hsiao2012panel, proximal and surrogate methods, and the
+synthetic-difference-in-differences estimator [@arkhangelsky2021synthetic]. A
+parallel and newer literature inverts the question entirely: instead of building
+a counterfactual after an intervention, *experimental-design* methods choose
+which units to treat, and for how long, so that a credible synthetic control
+will exist when the experiment is over [@syndes; @doudchenko2021synthetic]. Meta's
+`GeoLift` framework [@geolift] brought this design-first idea to industry
+practice for geographic marketing experiments.
+
+This proliferation has a cost for the practitioner. Each variant typically
+arrives as a separate package -- often in a different language, with its own way
+of reshaping a panel, its own argument names, its own definition of what a
+"result" is, and its own inference procedure, when it has one at all. Comparing
+two estimators on the same data can mean reformatting the data twice, learning
+two APIs, and hand-reconciling two incompatible notions of a treatment effect.
+Worse, the gap between the methods literature and usable software is uneven: some
+influential estimators have no maintained implementation, and the
+experimental-design family in particular has had almost no packaged presence for
+applied users.
+
+Naming the leading tools makes the cost concrete. The original method ships as the
+R package `Synth` [@abadie2011synth] and, in Stata, as `synth2` [@yan2023synth2],
+which adds placebo and leave-one-out diagnostics; the panel-data regression /
+regression-control approach has the Stata command `rcm` [@yan2022rcm]; micro-level
+synthetic control has the R package `microsynth` [@robbins2021microsynth];
+synthetic difference-in-differences has the R `synthdid` and the Stata `sdid`
+[@arkhangelsky2021synthetic; @clarke2023sdid]; prediction-interval inference has
+`scpi` [@cattaneo2025scpi]; forward-selected estimation has `fsPDA`
+[@shi2023forward]; and design-first geo-experiments have Meta's `GeoLift`
+[@geolift]. Each is a capable tool and `mlsynth` is a critique of none of them. But
+they are spread across two languages -- several only in the commercial Stata -- with
+no shared data format, no shared notion of a result, and no way to run one against
+another on the same panel without redoing the work each time. An applied researcher
+who wanted to compare a simplex control, a panel-data regression, and a synthetic
+difference-in-differences estimate on one dataset had, until recently, to install
+several packages, reshape the data several ways, learn several syntaxes, and
+reconcile several output formats by hand.
+
+This paper introduces `mlsynth`, a Python [@harris2020array] library that
+addresses this fragmentation directly. The package ships
+`{python} n_estimators` estimators behind one data-preparation routine, one
+validated configuration-and-fit interface, and one standardized result object.
+Our central argument is that this consolidation is worth having -- that these are
+not `{python} n_estimators` unrelated tools but one family. As we make precise in
+@sec-unified, the vast majority of these estimators reduce to a common operation:
+projecting a treated unit's outcome onto a low-dimensional factor structure
+recovered from the donor pool. Placing them behind one interface is therefore not
+mere packaging convenience. It is what makes the estimators directly comparable
+on identical inputs, what lets each one inherit the same validated data handling
+and the same modern inference (conformal intervals and prediction intervals), and
+what lets a single library span both the estimation question and the design
+question that the wider ecosystem has never packaged together. Concretely, a
+researcher can now fit a `Synth`-style simplex control, an `rcm`-style panel-data
+regression, and a `synthdid`-style difference-in-differences design on one data
+frame, compare them directly, attach prediction-interval or conformal inference to
+each, and -- in the same library and the same syntax -- design the experiment that
+a synthetic control will later analyze. That combined workflow previously spanned
+several packages across two languages, where it was available at all.
+
+The aim of `mlsynth` is to make this catalog of estimators accessible -- free, and
+as simple to call as the toolkit can be made. This paper is written to match that
+aim, and it is worth stating its scope plainly. It does not re-derive the forty-odd
+methods it ships; each carries its own optimization problem, inference theory, and
+proofs, and those belong to the source papers and to the per-estimator
+documentation (for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>),
+which we cite rather than reproduce. Nor is there anything special about the three
+estimators we use to illustrate the library below: none is privileged over the
+dozens we do not show, and a different three would have served as well. That very
+arbitrariness is the argument. The only reason these methods can be demonstrated
+side by side, swapped for one another with a one-line edit, is that they share a
+common input contract and a common interface -- which is precisely what the library
+exists to provide.
+
+The remainder of the paper is organized as follows. @sec-unified develops the
+shared factor-model view and the resulting taxonomy of estimators. @sec-arch
+describes the library's architecture: the canonical data-preparation contract,
+the Pydantic-validated configuration objects [@pydantic], and the standardized
+result hierarchy. @sec-estimation works through an estimation illustration on the
+California tobacco-control data, comparing three synthetic-control designs and
+attaching prediction intervals. @sec-design works through a design illustration
+that reproduces Meta's `GeoLift` walkthrough and situates it within the broader
+design family. @sec-computational records computational and reproducibility
+details, and @sec-summary concludes.
+
+## A unified view of synthetic control {#sec-unified}
+
+### The shared model {#sec-model}
+
+Consider a balanced panel of $N$ units observed over $T$ periods. Let
+$y_{it}$ denote the outcome of unit $i$ in period $t$. A single treated unit,
+indexed $i = 1$, receives an intervention at time $T_0 + 1$; the remaining
+$N - 1$ units, the *donor pool*, are never treated. Collect the donor outcomes
+in the $T \times (N-1)$ matrix $\mathbf{Y}_0$ and the treated unit's outcomes in
+the $T$-vector $\mathbf{y}_1$. The first $T_0$ rows are the pre-intervention
+window; the remaining $T_1 = T - T_0$ rows are the post-intervention window.
+
+Almost every estimator in `mlsynth` rests on the assumption that outcomes are
+governed by a low-dimensional factor model,
+$$
+y_{it} \;=\; \delta_t \;+\; \boldsymbol{\lambda}_i^{\top} \mathbf{f}_t \;+\;
+\varepsilon_{it},
+$$ {#eq-factor}
+where $\mathbf{f}_t$ is an $r$-vector of unobserved common factors (with $r$ much
+smaller than $N$), $\boldsymbol{\lambda}_i$ is unit $i$'s vector of factor
+loadings, $\delta_t$ is a common time effect, and $\varepsilon_{it}$ is idiosyncratic
+noise. The substantive content of @eq-factor is that units differ only through a
+handful of latent characteristics $\boldsymbol{\lambda}_i$. If the treated unit's
+loadings $\boldsymbol{\lambda}_1$ can be written as a combination of the donors'
+loadings, then a set of unit weights $\mathbf{w}$ that reproduces the treated
+unit's pre-treatment outcomes will also reproduce its factor loadings, and hence
+its untreated potential outcome after treatment. The synthetic control
+$$
+\hat{y}_{1t} \;=\; \mathbf{Y}_{0,t}\,\mathbf{w}, \qquad t > T_0,
+$$ {#eq-sc}
+is then an estimate of the missing counterfactual, and the treatment effect in
+period $t$ is the gap $\tau_t = y_{1t} - \hat{y}_{1t}$.
+
+The weights themselves are, for almost every estimator in the library, the
+solution of one common optimization program. Writing $\mathbf{Y}_0$ and
+$\mathbf{y}_1$ now for their pre-treatment ($T_0$-row) blocks, the donor weights
+solve
+$$
+\hat{\mathbf{w}} \;\in\; \operatorname*{arg\,min}_{\mathbf{w}\,\in\,\mathcal{C}}
+\;\; \mathcal{L}\!\left(\mathbf{Y}_0, \mathbf{y}_1, \mathbf{w}\right)
+\;+\; \mathcal{P}(\mathbf{w})
+\qquad \text{subject to} \qquad
+\mathcal{B}\!\left(\mathbf{Y}_0, \mathbf{y}_1, \mathbf{w}\right) \;\le\; \tau .
+$$ {#eq-program}
+Here $\mathcal{L}$ is a loss measuring pre-treatment fit, $\mathcal{P}$ is a
+penalty that shapes the weights, $\mathcal{C}$ is the admissible set the weights
+must lie in, and $\mathcal{B} \le \tau$ is an optional set of balance conditions
+with relaxation level $\tau$; either the loss or the balance operator may be
+absent, but not both. Classical synthetic control [@abadie2010synthetic] is the
+specialization with a squared-error loss
+$\mathcal{L} = \lVert \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\rVert_2^2$, no penalty
+($\mathcal{P} = 0$), no separate balance constraint, and the admissible set fixed
+to the unit simplex
+$\mathcal{C}_{\Delta} = \{\mathbf{w} \ge \mathbf{0} : \mathbf{1}^{\top}\mathbf{w} = 1\}$,
+which yields an interpretable, sparse convex combination of donors. The rest of
+the family is, to a first approximation, a catalog of other choices for the four
+objects in @eq-program -- most visibly the admissible set (@tbl-admissible):
+
+| Admissible set $\mathcal{C}$ | Definition | Reading |
+|---|---|---|
+| Simplex | $\mathbf{w}\ge\mathbf{0},\ \mathbf{1}^{\top}\mathbf{w}=1$ | classical convex SC |
+| Non-negative | $\mathbf{w}\ge\mathbf{0}$ | weights need not sum to one |
+| Affine | $\mathbf{1}^{\top}\mathbf{w}=1$ | signed weights, extrapolation allowed |
+| Unit box | $\mathbf{w}\in[0,1]^{N-1}$ | each weight bounded on its own |
+| Unconstrained | $\mathbf{w}\in\mathbb{R}^{N-1}$ | ordinary regression onto donors |
+
+: Admissible weight sets $\mathcal{C}$ that different synthetic-control estimators impose in @eq-program. {#tbl-admissible}
+
+Penalties $\mathcal{P}$ supply the rest: an $\ell_2$ term gives ridge-augmented
+weights, an $\ell_1$ term gives a sparse selection of donors, and an intercept
+$b_0$ -- folded in by augmenting $\mathbf{Y}_0$ with a column of ones and left
+unpenalized -- absorbs level differences between the treated unit and its donors.
+Moving the fit from the objective into the constraint $\mathcal{B} \le \tau$
+recovers the balancing and relaxation estimators, where one minimizes a norm of
+$\mathbf{w}$ subject to approximate moment matching.
+
+What then separates the estimators is *how* the weights $\mathbf{w}$ (or, more
+generally, the projection onto the donor span) are obtained, and what is assumed
+about @eq-factor. Beyond the choice of admissible set and penalty in
+@eq-program, members of the family differ in how they treat the donor matrix
+itself:
+
+- Penalized and ridge-augmented weights trade a small amount of in-sample fit
+  for stability when donors are collinear [@benmichael2021augmented].
+- Principal-component and robust variants first denoise $\mathbf{Y}_0$ by
+  truncating its singular-value spectrum -- estimating $\mathbf{f}_t$ directly --
+  before fitting the weights [@amjad2018robust], which is exactly the low-rank
+  reading of @eq-factor.
+- Forward-selection and best-subset approaches, following the panel-data method
+  of @hsiao2012panel, choose a small set of donors by an information criterion
+  rather than weighting all of them.
+- Factor and interactive-fixed-effects estimators fit @eq-factor explicitly
+  [@bai2009panel; @xu2017generalized], and matrix-completion methods recover the
+  full low-rank outcome matrix [@athey2021matrix].
+
+Seen this way, the catalog is a set of choices along a few axes -- the constraint
+on the weights, whether the donor matrix is denoised first, whether donors are
+selected or weighted, and how the common time structure is handled -- rather than
+a list of unrelated algorithms. This is precisely why one interface is the right
+abstraction: the inputs ($\mathbf{Y}_0$, $\mathbf{y}_1$, $T_0$) and the output
+(a counterfactual path and its gap) are common to all of them.
+
+### From estimation to design {#sec-design-view}
+
+The factor view also makes sense of the experimental-design family. If a credible
+synthetic control requires donors whose loadings can reconstruct the treated
+unit, then -- before running an experiment -- one can ask which candidate units
+*should* be treated so that the remaining units form a good donor pool, and how
+long the experiment must run to detect an effect of a given size. The
+design-first methods [@syndes; @doudchenko2021synthetic] solve exactly this
+problem, turning the estimation machinery around: the same fit quality that
+validates a synthetic control after the fact becomes the objective that selects
+treatment units beforehand. `mlsynth` treats design as a first-class peer of
+estimation rather than a separate concern, and @sec-design demonstrates it.
+
+## Architecture {#sec-arch}
+
+The library is organized around three contracts that every estimator shares: a
+single data-preparation step, a validated configuration object, and a
+standardized result. The design goal is that learning one estimator teaches the
+user every estimator.
+
+### One data contract {#sec-dataprep}
+
+Panel data arrives in many shapes. Rather than ask each estimator to reshape it,
+`mlsynth` routes all ingestion through one routine, [dataprep]{.fct}, which takes
+a long (tidy) data frame together with the names of its outcome, unit, time, and
+treatment columns, and returns a canonical bundle: the wide outcome matrix, the
+treated vector $\mathbf{y}_1$, the donor matrix $\mathbf{Y}_0$, and the
+pre- and post-treatment period counts $T_0$ and $T_1$. Every estimator consumes
+this same bundle, so the user reshapes the data conceptually once -- by naming
+four columns -- and the heavy lifting of pivoting, alignment, and validation is
+shared and tested in one place.
+
+The implication worth dwelling on is what the user does *not* have to specify. A
+single binary treatment indicator carries all the structure [dataprep]{.fct}
+needs: the unit whose indicator ever turns on is the treated unit, the period in
+which it first turns on is $T_0 + 1$, and everything before that is the
+pre-treatment window. The user never names the treated unit, never states the
+intervention date, and never declares the pre/post split; these are read off the
+indicator. The same convention scales without new arguments -- when several units
+are treated at different times, [dataprep]{.fct} cohorts them by their individual
+adoption dates automatically. This is a deliberate contrast with the surrounding
+ecosystem. The widely used `scpi` package [@cattaneo2025scpi] asks the analyst to
+name the treated unit and to delimit the post-treatment period explicitly; the
+forward-selection `fsPDA` implementation [@shi2023forward] requires the data to be
+pre-pivoted into wide treated-versus-donor matrices before it will run. In
+`mlsynth`, coding the indicator column *is* the specification, and the same long
+data frame drives every one of the more than forty estimators unchanged.
+
+### One configuration-and-fit contract {#sec-config}
+
+Each estimator is driven by a dedicated configuration object built on Pydantic
+[@pydantic], a runtime type-validation library. Configurations forbid unknown
+fields, document every option, and fail early with a typed error when an input is
+malformed -- a missing treatment column, a treatment date outside the sample, an
+empty donor pool. There are no free-form keyword arguments. The usage pattern is
+uniform: construct a configuration (here as a plain dictionary, which Pydantic
+coerces and validates), pass it to the estimator class, and call [fit]{.fct}.
 
 ```{python}
+#| eval: false
 from mlsynth import VanillaSC
 
-scm = VanillaSC({
-    "df": cal,
-    "outcome": "cigsale", "treat": "Proposition 99",
-    "unitid": "state", "time": "year",
-    "backend": "mscmt",            # nested V (predictor) / W (donor) search
-    "covariates": predictors,      # the full Abadie specification
-    "inference": False,            # placebo inference available via inference="placebo"
-    "display_graphs": False,
-}).fit()
-
-att_scm = scm.att
-print(f"Standard SCM (mscmt)   ATT = {att_scm:+.2f} packs per capita")
+config = {
+    "df": panel,            # a long/tidy pandas DataFrame
+    "outcome": "cigsale",   # the outcome column
+    "treat": "treat",       # 0/1 treatment indicator
+    "unitid": "state",      # the unit column
+    "time": "year",         # the time column
+}
+results = VanillaSC(config).fit()
 ```
 
-The estimate is around nineteen fewer packs per capita per year over the
-post-1988 period --- the headline Proposition 99 result.
+Switching estimators means changing the class name and, at most, a handful of
+method-specific options; the data, the column names, and the call shape do not
+move. This is the concrete payoff of the unified view in @sec-unified.
 
-## 2. Low-rank synthetic control (principal component regression)
+### One result contract {#sec-results}
 
-Standard SCM matches the *observed* donor series, noise and all. If you believe
-the outcomes are generated by a handful of latent factors --- a common
-justification for synthetic control in the first place --- you can do better by
-first recovering that low-rank signal and fitting the synthetic control to the
-denoised donors. This is the principal-component-regression route, reached in
-`mlsynth` through `CLUSTERSC` with `method="pcr"`. It is the same case study, but
-now the estimator assumes (and exploits) factor structure.
+Every [fit]{.fct} returns a typed result object drawn from a single hierarchy.
+Observational estimators return an effect result; design methods return a design
+result whose report is itself an effect result. Both populate the same
+standardized sub-objects -- estimated effects, fit diagnostics, the observed and
+counterfactual time series, donor weights, and inference -- as typed fields
+rather than ad hoc dictionaries. Because the result shape is fixed, downstream
+code (plotting, tables, comparison across estimators) is written once and works
+for every method. The two illustrations below read effects, time series, and
+inference off this common object without any estimator-specific glue.
 
-```{python}
-from mlsynth import CLUSTERSC
+## A single treated unit {#sec-estimation}
 
-pcr = CLUSTERSC({
-    "df": cal,
-    "outcome": "cigsale", "treat": "Proposition 99",
-    "unitid": "state", "time": "year",
-    "method": "pcr",
-    "clustering": False,
-    "rank": 4,                     # keep the leading four singular components
-    "display_graphs": False,
-}).fit()
+We begin with the study that made the method famous. In 1988 California passed
+Proposition 99, a large tobacco-control program; @abadie2010synthetic estimated
+its effect on per-capita cigarette sales by building a synthetic California from
+other states.
 
-att_pcr = pcr.att
-print(f"Low-rank SCM (pcr)     ATT = {att_pcr:+.2f} packs per capita")
-```
-
-The low-rank fit lands close to the standard estimate: on this panel the donor
-pool is already clean enough that denoising mainly confirms the result, which is
-exactly the reassurance the comparison is meant to provide.
-
-```{python}
-#| label: fig-curated
-#| fig-cap: "Observed California against the standard and low-rank synthetic counterfactuals on the curated donor pool."
-years = list(scm.time_series.time_periods)
-observed = scm.time_series.observed_outcome
-cf_scm = scm.time_series.counterfactual_outcome
-cf_pcr = pcr.time_series.counterfactual_outcome
-
-fig, ax = plt.subplots()
-ax.plot(years, observed, color="black", lw=2, label="California (observed)")
-ax.plot(years, cf_scm, color="C0", ls="--", label="Synthetic (standard, mscmt)")
-ax.plot(years, cf_pcr, color="C1", ls=":", label="Synthetic (low-rank, pcr)")
-ax.axvline(1989, color="grey", lw=1, ls="-")
-ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
-ax.legend(frameon=False)
-plt.show()
-```
-
-## 3. Spillover-aware synthetic control (Cao and Dowd)
-
-The two estimates above rest on SUTVA: the assumption that the control states are
-unaffected by California's tax. Cao and Dowd argue this is exactly where the
-standard analysis is fragile. When California raises its cigarette tax, some sales
-simply move across the border --- Californians buy in Nevada --- so the
-neighbouring states' sales are themselves pushed up by the treatment. Synthetic
-control actively loads on the donors most correlated with California, which tends
-to be those very neighbours, so the synthetic counterfactual is contaminated.
-Abadie's original analysis sidesteps this by *hand-excluding* about a dozen
-suspect states from the donor pool. Cao and Dowd instead keep every state and
-estimate the direct effect and the spillover jointly.
-
-This section is where readers (including us, at first) get confused, because
-*three different "synthetic Californias" are in play, and they do not agree*. It
-is worth being explicit about what each one is:
-
-1. The standard synthetic control on Abadie's *curated* pool --- the famous
-   result from Section 1. The suspect neighbours are removed by hand, so the
-   donors are (assumed) clean. This is the textbook Proposition 99 estimate,
-   about $-19$ packs averaged over the post-period.
-2. The naive synthetic control on the *full* pool --- the *same standard method*,
-   but with the excluded neighbours put back in as donors. Because those
-   neighbours absorbed California's lost sales, they are contaminated donors, and
-   the synthetic is biased toward them. This is the "odd-looking" counterfactual:
-   it is non-monotonic and reads only about $-11$ by 2000. It does *not* match
-   estimate 1, and that disagreement is the spillover bias made visible.
-3. Cao and Dowd's spillover-adjusted estimate (`SPILLSYNTH`, `method="cd"`) ---
-   the full pool again, but now the spillover into the neighbours is modelled and
-   removed, recovering a credible direct effect on California.
-
-So estimate 2 is not a mistake to be hidden; it is the contaminated baseline whose
-bias the method exists to correct, and showing it next to estimates 1 and 3 is the
-whole point.
+A modelling choice that the methods literature takes seriously concerns the donor
+pool. @abadie2010synthetic deliberately discard control units whose own policies
+contaminate the counterfactual: four states that adopted large-scale tobacco
+programs of their own during the sample (Massachusetts, Arizona, Oregon, Florida),
+seven that raised cigarette taxes by fifty cents or more (Alaska, Hawaii,
+Maryland, Michigan, New Jersey, New York, Washington), and the District of
+Columbia. The remaining thirty-eight states are the canonical
+Abadie-Diamond-Hainmueller sample -- the same panel the
+synthetic-difference-in-differences study of @arkhangelsky2021synthetic later
+adopted. The robust, principal-component approach of @amjad2018robust makes the
+opposite choice on purpose: its singular-value thresholding is designed to find a
+good donor subset on its own, so it keeps every available control and lets the
+de-noising do the selection. We load the canonical restricted sample for the first
+two estimators and the full fifty-state-plus-DC panel for the third.
 
 ```{python}
-from mlsynth import SPILLSYNTH
+#| label: load-prop99
+# Canonical Abadie-Diamond-Hainmueller sample: California and the 38 control
+# states that remain after dropping the contaminated controls.
+abadie = pd.read_csv(find_data("smoking_data.csv"))
+abadie["treat"] = abadie["Proposition 99"].astype(int)
 
-# Full panel, including the states the curated analysis drops.
-full = pd.read_csv(f"{RAW}/prop99_with_dc.csv")
-full = full[(full["year"] >= 1970) & (full["year"] <= 2000)].copy()
+# The full pool -- every state plus DC -- for the principal-component estimator.
+full = pd.read_csv(find_data("prop99_with_dc.csv"))
+full = full[full["year"] <= 2000].copy()
 full["treat"] = ((full["state"] == "California") & (full["year"] >= 1989)).astype(int)
 
-# States Cao and Dowd flag as exposed to Proposition 99 spillover.
-affected = [
-    "Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii",
-    "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada",
-    "New York", "Oregon", "Washington",
-]
+sc_base = dict(df=abadie, outcome="cigsale", treat="treat",
+               unitid="state", time="year")
+pcr_base = dict(df=full, outcome="cigsale", treat="treat",
+                unitid="state", time="year")
 
-spill = SPILLSYNTH({
-    "df": full,
-    "outcome": "cigsale", "treat": "treat",
-    "unitid": "state", "time": "year",
-    "method": "cd",
-    "affected_units": affected,
-    "display_graphs": False,
-}).fit()
-
-post_years = sorted(full.loc[full["treat"] == 1, "year"].unique())
-direct = dict(zip(post_years, spill.cd.alpha[0, :]))   # California's per-year direct effect
-
-# Cao and Dowd report the effect year by year, not as a single average; mlsynth
-# reproduces their two headline reference points exactly (and matches their own
-# scmSpillover R package to two decimals on every post-period).
-print(f"direct effect 1990 (2 yrs post):  {direct[1990]:+.2f}   (Cao & Dowd: +3.71, their max)")
-print(f"direct effect 1999 (11 yrs post): {direct[1999]:+.2f}  (Cao & Dowd: -18.96, their min)")
+n_donors_sc = abadie["state"].nunique() - 1
+n_donors_pcr = full["state"].nunique() - 1
 ```
 
-The estimate is a path, not a single number, and reproducing that path is the
-validation: mlsynth returns Cao and Dowd's $\alpha^{CA}_{\max} = +3.71$ (1990) and
-$\alpha^{CA}_{\min} = -18.96$ (1999) exactly. The shape is the substance. In the
-first two post-years the spillover-adjusted direct effect is near zero or even
-positive, because in those years much of California's apparent sales drop was not
-a real consumption decline but purchases displaced to neighbours such as Nevada.
-As the tax effect matures and dominates that displacement, the direct effect grows
-to about $-19$ by 1999 --- converging on the curated estimate of Section 1. This
-is exactly the authors' reported finding: their estimates are smaller than
-Abadie's for the first few post-treatment years.
+### Three designs, one interface {#sec-two-estimators}
+
+We fit three members of the family. The first is the canonical simplex-weighted
+synthetic control, [VanillaSC]{.pkg}, on Abadie's
+`{python} f"{n_donors_sc}"`-state pool, with the prediction intervals of
+@cattaneo2021prediction. The second is synthetic difference-in-differences
+[@arkhangelsky2021synthetic], a popular design that adds unit and time weights to a
+two-way fixed-effects fit, exposed as [SDID]{.pkg}. The third is the
+principal-component (outcome-only) variant of [CLUSTERSC]{.pkg}, which de-noises
+the donor matrix by truncating its singular-value spectrum -- the low-rank reading
+of @eq-factor in @sec-model -- run on the full `{python} f"{n_donors_pcr}"`-donor
+pool.
+
+The point of this illustration is how little separates the three. We describe each
+estimator only briefly here -- the optimization problem and inference behind each
+are documented per estimator at <https://mlsynth.readthedocs.io> -- because the
+illustration is about the interface they share, not the internals they do not.
+Setting `display_graphs=True` asks each estimator to draw its own diagnostic in the
+library's style. @fig-prop99-sc is the simplex control's plot; `inference="scpi"`
+shades the @cattaneo2021prediction prediction band over the post-treatment window
+automatically.
 
 ```{python}
-#| label: fig-spillover
-#| fig-cap: "Three synthetic Californias on one panel. Black: observed California. Green dotted: the standard SCM on Abadie's curated pool (the Section-1 estimate, ~ -19 by 2000). Orange dashed: the naive SCM on the full pool that reinstates the affected neighbours -- the spillover-contaminated counterfactual (~ -11 by 2000). Blue: Cao and Dowd's spillover-adjusted SCM, with 95% confidence intervals on the post-period effect. All three coincide before 1989."
-inp = spill.inputs
-years_full = list(inp.time_labels)
-observed_ca = inp.Y[0]
+#| label: fig-prop99-sc
+#| fig-cap: "Simplex synthetic control on Abadie's canonical 38-state donor pool, drawn by VanillaSC itself. Observed California cigarette sales versus the synthetic control, with the Cattaneo-Feng-Titiunik 90% prediction band over the post-treatment window. The solid vertical line marks the 1988 passage of Proposition 99."
 
-# Estimate 1: the curated-pool ADH synthetic from Section 1 (the famous result).
-adh_curated = scm.time_series.counterfactual_outcome
-
-# Estimates 2 and 3 share the full-pool pre-period fit; they differ only post-1989.
-pre_fit = spill.cd.a[0] + spill.cd.B[0] @ inp.Y_pre
-naive_cf = list(pre_fit) + list(spill.cd.counterfactual_scm)     # contaminated
-adj_cf = list(pre_fit) + list(spill.cd.counterfactual_sp)        # spillover-adjusted
-
-# 95% CI on the per-year effect -> error bars on the adjusted counterfactual
-# (counterfactual = observed - effect, so the interval flips around the point).
-ci = spill.cd.treatment_ci_95                       # (n_post, 2): [lo, hi] on the effect
-alpha = spill.cd.alpha[0, :]
-obs_post = observed_ca[-len(post_years):]
-err_low = ci[:, 1] - alpha                          # distance below the SP point
-err_high = alpha - ci[:, 0]                          # distance above the SP point
-
-fig, ax = plt.subplots(figsize=(7.5, 5))
-ax.plot(years_full, observed_ca, color="black", lw=2.2, label="California (observed)")
-ax.plot(years_full, adh_curated, color="C2", ls=":", lw=2,
-        label="1. Standard SCM (curated pool)")
-ax.plot(years_full, naive_cf, color="C1", ls="--", lw=2,
-        label="2. Naive SCM (full pool, contaminated)")
-ax.plot(years_full, adj_cf, color="C0", lw=2.2,
-        label="3. Spillover-adjusted (Cao & Dowd)")
-ax.errorbar(post_years, list(spill.cd.counterfactual_sp), yerr=[err_low, err_high],
-            fmt="none", ecolor="C0", alpha=0.55, capsize=2)
-ax.axvline(1989, color="0.5", ls=":", lw=1)
-ax.annotate("Proposition 99", xy=(1989, ax.get_ylim()[0]), xytext=(1989.5, 52),
-            fontsize=9, color="0.4")
-ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
-ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=2)
-plt.show()
+vsc = VanillaSC({**sc_base, "inference": "scpi", "alpha": 0.10,
+                 "display_graphs": True}).fit()
+att_vsc = float(vsc.effects.att)
 ```
 
-Read the figure as three answers to one question. The green dotted line is what
-Abadie reports after removing the suspect neighbours; the orange dashed line is
-what the same method gives if you naively leave them in (biased toward zero,
-because the contaminated donors no longer fell as far as a clean control would);
-and the blue line is Cao and Dowd's correction, which keeps the larger pool but
-nets out the spillover. The vertical distance between the orange and blue lines in
-any post-year is the spillover bias the adjustment removes; the gap from the black
-observed line to the blue line is the estimated direct effect, with the error bars
-showing its 95% interval.
-
-### One interface, every spillover method --- and every dataset
-
-Spillover bias is a familiar econometric problem. For most of the history of
-synthetic control the standard remedy was subtractive: when you suspected the
-treatment had reached some of your control units, you dropped them and hoped the
-survivors still formed a credible donor pool --- trading a SUTVA violation for a
-smaller, often weaker comparison. A more recent literature keeps the units and
-models the spillover instead: @caodowd2023, the inclusive SCM of
-@distefano2024inclusivesyntheticcontrolmethod, the iterative "waterfall" of
-@melnychuk2024syntheticcontrolsspillovereffects, and the penalised estimator of
-@grossi2025. Each, though, arrived as its
-own R package or replication repository with its own conventions; running even one
-dataset through all of them meant installing several codebases and reconciling
-their data formats and call signatures by hand.
-
-Because `mlsynth` puts them behind a single dispatcher with one calling
-convention, that comparison stops being a porting exercise and becomes a loop ---
-and, since the interface does not change with the panel, the loop runs over *case
-studies* as readily as over methods. Each study is a handful of fields: the file,
-the outcome and unit columns, the treated unit, the adoption year, and the units
-suspected of absorbing spillover. Below we run all four methods on two very
-different cases at once --- Proposition 99 again, and West Germany's 1990
-reunification [@abadie2015], declaring Austria, France
-and the Netherlands the suspected recipients.
+Swapping to synthetic difference-in-differences takes a single edit: the *same*
+`sc_base` dictionary, with the estimator class changed from [VanillaSC]{.pkg} to
+[SDID]{.pkg}. Nothing about the data, the column names, or the call shape moves.
+Here `B=2000` sets the number of placebo replications behind SDID's standard
+error. Two further options are worth naming. With a single treated unit
+[SDID]{.pkg} draws an observed-versus-counterfactual chart in the same shared
+style as the other two estimators (@fig-prop99-sdid); a staggered design with
+several adoption cohorts would instead return its pooled event-study plot. And
+`intercept_adjust=True` shifts the reported counterfactual by the SDID intercept
+-- the constant level difference between California and its weighted donors -- so
+that it is level-matched to the treated unit over the pre-period, as the original
+presentation of @arkhangelsky2021synthetic shows it. By default `mlsynth` reports
+the raw weighted-donor series instead; the point estimate and inference are the
+same either way.
 
 ```{python}
-#| label: fig-spillover-methods
-#| fig-cap: "Four spillover-aware methods on two case studies, produced by one loop. Panel A (Proposition 99): large cross-border spillover, the methods fan from -9 to -22 packs. Panel B (reunification): small spillover into three neighbours, the methods collapse to -1.0 to -1.5k USD. Black is the observed treated unit; each coloured line is a method's spillover-adjusted synthetic. The spread within a panel is the cross-method sensitivity; that it differs so much between panels is the point."
-ADH = ["trade", "infrate", "industry", "schooling", "invest60", "invest70", "invest80"]
+#| label: fig-prop99-sdid
+#| fig-cap: "Synthetic difference-in-differences on the same 38-state pool, reached by swapping the estimator class. Observed California cigarette sales versus the intercept-adjusted SDID counterfactual; the solid vertical line marks the 1988 passage of Proposition 99."
 
+sdid = SDID({**sc_base, "display_graphs": True, "B": 2000,
+             "intercept_adjust": True}).fit()
+att_sdid = float(sdid.effects.att)
+sdid_se = float(sdid.inference.standard_error)
+sdid_ci_lo = float(sdid.inference.ci_lower)
+sdid_ci_hi = float(sdid.inference.ci_upper)
+```
+
+The third design keeps every donor. @fig-prop99-pcr is the principal-component
+estimator's plot, fit on the full pool and drawn in the same observed-versus-
+counterfactual style as the simplex control. It does not return a period-by-period
+band; following @amjad2018robust it reports a confidence interval on the average
+effect, read off the standardized result below.
+
+```{python}
+#| label: fig-prop99-pcr
+#| fig-cap: "Principal-component (HSVT) synthetic control on the full donor pool, drawn by CLUSTERSC itself. Observed California cigarette sales versus the principal-component counterfactual; the solid vertical line marks the 1988 passage of Proposition 99."
+
+pcr = CLUSTERSC({**pcr_base, "method": "pcr", "display_graphs": True}).fit()
+att_pcr = float(pcr.effects.att)
+pcr_ci_lo = float(pcr.inference.ci_lower)
+pcr_ci_hi = float(pcr.inference.ci_upper)
+```
+
+The three designs agree on the sign and broad magnitude of the effect while
+differing in detail, exactly as their literatures would predict. The simplex
+synthetic control puts the average post-1988 effect at `{python} f"{att_vsc:.2f}"`
+packs per capita; synthetic difference-in-differences, which leans on a
+fixed-effects baseline, gives a smaller `{python} f"{att_sdid:.2f}"` (standard
+error `{python} f"{sdid_se:.2f}"`; 95% placebo confidence interval
+`{python} f"{sdid_ci_lo:.2f}"` to `{python} f"{sdid_ci_hi:.2f}"`) -- reproducing
+the headline estimate of @arkhangelsky2021synthetic to the first decimal; and the
+principal-component variant lands at `{python} f"{att_pcr:.2f}"` packs, with a
+confidence interval running from `{python} f"{pcr_ci_lo:.2f}"` to
+`{python} f"{pcr_ci_hi:.2f}"`. All three say California smoked substantially less
+than its synthetic counterpart after Proposition 99. None of this required
+reformatting or reconciliation: the three results expose the same `effects.att`
+field, the figures came from the same `display_graphs` switch, and moving between a
+simplex control, a synthetic difference-in-differences design, and a robust
+principal-component estimator was a change of class name against an unchanged data
+frame. That is the whole argument of the paper in miniature -- swapping designs is
+a one-line edit, not a one-package migration.
+
+The donor weights are part of the standardized result as well, under
+`weights.donor_weights`, and they reward inspection because the two designs reach
+their answers through visibly different weightings. The simplex control concentrates
+all its mass on a handful of states (@tbl-sc-weights): synthetic California is a
+sparse convex combination, the hallmark of the unit-simplex constraint in
+@eq-program. Synthetic difference-in-differences, whose unit weights carry an
+$\ell_2$ ridge penalty, instead spreads mass thinly across many donors
+(@tbl-sdid-weights). Both mappings are read the same way, off the same field.
+
+```{python}
+#| label: tbl-sc-weights
+#| tbl-cap: "Donor weights of the simplex synthetic control, read from `vsc.weights.donor_weights`. Synthetic California is a sparse convex combination of a few states; donors with zero weight are omitted."
+sc_weights = pd.Series(vsc.weights.donor_weights, name="weight")
+sc_weights = sc_weights[sc_weights.abs() > 1e-4].sort_values(ascending=False)
+sc_weights.round(3).rename_axis("donor state").to_frame()
+```
+
+```{python}
+#| label: tbl-sdid-weights
+#| tbl-cap: "The eight largest SDID unit weights, read from `sdid.weights.donor_weights`. The ridge penalty spreads weight across many donors rather than concentrating it."
+sdid_weights = pd.Series(sdid.weights.donor_weights, name="weight")
+sdid_weights.sort_values(ascending=False).head(8).round(3).rename_axis("donor state").to_frame()
+```
+
+## Spillovers {#sec-spillovers}
+
+The illustration so far treats the donor pool as clean: untreated units are
+assumed unaffected by the treatment, the stable-unit-treatment-value assumption
+(SUTVA) that synthetic control inherits from the broader causal-inference
+literature. That assumption is often indefensible. When California raised its
+cigarette tax, some sales simply crossed the border into Nevada, so a neighbouring
+state's outcomes were themselves moved by the treatment; using it as a donor
+contaminates the counterfactual. For most of the method's history the remedy was
+subtractive -- drop the units you suspect, as @abadie2010synthetic do -- trading a
+SUTVA violation for a smaller, weaker comparison. A more recent literature instead
+keeps the units and models the spillover: @cao2023estimation,
+@distefano2024inclusive, @melnychuk2024synthetic, and @grossi2025direct each
+estimate the direct effect and the leakage jointly.
+
+These four estimators arrived as four separate codebases, in another language,
+with four data conventions. `mlsynth` exposes them through one dispatcher,
+[SPILLSYNTH]{.pkg}, selected by a `method` keyword; the treated unit, the donor
+pool, and the units suspected of absorbing spillover are declared once. The
+demonstration we want is therefore not of any single estimator but of the
+consolidation: with a common interface, comparing four spillover-aware methods
+across two unrelated case studies is a loop, not a porting project. We run all
+four on the California tobacco panel -- with the dozen neighbours
+@abadie2010synthetic discard reinstated as suspected spillover recipients -- and
+on West Germany's 1990 reunification [@abadie2015comparative], with Austria,
+France, and the Netherlands as the recipients, plotting each method's
+spillover-adjusted counterfactual against the observed treated unit.
+
+```{python}
+#| label: fig-spillovers
+#| fig-cap: "Four spillover-aware estimators on two case studies, reached by changing one `method` keyword in a loop. Each panel plots the observed treated unit (black) against each method's spillover-adjusted synthetic counterfactual. On Proposition 99 (left) the methods disagree substantially -- spillover into the reinstated neighbours is large; on German reunification (right) they nearly coincide -- the declared spillover is small. The spread within a panel is a cross-method sensitivity check that the shared interface makes free."
+
+adh_covariates = ["trade", "infrate", "industry", "schooling",
+                  "invest60", "invest70", "invest80"]
 cases = [
-    dict(name="A. Proposition 99 (California, 1989)", file="prop99_with_dc.csv",
-         span=(1970, 2000), outcome="cigsale", unit="state", time="year",
-         treated="California", t0=1989, ylab="cigarette sales (packs p.c.)",
-         covariates=None, affected=[
-             "Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii",
-             "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada",
-             "New York", "Oregon", "Washington"]),
-    dict(name="B. Reunification (West Germany, 1990)", file="scpi_germany.csv",
-         span=(1960, 2003), outcome="gdp", unit="country", time="year",
-         treated="West Germany", t0=1990, ylab="GDP p.c. (000s USD)",
-         covariates=ADH, affected=["Austria", "France", "Netherlands"]),
+    dict(name="Proposition 99", file="prop99_with_dc.csv", span=(1970, 2000),
+         outcome="cigsale", unit="state", time="year", treated="California",
+         t0=1989, ylab="cigarette sales (packs p.c.)", covariates=None,
+         affected=["Alaska", "Arizona", "District of Columbia", "Florida",
+                   "Hawaii", "Massachusetts", "Maryland", "Michigan",
+                   "New Jersey", "Nevada", "New York", "Oregon", "Washington"]),
+    dict(name="Reunification", file="scpi_germany.csv", span=(1960, 2003),
+         outcome="gdp", unit="country", time="year", treated="West Germany",
+         t0=1990, ylab="GDP p.c. (000s USD)", covariates=adh_covariates,
+         affected=["Austria", "France", "Netherlands"]),
 ]
 methods = {"cd": ("C0", "-"), "iscm": ("C3", "--"),
            "iterative": ("C1", "-."), "grossi": ("C4", ":")}
 
-fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.6))
+fig, axes = plt.subplots(1, 2, figsize=(7, 3))
 records = []
 for ax, case in zip(axes, cases):
-    df = pd.read_csv(f"{RAW}/{case['file']}")
+    df = pd.read_csv(find_data(case["file"]))
     df = df[df[case["time"]].between(*case["span"])].copy()
     df["treat"] = ((df[case["unit"]] == case["treated"])
                    & (df[case["time"]] >= case["t0"])).astype(int)
     cfg = dict(df=df, outcome=case["outcome"], treat="treat", unitid=case["unit"],
-               time=case["time"], affected_units=case["affected"], display_graphs=False)
-    yrs = sorted(df[case["time"]].unique())
+               time=case["time"], affected_units=case["affected"],
+               display_graphs=False)
+    years = sorted(df[case["time"]].unique())
     obs = (df[df[case["unit"]] == case["treated"]]
            .sort_values(case["time"])[case["outcome"]].to_numpy())
-    ax.plot(yrs, obs, color="black", lw=2.3, label="observed")
-    for m, (c, ls) in methods.items():
+    ax.plot(years, obs, color="black", lw=1.6, label="observed")
+    for m, (color, ls) in methods.items():
         kw = {**cfg, "method": m}
         if m == "iscm" and case["covariates"]:
-            kw["covariates"] = case["covariates"]       # only iscm matches on covariates
-        r = SPILLSYNTH(kw).fit()                         # the one line that varies
-        sub = getattr(r, m)
-        pre = (sub.a[0] + sub.B[0] @ r.inputs.Y_pre if m == "cd"
+            kw["covariates"] = case["covariates"]      # only iscm matches on covariates
+        fit = SPILLSYNTH(kw).fit()                      # the one line that varies
+        sub = getattr(fit, m)
+        pre = (sub.a[0] + sub.B[0] @ fit.inputs.Y_pre if m == "cd"
                else sub.treated_synthetic_pre)
-        ax.plot(yrs, list(pre) + list(sub.counterfactual_sp),
-                color=c, ls=ls, lw=1.8, label=m)
-        records.append({"case": case["name"][0], "method": m, "ATT": round(r.att, 2)})
-    ax.axvline(case["t0"], color="0.5", ls=":"); ax.set_title(case["name"], fontsize=10)
-    ax.set_xlabel("year"); ax.set_ylabel(case["ylab"])
-axes[0].legend(fontsize=8, ncol=2, loc="upper right")
+        ax.plot(years, list(pre) + list(sub.counterfactual_sp),
+                color=color, ls=ls, lw=1.2, label=m)
+        records.append({"case": case["name"], "method": m, "ATT": fit.att})
+    ax.axvline(case["t0"], color="0.4", ls="-", lw=1.0)
+    ax.set_title(case["name"], fontsize=8)
+    ax.set_xlabel("year"); ax.set_ylabel(case["ylab"], fontsize=8)
+axes[0].legend(fontsize=6, ncol=2)
 fig.tight_layout()
 plt.show()
 ```
 
 ```{python}
-pd.DataFrame(records).pivot(index="method", columns="case", values="ATT")
+#| label: tbl-spillover-att
+#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study, read from the same `att` field. On Proposition 99 the estimates span roughly nine to twenty-two packs; on reunification they cluster within a few hundred dollars of one another."
+(pd.DataFrame(records)
+   .pivot(index="method", columns="case", values="ATT")
+   .round(2))
 ```
 
-The contrast is the payoff. On Proposition 99 (Panel A) the four methods disagree
-sharply, because the tax genuinely leaks across state lines; on reunification
-(Panel B), with only three modest neighbours declared affected, the corrections
-barely move and all four hug the no-spillover fit. The spread within a panel is a
-cross-method sensitivity analysis, and it is large precisely when spillover
-matters and negligible when it does not --- a diagnostic the comparison yields for
-free.
+The two panels make the same point from opposite directions. On Proposition 99 the
+four methods disagree by more than a factor of two, because the treatment genuinely
+leaks into the reinstated neighbours and each estimator apportions that leakage
+differently; on reunification, where only three modest neighbours are declared
+affected, the corrections are small and the four counterfactuals nearly coincide.
+The disagreement is information, not defect: its size tracks how much spillover
+there is to model, and reading it off costs one loop over a `method` keyword rather
+than four installations across two languages. As with the single-unit
+illustration, `mlsynth` takes no position on which estimator is correct -- that
+judgement belongs to the analyst and the application. What the package supplies is
+the cheaper, prior thing: the ability to run all of them, on any of your panels,
+behind one interface.
 
-The deeper point is the code that produced both panels. Two datasets, two treated
-units, two outcomes, two affected-unit lists and four estimators --- a comparison
-that not long ago meant several package installations across two languages and a
-day of reconciling syntaxes --- here is one loop over a list of small
-dictionaries, a few dozen lines. `mlsynth` takes no position on which spillover
-method is correct; it makes running all of them, on all of your cases, cheap
-enough that you can find out for yourself.
+## Experimental design {#sec-design}
 
-## Putting it together
+The second illustration moves to the design question, where `mlsynth` reaches
+capability that the surrounding ecosystem has not packaged for practitioners. We
+reproduce the public walkthrough of Meta's `GeoLift` framework [@geolift], a
+widely used industry tool for geographic marketing experiments. The walkthrough
+ships a panel of 40 markets observed over 105 days and asks: if we run a
+geo-experiment in two cities, can we recover the lift, and is it significant?
+`GeoLift` answers this with an augmented synthetic control
+[@benmichael2021augmented] and conformal inference [@chernozhukov2021conformal].
+
+We load the same public test panel, mark the final 15 days as the
+post-intervention window, and drive the [GEOLIFT]{.pkg} estimator exactly as a
+user would -- forcing the walkthrough's two treated markets (Chicago and
+Portland) through the configuration.
 
 ```{python}
-summary = pd.DataFrame(
-    [
-        ["Standard SCM (mscmt)", "curated 38-donor pool", "linear factor model, SUTVA",
-         f"{att_scm:+.1f} (1989-2000 mean)"],
-        ["Low-rank SCM (pcr)",   "curated 38-donor pool", "low-rank factors, SUTVA",
-         f"{att_pcr:+.1f} (1989-2000 mean)"],
-        ["Spillover SCM (cd)",   "full pool + spillover", "linear factors, no SUTVA",
-         f"{direct[1990]:+.1f} (1990) to {direct[1999]:+.1f} (1999)"],
-    ],
-    columns=["estimator", "donor pool", "key assumptions", "estimated effect"],
+#| label: load-geolift
+geo = pd.read_csv(find_data("geolift_test_data.csv"))
+dates = sorted(geo["date"].unique())
+PRE = 90
+geo["post"] = geo["date"].isin(set(dates[PRE:])).astype(int)
+
+
+def geolift_fit(augment):
+    cfg = {
+        "df": geo, "outcome": "Y", "unitid": "location", "time": "date",
+        "treatment_size": 2, "to_be_treated": ["chicago", "portland"],
+        "durations": [len(dates) - PRE], "effect_sizes": [0.0, 0.10],
+        "lookback_window": 1, "post_col": "post", "how": "mean",
+        "augment": augment, "fixed_effects": True, "power_threshold": 0.8,
+        "alpha": 0.1, "ns": 2000, "seed": 0, "conformal_type": "iid",
+        "display_graphs": False,
+    }
+    return GEOLIFT(cfg).fit()
+```
+
+`GeoLift`'s walkthrough prints two summaries: a base, unaugmented model and a
+ridge-augmented "best" model. We run both through the one interface.
+
+```{python}
+#| label: fit-geolift
+base_geo = geolift_fit(None).report
+ridge_geo = geolift_fit("ridge").report
+
+geo_base_att = float(base_geo.effects.att)
+geo_ridge_att = float(ridge_geo.effects.att)
+geo_p = float(base_geo.inference.p_value)
+```
+
+### Reproducing the published numbers {#sec-geolift-repro}
+
+The walkthrough reports an average treatment effect of 155.556 for the base model
+and 156.805 for the ridge-augmented model, with a conformal $p$-value rounding to
+0.01. `mlsynth`, driven through its public interface, returns
+`{python} f"{geo_base_att:.3f}"` and `{python} f"{geo_ridge_att:.3f}"` for the two
+models and a $p$-value of `{python} f"{geo_p:.3f}"`. These match the published
+figures to the third decimal -- the point estimate, the augmentation, and the
+inference all reproduce. The full benchmark, which additionally pins the percent
+lift, the L2 imbalance, the scaled imbalance, the percent improvement over the
+naive model, and all thirteen donor weights against the vignette's printed
+tables, ships with the library as a durable regression test.
+
+```{python}
+#| label: tbl-geolift
+#| echo: false
+#| tbl-cap: "mlsynth reproduces the GeoLift walkthrough's published summaries through its public interface."
+tab = pd.DataFrame(
+    {
+        "GeoLift (published)": [155.556, 156.805, 0.01],
+        "mlsynth": [round(geo_base_att, 3), round(geo_ridge_att, 3), round(geo_p, 3)],
+    },
+    index=["Base ATT", "Ridge-augmented ATT", "Conformal p-value"],
 )
-summary
+tab
 ```
 
-The standard and low-rank fits agree on a period-averaged effect near $-19$,
-which tells us the curated result is not an artefact of pre-treatment noise. The
-spillover-aware fit is reported as a path rather than an average for a reason: it
-shows that the early-post-period effect is largely contamination --- sales
-displaced to untreated neighbours --- and that only as the tax effect matures does
-the genuine direct effect converge to the standard estimate. Three nodes of the
-decision tree, three estimators, three sets of assumptions, reached not by
-rewriting the analysis each time but by answering the questions the tree asks and
-changing a single field in the configuration.
-
-## A different branch: synthetic difference-in-differences
-
-The three estimators above all sit on the synthetic-control side of the tree:
-each takes California as given and builds a convex combination of donors to match
-its pre-treatment path, forbidding any level gap between California and its
-synthetic counterpart. A different branch asks whether that convexity is the
-right constraint at all. Difference-in-differences would instead permit a level
-gap --- absorbed by unit fixed effects --- and assume the treated and control
-trends are parallel; its weakness is that for a single state like California
-parallel trends plainly fail. Synthetic difference-in-differences
-[@arkhangelsky2021] is the reconciliation: it fits a two-way
-fixed-effects regression that is doubly weighted --- by synthetic-control unit
-weights and difference-in-differences time weights --- so it reweights the
-controls until their trend runs parallel to California's (not identical, since
-the unit fixed effects absorb the level gap) and only then differences. The tree
-routes here from the parallel-trends gate: reach for it when a level intercept and
-a focus on the most comparable pre-periods are worth more than the simplex's
-exact-matching discipline.
+The donor weights are exposed exactly as in the estimation illustration, under
+`weights.donor_weights`. For the ridge-augmented model they reproduce the
+markets and weights printed in the vignette's own weight table
+(@tbl-geolift-weights) -- Cincinnati, Miami, Baton Rouge, and the rest of the
+synthetic test region.
 
 ```{python}
-from mlsynth import SDID
-
-sdid = SDID({
-    "df": pd.read_csv(f"{RAW}/smoking_data.csv"),
-    "outcome": "cigsale", "treat": "Proposition 99",
-    "unitid": "state", "time": "year",
-    "display_graphs": False,
-}).fit()
-
-att_sdid = sdid.att
-lo, hi = sdid.att_ci
-print(f"SDID  ATT = {att_sdid:+.2f} packs per capita   95% CI [{lo:+.1f}, {hi:+.1f}]")
+#| label: tbl-geolift-weights
+#| tbl-cap: "Donor-market weights of the ridge-augmented GeoLift model, read from `ridge_geo.weights.donor_weights`, matching the walkthrough's printed weight table. Markets with negligible weight are omitted."
+geo_weights = pd.Series(ridge_geo.weights.donor_weights, name="weight")
+geo_weights = geo_weights[geo_weights > 1e-4].sort_values(ascending=False).head(13)
+geo_weights.round(4).rename_axis("donor market").to_frame()
 ```
 
-This reproduces the headline number of the method's own authors --- @arkhangelsky2021
-report an effect of roughly $-15.6$ packs per capita on exactly this panel
---- and it lands a few packs short of the standard synthetic control's $-19$. The
-gap is informative rather than contradictory. The simplex synthetic control must
-reproduce California's *level* with a convex combination of donors and is
-penalised for any pre-treatment imperfection it cannot remove; SDID's unit fixed
-effect simply absorbs a constant level difference, and its time weights lean on
-the late pre-periods that most resemble the post-period. When a level shift and
-time weighting are the more credible devices, SDID is the estimator the tree
-names; when exact convex matching is what you trust, the synthetic controls above
-are.
+That `mlsynth` reproduces `GeoLift` exactly is the starting point, not the
+finish. The point-fit estimator and the conformal inference are held fixed to
+match `GeoLift`'s methodology faithfully -- they are not knobs to be swapped for
+arbitrary alternatives. What `mlsynth` adds is a far richer language for
+constraining *which markets the experiment may treat*. Through the same
+configuration dictionary, the analyst can forbid or force particular markets,
+declare interference clusters and a spillover-adjacency matrix so that mutually
+contaminating markets are never split across the test and control groups, impose
+stratum coverage quotas (at least and at most so many treated markets per region,
+tier, or segment), restrict the treated set to a size band, and cap the design by
+cost-per-incremental-conversion and budget. These are formulations the upstream
+tool does not expose, reached without leaving the interface.
+
+### The broader design family {#sec-design-family}
+
+The `GeoLift` reproduction is one entry point into a family of
+experimental-design estimators that `mlsynth` packages together. Where `GeoLift`
+fixes the treated units and asks whether an effect can be recovered, the design
+methods of @syndes and @doudchenko2021synthetic invert the problem: given a pool
+of candidate units and a target effect size, they *choose* which units to treat
+so that a credible synthetic control will exist afterward, and report the
+statistical power of the resulting design. `mlsynth` exposes these as peers of
+the estimation methods -- the same configuration-and-fit shape, the same result
+contract -- so that selecting an experiment and, later, analyzing it are two calls
+against one library rather than two separate tools. To our knowledge, no other
+package places this design family alongside the full estimation catalog behind a
+common interface.
+
+## Computational details and reproducibility {#sec-computational}
 
 ```{python}
-#| label: fig-sdid
-#| fig-cap: "California against its synthetic difference-in-differences counterfactual."
-ts = sdid.time_series
-fig, ax = plt.subplots()
-ax.plot(ts.time_periods, ts.observed_outcome, color="black", lw=2, label="California (observed)")
-ax.plot(ts.time_periods, ts.counterfactual_outcome, color="C2", ls="--", label="SDID counterfactual")
-ax.axvline(ts.intervention_time, color="grey", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("packs per capita")
-ax.legend(frameon=False)
-plt.show()
+#| label: versions
+#| echo: false
+import sys
+versions = {
+    "Python": sys.version.split()[0],
+    "mlsynth": mlsynth_version,
+    "NumPy": np.__version__,
+    "pandas": pd.__version__,
+}
 ```
 
-This is the role the decision tree plays throughout the paper. It is not a
-catalogue of methods but a procedure for selecting among them: each gate sharpens
-the causal question, each leaf is an estimator validated against its source, and
-the shared `fit()` contract is what makes the leaves comparable. The case study
-above is a single panel read four ways; the sections that follow enter the tree
-at gates we have not yet visited --- many treated units, staggered adoption, and
-the experimental-design branch where the treatment has not yet been assigned ---
-and the same logic carries through: identify the question precisely, and the
-library names the estimator that answers it.
-```
-## References
+All numbers and figures in this paper are computed when the document is rendered,
+directly from the installed library, rather than transcribed from a prior run.
+This is a deliberate guard against the drift that accumulates when a paper's
+reported figures and a library's behavior diverge over successive versions: if an
+estimator's output changed, this document would fail to render or would render
+different numbers, not silently disagree with itself.
+
+The results above were produced with `mlsynth`
+`{python} versions["mlsynth"]` on Python `{python} versions["Python"]`, with
+NumPy `{python} versions["NumPy"]` [@harris2020array] and pandas
+`{python} versions["pandas"]`. The convex weight problems are solved with `CVXPY`
+[@diamond2016cvxpy]. The package and its dependencies are open source; `mlsynth`
+is available from the Python Package Index via `pip install mlsynth`, with source
+and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
+at <https://mlsynth.readthedocs.io>.
+
+### A controlled validation suite {#sec-benchmarks}
+
+Reproducibility in `mlsynth` is engineered, not asserted. Alongside the unit
+tests, the library ships a separate benchmark suite that institutionalizes the
+cross-checks that are otherwise performed once by hand and discarded. Each
+estimator is validated along one of three paths: reproducing a source paper's
+empirical result on the authors' own data, reproducing a paper's Monte Carlo
+table, or -- most demandingly -- matching an authoritative reference
+implementation cell by cell.
+
+The cross-validation path is where the engineering shows. Rather than copy a
+reference tool's published numbers into a test (numbers that silently rot as the
+reference evolves), the suite installs the reference implementation itself and
+runs it at validation time, comparing `mlsynth`'s output to the freshly computed
+reference. Because most of these references are R packages -- `augsynth`,
+`GeoLift`, `microsynth`, `Synth`, `pensynth`, among others -- and R packages
+under active development drift, every reference is pinned to an exact commit. The
+install scripts compile each package, and its entire dependency chain, from a
+frozen Git SHA, so the same reference code runs every single time. The `GeoLift`
+cross-check, for instance, pins `augsynth` and its solver stack (`osqp`, `S7`,
+`LiblineaR`) to specific commits; the script that does so notes, pointedly, that
+an unpinned tip is precisely the version drift that made `GeoLift`'s own
+walkthrough ATT of 155.556 go stale. The Python case shells out to the pinned
+reference, compares the two outputs to a tight numerical tolerance -- often four
+significant figures -- and reports a pass or fail, skipping cleanly when the R
+toolchain is unavailable rather than masquerading as a pass. The `GeoLift`
+reproduction in @sec-design is exactly such a case: the published figures it
+matches are regenerated, not remembered, from `augsynth` frozen at a known
+commit. Reproducibility is thereby turned into a controlled, re-runnable process
+in which both sides of every comparison are fixed and inspectable.
+
+## Summary {#sec-summary}
+
+Synthetic control has grown from a single method into a sprawling family, and the
+software has fragmented along with it. We have argued that the fragmentation is
+largely incidental: most of these estimators are variations on one factor-model
+projection, differing in how they constrain or denoise the same underlying fit.
+`mlsynth` takes that observation seriously, placing more than forty estimators
+behind one data contract, one validated configuration-and-fit interface, and one
+standardized result. The three illustrations show what the consolidation buys.
+Estimation becomes a genuine comparison -- a simplex synthetic control, a
+synthetic difference-in-differences design, and a robust principal-component
+estimator on the California data, each run as its authors prescribed yet reached
+by a one-line change of class against an unchanged data frame. Relaxing the
+no-interference assumption becomes a loop: four spillover-aware estimators,
+otherwise four separate codebases in another language, run across two case studies
+behind one keyword. And design becomes available at all: the library reproduces
+Meta's
+`GeoLift` walkthrough to within numerical tolerance and then opens it onto a
+broader experimental-design family that the surrounding ecosystem has never
+packaged for applied users. The value of having all of this in one place is not
+convenience but capability: a single, validated interface is what makes forty
+methods comparable, and what lets one library answer both the question of what an
+intervention did and the question of how to design the experiment that will
+measure it.
+
+## References {.unnumbered}
 
 ::: {#refs}
 :::
