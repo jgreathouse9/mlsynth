@@ -308,15 +308,22 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   and their prediction intervals -- :doc:`vanillasc` handles staggered adoption
   natively. It detects the multiple treated units from the treatment column,
   fits each on the never-treated donors and aggregates, with or without
-  covariate (multi-feature) matching, reproducing the ``scpi`` package. It is the
-  staggered counterpart of the textbook simplex SC from Part 1, and the same
-  trade-off decides between it and the :doc:`sdid` base case: prefer :doc:`sdid`
-  when matching the cohorts adequately *requires* an intercept (a level shift
-  between a cohort and its synthetic control) or time weights -- which SDID
-  carries and vanilla SCM, by construction, does not -- and prefer staggered
-  :doc:`vanillasc` when the simplex fit already tracks the cohorts on levels, so
-  you keep genuine convex synthetic-control weights and the CFPT prediction
-  intervals without leaning on a DiD intercept or reweighted periods.
+  covariate (multi-feature) matching, reproducing the ``scpi`` package. The
+  choice between it and the :doc:`sdid` base case follows the two methods' own
+  arguments. Arkhangelsky et al. (2021) motivate SDID by its unit fixed effects,
+  which match cohorts on pre-treatment *trends* rather than levels -- absorbing a
+  constant level gap, and so deliberately loosening synthetic control's
+  requirement that the treated unit lie inside the donors' convex hull -- plus
+  time weights that downweight uninformative pre-periods. Cattaneo, Feng, Palomba
+  and Titiunik (2025) build instead on the canonical *convex* (simplex) SC, which
+  does not extrapolate, and contribute non-asymptotic prediction intervals whose
+  guarantees hold in the small samples SC applications typically have. So prefer
+  :doc:`sdid` when no convex combination of donors can match a cohort's *level*
+  (you need the intercept to absorb the gap) or some pre-periods are
+  unrepresentative; prefer staggered :doc:`vanillasc` when the simplex fit
+  already tracks the cohorts on levels -- keeping interpretable, non-extrapolating
+  weights and the finite-sample CFPT intervals, with no DiD intercept or
+  reweighted periods.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
 * Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
   staggered missingness natively).
