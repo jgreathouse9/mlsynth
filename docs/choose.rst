@@ -183,6 +183,28 @@ if the Forward Parallel Trends Assumption does not hold and you want a formal
 pre-trends test, use :doc:`tssc`. If none of the escalations below applies, you
 are done.
 
+*FDID versus SCM.* Forward DiD is arguably simpler than synthetic control and, as
+Li (2024) frames it, the natural first stop. Standard difference-in-differences
+puts *equal* weights on *all* donors and so needs every donor to parallel-trend
+with the treated unit -- usually too much to ask; synthetic control instead
+solves for *convex* weights, which is more flexible but estimates one weight per
+donor (and can overfit), requires the treated unit inside the donors' convex hull,
+carries no intercept, and -- Li stresses -- relies on inference theory that does
+not hold under nonstationarity of unknown structure. Forward DiD splits the
+difference: it forward-*selects* the subset of donors that best matches the
+treated unit's pre-period and then runs plain DiD on that subset. Each candidate
+model has a *single* unknown parameter (the DiD intercept :math:`\alpha`), so
+there is no overfitting however many donors there are; the intercept absorbs a
+level gap (as in DiD, unlike SCM); the pre-period :math:`R^2` is a transparent fit
+diagnostic; and the inference is valid for stationary *and* nonstationary data. So
+when a selected subset of donors genuinely parallel-trends with the treated unit
+-- a condition you can read off that :math:`R^2` -- Forward DiD is the simpler,
+lower-variance choice and you need go no further. Escalate to :doc:`vanillasc`
+when even the best equal-weighted subset cannot track the treated unit and you
+need flexible convex weights to balance heterogeneous factor loadings: that is the
+off-ramp back to SCM, taken only when FDID's parallel-trends-on-a-subset
+assumption fails.
+
 Now walk the escalations, easy to hard:
 
 Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
