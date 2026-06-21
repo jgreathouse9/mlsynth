@@ -83,6 +83,25 @@ def _fit_one_unit(config, y: np.ndarray, Y0: np.ndarray, pre: int,
     return res
 
 
+def _event_study(unit_fits: Dict[str, StaggeredUnitFit]) -> Dict[int, float]:
+    """Average treatment effect by event time (``scpi`` ``effect='time'``).
+
+    Event time ``ell`` is the ``ell``-th post-treatment period for each treated
+    unit; the effect is averaged across the units observed at that event time,
+    balanced over ``ell = 1 .. min_i T1_i`` (the event times present for every
+    treated unit), matching the official package's convention.
+    """
+    if not unit_fits:
+        return {}
+    fits = list(unit_fits.values())
+    min_post = min(f.post_periods for f in fits)
+    out: Dict[int, float] = {}
+    for ell in range(min_post):
+        vals = [float(f.gap[f.pre_periods + ell]) for f in fits]
+        out[ell + 1] = float(np.mean(vals))
+    return out
+
+
 def _unit_scpi(config, y: np.ndarray, Y0: np.ndarray, pre: int,
                W: np.ndarray) -> Dict[str, Any]:
     """Per-unit CFT prediction bands, via the same engine the scalar path uses."""
@@ -186,6 +205,8 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
     all_post = np.concatenate(post_gaps) if post_gaps else np.empty(0)
     overall_att = float(np.mean(all_post)) if all_post.size else float("nan")
 
+    event_study = _event_study(unit_fits)
+
     inference = _aggregate_att_interval(unit_fits, overall_att, config) if do_scpi else None
 
     return BaseEstimatorResults(
@@ -212,5 +233,9 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
             },
         ),
         sub_method_results=unit_fits,
-        additional_outputs={"adoption_times": sorted(cohorts.keys())},
+        additional_outputs={
+            "adoption_times": sorted(cohorts.keys()),
+            "event_study": event_study,
+            "per_unit_att": {n: f.att for n, f in unit_fits.items()},
+        },
     )

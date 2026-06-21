@@ -175,3 +175,34 @@ def test_overall_att_pi_brackets_point(germany_staggered):
     res = _fit_scpi(germany_staggered)
     assert res.inference is not None
     assert res.inference.ci_lower <= res.effects.att <= res.inference.ci_upper
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: aggregated predictands (event study), validated against scpi
+# ---------------------------------------------------------------------------
+
+# scpi effect="time" on the Germany two-treated panel (outcome-only simplex),
+# balanced over event times 1..12 where both treated units are observed.
+_SCPI_EVENT_TIME = [0.131, 0.0316, -0.4255, -0.67, -0.9013, -1.2304,
+                    -1.2529, -1.6015, -2.2758, -2.6734, -2.8457, -3.0832]
+
+
+def test_event_study_matches_scpi(germany_staggered):
+    res = _fit(germany_staggered)
+    es = res.additional_outputs["event_study"]
+    vals = [es[k] for k in sorted(es)]
+    np.testing.assert_allclose(vals, _SCPI_EVENT_TIME, atol=2e-3)
+
+
+def test_event_study_is_balanced_event_times(germany_staggered):
+    res = _fit(germany_staggered)
+    es = res.additional_outputs["event_study"]
+    min_post = min(f.post_periods for f in res.sub_method_results.values())
+    assert sorted(es) == list(range(1, min_post + 1))   # 1..min post
+
+
+def test_event_study_synthetic_recovers_planted_path():
+    """On a clean factor panel the event-study effect tracks the planted +3."""
+    res = _fit_synth(_synthetic_staggered({0: 10, 1: 13, 2: 16}))
+    es = res.additional_outputs["event_study"]
+    assert np.mean([es[k] for k in es]) == pytest.approx(3.0, abs=0.6)
