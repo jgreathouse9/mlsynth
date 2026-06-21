@@ -118,3 +118,60 @@ def test_per_unit_weights_on_simplex():
         w = np.array(list(fit.donor_weights.values()), dtype=float)
         assert (w >= -1e-8).all()
         assert w.sum() == pytest.approx(1.0, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: per-unit CFT prediction intervals + aggregated ATT interval
+# ---------------------------------------------------------------------------
+
+def _fit_scpi(df, **kw):
+    cfg = {"df": df, "outcome": "gdp", "treat": "status", "unitid": "country",
+           "time": "year", "display_graphs": False, "inference": "scpi",
+           "alpha": 0.1}
+    cfg.update(kw)
+    return VanillaSC(cfg).fit()
+
+
+def test_staggered_scpi_per_unit_bands(germany_staggered):
+    res = _fit_scpi(germany_staggered)
+    for fit in res.sub_method_results.values():
+        n = fit.post_periods
+        assert fit.tau_lower is not None and len(fit.tau_lower) == n
+        assert len(fit.tau_upper) == n
+        assert np.all(np.asarray(fit.tau_lower) <= np.asarray(fit.tau_upper) + 1e-9)
+        # the unit's average-effect interval brackets its point ATT
+        assert fit.att_ci_lower <= fit.att <= fit.att_ci_upper
+
+
+def test_staggered_scpi_counterfactual_bracket(germany_staggered):
+    res = _fit_scpi(germany_staggered)
+    for fit in res.sub_method_results.values():
+        cf = np.asarray(fit.counterfactual)[fit.pre_periods:]
+        lo = np.asarray(fit.cf_lower)
+        hi = np.asarray(fit.cf_upper)
+        assert np.all(lo <= cf + 1e-9) and np.all(cf <= hi + 1e-9)
+
+
+def test_staggered_scpi_consistency_with_single(germany_staggered):
+    """A unit's staggered per-period band equals the band obtained by fitting
+    that unit alone on the same never-treated donors with the same seed."""
+    res = _fit_scpi(germany_staggered)
+    wg = res.sub_method_results["West Germany"]
+    never = [c for c in germany_staggered.country.unique()
+             if c not in ("West Germany", "Italy")]
+    sub = germany_staggered[
+        germany_staggered.country.isin(["West Germany"] + never)].copy()
+    sub["status"] = ((sub.country == "West Germany") & (sub.year >= 1991)).astype(int)
+    single = VanillaSC({"df": sub, "outcome": "gdp", "treat": "status",
+                        "unitid": "country", "time": "year",
+                        "display_graphs": False, "inference": "scpi",
+                        "alpha": 0.1}).fit()
+    sd = single.inference.details
+    np.testing.assert_allclose(wg.tau_lower, sd["pi_lower"], atol=1e-9)
+    np.testing.assert_allclose(wg.tau_upper, sd["pi_upper"], atol=1e-9)
+
+
+def test_overall_att_pi_brackets_point(germany_staggered):
+    res = _fit_scpi(germany_staggered)
+    assert res.inference is not None
+    assert res.inference.ci_lower <= res.effects.att <= res.inference.ci_upper

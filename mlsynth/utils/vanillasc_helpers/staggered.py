@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -23,6 +23,7 @@ from ...config_models import (
     BaseEstimatorResults,
     EffectsResults,
     FitDiagnosticsResults,
+    InferenceResults,
     MethodDetailsResults,
     TimeSeriesResults,
     WeightsResults,
@@ -32,7 +33,12 @@ from ..bilevel import BilevelSCM
 
 @dataclass(frozen=True)
 class StaggeredUnitFit:
-    """The synthetic-control fit for one treated unit in a staggered design."""
+    """The synthetic-control fit for one treated unit in a staggered design.
+
+    The ``*_lower`` / ``*_upper`` arrays and ``att_ci_*`` carry the per-unit
+    Cattaneo-Feng-Titiunik prediction intervals, populated only when SCPI
+    inference is requested; they are ``None`` / ``NaN`` otherwise.
+    """
 
     treated_unit_name: str
     adoption_time: Any
@@ -45,6 +51,12 @@ class StaggeredUnitFit:
     counterfactual: np.ndarray
     gap: np.ndarray
     time_labels: np.ndarray = field(default_factory=lambda: np.empty(0))
+    tau_lower: Optional[np.ndarray] = None       # PI for the per-period effect
+    tau_upper: Optional[np.ndarray] = None
+    cf_lower: Optional[np.ndarray] = None        # PI for the counterfactual
+    cf_upper: Optional[np.ndarray] = None
+    att_ci_lower: float = float("nan")           # PI for the unit's average effect
+    att_ci_upper: float = float("nan")
 
 
 def _fit_one_unit(config, y: np.ndarray, Y0: np.ndarray, pre: int,
@@ -71,10 +83,63 @@ def _fit_one_unit(config, y: np.ndarray, Y0: np.ndarray, pre: int,
     return res
 
 
+def _unit_scpi(config, y: np.ndarray, Y0: np.ndarray, pre: int,
+               W: np.ndarray) -> Dict[str, Any]:
+    """Per-unit CFT prediction bands, via the same engine the scalar path uses."""
+    from .scpi import scpi_intervals
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sc = scpi_intervals(
+            y, Y0, pre, W, sims=config.scpi_sims,
+            u_alpha=config.alpha, e_alpha=config.alpha,
+            e_method=config.scpi_e_method, seed=config.seed,
+        )
+    return {
+        "tau_lower": sc.lower, "tau_upper": sc.upper,
+        "cf_lower": sc.cf_lower, "cf_upper": sc.cf_upper,
+        "att_ci_lower": float(sc.metadata["att_lower"]),
+        "att_ci_upper": float(sc.metadata["att_upper"]),
+    }
+
+
+def _aggregate_att_interval(unit_fits: Dict[str, StaggeredUnitFit],
+                            overall_att: float, config) -> InferenceResults:
+    """Pool the per-unit average-effect intervals into the overall ATT interval.
+
+    Pointwise aggregation: the overall (unit-time) ATT is the post-weighted mean
+    of the per-unit average effects, and -- treating the per-unit prediction
+    errors as independent -- its half-width is the post-weighted quadrature of the
+    per-unit half-widths. This is the pointwise predictand; uniform (simultaneous)
+    coverage across post periods is a separate construction.
+    """
+    fits = [f for f in unit_fits.values() if np.isfinite(f.att_ci_lower)]
+    if not fits or not np.isfinite(overall_att):
+        return None
+    ns = np.array([f.post_periods for f in fits], dtype=float)
+    w = ns / ns.sum()
+    halves = np.array([(f.att_ci_upper - f.att_ci_lower) / 2.0 for f in fits])
+    overall_half = float(np.sqrt(np.sum((w * halves) ** 2)))
+    return InferenceResults(
+        ci_lower=overall_att - overall_half,
+        ci_upper=overall_att + overall_half,
+        confidence_level=1.0 - 2.0 * config.alpha,
+        method=("staggered SCPI prediction intervals "
+                "(Cattaneo, Feng, Palomba & Titiunik 2025)"),
+        details={
+            "aggregation": "pointwise, post-weighted quadrature of per-unit intervals",
+            "per_unit_att_ci": {
+                f.treated_unit_name: (f.att_ci_lower, f.att_ci_upper) for f in fits},
+        },
+    )
+
+
 def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResults:
     """Fit per-unit synthetic controls under staggered adoption and aggregate."""
     cohorts = prep["cohorts"]
     time_labels = np.asarray(prep.get("time_labels"))
+
+    mode = config.inference
+    do_scpi = isinstance(mode, str) and mode.lower() == "scpi"
 
     unit_fits: Dict[str, StaggeredUnitFit] = {}
     post_gaps: List[np.ndarray] = []
@@ -96,6 +161,11 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
             gap = y - counterfactual
             post = gap[pre:]
             att = float(np.mean(post)) if post.size else float("nan")
+
+            bands = {}
+            if do_scpi and post.size:
+                bands = _unit_scpi(config, y, Y0, pre, res.W)
+
             unit_fits[unit_name] = StaggeredUnitFit(
                 treated_unit_name=unit_name,
                 adoption_time=adoption_time,
@@ -108,12 +178,15 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
                 counterfactual=counterfactual,
                 gap=gap,
                 time_labels=time_labels,
+                **bands,
             )
             if post.size:
                 post_gaps.append(post)
 
     all_post = np.concatenate(post_gaps) if post_gaps else np.empty(0)
     overall_att = float(np.mean(all_post)) if all_post.size else float("nan")
+
+    inference = _aggregate_att_interval(unit_fits, overall_att, config) if do_scpi else None
 
     return BaseEstimatorResults(
         effects=EffectsResults(
@@ -127,6 +200,7 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
         time_series=TimeSeriesResults(),
         weights=WeightsResults(
             summary_stats={"constraint": "per-unit simplex (staggered adoption)"}),
+        inference=inference,
         fit_diagnostics=FitDiagnosticsResults(),
         method_details=MethodDetailsResults(
             method_name="VanillaSC[staggered]",
