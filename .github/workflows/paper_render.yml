@@ -3,8 +3,10 @@ name: Render Quarto Report
 on:
   push:
     paths:
-      - '**.qmd'
-      - '**/requirements.txt'
+      - '**.qmd'      # render only when a Quarto source changes; the root
+                      # requirements.txt is unrelated to the paper and used to
+                      # spuriously trigger this job (which then failed, having
+                      # no .qmd to render).
   workflow_dispatch:
     inputs:
       target_qmd:
