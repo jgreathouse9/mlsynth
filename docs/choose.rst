@@ -219,6 +219,45 @@ Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
 * Yes, and the treated unit sits outside the donor hull (but is itself a useful
   donor for others) -- :doc:`iscm`.
 
+*Which spillover method? (the beast).* mlsynth offers a whole family here because
+spillover problems differ along three axes: whether you *know which* donors are
+contaminated, whether the contamination is *spatial / network-structured*, and
+whether the spillover is a *nuisance to purge* or an *effect to estimate*. Take
+them in turn. When you do **not** know which donors are affected -- a large pool
+with no a-priori validity knowledge, or a suspiciously good-fitting donor --
+:doc:`spotsynth` (O'Riordan and Gilligan-Lee, 2025) *detects* it: a theorem from
+proximal causal inference says a clean donor's post-treatment values are
+forecastable from pre-treatment data alone, so a donor that fails that forecast
+test has either changed regime or been hit by spillover; it screens out the
+failures and bounds the residual bias by sensitivity analysis. When you **do**
+know the affected set, the rest of the family (the :doc:`spillsynth` dispatcher,
+plus :doc:`spsydid`) divides as follows. If the spillover is *spatial* with a
+known weight matrix :math:`W`: :doc:`spsydid` (Serenini and Masek) extends
+*synthetic* DiD, so it keeps SyDiD's intercept and time weights (a robust direct
+effect under relaxed parallel trends) and splits the effect into direct and
+indirect parts -- use it when you want the spillover *and* DiD-style robustness;
+``method="sar"`` (Sakaguchi and Tagawa, 2026) instead models the outcomes with a
+spatial-autoregressive process and does *Bayesian* inference (horseshoe priors),
+the better choice in small samples (few units, short pre-period). If the spillover
+is not spatial but its *structure* is specifiable (linear in unknown parameters),
+``method="cd"`` (Cao and Dowd) estimates direct and spillover effects from *all*
+units -- the one option that still works when *every* unit is contaminated, and it
+ships a test for the assumed structure. If the spillover is itself a quantity of
+*interest* and you have clean, far-away donors that still fit well,
+``method="grossi"`` (Grossi et al., 2025) restricts the pool to the unaffected
+units and estimates direct *and* spillover effects under partial interference.
+Finally, if excluding the affected donors would *wreck* the pre-treatment fit --
+the textbook case being a heavily weighted affected donor, like Austria's 42
+percent in synthetic West Germany -- ``method="iscm"`` (Di Stefano and Mellace,
+2024; also :doc:`iscm`) *keeps* those donors and nets out their intervention
+effects through a small system of equations; Melnychuk's (2024) simulation study
+finds iSCM the most accurate of the family, with his ``method="iterative"``
+waterfall a close, simpler-to-implement second. In short: unknown affected set ->
+``spotsynth``; spatial -> :doc:`spsydid` (robust direct effect) or ``sar``
+(Bayesian, small samples); specifiable structure with everyone possibly hit ->
+``cd``; spillover of interest with clean donors -> ``grossi``; affected donors
+too good to drop -> ``iscm`` (or ``iterative`` for simplicity).
+
 Q1.2 · Is the treated unit outside the donors' convex hull even without
 spillovers (a true outlier)?
 
