@@ -375,6 +375,40 @@ units; stay with the vanilla synthetic control when you have a single aggregate
 treated unit, time-invariant structure, and the factor-model / convex-hull premise
 is what you are willing to assume.
 
+*Low-rank (matrix) methods -- when the donor matrix has factor structure.* This
+gate is also the entry point to a family that takes the latent-factor view
+literally: if a few common factors drive every unit, the untreated outcome matrix
+is approximately *low-rank*, so one can *denoise* or *complete* it before fitting
+weights. They divide by what corruption they guard against. When the data are
+*disaggregate* (individual-level: health records, income, store sales) so the
+donor count dwarfs the pre-period (:math:`n \gg T_0`) and the panel is noisy,
+:doc:`clustersc` (Rho et al., 2025) first *clusters* donors by their
+latent-factor signature -- keeping only the group that behaves like the target --
+then denoises: ``method="pcr"`` keeps the top singular values by hard thresholding
+(Amjad et al., 2018; Agarwal et al., 2021), good for *Gaussian* noise, while
+``method="rpca"`` uses robust PCA / principal component pursuit (Candes et al.),
+separating a low-rank part from a *sparse* one and so tolerating *outliers and
+missing entries*. :doc:`fma` (Li and Sonnier, 2023) takes the factor model
+head-on -- it projects the donors onto a low-dimensional factor space and
+regresses the treated unit on the estimated loadings with *no* simplex or
+convex-hull constraint, so it handles a treated unit *outside* the donors' range
+and many treated units; its contribution is a *formal* inference theory (valid
+confidence intervals without the equal-variance assumption the usual factor-model
+bootstrap needs), at the cost of overfitting if the donor pool is large.
+:doc:`tasc` (Rho et al., 2025) observes that all of the above are *time-agnostic*
+-- permuting the time index leaves the matrix spectrum unchanged -- and embeds the
+low-rank panel in a *state-space* model (Kalman filter / RTS smoother) to exploit
+the temporal structure too, which pays off under *strong trends and high
+observation noise*. And :doc:`rmsi` (Agarwal et al., 2026) extends low-rank
+*completion* to use row- and column-side *covariates*, decomposing the matrix into
+covariate-driven and residual low-rank parts -- preferable when you have
+informative side information and *missing* cells (including the block-missing
+pattern of a causal panel). Rule of thumb: disaggregate and noisy ->
+:doc:`clustersc` (``pcr`` for noise, ``rpca`` for outliers/missing); treated
+outside the hull or you need valid factor-model inference -> :doc:`fma`; strong
+trends plus noise -> :doc:`tasc`; informative covariates with missing cells ->
+:doc:`rmsi`.
+
 Q1.5 · Is the untreated outcome a nonlinear function of the predictors?
 
 * No -- next question.
