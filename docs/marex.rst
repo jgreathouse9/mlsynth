@@ -269,8 +269,10 @@ When ``inference=True`` with ``blank_periods > 0``, the last few pre-experiment
 periods are held out as blanks: there the synthetic treated minus synthetic
 control is pure noise, so its distribution calibrates inference for the
 post-period effect. MAREX reports a permutation p-value for the global null of
-no effect, per-period p-values, and a split-conformal confidence band
-(Chernozhukov-Wuthrich-Zhu 2021), all on
+no effect, per-period p-values, and a confidence band from split-conformal
+prediction (Lei et al. 2018; Vovk, Gammerman, and Shafer 2005) built on the
+held-out blank periods -- rearranging only over the blank and post-intervention
+periods, not over all periods as in Chernozhukov-Wuthrich-Zhu (2021) -- all on
 :class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
 
 Standardized Post-Fit and Power Analysis

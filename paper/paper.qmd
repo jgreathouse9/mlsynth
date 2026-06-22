@@ -1109,17 +1109,22 @@ pd.Series({
 ```
 
 Inference is the other half of the paper's contribution, and `mlsynth` carries
-it faithfully. MAREX reports the paper's permutation $p$-value for the global
-null of no effect (`{python} f"{float(pf.p_value):.3f}"` on this draw) and its
-split-conformal confidence band [@chernozhukov2021conformal] around each period's
-effect, both built on the *blank* periods -- pre-experiment weeks deliberately
-withheld from the fit, where the synthetic-treated-minus-control gap is pure
-noise and so calibrates the size of a null fluctuation. What sets the procedure
-apart from earlier synthetic-control inference is that it stays valid under
-serial dependence and non-stationarity in the outcomes, rather than assuming the
-gaps are independent and identically distributed over time -- which matters
-precisely because market sales are persistent. Within that same framework
-`mlsynth` also surfaces a power analysis: an analytical minimum detectable
+it faithfully. Both the permutation $p$-value for the global null of no effect
+(`{python} f"{float(pf.p_value):.3f}"` on this draw) and the confidence band
+around each period's effect are built on the *blank* periods -- pre-experiment
+weeks deliberately withheld from the fit, where the synthetic-treated-minus-control
+gap is pure noise and so calibrates the size of a null fluctuation. The
+construction is deliberately not the conformal method of
+@chernozhukov2021conformal: where that procedure rearranges over all periods,
+including the pre-intervention window used to fit the weights, Abadie and Zhao
+permute only over the blank and post-intervention periods, and -- because their
+factor-model setting and finite-sample guarantees demand it -- build the band
+from split-conformal prediction [@lei2018distribution; @vovk2005algorithmic] on
+those held-out periods. The payoff is inference that stays valid under serial
+dependence and non-stationarity in the outcomes, rather than assuming the gaps
+are independent and identically distributed over time -- which matters precisely
+because market sales are persistent. Within that same framework `mlsynth` also
+surfaces a power analysis: an analytical minimum detectable
 effect, read off the blank-period residuals and inflated for their serial
 correlation by an AR(1) variance-inflation factor, exposed on
 `res.post_fit.power` as a headline number and a curve over candidate horizons, so
