@@ -212,3 +212,18 @@ def test_donor_cloud_from_fit_prediction():
                  "time": "time", "T0": 10, "m_eq": 2}).fit()
     plot_marex(res, plot_type="prediction", donor_cloud=True)
     assert len(plt.gcf().axes[0].lines) > 2            # cloud + the two synthetics
+
+
+# ---------------------------------------------------------------------------
+# House style: the plot must use the mlsynth house style (Samsung-blue grid),
+# not a plotter-local override.
+# ---------------------------------------------------------------------------
+
+def test_plot_uses_house_grid_style():
+    from matplotlib.colors import to_hex
+    res = _results(cluster_labels=["0"])
+    plot_marex(res, plot_type="prediction")
+    ax = plt.gcf().axes[0]
+    gridlines = ax.get_ygridlines()
+    assert gridlines                                   # grid is on
+    assert to_hex(gridlines[0].get_color()).lower() == "#1428a0"   # house blue, not gray

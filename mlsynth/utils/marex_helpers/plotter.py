@@ -7,13 +7,8 @@ from typing import List, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ..plotting import mlsynth_style
 from .structures import MAREXResults
-
-_STYLE = {
-    "figure.figsize": (10, 6), "axes.spines.top": False, "axes.spines.right": False,
-    "font.size": 12, "axes.grid": True, "axes.axisbelow": True,
-    "grid.color": "#d3d3d3", "grid.linestyle": ":",
-}
 
 
 def plot_marex(
@@ -43,7 +38,7 @@ def plot_marex(
         Figure 4. Ignored on the ``"treatment"`` (effect) plot and on cluster
         panels, which carry no per-unit outcome matrix.
     """
-    with plt.rc_context(_STYLE):
+    with mlsynth_style({"axes.axisbelow": True}):
         if clusters is None:
             clusters = list(results.clusters.keys())
         if len(clusters) == 1 and clusters[0] == "0":
