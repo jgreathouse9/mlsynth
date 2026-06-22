@@ -553,6 +553,12 @@ results = est.fit()
 The library exposes the writing side symmetrically, as `save_spec`, so a fitted
 configuration can be exported to a record and shared.
 
+That this takes only a few lines, and works for every estimator alike, is a
+dividend of the shared contract rather than per-method plumbing: because a
+configuration is data, the estimator is named in its own record, and one
+[fit]{.fct} runs whatever loads, the same uniformity that makes the catalog
+comparable also makes its analyses portable.
+
 ### One estimator {#sec-onepackage}
 
 That uniform surface is only affordable because the source is partitioned the same
