@@ -199,6 +199,23 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     time_labels = np.asarray(prep["time_labels"])
     J = Y0.shape[1]
 
+    # Outcome-fit window (MSCMT's ``times.dep``): restrict the dependent SSR to an
+    # inclusive sub-range of the pre-treatment period. Default (None) fits the
+    # full pre-period. Predictor matching is unaffected (it uses covariate_windows).
+    fit_pos = np.arange(pre)
+    if config.fit_window is not None:
+        start, end = config.fit_window
+        pre_labels_arr = time_labels[:pre]
+        lo = pre_labels_arr.min() if start is None else start
+        hi = pre_labels_arr.max() if end is None else end
+        keep = (pre_labels_arr >= lo) & (pre_labels_arr <= hi)
+        fit_pos = np.flatnonzero(keep)
+        if fit_pos.size == 0:
+            raise MlsynthDataError(
+                f"fit_window {config.fit_window} selects no pre-treatment periods "
+                f"(pre-period spans {pre_labels_arr.min()}-{pre_labels_arr.max()})."
+            )
+
     # All unit bookkeeping goes through IndexSets, which preserve the original
     # label dtype (so groupby lookups match the DataFrame) and centralise the
     # label <-> position mapping. ``donors`` indexes the columns of Y0;
@@ -253,7 +270,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             res = engine.fit(
-                y[:pre], Y0[:pre],
+                y[fit_pos], Y0[fit_pos],
                 X1=X1, X0=X0, donor_names=donor_names, predictor_names=pred_names,
             )
 

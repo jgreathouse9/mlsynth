@@ -9,7 +9,7 @@ backward compatibility.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -82,6 +82,12 @@ class VanillaSCConfig(BaseEstimatorConfig):
         Per-covariate inclusive ``(start, end)`` averaging window of time
         labels (Abadie's special-predictor spec). Covariates not listed are
         averaged over the full pre-treatment period.
+    fit_window : tuple, optional
+        Inclusive ``(start, end)`` window restricting the outcome fit (the
+        dependent SSR, MSCMT's ``times.dep``) to a sub-range of the
+        pre-treatment period; predictor matching is unaffected. ``None``
+        (default) fits the full pre-period. This is how Abadie-Gardeazabal's
+        Basque study fits ``gdpcap`` over 1960-1969 rather than 1955-1969.
     canonical_v : bool or {"min.loss.w", "max.order"}
         Canonicalise the (non-identified) predictor weights for ``mscmt``
         (MSCMT ``determine_v``). The reported ``v_agreement`` is small when
@@ -127,6 +133,30 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default=None,
         description="Per-covariate inclusive (start, end) averaging window.",
     )
+    fit_window: Optional[Tuple[Any, Any]] = Field(
+        default=None,
+        description="Inclusive (start, end) time window over which the synthetic "
+                    "control is fit to the treated outcome -- the dependent SSR, "
+                    "MSCMT's ``times.dep``. Restricts the pre-period outcome "
+                    "optimisation to this sub-range (predictors are still matched "
+                    "over their own covariate_windows). None (default) uses the "
+                    "full pre-treatment period; this is how Abadie-Gardeazabal's "
+                    "Basque study fits gdpcap over 1960-1969 rather than 1955-1969.",
+    )
+
+    @field_validator("fit_window")
+    @classmethod
+    def _validate_fit_window(cls, v):
+        if v is None:
+            return v
+        if len(v) != 2:
+            raise ValueError(
+                "fit_window must be a (start, end) pair of time labels.")
+        start, end = v
+        if start is not None and end is not None and start > end:
+            raise ValueError(
+                f"fit_window start ({start}) must not exceed end ({end}).")
+        return v
     canonical_v: Union[bool, str] = Field(
         default=False,
         description="Canonicalise mscmt predictor weights ('min.loss.w'/'max.order').",
