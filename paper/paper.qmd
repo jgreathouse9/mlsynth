@@ -138,7 +138,7 @@ implementation entirely. The leave-two-out refined placebo test
 [@lei2025inferencesyntheticcontrolsrefined] has none in any language we are aware
 of, and the predictor-selection method of @vivesibastida2022predictorselectionsyntheticcontrols
 -- which confronts the choice of which covariates enter the fit, a central source
-of disagreement among practitioners -- exists only as the author's MATLAB code.
+of disagreement among practitioners -- has no public implementation at all.
 The experimental-design family in particular has had almost no packaged presence
 for applied users.
 
