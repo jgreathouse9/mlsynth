@@ -234,7 +234,8 @@ intervals of @cattaneo2021prediction. Two further options go beyond what `synth2
 offers, and neither has a packaged implementation in Python: `inference = "lto"`
 runs the leave-two-out refined placebo test of @leisudijono2025refined, far more
 powerful than the ordinary placebo in small donor pools, and `inference = "ttest"`
-applies the debiased synthetic-control t-test for the ATT of @cwz2025ttest, ported
+applies the debiased synthetic-control t-test for the ATT of
+@chernozhukov2025debiasingttestssyntheticcontrol, ported
 faithfully from the authors' R `scinference`. The same one-word switch thus reaches
 inference that is otherwise scattered across separate packages -- or, in the case
 of the refined placebo test, available in no package at all.
