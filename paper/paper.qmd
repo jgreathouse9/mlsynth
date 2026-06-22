@@ -930,7 +930,16 @@ fixes the treated units and asks whether an effect can be recovered, the design
 methods of @syndes and @doudchenko2021synthetic invert the problem: given a pool
 of candidate units and a target effect size, they *choose* which units to treat
 so that a credible synthetic control will exist afterward, and report the
-statistical power of the resulting design. `mlsynth` exposes these as peers of
+statistical power of the resulting design. One member of this family,
+[LEXSCM]{.pkg}, has no implementation anywhere else. It adapts the synthetic
+experimental design of @abadie2026syntheticcontrolsexperimentaldesign -- choosing
+the treated combination lexicographically, validity (pre-treatment fit) ahead of
+power (a small minimum detectable effect) -- with the power machinery and the fast
+small-treated-set algorithm of @vivesibastida2022syntheticexperimentaldesign.
+Because enumerating every candidate treated set is combinatorially hopeless for a
+realistic market pool, it ranks combinations by pre-treatment balance and prunes
+budget-infeasible ones, so the design search scales where exhaustive enumeration
+cannot. `mlsynth` exposes these as peers of
 the estimation methods -- the same configuration-and-fit shape, the same result
 contract -- so that selecting an experiment and, later, analyzing it are two calls
 against one library rather than two separate tools. To our knowledge, no other
