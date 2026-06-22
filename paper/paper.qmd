@@ -362,7 +362,8 @@ synthetic-control designs and prediction intervals; spillovers, relaxing the
 no-interference assumption by running four spillover-aware estimators across two
 case studies through one dispatcher; and experimental design, reproducing Meta's
 `GeoLift` walkthrough and situating it within the broader design family.
-@sec-summary concludes, with computational details to follow.
+@sec-summary concludes, and @sec-computational records the computational and
+reproducibility details.
 
 ## A unified view of synthetic control {#sec-unified}
 
@@ -375,6 +376,18 @@ $N - 1$ units, the *donor pool*, are never treated. Collect the donor outcomes
 in the $T \times (N-1)$ matrix $\mathbf{Y}_0$ and the treated unit's outcomes in
 the $T$-vector $\mathbf{y}_1$. The first $T_0$ rows are the pre-intervention
 window; the remaining $T_1 = T - T_0$ rows are the post-intervention window.
+
+It helps to state the causal target in potential-outcomes terms [@rubin1974;
+@imbens2015causal]. Each unit and period has two potential outcomes: $y_{it}(1)$,
+the outcome were the unit exposed to the intervention, and $y_{it}(0)$, the outcome
+were it not. Only one is ever realized -- the fundamental problem of causal
+inference [@holland1986] -- so for the treated unit after $T_0$ we observe
+$y_{1t} = y_{1t}(1)$, while the quantity the analysis needs, the untreated potential
+outcome $y_{1t}(0)$, is missing. The estimand is the effect on the treated,
+$\tau_t = y_{1t}(1) - y_{1t}(0)$, and its average over the post-treatment window.
+The donor pool is never treated, so its outcomes trace out the untreated regime;
+every estimator below is a way of borrowing that information to impute the missing
+$y_{1t}(0)$, which is what the synthetic control $\hat{y}_{1t}$ below estimates.
 
 Almost every estimator in `mlsynth` rests on the assumption that outcomes are
 governed by a low-dimensional factor model,
@@ -420,17 +433,12 @@ to the unit simplex
 $\mathcal{C}_{\Delta} = \{\mathbf{w} \ge \mathbf{0} : \mathbf{1}^{\top}\mathbf{w} = 1\}$,
 which yields an interpretable, sparse convex combination of donors. The rest of
 the family is, to a first approximation, a catalog of other choices for the four
-objects in @eq-program -- most visibly the admissible set (@tbl-admissible):
-
-| Admissible set $\mathcal{C}$ | Definition | Reading |
-|---|---|---|
-| Simplex | $\mathbf{w}\ge\mathbf{0},\ \mathbf{1}^{\top}\mathbf{w}=1$ | classical convex SC |
-| Non-negative | $\mathbf{w}\ge\mathbf{0}$ | weights need not sum to one |
-| Affine | $\mathbf{1}^{\top}\mathbf{w}=1$ | signed weights, extrapolation allowed |
-| Unit box | $\mathbf{w}\in[0,1]^{N-1}$ | each weight bounded on its own |
-| Unconstrained | $\mathbf{w}\in\mathbb{R}^{N-1}$ | ordinary regression onto donors |
-
-: Admissible weight sets $\mathcal{C}$ that different synthetic-control estimators impose in @eq-program. {#tbl-admissible}
+objects in @eq-program. The most visible is the admissible set $\mathcal{C}$
+itself: relaxing the simplex to merely non-negative weights drops the sum-to-one
+requirement; an affine constraint, $\mathbf{1}^{\top}\mathbf{w}=1$ alone, permits
+signed weights and extrapolation beyond the donors' range; a unit box confines
+each weight to $[0,1]$ on its own; and dropping the constraint altogether leaves
+an ordinary regression of the treated unit onto the donors.
 
 Penalties $\mathcal{P}$ supply the rest: an $\ell_2$ term gives ridge-augmented
 weights, an $\ell_1$ term gives a sparse selection of donors, and an intercept
@@ -513,6 +521,16 @@ config = {
 }
 results = VanillaSC(config).fit()
 ```
+
+The five fields every estimator requires simply name the parts of the panel. `df`
+is the tidy long data frame itself, one row per unit and period. `outcome` names
+the column to be explained -- the variable whose treated-minus-counterfactual gap
+is the object of interest. `treat` names a $0/1$ indicator equal to one for the
+treated unit in its post-intervention periods and zero everywhere else; from it
+alone the package reads which unit is treated and when, so the intervention date
+and the pre/post split need never be stated separately. `unitid` and `time` name
+the columns that identify the unit and the period. Everything past these five is
+method-specific and optional, each carrying its own default.
 
 Switching estimators means changing the class name and, at most, a handful of
 method-specific options; the data, the column names, and the call shape do not
@@ -660,9 +678,37 @@ res.weights.donor_weights               # the fitted donor weights
 res.inference.p_value                   # inference, on the same object
 ```
 
+To make this concrete, the same fields read off a real fit return the numbers
+themselves. Here is [VanillaSC]{.pkg} on the Basque Country data
+[@abadie2003economic], using the outcome-only backend and the debiased
+synthetic-control $t$-test of @chernozhukov2025debiasingttestssyntheticcontrol:
+
+```{python}
+#| label: result-print
+#| echo: false
+basque = pd.read_csv(find_data("basque_data.csv"))
+res = VanillaSC({
+    "df": basque, "outcome": "gdpcap", "treat": "terrorism",
+    "unitid": "regionname", "time": "year",
+    "backend": "outcome-only", "inference": "ttest", "display_graphs": False,
+}).fit()
+```
+
+```{python}
+#| label: result-fields
+pd.Series({
+    "effects.att":         round(res.effects.att, 4),          # average effect
+    "effects.att_percent": round(res.effects.att_percent, 2),  # as a percentage
+    "inference.p_value":   round(res.inference.p_value, 4),    # debiased t-test
+    "inference.ci_lower":  round(res.inference.ci_lower, 4),
+    "inference.ci_upper":  round(res.inference.ci_upper, 4),
+    "inference.method":    res.inference.method,
+})
+```
+
 Because the result shape is fixed, downstream
 code (plotting, tables, comparison across estimators) is written once and works
-for every method. The two illustrations below read effects, time series, and
+for every method. The illustrations below read effects, time series, and
 inference off this common object without any estimator-specific glue.
 
 ## Applications {#sec-applications}
@@ -1089,7 +1135,7 @@ methods comparable, and what lets one library answer both the question of what a
 intervention did and the question of how to design the experiment that will
 measure it.
 
-## Computational details {.unnumbered}
+## Computational details {#sec-computational}
 
 ```{python}
 #| label: versions
