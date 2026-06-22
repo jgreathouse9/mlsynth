@@ -263,9 +263,10 @@ estimator -- the R package `MSCMT` [@becker2018fast] and the bilevel-optimizatio
 analysis of @malo2024computing -- shows that the nested predictor-and-donor problem
 `Synth` solves has a global optimum at which the donor weights coincide with a pure
 outcome fit. `mlsynth` reaches that optimum directly through [VanillaSC]{.pkg}'s
-outcome-only backend: on the canonical Proposition 99 specification it recovers the
-bilevel optimum reported by these solvers -- a Utah weight of $0.3939$ and an
-average treatment effect of $-19.51$ -- to four decimals.
+outcome-only backend, and the match against the reference is exact: fit to the
+California tobacco data, [VanillaSC]{.pkg} and the installed `MSCMT` package agree on
+every donor weight -- Utah $0.3939$, Montana $0.2318$, Nevada $0.2049$, Connecticut
+$0.1091$ -- and on an average treatment effect of $-19.51363$, to five decimals.
 
 A fourth strand changes how donor weights are formed rather than how the simplex is
 solved. `masc` [@kellogg2021combining] is the R implementation of the matching-and-
@@ -329,7 +330,7 @@ source paper's published results at validation time (@tbl-related).
 | `pampe` | R | Hsiao-Ching-Wan panel-data approach | [PDA]{.pkg}, `method="hcw"` | donor set, effect path |
 | `fsPDA` | R | forward-selected PDA | [PDA]{.pkg}, `method="fs"` | $-0.030896$ (5 dp) |
 | `augsynth` | R | augmented (ridge) SCM, covariates, staggered | [VanillaSC]{.pkg}, `augment="ridge"` | $-0.0294/-0.0401$ (6 dp) |
-| `MSCMT` | R | generalized / bilevel SCM | [VanillaSC]{.pkg}, outcome-only backend | bilevel optimum (4 dp) |
+| `MSCMT` | R | generalized / bilevel SCM | [VanillaSC]{.pkg}, outcome-only backend | installed package (5 dp) |
 | `masc` | R | matching + synthetic control | [MASC]{.pkg} | $-\$585$ vs $-\$580$ (paper) |
 | `microsynth` | R | calibrated SCM for micro-level panels | [MicroSynth]{.pkg} | weights vs R package |
 | `causaltensor` | Python | matrix completion, factor models | [MCNNM]{.pkg}, [SNN]{.pkg} | -- |
