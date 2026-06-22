@@ -190,16 +190,82 @@ side by side, swapped for one another with a one-line edit, is that they share a
 common input contract and a common interface -- which is precisely what the library
 exists to provide.
 
-The remainder of the paper is organized as follows. @sec-unified develops the
-shared factor-model view and the resulting taxonomy of estimators. @sec-arch
-describes the library's architecture: the canonical data-preparation contract,
-the Pydantic-validated configuration objects [@pydantic], and the standardized
-result hierarchy. @sec-estimation works through an estimation illustration on the
-California tobacco-control data, comparing three synthetic-control designs and
-attaching prediction intervals. @sec-design works through a design illustration
-that reproduces Meta's `GeoLift` walkthrough and situates it within the broader
-design family. @sec-computational records computational and reproducibility
-details, and @sec-summary concludes.
+The remainder of the paper is organized as follows. @sec-related surveys the
+existing software landscape and where `mlsynth` sits within it. @sec-unified
+develops the shared factor-model view and the resulting taxonomy of estimators.
+@sec-arch describes the library's architecture: the canonical data-preparation
+contract, the Pydantic-validated configuration objects [@pydantic], and the
+standardized result hierarchy. The next three sections illustrate the library by
+problem regime: @sec-estimation estimates the effect on a single treated unit
+from the California tobacco-control data using three synthetic-control designs,
+with prediction intervals; @sec-spillovers relaxes the no-interference
+assumption, running four spillover-aware estimators across two case studies
+through one dispatcher; and @sec-design reproduces Meta's `GeoLift` walkthrough
+and situates it within the broader experimental-design family. @sec-computational
+records computational and reproducibility details, and @sec-summary concludes.
+
+## Related software {#sec-related}
+
+The estimators collected in `mlsynth` are, individually, already well served by
+existing software, and naming the most widely used tools makes the case for a
+unified interface concrete: each is excellent at one method, lives in one
+language, and returns its results in its own format. We focus on four packages
+that between them cover the estimators applied researchers reach for most often.
+
+The original synthetic control method ships as the R package `Synth`
+[@abadie2011synth], itself a paper in this journal. It pairs a [dataprep()]{.fct}
+routine that reshapes a long panel with a [synth()]{.fct} routine that solves the
+nested predictor-weight and donor-weight optimization, together with a small
+family of table and plotting functions. It is the reference implementation of the
+simplex-weighted estimator with predictor matching, which `mlsynth` reproduces as
+[VanillaSC]{.pkg}.
+
+`synth2` [@yan2023synth2] re-implements that estimator in Stata and adds the
+inferential apparatus practitioners want around it: in-space and in-time placebo
+tests, a leave-one-out robustness check, and confidence intervals, with
+publication-ready graphics. In `mlsynth` these are not a separate tool but options
+on the same estimator -- [VanillaSC]{.pkg} with `inference = "placebo"` runs the
+in-space placebo, and `inference = "scpi"` attaches the prediction intervals of
+@cattaneo2021prediction.
+
+`rcm` [@yan2022rcm] implements the panel-data, or regression-control, approach of
+@hsiao2012panel in Stata -- a close relative of synthetic control that predicts
+the treated unit by regression on the donors rather than by a simplex-constrained
+weighting. Its distinctive contribution is a menu of model-selection routines for
+choosing which donors enter: best-subset, lasso, and forward and backward stepwise
+regression, under the AIC, the BIC, and cross-validation. `mlsynth` carries the
+same menu in [PDA]{.pkg}, whose `method` argument selects the Hsiao-Ching-Wan
+best-subset fit, forward selection, the lasso, or an $\ell_2$ relaxation.
+
+`augsynth` [@benmichael2021augmented] is the R implementation of the augmented
+synthetic control method, which corrects a synthetic control whose pre-treatment
+fit is imperfect by adding a ridge-penalized outcome model, accommodates auxiliary
+covariates and staggered adoption, and reports conformal or jackknife-plus
+inference. Its augmentation is the `augment = "ridge"` option on [VanillaSC]{.pkg}
+in `mlsynth`, and the two agree to the sixth decimal: on `augsynth`'s own Kansas
+tax-cut study, `mlsynth` returns an average effect of $-0.029435$ for the
+un-augmented control and $-0.040063$ for the ridge-augmented fit, matching
+`augsynth` value-for-value -- a comparison `mlsynth`'s benchmark suite re-runs
+against the installed package at validation time (@sec-benchmarks).
+
+None of this is a criticism of these tools; each is a capable, well-documented
+implementation of its method. The point is that a researcher who wants to move
+between them -- to weigh a simplex control against a regression-control fit, to add
+augmentation, or to attach prediction intervals -- must today cross two languages,
+learn four data conventions, and reconcile four notions of a result. `mlsynth`
+removes that friction: the four estimators above, and three dozen more, are reached
+through one data-preparation step, one configuration-and-fit call, and one
+standardized result, all in Python (@tbl-related).
+
+| Package | Language | Method implemented | Inference | In `mlsynth` |
+|:--|:--|:--|:--|:--|
+| `Synth` | R | simplex SCM, predictor matching | in-space placebo | [VanillaSC]{.pkg} |
+| `synth2` | Stata | simplex SCM, placebo and robustness tests | in-/in-time placebo, CIs | [VanillaSC]{.pkg}, `inference=` |
+| `rcm` | Stata | regression control / PDA (subset, lasso, stepwise) | in-/in-time placebo | [PDA]{.pkg}, `method=` |
+| `augsynth` | R | augmented (ridge) SCM, covariates, staggered | conformal, jackknife+ | [VanillaSC]{.pkg}, `augment="ridge"` |
+| `mlsynth` | Python | all of the above and roughly forty more | placebo, prediction intervals, conformal | one interface |
+
+: Representative synthetic-control packages and their `mlsynth` equivalents. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across separate packages and two languages. {#tbl-related}
 
 ## A unified view of synthetic control {#sec-unified}
 
