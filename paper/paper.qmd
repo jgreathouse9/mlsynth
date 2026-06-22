@@ -201,9 +201,10 @@ exists to provide.
 The remainder of the paper is organized as follows. @sec-related surveys the
 existing software landscape and where `mlsynth` sits within it. @sec-unified
 develops the shared factor-model view and the resulting taxonomy of estimators.
-@sec-arch describes the library's architecture: the canonical data-preparation
-contract, the Pydantic-validated configuration objects [@pydantic], and the
-standardized result hierarchy. The next three sections illustrate the library by
+@sec-arch describes the library's architecture along the path one call takes: the
+Pydantic-validated configuration object [@pydantic], the one-package-per-estimator
+structure, the internal data-preparation routine, and the standardized result
+hierarchy. The next three sections illustrate the library by
 problem regime: @sec-estimation estimates the effect on a single treated unit
 from the California tobacco-control data using three synthetic-control designs,
 with prediction intervals; @sec-spillovers relaxes the no-interference
@@ -482,44 +483,16 @@ estimation rather than a separate concern, and @sec-design demonstrates it.
 
 ## Architecture {#sec-arch}
 
-The library is organized along two axes. Outward, every estimator shares three
-contracts -- a single data-preparation step, a validated configuration object,
-and a standardized result -- so that learning one estimator teaches the user
-every estimator. Inward, the source obeys one structural rule: one estimator is
-one self-contained package. The two are complementary. The outward contracts keep
-more than forty estimators uniform for the person using them; the inward rule
-keeps them tractable for the people maintaining them. We take the outward
-contracts first, then the structure that sustains them.
+The library is organized so that each piece teaches the next. A user writes one
+configuration, hands it to one estimator, and reads one result; in between, the
+data are prepared -- internally, identically, by one routine the user never calls.
+We follow that path -- config, estimator, data preparation, result -- because it is
+also the order in which the design builds on itself. Two commitments run through
+all four. Outwardly, every estimator presents the same surface, so learning one
+teaches every other. Inwardly, every estimator is its own self-contained package,
+which is what keeps more than forty of them tractable to maintain.
 
-### One data contract {#sec-dataprep}
-
-Panel data arrives in many shapes. Rather than ask each estimator to reshape it,
-`mlsynth` routes all ingestion through one routine, [dataprep]{.fct}, which takes
-a long (tidy) data frame together with the names of its outcome, unit, time, and
-treatment columns, and returns a canonical bundle: the wide outcome matrix, the
-treated vector $\mathbf{y}_1$, the donor matrix $\mathbf{Y}_0$, and the
-pre- and post-treatment period counts $T_0$ and $T_1$. Every estimator consumes
-this same bundle, so the user reshapes the data conceptually once -- by naming
-four columns -- and the heavy lifting of pivoting, alignment, and validation is
-shared and tested in one place.
-
-The implication worth dwelling on is what the user does *not* have to specify. A
-single binary treatment indicator carries all the structure [dataprep]{.fct}
-needs: the unit whose indicator ever turns on is the treated unit, the period in
-which it first turns on is $T_0 + 1$, and everything before that is the
-pre-treatment window. The user never names the treated unit, never states the
-intervention date, and never declares the pre/post split; these are read off the
-indicator. The same convention scales without new arguments -- when several units
-are treated at different times, [dataprep]{.fct} cohorts them by their individual
-adoption dates automatically. This is a deliberate contrast with the surrounding
-ecosystem. The widely used `scpi` package [@cattaneo2025scpi] asks the analyst to
-name the treated unit and to delimit the post-treatment period explicitly; the
-forward-selection `fsPDA` implementation [@shi2023forward] requires the data to be
-pre-pivoted into wide treated-versus-donor matrices before it will run. In
-`mlsynth`, coding the indicator column *is* the specification, and the same long
-data frame drives every one of the more than forty estimators unchanged.
-
-### One configuration-and-fit contract {#sec-config}
+### One config {#sec-config}
 
 Each estimator is driven by a dedicated configuration object built on Pydantic
 [@pydantic], a runtime type-validation library. Configurations forbid unknown
@@ -547,44 +520,58 @@ Switching estimators means changing the class name and, at most, a handful of
 method-specific options; the data, the column names, and the call shape do not
 move. This is the concrete payoff of the unified view in @sec-unified.
 
-### One result contract {#sec-results}
+Because a configuration is plain, validated data rather than live program state,
+the specification of an analysis is itself serializable. Everything in it but the
+DataFrame -- the column names and every method-specific option -- can be written to
+a JSON or YAML file, version-controlled, and loaded back to drive a fit. The record
+of *what* analysis was run thus lives separately from the data it ran on, which
+keeps to its own tabular format (CSV or Parquet); each can be inspected and diffed
+on its own. A reproducible study can therefore ship as a small text specification
+beside its data, with no bespoke script standing between the two. Concretely, the
+configuration above is a few lines of YAML,
 
-Every [fit]{.fct} returns a typed result object drawn from a single hierarchy.
-Observational estimators return an effect result; design methods return a design
-result whose report is itself an effect result. Both populate the same
-standardized sub-objects -- estimated effects, fit diagnostics, the observed and
-counterfactual time series, donor weights, and inference -- as typed fields
-rather than ad hoc dictionaries. Reading a result is therefore the same regardless
-of which estimator produced it:
+```yaml
+# study.yaml -- a complete, shareable analysis specification
+estimator: VanillaSC
+outcome:   cigsale
+treat:     treat        # 0/1 treatment indicator
+unitid:    state
+time:      year
+```
+
+which `mlsynth` reads back into a ready-to-fit estimator, resolving the named
+method and attaching the data at load time:
 
 ```{python}
 #| eval: false
-res = VanillaSC(config).fit()
+from mlsynth import load_spec
 
-res.effects.att                         # average effect on the treated
-res.time_series.counterfactual_outcome  # the synthetic control path
-res.weights.donor_weights               # the fitted donor weights
-res.inference.p_value                   # inference, on the same object
+est = load_spec("study.yaml", df=panel)   # resolves VanillaSC, attaches the panel
+results = est.fit()
 ```
 
-Because the result shape is fixed, downstream
-code (plotting, tables, comparison across estimators) is written once and works
-for every method. The two illustrations below read effects, time series, and
-inference off this common object without any estimator-specific glue.
+The library exposes the writing side symmetrically, as `save_spec`, so a fitted
+configuration can be exported to a record and shared.
 
-### One estimator, one package {#sec-onepackage}
+That this takes only a few lines, and works for every estimator alike, is a
+dividend of the shared contract rather than per-method plumbing: because a
+configuration is data, the estimator is named in its own record, and one
+[fit]{.fct} runs whatever loads, the same uniformity that makes the catalog
+comparable also makes its analyses portable.
 
-The uniformity just described is only affordable because the source is
-partitioned the same way the method catalog is. Each estimator is one package. A
-thin class in `estimators/<name>.py` does nothing but validate its configuration,
-hand off to a pipeline, translate any failure into the library's typed error
-vocabulary, and return the standardized result; [VanillaSC]{.pkg} is seventy-odd
-lines and holds no algorithm of its own. The work lives beside it in a helper
-package, `utils/<name>_helpers/`, split by role -- typically a setup step that
-calls [dataprep]{.fct}, the numerical pipeline, the data structures, a plotter,
-and whatever modules are specific to the method. The configuration object lives
-in that same package, in its own `config.py`, next to the code it governs, and is
-re-exported centrally so that existing imports keep resolving.
+### One estimator {#sec-onepackage}
+
+That uniform surface is only affordable because the source is partitioned the same
+way the method catalog is. Each estimator is one package. A thin class in
+`estimators/<name>.py` does nothing but validate its configuration, hand off to a
+pipeline, translate any failure into the library's typed error vocabulary, and
+return the standardized result; [VanillaSC]{.pkg} is seventy-odd lines and holds no
+algorithm of its own. The work lives beside it in a helper package,
+`utils/<name>_helpers/`, split by role -- typically a setup step that prepares the
+data, the numerical pipeline, the data structures, a plotter, and whatever modules
+are specific to the method. The configuration object lives in that same package, in
+its own `config.py`, next to the code it governs, and is re-exported centrally so
+that existing imports keep resolving.
 
 The motivation is mundane and decisive. The alternative -- the project's own
 earlier design -- is a handful of shared modules that every estimator edits in
@@ -611,6 +598,74 @@ the library gaining several near-duplicate estimators: [SPILLSYNTH]{.pkg} select
 among five spillover-adjustment schemes through a single `method` argument, each
 isolated in its own subpackage. The rule scales the catalog without scaling the
 coupling.
+
+### One dataprep {#sec-dataprep}
+
+Inside that thin estimator class, the first thing to happen is data preparation,
+and it is the one part of the library the analyst never touches. The one thing
+`mlsynth` asks for is a clean, tidy panel -- a long data frame, one row per unit and
+period, prepared by the analyst before any estimator sees it. Ingestion is then
+routed through a single internal routine, [dataprep]{.fct}, which the user never
+calls. It takes the tidy frame together with the names of its outcome, unit, time,
+and treatment columns and returns a canonical bundle -- the wide outcome matrix, the
+treated vector $\mathbf{y}_1$, the donor matrix $\mathbf{Y}_0$, and the pre- and
+post-treatment period counts $T_0$ and $T_1$. Every estimator consumes that same
+bundle, so every data frame is pivoted, aligned, and validated the same way, every
+single time, in one place that is written and tested once. What varies is only what
+the analysis genuinely requires -- whether covariates are supplied, for instance --
+never the mechanics of getting a data frame into an estimator.
+
+The implication worth dwelling on is what the user does *not* have to specify. A
+single binary treatment indicator carries all the structure [dataprep]{.fct} needs:
+the unit whose indicator ever turns on is the treated unit, the period in which it
+first turns on is $T_0 + 1$, and everything before that is the pre-treatment window.
+The user never names the treated unit, never states the intervention date, and never
+declares the pre/post split; these are read off the indicator. The same convention
+scales without new arguments -- when several units are treated at different times,
+[dataprep]{.fct} cohorts them by their individual adoption dates automatically.
+
+This is a deliberate contrast with the surrounding ecosystem, and it surfaces first
+as sheer simplicity at the call site. To get from a data frame to an estimated,
+plotted result with the widely used `scpi` package [@cattaneo2025scpi], the analyst
+imports six separate functions and chains four of them by hand -- `scdata` to
+prepare and reshape the data, then `scest` to estimate, `scpi` to do inference, and
+`scplot` to draw the result -- with the data-preparation step, `scdata`, squarely
+the analyst's job. `tidysynth` [@dunford2021tidysynth], the most ergonomic of the R
+options, still asks for a pipeline of four verbs -- `synthetic_control`,
+`generate_predictor`, `generate_weights`, and `generate_control` -- and then
+separate `grab_*` and `plot_*` calls to recover the weights, the counterfactual,
+and the figures. The forward-selection `fsPDA` implementation [@shi2023forward]
+requires the data to be pre-pivoted into wide treated-versus-donor matrices before
+it will run at all. In `mlsynth` the analyst imports one estimator, builds one
+configuration, and calls [fit]{.fct} once; there is no preparation function to
+find, import, configure, or call. Coding the indicator column *is* the
+specification, and the same long data frame drives every one of the more than
+forty estimators unchanged.
+
+### One result {#sec-results}
+
+Every [fit]{.fct} returns a typed result object drawn from a single hierarchy.
+Observational estimators return an effect result; design methods return a design
+result whose report is itself an effect result. Both populate the same
+standardized sub-objects -- estimated effects, fit diagnostics, the observed and
+counterfactual time series, donor weights, and inference -- as typed fields
+rather than ad hoc dictionaries. Reading a result is therefore the same regardless
+of which estimator produced it:
+
+```{python}
+#| eval: false
+res = VanillaSC(config).fit()
+
+res.effects.att                         # average effect on the treated
+res.time_series.counterfactual_outcome  # the synthetic control path
+res.weights.donor_weights               # the fitted donor weights
+res.inference.p_value                   # inference, on the same object
+```
+
+Because the result shape is fixed, downstream
+code (plotting, tables, comparison across estimators) is written once and works
+for every method. The two illustrations below read effects, time series, and
+inference off this common object without any estimator-specific glue.
 
 ## A single treated unit {#sec-estimation}
 
