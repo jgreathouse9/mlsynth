@@ -34,9 +34,11 @@ abstract: |
   synthetic-control variants and attaches Cattaneo, Feng, and Titiunik prediction
   intervals. The second relaxes the no-interference assumption, running four
   spillover-aware estimators -- each otherwise a separate codebase -- across two
-  case studies through a single dispatcher. The third reproduces, to within
-  numerical tolerance, Meta's published `GeoLift` geo-experiment walkthrough, and
-  shows how the same interface exposes the broader experimental-design family.
+  case studies through a single dispatcher. The third turns from estimation to
+  design: using the MAREX estimator -- the first packaged implementation of
+  synthetic-control experimental design -- it reproduces Abadie and Zhao's
+  simulation, choosing which units to treat before the experiment and recovering
+  a known effect, and exposes the broader design family behind the same interface.
 keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
 keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
 bibliography: paper.bib
@@ -68,7 +70,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import mlsynth
-from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH, GEOLIFT
+from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH
 from mlsynth.utils.plotting import apply_mlsynth_style
 
 apply_mlsynth_style()                                     # mlsynth house style for every figure
@@ -350,8 +352,9 @@ hierarchy. @sec-applications then illustrates the library by problem regime: a
 single treated unit on the California tobacco-control data, estimated with three
 synthetic-control designs and prediction intervals; spillovers, relaxing the
 no-interference assumption by running four spillover-aware estimators across two
-case studies through one dispatcher; and experimental design, reproducing Meta's
-`GeoLift` walkthrough and situating it within the broader design family.
+case studies through one dispatcher; and experimental design, using MAREX to
+design an experiment on Abadie and Zhao's simulation -- recovering a known
+treatment effect -- and situating it within the broader design family.
 @sec-summary concludes, and @sec-computational records the computational and
 reproducibility details.
 
@@ -974,131 +977,178 @@ behind one interface.
 
 ### Experimental design {#sec-design}
 
-The second illustration moves to the design question, where `mlsynth` reaches
-capability that the surrounding ecosystem has not packaged for practitioners. We
-reproduce the public walkthrough of Meta's `GeoLift` framework [@geolift], a
-widely used industry tool for geographic marketing experiments. The walkthrough
-ships a panel of 40 markets observed over 105 days and asks: if we run a
-geo-experiment in two cities, can we recover the lift, and is it significant?
-`GeoLift` answers this with an augmented synthetic control
-[@benmichael2021augmented] and conformal inference [@chernozhukov2021conformal].
+The first two illustrations were *retrospective*. The treatment had already
+happened, and the estimator's job was to reconstruct, after the fact, the
+counterfactual path of a unit that was treated whether or not a good comparison
+existed for it. The third regime inverts the order of operations. Here the
+experiment has not run yet, and the question is one of *design*: of all the
+units we could treat, which ones should we, and which should we hold back as
+controls, so that a credible comparison will exist once the experiment is over?
+The data are the same shape as before -- a panel of units over time -- but the
+decision has moved from after the intervention to before it, and that makes it a
+genuinely different problem. In the familiar retrospective setting the treated
+unit is given and the analyst is a price-taker on assignment; here the
+assignment is the thing being chosen, and choosing it well is what makes the
+eventual estimate trustworthy.
 
-We load the same public test panel, mark the final 15 days as the
-post-intervention window, and drive the [GEOLIFT]{.pkg} estimator exactly as a
-user would -- forcing the walkthrough's two treated markets (Chicago and
-Portland) through the configuration.
+This is the problem the MAREX estimator solves
+[@abadie2026syntheticcontrolsexperimentaldesign]. The motivating setting is a
+firm -- a ride-sharing platform, a retailer -- that can switch on a new policy
+only in a handful of whole markets, because the market is the unit of
+intervention. Randomly assigning markets to treatment is unbiased on average,
+but with a few large, heterogeneous units a single random draw routinely lands
+on treated and control groups whose baselines look nothing alike, and the one
+experiment you run is the one realization you are stuck with. MAREX instead
+*chooses* the treated and control markets up front so that their pre-experiment
+characteristics reproduce the population's -- a deliberately non-randomized
+design that, the paper proves, sharply reduces the bias of the effect you will
+later estimate. To our knowledge `mlsynth` is the first package to make this
+method available off the shelf.
 
-```{python}
-#| label: load-geolift
-geo = pd.read_csv(find_data("geolift_test_data.csv"))
-dates = sorted(geo["date"].unique())
-PRE = 90
-geo["post"] = geo["date"].isin(set(dates[PRE:])).astype(int)
+Choosing the two groups is combinatorial: each unit may go into the treated set,
+the control set, or neither, and the two synthetic units must each reproduce the
+population predictor mean. `mlsynth` casts the choice exactly as the paper does
+-- a mixed-integer quadratic program, with a binary indicator for each unit's
+assignment and simplex weights within each group -- and solves it with the
+open-source SCIP solver (the paper used commercial Gurobi). The analyst never
+sees the program: it is assembled and solved inside `fit` from the same
+five-field configuration every other estimator takes.
 
-
-def geolift_fit(augment):
-    cfg = {
-        "df": geo, "outcome": "Y", "unitid": "location", "time": "date",
-        "treatment_size": 2, "to_be_treated": ["chicago", "portland"],
-        "durations": [len(dates) - PRE], "effect_sizes": [0.0, 0.10],
-        "lookback_window": 1, "post_col": "post", "how": "mean",
-        "augment": augment, "fixed_effects": True, "power_threshold": 0.8,
-        "alpha": 0.1, "ns": 2000, "seed": 0, "conformal_type": "iid",
-        "display_graphs": False,
-    }
-    return GEOLIFT(cfg).fit()
-```
-
-`GeoLift`'s walkthrough prints two summaries: a base, unaugmented model and a
-ridge-augmented "best" model. We run both through the one interface.
-
-```{python}
-#| label: fit-geolift
-base_geo = geolift_fit(None).report
-ridge_geo = geolift_fit("ridge").report
-
-geo_base_att = float(base_geo.effects.att)
-geo_ridge_att = float(ridge_geo.effects.att)
-geo_p = float(base_geo.inference.p_value)
-```
-
-#### Reproducing the published numbers {#sec-geolift-repro}
-
-The walkthrough reports an average treatment effect of 155.556 for the base model
-and 156.805 for the ridge-augmented model, with a conformal $p$-value rounding to
-0.01. `mlsynth`, driven through its public interface, returns
-`{python} f"{geo_base_att:.3f}"` and `{python} f"{geo_ridge_att:.3f}"` for the two
-models and a $p$-value of `{python} f"{geo_p:.3f}"`. These match the published
-figures to the third decimal -- the point estimate, the augmentation, and the
-inference all reproduce. The full benchmark, which additionally pins the percent
-lift, the L2 imbalance, the scaled imbalance, the percent improvement over the
-naive model, and all thirteen donor weights against the vignette's printed
-tables, ships with the library as a durable regression test.
+Because MAREX commits to a design before any effect is observed, we can hold it
+to a standard the retrospective estimators cannot meet: a simulation in which
+the right answer is known. We draw one panel from the paper's own
+data-generating process -- `{python} J` markets over `{python} T` weeks, the
+first `{python} T0` of them pre-experiment, generated from a linear factor model
+with seven observed covariates and eleven latent factors (Abadie and Zhao,
+Section 5) -- using `mlsynth`'s reimplementation of that DGP, and hand MAREX only
+the pre-experiment outcomes.
 
 ```{python}
-#| label: tbl-geolift
-#| echo: false
-#| tbl-cap: "mlsynth reproduces the GeoLift walkthrough's published summaries."
-tab = pd.DataFrame(
-    {
-        "GeoLift (published)": [155.556, 156.805, 0.01],
-        "mlsynth": [round(geo_base_att, 3), round(geo_ridge_att, 3), round(geo_p, 3)],
-    },
-    index=["Base ATT", "Ridge-augmented ATT", "Conformal p-value"],
-)
-tab
+#| label: marex-design
+from mlsynth import MAREX
+from mlsynth.utils.marex_helpers.simulation import generate_marex_sample
+from mlsynth.utils.marex_helpers.plotter import plot_marex
+
+rng = np.random.default_rng(7)
+sample = generate_marex_sample(J=15, R=7, F=11, T=30, T0=25, sigma=1.0, rng=rng)
+J, T = sample.Y_N.shape
+T0 = sample.T0
+
+def panel(Y):                          # tidy long frame from a (market x week) matrix
+    return pd.DataFrame([{"market": f"m{j:02d}", "week": t, "sales": float(Y[j, t])}
+                         for j in range(J) for t in range(T)])
+
+cfg = {"outcome": "sales", "unitid": "market", "time": "week",
+       "T0": T0, "blank_periods": 5, "T_post": 5,
+       "m_min": 1, "m_max": J - 1,     # unconstrained: any 1..J-1 markets may be treated
+       "design": "standard", "inference": True, "display_graph": False}
+
+design = MAREX({**cfg, "df": panel(sample.Y_N)}).fit()   # choose the experiment, pre-period only
+treated = sorted(design.treated_units)
 ```
 
-The donor weights are exposed exactly as in the estimation illustration, under
-`weights.donor_weights`. For the ridge-augmented model they reproduce the
-markets and weights printed in the vignette's own weight table
-(@tbl-geolift-weights) -- Cincinnati, Miami, Baton Rouge, and the rest of the
-synthetic test region.
+We ask for the *unconstrained* design -- any number of treated markets from one
+to `{python} J - 1`, letting the optimizer decide how many -- because the paper's
+own simulations find that allowing more treated units improves the design. On
+this draw it selects `{python} len(treated)` of the `{python} J` markets to
+treat and builds a synthetic control from the rest. The experiment then runs:
+the chosen markets realize their treated outcomes, while everyone else stays
+untreated. Re-reading the same design against that realized panel -- the design
+is fixed by the pre-experiment window, so it selects the same markets -- turns
+the *design* into the *analysis*.
 
 ```{python}
-#| label: tbl-geolift-weights
-#| tbl-cap: "Donor-market weights of the ridge-augmented GeoLift model (`ridge_geo.weights.donor_weights`), matching the walkthrough; negligible-weight markets omitted."
-geo_weights = pd.Series(ridge_geo.weights.donor_weights, name="weight")
-geo_weights = geo_weights[geo_weights > 1e-4].sort_values(ascending=False).head(13)
-geo_weights.round(4).rename_axis("donor market").to_frame()
+#| label: fig-marex
+#| fig-cap: "MAREX's own design diagnostic, drawn by the library, with the donor cloud overlaid -- a reproduction of Abadie and Zhao's Figure 4. The faint lines are the individual simulated markets; the bold dashed and dotted series are the synthetic treated and synthetic control the design built from pre-experiment data alone. They track through the fitting window and the shaded blank periods, then separate after the experiment begins at week 25 as the treated markets realize their treated outcomes -- the gap being the estimated effect."
+w = design.globres.treated_weights_agg
+v = design.globres.control_weights_agg
+chosen = np.where(w > 1e-8)[0]
+realized = sample.Y_N.copy()
+realized[chosen, T0:] = sample.Y_I[chosen, T0:]          # treated markets realize Y^I
+
+experiment = MAREX({**cfg, "df": panel(realized)}).fit()  # same design, read post-experiment
+plot_marex(experiment, plot_type="prediction", donor_cloud=True, figsize=(7, 3.6))
 ```
 
-That `mlsynth` reproduces `GeoLift` exactly is the starting point, not the
-finish. The point-fit estimator and the conformal inference are held fixed to
-match `GeoLift`'s methodology faithfully -- they are not knobs to be swapped for
-arbitrary alternatives. What `mlsynth` adds is a far richer language for
-constraining *which markets the experiment may treat*. Through the same
-configuration dictionary, the analyst can forbid or force particular markets,
-declare interference clusters and a spillover-adjacency matrix so that mutually
-contaminating markets are never split across the test and control groups, impose
-stratum coverage quotas (at least and at most so many treated markets per region,
-tier, or segment), restrict the treated set to a size band, and cap the design by
-cost-per-incremental-conversion and budget. These are formulations the upstream
-tool does not expose, reached without leaving the interface.
+@fig-marex is MAREX's own diagnostic, drawn by the library. What a good design
+buys is visible in it directly: through the fitting window and the held-out
+blank periods the synthetic treated and synthetic control sit almost on top of
+each other -- two groups that were behaving identically before the experiment --
+and only after week `{python} T0` do they separate, when the treated markets
+turn on.
+
+```{python}
+#| label: marex-numbers
+#| include: false
+tau_hat = (w @ realized - v @ realized)[T0:]
+tau_true = sample.tau[T0:]
+mae = float(np.mean(np.abs(tau_hat - tau_true)))
+scale = float(np.mean(np.abs(tau_true)))
+pf = experiment.post_fit
+```
+
+Because this is a simulation the true effect is known, and the design recovers
+it: the mean absolute error of the per-period effect is `{python} f"{mae:.2f}"`
+against an effect whose own scale is `{python} f"{scale:.1f}"` -- under a tenth
+-- and the two synthetic series track to a pre-experiment fit RMSE of
+`{python} f"{float(pf.rmse_fit):.2f}"`. The result reads like every other
+estimator's; because MAREX designs an experiment it returns a *design* result,
+whose `report` is the realized effect and whose `post_fit` carries the
+diagnostics.
+
+```{python}
+#| label: marex-fields
+pd.Series({
+    "report.att":           round(experiment.report.att, 2),   # realized effect
+    "post_fit.ate_percent": round(pf.ate_percent, 1),          # ... as a percentage
+    "post_fit.rmse_fit":    round(pf.rmse_fit, 2),             # pre-experiment tracking
+    "post_fit.p_value":     round(pf.p_value, 3),              # permutation test
+    "post_fit.ci_lower":    round(pf.ci_lower, 2),             # conformal band
+    "post_fit.ci_upper":    round(pf.ci_upper, 2),
+})
+```
+
+The inference is where the design pays off again, and where `mlsynth` goes past
+the paper. MAREX reports a permutation $p$-value for the global null of no effect
+(`{python} f"{float(pf.p_value):.3f}"` on this draw) and a split-conformal
+confidence band [@chernozhukov2021conformal] around each period's effect, both
+built on the blank periods -- pre-experiment weeks deliberately withheld from the
+fit, where the synthetic-treated-minus-control gap is pure noise and so
+calibrates the size of a null fluctuation. The paper develops this permutation
+machinery but stops short of the prospective question a designer most wants
+answered: how large an effect could this design detect, and for how long must
+the experiment run to detect it? `mlsynth` fills that gap with an analytical
+minimum detectable effect, computed from the same blank-period residuals but
+inflated for the serial correlation that synthetic-control gaps almost always
+carry (an AR(1) variance-inflation factor), and reported on `res.post_fit.power`
+as both a headline number and a curve over candidate horizons; the derivation is
+laid out on the estimator's documentation page
+(<https://mlsynth.readthedocs.io/en/latest/marex.html>). The point worth keeping
+is that the design, the estimate, the permutation test, the conformal band, and
+the power curve all fall out of one `fit` -- the first time, as far as we know,
+that this design-and-analyze workflow has been packaged for applied use.
 
 #### The broader design family {#sec-design-family}
 
-The `GeoLift` reproduction is one entry point into a family of
-experimental-design estimators that `mlsynth` packages together. Where `GeoLift`
-fixes the treated units and asks whether an effect can be recovered, the design
-method of @syndes inverts the problem: given a pool
-of candidate units and a target effect size, it *chooses* which units to treat
-so that a credible synthetic control will exist afterward, and reports the
-statistical power of the resulting design. One member of this family,
-[LEXSCM]{.pkg}, has no implementation anywhere else. It adapts the synthetic
-experimental design of @abadie2026syntheticcontrolsexperimentaldesign -- choosing
-the treated combination lexicographically, validity (pre-treatment fit) ahead of
-power (a small minimum detectable effect) -- with the power machinery and the fast
-small-treated-set algorithm of @vivesibastida2022syntheticexperimentaldesign.
-Because enumerating every candidate treated set is combinatorially hopeless for a
-realistic market pool, it ranks combinations by pre-treatment balance and prunes
-budget-infeasible ones, so the design search scales where exhaustive enumeration
-cannot. `mlsynth` exposes these as peers of
-the estimation methods -- the same configuration-and-fit shape, the same result
-contract -- so that selecting an experiment and, later, analyzing it are two calls
-against one library rather than two separate tools. To our knowledge, no other
-package places this design family alongside the full estimation catalog behind a
-common interface.
+MAREX is one member of a family of experimental-design estimators that `mlsynth`
+packages together, all sharing the configure-and-fit shape and the standardized
+result used above. Where MAREX matches the population mean by solving a single
+mixed-integer program, the design method of @syndes takes a target effect size
+and *chooses* the treated set so that a credible synthetic control will exist
+afterward, reporting the power of the result; and [LEXSCM]{.pkg}, which has no
+implementation anywhere else, adapts the synthetic experimental design of
+@abadie2026syntheticcontrolsexperimentaldesign -- choosing the treated
+combination lexicographically, validity (pre-treatment fit) ahead of power (a
+small minimum detectable effect) -- with the fast small-treated-set algorithm of
+@vivesibastida2022syntheticexperimentaldesign, ranking combinations by balance
+and pruning budget-infeasible ones so the search scales where exhaustive
+enumeration cannot. `mlsynth` also reproduces Meta's industry `GeoLift`
+geo-experiment walkthrough [@geolift] to within numerical tolerance, shipped as a
+durable benchmark, so one interface spans the academic and industrial corners of
+the design literature. Selecting an experiment and, later, analyzing it are two
+calls against one library rather than two separate tools -- and to our knowledge
+no other package places this design family alongside the full estimation catalog
+behind a common interface.
 
 ## Summary {#sec-summary}
 
@@ -1115,10 +1165,11 @@ estimator on the California data, each run as its authors prescribed yet reached
 by a one-line change of class against an unchanged data frame. Relaxing the
 no-interference assumption becomes a loop: four spillover-aware estimators,
 otherwise four separate codebases in another language, run across two case studies
-behind one keyword. And design becomes available at all: the library reproduces
-Meta's
-`GeoLift` walkthrough to within numerical tolerance and then opens it onto a
-broader experimental-design family that the surrounding ecosystem has never
+behind one keyword. And design becomes available at all: MAREX -- the first
+packaged synthetic-control experimental design -- chooses an experiment on Abadie
+and Zhao's simulation and recovers the known effect through the same
+configure-and-fit interface and standardized result as every estimator before
+it, opening onto a broader design family the surrounding ecosystem has never
 packaged for applied users. The value of having all of this in one place is not
 convenience but capability: a single, validated interface is what makes forty
 methods comparable, and what lets one library answer both the question of what an
