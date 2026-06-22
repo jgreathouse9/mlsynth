@@ -18,7 +18,8 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .simplex import mspe, project_simplex, simplex_lstsq
+from .simplex import mspe, project_simplex
+from .ridge_augment import simplex_qp
 from .structure import BilevelProblem
 
 _EPS = 1e-12
@@ -59,7 +60,10 @@ def _lower_level_weights(prob: BilevelProblem, V: np.ndarray, eps: float) -> np.
     sq = np.sqrt(np.clip(V, 0.0, None))
     A = np.vstack([sq[:, None] * prob.X0, np.sqrt(eps) * prob.Y0_pre])
     b = np.concatenate([sq * prob.X1, np.sqrt(eps) * prob.y1_pre])
-    return simplex_lstsq(A, b)
+    # Exact active-set QP, not the FISTA primitive: the latter under-converges
+    # on long pre-periods, which on Prop 99 misses the Malo et al. (2024)
+    # corner optimum (Utah 0.3939) and lands at a sub-optimal interior point.
+    return simplex_qp(A, b)
 
 
 def unconstrained_feasibility(
@@ -73,7 +77,7 @@ def unconstrained_feasibility(
     is the basis vector on the best-matched predictor; if that predictor's
     discrepancy is ~0, ``W_unc`` is the global bilevel solution.
     """
-    W_unc = simplex_lstsq(prob.Y0_pre, prob.y1_pre, warn=True)
+    W_unc = simplex_qp(prob.Y0_pre, prob.y1_pre)
     lower_bound = mspe(prob.y1_pre, prob.Y0_pre, W_unc)
 
     resid = prob.X1 - prob.X0 @ W_unc            # (K,)
