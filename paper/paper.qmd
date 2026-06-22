@@ -493,15 +493,19 @@ contracts first, then the structure that sustains them.
 
 ### One data contract {#sec-dataprep}
 
-Panel data arrives in many shapes. Rather than ask each estimator to reshape it,
-`mlsynth` routes all ingestion through one routine, [dataprep]{.fct}, which takes
-a long (tidy) data frame together with the names of its outcome, unit, time, and
-treatment columns, and returns a canonical bundle: the wide outcome matrix, the
-treated vector $\mathbf{y}_1$, the donor matrix $\mathbf{Y}_0$, and the
-pre- and post-treatment period counts $T_0$ and $T_1$. Every estimator consumes
-this same bundle, so the user reshapes the data conceptually once -- by naming
-four columns -- and the heavy lifting of pivoting, alignment, and validation is
-shared and tested in one place.
+The data contract is, in one sentence, that the analyst never touches it. The one
+thing `mlsynth` asks for is a clean, tidy panel -- a long data frame, one row per
+unit and period, prepared by the analyst before any estimator sees it. From there
+the library takes over: ingestion is routed through a single internal routine,
+[dataprep]{.fct}, which the user never calls. It takes the tidy frame together
+with the names of its outcome, unit, time, and treatment columns and returns a
+canonical bundle -- the wide outcome matrix, the treated vector $\mathbf{y}_1$,
+the donor matrix $\mathbf{Y}_0$, and the pre- and post-treatment period counts
+$T_0$ and $T_1$. Every estimator consumes that same bundle, so every data frame is
+pivoted, aligned, and validated the same way, every single time, in one place that
+is written and tested once. What varies is only what the analysis genuinely
+requires -- whether covariates are supplied, for instance -- never the mechanics
+of getting a data frame into an estimator.
 
 The implication worth dwelling on is what the user does *not* have to specify. A
 single binary treatment indicator carries all the structure [dataprep]{.fct}
@@ -511,13 +515,21 @@ pre-treatment window. The user never names the treated unit, never states the
 intervention date, and never declares the pre/post split; these are read off the
 indicator. The same convention scales without new arguments -- when several units
 are treated at different times, [dataprep]{.fct} cohorts them by their individual
-adoption dates automatically. This is a deliberate contrast with the surrounding
-ecosystem. The widely used `scpi` package [@cattaneo2025scpi] asks the analyst to
-name the treated unit and to delimit the post-treatment period explicitly; the
-forward-selection `fsPDA` implementation [@shi2023forward] requires the data to be
-pre-pivoted into wide treated-versus-donor matrices before it will run. In
-`mlsynth`, coding the indicator column *is* the specification, and the same long
-data frame drives every one of the more than forty estimators unchanged.
+adoption dates automatically.
+
+This is a deliberate contrast with the surrounding ecosystem, and it surfaces first
+as sheer simplicity at the call site. To get from a data frame to an estimated,
+plotted result with the widely used `scpi` package [@cattaneo2025scpi], the analyst
+imports six separate functions and chains four of them by hand -- `scdata` to
+prepare and reshape the data, then `scest` to estimate, `scpi` to do inference, and
+`scplot` to draw the result -- with the data-preparation step, `scdata`, squarely
+the analyst's job. The forward-selection `fsPDA` implementation [@shi2023forward]
+requires the data to be pre-pivoted into wide treated-versus-donor matrices before
+it will run at all. In `mlsynth` the analyst imports one estimator, builds one
+configuration, and calls [fit]{.fct} once; there is no preparation function to
+find, import, configure, or call. Coding the indicator column *is* the
+specification, and the same long data frame drives every one of the more than
+forty estimators unchanged.
 
 ### One configuration-and-fit contract {#sec-config}
 
