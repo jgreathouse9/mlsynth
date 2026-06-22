@@ -318,8 +318,8 @@ package, and reconcile as many notions of a result. `mlsynth` is, to our knowled
 the first comprehensive Python library for this family: every estimator named above,
 and roughly forty more, is reached through one data-preparation step, one
 configuration-and-fit call, and one standardized result, with the numerical matches
-above re-run against the installed reference packages at validation time
-(@tbl-related).
+above either re-run against the installed reference package or reproduced from the
+source paper's published results at validation time (@tbl-related).
 
 | Package | Language | Method implemented | In `mlsynth` | Checked |
 |:--|:--|:--|:--|:--|
@@ -340,7 +340,7 @@ above re-run against the installed reference packages at validation time
 | `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | -- |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | -- |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation numerically (@sec-benchmarks). {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically (@sec-benchmarks). {#tbl-related}
 
 ## A unified view of synthetic control {#sec-unified}
 
