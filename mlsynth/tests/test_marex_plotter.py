@@ -10,6 +10,8 @@ blank-period ``axvspan`` shading.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -157,3 +159,56 @@ def test_no_blank_period_shading():
 def test_explicit_cluster_subset_no_global():
     res = _results(cluster_labels=["1", "2"])
     plot_marex(res, clusters=["1"], global_result=False)
+
+
+# ---------------------------------------------------------------------------
+# donor_cloud: overlay the individual unit trajectories (the "Figure 4" cloud)
+# ---------------------------------------------------------------------------
+
+def test_donor_cloud_overlays_units_on_global_prediction():
+    # On the global prediction panel, donor_cloud=True draws one faint line per
+    # unit (rows of globres.Y_full) behind the two synthetic series.
+    res = _results(cluster_labels=["0"])               # lone "0" -> global panel only
+    plot_marex(res, plot_type="prediction", donor_cloud=False)
+    base = len(plt.gcf().axes[0].lines)
+    plt.close("all")
+    plot_marex(res, plot_type="prediction", donor_cloud=True)
+    ax = plt.gcf().axes[0]
+    J = res.globres.Y_full.shape[0]
+    assert len(ax.lines) == base + J
+    # the cloud is drawn first, faint gray, and behind the synthetic series
+    assert ax.lines[0].get_color() == "0.8"
+    assert ax.lines[0].get_zorder() < ax.lines[-1].get_zorder()
+
+
+def test_donor_cloud_defaults_off():
+    res = _results(cluster_labels=["0"])
+    plot_marex(res, plot_type="prediction")            # default donor_cloud=False
+    assert len(plt.gcf().axes[0].lines) == 2           # synthetic treated + control only
+
+
+def test_donor_cloud_ignored_in_treatment_mode():
+    # the cloud is an outcome overlay; on the effect (treatment) plot it is a no-op
+    res = _results(cluster_labels=["0"])
+    plot_marex(res, plot_type="treatment", donor_cloud=False)
+    base = len(plt.gcf().axes[0].lines)
+    plt.close("all")
+    plot_marex(res, plot_type="treatment", donor_cloud=True)
+    assert len(plt.gcf().axes[0].lines) == base
+
+
+def test_donor_cloud_empty_matrix_no_error():
+    # a design with no units to overlay adds no cloud lines and does not raise
+    res = _results(cluster_labels=["0"])
+    T = res.globres.synthetic_treated.shape[0]
+    glob = replace(res.globres, Y_full=np.empty((0, T)))
+    res2 = MAREXResults(clusters=res.clusters, study=res.study, globres=glob)
+    plot_marex(res2, plot_type="prediction", donor_cloud=True)
+    assert len(plt.gcf().axes[0].lines) == 2
+
+
+def test_donor_cloud_from_fit_prediction():
+    res = MAREX({"df": _panel(), "outcome": "y", "unitid": "unit",
+                 "time": "time", "T0": 10, "m_eq": 2}).fit()
+    plot_marex(res, plot_type="prediction", donor_cloud=True)
+    assert len(plt.gcf().axes[0].lines) > 2            # cloud + the two synthetics

@@ -22,6 +22,7 @@ def plot_marex(
     plot_type: str = "treatment",
     global_result: bool = True,
     figsize: tuple = (12, 6),
+    donor_cloud: bool = False,
 ) -> None:
     """Plot MAREX treatment effects (or predictions), one panel per cluster + global.
 
@@ -35,6 +36,12 @@ def plot_marex(
         Plot the treated-minus-control effect, or both synthetic series.
     global_result : bool
         Include the aggregate (global) panel.
+    donor_cloud : bool
+        On the global ``"prediction"`` panel, overlay one faint line per unit
+        (the rows of ``results.globres.Y_full``) behind the synthetic treated
+        and control series -- the "observed data" cloud of Abadie & Zhao's
+        Figure 4. Ignored on the ``"treatment"`` (effect) plot and on cluster
+        panels, which carry no per-unit outcome matrix.
     """
     with plt.rc_context(_STYLE):
         if clusters is None:
@@ -48,7 +55,7 @@ def plot_marex(
         if n == 1:
             axes = [axes]
 
-        def _panel(ax, syn_t, syn_c, prefix, inf):
+        def _panel(ax, syn_t, syn_c, prefix, inf, cloud=None):
             if plot_type == "treatment":
                 y = syn_t - syn_c
                 ax.plot(y, label=prefix)
@@ -57,8 +64,11 @@ def plot_marex(
                     ax.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1], alpha=0.2)
                 ax.set_ylabel("Treatment effect")
             else:
-                ax.plot(syn_t, ls="--", label=f"{prefix} treated")
-                ax.plot(syn_c, ls=":", label=f"{prefix} control")
+                if donor_cloud and cloud is not None:
+                    for series in cloud:
+                        ax.plot(series, color="0.8", lw=0.6, zorder=1)
+                ax.plot(syn_t, ls="--", label=f"{prefix} treated", zorder=3)
+                ax.plot(syn_c, ls=":", label=f"{prefix} control", zorder=3)
                 ax.set_ylabel("Outcome")
             ax.legend()
 
@@ -69,7 +79,8 @@ def plot_marex(
             i += 1
         if global_result:
             g = results.globres
-            _panel(axes[i], g.synthetic_treated, g.synthetic_control, "Global", g.inference)
+            _panel(axes[i], g.synthetic_treated, g.synthetic_control, "Global", g.inference,
+                   cloud=g.Y_full)
 
         T0, bp = results.study.T0, results.study.blank_periods
         if bp > 0:
