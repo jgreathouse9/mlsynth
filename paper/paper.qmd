@@ -122,7 +122,7 @@ synthetic-difference-in-differences estimator [@arkhangelsky2021synthetic]. A
 parallel and newer literature inverts the question entirely: instead of building
 a counterfactual after an intervention, *experimental-design* methods choose
 which units to treat, and for how long, so that a credible synthetic control
-will exist when the experiment is over [@syndes; @doudchenko2021synthetic]. Meta's
+will exist when the experiment is over [@syndes]. Meta's
 `GeoLift` framework [@geolift] brought this design-first idea to industry
 practice for geographic marketing experiments.
 
@@ -474,7 +474,7 @@ synthetic control requires donors whose loadings can reconstruct the treated
 unit, then -- before running an experiment -- one can ask which candidate units
 *should* be treated so that the remaining units form a good donor pool, and how
 long the experiment must run to detect an effect of a given size. The
-design-first methods [@syndes; @doudchenko2021synthetic] solve exactly this
+design-first methods [@syndes] solve exactly this
 problem, turning the estimation machinery around: the same fit quality that
 validates a synthetic control after the fact becomes the objective that selects
 treatment units beforehand. `mlsynth` treats design as a first-class peer of
@@ -927,9 +927,9 @@ tool does not expose, reached without leaving the interface.
 The `GeoLift` reproduction is one entry point into a family of
 experimental-design estimators that `mlsynth` packages together. Where `GeoLift`
 fixes the treated units and asks whether an effect can be recovered, the design
-methods of @syndes and @doudchenko2021synthetic invert the problem: given a pool
-of candidate units and a target effect size, they *choose* which units to treat
-so that a credible synthetic control will exist afterward, and report the
+method of @syndes inverts the problem: given a pool
+of candidate units and a target effect size, it *chooses* which units to treat
+so that a credible synthetic control will exist afterward, and reports the
 statistical power of the resulting design. One member of this family,
 [LEXSCM]{.pkg}, has no implementation anywhere else. It adapts the synthetic
 experimental design of @abadie2026syntheticcontrolsexperimentaldesign -- choosing
