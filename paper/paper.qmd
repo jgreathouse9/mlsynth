@@ -232,7 +232,7 @@ options on the same estimator -- [VanillaSC]{.pkg} with `inference = "placebo"`
 runs the in-space placebo and `inference = "scpi"` attaches the prediction
 intervals of @cattaneo2021prediction. Two further options go beyond what `synth2`
 offers, and neither has a packaged implementation in Python: `inference = "lto"`
-runs the leave-two-out refined placebo test of @leisudijono2025refined, far more
+runs the leave-two-out refined placebo test of @lei2025inferencesyntheticcontrolsrefined, far more
 powerful than the ordinary placebo in small donor pools, and `inference = "ttest"`
 applies the debiased synthetic-control t-test for the ATT of
 @chernozhukov2025debiasingttestssyntheticcontrol, ported
