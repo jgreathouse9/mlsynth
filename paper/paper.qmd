@@ -98,8 +98,8 @@ mlsynth_version = mlsynth.__version__ if hasattr(mlsynth, "__version__") else "1
 
 ## Introduction {#sec-intro}
 
-A recurring problem in applied work is estimating what would have happened to a
-single unit -- a state, a country, a market, a product line -- had some
+A recurring problem in econometrics, marketing measurement, and policy analysis
+is estimating what would have happened to a single unit -- a state, a country, a market, a product line -- had some
 intervention not occurred. Randomized experiments are usually impossible at this
 level of aggregation: there is one California, and it either passed an
 anti-smoking proposition or it did not. The synthetic control method
@@ -122,7 +122,7 @@ synthetic-difference-in-differences estimator [@arkhangelsky2021synthetic]. A
 parallel and newer literature inverts the question entirely: instead of building
 a counterfactual after an intervention, *experimental-design* methods choose
 which units to treat, and for how long, so that a credible synthetic control
-will exist when the experiment is over [@syndes; @doudchenko2021synthetic]. Meta's
+will exist when the experiment is over [@syndes]. Meta's
 `GeoLift` framework [@geolift] brought this design-first idea to industry
 practice for geographic marketing experiments.
 
@@ -131,11 +131,19 @@ arrives as a separate package -- often in a different language, with its own way
 of reshaping a panel, its own argument names, its own definition of what a
 "result" is, and its own inference procedure, when it has one at all. Comparing
 two estimators on the same data can mean reformatting the data twice, learning
-two APIs, and hand-reconciling two incompatible notions of a treatment effect.
-Worse, the gap between the methods literature and usable software is uneven: some
-influential estimators have no maintained implementation, and the
-experimental-design family in particular has had almost no packaged presence for
-applied users.
+two APIs, and hand-reconciling two differently formatted sets of results.
+Worse, the gap between the methods literature and usable software is uneven:
+important methods that solve a pressing problem can lack a maintained
+implementation entirely. The leave-two-out refined placebo test
+[@lei2025inferencesyntheticcontrolsrefined] has none in any language we are aware
+of, and the predictor-selection method of @vivesibastida2022predictorselectionsyntheticcontrols
+-- which confronts the choice of which covariates enter the fit, a central source
+of disagreement among practitioners -- has no public implementation at all.
+The experimental-design family in particular has had almost no packaged presence
+for applied users: the synthetic experimental design of
+@abadie2026syntheticcontrolsexperimentaldesign, for instance, is distributed only
+as paper-replication scripts, not as software a working data scientist can pick up
+off the shelf.
 
 Naming the leading tools makes the cost concrete. The original method ships as the
 R package `Synth` [@abadie2011synth] and, in Stata, as `synth2` [@yan2023synth2],
@@ -219,18 +227,39 @@ short -- each is a careful, well-documented implementation -- but that `mlsynth`
 reaches all of them, and three dozen estimators besides, through one interface.
 
 The original synthetic control method ships as the R package `Synth`
-[@abadie2011synth], itself a paper in this journal. It pairs a [dataprep()]{.fct}
-routine that reshapes a long panel with a [synth()]{.fct} routine that solves the
+[@abadie2011synth], itself a paper in this journal. It pairs a [dataprep]{.fct}
+routine that reshapes a long panel with a [synth]{.fct} routine that solves the
 nested predictor-weight and donor-weight optimization, together with a small
 family of table and plotting functions. It is the reference implementation of the
 simplex-weighted estimator with predictor matching, which `mlsynth` reproduces as
-[VanillaSC]{.pkg}. `synth2` [@yan2023synth2] re-implements that estimator in Stata
+[VanillaSC]{.pkg}.
+
+The optimization `Synth` performs has itself been studied. A recent literature on
+its numerics -- the R package `MSCMT` [@becker2018fast] and the
+bilevel-optimization analysis of @malo2024computing -- shows that the nested
+predictor-and-donor problem `Synth` solves has a global optimum at which the donor
+weights coincide with a pure outcome fit. `mlsynth` reaches that optimum directly
+through [VanillaSC]{.pkg}'s outcome-only backend, and the match against the
+reference is exact: fit to the California tobacco data, [VanillaSC]{.pkg} and the
+installed `MSCMT` package agree on every donor weight -- Utah $0.3939$, Montana
+$0.2318$, Nevada $0.2049$, Connecticut $0.1091$ -- and on an average treatment
+effect of $-19.51363$, to five decimals.
+
+`synth2` [@yan2023synth2] re-implements that estimator in Stata
 and adds the inferential apparatus practitioners want around it: in-space and
 in-time placebo tests, a leave-one-out robustness check, and confidence intervals,
 with publication-ready graphics. In `mlsynth` these are not a separate tool but
 options on the same estimator -- [VanillaSC]{.pkg} with `inference = "placebo"`
-runs the in-space placebo, and `inference = "scpi"` attaches the prediction
-intervals of @cattaneo2021prediction.
+runs the in-space placebo and `inference = "scpi"` attaches the prediction
+intervals of @cattaneo2021prediction. Two further options go beyond what `synth2`
+offers, and neither has a packaged implementation in Python: `inference = "lto"`
+runs the leave-two-out refined placebo test of @lei2025inferencesyntheticcontrolsrefined, far more
+powerful than the ordinary placebo in small donor pools, and `inference = "ttest"`
+applies the debiased synthetic-control t-test for the ATT of
+@chernozhukov2025debiasingttestssyntheticcontrol, ported
+faithfully from the authors' R `scinference`. The same one-word switch thus reaches
+inference that is otherwise scattered across separate packages -- or, in the case
+of the refined placebo test, available in no package at all.
 
 A second strand replaces the simplex with a regression of the treated unit on the
 donors -- the panel-data approach of @hsiao2012panel and its descendants. The
@@ -245,9 +274,11 @@ distinct refinement, forward-selected PDA, is distributed as the R package `fsPD
 [@shi2023forward], which adds donors greedily by their marginal contribution to
 pre-treatment fit. `mlsynth` carries this whole strand in [PDA]{.pkg}, whose
 `method` argument selects the Hsiao-Ching-Wan best-subset fit (`"hcw"`), forward
-selection (`"fs"`), the lasso, or an $\ell_2$ relaxation; on `fsPDA`'s own example
-the two agree to five decimals, [PDA]{.pkg} returning an average effect of
-$-0.030896$ on the same selected donors.
+selection (`"fs"`), the lasso, or an $\ell_2$ relaxation; on `fsPDA`'s own application -- the effect of China's 2012
+anti-corruption campaign on luxury-watch imports -- [PDA]{.pkg} and `fsPDA` agree
+to five decimals, selecting the same three donors and returning a monthly average
+effect of $-0.030896$ ($-3.09\%$), matching the $-3.09\%$ reported by
+@shi2023forward cell-for-cell.
 
 A third strand refines the simplex fit itself. `augsynth`
 [@benmichael2021augmented] is the R implementation of the augmented synthetic
@@ -257,16 +288,7 @@ covariates and staggered adoption, and reports conformal or jackknife-plus
 inference. Its augmentation is the `augment = "ridge"` option on [VanillaSC]{.pkg},
 and the two agree to the sixth decimal: on `augsynth`'s own Kansas tax-cut study,
 `mlsynth` returns an average effect of $-0.029435$ for the un-augmented control and
-$-0.040063$ for the ridge-augmented fit, matching `augsynth` value-for-value. From
-the opposite direction, a recent literature on the numerics of the original
-estimator -- the R package `MSCMT` [@becker2018fast] and the bilevel-optimization
-analysis of @malo2024computing -- shows that the nested predictor-and-donor problem
-`Synth` solves has a global optimum at which the donor weights coincide with a pure
-outcome fit. `mlsynth` reaches that optimum directly through [VanillaSC]{.pkg}'s
-outcome-only backend, and the match against the reference is exact: fit to the
-California tobacco data, [VanillaSC]{.pkg} and the installed `MSCMT` package agree on
-every donor weight -- Utah $0.3939$, Montana $0.2318$, Nevada $0.2049$, Connecticut
-$0.1091$ -- and on an average treatment effect of $-19.51363$, to five decimals.
+$-0.040063$ for the ridge-augmented fit, matching `augsynth` value-for-value.
 
 A fourth strand changes how donor weights are formed rather than how the simplex is
 solved. `masc` [@kellogg2021combining] is the R implementation of the matching-and-
@@ -452,7 +474,7 @@ synthetic control requires donors whose loadings can reconstruct the treated
 unit, then -- before running an experiment -- one can ask which candidate units
 *should* be treated so that the remaining units form a good donor pool, and how
 long the experiment must run to detect an effect of a given size. The
-design-first methods [@syndes; @doudchenko2021synthetic] solve exactly this
+design-first methods [@syndes] solve exactly this
 problem, turning the estimation machinery around: the same fit quality that
 validates a synthetic control after the fact becomes the objective that selects
 treatment units beforehand. `mlsynth` treats design as a first-class peer of
@@ -460,10 +482,14 @@ estimation rather than a separate concern, and @sec-design demonstrates it.
 
 ## Architecture {#sec-arch}
 
-The library is organized around three contracts that every estimator shares: a
-single data-preparation step, a validated configuration object, and a
-standardized result. The design goal is that learning one estimator teaches the
-user every estimator.
+The library is organized along two axes. Outward, every estimator shares three
+contracts -- a single data-preparation step, a validated configuration object,
+and a standardized result -- so that learning one estimator teaches the user
+every estimator. Inward, the source obeys one structural rule: one estimator is
+one self-contained package. The two are complementary. The outward contracts keep
+more than forty estimators uniform for the person using them; the inward rule
+keeps them tractable for the people maintaining them. We take the outward
+contracts first, then the structure that sustains them.
 
 ### One data contract {#sec-dataprep}
 
@@ -528,10 +554,63 @@ Observational estimators return an effect result; design methods return a design
 result whose report is itself an effect result. Both populate the same
 standardized sub-objects -- estimated effects, fit diagnostics, the observed and
 counterfactual time series, donor weights, and inference -- as typed fields
-rather than ad hoc dictionaries. Because the result shape is fixed, downstream
+rather than ad hoc dictionaries. Reading a result is therefore the same regardless
+of which estimator produced it:
+
+```{python}
+#| eval: false
+res = VanillaSC(config).fit()
+
+res.effects.att                         # average effect on the treated
+res.time_series.counterfactual_outcome  # the synthetic control path
+res.weights.donor_weights               # the fitted donor weights
+res.inference.p_value                   # inference, on the same object
+```
+
+Because the result shape is fixed, downstream
 code (plotting, tables, comparison across estimators) is written once and works
 for every method. The two illustrations below read effects, time series, and
 inference off this common object without any estimator-specific glue.
+
+### One estimator, one package {#sec-onepackage}
+
+The uniformity just described is only affordable because the source is
+partitioned the same way the method catalog is. Each estimator is one package. A
+thin class in `estimators/<name>.py` does nothing but validate its configuration,
+hand off to a pipeline, translate any failure into the library's typed error
+vocabulary, and return the standardized result; [VanillaSC]{.pkg} is seventy-odd
+lines and holds no algorithm of its own. The work lives beside it in a helper
+package, `utils/<name>_helpers/`, split by role -- typically a setup step that
+calls [dataprep]{.fct}, the numerical pipeline, the data structures, a plotter,
+and whatever modules are specific to the method. The configuration object lives
+in that same package, in its own `config.py`, next to the code it governs, and is
+re-exported centrally so that existing imports keep resolving.
+
+The motivation is mundane and decisive. The alternative -- the project's own
+earlier design -- is a handful of shared modules that every estimator edits in
+common; a single configuration file had grown toward several thousand lines,
+becoming longer and riskier to touch with each method added. Giving every method
+its own package is the remedy. A contributor adding or revising an estimator
+works inside one directory: the change cannot reach another estimator's code, two
+people editing different estimators never collide, and the blast radius of a
+mistake is one package. The same boundary serves the reader. The unit one must
+hold in mind to follow a method -- its options, its validation rules, its
+numerics, and its tests -- is exactly one directory, not a thread chased across a
+monolithic configuration module, a monolithic estimator module, and a shared
+helper file.
+
+What stays shared is deliberately small and cross-cutting. Every configuration
+inherits one base, `BaseEstimatorConfig`, which fixes the common
+`df / outcome / treat / unitid / time` surface and forbids unknown fields, so a
+method's own `config.py` declares only what is genuinely specific to it. Every
+failure is raised in one hierarchy -- `MlsynthConfigError`, `MlsynthDataError`,
+and `MlsynthEstimationError` beneath a common `MlsynthError` -- so that user code
+catches the same types no matter which estimator raised them. And when a method
+is really a family of related variants, the package gains a dispatcher rather than
+the library gaining several near-duplicate estimators: [SPILLSYNTH]{.pkg} selects
+among five spillover-adjustment schemes through a single `method` argument, each
+isolated in its own subpackage. The rule scales the catalog without scaling the
+coupling.
 
 ## A single treated unit {#sec-estimation}
 
@@ -680,7 +759,7 @@ $\ell_2$ ridge penalty, instead spreads mass thinly across many donors
 
 ```{python}
 #| label: tbl-sc-weights
-#| tbl-cap: "Donor weights of the simplex synthetic control, read from `vsc.weights.donor_weights`. Synthetic California is a sparse convex combination of a few states; donors with zero weight are omitted."
+#| tbl-cap: "Donor weights of the simplex synthetic control (`vsc.weights.donor_weights`); zero-weight donors omitted."
 sc_weights = pd.Series(vsc.weights.donor_weights, name="weight")
 sc_weights = sc_weights[sc_weights.abs() > 1e-4].sort_values(ascending=False)
 sc_weights.round(3).rename_axis("donor state").to_frame()
@@ -688,7 +767,7 @@ sc_weights.round(3).rename_axis("donor state").to_frame()
 
 ```{python}
 #| label: tbl-sdid-weights
-#| tbl-cap: "The eight largest SDID unit weights, read from `sdid.weights.donor_weights`. The ridge penalty spreads weight across many donors rather than concentrating it."
+#| tbl-cap: "The eight largest SDID unit weights (`sdid.weights.donor_weights`); the ridge penalty spreads weight across many donors."
 sdid_weights = pd.Series(sdid.weights.donor_weights, name="weight")
 sdid_weights.sort_values(ascending=False).head(8).round(3).rename_axis("donor state").to_frame()
 ```
@@ -777,7 +856,7 @@ plt.show()
 
 ```{python}
 #| label: tbl-spillover-att
-#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study, read from the same `att` field. On Proposition 99 the estimates span roughly nine to twenty-two packs; on reunification they cluster within a few hundred dollars of one another."
+#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study (the `att` field)."
 (pd.DataFrame(records)
    .pivot(index="method", columns="case", values="ATT")
    .round(2))
@@ -862,7 +941,7 @@ tables, ships with the library as a durable regression test.
 ```{python}
 #| label: tbl-geolift
 #| echo: false
-#| tbl-cap: "mlsynth reproduces the GeoLift walkthrough's published summaries through its public interface."
+#| tbl-cap: "mlsynth reproduces the GeoLift walkthrough's published summaries."
 tab = pd.DataFrame(
     {
         "GeoLift (published)": [155.556, 156.805, 0.01],
@@ -881,7 +960,7 @@ synthetic test region.
 
 ```{python}
 #| label: tbl-geolift-weights
-#| tbl-cap: "Donor-market weights of the ridge-augmented GeoLift model, read from `ridge_geo.weights.donor_weights`, matching the walkthrough's printed weight table. Markets with negligible weight are omitted."
+#| tbl-cap: "Donor-market weights of the ridge-augmented GeoLift model (`ridge_geo.weights.donor_weights`), matching the walkthrough; negligible-weight markets omitted."
 geo_weights = pd.Series(ridge_geo.weights.donor_weights, name="weight")
 geo_weights = geo_weights[geo_weights > 1e-4].sort_values(ascending=False).head(13)
 geo_weights.round(4).rename_axis("donor market").to_frame()
@@ -905,10 +984,19 @@ tool does not expose, reached without leaving the interface.
 The `GeoLift` reproduction is one entry point into a family of
 experimental-design estimators that `mlsynth` packages together. Where `GeoLift`
 fixes the treated units and asks whether an effect can be recovered, the design
-methods of @syndes and @doudchenko2021synthetic invert the problem: given a pool
-of candidate units and a target effect size, they *choose* which units to treat
-so that a credible synthetic control will exist afterward, and report the
-statistical power of the resulting design. `mlsynth` exposes these as peers of
+method of @syndes inverts the problem: given a pool
+of candidate units and a target effect size, it *chooses* which units to treat
+so that a credible synthetic control will exist afterward, and reports the
+statistical power of the resulting design. One member of this family,
+[LEXSCM]{.pkg}, has no implementation anywhere else. It adapts the synthetic
+experimental design of @abadie2026syntheticcontrolsexperimentaldesign -- choosing
+the treated combination lexicographically, validity (pre-treatment fit) ahead of
+power (a small minimum detectable effect) -- with the power machinery and the fast
+small-treated-set algorithm of @vivesibastida2022syntheticexperimentaldesign.
+Because enumerating every candidate treated set is combinatorially hopeless for a
+realistic market pool, it ranks combinations by pre-treatment balance and prunes
+budget-infeasible ones, so the design search scales where exhaustive enumeration
+cannot. `mlsynth` exposes these as peers of
 the estimation methods -- the same configuration-and-fit shape, the same result
 contract -- so that selecting an experiment and, later, analyzing it are two calls
 against one library rather than two separate tools. To our knowledge, no other
