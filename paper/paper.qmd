@@ -120,29 +120,27 @@ completion [@athey2021matrix], the panel-data approach of
 @hsiao2012panel and its forward selection variant by @shi2023forward, proximal and surrogate methods [@ParkTchetgenTchetgen2025; @proximaltheory; @pmlr-v238-liu24a], and the
 synthetic-difference-in-differences estimator [@arkhangelsky2021synthetic].
 
-A
-parallel and newer literature inverts the question entirely: instead of building
-a counterfactual after an intervention has alerady taken place, *experimental-design* methods, such as those by @abadie2026syntheticcontrolsexperimentaldesign and @syndes, choose
+A parallel and newer literature inverts the question entirely: instead of building
+a counterfactual after an intervention has already taken place, *experimental-design* methods, such as those by @abadie2026syntheticcontrolsexperimentaldesign and @syndes, choose
 which units to treat first (along with an associated control group) so that a credible counterfactual
 will exist when the experiment is over. The same developments have taken place on the industry side as well: Meta's
 `GeoLift` framework [@geolift] brought this design-first idea to industry
 practice for geographic marketing experiments, taking advantage of the augmented synthetic control design by @benmichael2021augmented to build valid geo-experiments.
 
 This proliferation of methods among econometricians comes alongside many costs for the daily practitioner, however. Each new SCM variant typically
-arrives as a separate package, usually as replication code in the paper it ws described in (such as [@pmlr-v238-liu24a; @ParkTchetgenTchetgen2025, @amjad2018robust; @malo2024computing]. Typically, these methods (even the ones with the same lineage, such as [@pmlr-v238-liu24a;@drprox] or [@rcm; @vegabayo2015pampe], come in a different language, each with its own way
-of processing the input data,  argument names, definition of what a
+arrives as a separate package, usually as replication code attached to the paper it was described in [@pmlr-v238-liu24a; @ParkTchetgenTchetgen2025; @amjad2018robust; @malo2024computing]. These methods come in different languages even when they share a lineage: the doubly-robust proximal estimator of @drprox is distributed in R, while its surrogate-based sibling [@pmlr-v238-liu24a] is distributed in Python; the panel-data regression-control approach has the Stata command `rcm` [@yan2022rcm] and the related `pampe` in R [@vegabayo2015pampe]. A single method can fragment this way too: the original `Synth`, by the same authors, surfaced in three syntaxes -- unpackaged MATLAB code alongside the packaged Stata and R versions -- and even the two packaged versions demand different workflows, since the R implementation requires a separate `dataprep` step that the Stata command does not. Each package brings its own way
+of processing the input data, its own argument names, its own definition of what a
 "result" is, and its own inference procedure (when it has one at all). Comparing
 two estimators on the same data can mean reformatting the data twice, learning
-two separate APIs, and hand-reconciling two differently formatted sets of results. For example,  the original method ships as the
-R package `Synth` [@abadie2011synth] and, in Stata, as `synth2` [@yan2023synth2], and synthetic difference-in-differences has the R `synthdid` and the Stata `sdid`
-[@arkhangelsky2021synthetic; @clarke2023sdid] implementations.
+two separate APIs, and hand-reconciling two differently formatted sets of results. Synthetic difference-in-differences alone, for instance, ships as the R package `synthdid` and the Stata command `sdid`
+[@arkhangelsky2021synthetic; @clarke2023sdid], each with its own syntax.
 
 
-Worse, the gap between the methods literature and usable software is uneven; frequently, advances that would help policy analysts and economists (for example), have no public implementation as a packaged estimator. For example, one of the most important developments in the synthetic control literature over the last few years is
-the Synthetic Interventions estimator by @SI, where analysts can investigate questions such as "How would Unit 1 that recieved treatment A have looked if it had instead received treatment B?" Such questions routinely come up in the policy analysis literature where multiple treatmetns may be passed at a time [@revpaper]. However, while the SI method solves a pressing problem, it lacks a maintained and packaged
+Worse, the gap between the methods literature and usable software is uneven; advances that would help, say, policy analysts and economists frequently have no public implementation as a packaged estimator. One of the most important developments in the synthetic control literature over the last few years is
+the Synthetic Interventions estimator by @SI, where analysts can investigate questions such as "How would Unit 1, which received treatment A, have looked had it instead received treatment B?" Such questions routinely come up in the policy analysis literature, where multiple treatments may be assigned at a time [@revpaper]. Yet while the SI method solves a pressing problem, it lacks a maintained and packaged
 implementation entirely. Methods that provide inference for researchers who have small control group sizes, such as the leave-two-out refined placebo tests by
 @lei2025inferencesyntheticcontrolsrefined, have no implementation in any language we are aware
-of. Covairate selection is an important topic in the synthetic control literature; however, the predictor-selection method of @vivesibastida2022predictorselectionsyntheticcontrols has no public implementation at all. While well maintained packages  certainly do exist [@robbins2021microsynth;@shi2023forward;@cattaneo2025scpi], much of the novel literature is distributed only
+of. Covariate selection is an important topic in the synthetic control literature; yet the predictor-selection method of @vivesibastida2022predictorselectionsyntheticcontrols has no public implementation at all. While well maintained packages certainly do exist [@robbins2021microsynth; @shi2023forward; @cattaneo2025scpi], much of the novel literature is distributed only
 as paper-replication scripts, not as software a working data scientist can pick up from off the shelf and use as they see fit.
 
 
