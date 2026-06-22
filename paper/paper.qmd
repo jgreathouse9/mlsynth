@@ -208,7 +208,7 @@ implementations live in R and Stata, the methods are split one-to-a-package, and
 the few Python options each cover a narrow slice of the family. We group the
 representative packages by the estimator they implement, note in each case the
 `mlsynth` equivalent, and report where we have checked the two against each other
-numerically (Appendix A). Throughout, the point is not that these tools fall
+numerically. Throughout, the point is not that these tools fall
 short -- each is a careful, well-documented implementation -- but that `mlsynth`
 reaches all of them, and three dozen estimators besides, through one interface.
 
@@ -349,7 +349,7 @@ source paper's published results at validation time (@tbl-related).
 | `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | -- |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | -- |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically (Appendix A). {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically. {#tbl-related}
 
 The remainder of the paper is organized as follows. @sec-unified develops the
 shared factor-model view and the resulting taxonomy of estimators. @sec-arch
@@ -362,8 +362,8 @@ synthetic-control designs and prediction intervals; spillovers, relaxing the
 no-interference assumption by running four spillover-aware estimators across two
 case studies through one dispatcher; and experimental design, reproducing Meta's
 `GeoLift` walkthrough and situating it within the broader design family.
-@sec-summary concludes, with computational details and a validation-suite
-appendix to follow.
+@sec-summary concludes, and @sec-computational records the computational and
+reproducibility details.
 
 ## A unified view of synthetic control {#sec-unified}
 
@@ -376,6 +376,18 @@ $N - 1$ units, the *donor pool*, are never treated. Collect the donor outcomes
 in the $T \times (N-1)$ matrix $\mathbf{Y}_0$ and the treated unit's outcomes in
 the $T$-vector $\mathbf{y}_1$. The first $T_0$ rows are the pre-intervention
 window; the remaining $T_1 = T - T_0$ rows are the post-intervention window.
+
+It helps to state the causal target in potential-outcomes terms [@rubin1974;
+@imbens2015causal]. Each unit and period has two potential outcomes: $y_{it}(1)$,
+the outcome were the unit exposed to the intervention, and $y_{it}(0)$, the outcome
+were it not. Only one is ever realized -- the fundamental problem of causal
+inference [@holland1986] -- so for the treated unit after $T_0$ we observe
+$y_{1t} = y_{1t}(1)$, while the quantity the analysis needs, the untreated potential
+outcome $y_{1t}(0)$, is missing. The estimand is the effect on the treated,
+$\tau_t = y_{1t}(1) - y_{1t}(0)$, and its average over the post-treatment window.
+The donor pool is never treated, so its outcomes trace out the untreated regime;
+every estimator below is a way of borrowing that information to impute the missing
+$y_{1t}(0)$, which is what the synthetic control $\hat{y}_{1t}$ below estimates.
 
 Almost every estimator in `mlsynth` rests on the assumption that outcomes are
 governed by a low-dimensional factor model,
@@ -421,17 +433,12 @@ to the unit simplex
 $\mathcal{C}_{\Delta} = \{\mathbf{w} \ge \mathbf{0} : \mathbf{1}^{\top}\mathbf{w} = 1\}$,
 which yields an interpretable, sparse convex combination of donors. The rest of
 the family is, to a first approximation, a catalog of other choices for the four
-objects in @eq-program -- most visibly the admissible set (@tbl-admissible):
-
-| Admissible set $\mathcal{C}$ | Definition | Reading |
-|---|---|---|
-| Simplex | $\mathbf{w}\ge\mathbf{0},\ \mathbf{1}^{\top}\mathbf{w}=1$ | classical convex SC |
-| Non-negative | $\mathbf{w}\ge\mathbf{0}$ | weights need not sum to one |
-| Affine | $\mathbf{1}^{\top}\mathbf{w}=1$ | signed weights, extrapolation allowed |
-| Unit box | $\mathbf{w}\in[0,1]^{N-1}$ | each weight bounded on its own |
-| Unconstrained | $\mathbf{w}\in\mathbb{R}^{N-1}$ | ordinary regression onto donors |
-
-: Admissible weight sets $\mathcal{C}$ that different synthetic-control estimators impose in @eq-program. {#tbl-admissible}
+objects in @eq-program. The most visible is the admissible set $\mathcal{C}$
+itself: relaxing the simplex to merely non-negative weights drops the sum-to-one
+requirement; an affine constraint, $\mathbf{1}^{\top}\mathbf{w}=1$ alone, permits
+signed weights and extrapolation beyond the donors' range; a unit box confines
+each weight to $[0,1]$ on its own; and dropping the constraint altogether leaves
+an ordinary regression of the treated unit onto the donors.
 
 Penalties $\mathcal{P}$ supply the rest: an $\ell_2$ term gives ridge-augmented
 weights, an $\ell_1$ term gives a sparse selection of donors, and an intercept
@@ -514,6 +521,16 @@ config = {
 }
 results = VanillaSC(config).fit()
 ```
+
+The five fields every estimator requires simply name the parts of the panel. `df`
+is the tidy long data frame itself, one row per unit and period. `outcome` names
+the column to be explained -- the variable whose treated-minus-counterfactual gap
+is the object of interest. `treat` names a $0/1$ indicator equal to one for the
+treated unit in its post-intervention periods and zero everywhere else; from it
+alone the package reads which unit is treated and when, so the intervention date
+and the pre/post split need never be stated separately. `unitid` and `time` name
+the columns that identify the unit and the period. Everything past these five is
+method-specific and optional, each carrying its own default.
 
 Switching estimators means changing the class name and, at most, a handful of
 method-specific options; the data, the column names, and the call shape do not
@@ -661,9 +678,37 @@ res.weights.donor_weights               # the fitted donor weights
 res.inference.p_value                   # inference, on the same object
 ```
 
+To make this concrete, the same fields read off a real fit return the numbers
+themselves. Here is [VanillaSC]{.pkg} on the Basque Country data
+[@abadie2003economic], using the outcome-only backend and the debiased
+synthetic-control $t$-test of @chernozhukov2025debiasingttestssyntheticcontrol:
+
+```{python}
+#| label: result-print
+#| echo: false
+basque = pd.read_csv(find_data("basque_data.csv"))
+res = VanillaSC({
+    "df": basque, "outcome": "gdpcap", "treat": "terrorism",
+    "unitid": "regionname", "time": "year",
+    "backend": "outcome-only", "inference": "ttest", "display_graphs": False,
+}).fit()
+```
+
+```{python}
+#| label: result-fields
+pd.Series({
+    "effects.att":         round(res.effects.att, 4),          # average effect
+    "effects.att_percent": round(res.effects.att_percent, 2),  # as a percentage
+    "inference.p_value":   round(res.inference.p_value, 4),    # debiased t-test
+    "inference.ci_lower":  round(res.inference.ci_lower, 4),
+    "inference.ci_upper":  round(res.inference.ci_upper, 4),
+    "inference.method":    res.inference.method,
+})
+```
+
 Because the result shape is fixed, downstream
 code (plotting, tables, comparison across estimators) is written once and works
-for every method. The two illustrations below read effects, time series, and
+for every method. The illustrations below read effects, time series, and
 inference off this common object without any estimator-specific glue.
 
 ## Applications {#sec-applications}
@@ -1090,7 +1135,7 @@ methods comparable, and what lets one library answer both the question of what a
 intervention did and the question of how to design the experiment that will
 measure it.
 
-## Computational details {.unnumbered}
+## Computational details {#sec-computational}
 
 ```{python}
 #| label: versions
@@ -1121,42 +1166,16 @@ is available from the Python Package Index via `pip install mlsynth`, with sourc
 and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
 at <https://mlsynth.readthedocs.io>.
 
+Reproducibility in `mlsynth` is engineered rather than asserted. Alongside the
+unit tests, the library ships a benchmark suite that pins each reference
+implementation to an exact commit and re-runs it at validation time, comparing
+`mlsynth`'s output to the freshly computed reference rather than to numbers copied
+into a test that would silently rot as the reference evolves. The pinned-commit
+install scripts, the re-run harness, and the full replication code are provided as
+the replication materials accompanying this article and in the `benchmarks` suite
+of the source repository.
+
 ## References {.unnumbered}
 
 ::: {#refs}
 :::
-
-```{=latex}
-\appendix
-```
-
-## Validation suite {#app-benchmarks}
-
-Reproducibility in `mlsynth` is engineered, not asserted. Alongside the unit
-tests, the library ships a separate benchmark suite that institutionalizes the
-cross-checks that are otherwise performed once by hand and discarded. Each
-estimator is validated along one of three paths: reproducing a source paper's
-empirical result on the authors' own data, reproducing a paper's Monte Carlo
-table, or -- most demandingly -- matching an authoritative reference
-implementation cell by cell.
-
-The cross-validation path is where the engineering shows. Rather than copy a
-reference tool's published numbers into a test (numbers that silently rot as the
-reference evolves), the suite installs the reference implementation itself and
-runs it at validation time, comparing `mlsynth`'s output to the freshly computed
-reference. Because most of these references are R packages -- `augsynth`,
-`GeoLift`, `microsynth`, `Synth`, `pensynth`, among others -- and R packages
-under active development drift, every reference is pinned to an exact commit. The
-install scripts compile each package, and its entire dependency chain, from a
-frozen Git SHA, so the same reference code runs every single time. The `GeoLift`
-cross-check, for instance, pins `augsynth` and its solver stack (`osqp`, `S7`,
-`LiblineaR`) to specific commits; the script that does so notes, pointedly, that
-an unpinned tip is precisely the version drift that made `GeoLift`'s own
-walkthrough ATT of 155.556 go stale. The Python case shells out to the pinned
-reference, compares the two outputs to a tight numerical tolerance -- often four
-significant figures -- and reports a pass or fail, skipping cleanly when the R
-toolchain is unavailable rather than masquerading as a pass. The `GeoLift`
-reproduction in @sec-design is exactly such a case: the published figures it
-matches are regenerated, not remembered, from `augsynth` frozen at a known
-commit. Reproducibility is thereby turned into a controlled, re-runnable process
-in which both sides of every comparison are fixed and inspectable.
