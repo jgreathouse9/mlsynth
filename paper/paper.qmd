@@ -267,10 +267,40 @@ outcome-only backend: on the canonical Proposition 99 specification it recovers 
 bilevel optimum reported by these solvers -- a Utah weight of $0.3939$ and an
 average treatment effect of $-19.51$ -- to four decimals.
 
-The Python options are fewer and narrower. `SyntheticControlMethods`
-[@engelbrektson2020synthetic] implements the classic Abadie estimator and its
-Bayesian and robust variants; `tidysynth` [@dunford2021tidysynth] brings the
-simplex estimator into R's tidyverse with a fluent pipe-based API. Closest to `mlsynth` in spirit is `causaltensor`
+A fourth strand changes how donor weights are formed rather than how the simplex is
+solved. `masc` [@kellogg2021combining] is the R implementation of the matching-and-
+synthetic-control estimator, which interpolates between a nearest-neighbour matching
+weight and the SC simplex by a cross-validated mixing parameter, trading the
+extrapolation bias of pure matching against the interpolation bias of pure SC.
+`microsynth` [@robbins2021microsynth], a paper in this journal, calibrates donor
+weights to match a large set of baseline characteristics exactly and is built for
+disaggregated, micro-level panels. `mlsynth` carries both as first-class estimators:
+[MASC]{.pkg} reproduces the Basque ETA-terrorism study of @kellogg2021combining --
+the cross-validation selects pure SC, the same Cataluna-plus-Madrid donor pool, and
+an average effect of $-\$585$ per capita against the paper's $-\$580$ -- and
+[MicroSynth]{.pkg} reproduces the R package's calibrated-weight solution on the
+Seattle drug-market study of @robbins2021microsynth to within the table tolerance of
+that paper.
+
+A final strand replaces the fixed-weight optimization with a Bayesian model. The R
+package `CausalImpact` [@brodersen2015inferring] fits a Bayesian structural
+time-series counterfactual -- a state-space model with the donors entering as
+contemporaneous regressors under a spike-and-slab prior -- and `mbsts`
+[@qiu2018multivariate] extends that idea to multiple outcomes; in Python,
+`CausalPy` [@causalpy2024] places a Bayesian synthetic control alongside regression
+discontinuity, difference-in-differences, and interrupted-time-series designs on a
+`PyMC` backend. `mlsynth`'s counterpart is [BVSS]{.pkg}, the Bayesian
+soft-simplex estimator of @xu2025bayesian, which puts a spike-and-slab prior over the
+donors and a soft simplex constraint on their weights, returning full posteriors for
+the weights and the effect path. The structural time-series tools target a related
+but distinct counterfactual -- a fitted state-space model rather than a weighted
+combination of donors -- so they complement rather than duplicate the SC family.
+
+The Python options for synthetic control itself are fewer and narrower.
+`SyntheticControlMethods` [@engelbrektson2020synthetic] implements the classic
+Abadie estimator and its Bayesian and robust variants; `tidysynth`
+[@dunford2021tidysynth] brings the simplex estimator into R's tidyverse with a
+fluent pipe-based API. Closest to `mlsynth` in spirit is `causaltensor`
 [@peng2022causaltensor], a Python library that collects seven matrix-completion and
 factor-model estimators -- difference-in-differences, synthetic
 difference-in-differences, de-biased convex panel regression, the matrix-completion
@@ -300,7 +330,12 @@ above re-run against the installed reference packages at validation time
 | `fsPDA` | R | forward-selected PDA | [PDA]{.pkg}, `method="fs"` | $-0.030896$ (5 dp) |
 | `augsynth` | R | augmented (ridge) SCM, covariates, staggered | [VanillaSC]{.pkg}, `augment="ridge"` | $-0.0294/-0.0401$ (6 dp) |
 | `MSCMT` | R | generalized / bilevel SCM | [VanillaSC]{.pkg}, outcome-only backend | bilevel optimum (4 dp) |
+| `masc` | R | matching + synthetic control | [MASC]{.pkg} | $-\$585$ vs $-\$580$ (paper) |
+| `microsynth` | R | calibrated SCM for micro-level panels | [MicroSynth]{.pkg} | weights vs R package |
 | `causaltensor` | Python | matrix completion, factor models | [MCNNM]{.pkg}, [SNN]{.pkg} | -- |
+| `CausalImpact` | R | Bayesian structural time series | [BVSS]{.pkg} | -- |
+| `mbsts` | R | multivariate Bayesian structural time series | [BVSS]{.pkg} | -- |
+| `CausalPy` | Python | Bayesian SC, RD, DiD, ITS (`PyMC`) | [BVSS]{.pkg} | -- |
 | `tidysynth` | R | simplex SCM (tidyverse API) | [VanillaSC]{.pkg} | -- |
 | `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | -- |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | -- |
