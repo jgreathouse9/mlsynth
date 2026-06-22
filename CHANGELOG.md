@@ -8,6 +8,18 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Added
+- `mlsynth.save_spec` / `mlsynth.load_spec`: serialize an analysis specification
+  to a portable JSON or YAML file and load it back into a ready-to-fit estimator.
+  Because a configuration is plain, validated data, everything but the
+  `DataFrame` (and any runtime arrays such as adjacency or spatial matrices) can
+  be written to a text record, version-controlled, and reloaded -- separating the
+  durable record of *what* analysis was run from the data it ran on. The
+  DataFrame and matrix payloads are dropped on save and re-attached at load time
+  (`load_spec(path, df=..., adjacency=...)`). Adds `PyYAML` as a dependency.
+  Covered by `tests/test_spec.py`, including a parametrized check that `load_spec`
+  resolves and behaves gracefully for every estimator the package ships.
+
 ## [1.0.0] - 2026-06-20
 
 First stable release, published to PyPI (``pip install mlsynth``).

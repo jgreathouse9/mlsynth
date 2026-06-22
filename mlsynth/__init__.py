@@ -68,8 +68,11 @@ from .utils.spcd_helpers.plotter import (
     plot_power_curves,
     plot_detectability,
 )
+from .spec import save_spec, load_spec
 
 __all__ = [
+    "save_spec",
+    "load_spec",
     "plot_spcd_design",
     "plot_mde_bars",
     "plot_power_curves",
