@@ -207,10 +207,16 @@ records computational and reproducibility details, and @sec-summary concludes.
 ## Related software {#sec-related}
 
 The estimators collected in `mlsynth` are, individually, already well served by
-existing software, and naming the most widely used tools makes the case for a
-unified interface concrete: each is excellent at one method, lives in one
-language, and returns its results in its own format. We focus on four packages
-that between them cover the estimators applied researchers reach for most often.
+existing software. Naming the tools researchers actually reach for makes the case
+for a unified interface concrete -- and locating `mlsynth` against them shows what
+a single, validated Python library adds. The landscape is telling: the canonical
+implementations live in R and Stata, the methods are split one-to-a-package, and
+the few Python options each cover a narrow slice of the family. We group the
+representative packages by the estimator they implement, note in each case the
+`mlsynth` equivalent, and report where we have checked the two against each other
+numerically (@sec-benchmarks). Throughout, the point is not that these tools fall
+short -- each is a careful, well-documented implementation -- but that `mlsynth`
+reaches all of them, and three dozen estimators besides, through one interface.
 
 The original synthetic control method ships as the R package `Synth`
 [@abadie2011synth], itself a paper in this journal. It pairs a [dataprep()]{.fct}
@@ -218,54 +224,88 @@ routine that reshapes a long panel with a [synth()]{.fct} routine that solves th
 nested predictor-weight and donor-weight optimization, together with a small
 family of table and plotting functions. It is the reference implementation of the
 simplex-weighted estimator with predictor matching, which `mlsynth` reproduces as
-[VanillaSC]{.pkg}.
+[VanillaSC]{.pkg}. `synth2` [@yan2023synth2] re-implements that estimator in Stata
+and adds the inferential apparatus practitioners want around it: in-space and
+in-time placebo tests, a leave-one-out robustness check, and confidence intervals,
+with publication-ready graphics. In `mlsynth` these are not a separate tool but
+options on the same estimator -- [VanillaSC]{.pkg} with `inference = "placebo"`
+runs the in-space placebo, and `inference = "scpi"` attaches the prediction
+intervals of @cattaneo2021prediction.
 
-`synth2` [@yan2023synth2] re-implements that estimator in Stata and adds the
-inferential apparatus practitioners want around it: in-space and in-time placebo
-tests, a leave-one-out robustness check, and confidence intervals, with
-publication-ready graphics. In `mlsynth` these are not a separate tool but options
-on the same estimator -- [VanillaSC]{.pkg} with `inference = "placebo"` runs the
-in-space placebo, and `inference = "scpi"` attaches the prediction intervals of
-@cattaneo2021prediction.
+A second strand replaces the simplex with a regression of the treated unit on the
+donors -- the panel-data approach of @hsiao2012panel and its descendants. The
+Stata package `rcm` [@yan2022rcm] implements it with a menu of model-selection
+routines for choosing which donors enter: best-subset, lasso, and forward and
+backward stepwise regression, under the AIC, the BIC, and cross-validation. The R
+package `pampe` [@vegabayo2015pampe] implements the same Hsiao-Ching-Wan
+best-subset estimator and is the standard reference for it; `mlsynth` reproduces
+its Hong Kong economic-integration application -- the original @hsiao2012panel
+study -- selecting the same donor set and recovering the published effect path. A
+distinct refinement, forward-selected PDA, is distributed as the R package `fsPDA`
+[@shi2023forward], which adds donors greedily by their marginal contribution to
+pre-treatment fit. `mlsynth` carries this whole strand in [PDA]{.pkg}, whose
+`method` argument selects the Hsiao-Ching-Wan best-subset fit (`"hcw"`), forward
+selection (`"fs"`), the lasso, or an $\ell_2$ relaxation; on `fsPDA`'s own example
+the two agree to five decimals, [PDA]{.pkg} returning an average effect of
+$-0.030896$ on the same selected donors.
 
-`rcm` [@yan2022rcm] implements the panel-data, or regression-control, approach of
-@hsiao2012panel in Stata -- a close relative of synthetic control that predicts
-the treated unit by regression on the donors rather than by a simplex-constrained
-weighting. Its distinctive contribution is a menu of model-selection routines for
-choosing which donors enter: best-subset, lasso, and forward and backward stepwise
-regression, under the AIC, the BIC, and cross-validation. `mlsynth` carries the
-same menu in [PDA]{.pkg}, whose `method` argument selects the Hsiao-Ching-Wan
-best-subset fit, forward selection, the lasso, or an $\ell_2$ relaxation.
-
-`augsynth` [@benmichael2021augmented] is the R implementation of the augmented
-synthetic control method, which corrects a synthetic control whose pre-treatment
-fit is imperfect by adding a ridge-penalized outcome model, accommodates auxiliary
+A third strand refines the simplex fit itself. `augsynth`
+[@benmichael2021augmented] is the R implementation of the augmented synthetic
+control method, which corrects a synthetic control whose pre-treatment fit is
+imperfect by adding a ridge-penalized outcome model, accommodates auxiliary
 covariates and staggered adoption, and reports conformal or jackknife-plus
-inference. Its augmentation is the `augment = "ridge"` option on [VanillaSC]{.pkg}
-in `mlsynth`, and the two agree to the sixth decimal: on `augsynth`'s own Kansas
-tax-cut study, `mlsynth` returns an average effect of $-0.029435$ for the
-un-augmented control and $-0.040063$ for the ridge-augmented fit, matching
-`augsynth` value-for-value -- a comparison `mlsynth`'s benchmark suite re-runs
-against the installed package at validation time (@sec-benchmarks).
+inference. Its augmentation is the `augment = "ridge"` option on [VanillaSC]{.pkg},
+and the two agree to the sixth decimal: on `augsynth`'s own Kansas tax-cut study,
+`mlsynth` returns an average effect of $-0.029435$ for the un-augmented control and
+$-0.040063$ for the ridge-augmented fit, matching `augsynth` value-for-value. From
+the opposite direction, a recent literature on the numerics of the original
+estimator -- the R package `MSCMT` [@becker2018fast] and the bilevel-optimization
+analysis of @malo2024computing -- shows that the nested predictor-and-donor problem
+`Synth` solves has a global optimum at which the donor weights coincide with a pure
+outcome fit. `mlsynth` reaches that optimum directly through [VanillaSC]{.pkg}'s
+outcome-only backend: on the canonical Proposition 99 specification it recovers the
+bilevel optimum reported by these solvers -- a Utah weight of $0.3939$ and an
+average treatment effect of $-19.51$ -- to four decimals.
 
-None of this is a criticism of these tools; each is a capable, well-documented
-implementation of its method. The point is that a researcher who wants to move
-between them -- to weigh a simplex control against a regression-control fit, to add
-augmentation, or to attach prediction intervals -- must today cross two languages,
-learn four data conventions, and reconcile four notions of a result. `mlsynth`
-removes that friction: the four estimators above, and three dozen more, are reached
-through one data-preparation step, one configuration-and-fit call, and one
-standardized result, all in Python (@tbl-related).
+The Python options are fewer and narrower. `SyntheticControlMethods`
+[@engelbrektson2020synthetic] implements the classic Abadie estimator and its
+Bayesian and robust variants; `tidysynth` [@dunford2021tidysynth] brings the
+simplex estimator into R's tidyverse with a fluent pipe-based API. Closest to `mlsynth` in spirit is `causaltensor`
+[@peng2022causaltensor], a Python library that collects seven matrix-completion and
+factor-model estimators -- difference-in-differences, synthetic
+difference-in-differences, de-biased convex panel regression, the matrix-completion
+estimator of @athey2021matrix, and others -- behind a common interface. It is the
+nearest peer to `mlsynth`'s missing-data family ([MCNNM]{.pkg}, [SNN]{.pkg}), but it
+stops there: it does not carry the simplex, regression-control, penalized,
+spillover-aware, or experimental-design estimators that make up the rest of the
+synthetic-control literature.
 
-| Package | Language | Method implemented | Inference | In `mlsynth` |
+The pattern across the ecosystem is the friction a unified interface removes. A
+researcher who wants to weigh a simplex control against a regression-control fit,
+add augmentation, reach the bilevel optimum, or attach prediction intervals must
+today cross R, Stata, and Python, learn a different data convention for each
+package, and reconcile as many notions of a result. `mlsynth` is, to our knowledge,
+the first comprehensive Python library for this family: every estimator named above,
+and roughly forty more, is reached through one data-preparation step, one
+configuration-and-fit call, and one standardized result, with the numerical matches
+above re-run against the installed reference packages at validation time
+(@tbl-related).
+
+| Package | Language | Method implemented | In `mlsynth` | Checked |
 |:--|:--|:--|:--|:--|
-| `Synth` | R | simplex SCM, predictor matching | in-space placebo | [VanillaSC]{.pkg} |
-| `synth2` | Stata | simplex SCM, placebo and robustness tests | in-/in-time placebo, CIs | [VanillaSC]{.pkg}, `inference=` |
-| `rcm` | Stata | regression control / PDA (subset, lasso, stepwise) | in-/in-time placebo | [PDA]{.pkg}, `method=` |
-| `augsynth` | R | augmented (ridge) SCM, covariates, staggered | conformal, jackknife+ | [VanillaSC]{.pkg}, `augment="ridge"` |
-| `mlsynth` | Python | all of the above and roughly forty more | placebo, prediction intervals, conformal | one interface |
+| `Synth` | R | simplex SCM, predictor matching | [VanillaSC]{.pkg} | -- |
+| `synth2` | Stata | simplex SCM, placebo and robustness tests | [VanillaSC]{.pkg}, `inference=` | -- |
+| `rcm` | Stata | regression control (subset, lasso, stepwise) | [PDA]{.pkg}, `method=` | -- |
+| `pampe` | R | Hsiao-Ching-Wan panel-data approach | [PDA]{.pkg}, `method="hcw"` | donor set, effect path |
+| `fsPDA` | R | forward-selected PDA | [PDA]{.pkg}, `method="fs"` | $-0.030896$ (5 dp) |
+| `augsynth` | R | augmented (ridge) SCM, covariates, staggered | [VanillaSC]{.pkg}, `augment="ridge"` | $-0.0294/-0.0401$ (6 dp) |
+| `MSCMT` | R | generalized / bilevel SCM | [VanillaSC]{.pkg}, outcome-only backend | bilevel optimum (4 dp) |
+| `causaltensor` | Python | matrix completion, factor models | [MCNNM]{.pkg}, [SNN]{.pkg} | -- |
+| `tidysynth` | R | simplex SCM (tidyverse API) | [VanillaSC]{.pkg} | -- |
+| `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | -- |
+| `mlsynth` | Python | all of the above and roughly forty more | one interface | -- |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across separate packages and two languages. {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation numerically (@sec-benchmarks). {#tbl-related}
 
 ## A unified view of synthetic control {#sec-unified}
 
