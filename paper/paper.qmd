@@ -98,8 +98,8 @@ mlsynth_version = mlsynth.__version__ if hasattr(mlsynth, "__version__") else "1
 
 ## Introduction {#sec-intro}
 
-A recurring problem in applied work is estimating what would have happened to a
-single unit -- a state, a country, a market, a product line -- had some
+A recurring problem in econometrics, marketing measurement, and policy analysis
+is estimating what would have happened to a single unit -- a state, a country, a market, a product line -- had some
 intervention not occurred. Randomized experiments are usually impossible at this
 level of aggregation: there is one California, and it either passed an
 anti-smoking proposition or it did not. The synthetic control method
@@ -131,11 +131,15 @@ arrives as a separate package -- often in a different language, with its own way
 of reshaping a panel, its own argument names, its own definition of what a
 "result" is, and its own inference procedure, when it has one at all. Comparing
 two estimators on the same data can mean reformatting the data twice, learning
-two APIs, and hand-reconciling two incompatible notions of a treatment effect.
-Worse, the gap between the methods literature and usable software is uneven: some
-influential estimators have no maintained implementation, and the
-experimental-design family in particular has had almost no packaged presence for
-applied users.
+two APIs, and hand-reconciling two differently formatted sets of results.
+Worse, the gap between the methods literature and usable software is uneven:
+important methods that solve a pressing problem can lack a maintained
+implementation entirely. The leave-two-out refined placebo test
+[@lei2025inferencesyntheticcontrolsrefined] has none in any language we are aware
+of, and the sparse synthetic control of Microsoft's `SparseSC` is no longer
+actively developed. The experimental-design family in particular has had almost no
+packaged presence for applied users, and what presence it had is thinning: Meta
+retired `GeoLift`, its one widely used implementation, in 2026.
 
 Naming the leading tools makes the cost concrete. The original method ships as the
 R package `Synth` [@abadie2011synth] and, in Stata, as `synth2` [@yan2023synth2],
@@ -145,7 +149,7 @@ synthetic control has the R package `microsynth` [@robbins2021microsynth];
 synthetic difference-in-differences has the R `synthdid` and the Stata `sdid`
 [@arkhangelsky2021synthetic; @clarke2023sdid]; prediction-interval inference has
 `scpi` [@cattaneo2025scpi]; forward-selected estimation has `fsPDA`
-[@shi2023forward]; and design-first geo-experiments have Meta's `GeoLift`
+[@shi2023forward]; and design-first geo-experiments had Meta's `GeoLift`
 [@geolift]. Each is a capable tool and `mlsynth` is a critique of none of them. But
 they are spread across two languages -- several only in the commercial Stata -- with
 no shared data format, no shared notion of a result, and no way to run one against
@@ -224,7 +228,20 @@ routine that reshapes a long panel with a [synth]{.fct} routine that solves the
 nested predictor-weight and donor-weight optimization, together with a small
 family of table and plotting functions. It is the reference implementation of the
 simplex-weighted estimator with predictor matching, which `mlsynth` reproduces as
-[VanillaSC]{.pkg}. `synth2` [@yan2023synth2] re-implements that estimator in Stata
+[VanillaSC]{.pkg}.
+
+The optimization `Synth` performs has itself been studied. A recent literature on
+its numerics -- the R package `MSCMT` [@becker2018fast] and the
+bilevel-optimization analysis of @malo2024computing -- shows that the nested
+predictor-and-donor problem `Synth` solves has a global optimum at which the donor
+weights coincide with a pure outcome fit. `mlsynth` reaches that optimum directly
+through [VanillaSC]{.pkg}'s outcome-only backend, and the match against the
+reference is exact: fit to the California tobacco data, [VanillaSC]{.pkg} and the
+installed `MSCMT` package agree on every donor weight -- Utah $0.3939$, Montana
+$0.2318$, Nevada $0.2049$, Connecticut $0.1091$ -- and on an average treatment
+effect of $-19.51363$, to five decimals.
+
+`synth2` [@yan2023synth2] re-implements that estimator in Stata
 and adds the inferential apparatus practitioners want around it: in-space and
 in-time placebo tests, a leave-one-out robustness check, and confidence intervals,
 with publication-ready graphics. In `mlsynth` these are not a separate tool but
@@ -253,9 +270,11 @@ distinct refinement, forward-selected PDA, is distributed as the R package `fsPD
 [@shi2023forward], which adds donors greedily by their marginal contribution to
 pre-treatment fit. `mlsynth` carries this whole strand in [PDA]{.pkg}, whose
 `method` argument selects the Hsiao-Ching-Wan best-subset fit (`"hcw"`), forward
-selection (`"fs"`), the lasso, or an $\ell_2$ relaxation; on `fsPDA`'s own example
-the two agree to five decimals, [PDA]{.pkg} returning an average effect of
-$-0.030896$ on the same selected donors.
+selection (`"fs"`), the lasso, or an $\ell_2$ relaxation; on `fsPDA`'s own application -- the effect of China's 2012
+anti-corruption campaign on luxury-watch imports -- [PDA]{.pkg} and `fsPDA` agree
+to five decimals, selecting the same three donors and returning a monthly average
+effect of $-0.030896$ ($-3.09\%$), matching the $-3.09\%$ reported by
+@shi2023forward cell-for-cell.
 
 A third strand refines the simplex fit itself. `augsynth`
 [@benmichael2021augmented] is the R implementation of the augmented synthetic
@@ -265,16 +284,7 @@ covariates and staggered adoption, and reports conformal or jackknife-plus
 inference. Its augmentation is the `augment = "ridge"` option on [VanillaSC]{.pkg},
 and the two agree to the sixth decimal: on `augsynth`'s own Kansas tax-cut study,
 `mlsynth` returns an average effect of $-0.029435$ for the un-augmented control and
-$-0.040063$ for the ridge-augmented fit, matching `augsynth` value-for-value. From
-the opposite direction, a recent literature on the numerics of the original
-estimator -- the R package `MSCMT` [@becker2018fast] and the bilevel-optimization
-analysis of @malo2024computing -- shows that the nested predictor-and-donor problem
-`Synth` solves has a global optimum at which the donor weights coincide with a pure
-outcome fit. `mlsynth` reaches that optimum directly through [VanillaSC]{.pkg}'s
-outcome-only backend, and the match against the reference is exact: fit to the
-California tobacco data, [VanillaSC]{.pkg} and the installed `MSCMT` package agree on
-every donor weight -- Utah $0.3939$, Montana $0.2318$, Nevada $0.2049$, Connecticut
-$0.1091$ -- and on an average treatment effect of $-19.51363$, to five decimals.
+$-0.040063$ for the ridge-augmented fit, matching `augsynth` value-for-value.
 
 A fourth strand changes how donor weights are formed rather than how the simplex is
 solved. `masc` [@kellogg2021combining] is the R implementation of the matching-and-
