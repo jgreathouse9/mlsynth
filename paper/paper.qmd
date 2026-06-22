@@ -482,10 +482,14 @@ estimation rather than a separate concern, and @sec-design demonstrates it.
 
 ## Architecture {#sec-arch}
 
-The library is organized around three contracts that every estimator shares: a
-single data-preparation step, a validated configuration object, and a
-standardized result. The design goal is that learning one estimator teaches the
-user every estimator.
+The library is organized along two axes. Outward, every estimator shares three
+contracts -- a single data-preparation step, a validated configuration object,
+and a standardized result -- so that learning one estimator teaches the user
+every estimator. Inward, the source obeys one structural rule: one estimator is
+one self-contained package. The two are complementary. The outward contracts keep
+more than forty estimators uniform for the person using them; the inward rule
+keeps them tractable for the people maintaining them. We take the outward
+contracts first, then the structure that sustains them.
 
 ### One data contract {#sec-dataprep}
 
@@ -550,10 +554,63 @@ Observational estimators return an effect result; design methods return a design
 result whose report is itself an effect result. Both populate the same
 standardized sub-objects -- estimated effects, fit diagnostics, the observed and
 counterfactual time series, donor weights, and inference -- as typed fields
-rather than ad hoc dictionaries. Because the result shape is fixed, downstream
+rather than ad hoc dictionaries. Reading a result is therefore the same regardless
+of which estimator produced it:
+
+```{python}
+#| eval: false
+res = VanillaSC(config).fit()
+
+res.effects.att                         # average effect on the treated
+res.time_series.counterfactual_outcome  # the synthetic control path
+res.weights.donor_weights               # the fitted donor weights
+res.inference.p_value                   # inference, on the same object
+```
+
+Because the result shape is fixed, downstream
 code (plotting, tables, comparison across estimators) is written once and works
 for every method. The two illustrations below read effects, time series, and
 inference off this common object without any estimator-specific glue.
+
+### One estimator, one package {#sec-onepackage}
+
+The uniformity just described is only affordable because the source is
+partitioned the same way the method catalog is. Each estimator is one package. A
+thin class in `estimators/<name>.py` does nothing but validate its configuration,
+hand off to a pipeline, translate any failure into the library's typed error
+vocabulary, and return the standardized result; [VanillaSC]{.pkg} is seventy-odd
+lines and holds no algorithm of its own. The work lives beside it in a helper
+package, `utils/<name>_helpers/`, split by role -- typically a setup step that
+calls [dataprep]{.fct}, the numerical pipeline, the data structures, a plotter,
+and whatever modules are specific to the method. The configuration object lives
+in that same package, in its own `config.py`, next to the code it governs, and is
+re-exported centrally so that existing imports keep resolving.
+
+The motivation is mundane and decisive. The alternative -- the project's own
+earlier design -- is a handful of shared modules that every estimator edits in
+common; a single configuration file had grown toward several thousand lines,
+becoming longer and riskier to touch with each method added. Giving every method
+its own package is the remedy. A contributor adding or revising an estimator
+works inside one directory: the change cannot reach another estimator's code, two
+people editing different estimators never collide, and the blast radius of a
+mistake is one package. The same boundary serves the reader. The unit one must
+hold in mind to follow a method -- its options, its validation rules, its
+numerics, and its tests -- is exactly one directory, not a thread chased across a
+monolithic configuration module, a monolithic estimator module, and a shared
+helper file.
+
+What stays shared is deliberately small and cross-cutting. Every configuration
+inherits one base, `BaseEstimatorConfig`, which fixes the common
+`df / outcome / treat / unitid / time` surface and forbids unknown fields, so a
+method's own `config.py` declares only what is genuinely specific to it. Every
+failure is raised in one hierarchy -- `MlsynthConfigError`, `MlsynthDataError`,
+and `MlsynthEstimationError` beneath a common `MlsynthError` -- so that user code
+catches the same types no matter which estimator raised them. And when a method
+is really a family of related variants, the package gains a dispatcher rather than
+the library gaining several near-duplicate estimators: [SPILLSYNTH]{.pkg} selects
+among five spillover-adjustment schemes through a single `method` argument, each
+isolated in its own subpackage. The rule scales the catalog without scaling the
+coupling.
 
 ## A single treated unit {#sec-estimation}
 
