@@ -140,7 +140,10 @@ of, and the predictor-selection method of @vivesibastida2022predictorselectionsy
 -- which confronts the choice of which covariates enter the fit, a central source
 of disagreement among practitioners -- has no public implementation at all.
 The experimental-design family in particular has had almost no packaged presence
-for applied users.
+for applied users: the synthetic experimental design of
+@abadie2026syntheticcontrolsexperimentaldesign, for instance, is distributed only
+as paper-replication scripts, not as software a working data scientist can pick up
+off the shelf.
 
 Naming the leading tools makes the cost concrete. The original method ships as the
 R package `Synth` [@abadie2011synth] and, in Stata, as `synth2` [@yan2023synth2],
