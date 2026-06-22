@@ -520,6 +520,15 @@ Switching estimators means changing the class name and, at most, a handful of
 method-specific options; the data, the column names, and the call shape do not
 move. This is the concrete payoff of the unified view in @sec-unified.
 
+Because a configuration is plain, validated data rather than live program state,
+the specification of an analysis is itself serializable. Everything in it but the
+DataFrame -- the column names and every method-specific option -- can be written to
+a JSON or YAML file, version-controlled, and loaded back to drive a fit. The record
+of *what* analysis was run thus lives separately from the data it ran on, which
+keeps to its own tabular format (CSV or Parquet); each can be inspected and diffed
+on its own. A reproducible study can therefore ship as a small text specification
+beside its data, with no bespoke script standing between the two.
+
 ### One estimator {#sec-onepackage}
 
 That uniform surface is only affordable because the source is partitioned the same
