@@ -136,10 +136,11 @@ Worse, the gap between the methods literature and usable software is uneven:
 important methods that solve a pressing problem can lack a maintained
 implementation entirely. The leave-two-out refined placebo test
 [@lei2025inferencesyntheticcontrolsrefined] has none in any language we are aware
-of, and the sparse synthetic control of Microsoft's `SparseSC` is no longer
-actively developed. The experimental-design family in particular has had almost no
-packaged presence for applied users, and what presence it had is thinning: Meta
-retired `GeoLift`, its one widely used implementation, in 2026.
+of, and the predictor-selection method of @vivesibastida2022predictorselectionsyntheticcontrols
+-- which confronts the choice of which covariates enter the fit, a central source
+of disagreement among practitioners -- exists only as the author's MATLAB code.
+The experimental-design family in particular has had almost no packaged presence
+for applied users.
 
 Naming the leading tools makes the cost concrete. The original method ships as the
 R package `Synth` [@abadie2011synth] and, in Stata, as `synth2` [@yan2023synth2],
@@ -149,7 +150,7 @@ synthetic control has the R package `microsynth` [@robbins2021microsynth];
 synthetic difference-in-differences has the R `synthdid` and the Stata `sdid`
 [@arkhangelsky2021synthetic; @clarke2023sdid]; prediction-interval inference has
 `scpi` [@cattaneo2025scpi]; forward-selected estimation has `fsPDA`
-[@shi2023forward]; and design-first geo-experiments had Meta's `GeoLift`
+[@shi2023forward]; and design-first geo-experiments have Meta's `GeoLift`
 [@geolift]. Each is a capable tool and `mlsynth` is a critique of none of them. But
 they are spread across two languages -- several only in the commercial Stata -- with
 no shared data format, no shared notion of a result, and no way to run one against
@@ -698,7 +699,7 @@ $\ell_2$ ridge penalty, instead spreads mass thinly across many donors
 
 ```{python}
 #| label: tbl-sc-weights
-#| tbl-cap: "Donor weights of the simplex synthetic control, read from `vsc.weights.donor_weights`. Synthetic California is a sparse convex combination of a few states; donors with zero weight are omitted."
+#| tbl-cap: "Donor weights of the simplex synthetic control (`vsc.weights.donor_weights`); zero-weight donors omitted."
 sc_weights = pd.Series(vsc.weights.donor_weights, name="weight")
 sc_weights = sc_weights[sc_weights.abs() > 1e-4].sort_values(ascending=False)
 sc_weights.round(3).rename_axis("donor state").to_frame()
@@ -706,7 +707,7 @@ sc_weights.round(3).rename_axis("donor state").to_frame()
 
 ```{python}
 #| label: tbl-sdid-weights
-#| tbl-cap: "The eight largest SDID unit weights, read from `sdid.weights.donor_weights`. The ridge penalty spreads weight across many donors rather than concentrating it."
+#| tbl-cap: "The eight largest SDID unit weights (`sdid.weights.donor_weights`); the ridge penalty spreads weight across many donors."
 sdid_weights = pd.Series(sdid.weights.donor_weights, name="weight")
 sdid_weights.sort_values(ascending=False).head(8).round(3).rename_axis("donor state").to_frame()
 ```
@@ -795,7 +796,7 @@ plt.show()
 
 ```{python}
 #| label: tbl-spillover-att
-#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study, read from the same `att` field. On Proposition 99 the estimates span roughly nine to twenty-two packs; on reunification they cluster within a few hundred dollars of one another."
+#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study (the `att` field)."
 (pd.DataFrame(records)
    .pivot(index="method", columns="case", values="ATT")
    .round(2))
@@ -880,7 +881,7 @@ tables, ships with the library as a durable regression test.
 ```{python}
 #| label: tbl-geolift
 #| echo: false
-#| tbl-cap: "mlsynth reproduces the GeoLift walkthrough's published summaries through its public interface."
+#| tbl-cap: "mlsynth reproduces the GeoLift walkthrough's published summaries."
 tab = pd.DataFrame(
     {
         "GeoLift (published)": [155.556, 156.805, 0.01],
@@ -899,7 +900,7 @@ synthetic test region.
 
 ```{python}
 #| label: tbl-geolift-weights
-#| tbl-cap: "Donor-market weights of the ridge-augmented GeoLift model, read from `ridge_geo.weights.donor_weights`, matching the walkthrough's printed weight table. Markets with negligible weight are omitted."
+#| tbl-cap: "Donor-market weights of the ridge-augmented GeoLift model (`ridge_geo.weights.donor_weights`), matching the walkthrough; negligible-weight markets omitted."
 geo_weights = pd.Series(ridge_geo.weights.donor_weights, name="weight")
 geo_weights = geo_weights[geo_weights > 1e-4].sort_values(ascending=False).head(13)
 geo_weights.round(4).rename_axis("donor market").to_frame()
