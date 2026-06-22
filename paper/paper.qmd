@@ -527,7 +527,31 @@ a JSON or YAML file, version-controlled, and loaded back to drive a fit. The rec
 of *what* analysis was run thus lives separately from the data it ran on, which
 keeps to its own tabular format (CSV or Parquet); each can be inspected and diffed
 on its own. A reproducible study can therefore ship as a small text specification
-beside its data, with no bespoke script standing between the two.
+beside its data, with no bespoke script standing between the two. Concretely, the
+configuration above is a few lines of YAML,
+
+```yaml
+# study.yaml -- a complete, shareable analysis specification
+estimator: VanillaSC
+outcome:   cigsale
+treat:     treat        # 0/1 treatment indicator
+unitid:    state
+time:      year
+```
+
+which `mlsynth` reads back into a ready-to-fit estimator, resolving the named
+method and attaching the data at load time:
+
+```{python}
+#| eval: false
+from mlsynth import load_spec
+
+est = load_spec("study.yaml", df=panel)   # resolves VanillaSC, attaches the panel
+results = est.fit()
+```
+
+The library exposes the writing side symmetrically, as `save_spec`, so a fitted
+configuration can be exported to a record and shared.
 
 ### One estimator {#sec-onepackage}
 
