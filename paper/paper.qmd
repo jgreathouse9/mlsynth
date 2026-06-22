@@ -208,7 +208,7 @@ implementations live in R and Stata, the methods are split one-to-a-package, and
 the few Python options each cover a narrow slice of the family. We group the
 representative packages by the estimator they implement, note in each case the
 `mlsynth` equivalent, and report where we have checked the two against each other
-numerically (Appendix A). Throughout, the point is not that these tools fall
+numerically. Throughout, the point is not that these tools fall
 short -- each is a careful, well-documented implementation -- but that `mlsynth`
 reaches all of them, and three dozen estimators besides, through one interface.
 
@@ -349,7 +349,7 @@ source paper's published results at validation time (@tbl-related).
 | `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | -- |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | -- |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically (Appendix A). {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically. {#tbl-related}
 
 The remainder of the paper is organized as follows. @sec-unified develops the
 shared factor-model view and the resulting taxonomy of estimators. @sec-arch
@@ -362,8 +362,7 @@ synthetic-control designs and prediction intervals; spillovers, relaxing the
 no-interference assumption by running four spillover-aware estimators across two
 case studies through one dispatcher; and experimental design, reproducing Meta's
 `GeoLift` walkthrough and situating it within the broader design family.
-@sec-summary concludes, with computational details and a validation-suite
-appendix to follow.
+@sec-summary concludes, with computational details to follow.
 
 ## A unified view of synthetic control {#sec-unified}
 
@@ -1121,42 +1120,16 @@ is available from the Python Package Index via `pip install mlsynth`, with sourc
 and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
 at <https://mlsynth.readthedocs.io>.
 
+Reproducibility in `mlsynth` is engineered rather than asserted. Alongside the
+unit tests, the library ships a benchmark suite that pins each reference
+implementation to an exact commit and re-runs it at validation time, comparing
+`mlsynth`'s output to the freshly computed reference rather than to numbers copied
+into a test that would silently rot as the reference evolves. The pinned-commit
+install scripts, the re-run harness, and the full replication code are provided as
+the replication materials accompanying this article and in the `benchmarks` suite
+of the source repository.
+
 ## References {.unnumbered}
 
 ::: {#refs}
 :::
-
-```{=latex}
-\appendix
-```
-
-## Validation suite {#app-benchmarks}
-
-Reproducibility in `mlsynth` is engineered, not asserted. Alongside the unit
-tests, the library ships a separate benchmark suite that institutionalizes the
-cross-checks that are otherwise performed once by hand and discarded. Each
-estimator is validated along one of three paths: reproducing a source paper's
-empirical result on the authors' own data, reproducing a paper's Monte Carlo
-table, or -- most demandingly -- matching an authoritative reference
-implementation cell by cell.
-
-The cross-validation path is where the engineering shows. Rather than copy a
-reference tool's published numbers into a test (numbers that silently rot as the
-reference evolves), the suite installs the reference implementation itself and
-runs it at validation time, comparing `mlsynth`'s output to the freshly computed
-reference. Because most of these references are R packages -- `augsynth`,
-`GeoLift`, `microsynth`, `Synth`, `pensynth`, among others -- and R packages
-under active development drift, every reference is pinned to an exact commit. The
-install scripts compile each package, and its entire dependency chain, from a
-frozen Git SHA, so the same reference code runs every single time. The `GeoLift`
-cross-check, for instance, pins `augsynth` and its solver stack (`osqp`, `S7`,
-`LiblineaR`) to specific commits; the script that does so notes, pointedly, that
-an unpinned tip is precisely the version drift that made `GeoLift`'s own
-walkthrough ATT of 155.556 go stale. The Python case shells out to the pinned
-reference, compares the two outputs to a tight numerical tolerance -- often four
-significant figures -- and reports a pass or fail, skipping cleanly when the R
-toolchain is unavailable rather than masquerading as a pass. The `GeoLift`
-reproduction in @sec-design is exactly such a case: the published figures it
-matches are regenerated, not remembered, from `augsynth` frozen at a known
-commit. Reproducibility is thereby turned into a controlled, re-runnable process
-in which both sides of every comparison are fixed and inspectable.
