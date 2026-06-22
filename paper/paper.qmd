@@ -1017,11 +1017,9 @@ five-field configuration every other estimator takes.
 Because MAREX commits to a design before any effect is observed, we can hold it
 to a standard the retrospective estimators cannot meet: a simulation in which
 the right answer is known. We draw one panel from the paper's own
-data-generating process -- `{python} J` markets over `{python} T` weeks, the
-first `{python} T0` of them pre-experiment, generated from a linear factor model
-with seven observed covariates and eleven latent factors (Abadie and Zhao,
-Section 5) -- using `mlsynth`'s reimplementation of that DGP, and hand MAREX only
-the pre-experiment outcomes.
+data-generating process -- a linear factor model with seven observed covariates
+and eleven latent factors (Abadie and Zhao, Section 5) -- using `mlsynth`'s
+reimplementation of it, and hand MAREX only the pre-experiment outcomes.
 
 ```{python}
 #| label: marex-design
@@ -1047,11 +1045,13 @@ design = MAREX({**cfg, "df": panel(sample.Y_N)}).fit()   # choose the experiment
 treated = sorted(design.treated_units)
 ```
 
-We ask for the *unconstrained* design -- any number of treated markets from one
-to `{python} J - 1`, letting the optimizer decide how many -- because the paper's
-own simulations find that allowing more treated units improves the design. On
-this draw it selects `{python} len(treated)` of the `{python} J` markets to
-treat and builds a synthetic control from the rest. The experiment then runs:
+The panel holds `{python} J` markets over `{python} T` weeks, the first
+`{python} T0` of them pre-experiment. We ask for the *unconstrained* design --
+any number of treated markets from one to `{python} J - 1`, letting the optimizer
+decide how many -- because the paper's own simulations find that allowing more
+treated units improves the design. On this draw it selects `{python} len(treated)`
+of the `{python} J` markets to treat and builds a synthetic control from the
+rest. The experiment then runs:
 the chosen markets realize their treated outcomes, while everyone else stays
 untreated. Re-reading the same design against that realized panel -- the design
 is fixed by the pre-experiment window, so it selects the same markets -- turns
@@ -1108,25 +1108,27 @@ pd.Series({
 })
 ```
 
-The inference is where the design pays off again, and where `mlsynth` goes past
-the paper. MAREX reports a permutation $p$-value for the global null of no effect
-(`{python} f"{float(pf.p_value):.3f}"` on this draw) and a split-conformal
-confidence band [@chernozhukov2021conformal] around each period's effect, both
-built on the blank periods -- pre-experiment weeks deliberately withheld from the
-fit, where the synthetic-treated-minus-control gap is pure noise and so
-calibrates the size of a null fluctuation. The paper develops this permutation
-machinery but stops short of the prospective question a designer most wants
-answered: how large an effect could this design detect, and for how long must
-the experiment run to detect it? `mlsynth` fills that gap with an analytical
-minimum detectable effect, computed from the same blank-period residuals but
-inflated for the serial correlation that synthetic-control gaps almost always
-carry (an AR(1) variance-inflation factor), and reported on `res.post_fit.power`
-as both a headline number and a curve over candidate horizons; the derivation is
-laid out on the estimator's documentation page
-(<https://mlsynth.readthedocs.io/en/latest/marex.html>). The point worth keeping
-is that the design, the estimate, the permutation test, the conformal band, and
-the power curve all fall out of one `fit` -- the first time, as far as we know,
-that this design-and-analyze workflow has been packaged for applied use.
+Inference is the other half of the paper's contribution, and `mlsynth` carries
+it faithfully. MAREX reports the paper's permutation $p$-value for the global
+null of no effect (`{python} f"{float(pf.p_value):.3f}"` on this draw) and its
+split-conformal confidence band [@chernozhukov2021conformal] around each period's
+effect, both built on the *blank* periods -- pre-experiment weeks deliberately
+withheld from the fit, where the synthetic-treated-minus-control gap is pure
+noise and so calibrates the size of a null fluctuation. What sets the procedure
+apart from earlier synthetic-control inference is that it stays valid under
+serial dependence and non-stationarity in the outcomes, rather than assuming the
+gaps are independent and identically distributed over time -- which matters
+precisely because market sales are persistent. Within that same framework
+`mlsynth` also surfaces a power analysis: an analytical minimum detectable
+effect, read off the blank-period residuals and inflated for their serial
+correlation by an AR(1) variance-inflation factor, exposed on
+`res.post_fit.power` as a headline number and a curve over candidate horizons, so
+a designer can ask in advance how large an effect the experiment could detect and
+how long it must run (the derivation is on the estimator's documentation page,
+<https://mlsynth.readthedocs.io/en/latest/marex.html>). Design, estimate,
+permutation test, conformal band, and power curve all fall out of one `fit` --
+the first time, as far as we know, that this design-and-analyze workflow has been
+packaged for applied use.
 
 #### The broader design family {#sec-design-family}
 

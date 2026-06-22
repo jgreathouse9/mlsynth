@@ -338,10 +338,11 @@ design I've chosen, how large a treatment effect can I detect with high
 probability?* This is the dual of inference: inference asks "is the observed
 effect distinguishable from noise?", power asks "what effect sizes would be?"
 
-The paper develops permutation inference for MAREX but does not provide a
-matching MDE. ``mlsynth`` fills this gap with an analytical, AR(1)-inflated
-Gaussian MDE computed from the same residual series the permutation test
-draws on. Set ``inference=True`` and the result auto-populates
+The paper's inference is built to stay valid under serial dependence and
+non-stationarity; staying squarely within that framework, ``mlsynth`` also
+reports a planning-oriented minimum detectable effect -- an analytical,
+AR(1)-inflated Gaussian MDE computed from the same residual series the
+permutation test draws on. Set ``inference=True`` and the result auto-populates
 ``res.post_fit.power`` — ``blank_periods`` defaults to
 ``max(1, floor(0.3 * T0))`` so you do not need to pick a scalar yourself
 (matching the LEXSCM / SYNDES / PANGEO convention).
