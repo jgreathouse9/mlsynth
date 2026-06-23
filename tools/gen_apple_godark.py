@@ -36,8 +36,8 @@ import pandas as pd
 from mlsynth import MAREX
 from mlsynth.utils.marex_helpers.simulation import generate_marex_sample
 
-# --- the DGP knobs: 20 DMAs, 20 pre-launch weeks, 10 post, treat 4--6 ---------
-J, R, F, T, T0, T_POST = 20, 7, 11, 30, 20, 10
+# --- the DGP knobs: 20 DMAs, 40 pre-launch weeks, 10 post, treat 4--6 ---------
+J, R, F, T, T0, T_POST = 20, 7, 11, 50, 40, 10
 M_MIN, M_MAX = 4, 6
 SEED = 7
 

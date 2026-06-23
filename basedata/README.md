@@ -63,7 +63,7 @@ Two near-identical 17-column regional panels that differ by a region/year block:
 
 | File | What it is | Used by |
 |---|---|---|
-| `apple_godark_dmas.csv` | one draw of the Abadie–Zhao baseline DGP (Sec. 5) framed as an Apple paid-media go-dark test: 20 DMAs × 30 weeks of `sales` (paid media on everywhere through week 19, off in the designed `went_dark` markets for weeks 20–29), with the simulation's known per-week effect `tau_true` | the JOSS paper's MAREX experimental-design illustration |
+| `apple_godark_dmas.csv` | one draw of the Abadie–Zhao baseline DGP (Sec. 5) framed as an Apple paid-media go-dark test: 20 DMAs × 50 weeks of `sales` (paid media on everywhere through week 39, off in the designed `went_dark` markets for weeks 40–49), with the simulation's known per-week effect `tau_true` | the JOSS paper's MAREX experimental-design illustration |
 
 Regenerate with `python tools/gen_apple_godark.py` (it runs the MAREX selection
 solve once, offline, and pre-commits the chosen dark markets so the paper can
