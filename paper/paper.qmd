@@ -159,7 +159,7 @@ This paper introduces `mlsynth`, a Python [@harris2020array] library that
 addresses this fragmentation directly. The package ships
 `{python} n_estimators` estimators behind one data-preparation routine, one
 validated configuration-and-fit interface, and one standardized result object.
-Our central argument is that this consolidation is worth having, that these are
+Our central argument is that this consolidation is worth having: these are
 not `{python} n_estimators` unrelated tools but one family. As we make precise in
 @sec-unified, the vast majority of these estimators reduce to a common operation:
 projecting a treated unit's outcome onto a low-dimensional factor structure
@@ -460,9 +460,9 @@ itself:
   [@bai2009panel; @xu2017generalized], and matrix-completion methods recover the
   full low-rank outcome matrix [@athey2021matrix].
 
-Seen this way, the catalog is a set of choices along a few axes, the constraint
+Seen this way, the catalog is a set of choices along a few axes: the constraint
 on the weights, whether the donor matrix is denoised first, whether donors are
-selected or weighted, and how the common time structure is handled, rather than
+selected or weighted, and how the common time structure is handled. It is not
 a list of unrelated algorithms. This is precisely why one interface is the right
 abstraction: the inputs ($\mathbf{Y}_0$, $\mathbf{y}_1$, $T_0$) and the output
 (a counterfactual path and its gap) are common to all of them.
@@ -630,7 +630,7 @@ the unit whose indicator ever turns on is the treated unit, the period in which 
 first turns on is $T_0 + 1$, and everything before that is the pre-treatment window.
 The user never names the treated unit, never states the intervention date, and never
 declares the pre/post split; these are read off the indicator. The same convention
-scales without new arguments, when several units are treated at different times,
+scales without new arguments: when several units are treated at different times,
 [dataprep]{.fct} cohorts them by their individual adoption dates automatically.
 
 This is a deliberate contrast with the surrounding ecosystem, and it surfaces first
@@ -881,7 +881,7 @@ literature. That assumption is often indefensible. When California raised its
 cigarette tax, some sales simply crossed the border into Nevada, so a neighbouring
 state's outcomes were themselves moved by the treatment; using it as a donor
 contaminates the counterfactual. For most of the method's history the remedy was
-subtractive (drop the units you suspect, as @abadie2010synthetic do) trading a
+subtractive (drop the units you suspect, as @abadie2010synthetic do), trading a
 SUTVA violation for a smaller, weaker comparison. A more recent literature instead
 keeps the units and models the spillover: @cao2023estimation,
 @distefano2024inclusive, @melnychuk2024synthetic, and @grossi2025direct each
