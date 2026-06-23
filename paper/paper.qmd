@@ -1277,13 +1277,6 @@ versions = {
 }
 ```
 
-All numbers and figures in this paper are computed when the document is rendered,
-directly from the installed library, rather than transcribed from a prior run.
-This is a deliberate guard against the drift that accumulates when a paper's
-reported figures and a library's behavior diverge over successive versions: if an
-estimator's output changed, this document would fail to render or would render
-different numbers, not silently disagree with itself.
-
 The results above were produced with `mlsynth`
 `{python} versions["mlsynth"]` on Python `{python} versions["Python"]`, with
 NumPy `{python} versions["NumPy"]` [@harris2020array] and pandas
@@ -1293,11 +1286,9 @@ is available from the Python Package Index via `pip install mlsynth`, with sourc
 and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
 at <https://mlsynth.readthedocs.io>.
 
-Reproducibility in `mlsynth` is engineered rather than asserted. Alongside the
-unit tests, the library ships a benchmark suite that pins each reference
-implementation to an exact commit and re-runs it at validation time, comparing
-`mlsynth`'s output to the freshly computed reference rather than to numbers copied
-into a test that would silently rot as the reference evolves. The pinned-commit
+Reproducibility in `mlsynth` is enforced via a benchmark system. The library ships a benchmark suite that pins each reference
+implementation (say, the current version of `augsynth`) to an exact commit and re-runs it at validation time, comparing
+`mlsynth`'s output to the freshly computed reference rather. The pinned-commit
 install scripts, the re-run harness, and the full replication code are provided as
 the replication materials accompanying this article and in the `benchmarks` suite
 of the source repository.
