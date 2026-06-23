@@ -819,7 +819,8 @@ windows = ({c: (1964, 1969) for c in schooling}
 
 ag_base = dict(df=basque, outcome="gdpcap", treat="treat", unitid="regionname",
                time="year", covariates=covariates, covariate_windows=windows,
-               fit_window=(1960, 1969), inference="scpi", alpha=0.10)
+               fit_window=(1960, 1969), inference="scpi", alpha=0.10,
+               display_graphs=False)
 ```
 
 #### One problem, two solvers {#sec-two-solvers}
@@ -852,22 +853,29 @@ gap_pct = 100 * (att_malo - att_mscmt) / att_mscmt
 
 ```{python}
 #| label: fig-basque
-#| fig-cap: "The Abadie-Gardeazabal Basque study fit twice, changing only the solver. Observed Basque per-capita GDP (black) against the synthetic control from the MSCMT nested differential-evolution search (blue, dashed) and from the Malo et al. bilevel solver (red, dash-dotted). The solid vertical line marks 1970, the start of the treatment window. The two counterfactuals are close in level but rest on different donor weights (@tbl-basque-weights), and the bilevel solver fits the pre-treatment window better."
-
-cf_mscmt = np.asarray(mscmt.time_series.counterfactual_outcome, dtype=float)
-cf_malo = np.asarray(malo.time_series.counterfactual_outcome, dtype=float)
+#| fig-cap: "The Abadie-Gardeazabal Basque study fit twice, changing only the solver. Observed Basque per-capita GDP (black) against the synthetic control from the MSCMT nested differential-evolution search (blue, dashed) and the Malo et al. bilevel solver (red, dash-dotted), each carrying its Cattaneo-Feng-Titiunik 90% prediction interval as per-period error bars over the post-treatment window (dodged for legibility). The solid vertical line marks 1970, the start of the treatment window; the solvers fit the pre-period almost identically yet rest on different donor weights (@fig-basque-weights)."
 
 fig, ax = plt.subplots(figsize=(5, 3.2))
-ax.plot(years, observed, color="black", lw=1.6, label="Basque Country (observed)")
-ax.plot(years, cf_mscmt, color="C0", ls="--", lw=1.3, label="MSCMT nested solver")
-ax.plot(years, cf_malo, color="C3", ls="-.", lw=1.3, label="Malo bilevel solver")
+ax.plot(years, observed, color="black", lw=1.7, zorder=5,
+        label="Basque Country (observed)")
+for res, color, ls, name, dx in [(mscmt, "C0", "--", "MSCMT nested solver", -0.25),
+                                  (malo, "C3", "-.", "Malo bilevel solver", 0.25)]:
+    cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
+    ax.plot(years, cf, color=color, ls=ls, lw=1.2, label=name)
+    band = res.inference.details          # per-period Cattaneo-Feng-Titiunik bounds
+    post_years = np.array(band["periods"], dtype=float)
+    cf_post = cf[np.isin(years, band["periods"])]
+    ax.errorbar(post_years + dx, cf_post,
+                yerr=[cf_post - band["counterfactual_lower"],
+                      band["counterfactual_upper"] - cf_post],
+                fmt="none", ecolor=color, elinewidth=0.7, capsize=1.5, alpha=0.8)
 ax.axvline(1970, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("GDP per capita (000s USD)")
-ax.legend(fontsize=7); fig.tight_layout(); plt.show()
+ax.legend(fontsize=6.5, loc="upper left"); fig.tight_layout(); plt.show()
 ```
 
 The two solvers build different synthetic Basque Countries from the same donor pool
-(@tbl-basque-weights). The nested search puts most of its weight on Cataluna; the
+(@fig-basque-weights). The nested search puts most of its weight on Cataluna; the
 bilevel solver drops Cataluna entirely, promotes Madrid to the largest donor, and
 adds Rioja. They are solving the same problem, and @malo2024computing's point is
 that the nested search need not reach its optimum, which is what happens here: the
@@ -883,20 +891,25 @@ recurs on the Basque study, the field's other canonical application, in a
 side-by-side comparison only possible because both solvers sit behind one interface.
 
 Both solutions live under the same `weights.donor_weights` field, and
-@tbl-basque-weights reads them side by side.
+@fig-basque-weights plots them side by side.
 
 ```{python}
-#| label: tbl-basque-weights
-#| tbl-cap: "Donor weights from the two solvers (`weights.donor_weights`), zero-weight regions omitted. The nested and bilevel searches select different regions, and weight their shared donors differently, for the same treated unit."
-def positive_weights(res, name):
-    s = pd.Series(res.weights.donor_weights, name=name)
-    return s[s.abs() > 1e-3]
+#| label: fig-basque-weights
+#| fig-cap: "Donor weights from the two solvers (`weights.donor_weights`), regions with negligible weight omitted. The nested search (blue) and the bilevel search (red) select different regions, Cataluna versus Rioja, and weight their shared donors, Madrid and Baleares, differently, for the same treated unit."
+def positive_weights(res):
+    return {str(k): float(v) for k, v in res.weights.donor_weights.items()
+            if abs(v) > 1e-3}
 
-fmt = lambda v: "" if pd.isna(v) else f"{v:.3f}"      # blank for unused donors
-(pd.concat([positive_weights(mscmt, "MSCMT (nested)"),
-            positive_weights(malo, "Malo (bilevel)")], axis=1)
-   .rename_axis("donor region")
-   .apply(lambda col: col.map(fmt)))
+wm, wl = positive_weights(mscmt), positive_weights(malo)
+donors = sorted(set(wm) | set(wl), key=lambda r: -(wm.get(r, 0) + wl.get(r, 0)))
+short = lambda r: r.split(" (")[0]
+x = np.arange(len(donors)); bw = 0.38
+
+fig, ax = plt.subplots(figsize=(5, 2.8))
+ax.bar(x - bw / 2, [wm.get(r, 0) for r in donors], bw, color="C0", label="MSCMT nested")
+ax.bar(x + bw / 2, [wl.get(r, 0) for r in donors], bw, color="C3", label="Malo bilevel")
+ax.set_xticks(x); ax.set_xticklabels([short(r) for r in donors])
+ax.set_ylabel("donor weight"); ax.legend(fontsize=7); fig.tight_layout(); plt.show()
 ```
 
 That side-by-side is the point. The disagreement between a widely used nested
