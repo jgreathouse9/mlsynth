@@ -867,8 +867,8 @@ ax.legend(fontsize=7); fig.tight_layout(); plt.show()
 ```
 
 The two solvers build different synthetic Basque Countries from the same donor pool
-(@tbl-basque-weights). The nested search puts most of its weight on Cataluña; the
-bilevel solver drops Cataluña entirely, promotes Madrid to the largest donor, and
+(@tbl-basque-weights). The nested search puts most of its weight on Cataluna; the
+bilevel solver drops Cataluna entirely, promotes Madrid to the largest donor, and
 adds Rioja. They are solving the same problem, and @malo2024computing's point is
 that the nested search need not reach its optimum, which is what happens here: the
 bilevel solution attains a lower pre-treatment fit loss (RMSE
