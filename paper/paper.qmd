@@ -912,10 +912,13 @@ ax.set_xticks(x); ax.set_xticklabels([short(r) for r in donors])
 ax.set_ylabel("donor weight"); ax.legend(fontsize=7); fig.tight_layout(); plt.show()
 ```
 
-That side-by-side is the point. The disagreement between a widely used nested
-solver and the provably better bilevel one is visible only because `mlsynth` hosts
-both, each cross-validated against its reference (the R package `MSCMT` and
-@malo2024computing's `scm.corner`), behind one estimator and one `backend` keyword.
+That the comparison is controlled is the point. Only the solver changes; the data
+frame, the data-preparation contract, and the result schema are held fixed, so the
+disagreement between a widely used nested solver and the provably better bilevel one
+is attributable to the solver alone rather than to two reconciled implementations.
+That attribution is sound only because `mlsynth` hosts both, each cross-validated
+against its reference (the R package `MSCMT` and @malo2024computing's `scm.corner`),
+behind one estimator and one `backend` keyword.
 The same one-field edit reaches the rest of the catalog: `SDID` adds unit and time
 weights to a two-way fixed-effects fit [@arkhangelsky2021synthetic], `CLUSTERSC`
 de-noises the donor matrix before fitting [@amjad2018robust], each on the unchanged
@@ -942,8 +945,9 @@ with four data conventions. `mlsynth` exposes them through one dispatcher,
 [SPILLSYNTH]{.pkg}, selected by a `method` keyword; the treated unit, the donor
 pool, and the units suspected of absorbing spillover are declared once. The
 demonstration we want is therefore not of any single estimator but of the
-consolidation: with a common interface, comparing four spillover-aware methods
-across two unrelated case studies is a loop, not a porting project. We run all
+consolidation: a common interface makes four spillover-aware methods commensurable,
+so their estimates can be compared on the same panel rather than reconciled across
+four output formats. We run all
 four on the California tobacco panel, with the dozen neighbours
 @abadie2010synthetic discard reinstated as suspected spillover recipients, and
 on West Germany's 1990 reunification [@abadie2015comparative], with Austria,
@@ -1027,12 +1031,13 @@ leaks into the reinstated neighbours and each estimator apportions that leakage
 differently; on reunification, where only three modest neighbours are declared
 affected, the corrections are small and the four counterfactuals nearly coincide.
 The disagreement is information, not defect: its size tracks how much spillover
-there is to model, and reading it off costs one loop over a `method` keyword rather
-than four installations across two languages. As with the single-unit
+there is to model, and it is a quantity the reader can trust because every method
+saw the same prepared panel and returned the same result schema, so the spread
+measures the methods rather than four hand-aligned outputs. As with the single-unit
 illustration, `mlsynth` takes no position on which estimator is correct, that
 judgement belongs to the analyst and the application. What the package supplies is
-the cheaper, prior thing: the ability to run all of them, on any of your panels,
-behind one interface.
+the prior thing that makes the judgement possible: a commensurable reading of all
+of them, on any of your panels, behind one interface.
 
 ### Experimental design {#sec-design}
 
@@ -1308,9 +1313,10 @@ Estimation becomes a genuine comparison: on Abadie and Gardeazabal's Basque stud
 a nested solver and a provably better bilevel one, which exist together in no other
 package, reach different synthetic controls from the same data, each by a one-field
 change against an unchanged data frame. Relaxing the
-no-interference assumption becomes a loop: four spillover-aware estimators,
-otherwise four separate codebases in another language, run across two case studies
-behind one keyword. And design becomes available at all: MAREX, the first
+no-interference assumption becomes a measurable sensitivity check: four
+spillover-aware estimators, otherwise four separate codebases in another language,
+run across two case studies behind one keyword, their disagreement a quantity to
+read rather than four outputs to reconcile. And design becomes available at all: MAREX, the first
 packaged synthetic-control experimental design, chooses an experiment on Abadie
 and Zhao's simulation and recovers the known effect through the same
 configure-and-fit interface and standardized result as every estimator before
