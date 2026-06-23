@@ -87,6 +87,31 @@ def test_recovers_rho_and_att_under_spillover():
     assert res.sar.ate_ci[0] <= res.att <= res.sar.ate_ci[1]
 
 
+def test_sar_conforms_to_result_contract():
+    """SAR's result is a standard EffectResult with the full pre+post series."""
+    from mlsynth.config_models import BaseEstimatorResults, EffectResult
+    from mlsynth.utils.counterfactual_compare import compare_counterfactuals
+
+    df, Wdf, wser, _ = _sar_panel(rho=0.6, seed=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = _fit(df, Wdf, wser)
+
+    assert isinstance(res, (BaseEstimatorResults, EffectResult))
+    assert res.effects.att == pytest.approx(res.att)
+    cf = np.asarray(res.time_series.counterfactual_outcome, float)
+    obs = np.asarray(res.time_series.observed_outcome, float)
+    assert cf.shape == obs.shape == np.asarray(res.inputs.time_labels).shape
+    # post block of the full series is the routed spillover-adjusted path
+    np.testing.assert_allclose(cf[res.inputs.T0:],
+                               np.asarray(res.counterfactual, float))
+    assert isinstance(res.pre_rmse, float) and np.isfinite(res.pre_rmse)
+    # the helper reads SAR with no bespoke glue
+    cmp = compare_counterfactuals({"sar": res})
+    assert cmp.observed is not None
+    assert cmp.summary.loc["sar", "att"] == pytest.approx(res.att)
+
+
 def test_inference_bands_and_diagnostics():
     df, Wdf, wser, _ = _sar_panel(rho=0.6, seed=0)
     with warnings.catch_warnings():

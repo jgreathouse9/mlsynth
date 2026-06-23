@@ -22,7 +22,7 @@ import pytest
 from mlsynth import (
     BVSS, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MCNNM,
     MSQRT, NSC, PDA, RESCM, RMSI, SBC, SCMO, SDID, SequentialSDID, SHC, SNN,
-    SparseSC, SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
+    SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
@@ -90,6 +90,8 @@ OBSERVATIONAL = [
     pytest.param(DSCAR, {}, id="DSCAR"),
     pytest.param(ISCM, {}, id="ISCM"),
     pytest.param(SHC, {}, id="SHC"),
+    pytest.param(SPILLSYNTH, {"method": "cd", "affected_units": ["u01"]},
+                 id="SPILLSYNTH"),
 ]
 
 

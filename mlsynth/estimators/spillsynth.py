@@ -56,10 +56,12 @@ class SPILLSYNTH:
     Returns
     -------
     SpillSynthResults
-        Frozen container with the leave-one-out SCM artifacts, per-
-        period spillover-adjusted treatment effect on the treated
-        unit, per-affected-unit spillover trajectories, and the
-        vanilla SCM comparison.
+        A standardized ``EffectResult`` (subclass of
+        :class:`~mlsynth.config_models.BaseEstimatorResults`) carrying the
+        leave-one-out SCM artifacts, per-period spillover-adjusted treatment
+        effect on the treated unit, per-affected-unit spillover trajectories,
+        and the vanilla SCM comparison, alongside the shared sub-models
+        (``effects``, ``time_series``, ``weights`` ...) every estimator exposes.
     """
 
     def __init__(self, config: Union[SPILLSYNTHConfig, dict]) -> None:

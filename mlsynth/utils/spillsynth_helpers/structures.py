@@ -1,4 +1,9 @@
-"""Frozen dataclasses for the SPILLSYNTH estimator.
+"""Result containers for the SPILLSYNTH estimator.
+
+The inputs and per-method fits are frozen dataclasses; the top-level
+``SpillSynthResults`` is a standardized ``EffectResult`` (a
+:class:`~mlsynth.config_models.BaseEstimatorResults` subclass).
+
 
 SPILLSYNTH bundles synthetic-control estimators that explicitly model
 spillover (interference) on potentially-affected control units, behind
@@ -23,6 +28,16 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import numpy as np
+from pydantic import Field, model_validator
+
+from ...config_models import (
+    BaseEstimatorResults,
+    EffectsResults,
+    FitDiagnosticsResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 
 if TYPE_CHECKING:
     from .cd.inference import KappaATestResult, PTestResult
@@ -484,32 +499,36 @@ class IterativeFit:
         return self.counterfactual
 
 
-@dataclass(frozen=True)
-class SpillSynthResults:
+class SpillSynthResults(BaseEstimatorResults):
     """Top-level SPILLSYNTH result container.
+
+    Subclasses :class:`~mlsynth.config_models.BaseEstimatorResults` so a
+    SPILLSYNTH fit is a standard ``EffectResult`` (the two-family contract):
+    the standardized sub-models (``effects``, ``time_series``, ``weights``,
+    ``method_details``, ``fit_diagnostics``) are populated from the active
+    method's fit, while the spillover-specific accessors and the per-method fit
+    artifacts (``cd``/``iscm``/``grossi``/``sar``/``iterative``) are kept as
+    excluded fields. The flat ``att``/``counterfactual``/``gap`` accessors are
+    overridden below to route to the selected method (a dispatcher result).
 
     Parameters
     ----------
-    inputs : SpillSynthInputs
+    inputs : SpillSynthInputs or SARInputs
         The preprocessed panel and spillover structure.
-    cd : Optional[CDFit]
-        Fit artifacts for the Cao-Dowd method, when ``method='cd'``.
-    iscm : Optional[ISCMFit]
-        Fit artifacts for the inclusive SCM method, when ``method='iscm'``.
-    grossi : Optional[GrossiFit]
-        Fit artifacts for the Grossi et al. (2025) partial-interference
-        method, when ``method='grossi'``.
     method : str
-        Method string used (``'cd'``, ``'iscm'`` or ``'grossi'``).
+        Method string used (``'cd'``, ``'iscm'``, ``'grossi'``, ``'sar'`` or
+        ``'iterative'``).
+    cd, iscm, grossi, sar, iterative : optional
+        Per-method fit artifacts; exactly one is set, matching ``method``.
     """
 
-    inputs: SpillSynthInputs
-    method: str
-    cd: Optional[CDFit] = None
-    iscm: Optional["ISCMFit"] = None
-    grossi: Optional["GrossiFit"] = None
-    sar: Optional["SARFit"] = None
-    iterative: Optional["IterativeFit"] = None
+    inputs: Any = Field(default=None, exclude=True)
+    method: str = "cd"
+    cd: Optional[Any] = Field(default=None, exclude=True)
+    iscm: Optional[Any] = Field(default=None, exclude=True)
+    grossi: Optional[Any] = Field(default=None, exclude=True)
+    sar: Optional[Any] = Field(default=None, exclude=True)
+    iterative: Optional[Any] = Field(default=None, exclude=True)
 
     # ------------------------------------------------------------------
     # Convenience accessors (route to the active method's fit).
@@ -589,3 +608,65 @@ class SpillSynthResults:
     def spillover_effects(self) -> Dict[Any, np.ndarray]:
         """Per-affected-unit, per-period spillover trajectories."""
         return self._active.spillover_panel
+
+    # ------------------------------------------------------------------
+    # Standardized two-family surface. The treated unit's observed path and
+    # its pre-period synthetic differ by method (and SAR carries a different
+    # inputs object), so the pre block is built per method; the post block is
+    # the routed spillover-adjusted counterfactual for every method.
+    # ------------------------------------------------------------------
+    def _treated_observed_and_pre(self) -> Tuple[np.ndarray, np.ndarray]:
+        """``(observed_full, pre_synthetic)`` for the treated unit."""
+        inp = self.inputs
+        f = self._active
+        if self.method == "sar":
+            observed = np.asarray(inp.Y0, dtype=float)
+            pre = np.asarray(inp.Yc[: inp.T0] @ f.alpha_hat, dtype=float)
+        else:
+            observed = np.asarray(inp.Y[0], dtype=float)
+            if self.method in ("iscm", "grossi", "iterative"):
+                pre = np.asarray(f.treated_synthetic_pre, dtype=float)
+            else:                                            # cd
+                pre = np.asarray(f.a[0] + f.B[0] @ inp.Y_pre, dtype=float)
+        return observed, pre
+
+    @model_validator(mode="after")
+    def _populate_standard_surface(self) -> "SpillSynthResults":
+        """Fill the standardized sub-models from the active method's fit.
+
+        Skipped when no active fit is present (the ``_active`` error-path
+        constructions), leaving the sub-models ``None``.
+        """
+        try:
+            self._active
+        except AttributeError:
+            return self
+
+        observed, pre = self._treated_observed_and_pre()
+        post = np.asarray(self.counterfactual, dtype=float)
+        cf_full = np.concatenate([pre, post])
+        t = np.asarray(self.inputs.time_labels)
+        T0 = int(self.inputs.T0)
+
+        if self.effects is None:
+            self.effects = EffectsResults(att=float(self.att))
+        if self.time_series is None:
+            self.time_series = TimeSeriesResults(
+                observed_outcome=observed,
+                counterfactual_outcome=cf_full,
+                estimated_gap=observed - cf_full,
+                time_periods=t,
+                intervention_time=(t[T0] if T0 < len(t) else None),
+            )
+        if self.fit_diagnostics is None:
+            resid = observed[:T0] - pre
+            self.fit_diagnostics = FitDiagnosticsResults(
+                rmse_pre=float(np.sqrt(np.mean(resid ** 2))),
+            )
+        if self.weights is None:
+            self.weights = WeightsResults()
+        if self.method_details is None:
+            self.method_details = MethodDetailsResults(
+                method_name=f"SPILLSYNTH/{self.method}",
+            )
+        return self

@@ -236,6 +236,18 @@ class TestStructures:
         with pytest.raises(AttributeError, match="Unknown SPILLSYNTH method"):
             _ = res.att
 
+    def test_active_raises_when_sar_missing(self):
+        inp = SPILLSYNTH(_cfg(_panel(), affected_units=["u1"])).fit().inputs
+        res = SpillSynthResults(inputs=inp, method="sar", sar=None)
+        with pytest.raises(AttributeError, match="no SAR spillover fit"):
+            _ = res.att
+
+    def test_active_raises_when_iterative_missing(self):
+        inp = SPILLSYNTH(_cfg(_panel(), affected_units=["u1"])).fit().inputs
+        res = SpillSynthResults(inputs=inp, method="iterative", iterative=None)
+        with pytest.raises(AttributeError, match="no Iterative-SCM fit"):
+            _ = res.att
+
     def test_results_accessors_route_to_active(self):
         res = SPILLSYNTH(_cfg(_panel(), affected_units=["u1"])).fit()
         assert isinstance(res.att, float)

@@ -980,26 +980,19 @@ for ax, case in zip(axes, cases):
     cfg = dict(df=df, outcome=case["outcome"], treat="treat", unitid=case["unit"],
                time=case["time"], affected_units=case["affected"],
                display_graphs=False)
-    years = np.array(sorted(df[case["time"]].unique()))
-    obs = (df[df[case["unit"]] == case["treated"]]
-           .sort_values(case["time"])[case["outcome"]].to_numpy())
-    specs = {}
+    fits = {}
     for m in methods:
         kw = {**cfg, "method": m}
         if m == "iscm" and case["covariates"]:
             kw["covariates"] = case["covariates"]      # only iscm matches on covariates
-        fit = SPILLSYNTH(kw).fit()                      # the one line that varies
-        sub = getattr(fit, m)
-        pre = (sub.a[0] + sub.B[0] @ fit.inputs.Y_pre if m == "cd"
-               else sub.treated_synthetic_pre)
-        full = np.concatenate([np.asarray(pre), np.asarray(sub.counterfactual_sp)])
-        specs[m] = {"counterfactual": full, "att": fit.att, "time": years}
-    cmp = compare_counterfactuals(specs, observed=obs, time=years)  # one overlay
+        fits[m] = SPILLSYNTH(kw).fit()                  # the one line that varies
+    # Each result is a standard EffectResult, so the helper reads the
+    # counterfactual, observed series, and att straight off it -- no glue.
+    cmp = compare_counterfactuals(fits)
     cmp.plot(ax=ax, colors={m: methods[m][0] for m in methods},
              styles={m: methods[m][1] for m in methods}, legend=False)
-    for m in methods:
-        records.append({"case": case["name"], "method": m,
-                        "ATT": cmp.summary.loc[m, "att"]})
+    records += [{"case": case["name"], "method": m, "ATT": cmp.summary.loc[m, "att"]}
+                for m in methods]
     ax.axvline(case["t0"], color="0.4", ls="-", lw=1.0)
     ax.set_title(case["name"], fontsize=8)
     ax.set_xlabel("year"); ax.set_ylabel(case["ylab"], fontsize=8)
