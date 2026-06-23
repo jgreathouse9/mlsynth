@@ -68,6 +68,7 @@ import matplotlib.pyplot as plt
 
 import mlsynth
 from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH
+from mlsynth.utils.counterfactual_compare import compare_counterfactuals
 from mlsynth.utils.plotting import apply_mlsynth_style
 
 apply_mlsynth_style()                                     # mlsynth house style for every figure
@@ -843,12 +844,21 @@ pre = (years >= 1960) & (years <= 1969)
 observed = (basque[basque["regionname"] == "Basque Country (Pais Vasco)"]
             .sort_values("year")["gdpcap"].to_numpy())
 
-def pre_rmse(res):
+solvers = {"MSCMT nested solver": mscmt, "Malo bilevel solver": malo}
+cmp = compare_counterfactuals(solvers, observed=observed, time=years)
+
+# Stored, not recomputed: effects.att and the full-pre fit_diagnostics.rmse_pre.
+att_mscmt = cmp.summary.loc["MSCMT nested solver", "att"]
+att_malo = cmp.summary.loc["Malo bilevel solver", "att"]
+gap_pct = 100 * (att_malo - att_mscmt) / att_mscmt
+allpre_mscmt = cmp.summary.loc["MSCMT nested solver", "pre_rmse"]
+allpre_malo = cmp.summary.loc["Malo bilevel solver", "pre_rmse"]
+
+# Fit-window RMSE: the outcome loss over 1960-1969, the quantity each solver
+# minimizes (a tighter window than the stored all-pre rmse_pre above).
+def fit_rmse(res):
     cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
     return float(np.sqrt(np.mean((observed[pre] - cf[pre]) ** 2)))
-
-att_mscmt, att_malo = float(mscmt.effects.att), float(malo.effects.att)
-gap_pct = 100 * (att_malo - att_mscmt) / att_mscmt
 ```
 
 ```{python}
@@ -856,19 +866,10 @@ gap_pct = 100 * (att_malo - att_mscmt) / att_mscmt
 #| fig-cap: "The Abadie-Gardeazabal Basque study fit twice, changing only the solver. Observed Basque per-capita GDP (black) against the synthetic control from the MSCMT nested differential-evolution search (blue, dashed) and the Malo et al. bilevel solver (red, dash-dotted), each carrying its Cattaneo-Feng-Titiunik 90% prediction interval as per-period error bars over the post-treatment window (dodged for legibility). The solid vertical line marks 1970, the start of the treatment window; the solvers fit the pre-period almost identically yet rest on different donor weights (@fig-basque-weights)."
 
 fig, ax = plt.subplots(figsize=(5, 3.2))
-ax.plot(years, observed, color="black", lw=1.7, zorder=5,
-        label="Basque Country (observed)")
-for res, color, ls, name, dx in [(mscmt, "C0", "--", "MSCMT nested solver", -0.25),
-                                  (malo, "C3", "-.", "Malo bilevel solver", 0.25)]:
-    cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
-    ax.plot(years, cf, color=color, ls=ls, lw=1.2, label=name)
-    band = res.inference.details          # per-period Cattaneo-Feng-Titiunik bounds
-    post_years = np.array(band["periods"], dtype=float)
-    cf_post = cf[np.isin(years, band["periods"])]
-    ax.errorbar(post_years + dx, cf_post,
-                yerr=[cf_post - band["counterfactual_lower"],
-                      band["counterfactual_upper"] - cf_post],
-                fmt="none", ecolor=color, elinewidth=0.7, capsize=1.5, alpha=0.8)
+cmp.plot(ax=ax, dodge=0.5,           # one call: both counterfactuals + CFT bands
+         colors={"MSCMT nested solver": "C0", "Malo bilevel solver": "C3"},
+         styles={"MSCMT nested solver": "--", "Malo bilevel solver": "-."},
+         legend=False)
 ax.axvline(1970, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("GDP per capita (000s USD)")
 ax.legend(fontsize=6.5, loc="upper left"); fig.tight_layout(); plt.show()
@@ -879,8 +880,10 @@ The two solvers build different synthetic Basque Countries from the same donor p
 bilevel solver drops Cataluna entirely, promotes Madrid to the largest donor, and
 adds Rioja. They are solving the same problem, and @malo2024computing's point is
 that the nested search need not reach its optimum, which is what happens here: the
-bilevel solution attains a lower pre-treatment fit loss (RMSE
-`{python} f"{pre_rmse(malo):.4f}"` against `{python} f"{pre_rmse(mscmt):.4f}"`). The
+bilevel solution attains a lower pre-treatment fit loss over the matching window
+(RMSE `{python} f"{fit_rmse(malo):.4f}"` against `{python} f"{fit_rmse(mscmt):.4f}"`,
+and `{python} f"{allpre_malo:.4f}"` against `{python} f"{allpre_mscmt:.4f}"` over the
+full pre-period, the result's stored `pre_rmse`). The
 better fit moves the headline number. The nested solver puts the average GDP
 shortfall from terrorism at `{python} f"{abs(att_mscmt):.2f}"` thousand USD per
 capita; the bilevel optimum, fitting the pre-period better, puts it
@@ -985,11 +988,11 @@ for ax, case in zip(axes, cases):
     cfg = dict(df=df, outcome=case["outcome"], treat="treat", unitid=case["unit"],
                time=case["time"], affected_units=case["affected"],
                display_graphs=False)
-    years = sorted(df[case["time"]].unique())
+    years = np.array(sorted(df[case["time"]].unique()))
     obs = (df[df[case["unit"]] == case["treated"]]
            .sort_values(case["time"])[case["outcome"]].to_numpy())
-    ax.plot(years, obs, color="black", lw=1.6, label="observed")
-    for m, (color, ls) in methods.items():
+    specs = {}
+    for m in methods:
         kw = {**cfg, "method": m}
         if m == "iscm" and case["covariates"]:
             kw["covariates"] = case["covariates"]      # only iscm matches on covariates
@@ -997,9 +1000,14 @@ for ax, case in zip(axes, cases):
         sub = getattr(fit, m)
         pre = (sub.a[0] + sub.B[0] @ fit.inputs.Y_pre if m == "cd"
                else sub.treated_synthetic_pre)
-        ax.plot(years, list(pre) + list(sub.counterfactual_sp),
-                color=color, ls=ls, lw=1.2, label=m)
-        records.append({"case": case["name"], "method": m, "ATT": fit.att})
+        full = np.concatenate([np.asarray(pre), np.asarray(sub.counterfactual_sp)])
+        specs[m] = {"counterfactual": full, "att": fit.att, "time": years}
+    cmp = compare_counterfactuals(specs, observed=obs, time=years)  # one overlay
+    cmp.plot(ax=ax, colors={m: methods[m][0] for m in methods},
+             styles={m: methods[m][1] for m in methods}, legend=False)
+    for m in methods:
+        records.append({"case": case["name"], "method": m,
+                        "ATT": cmp.summary.loc[m, "att"]})
     ax.axvline(case["t0"], color="0.4", ls="-", lw=1.0)
     ax.set_title(case["name"], fontsize=8)
     ax.set_xlabel("year"); ax.set_ylabel(case["ylab"], fontsize=8)
