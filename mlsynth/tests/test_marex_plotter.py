@@ -219,6 +219,17 @@ def test_donor_cloud_from_fit_prediction():
 # not a plotter-local override.
 # ---------------------------------------------------------------------------
 
+def test_aggregate_prediction_uses_synthetic_labels():
+    # Abadie & Zhao name the two aggregate series "synthetic treated" and
+    # "synthetic control" -- not "global treated"/"global control".
+    res = _results(cluster_labels=["0"])               # lone "0" -> aggregate panel only
+    plot_marex(res, plot_type="prediction")
+    labels = [ln.get_label() for ln in plt.gcf().axes[0].lines]
+    assert "Synthetic treated" in labels
+    assert "Synthetic control" in labels
+    assert not any("Global" in str(lab) for lab in labels)
+
+
 def test_plot_uses_house_grid_style():
     from matplotlib.colors import to_hex
     res = _results(cluster_labels=["0"])

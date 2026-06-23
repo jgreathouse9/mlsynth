@@ -74,7 +74,7 @@ def plot_marex(
             i += 1
         if global_result:
             g = results.globres
-            _panel(axes[i], g.synthetic_treated, g.synthetic_control, "Global", g.inference,
+            _panel(axes[i], g.synthetic_treated, g.synthetic_control, "Synthetic", g.inference,
                    cloud=g.Y_full)
 
         T0, bp = results.study.T0, results.study.blank_periods

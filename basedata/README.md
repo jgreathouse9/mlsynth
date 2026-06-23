@@ -59,6 +59,16 @@ Two near-identical 17-column regional panels that differ by a region/year block:
 | `carbontax_data.dta` | the analysis sample (per-capita CO2 / GDP / fuel) | CWZ Monte Carlo / t-test, VanillaSC t-test |
 | `carbontax_fullsample_data.dta.txt` | the larger full sample | ORTHSC carbon-tax replication |
 
+## MAREX go-dark experiment (simulated) — Abadie & Zhao (2026)
+
+| File | What it is | Used by |
+|---|---|---|
+| `apple_godark_dmas.csv` | one draw of the Abadie–Zhao baseline DGP (Sec. 5) framed as an Apple paid-media go-dark test: 20 DMAs × 90 weeks of `sales` (paid media on everywhere through week 79, off in the 6 designed `went_dark` markets for weeks 80–89), with the simulation's known per-week effect `tau_true` | the JOSS paper's MAREX experimental-design illustration |
+
+Regenerate with `python tools/gen_apple_godark.py` (it runs the MAREX selection
+solve once, offline, and pre-commits the chosen dark markets so the paper can
+load the panel and recover the same design in a single `fit`).
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.

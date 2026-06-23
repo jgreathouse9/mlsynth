@@ -993,9 +993,10 @@ eventual estimate trustworthy.
 
 This is the problem the MAREX estimator solves
 [@abadie2026syntheticcontrolsexperimentaldesign]. The motivating setting is a
-firm -- a ride-sharing platform, a retailer -- that can switch on a new policy
-only in a handful of whole markets, because the market is the unit of
-intervention. Randomly assigning markets to treatment is unbiased on average,
+firm that can switch a policy only in a handful of whole markets, because the
+market is the unit of intervention -- an advertiser, say, running a *go-dark*
+test that turns paid media off in a few media markets to learn what that spend
+was buying. Randomly assigning markets to treatment is unbiased on average,
 but with a few large, heterogeneous units a single random draw routinely lands
 on treated and control groups whose baselines look nothing alike, and the one
 experiment you run is the one realization you are stuck with. MAREX instead
@@ -1016,103 +1017,102 @@ five-field configuration every other estimator takes.
 
 Because MAREX commits to a design before any effect is observed, we can hold it
 to a standard the retrospective estimators cannot meet: a simulation in which
-the right answer is known. We draw one panel from the paper's own
+the right answer is known. Suppose Apple wants to know what its paid media is
+worth in incremental sales revenue, and runs a go-dark test across twenty DMAs
+(designated market areas) over ninety weeks: for the final ten weeks it switches
+paid media off in a few markets and measures the sales they forgo, which is what
+the advertising had been buying. The panel is one draw from the paper's own
 data-generating process -- a linear factor model with seven observed covariates
-and eleven latent factors (Abadie and Zhao, Section 5) -- using `mlsynth`'s
-reimplementation of it, and hand MAREX only the pre-experiment outcomes.
+and eleven latent factors (Abadie and Zhao, Section 5) -- materialized once by
+`mlsynth`'s reimplementation and stored under `basedata/`, so the paper just
+loads it.
 
 ```{python}
 #| label: marex-design
 from mlsynth import MAREX
-from mlsynth.utils.marex_helpers.simulation import generate_marex_sample
 from mlsynth.utils.marex_helpers.plotter import plot_marex
 
-rng = np.random.default_rng(7)
-sample = generate_marex_sample(J=15, R=7, F=11, T=30, T0=25, sigma=1.0, rng=rng)
-J, T = sample.Y_N.shape
-T0 = sample.T0
+godark = pd.read_csv(find_data("apple_godark_dmas.csv"))   # 20 DMAs x 90 weeks of sales
+J, T, T0, T_post = godark["dma"].nunique(), godark["week"].nunique(), 80, 10
 
-def panel(Y):                          # tidy long frame from a (market x week) matrix
-    return pd.DataFrame([{"market": f"m{j:02d}", "week": t, "sales": float(Y[j, t])}
-                         for j in range(J) for t in range(T)])
-
-cfg = {"outcome": "sales", "unitid": "market", "time": "week",
-       "T0": T0, "blank_periods": 5, "T_post": 5,
-       "m_min": 1, "m_max": J - 1,     # unconstrained: any 1..J-1 markets may be treated
+cfg = {"outcome": "sales", "unitid": "dma", "time": "week",
+       "T0": T0, "T_post": T_post,        # 80 pre-launch weeks, then a 10-week test
+       "m_min": 4, "m_max": 6,            # take four to six markets dark
        "design": "standard", "inference": True, "display_graph": False}
 
-design = MAREX({**cfg, "df": panel(sample.Y_N)}).fit()   # choose the experiment, pre-period only
-treated = sorted(design.treated_units)
+experiment = MAREX({**cfg, "df": godark[["dma", "week", "sales"]]}).fit()
+dark = sorted(experiment.treated_units)
 ```
 
-The panel holds `{python} J` markets over `{python} T` weeks, the first
-`{python} T0` of them pre-experiment. We ask for the *unconstrained* design --
-any number of treated markets from one to `{python} J - 1`, letting the optimizer
-decide how many -- because the paper's own simulations find that allowing more
-treated units improves the design. On this draw it selects `{python} len(treated)`
-of the `{python} J` markets to treat and builds a synthetic control from the
-rest. The experiment then runs:
-the chosen markets realize their treated outcomes, while everyone else stays
-untreated. Re-reading the same design against that realized panel -- the design
-is fixed by the pre-experiment window, so it selects the same markets -- turns
-the *design* into the *analysis*.
+The panel holds `{python} J` DMAs over `{python} T` weeks, the first
+`{python} T0` of them before the test. MAREX reads only that pre-launch window
+to design -- it never sees the post-launch sales when it chooses -- and takes
+between four and six markets dark, the count left to the optimizer because the
+paper's own simulations find that allowing more treated units improves the
+design. On this panel it darkens `{python} len(dark)` of the `{python} J`
+markets and builds a synthetic control for them from the markets that keep
+spending. A single `fit` does both jobs: the chosen markets' pre-launch sales
+are untouched by the later blackout, so reading the one panel through to the
+post-launch weeks turns the *design* straight into the *analysis*.
 
 ```{python}
 #| label: fig-marex
-#| fig-cap: "MAREX's own design diagnostic, drawn by the library, with the donor cloud overlaid -- a reproduction of Abadie and Zhao's Figure 4. The faint lines are the individual simulated markets; the bold dashed and dotted series are the synthetic treated and synthetic control the design built from pre-experiment data alone. They track through the fitting window and the shaded blank periods, then separate after the experiment begins at week 25 as the treated markets realize their treated outcomes -- the gap being the estimated effect."
-w = design.globres.treated_weights_agg
-v = design.globres.control_weights_agg
-chosen = np.where(w > 1e-8)[0]
-realized = sample.Y_N.copy()
-realized[chosen, T0:] = sample.Y_I[chosen, T0:]          # treated markets realize Y^I
-
-experiment = MAREX({**cfg, "df": panel(realized)}).fit()  # same design, read post-experiment
+#| fig-cap: "MAREX's own design diagnostic, drawn by the library, for Apple's go-dark test -- a reproduction of Abadie and Zhao's Figure 4. The faint lines are the individual DMAs; the dashed and dotted series are the synthetic treated and synthetic control the design built from pre-launch sales alone. They track through the fitting window and the shaded blank weeks, then separate once paid media goes dark at week 80 -- the gap is the sales the dark markets forgo, which is what the advertising had been generating."
+w = experiment.globres.treated_weights_agg
+v = experiment.globres.control_weights_agg
 plot_marex(experiment, plot_type="prediction", donor_cloud=True, figsize=(7, 3.6))
 ```
 
 @fig-marex is MAREX's own diagnostic, drawn by the library. What a good design
 buys is visible in it directly: through the fitting window and the held-out
-blank periods the synthetic treated and synthetic control sit almost on top of
-each other -- two groups that were behaving identically before the experiment --
-and only after week `{python} T0` do they separate, when the treated markets
-turn on.
+blank weeks the synthetic treated and synthetic control sit almost on top of
+each other -- two groups of markets behaving identically before the test -- and
+only after week `{python} T0` do they separate, when paid media in the chosen
+markets goes dark and their sales fall away from the spending counterfactual.
 
 ```{python}
 #| label: marex-numbers
 #| include: false
-tau_hat = (w @ realized - v @ realized)[T0:]
-tau_true = sample.tau[T0:]
+Y = godark.pivot(index="dma", columns="week", values="sales").to_numpy()
+tau_hat = (w @ Y - v @ Y)[T0:]
+tau_true = (godark.drop_duplicates("week").sort_values("week")["tau_true"]
+            .to_numpy()[T0:])
 mae = float(np.mean(np.abs(tau_hat - tau_true)))
 scale = float(np.mean(np.abs(tau_true)))
 pf = experiment.post_fit
 ```
 
 Because this is a simulation the true effect is known, and the design recovers
-it: the mean absolute error of the per-period effect is `{python} f"{mae:.2f}"`
-against an effect whose own scale is `{python} f"{scale:.1f}"` -- under a tenth
--- and the two synthetic series track to a pre-experiment fit RMSE of
-`{python} f"{float(pf.rmse_fit):.2f}"`. The result reads like every other
-estimator's; because MAREX designs an experiment it returns a *design* result,
-whose `report` is the realized effect and whose `post_fit` carries the
-diagnostics.
+it: the mean absolute error of the per-week effect is `{python} f"{mae:.2f}"`
+against an effect whose own scale is `{python} f"{scale:.1f}"` --
+`{python} f"{mae/scale:.0%}"` of it -- and the two synthetic series track to a
+pre-launch fit RMSE of `{python} f"{float(pf.rmse_fit):.2f}"`. The result reads
+like every other estimator's; because MAREX designs an experiment it returns a
+*design* result, whose `report` is the realized effect and whose `post_fit`
+carries the diagnostics.
 
 ```{python}
 #| label: marex-fields
 pd.Series({
-    "report.att":           round(experiment.report.att, 2),   # realized effect
+    "report.att":           round(experiment.report.att, 2),   # sales forgone going dark
     "post_fit.ate_percent": round(pf.ate_percent, 1),          # ... as a percentage
-    "post_fit.rmse_fit":    round(pf.rmse_fit, 2),             # pre-experiment tracking
+    "post_fit.rmse_fit":    round(pf.rmse_fit, 2),             # pre-launch tracking
     "post_fit.p_value":     round(pf.p_value, 3),              # permutation test
     "post_fit.ci_lower":    round(pf.ci_lower, 2),             # conformal band
     "post_fit.ci_upper":    round(pf.ci_upper, 2),
 })
 ```
 
+Read back into Apple's question, the markets that went dark gave up about
+`{python} f"{abs(float(pf.ate_percent)):.0f}"`% of their sales over the test
+window -- forgone revenue that is exactly the incremental sales the paid media
+had been generating.
+
 Inference is the other half of the paper's contribution, and `mlsynth` carries
 it faithfully. Both the permutation $p$-value for the global null of no effect
-(`{python} f"{float(pf.p_value):.3f}"` on this draw) and the confidence band
-around each period's effect are built on the *blank* periods -- pre-experiment
-weeks deliberately withheld from the fit, where the synthetic-treated-minus-control
+(`{python} ("p < 0.001" if float(pf.p_value) < 0.001 else "p = " + f"{float(pf.p_value):.3f}")` on this draw)
+and the confidence band around each period's effect are built on the *blank*
+periods -- pre-launch weeks deliberately withheld from the fit, where the synthetic-treated-minus-control
 gap is pure noise and so calibrates the size of a null fluctuation. The
 construction is deliberately not the conformal method of
 @chernozhukov2021conformal: where that procedure rearranges over all periods,
