@@ -37,7 +37,8 @@ three faces:
   ``counterfactual``, ``lower`` and ``upper`` (the last two empty where a method
   has no interval at that period);
 - ``summary`` -- one row per method, holding the stored ``att`` and ``pre_rmse``,
-  read off the result rather than recomputed;
+  read off the result rather than recomputed, plus a ``window_rmse`` column when a
+  ``fit_window`` is given (the fit loss over just those periods);
 - ``observed`` -- the observed treated series, when one was supplied or could be
   taken from a standardized result;
 
@@ -90,6 +91,24 @@ The ``summary`` table reads the stored effect and fit straight off each result,
 so the numbers match what each estimator reports on its own; the ``plot`` overlays
 the three counterfactuals against observed cigarette sales, with the prediction
 interval shown only for the method that produced one.
+
+To compare fit over a specific window rather than the whole pre-period, pass
+``fit_window=(low, high)``; the ``summary`` then gains a ``window_rmse`` column
+holding each method's RMSE of observed minus counterfactual over those periods,
+alongside the stored all-pre ``pre_rmse``. Observed is read off the results, so
+nothing extra need be supplied:
+
+.. code:: python
+
+    cmp = compare_counterfactuals(
+        {"VanillaSC": sc, "CLUSTERSC": clus, "SDID": sdid},
+        fit_window=(1980, 1988))      # fit over the last nine pre-treatment years
+    print(cmp.summary[["att", "pre_rmse", "window_rmse"]].round(2))
+    #                att  pre_rmse  window_rmse
+    # method
+    # VanillaSC   -19.51      1.66         1.37
+    # CLUSTERSC   -21.39      1.50         1.74
+    # SDID        -15.61     24.81        25.30
 
 Example: two solvers of the same estimator, with prediction intervals
 ---------------------------------------------------------------------

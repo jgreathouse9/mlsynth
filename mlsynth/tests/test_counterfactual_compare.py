@@ -113,6 +113,50 @@ def test_observed_inferred_from_first_result(two_results):
     assert cmp.observed.loc[2000] == pytest.approx(1.1)
 
 
+# --------------------------------------------------------------------------- #
+# fit_window: windowed RMSE of observed vs counterfactual, off the same object
+# --------------------------------------------------------------------------- #
+def test_no_window_means_no_window_rmse_column(two_results):
+    cmp = compare_counterfactuals(two_results)
+    assert "window_rmse" not in cmp.summary.columns
+
+
+def test_window_rmse_matches_manual(two_results):
+    # observed = [1.1, 2.1, 2.5, 3.0]; alpha cf = [1,2,3,4] at 2000..2003
+    cmp = compare_counterfactuals(two_results, fit_window=(2000, 2001))
+    obs, cf = np.array([1.1, 2.1]), np.array([1.0, 2.0])
+    expect = float(np.sqrt(np.mean((obs - cf) ** 2)))
+    assert cmp.summary.loc["alpha", "window_rmse"] == pytest.approx(expect)
+    # full-pre stored rmse stays available alongside the windowed one
+    assert "pre_rmse" in cmp.summary.columns
+
+
+def test_window_outside_support_is_nan(two_results):
+    cmp = compare_counterfactuals(two_results, fit_window=(1800, 1801))
+    assert np.isnan(cmp.summary.loc["alpha", "window_rmse"])
+
+
+def test_window_without_observed_raises():
+    # plain-array specs carry no observed and none is supplied
+    with pytest.raises(MlsynthConfigError):
+        compare_counterfactuals({"m": [1.0, 2.0, 3.0]}, time=[1, 2, 3],
+                                fit_window=(1, 2))
+
+
+def test_window_uses_explicit_observed():
+    cmp = compare_counterfactuals(
+        {"m": [1.0, 2.0, 3.0]}, time=[1, 2, 3],
+        observed=[1.0, 2.0, 4.0], fit_window=(3, 3))
+    # only period 3 in window: |4 - 3| = 1
+    assert cmp.summary.loc["m", "window_rmse"] == pytest.approx(1.0)
+
+
+def test_window_must_be_pair():
+    with pytest.raises(MlsynthConfigError):
+        compare_counterfactuals({"m": [1.0, 2.0]}, time=[1, 2],
+                                observed=[1.0, 2.0], fit_window=(1, 2, 3))
+
+
 def test_explicit_observed_overrides(two_results):
     obs = pd.Series([9.0, 9.0, 9.0, 9.0], index=[2000, 2001, 2002, 2003])
     cmp = compare_counterfactuals(two_results, observed=obs)

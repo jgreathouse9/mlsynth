@@ -839,26 +839,15 @@ mscmt = VanillaSC({**ag_base, "backend": "mscmt", "canonical_v": "min.loss.w",
                    "mscmt_maxiter": 400, "mscmt_popsize": 20, "seed": 42}).fit()
 malo = VanillaSC({**ag_base, "backend": "malo", "seed": 0}).fit()       # one keyword
 
-years = np.array(sorted(basque["year"].unique()))
-pre = (years >= 1960) & (years <= 1969)
-observed = (basque[basque["regionname"] == "Basque Country (Pais Vasco)"]
-            .sort_values("year")["gdpcap"].to_numpy())
-
-solvers = {"MSCMT nested solver": mscmt, "Malo bilevel solver": malo}
-cmp = compare_counterfactuals(solvers, observed=observed, time=years)
-
-# Stored, not recomputed: effects.att and the full-pre fit_diagnostics.rmse_pre.
-att_mscmt = cmp.summary.loc["MSCMT nested solver", "att"]
-att_malo = cmp.summary.loc["Malo bilevel solver", "att"]
-gap_pct = 100 * (att_malo - att_mscmt) / att_mscmt
-allpre_mscmt = cmp.summary.loc["MSCMT nested solver", "pre_rmse"]
-allpre_malo = cmp.summary.loc["Malo bilevel solver", "pre_rmse"]
-
-# Fit-window RMSE: the outcome loss over 1960-1969, the quantity each solver
-# minimizes (a tighter window than the stored all-pre rmse_pre above).
-def fit_rmse(res):
-    cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
-    return float(np.sqrt(np.mean((observed[pre] - cf[pre]) ** 2)))
+# One call carries the figure (counterfactuals + observed + CFT bands) and every
+# number below: the stored att, the stored all-pre pre_rmse, and the windowed fit
+# loss over 1960-1969. Observed and the time axis are read off the results.
+cmp = compare_counterfactuals(
+    {"MSCMT nested solver": mscmt, "Malo bilevel solver": malo},
+    fit_window=(1960, 1969))
+s = cmp.summary
+gap_pct = 100 * (s.att["Malo bilevel solver"] - s.att["MSCMT nested solver"]) \
+          / s.att["MSCMT nested solver"]
 ```
 
 ```{python}
@@ -881,13 +870,16 @@ bilevel solver drops Cataluna entirely, promotes Madrid to the largest donor, an
 adds Rioja. They are solving the same problem, and @malo2024computing's point is
 that the nested search need not reach its optimum, which is what happens here: the
 bilevel solution attains a lower pre-treatment fit loss over the matching window
-(RMSE `{python} f"{fit_rmse(malo):.4f}"` against `{python} f"{fit_rmse(mscmt):.4f}"`,
-and `{python} f"{allpre_malo:.4f}"` against `{python} f"{allpre_mscmt:.4f}"` over the
+(RMSE `{python} f"{s.window_rmse['Malo bilevel solver']:.4f}"` against
+`{python} f"{s.window_rmse['MSCMT nested solver']:.4f}"`, and
+`{python} f"{s.pre_rmse['Malo bilevel solver']:.4f}"` against
+`{python} f"{s.pre_rmse['MSCMT nested solver']:.4f}"` over the
 full pre-period, the result's stored `pre_rmse`). The
 better fit moves the headline number. The nested solver puts the average GDP
-shortfall from terrorism at `{python} f"{abs(att_mscmt):.2f}"` thousand USD per
-capita; the bilevel optimum, fitting the pre-period better, puts it
-`{python} f"{abs(gap_pct):.0f}"`% larger at `{python} f"{abs(att_malo):.2f}"`, and
+shortfall from terrorism at `{python} f"{abs(s.att['MSCMT nested solver']):.2f}"`
+thousand USD per capita; the bilevel optimum, fitting the pre-period better, puts it
+`{python} f"{abs(gap_pct):.0f}"`% larger at
+`{python} f"{abs(s.att['Malo bilevel solver']):.2f}"`, and
 with a tighter prediction interval that the looser fit would not earn.
 @malo2024computing demonstrate this failure on the California tobacco study; here it
 recurs on the Basque study, the field's other canonical application, in a

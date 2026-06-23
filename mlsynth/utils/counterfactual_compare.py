@@ -241,6 +241,7 @@ def compare_counterfactuals(
     *,
     observed: Any = None,
     time: Any = None,
+    fit_window: Optional[Tuple[Any, Any]] = None,
 ) -> CounterfactualComparison:
     """Line up several methods' counterfactuals on a common time axis.
 
@@ -260,12 +261,24 @@ def compare_counterfactuals(
         standardized result that carries ``time_series.observed_outcome``.
     time : array-like, optional
         Default x-axis for specs that do not carry their own time index.
+    fit_window : (low, high), optional
+        When given, add a ``window_rmse`` column to ``summary``: the RMSE of
+        observed minus counterfactual over the periods ``low <= t <= high``
+        (NaN for a method with no period in the window). Needs an observed
+        series -- supplied or read off a standardized result -- else a
+        :class:`~mlsynth.exceptions.MlsynthConfigError` is raised. This is the
+        fit loss over the matching window, a tighter figure than the stored
+        all-pre ``pre_rmse``.
 
     Returns
     -------
     CounterfactualComparison
         ``.curves`` and ``.summary`` (data form) and ``.plot()`` (plot form).
     """
+    if fit_window is not None and len(tuple(fit_window)) != 2:
+        raise MlsynthConfigError(
+            "fit_window must be a (low, high) pair."
+        )
     if not isinstance(methods, ABCMapping):
         raise MlsynthConfigError(
             "methods must be a mapping {label: result-or-spec}."
@@ -299,9 +312,40 @@ def compare_counterfactuals(
 
     observed_series = _resolve_observed(observed, curves, global_time)
 
+    if fit_window is not None:
+        summary_df["window_rmse"] = _window_rmse(
+            curves, observed_series, fit_window
+        )
+
     return CounterfactualComparison(
         curves=curves_df, summary=summary_df, observed=observed_series
     )
+
+
+def _window_rmse(
+    curves: List[_Curve],
+    observed: Optional[pd.Series],
+    fit_window: Tuple[Any, Any],
+) -> List[float]:
+    """Per-method RMSE of observed minus counterfactual over the window."""
+    if observed is None:
+        raise MlsynthConfigError(
+            "fit_window needs an observed series; supply observed= or pass "
+            "results that carry time_series.observed_outcome."
+        )
+    lo, hi = fit_window
+    obs = observed
+    out: List[float] = []
+    for c in curves:
+        cf = pd.Series(c.counterfactual, index=c.time)
+        common = obs.index.intersection(cf.index)
+        in_win = [p for p in common if lo <= p <= hi]
+        if not in_win:
+            out.append(np.nan)
+            continue
+        resid = obs.loc[in_win].to_numpy() - cf.loc[in_win].to_numpy()
+        out.append(float(np.sqrt(np.mean(resid ** 2))))
+    return out
 
 
 def _resolve_observed(
