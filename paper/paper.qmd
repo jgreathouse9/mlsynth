@@ -1286,12 +1286,23 @@ is available from the Python Package Index via `pip install mlsynth`, with sourc
 and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
 at <https://mlsynth.readthedocs.io>.
 
-Reproducibility in `mlsynth` is enforced via a benchmark system. The library ships a benchmark suite that pins each reference
-implementation (say, the current version of `augsynth`) to an exact commit and re-runs it at validation time, comparing
-`mlsynth`'s output to the freshly computed reference rather. The pinned-commit
-install scripts, the re-run harness, and the full replication code are provided as
-the replication materials accompanying this article and in the `benchmarks` suite
-of the source repository.
+Reproducibility in `mlsynth` is engineered rather than asserted. Beyond the unit
+tests, the library ships a benchmark suite whose cross-validation cases never
+check against numbers transcribed from a paper or a previous run; they recompute
+the reference on the spot. Each such case installs the reference implementation
+itself (the R package `augsynth`, the ridge augmented-SCM engine inside Meta's
+`GeoLift`, for instance) frozen at a specific commit, runs it on the same input
+panel, and compares `mlsynth`'s output against the numbers that live reference
+returns. On the GeoLift walkthrough, for example, `mlsynth` must reproduce a
+freshly run `augsynth` to floating point: the cross-validated ridge penalty
+agrees to roughly eleven digits, every donor weight to about seven, and the
+post-period effect to four significant figures. Freezing the reference at an exact
+commit, rather than tracking its moving development tip, makes this a stable,
+dated checkpoint that runs the same reference code every time and is refreshed
+only by deliberately bumping the pinned commit and re-recording the expected
+numbers. The install scripts, the re-run harness, and the full replication code
+are provided as the replication materials accompanying this article and in the
+`benchmarks` suite of the source repository.
 
 ## References {.unnumbered}
 
