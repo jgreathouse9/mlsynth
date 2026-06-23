@@ -385,15 +385,30 @@ window; the remaining $T_1 = T - T_0$ rows are the post-intervention window.
 
 It helps to state the causal target in potential-outcomes terms [@rubin1974;
 @imbens2015causal]. Each unit and period has two potential outcomes: $y_{it}(1)$,
-the outcome were the unit exposed to the intervention, and $y_{it}(0)$, the outcome
-were it not. Only one is ever realized, the fundamental problem of causal
-inference [@holland1986], so for the treated unit after $T_0$ we observe
-$y_{1t} = y_{1t}(1)$, while the quantity the analysis needs, the untreated potential
-outcome $y_{1t}(0)$, is missing. The estimand is the effect on the treated,
-$\tau_t = y_{1t}(1) - y_{1t}(0)$, and its average over the post-treatment window.
-The donor pool is never treated, so its outcomes trace the untreated regime;
-every estimator below borrows that information to impute the missing
-$y_{1t}(0)$, which the synthetic control $\hat{y}_{1t}$ estimates.
+the outcome were unit $i$ exposed to the intervention in period $t$, and
+$y_{it}(0)$, the outcome were it not. Let $D_{it} = 1$ when unit $i$ is under the
+intervention in period $t$ and $D_{it} = 0$ otherwise; in the single-treated-unit
+design $D_{it} = 1$ exactly when $i = 1$ and $t > T_0$. What we observe is governed
+by the switching equation,
+$$
+y_{it} \;=\; D_{it}\,y_{it}(1) \;+\; (1 - D_{it})\,y_{it}(0),
+$$ {#eq-switch}
+so a unit reveals its treated potential outcome only while it is treated and its
+untreated one the rest of the time. Only one of the two is ever seen in any cell,
+the fundamental problem of causal inference [@holland1986]. For the treated unit
+after $T_0$ we therefore observe $y_{1t} = y_{1t}(1)$, while the quantity the
+analysis needs, the untreated potential outcome $y_{1t}(0)$, is missing. The
+per-period effect on the treated unit is the gap
+$$
+\tau_t \;=\; y_{1t}(1) - y_{1t}(0), \qquad t > T_0,
+$$ {#eq-att}
+and the summary estimand is its average over the post-intervention window, the
+average effect on the treated $\mathrm{ATT} = T_1^{-1}\sum_{t > T_0}\tau_t$ (read
+as an expectation when the effects are treated as random). Because $y_{1t}(1)$ is
+observed, the whole task reduces to imputing the missing $y_{1t}(0)$. The donor
+pool is never treated, so by @eq-switch its outcomes trace the untreated regime
+throughout; every estimator below borrows that information to fill in $y_{1t}(0)$,
+which the synthetic control $\hat{y}_{1t}$ estimates.
 
 However different their statistical motivations, the estimators in `mlsynth` share
 one computational shape. Each takes the treated unit's pre-treatment outcome vector
@@ -404,30 +419,69 @@ weights, plot: that recurring shape, not any one statistical model, is what make
 single interface the right abstraction, and it is the contract that `dataprep`
 (@sec-dataprep) and the fit-and-result interface were built to encode.
 
-Why weights that reproduce the pre-treatment vector should also recover the
-post-treatment counterfactual is a separate, statistical question. The rationale
-the literature offers is a low-dimensional factor model,
+What the family shares at the level of theory is narrower than any single model,
+and is worth stating on its own: there exist donor weights $\mathbf{w}$ under which
+a combination of the donors reproduces the treated unit's untreated potential
+outcome, so that
 $$
-y_{it} \;=\; \delta_t \;+\; \boldsymbol{\lambda}_i^{\top} \mathbf{f}_t \;+\;
+y_{1t}(0) \;=\; \mathbf{Y}_{0,t}\,\mathbf{w} \;+\; r_t, \qquad t > T_0,
+$$ {#eq-exist}
+holds in the post-intervention window with an approximation error $r_t$ that each
+method's theory drives to zero, even though the weights were fixed using only
+pre-intervention data. Granting such weights, the synthetic control
+$$
+\hat{y}_{1t} \;=\; \mathbf{Y}_{0,t}\,\hat{\mathbf{w}}, \qquad t > T_0,
+$$ {#eq-sc}
+estimates the missing counterfactual, and the period-$t$ effect is the gap
+$\hat{\tau}_t = y_{1t} - \hat{y}_{1t}$. The existence of $\mathbf{w}$ is the
+load-bearing assumption; what the methods disagree about is *why* such weights
+should exist and *how* to recover them. The library does not adjudicate between the
+rationales, and its estimators were built on different ones, so it is worth setting
+the main four side by side, because they explain how one interface can host methods
+with such different theory.
+
+The classical justification is a low-dimensional factor model
+[@abadie2010synthetic]. Suppose the untreated outcome obeys
+$$
+y_{it}(0) \;=\; \delta_t \;+\; \boldsymbol{\lambda}_i^{\top} \mathbf{f}_t \;+\;
 \varepsilon_{it},
 $$ {#eq-factor}
 where $\mathbf{f}_t$ is an $r$-vector of unobserved common factors (with $r$ much
 smaller than $N$), $\boldsymbol{\lambda}_i$ is unit $i$'s loadings, $\delta_t$ is a
-common time effect, and $\varepsilon_{it}$ is idiosyncratic noise. Units differ
-only through the handful of latent loadings $\boldsymbol{\lambda}_i$, so if the
-treated unit's loadings are a combination of the donors', weights that reproduce
-its pre-treatment outcomes also reproduce its loadings, and hence its untreated
-path after treatment. We take this as the standard justification, refer readers to
-the source papers, and note that the library does not commit to it: several members
-of the family relax or replace it. The synthetic control
-$$
-\hat{y}_{1t} \;=\; \mathbf{Y}_{0,t}\,\mathbf{w}, \qquad t > T_0,
-$$ {#eq-sc}
-is then an estimate of the missing counterfactual, and the treatment effect in
-period $t$ is the gap $\tau_t = y_{1t} - \hat{y}_{1t}$.
+common time effect, and $\varepsilon_{it}$ is idiosyncratic noise. Units then
+differ only through the handful of latent loadings, so if the treated unit's
+loadings lie in the span of the donors', weights that reproduce its pre-treatment
+outcomes also reproduce its loadings, and hence its untreated path afterward. But
+the factor model is sufficient for @eq-exist, not necessary, and three further
+rationales reach the same existence claim from different premises:
 
-For almost every estimator in the library, the weights solve one common
-optimization program. Writing $\mathbf{Y}_0$ and
+- Proximal causal inference [@proximaltheory] keeps the latent factors but drops
+  the requirement that the treated unit's loadings sit in the donors' convex hull.
+  It reads the donor outcomes as error-laden proxies for the unobserved confounders
+  $\mathbf{f}_t$, and repurposes donors that do not enter the synthetic control as
+  instruments that form moment equations identifying the weights. Existence then
+  follows from a bridge condition rather than a hull condition, which extends
+  synthetic control to poor pre-treatment fit and to binary or count outcomes, and
+  replaces the linear factor assumption with a nonparametric one.
+- Forecast combination treats the weights as a prediction device rather than a
+  structural object [@zhang2022asymptotic]. As the pre-period lengthens the
+  synthetic-control weights converge to the combination that minimizes mean-squared
+  prediction risk, and that limit is optimal, lowest prediction error among all
+  estimators built from a weighted average of donors, even when the pre-treatment
+  fit is imperfect and no factor model holds exactly. Here weights exist because a
+  best forecast combination always does; whether it recovers latent structure is
+  beside the point.
+- Balancing makes the weights the solution to a set of moment constraints
+  [@hainmueller2012entropy; @liao2026relaxation]. One requires the weighted donors
+  to match the treated unit on chosen characteristics, covariate means or outcome
+  lags, and, among all weights that achieve this balance, selects the least
+  dispersed by an information-theoretic criterion (entropy, empirical likelihood,
+  an $\ell_2$ divergence). Existence becomes a feasibility statement about the
+  balance constraints, and ties synthetic control to the wider reweighting
+  literature for observational studies.
+
+These rationales converge on one computation. For almost every estimator in the
+library the weights solve a single optimization program. Writing $\mathbf{Y}_0$ and
 $\mathbf{y}_1$ now for their pre-treatment ($T_0$-row) blocks, the donor weights
 solve
 $$
@@ -435,14 +489,40 @@ $$
 \;\; \mathcal{L}\!\left(\mathbf{Y}_0, \mathbf{y}_1, \mathbf{w}\right)
 \;+\; \mathcal{P}(\mathbf{w})
 \qquad \text{subject to} \qquad
-\mathcal{B}\!\left(\mathbf{Y}_0, \mathbf{y}_1, \mathbf{w}\right) \;\le\; \tau .
+\mathcal{B}\!\left(\mathbf{Y}_0, \mathbf{y}_1, \mathbf{w}\right) \;\le\; \eta .
 $$ {#eq-program}
 Here $\mathcal{L}$ is a loss measuring pre-treatment fit, $\mathcal{P}$ is a
 penalty that shapes the weights, $\mathcal{C}$ is the admissible set the weights
-must lie in, and $\mathcal{B} \le \tau$ is an optional set of balance conditions
-with relaxation level $\tau$; either the loss or the balance operator may be
-absent, but not both. Classical synthetic control [@abadie2010synthetic] is the
-specialization with a squared-error loss
+must lie in, and $\mathcal{B} \le \eta$ is an optional set of balance conditions
+with relaxation level $\eta$; either the loss or the balance operator may be
+absent, but not both.
+
+The balance operator $\mathcal{B}$ deserves a word, because it is where the
+moment-matching rationale enters and it is easy to mistake for the loss. Abadie's
+original estimator does not fit the outcome path at all: it chooses weights so that
+the synthetic unit matches the treated unit on a vector of pre-treatment
+characteristics $\mathbf{x}_1$, covariate averages together with outcome lags,
+under a weighted metric,
+$$
+\min_{\mathbf{w}\,\in\,\mathcal{C}_{\Delta}}\;\;
+(\mathbf{x}_1 - \mathbf{X}_0\mathbf{w})^{\top}\,\mathbf{V}\,
+(\mathbf{x}_1 - \mathbf{X}_0\mathbf{w}),
+$$ {#eq-balance}
+with $\mathbf{V}$ a positive semi-definite matrix weighting the characteristics by
+their predictive importance [@abadie2010synthetic]. Requiring
+$\mathbf{X}_0\mathbf{w} \approx \mathbf{x}_1$ is a balance condition: the synthetic
+unit must resemble the treated unit on the things that matter before it is allowed
+to stand in for it afterward. Fitting the pre-treatment outcome path, the loss
+$\mathcal{L}$, is then the special case in which the characteristics are the
+outcome lags themselves; balancing estimators keep the constraint but swap the
+squared metric for an information-theoretic divergence and relax exact matching to
+$\mathcal{B} \le \eta$. Seen this way, $\mathcal{L}$ and $\mathcal{B}$ are two
+operationalizations of one demand, make the synthetic unit indistinguishable from
+the treated unit before the intervention, which is why @eq-program carries both and
+insists on at least one.
+
+Classical synthetic control [@abadie2010synthetic] is the specialization of
+@eq-program with a squared-error loss
 $\mathcal{L} = \lVert \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\rVert_2^2$, no penalty
 ($\mathcal{P} = 0$), no separate balance constraint, and the admissible set fixed
 to the unit simplex
@@ -454,19 +534,15 @@ itself: relaxing the simplex to merely non-negative weights drops the sum-to-one
 requirement; an affine constraint, $\mathbf{1}^{\top}\mathbf{w}=1$ alone, permits
 signed weights and extrapolation beyond the donors' range; a unit box confines
 each weight to $[0,1]$ on its own; and dropping the constraint altogether leaves
-an ordinary regression of the treated unit onto the donors.
+an ordinary regression of the treated unit onto the donors. Penalties $\mathcal{P}$
+supply the rest: an $\ell_2$ term gives ridge-augmented weights, an $\ell_1$ term
+gives a sparse selection of donors, and an intercept $b_0$, folded in by augmenting
+$\mathbf{Y}_0$ with a column of ones and left unpenalized, absorbs level
+differences between the treated unit and its donors.
 
-Penalties $\mathcal{P}$ supply the rest: an $\ell_2$ term gives ridge-augmented
-weights, an $\ell_1$ term gives a sparse selection of donors, and an intercept
-$b_0$, folded in by augmenting $\mathbf{Y}_0$ with a column of ones and left
-unpenalized, absorbs level differences between the treated unit and its donors.
-Moving the fit from the objective into the constraint $\mathcal{B} \le \tau$
-recovers the balancing and relaxation estimators, where one minimizes a norm of
-$\mathbf{w}$ subject to approximate moment matching.
-
-What then separates the estimators is *how* the weights $\mathbf{w}$ (or, more
-generally, the projection onto the donor span) are obtained, and what is assumed
-about @eq-factor. Beyond the choice of admissible set and penalty in
+What then separates the estimators is which rationale they commit to and, with it,
+how the weights $\mathbf{w}$ (or, more generally, the projection onto the donor
+span) are obtained. Beyond the choice of admissible set and penalty in
 @eq-program, members of the family differ in how they treat the donor matrix
 itself:
 
@@ -485,8 +561,9 @@ itself:
 
 Seen this way, the catalog is a set of choices along a few axes (the constraint on
 the weights, whether the donor matrix is denoised first, whether donors are
-selected or weighted, how the common time structure is handled), not a list of
-unrelated algorithms. Every one still consumes the same inputs ($\mathbf{Y}_0$,
+selected or weighted, how the common time structure is handled, and which
+justification for the weights from @eq-exist one is willing to defend), not a list
+of unrelated algorithms. Every one still consumes the same inputs ($\mathbf{Y}_0$,
 $\mathbf{y}_1$, $T_0$) and returns the same output, a counterfactual path and its
 gap, which is why the whole family fits behind one interface.
 
