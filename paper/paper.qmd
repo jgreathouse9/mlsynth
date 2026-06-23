@@ -892,9 +892,11 @@ def positive_weights(res, name):
     s = pd.Series(res.weights.donor_weights, name=name)
     return s[s.abs() > 1e-3]
 
+fmt = lambda v: "" if pd.isna(v) else f"{v:.3f}"      # blank for unused donors
 (pd.concat([positive_weights(mscmt, "MSCMT (nested)"),
             positive_weights(malo, "Malo (bilevel)")], axis=1)
-   .round(3).fillna("").rename_axis("donor region"))
+   .rename_axis("donor region")
+   .apply(lambda col: col.map(fmt)))
 ```
 
 That side-by-side is the point. The disagreement between a widely used nested
