@@ -36,21 +36,30 @@ import pandas as pd
 from mlsynth import MAREX
 from mlsynth.utils.marex_helpers.simulation import generate_marex_sample
 
-# --- the DGP knobs: 20 DMAs, 40 pre-launch weeks, 10 post, treat 4--6 ---------
+# --- the DGP knobs: 20 DMAs, 40 pre-launch weeks, 10 post, treat 4..6 ---------
 J, R, F, T, T0, T_POST = 20, 7, 11, 50, 40, 10
 M_MIN, M_MAX = 4, 6
 SEED = 7
+DROP = 0.15        # share of sales paid media drives (the go-dark effect size)
+
+# The R=7 observed covariates of the DGP, named as plausible market traits so
+# the balance (love) plot reads as a marketing-science covariate table.
+COV_NAMES = ["median_income", "population", "iphone_share", "retail_density",
+             "median_age", "broadband_pct", "ad_spend_index"]
 
 OUT = Path(__file__).resolve().parents[1] / "basedata" / "apple_godark_dmas.csv"
 
 
-def _panel(Y: np.ndarray) -> pd.DataFrame:
-    """Tidy long frame from a (DMA x week) sales matrix."""
+def _panel(Y: np.ndarray, Z: np.ndarray) -> pd.DataFrame:
+    """Tidy long frame from a (DMA x week) sales matrix plus per-DMA covariates."""
     J, T = Y.shape
-    return pd.DataFrame(
-        [{"dma": f"dma{j:02d}", "week": t, "sales": float(Y[j, t])}
-         for j in range(J) for t in range(T)]
-    )
+    rows = []
+    for j in range(J):
+        traits = {name: float(Z[j, k]) for k, name in enumerate(COV_NAMES)}
+        for t in range(T):
+            rows.append({"dma": f"dma{j:02d}", "week": t,
+                         "sales": float(Y[j, t]), **traits})
+    return pd.DataFrame(rows)
 
 
 def main() -> None:
@@ -63,25 +72,32 @@ def main() -> None:
     cfg = {
         "outcome": "sales", "unitid": "dma", "time": "week",
         "T0": T0, "T_post": T_POST, "m_min": M_MIN, "m_max": M_MAX,
-        "design": "standard", "inference": True, "display_graph": False,
+        "covariates": COV_NAMES, "standardize": True, "design": "standard",
+        "inference": True, "display_graph": False,
     }
 
     # Design phase: MAREX sees only the pre-launch sales (paid media on for
-    # everyone, since nobody has gone dark yet) and chooses which DMAs to darken.
-    design = MAREX({**cfg, "df": _panel(sample.Y_N)}).fit()
+    # everyone, since nobody has gone dark yet) and the market covariates, and
+    # chooses which DMAs to darken so both groups match the population.
+    design = MAREX({**cfg, "df": _panel(sample.Y_N, sample.Z)}).fit()
     w = design.globres.treated_weights_agg
     dark = np.where(w > 1e-8)[0]
 
-    # Experiment: the chosen DMAs go dark (realize their paid-media-off sales)
-    # from launch (week T0) on; everyone else keeps spending.
+    # Experiment: the chosen DMAs go dark from launch (week T0) on; everyone
+    # else keeps spending. Paid media drives a share DROP of sales, so a dark
+    # market forgoes that share each week -- a clean, persistent effect (the
+    # paper's own per-period factor contrast oscillates in sign, which would
+    # obscure the illustration). The Abadie-Zhao factor model still generates
+    # the pre-launch sales MAREX designs against.
     realized = sample.Y_N.copy()
-    realized[dark, T0:] = sample.Y_I[dark, T0:]
+    realized[dark, T0:] = sample.Y_N[dark, T0:] * (1.0 - DROP)
 
-    # Known simulation truth: the per-week average effect of going dark.
+    # Known simulation truth: the population go-dark effect per week (the effect
+    # if every market had gone dark), -DROP times the population mean sales.
     tau_true = np.zeros(T)
-    tau_true[T0:] = sample.tau[T0:]
+    tau_true[T0:] = -DROP * sample.Y_N[:, T0:].mean(axis=0)
 
-    df = _panel(realized)
+    df = _panel(realized, sample.Z)
     df["went_dark"] = df["dma"].isin([f"dma{j:02d}" for j in dark])
     df["tau_true"] = df["week"].map(dict(enumerate(tau_true)))
 

@@ -915,6 +915,8 @@ class TestSimulationDGP:
         assert isinstance(s, MAREXSample)
         assert s.Y_N.shape == s.Y_I.shape == (6, 12)
         assert s.tau.shape == (12,)
+        # The observed covariates that generate the outcome are exposed, (J, R).
+        assert s.Z.shape == (6, 3)
         # Pre-period treatment effect is zero by construction.
         np.testing.assert_allclose(s.tau[:8], 0.0)
         # Post-period effects are real-valued.

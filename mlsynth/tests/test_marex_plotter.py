@@ -184,7 +184,23 @@ def test_donor_cloud_overlays_units_on_global_prediction():
 def test_donor_cloud_defaults_off():
     res = _results(cluster_labels=["0"])
     plot_marex(res, plot_type="prediction")            # default donor_cloud=False
-    assert len(plt.gcf().axes[0].lines) == 2           # synthetic treated + control only
+    # no faint cloud, but the population mean + the two synthetic series remain
+    labels = [ln.get_label() for ln in plt.gcf().axes[0].lines]
+    assert len(labels) == 3
+    assert "Population mean" in labels
+
+
+def test_aggregate_prediction_line_styles():
+    # Population mean: thick solid black. Synthetics: thinner dashed, red & blue,
+    # so they stand out against the grey cloud.
+    res = _results(cluster_labels=["0"])
+    plot_marex(res, plot_type="prediction", donor_cloud=True)
+    by = {ln.get_label(): ln for ln in plt.gcf().axes[0].lines}
+    pop, st, sc = by["Population mean"], by["Synthetic treated"], by["Synthetic control"]
+    assert pop.get_linestyle() == "-" and pop.get_color() == "black"
+    assert st.get_linestyle() == "--" and sc.get_linestyle() == "--"
+    assert pop.get_linewidth() > st.get_linewidth()        # synthetics are thinner
+    assert st.get_color() != sc.get_color()                # red vs blue, distinct
 
 
 def test_donor_cloud_ignored_in_treatment_mode():

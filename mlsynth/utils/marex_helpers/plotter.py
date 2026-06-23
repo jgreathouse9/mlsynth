@@ -33,10 +33,13 @@ def plot_marex(
         Include the aggregate (global) panel.
     donor_cloud : bool
         On the global ``"prediction"`` panel, overlay one faint line per unit
-        (the rows of ``results.globres.Y_full``) behind the synthetic treated
-        and control series -- the "observed data" cloud of Abadie & Zhao's
-        Figure 4. Ignored on the ``"treatment"`` (effect) plot and on cluster
-        panels, which carry no per-unit outcome matrix.
+        (the rows of ``results.globres.Y_full``) behind the series -- the
+        "observed data" cloud of Abadie & Zhao's Figure 4. Ignored on the
+        ``"treatment"`` (effect) plot and on cluster panels, which carry no
+        per-unit outcome matrix. The population mean (a thick solid line) is
+        drawn whenever the per-unit matrix is available, with or without the
+        cloud; the synthetic treated and control are thinner dashed red / blue
+        lines so they stand out against it.
     """
     with mlsynth_style({"axes.axisbelow": True}):
         if clusters is None:
@@ -59,11 +62,16 @@ def plot_marex(
                     ax.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1], alpha=0.2)
                 ax.set_ylabel("Treatment effect")
             else:
-                if donor_cloud and cloud is not None:
-                    for series in cloud:
-                        ax.plot(series, color="0.8", lw=0.6, zorder=1)
-                ax.plot(syn_t, ls="--", label=f"{prefix} treated", zorder=3)
-                ax.plot(syn_c, ls=":", label=f"{prefix} control", zorder=3)
+                if cloud is not None and cloud.shape[0] > 0:
+                    if donor_cloud:
+                        for series in cloud:
+                            ax.plot(series, color="0.8", lw=0.6, zorder=1)
+                    ax.plot(cloud.mean(axis=0), color="black", lw=2.4, ls="-",
+                            label="Population mean", zorder=2)
+                ax.plot(syn_t, color="#d62728", ls="--", lw=1.6,
+                        label=f"{prefix} treated", zorder=4)
+                ax.plot(syn_c, color="#1f77b4", ls="--", lw=1.6,
+                        label=f"{prefix} control", zorder=4)
                 ax.set_ylabel("Outcome")
             ax.legend()
 

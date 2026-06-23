@@ -34,12 +34,16 @@ class MAREXSample:
         (zero in the pre-period).
     T0 : int
         Number of pre-treatment periods.
+    Z : np.ndarray
+        Observed (time-invariant) covariates that generate the outcome,
+        shape ``(J, R)``.
     """
 
     Y_N: np.ndarray
     Y_I: np.ndarray
     tau: np.ndarray
     T0: int
+    Z: np.ndarray
 
 
 def generate_marex_sample(
@@ -74,4 +78,4 @@ def generate_marex_sample(
 
     tau = np.zeros(T)
     tau[T0:] = (Y_I[:, T0:] - Y_N[:, T0:]).mean(axis=0)            # f_j = 1/J
-    return MAREXSample(Y_N=Y_N, Y_I=Y_I, tau=tau, T0=T0)
+    return MAREXSample(Y_N=Y_N, Y_I=Y_I, tau=tau, T0=T0, Z=Z)
