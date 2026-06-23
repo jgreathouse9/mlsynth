@@ -1,4 +1,4 @@
-,
+---
 title: "Synthetic Control and Experimental Design in One Validated Interface: The `mlsynth` Package for Python"
 title-plain: "Synthetic Control and Experimental Design in One Validated Interface: The mlsynth Package for Python"
 short-title: "`mlsynth`: Synthetic Control and Design in Python"
@@ -53,7 +53,7 @@ execute:
   warning: false
   cache: false
 jupyter: python3
-,
+---
 
 ```{python}
 #| label: setup
