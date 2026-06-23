@@ -41,10 +41,15 @@ three faces:
   ``fit_window`` is given (the fit loss over just those periods);
 - ``observed`` -- the observed treated series, when one was supplied or could be
   taken from a standardized result;
+- ``weights`` -- a tidy ``method`` / ``donor`` / ``weight`` frame, the donor
+  weights read off each method's ``weights.donor_weights`` (empty for methods
+  that expose none);
 
-and a ``plot`` method that overlays the observed series and every method's
+a ``plot`` method that overlays the observed series and every method's
 counterfactual, drawing prediction intervals as per-period error bars where they
-exist.
+exist; and a ``plot_weights`` method that draws the donor weights as a grouped
+bar chart, one bar per method per donor -- the same side-by-side comparison, on
+the weights rather than the paths.
 
 Example: comparing different estimators on one panel
 ----------------------------------------------------
@@ -151,6 +156,20 @@ legible:
 The ``colors`` and ``styles`` mappings name the per-method line appearance; the
 ``dodge`` argument offsets each method's error bars horizontally so overlapping
 intervals do not collide.
+
+Two solvers can fit the pre-period equally well yet rest on different donor
+weights, and ``plot_weights`` shows that directly from the same object -- no
+second loop to pull ``weights.donor_weights`` out of each result:
+
+.. code:: python
+
+    cmp.plot_weights(threshold=1e-3,          # drop donors negligible everywhere
+                     colors={"MSCMT nested": "C0", "Malo bilevel": "C3"})
+
+Each donor becomes a group of bars, one per method. ``threshold`` drops donors
+that are negligible in every method, ``max_donors`` keeps only the largest, and
+``label`` maps each donor key to its axis label (e.g. ``lambda d: d.split(" (")[0]``
+to strip a parenthetical tag).
 
 Example: results outside the standardized contract
 --------------------------------------------------

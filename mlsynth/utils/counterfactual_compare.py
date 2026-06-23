@@ -46,6 +46,7 @@ class _Curve:
     att: Optional[float]
     pre_rmse: Optional[float]
     observed: Optional[np.ndarray]   # treated series, if the spec carried one
+    weights: Optional[Dict[str, float]]   # donor weights, if the spec carried any
 
 
 def _as_1d(x: Any, name: str) -> np.ndarray:
@@ -142,6 +143,7 @@ def _normalize(
     att: Optional[float] = None
     pre_rmse: Optional[float] = None
     observed: Optional[Any] = None
+    weights: Optional[Mapping[str, Any]] = None
 
     if hasattr(spec, "time_series") and getattr(spec, "time_series") is not None:
         ts = spec.time_series
@@ -155,6 +157,7 @@ def _normalize(
         effects = getattr(spec, "effects", None)
         att = getattr(effects, "att", None) if effects is not None else None
         pre_rmse = getattr(spec, "pre_rmse", None)
+        weights = getattr(spec, "donor_weights", None)
         inference = getattr(spec, "inference", None)
         if inference is not None:
             lower, upper, periods = _band_from_details(
@@ -173,6 +176,7 @@ def _normalize(
         att = spec.get("att")
         pre_rmse = spec.get("pre_rmse")
         observed = spec.get("observed")
+        weights = spec.get("weights")
     else:
         cf = spec  # array-like: the counterfactual itself
 
@@ -195,12 +199,17 @@ def _normalize(
     )
     obs_arr = (None if observed is None
                else np.asarray(observed, dtype=float).reshape(-1))
+    weights_dict = (
+        None if not weights
+        else {str(k): float(v) for k, v in dict(weights).items()}
+    )
     return _Curve(
         label=label, time=time, counterfactual=cf,
         lower=full_lo, upper=full_hi,
         att=(None if att is None else float(att)),
         pre_rmse=(None if pre_rmse is None else float(pre_rmse)),
         observed=obs_arr,
+        weights=weights_dict,
     )
 
 
@@ -224,16 +233,25 @@ class CounterfactualComparison:
     observed : pd.Series, optional
         Observed treated series indexed by period, when one was supplied or could
         be read off a standardized result.
+    weights : pd.DataFrame
+        Long form, one row per (method, donor): ``method``, ``donor``,
+        ``weight``. Empty when no method exposes donor weights.
     """
 
     curves: pd.DataFrame
     summary: pd.DataFrame
     observed: Optional[pd.Series] = None
+    weights: pd.DataFrame = None  # type: ignore[assignment]
 
     def plot(self, ax: Any = None, **kwargs: Any) -> Any:
         """Overlay the counterfactuals (the plot form). See
         :func:`plot_counterfactual_comparison`."""
         return plot_counterfactual_comparison(self, ax=ax, **kwargs)
+
+    def plot_weights(self, ax: Any = None, **kwargs: Any) -> Any:
+        """Grouped bar chart of each method's donor weights (the plot form).
+        See :func:`plot_weights_comparison`."""
+        return plot_weights_comparison(self, ax=ax, **kwargs)
 
 
 def compare_counterfactuals(
@@ -295,6 +313,7 @@ def compare_counterfactuals(
 
     rows: List[Dict[str, Any]] = []
     summary_rows: List[Dict[str, Any]] = []
+    weight_rows: List[Dict[str, Any]] = []
     for c in curves:
         summary_rows.append({
             "method": c.label,
@@ -304,11 +323,16 @@ def compare_counterfactuals(
         for t, cf, lo, hi in zip(c.time, c.counterfactual, c.lower, c.upper):
             rows.append({"method": c.label, "period": t,
                          "counterfactual": cf, "lower": lo, "upper": hi})
+        if c.weights:
+            for donor, w in c.weights.items():
+                weight_rows.append({"method": c.label, "donor": donor,
+                                    "weight": w})
 
     curves_df = pd.DataFrame(
         rows, columns=["method", "period", "counterfactual", "lower", "upper"]
     )
     summary_df = pd.DataFrame(summary_rows).set_index("method")
+    weights_df = pd.DataFrame(weight_rows, columns=["method", "donor", "weight"])
 
     observed_series = _resolve_observed(observed, curves, global_time)
 
@@ -318,7 +342,8 @@ def compare_counterfactuals(
         )
 
     return CounterfactualComparison(
-        curves=curves_df, summary=summary_df, observed=observed_series
+        curves=curves_df, summary=summary_df, observed=observed_series,
+        weights=weights_df,
     )
 
 
@@ -454,6 +479,113 @@ def plot_counterfactual_comparison(
         return _draw(ax)
     with mlsynth_style():
         _, ax = plt.subplots(figsize=(6, 3.5))
+        _draw(ax)
+        ax.figure.tight_layout()
+        plt.show()
+    return ax
+
+
+def plot_weights_comparison(
+    comparison: CounterfactualComparison,
+    ax: Any = None,
+    *,
+    colors: Optional[Mapping[str, Any]] = None,
+    threshold: float = 1e-3,
+    max_donors: Optional[int] = None,
+    sort: bool = True,
+    label: Any = str,
+    bar_width: Optional[float] = None,
+    ylabel: str = "donor weight",
+    legend: bool = True,
+) -> Any:
+    """Grouped bar chart of each method's donor weights.
+
+    One group of bars per donor, one bar per method, so the methods' weight
+    vectors can be read side by side (the same comparison the counterfactual
+    overlay makes, on the weights rather than the paths). Donors with
+    negligible weight in every method are dropped.
+
+    Parameters
+    ----------
+    comparison : CounterfactualComparison
+        The object returned by :func:`compare_counterfactuals`; its ``weights``
+        frame supplies the donor weights.
+    colors : mapping ``{label: value}``, optional
+        Per-method bar colour; defaults cycle the palette.
+    threshold : float, default 1e-3
+        Drop a donor whose ``|weight|`` is below this in every method.
+    max_donors : int, optional
+        Keep only the ``max_donors`` donors with the largest total weight.
+    sort : bool, default True
+        Order donors by descending total weight (else by first appearance).
+    label : callable, default ``str``
+        Maps a donor key to its axis label (e.g. to strip a parenthetical).
+    bar_width : float, optional
+        Total width shared by a donor's bars; defaults to ``0.8``.
+    ylabel : str, default "donor weight"
+        Y-axis label.
+    legend : bool, default True
+        Whether to draw the legend.
+
+    Raises
+    ------
+    MlsynthConfigError
+        When no method exposes donor weights above ``threshold``.
+    """
+    import matplotlib.pyplot as plt
+
+    from .plotting import mlsynth_style
+
+    colors = dict(colors or {})
+    method_order = list(comparison.summary.index)
+    w = comparison.weights
+
+    # {donor: {method: weight}} restricted to donors that clear the threshold.
+    pivot: Dict[Any, Dict[str, float]] = {}
+    totals: Dict[Any, float] = {}
+    if w is not None and not w.empty:
+        for donor, grp in w.groupby("donor", sort=False):
+            by_method = dict(zip(grp["method"], grp["weight"]))
+            if max(abs(v) for v in by_method.values()) < threshold:
+                continue
+            pivot[donor] = by_method
+            totals[donor] = float(sum(by_method.values()))
+
+    if not pivot:
+        raise MlsynthConfigError(
+            "no donor weights to plot: no method exposes donor_weights above "
+            f"threshold={threshold!r}."
+        )
+
+    donors = list(pivot)
+    if sort:
+        donors.sort(key=lambda d: -totals[d])
+    if max_donors is not None:
+        donors = donors[:max_donors]
+
+    n = len(method_order)
+    total_w = 0.8 if bar_width is None else bar_width
+    bw = total_w / n
+    x = np.arange(len(donors))
+
+    def _draw(ax: Any) -> Any:
+        for k, method in enumerate(method_order):
+            heights = [pivot[d].get(method, 0.0) for d in donors]
+            offset = (k - (n - 1) / 2.0) * bw
+            ax.bar(x + offset, heights, bw,
+                   color=colors.get(method, _PALETTE[k % len(_PALETTE)]),
+                   label=str(method))
+        ax.set_xticks(x)
+        ax.set_xticklabels([label(d) for d in donors])
+        ax.set_ylabel(ylabel)
+        if legend:
+            ax.legend()
+        return ax
+
+    if ax is not None:
+        return _draw(ax)
+    with mlsynth_style():
+        _, ax = plt.subplots(figsize=(6, 3.0))
         _draw(ax)
         ax.figure.tight_layout()
         plt.show()

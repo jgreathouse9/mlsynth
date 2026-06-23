@@ -21,6 +21,7 @@ from mlsynth.config_models import (
     FitDiagnosticsResults,
     InferenceResults,
     TimeSeriesResults,
+    WeightsResults,
 )
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.counterfactual_compare import (
@@ -333,4 +334,101 @@ def test_plot_dodge_and_colors(two_results):
         styles={"alpha": "--", "beta": "-."})
     # error-bar containers exist because alpha carries a band
     assert len(ax.containers) >= 1
+    plt.close("all")
+
+
+# --------------------------------------------------------------------------- #
+# Donor weights: extraction frame + plot_weights (so the paper drops the bar
+# chart code the same way it dropped the per-method overlay loop)
+# --------------------------------------------------------------------------- #
+def _result_w(cf, weights, **kw):
+    res = _result(cf, **kw)
+    res.weights = WeightsResults(donor_weights=weights)
+    return res
+
+
+@pytest.fixture
+def two_weighted():
+    t = [2000, 2001, 2002]
+    a = _result_w([1.0, 2.0, 3.0], {"d1": 0.6, "d2": 0.4, "d3": 0.0005},
+                  time=t, att=-0.7)
+    b = _result_w([1.0, 2.1, 3.2], {"d2": 0.5, "d4": 0.5},
+                  time=t, att=-0.9)
+    return {"alpha": a, "beta": b}
+
+
+def test_weights_frame_is_tidy(two_weighted):
+    cmp = compare_counterfactuals(two_weighted)
+    w = cmp.weights
+    assert set(w.columns) >= {"method", "donor", "weight"}
+    a = w[w["method"] == "alpha"].set_index("donor")["weight"]
+    assert a.loc["d1"] == pytest.approx(0.6)
+    assert set(w[w["method"] == "beta"]["donor"]) == {"d2", "d4"}
+
+
+def test_weights_absent_method_contributes_no_rows():
+    cmp = compare_counterfactuals(
+        {"has": _result_w([1.0, 2.0], {"d1": 1.0}, time=[0, 1]),
+         "none": [1.0, 2.0]})            # bare array -> no weights
+    assert set(cmp.weights["method"]) == {"has"}
+
+
+def test_weights_from_mapping_spec():
+    cmp = compare_counterfactuals(
+        {"m": {"counterfactual": [1.0, 2.0], "time": [0, 1],
+               "weights": {"d1": 0.7, "d2": 0.3}}})
+    w = cmp.weights.set_index("donor")["weight"]
+    assert w.loc["d1"] == pytest.approx(0.7)
+
+
+def test_plot_weights_smoke(two_weighted):
+    cmp = compare_counterfactuals(two_weighted)
+    fig, ax = plt.subplots()
+    out = cmp.plot_weights(ax=ax, colors={"alpha": "C0", "beta": "C3"})
+    assert out is ax
+    assert len(ax.patches) > 0          # bars drawn
+    plt.close("all")
+
+
+def test_plot_weights_threshold_drops_negligible(two_weighted):
+    cmp = compare_counterfactuals(two_weighted)
+    fig, ax = plt.subplots()
+    cmp.plot_weights(ax=ax, threshold=1e-3)
+    labels = {t.get_text() for t in ax.get_xticklabels()}
+    assert "d3" not in labels           # 0.0005 < threshold
+    assert {"d1", "d2", "d4"} <= labels
+    plt.close("all")
+
+
+def test_plot_weights_label_callable(two_weighted):
+    cmp = compare_counterfactuals(two_weighted)
+    fig, ax = plt.subplots()
+    cmp.plot_weights(ax=ax, label=lambda d: d.upper())
+    labels = {t.get_text() for t in ax.get_xticklabels()}
+    assert "D1" in labels
+    plt.close("all")
+
+
+def test_plot_weights_max_donors_keeps_top(two_weighted):
+    cmp = compare_counterfactuals(two_weighted)
+    fig, ax = plt.subplots()
+    cmp.plot_weights(ax=ax, max_donors=2)
+    labels = [t.get_text() for t in ax.get_xticklabels() if t.get_text()]
+    assert len(labels) == 2
+    plt.close("all")
+
+
+def test_plot_weights_no_weights_raises():
+    cmp = compare_counterfactuals({"m": [1.0, 2.0, 3.0]}, time=[0, 1, 2])
+    with pytest.raises(MlsynthConfigError):
+        cmp.plot_weights()
+
+
+def test_plot_weights_without_axis_creates_and_returns(monkeypatch):
+    monkeypatch.setattr(plt, "show", lambda *a, **k: None)
+    cmp = compare_counterfactuals(
+        {"m": {"counterfactual": [1.0, 2.0], "time": [0, 1],
+               "weights": {"d1": 0.6, "d2": 0.4}}})
+    ax = cmp.plot_weights()
+    assert ax is not None
     plt.close("all")

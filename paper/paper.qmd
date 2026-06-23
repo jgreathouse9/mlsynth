@@ -891,20 +891,11 @@ Both solutions live under the same `weights.donor_weights` field, and
 ```{python}
 #| label: fig-basque-weights
 #| fig-cap: "Donor weights from the two solvers (`weights.donor_weights`), regions with negligible weight omitted. The nested search (blue) and the bilevel search (red) select different regions, Cataluna versus Rioja, and weight their shared donors, Madrid and Baleares, differently, for the same treated unit."
-def positive_weights(res):
-    return {str(k): float(v) for k, v in res.weights.donor_weights.items()
-            if abs(v) > 1e-3}
-
-wm, wl = positive_weights(mscmt), positive_weights(malo)
-donors = sorted(set(wm) | set(wl), key=lambda r: -(wm.get(r, 0) + wl.get(r, 0)))
-short = lambda r: r.split(" (")[0]
-x = np.arange(len(donors)); bw = 0.38
-
 fig, ax = plt.subplots(figsize=(5, 2.8))
-ax.bar(x - bw / 2, [wm.get(r, 0) for r in donors], bw, color="C0", label="MSCMT nested")
-ax.bar(x + bw / 2, [wl.get(r, 0) for r in donors], bw, color="C3", label="Malo bilevel")
-ax.set_xticks(x); ax.set_xticklabels([short(r) for r in donors])
-ax.set_ylabel("donor weight"); ax.legend(fontsize=7); fig.tight_layout(); plt.show()
+cmp.plot_weights(ax=ax, threshold=1e-3,        # the same comparison, on the weights
+                 colors={"MSCMT nested solver": "C0", "Malo bilevel solver": "C3"},
+                 label=lambda r: r.split(" (")[0])   # drop the parenthetical region tag
+ax.legend(fontsize=7); fig.tight_layout(); plt.show()
 ```
 
 That the comparison is controlled is the point. Only the solver changes; the data
