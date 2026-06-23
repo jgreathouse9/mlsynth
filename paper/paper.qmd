@@ -1005,11 +1005,20 @@ plt.show()
 ```
 
 ```{python}
-#| label: tbl-spillover-att
-#| tbl-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study (the `att` field)."
-(pd.DataFrame(records)
-   .pivot(index="method", columns="case", values="ATT")
-   .round(2))
+#| label: fig-spillover-att
+#| fig-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study (the `att` field). One panel per case because the outcomes are in different units; within a panel the bars share an axis, so the cross-method spread is read directly. The Proposition 99 methods disagree by more than a factor of two; the reunification methods nearly agree, tracking how much spillover each case has to model."
+att = pd.DataFrame(records)
+att_units = {"Proposition 99": "ATT (packs p.c.)", "Reunification": "ATT (000s USD)"}
+
+fig, axes = plt.subplots(1, 2, figsize=(7, 2.8))
+for ax, case in zip(axes, att_units):
+    sub = att[att["case"] == case].set_index("method").reindex(methods)
+    ax.bar(np.arange(len(methods)), sub["ATT"],
+           color=[methods[m][0] for m in methods])
+    ax.axhline(0, color="0.4", lw=0.8)
+    ax.set_xticks(np.arange(len(methods))); ax.set_xticklabels(list(methods))
+    ax.set_title(case, fontsize=8); ax.set_ylabel(att_units[case], fontsize=8)
+fig.tight_layout(); plt.show()
 ```
 
 The two panels make the same point from opposite directions. On Proposition 99 the
