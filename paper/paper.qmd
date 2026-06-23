@@ -215,17 +215,17 @@ all of them, and three dozen besides, through one interface.
 
 The original synthetic control method ships as the R package `Synth`
 [@abadie2011synth], itself a paper in this journal. It pairs a [dataprep]{.fct}
-routine that reshapes a long panel with a [synth]{.fct} routine that solves the
-nested predictor-weight and donor-weight optimization, together with a small
-family of table and plotting functions. It is the reference implementation of the
+routine that reshapes a long panel with a [synth]{.fct} routine solving the
+nested predictor- and donor-weight optimization, plus a few table and plotting
+functions. It is the reference implementation of the
 simplex-weighted estimator with predictor matching, which `mlsynth` reproduces as
 [VanillaSC]{.pkg}.
 
 The optimization `Synth` performs has itself been studied. A recent literature on
 its numerics, the R package `MSCMT` [@becker2018fast] and the
-bilevel-optimization analysis of @malo2024computing, shows that the nested
-predictor-and-donor problem `Synth` solves has a global optimum at which the donor
-weights coincide with a pure outcome fit. `mlsynth` reaches that optimum directly
+bilevel-optimization analysis of @malo2024computing, shows the nested
+predictor-and-donor problem has a global optimum where the donor weights coincide
+with a pure outcome fit. `mlsynth` reaches that optimum directly
 through [VanillaSC]{.pkg}'s outcome-only backend, and the match against the
 reference is exact: fit to the California tobacco data, [VanillaSC]{.pkg} and the
 installed `MSCMT` package agree on every donor weight, Utah $0.3939$, Montana
@@ -233,10 +233,10 @@ $0.2318$, Nevada $0.2049$, Connecticut $0.1091$, and on an average treatment
 effect of $-19.51363$, to five decimals.
 
 `synth2` [@yan2023synth2] re-implements that estimator in Stata
-and adds the inferential apparatus practitioners want around it: in-space and
+and adds the inference practitioners want around it: in-space and
 in-time placebo tests, a leave-one-out robustness check, and confidence intervals,
 with publication-ready graphics. In `mlsynth` these are not a separate tool but
-options on the same estimator, [VanillaSC]{.pkg} with `inference = "placebo"`
+options on one estimator, [VanillaSC]{.pkg} with `inference = "placebo"`
 runs the in-space placebo and `inference = "scpi"` attaches the prediction
 intervals of @cattaneo2021prediction. Two further options go beyond what `synth2`
 offers, and neither has a packaged implementation in Python: `inference = "lto"`
@@ -245,14 +245,14 @@ powerful than the ordinary placebo in small donor pools, and `inference = "ttest
 applies the debiased synthetic-control t-test for the ATT of
 @chernozhukov2025debiasingttestssyntheticcontrol, ported
 faithfully from the authors' R `scinference`. The same one-word switch thus reaches
-inference that is otherwise scattered across separate packages, or, in the case
-of the refined placebo test, available in no package at all.
+inference otherwise scattered across separate packages, or, for the refined placebo
+test, in no package at all.
 
 A second strand replaces the simplex with a regression of the treated unit on the
 donors, the panel-data approach of @hsiao2012panel and its descendants. The
 Stata package `rcm` [@yan2022rcm] implements it with a menu of model-selection
 routines for choosing which donors enter: best-subset, lasso, and forward and
-backward stepwise regression, under the AIC, the BIC, and cross-validation. The R
+backward stepwise, under AIC, BIC, and cross-validation. The R
 package `pampe` [@vegabayo2015pampe] implements the same Hsiao-Ching-Wan
 best-subset estimator and is the standard reference for it; `mlsynth` reproduces
 its Hong Kong economic-integration application, the original @hsiao2012panel
@@ -318,18 +318,18 @@ estimator of @athey2021matrix, and others, behind a common interface. It is the
 nearest peer to `mlsynth`'s missing-data family ([MCNNM]{.pkg}, [SNN]{.pkg}), but it
 stops there: it does not carry the simplex, regression-control, penalized,
 spillover-aware, or experimental-design estimators that make up the rest of the
-synthetic-control literature.
+literature.
 
 The pattern across the ecosystem is the friction a unified interface removes. A
 researcher who wants to weigh a simplex control against a regression-control fit,
 add augmentation, reach the bilevel optimum, or attach prediction intervals must
-today cross R, Stata, and Python, learn a different data convention for each
-package, and reconcile as many notions of a result. `mlsynth` is, to our knowledge,
-the first comprehensive Python library for this family: every estimator named above,
-and roughly forty more, is reached through one data-preparation step, one
-configuration-and-fit call, and one standardized result, with the numerical matches
-above either re-run against the installed reference package or reproduced from the
-source paper's published results at validation time (@tbl-related).
+today cross R, Stata, and Python, learn a different data convention for each, and
+reconcile as many notions of a result. `mlsynth` is, to our knowledge, the first
+comprehensive Python library for this family: every estimator named above, and
+roughly forty more, is reached through one data-preparation step, one
+configuration-and-fit call, and one standardized result; the numerical matches
+above are either re-run against the installed reference package or reproduced from
+the source paper at validation time (@tbl-related).
 
 | Package | Language | Method implemented | In `mlsynth` | Checked |
 |:--|:--|:--|:--|:--|
@@ -357,13 +357,13 @@ shared factor-model view and the resulting taxonomy of estimators. @sec-arch
 describes the library's software design along the path one call takes: the
 Pydantic-validated configuration object [@pydantic], the one-package-per-estimator
 structure, the internal data-preparation routine, and the standardized result
-hierarchy. @sec-applications then illustrates the library by problem regime: a
-single treated unit on the California tobacco-control data, estimated with three
+hierarchy. @sec-applications then illustrates the library by problem regime: one
+treated unit on the California tobacco-control data, estimated with three
 synthetic-control designs and prediction intervals; spillovers, relaxing the
 no-interference assumption by running four spillover-aware estimators across two
 case studies through one dispatcher; and experimental design, using MAREX to
-design an experiment on Abadie and Zhao's simulation, recovering a known
-treatment effect, and situating it within the broader design family.
+design an experiment on Abadie and Zhao's simulation, recover a known effect, and
+situate it in the broader design family.
 @sec-summary concludes, and @sec-computational records the computational and
 reproducibility details.
 
@@ -387,9 +387,9 @@ inference [@holland1986], so for the treated unit after $T_0$ we observe
 $y_{1t} = y_{1t}(1)$, while the quantity the analysis needs, the untreated potential
 outcome $y_{1t}(0)$, is missing. The estimand is the effect on the treated,
 $\tau_t = y_{1t}(1) - y_{1t}(0)$, and its average over the post-treatment window.
-The donor pool is never treated, so its outcomes trace out the untreated regime;
-every estimator below is a way of borrowing that information to impute the missing
-$y_{1t}(0)$, which is what the synthetic control $\hat{y}_{1t}$ below estimates.
+The donor pool is never treated, so its outcomes trace the untreated regime;
+every estimator below borrows that information to impute the missing
+$y_{1t}(0)$, which the synthetic control $\hat{y}_{1t}$ estimates.
 
 Almost every estimator in `mlsynth` rests on the assumption that outcomes are
 governed by a low-dimensional factor model,
@@ -412,8 +412,8 @@ $$ {#eq-sc}
 is then an estimate of the missing counterfactual, and the treatment effect in
 period $t$ is the gap $\tau_t = y_{1t} - \hat{y}_{1t}$.
 
-The weights themselves are, for almost every estimator in the library, the
-solution of one common optimization program. Writing $\mathbf{Y}_0$ and
+For almost every estimator in the library, the weights solve one common
+optimization program. Writing $\mathbf{Y}_0$ and
 $\mathbf{y}_1$ now for their pre-treatment ($T_0$-row) blocks, the donor weights
 solve
 $$
@@ -471,22 +471,21 @@ itself:
 
 Seen this way, the catalog is a set of choices along a few axes: the constraint
 on the weights, whether the donor matrix is denoised first, whether donors are
-selected or weighted, and how the common time structure is handled. It is not
-a list of unrelated algorithms. This is precisely why one interface is the right
-abstraction: the inputs ($\mathbf{Y}_0$, $\mathbf{y}_1$, $T_0$) and the output
+selected or weighted, and how the common time structure is handled, not a list of
+unrelated algorithms. This is why one interface is the right abstraction: the
+inputs ($\mathbf{Y}_0$, $\mathbf{y}_1$, $T_0$) and the output
 (a counterfactual path and its gap) are common to all of them.
 
 ### From estimation to design {#sec-design-view}
 
 The factor view also makes sense of the experimental-design family. If a credible
 synthetic control requires donors whose loadings can reconstruct the treated
-unit, then (before running an experiment) one can ask which candidate units
-*should* be treated so that the remaining units form a good donor pool, and how
-long the experiment must run to detect an effect of a given size. The
-design-first methods [@syndes] solve exactly this
-problem, turning the estimation machinery around: the same fit quality that
-validates a synthetic control after the fact becomes the objective that selects
-treatment units beforehand. `mlsynth` treats design as a first-class peer of
+unit, then, before running an experiment, one can ask which candidate units
+*should* be treated so the remaining units form a good donor pool, and how long
+the experiment must run to detect a given effect size. Design-first methods
+[@syndes] solve exactly this, turning the estimation machinery around: the fit
+quality that validates a synthetic control after the fact becomes the objective
+that selects treatment units beforehand. `mlsynth` treats design as a first-class peer of
 estimation rather than a separate concern, and @sec-design demonstrates it.
 
 ## Software design {#sec-arch}
@@ -498,7 +497,7 @@ We follow that path (config, estimator, data preparation, result) because it is
 also the order in which the design builds on itself. Two commitments run through
 all four. Outwardly, every estimator presents the same surface, so learning one
 teaches every other. Inwardly, every estimator is its own self-contained package,
-which is what keeps more than forty of them tractable to maintain.
+which keeps more than forty of them maintainable.
 
 ### One config {#sec-config}
 
@@ -524,7 +523,7 @@ config = {
 results = VanillaSC(config).fit()
 ```
 
-The five fields every estimator requires simply name the parts of the panel. `df`
+The five required fields name the parts of the panel. `df`
 is the tidy long data frame itself, one row per unit and period. `outcome` names
 the column to be explained, the variable whose treated-minus-counterfactual gap
 is the object of interest. `treat` names a $0/1$ indicator equal to one for the
@@ -572,10 +571,10 @@ The library exposes the writing side symmetrically, as `save_spec`, so a fitted
 configuration can be exported to a record and shared.
 
 That this takes only a few lines, and works for every estimator alike, is a
-dividend of the shared contract rather than per-method plumbing: because a
-configuration is data, the estimator is named in its own record, and one
-[fit]{.fct} runs whatever loads, the same uniformity that makes the catalog
-comparable also makes its analyses portable.
+dividend of the shared contract, not per-method plumbing: because a configuration
+is data, the estimator is named in its own record, and one [fit]{.fct} runs
+whatever loads, the uniformity that makes the catalog comparable also makes its
+analyses portable.
 
 ### One estimator {#sec-onepackage}
 
@@ -589,7 +588,7 @@ algorithm of its own. The work lives beside it in a helper package,
 data, the numerical pipeline, the data structures, a plotter, and whatever modules
 are specific to the method. The configuration object lives in that same package, in
 its own `config.py`, next to the code it governs, and is re-exported centrally so
-that existing imports keep resolving.
+existing imports keep resolving.
 
 The motivation is mundane and decisive. The alternative, the project's own
 earlier design, is a handful of shared modules that every estimator edits in
@@ -619,19 +618,18 @@ coupling.
 
 ### One dataprep {#sec-dataprep}
 
-Inside that thin estimator class, the first thing to happen is data preparation,
-and it is the one part of the library the analyst never touches. The one thing
-`mlsynth` asks for is a clean, tidy panel, a long data frame, one row per unit and
-period, prepared by the analyst before any estimator sees it. Ingestion is then
-routed through a single internal routine, [dataprep]{.fct}, which the user never
-calls. It takes the tidy frame together with the names of its outcome, unit, time,
+Inside that thin estimator class, the first step is data preparation, the one part
+of the library the analyst never touches. `mlsynth` asks only for a clean, tidy
+panel, a long data frame, one row per unit and period, prepared before any
+estimator sees it. Ingestion is then routed through a single internal routine,
+[dataprep]{.fct}, which the user never calls. It takes the tidy frame together with the names of its outcome, unit, time,
 and treatment columns and returns a canonical bundle, the wide outcome matrix, the
 treated vector $\mathbf{y}_1$, the donor matrix $\mathbf{Y}_0$, and the pre- and
 post-treatment period counts $T_0$ and $T_1$. Every estimator consumes that same
 bundle, so every data frame is pivoted, aligned, and validated the same way, every
 single time, in one place that is written and tested once. What varies is only what
-the analysis genuinely requires (whether covariates are supplied, for instance)
-never the mechanics of getting a data frame into an estimator.
+the analysis requires (whether covariates are supplied, say), never the mechanics
+of getting a data frame into an estimator.
 
 The implication worth dwelling on is what the user does *not* have to specify. A
 single binary treatment indicator carries all the structure [dataprep]{.fct} needs:
@@ -642,7 +640,7 @@ declares the pre/post split; these are read off the indicator. The same conventi
 scales without new arguments: when several units are treated at different times,
 [dataprep]{.fct} cohorts them by their individual adoption dates automatically.
 
-This is a deliberate contrast with the surrounding ecosystem, and it surfaces first
+This is a deliberate contrast with the surrounding ecosystem, and it shows first
 as sheer simplicity at the call site. To get from a data frame to an estimated,
 plotted result with the widely used `scpi` package [@cattaneo2025scpi], the analyst
 imports six separate functions and chains four of them by hand, `scdata` to
@@ -680,8 +678,8 @@ res.weights.donor_weights               # the fitted donor weights
 res.inference.p_value                   # inference, on the same object
 ```
 
-To make this concrete, the same fields read off a real fit return the numbers
-themselves. Here is [VanillaSC]{.pkg} on the Basque Country data
+The same fields, read off a real fit, return the numbers themselves. Here is
+[VanillaSC]{.pkg} on the Basque Country data
 [@abadie2003economic], using the outcome-only backend and the debiased
 synthetic-control $t$-test of @chernozhukov2025debiasingttestssyntheticcontrol:
 
@@ -715,7 +713,7 @@ inference off this common object without any estimator-specific glue.
 
 ## Applications {#sec-applications}
 
-The next three subsections put the library to work, one per problem regime, a
+The next three subsections put the library to work, one per problem regime: a
 single treated unit, spillovers, and experimental design. Each is a
 self-contained, reproducible transcript, and together they show that moving
 between regimes is a change of estimator against an unchanged data frame, not a
@@ -728,7 +726,7 @@ Proposition 99, a large tobacco-control program; @abadie2010synthetic estimated
 its effect on per-capita cigarette sales by building a synthetic California from
 other states.
 
-A modelling choice that the methods literature takes seriously concerns the donor
+A modelling choice the methods literature takes seriously concerns the donor
 pool. @abadie2010synthetic deliberately discard control units whose own policies
 contaminate the counterfactual: four states that adopted large-scale tobacco
 programs of their own during the sample (Massachusetts, Arizona, Oregon, Florida),
@@ -778,9 +776,9 @@ of @eq-factor in @sec-model, run on the full `{python} f"{n_donors_pcr}"`-donor
 pool.
 
 The point of this illustration is how little separates the three. We describe each
-estimator only briefly here, the optimization problem and inference behind each
-are documented per estimator at <https://mlsynth.readthedocs.io>, because the
-illustration is about the interface they share, not the internals they do not.
+estimator only briefly; the optimization and inference behind each are documented
+per estimator at <https://mlsynth.readthedocs.io>, because the illustration is
+about the interface they share, not the internals they do not.
 Setting `display_graphs=True` asks each estimator to draw its own diagnostic in the
 library's style. @fig-prop99-sc is the simplex control's plot; `inference="scpi"`
 shades the @cattaneo2021prediction prediction band over the post-treatment window
@@ -992,7 +990,7 @@ counterfactual path of a unit that was treated whether or not a good comparison
 existed for it. The third regime inverts the order of operations. Here the
 experiment has not run yet, and the question is one of *design*: of all the
 units we could treat, which ones should we, and which should we hold back as
-controls, so that a credible comparison will exist once the experiment is over?
+controls, so a credible comparison exists once the experiment is over?
 The data are the same shape as before (a panel of units over time) but the
 decision has moved from after the intervention to before it, and that makes it a
 genuinely different problem. In the familiar retrospective setting the treated
@@ -1209,9 +1207,8 @@ the conformal method of @chernozhukov2021conformal: where that procedure
 rearranges over all periods, including the pre-intervention window used to fit
 the weights, Abadie and Zhao permute only over the blank and post-intervention
 periods. The payoff is inference that stays valid under serial dependence and
-non-stationarity in the outcomes, rather than assuming the gaps are independent
-and identically distributed over time, which matters precisely because market
-sales are persistent. Within that same framework `mlsynth` also surfaces a power
+non-stationarity, rather than assuming the gaps are i.i.d. over time, which matters
+because market sales are persistent. Within that same framework `mlsynth` also surfaces a power
 analysis: an analytical minimum detectable effect, read off the blank-period
 residuals and inflated for their serial correlation by an AR(1)
 variance-inflation factor, exposed on `res.post_fit.power` as a headline number
@@ -1248,9 +1245,9 @@ behind a common interface.
 ## Summary {#sec-summary}
 
 Synthetic control has grown from a single method into a sprawling family, and the
-software has fragmented along with it. We have argued that the fragmentation is
+software has fragmented along with it. We have argued the fragmentation is
 largely incidental: most of these estimators are variations on one factor-model
-projection, differing in how they constrain or denoise the same underlying fit.
+projection, differing in how they constrain or denoise the same fit.
 `mlsynth` takes that observation seriously, placing more than forty estimators
 behind one data contract, one validated configuration-and-fit interface, and one
 standardized result. The three illustrations show what the consolidation buys.
@@ -1266,10 +1263,9 @@ and Zhao's simulation and recovers the known effect through the same
 configure-and-fit interface and standardized result as every estimator before
 it, opening onto a broader design family the surrounding ecosystem has never
 packaged for applied users. The value of having all of this in one place is not
-convenience but capability: a single, validated interface is what makes forty
-methods comparable, and what lets one library answer both the question of what an
-intervention did and the question of how to design the experiment that will
-measure it.
+convenience but capability: a single validated interface makes forty methods
+comparable and lets one library answer both what an intervention did and how to
+design the experiment that will measure it.
 
 ## Computational details {#sec-computational}
 
