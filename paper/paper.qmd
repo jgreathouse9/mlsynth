@@ -567,7 +567,14 @@ selected or weighted, how the common time structure is handled, and which
 justification for the weights from @eq-exist one is willing to defend), not a list
 of unrelated algorithms. Every one still consumes the same inputs ($\mathbf{Y}_0$,
 $\mathbf{y}_1$, $T_0$) and returns the same output, a counterfactual path and its
-gap, which is why the whole family fits behind one interface.
+gap, which is why the whole family fits behind one interface. That interface does
+more than spare the user a dozen APIs: it makes the perspectives comparable when
+they otherwise would not be. Stated in their own terms, a factor-model estimator, a
+proximal one, a forecast-combination one, and a balancing one inhabit separate
+theoretical worlds, with their own notation, assumptions, and software; reduced to
+the same inputs and outputs, they can be run on one panel and judged side by side,
+by the counterfactuals they produce rather than the premises they require. Holding
+no position among the rationales is what makes that comparison possible.
 
 ### From estimation to design {#sec-design-view}
 
