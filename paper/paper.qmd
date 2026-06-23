@@ -435,10 +435,12 @@ $$ {#eq-sc}
 estimates the missing counterfactual, and the period-$t$ effect is the gap
 $\hat{\tau}_t = y_{1t} - \hat{y}_{1t}$. The existence of $\mathbf{w}$ is the
 load-bearing assumption; what the methods disagree about is *why* such weights
-should exist and *how* to recover them. The library does not adjudicate between the
-rationales, and its estimators were built on different ones, so it is worth setting
-the main four side by side, because they explain how one interface can host methods
-with such different theory.
+should exist and *how* to recover them. The library takes no position among these
+rationales, and by design it does not need one: what the common interface
+abstracts is the computational shape the estimators share, not the theory they do
+not. Its estimators were built on different justifications, and it is worth setting
+the main four side by side, because together they show how one interface can host
+methods with such different motivations.
 
 The classical justification is a low-dimensional factor model
 [@abadie2010synthetic]. Suppose the untreated outcome obeys
@@ -457,12 +459,12 @@ rationales reach the same existence claim from different premises:
 
 - Proximal causal inference [@proximaltheory] keeps the latent factors but drops
   the requirement that the treated unit's loadings sit in the donors' convex hull.
-  It reads the donor outcomes as error-laden proxies for the unobserved confounders
-  $\mathbf{f}_t$, and repurposes donors that do not enter the synthetic control as
-  instruments that form moment equations identifying the weights. Existence then
-  follows from a bridge condition rather than a hull condition, which extends
-  synthetic control to poor pre-treatment fit and to binary or count outcomes, and
-  replaces the linear factor assumption with a nonparametric one.
+  It treats the donor outcomes as imperfect, noisy stand-ins for the unobserved
+  confounders $\mathbf{f}_t$, and uses the donors that do not enter the synthetic
+  control to help pin down the weights of those that do. The weights are justified
+  by this proxy structure rather than by the geometry of a convex hull, which lets
+  synthetic control tolerate poor pre-treatment fit and handle binary or count
+  outcomes, without requiring the factor model to be linear.
 - Forecast combination treats the weights as a prediction device rather than a
   structural object [@zhang2022asymptotic]. As the pre-period lengthens the
   synthetic-control weights converge to the combination that minimizes mean-squared
