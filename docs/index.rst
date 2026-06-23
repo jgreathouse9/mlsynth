@@ -329,6 +329,7 @@ headline numbers.
    :hidden:
    :caption: Utilities and internals
 
+   compare
    data
    helpers
 
