@@ -1019,7 +1019,7 @@ Because MAREX commits to a design before any effect is observed, we can hold it
 to a standard the retrospective estimators cannot meet: a simulation in which
 the right answer is known. Suppose Apple wants to know what its paid media is
 worth in incremental sales revenue, and runs a go-dark test across twenty DMAs
-(designated market areas) over ninety weeks: for the final ten weeks it switches
+(designated market areas) over thirty weeks: for the final ten weeks it switches
 paid media off in a few markets and measures the sales they forgo, which is what
 the advertising had been buying. The panel is one draw from the paper's own
 data-generating process -- a linear factor model with seven observed covariates
@@ -1032,11 +1032,11 @@ loads it.
 from mlsynth import MAREX
 from mlsynth.utils.marex_helpers.plotter import plot_marex
 
-godark = pd.read_csv(find_data("apple_godark_dmas.csv"))   # 20 DMAs x 90 weeks of sales
-J, T, T0, T_post = godark["dma"].nunique(), godark["week"].nunique(), 80, 10
+godark = pd.read_csv(find_data("apple_godark_dmas.csv"))   # 20 DMAs x 30 weeks of sales
+J, T, T0, T_post = godark["dma"].nunique(), godark["week"].nunique(), 20, 10
 
 cfg = {"outcome": "sales", "unitid": "dma", "time": "week",
-       "T0": T0, "T_post": T_post,        # 80 pre-launch weeks, then a 10-week test
+       "T0": T0, "T_post": T_post,        # 20 pre-launch weeks, then a 10-week test
        "m_min": 4, "m_max": 6,            # take four to six markets dark
        "design": "standard", "inference": True, "display_graph": False}
 
@@ -1057,7 +1057,7 @@ post-launch weeks turns the *design* straight into the *analysis*.
 
 ```{python}
 #| label: fig-marex
-#| fig-cap: "MAREX's own design diagnostic, drawn by the library, for Apple's go-dark test -- a reproduction of Abadie and Zhao's Figure 4. The faint lines are the individual DMAs; the dashed and dotted series are the synthetic treated and synthetic control the design built from pre-launch sales alone. They track through the fitting window and the shaded blank weeks, then separate once paid media goes dark at week 80 -- the gap is the sales the dark markets forgo, which is what the advertising had been generating."
+#| fig-cap: "MAREX's own design diagnostic, drawn by the library, for Apple's go-dark test -- a reproduction of Abadie and Zhao's Figure 4. The faint lines are the individual DMAs; the dashed and dotted series are the synthetic treated and synthetic control the design built from pre-launch sales alone. They track through the fitting window and the shaded blank weeks, then separate once paid media goes dark at week 20 -- the gap is the sales the dark markets forgo, which is what the advertising had been generating."
 w = experiment.globres.treated_weights_agg
 v = experiment.globres.control_weights_agg
 plot_marex(experiment, plot_type="prediction", donor_cloud=True, figsize=(7, 3.6))
