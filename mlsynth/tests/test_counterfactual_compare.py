@@ -337,6 +337,36 @@ def test_plot_dodge_and_colors(two_results):
     plt.close("all")
 
 
+def test_plot_band_fill_draws_shaded_region(two_results):
+    from matplotlib.collections import PolyCollection
+    cmp = compare_counterfactuals(two_results)
+    _, ax = plt.subplots()
+    plot_counterfactual_comparison(cmp, ax=ax, band="fill")
+    # a shaded region (fill_between -> PolyCollection) is drawn, not error bars
+    assert any(isinstance(c, PolyCollection) for c in ax.collections)
+    assert len(ax.containers) == 0
+    plt.close("all")
+
+
+def test_plot_band_errorbar_is_default(two_results):
+    from matplotlib.collections import PolyCollection
+    cmp = compare_counterfactuals(two_results)
+    _, ax = plt.subplots()
+    plot_counterfactual_comparison(cmp, ax=ax)            # default == errorbar
+    assert len(ax.containers) >= 1
+    assert not any(isinstance(c, PolyCollection) for c in ax.collections)
+    plt.close("all")
+
+
+def test_plot_band_invalid_raises(two_results):
+    cmp = compare_counterfactuals(two_results)
+    _, ax = plt.subplots()
+    with pytest.raises(ValueError):
+        plot_counterfactual_comparison(cmp, ax=ax, band="bogus")
+    plt.close("all")
+
+
+
 # --------------------------------------------------------------------------- #
 # Donor weights: extraction frame + plot_weights (so the paper drops the bar
 # chart code the same way it dropped the per-method overlay loop)

@@ -410,17 +410,21 @@ def plot_counterfactual_comparison(
     colors: Optional[Mapping[str, Any]] = None,
     styles: Optional[Mapping[str, Any]] = None,
     dodge: float = 0.0,
+    band: str = "errorbar",
     capsize: float = 1.5,
     elinewidth: float = 0.7,
+    fill_alpha: float = 0.18,
     observed_color: str = "black",
     legend: bool = True,
 ) -> Any:
-    """Overlay each method's counterfactual, with prediction-interval error bars.
+    """Overlay each method's counterfactual, with its prediction interval.
 
     Draws the observed series (when present) plus one line per method; where a
-    method carries a prediction interval, its bounds are shown as per-period
-    error bars, optionally dodged by ``dodge`` per method so overlapping bars
-    stay legible. Renders in the in-house mlsynth style and returns the axis.
+    method carries a prediction interval, its bounds are shown either as
+    per-period error bars (``band="errorbar"``, optionally dodged by ``dodge``
+    so overlapping bars stay legible) or as a shaded region
+    (``band="fill"``). Renders in the in-house mlsynth style and returns the
+    axis.
 
     Parameters
     ----------
@@ -430,9 +434,15 @@ def plot_counterfactual_comparison(
         Per-method line colour and linestyle overrides; defaults cycle a palette
         and a solid line.
     dodge : float, default 0.0
-        Horizontal offset applied to each method's error bars, centred on zero.
+        Horizontal offset applied to each method's error bars, centred on zero
+        (``band="errorbar"`` only).
+    band : {"errorbar", "fill"}, default "errorbar"
+        How to render each prediction interval: per-period error bars, or a
+        shaded band between the bounds.
     capsize, elinewidth : float
-        Error-bar cosmetics.
+        Error-bar cosmetics (``band="errorbar"`` only).
+    fill_alpha : float, default 0.18
+        Opacity of the shaded band (``band="fill"`` only).
     observed_color : str, default "black"
         Colour of the observed series.
     legend : bool, default True
@@ -442,6 +452,10 @@ def plot_counterfactual_comparison(
 
     from .plotting import mlsynth_style
 
+    if band not in ("errorbar", "fill"):
+        raise ValueError(
+            f"band must be 'errorbar' or 'fill', got {band!r}."
+        )
     colors = dict(colors or {})
     styles = dict(styles or {})
     method_order = list(comparison.summary.index)
@@ -462,15 +476,21 @@ def plot_counterfactual_comparison(
             ax.plot(t, cf, color=color, ls=ls, lw=1.2, label=str(method))
             lo = np.asarray(sub["lower"], dtype=float)
             hi = np.asarray(sub["upper"], dtype=float)
-            band = np.isfinite(lo) & np.isfinite(hi)
-            if band.any():
-                offset = (k - (n - 1) / 2.0) * dodge
-                ax.errorbar(
-                    t[band] + offset, cf[band],
-                    yerr=[cf[band] - lo[band], hi[band] - cf[band]],
-                    fmt="none", ecolor=color, elinewidth=elinewidth,
-                    capsize=capsize, alpha=0.8, zorder=4,
-                )
+            band_mask = np.isfinite(lo) & np.isfinite(hi)
+            if band_mask.any():
+                if band == "fill":
+                    ax.fill_between(
+                        t[band_mask], lo[band_mask], hi[band_mask],
+                        color=color, alpha=fill_alpha, linewidth=0, zorder=2,
+                    )
+                else:
+                    offset = (k - (n - 1) / 2.0) * dodge
+                    ax.errorbar(
+                        t[band_mask] + offset, cf[band_mask],
+                        yerr=[cf[band_mask] - lo[band_mask], hi[band_mask] - cf[band_mask]],
+                        fmt="none", ecolor=color, elinewidth=elinewidth,
+                        capsize=capsize, alpha=0.8, zorder=4,
+                    )
         if legend:
             ax.legend()
         return ax
