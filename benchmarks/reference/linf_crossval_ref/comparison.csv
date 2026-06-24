@@ -1,0 +1,48 @@
+# case: linf_crossval_ref
+# generated_at: 2026-06-24T20:08:39Z
+# mlsynth_version: 1.0.0
+# estimator: fit_en_scm
+# config: {"alpha": "0.0 (inf) / 0.5 (l1-inf)", "constraint_type": "unconstrained", "fit_intercept": true, "lam": 2.4, "second_norm": "L1_INF", "solver": "CLARABEL", "standardize": false}
+# reference_impl: LinfinitySC our(method='inf'|'l1-inf') (Wang, Xing & Ye 2025), https://github.com/BioAlgs/LinfinitySC
+# reference_version: git 37499ab
+quantity,mlsynth,reference,abs_diff
+linf/w[d00],0.124,0.124344,0.000344
+linf/w[d01],0.0651,0.065108,8e-06
+linf/w[d02],0.168,0.168224,0.000224
+linf/w[d03],-0.0297,-0.029732,3.2e-05
+linf/w[d04],0.178,0.177598,0.000402
+linf/w[d05],0.0225,0.022516,1.6e-05
+linf/w[d06],0.0172,0.017153,4.7e-05
+linf/w[d07],-0.0294,-0.029405,5e-06
+linf/w[d08],0.0249,0.024938,3.8e-05
+linf/w[d09],0.14,0.140143,0.000143
+linf/w[d10],0.0715,0.071466,3.4e-05
+linf/w[d11],0.121,0.121073,7.3e-05
+linf/w[d12],0.0373,0.037309,9e-06
+linf/w[d13],0.178,0.177593,0.000407
+linf/w[d14],-0.0881,-0.088086,1.4e-05
+linf/w[d15],0.0819,0.081874,2.6e-05
+linf/w[d16],0.0716,0.071576,2.4e-05
+linf/w[d17],0.0287,0.028706,6e-06
+linf/w[d18],0.0155,0.015534,3.4e-05
+linf/w[d19],0.0515,0.051501,1e-06
+l1linf/w[d00],0.12,0.119676,0.000324
+l1linf/w[d01],0.0682,0.068171,2.9e-05
+l1linf/w[d02],0.167,0.167034,3.4e-05
+l1linf/w[d03],-0.0285,-0.028525,2.5e-05
+l1linf/w[d04],0.181,0.180812,0.000188
+l1linf/w[d05],0.0175,0.017492,8e-06
+l1linf/w[d06],0.014,0.013966,3.4e-05
+l1linf/w[d07],-0.0236,-0.023588,1.2e-05
+l1linf/w[d08],0.024,0.02398,2e-05
+l1linf/w[d09],0.138,0.137777,0.000223
+l1linf/w[d10],0.0688,0.068822,2.2e-05
+l1linf/w[d11],0.119,0.118623,0.000377
+l1linf/w[d12],0.0384,0.038357,4.3e-05
+l1linf/w[d13],0.177,0.177182,0.000182
+l1linf/w[d14],-0.0808,-0.080795,5e-06
+l1linf/w[d15],0.0797,0.079683,1.7e-05
+l1linf/w[d16],0.0708,0.070751,4.9e-05
+l1linf/w[d17],0.0285,0.028498,2e-06
+l1linf/w[d18],0.0129,0.012919,1.9e-05
+l1linf/w[d19],0.0488,0.048795,5e-06

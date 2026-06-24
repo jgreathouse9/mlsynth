@@ -1,0 +1,16 @@
+# case: ascm_kansas
+# generated_at: 2026-06-24T20:09:48Z
+# mlsynth_version: 1.0.0
+# estimator: ridge_augment_weights
+# config: {"covariates": ["lngdpcapita", "revstatecapita", "revlocalcapita", "avgwklywagecapita", "estabscapita", "emplvlcapita"], "specifications": ["scm", "ridge", "covariate", "residualized"], "t_int": 2012.25, "treated_fips": 20.0}
+# reference_impl: R package augsynth (live run, Kansas study)
+# reference_version: augsynth 0.2.0
+quantity,mlsynth,reference,abs_diff
+ATT[scm],-0.029435,-0.029435,0.0
+pre_fit_L2[scm],0.082555,0.082555,0.0
+ATT[ridge],-0.040063,-0.040063,0.0
+pre_fit_L2[ridge],0.061515,0.061515,0.0
+ATT[covariate],-0.062904,-0.060937,0.001967
+pre_fit_L2[covariate],0.054591,0.053855,0.000736
+ATT[residualized],-0.057239,-0.052773,0.004466
+pre_fit_L2[residualized],0.066783,0.057637,0.009146

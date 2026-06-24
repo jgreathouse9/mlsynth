@@ -1,0 +1,23 @@
+# case: geolift_augsynth_ref
+# generated_at: 2026-06-24T20:10:09Z
+# mlsynth_version: 1.0.0
+# estimator: GEOLIFT
+# config: {"augment": "ridge", "fixed_effects": true, "outcome": "Y", "pre_periods": 90, "time": "date", "treat": "treat", "treated_units": ["chicago", "portland"], "unitid": "location"}
+# reference_impl: R package augsynth (via Rscript)
+# reference_version: augsynth (R, live)
+quantity,mlsynth,reference,abs_diff
+lambda,1673101687.126477,1673101687.1,0.026477
+ATT,156.805165,156.805406,0.000241
+weight[cincinnati],0.227306,0.227306,0.0
+weight[miami],0.202933,0.202933,0.0
+weight[baton rouge],0.133658,0.133658,0.0
+weight[minneapolis],0.090122,0.090122,0.0
+weight[dallas],0.074116,0.074116,0.0
+weight[nashville],0.068726,0.068726,0.0
+weight[honolulu],0.067404,0.067404,0.0
+weight[austin],0.046682,0.046682,0.0
+weight[san diego],0.04522,0.045221,1e-06
+weight[reno],0.030821,0.030821,0.0
+weight[san antonio],0.0056,0.0056,0.0
+weight[houston],0.004812,0.004812,0.0
+weight[new york],0.004793,0.004793,0.0

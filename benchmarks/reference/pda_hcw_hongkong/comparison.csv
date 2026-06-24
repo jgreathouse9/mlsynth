@@ -1,0 +1,14 @@
+# case: pda_hcw_hongkong
+# generated_at: 2026-06-24T20:09:40Z
+# mlsynth_version: 1.0.0
+# estimator: PDA
+# config: {"method": "hcw", "outcome": "GDP", "time": "Time", "treat": "treat", "unitid": "Country"}
+# reference_impl: R package pampe (pampe(), live run, captured)
+# reference_version: pampe 1.1.2 (benchmarks/reference/pda_hcw_hongkong/)
+quantity,mlsynth,reference,abs_diff
+n_selected,4.0,4.0,0.0
+weight[Japan],-0.676,-0.675964,3.6e-05
+weight[Taiwan],0.7926,0.792593,7e-06
+intercept,0.0263,0.0263,0.0
+r2_pre,0.931434,0.931434,0.0
+att_pct,-3.96291,-3.96291,0.0

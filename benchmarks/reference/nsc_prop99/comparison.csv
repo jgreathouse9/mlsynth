@@ -1,0 +1,31 @@
+# case: nsc_prop99
+# generated_at: 2026-06-24T20:08:39Z
+# mlsynth_version: 1.0.0
+# estimator: NSC
+# config: {"a": 0.3, "b": 0.7, "outcome": "cigsale", "run_inference": true, "time": "year", "treat": "Proposition 99", "unitid": "state"}
+# reference_impl: Tian (2023) NSC.R (vendored, live run, captured), a*=0.3, b*=0.7
+# reference_version: NSC.R / Tian (2023) arXiv:2306.01967v1 (benchmarks/reference/nsc_prop99/)
+quantity,mlsynth,reference,abs_diff
+weight[Idaho],0.173088,0.183,0.009912
+weight[Montana],0.172712,0.176,0.003288
+weight[Connecticut],0.133238,0.112,0.021238
+weight[Colorado],0.110534,0.119,0.008466
+weight[Nevada],0.114419,0.091,0.023419
+weight[Nebraska],0.106909,0.094,0.012909
+weight[New Mexico],0.103596,0.103,0.000596
+weight[West Virginia],0.095613,0.083,0.012613
+weight[Tennessee],-0.083799,-0.071,0.012799
+weight[Wisconsin],0.06306,0.06,0.00306
+weight[Arkansas],-0.05969,-0.057,0.00269
+weight[Utah],0.055227,0.045,0.010227
+weight[Iowa],0.036932,0.039,0.002068
+weight[Minnesota],0.038694,0.027,0.011694
+weight[Mississippi],-0.030943,-0.007,0.023943
+weight[Illinois],0.030455,0.02,0.010455
+weight[Alabama],-0.018876,-0.015,0.003876
+weight[South Carolina],-0.016664,-0.003,0.013664
+weight[Oklahoma],-0.015986,0.0,0.015986
+weight[Vermont],-0.008519,0.0,0.008519
+ITE[1990],-9.054038,-9.510413,0.456375
+ITE[1995],-22.621129,-24.498297,1.877168
+ITE[2000],-27.011011,-28.699998,1.688987

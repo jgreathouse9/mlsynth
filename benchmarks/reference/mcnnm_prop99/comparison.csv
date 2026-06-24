@@ -1,0 +1,9 @@
+# case: mcnnm_prop99
+# generated_at: 2026-06-24T20:08:33Z
+# mlsynth_version: 1.0.0
+# estimator: MCNNM
+# config: {"outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}
+# reference_impl: Python package causaltensor
+# reference_version: causaltensor (pip)
+quantity,mlsynth,reference,abs_diff
+ATT,-19.83201,-20.267536,0.435526

@@ -1,0 +1,38 @@
+Vendored reference data and runner for the `rescm_balanced_gdp` benchmark.
+
+  reference.py        mlsynth's runner: the authors' scmrelax L2RelaxationCV on
+                      the balanced-GDP panel (treated = United Kingdom, outcome =
+                      year-over-year GDP growth, pre-period ending 2016-06-30,
+                      treatment 2016Q3). Reproduces the spec of the authors'
+                      GDP_application_2016.ipynb cell-for-cell, then emits the
+                      CV-selected tau and the L2 weight vector. Produces the
+                      captured bundle. scmrelax's hardcoded MOSEK solver is routed
+                      to the open CLARABEL solver (the L2 relaxation is a convex QP
+                      with a unique, solver-invariant optimum).
+
+Data
+  basedata/balanced_gdp.csv  The authors' quarterly real-GDP panel (58 economies,
+                      2002Q4-2024Q2, CEIC), vendored verbatim from the authors'
+                      repo (balanced_GDP_data.csv). The two upstream repos ship
+                      byte-for-byte identical data (verified equal column-by-column).
+
+Reference
+  The reference is Liao-Shi-Zheng's relaxed-balanced synthetic control. It is
+  available as BOTH:
+    * github.com/YapengZheng/Relaxed_SC   -- the original author code (Yapeng
+      Zheng): balanced_GDP_data.csv + GDP_application_2016.ipynb /
+      GDP_application_2020.ipynb (the Brexit GDP empirical example).
+    * github.com/metricshilab/scmrelax    -- the packaged version of that same
+      Relaxed_SC code (the installable `scmrelax` package, used here); its
+      docs/ ship the same balanced_GDP_data.csv and notebooks.
+  scmrelax hardcodes the commercial MOSEK solver; because the L2 relaxation is a
+  plain convex QP with a unique optimum, the runner transparently routes those
+  solves to the open CLARABEL solver. The optimum was independently confirmed
+  with CLARABEL, ECOS, OSQP and SCS (all agree to solver precision).
+
+Source
+  Liao, Wei, Zhentao Shi & Yapeng Zheng (2026), "A Relaxation Approach to
+  Synthetic Control" (arXiv 2508.01793). Data and notebook taken from the
+  authors' repos above; vendored so the reference run is reproducible offline.
+  All credit to the authors. These files produce the captured reference bundle
+  only and are not part of the mlsynth library.

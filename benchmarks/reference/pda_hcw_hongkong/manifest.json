@@ -1,0 +1,9 @@
+{
+  "case": "pda_hcw_hongkong",
+  "title": "HCW best-subset panel-data approach vs pampe (Hong Kong sovereignty, Tables XVI-XVII)",
+  "paper": "Hsiao, Ching & Wan (2012), J. Applied Econometrics 27(5), Tables XVI-XVII",
+  "reference_impl": "R package pampe (live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/pda_hcw_hongkong/reference.R",
+  "data": ["basedata/HongKong.csv"]
+}

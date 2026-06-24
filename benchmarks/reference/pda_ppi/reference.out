@@ -1,0 +1,79 @@
+== REFERENCE VALUES ==
+tau	0.0906500525403
+obj_sqnorm	0.0451087740674
+alpha	-1.34320219362
+beta_l2_norm	0.246704015207
+pre_rmse	1.11413919482
+post_mean_pred	7.6681873863
+solver_obj_spread	1.28267946958e-07
+weight	Armenia	0.00941068024504
+weight	Belgium	0.0235395162342
+weight	Bosnia and Herzegovina	0.0464222068021
+weight	Bulgaria	0.0186717154471
+weight	Canada	0.0434694929273
+weight	Chile	0.0346022828418
+weight	Colombia	0.00955565259952
+weight	Croatia	-0.00410865785692
+weight	Cyprus	-0.00405116024746
+weight	Czech Republic	0.0158467761218
+weight	Denmark	0.0211029648509
+weight	Ecuador	-0.0248550046375
+weight	Egypt	0.019634324548
+weight	Estonia	0.0216441467348
+weight	European Union	0.0242836010266
+weight	Finland	0.0351897672579
+weight	France	0.0224245527566
+weight	Georgia	0.0287542032655
+weight	Germany	0.0403311927656
+weight	Ghana	-0.0061411067729
+weight	Greece	0.0140543852752
+weight	Hungary	0.00413649542793
+weight	Iceland	-0.00498692717298
+weight	India	0.000579485919086
+weight	Ireland	-0.0430807035697
+weight	Israel	0.00386655540414
+weight	Italy	0.00675863802379
+weight	Japan	0.0606124470935
+weight	Jordan	0.00788672130013
+weight	Kazakhstan	0.0103060951602
+weight	Kuwait	0.0292520390333
+weight	Kyrgyzstan	-0.000272082197266
+weight	Latvia	0.00614708944206
+weight	Lithuania	0.0102301578333
+weight	Luxembourg	0.0254519333998
+weight	Malaysia	0.0350710707429
+weight	Malta	0.0646952379036
+weight	Mexico	0.0648985563297
+weight	Moldova	-0.0225999908857
+weight	Mongolia	0.0147161467414
+weight	Montenegro	-0.0678926828739
+weight	Morocco	0.011308091865
+weight	Netherlands	0.019788533959
+weight	North Macedonia	0.0226505275435
+weight	Norway	0.0118112479598
+weight	Pakistan	0.00331084735621
+weight	Paraguay	0.024838291186
+weight	Philippines	0.0288250915377
+weight	Poland	0.018275414352
+weight	Portugal	0.0142557590349
+weight	Romania	0.00220332320277
+weight	Serbia	0.000414049547782
+weight	Singapore	0.024057614768
+weight	Slovakia	0.0163303320193
+weight	Slovenia	0.0560316534243
+weight	South Korea	0.0538828031338
+weight	Spain	0.0142626784287
+weight	Sweden	0.0504157039275
+weight	Switzerland	0.0651497399754
+weight	Thailand	0.0274395961402
+weight	Tunisia	-0.00983185750211
+weight	Ukraine	0.00757694564181
+weight	United Kingdom	0.0398227344172
+weight	United States	0.0732270689366
+
+== SESSION INFO ==
+python	3.11.15
+cvxpy	1.7.5
+numpy	2.4.6
+pandas	2.3.3
+solvers	ECOS,OSQP,SCS,CLARABEL

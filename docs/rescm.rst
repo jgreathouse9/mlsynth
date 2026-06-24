@@ -700,9 +700,17 @@ Verification
 
    Durable benchmarks. The relaxation branch is pinned against the authors'
    own paper and code: ``rescm_brexit`` (Path A -- the Brexit / UK real-GDP
-   application, ``standardize=False``) and ``rescm_relax_ref`` (cross-validation
-   -- mlsynth's L2 relaxation vs the ``scmrelax`` package, cell by cell at a
-   matched :math:`\eta`). See the dedicated page :doc:`replications/rescm`.
+   application, ``standardize=False``), ``rescm_relax_ref`` (cross-validation
+   -- mlsynth's L2 relaxation vs the authors' reference code on a toy factor
+   panel, cell by cell at a matched :math:`\eta`), and ``rescm_balanced_gdp``
+   (cross-validation -- the same comparison on the authors' real balanced-GDP
+   panel, treated United Kingdom, treatment 2016Q3). The reference is
+   Liao-Shi-Zheng's relaxed-balanced synthetic control, available as both
+   https://github.com/YapengZheng/Relaxed_SC (the original author code) and
+   https://github.com/metricshilab/scmrelax (the packaged version of that same
+   code, used here); its hardcoded MOSEK solver is routed to the open CLARABEL
+   solver, with the unique L2 optimum independently confirmed across CLARABEL,
+   ECOS, OSQP and SCS. See the dedicated page :doc:`replications/rescm`.
 
    The penalized branch's L-infinity estimators (``LINF`` / ``L1LINF``, Wang,
    Xing & Ye [LinfSC]_) are pinned separately: ``linf_crossval_ref``

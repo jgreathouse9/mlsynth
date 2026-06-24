@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-06-24T12:20:00Z",
+  "git_sha": "75cc9160deb6092d14ba339c931e72a33b1f45bd",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/synth_prop99/reference.R",
+  "data": [
+    {
+      "path": "basedata/california_panel.csv",
+      "sha256": "9d6a73e21f1a9c0fbeef44dbc57b3d754c033f8cce492e318fdd905d8313f2ec"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "Synth": "1.1-10",
+    "compiler": "4.3.3",
+    "rgenoud": "5.9-0.10",
+    "nloptr": "2.0.3",
+    "optimx": "2023-10.21",
+    "numDeriv": "2016.8-1.1",
+    "kernlab": "0.9-32",
+    "pracma": "2.4.4"
+  }
+}

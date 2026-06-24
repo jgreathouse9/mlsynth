@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-06-24T18:45:06Z",
+  "git_sha": "7057631bcb34f57008a4d9dfe149cccfde845448",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/sbc_germany/reference.R",
+  "data": [
+    {
+      "path": "basedata/german_reunification.csv",
+      "sha256": "f431666efbf3048a092a1ac326038daa7bd482f6b2c277ae8bbb287189916ad6"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "kernlab": "0.9-32",
+    "Synth": "1.1-10",
+    "compiler": "4.3.3",
+    "rgenoud": "5.9-0.10",
+    "nloptr": "2.0.3",
+    "optimx": "2023-10.21",
+    "numDeriv": "2016.8-1.1",
+    "pracma": "2.4.4"
+  }
+}

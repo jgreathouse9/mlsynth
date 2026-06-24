@@ -1,0 +1,15 @@
+{
+  "values": {
+    "att": -1005.679151,
+    "att_sc": -132.392577,
+    "greece_weight": 0.333347,
+    "netherlands_weight": 0.524389,
+    "italy_weight": 0.09653
+  },
+  "weights": {
+    "Greece": 0.333347,
+    "Italy": 0.09653,
+    "Netherlands": 0.524389,
+    "USA": 0.045705
+  }
+}

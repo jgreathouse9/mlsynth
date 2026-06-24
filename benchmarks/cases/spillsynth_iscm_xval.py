@@ -71,6 +71,38 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth's inclusive SCM vs the ported Melnychuk reference, quantity by
+    quantity: the two cross-weights (Austria in West Germany, West Germany in
+    Austria) and the naive / inclusive ATT, side by side."""
+    from benchmarks.reference.clone_iscm import _COMMIT, reference_inclusive_german
+
+    ref = reference_inclusive_german()            # load first: skips if unavailable
+    res = _fit()
+    cw = res.iscm.cross_weights
+    w_A = float(cw["Austria in West Germany"])
+    l_WG = float(cw["West Germany in Austria"])
+    cfg = {"outcome": "gdp", "treat": "treat", "unitid": "country", "time": "year",
+           "method": "iscm", "affected_units": ["Austria"], "iscm_intercept": True}
+    rows = [
+        {"quantity": "weight[Austria in West Germany]",
+         "mlsynth": round(w_A, 6), "reference": round(ref["w_A"], 6)},
+        {"quantity": "weight[West Germany in Austria]",
+         "mlsynth": round(l_WG, 6), "reference": round(ref["l_WG"], 6)},
+        {"quantity": "naive_ATT",
+         "mlsynth": round(float(res.att_scm), 6), "reference": round(ref["naive_att"], 6)},
+        {"quantity": "inclusive_ATT",
+         "mlsynth": round(float(res.att), 6), "reference": round(ref["inclusive_att"], 6)},
+    ]
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SPILLSYNTH", "config": cfg},
+        "reference": {"impl": "Melnychuk-Andrii/Spillover-SCM inclusive SCM "
+                              "(scm_weights/runInclusiveSCM), transcribed to NumPy",
+                      "version": f"git {_COMMIT[:7]}"},
+    }
+
+
 # Deterministic (closed-form demeaned simplex SCM + Cramer's rule). The ``*_vs_ref``
 # cells pin mlsynth to the ported Melnychuk reference; the residuals are the
 # simplex solver (FISTA here vs SLSQP/ipop in the reference), ~2%.

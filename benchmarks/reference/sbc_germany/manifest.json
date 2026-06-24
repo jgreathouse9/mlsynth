@@ -1,0 +1,9 @@
+{
+  "case": "sbc_germany",
+  "title": "Synthetic Business Cycle vs Shi-Xi-Xie's Germany.R method (West German reunification)",
+  "paper": "Shi, Zhentao, Yishen Xi & Jin Xie (2025), \"A Synthetic Business Cycle Approach to Counterfactual Analysis with Nonstationary Macroeconomic Data,\" arXiv:2505.22388; Section 5.1",
+  "reference_impl": "Shi-Xi-Xie SBC method (Germany.R detrending + Synth::synth ipop, independent R run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/sbc_germany/reference.R",
+  "data": ["basedata/german_reunification.csv"]
+}

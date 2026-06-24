@@ -39,13 +39,19 @@ Provenance / scope
 """
 from __future__ import annotations
 
+import re
+import shutil
+import subprocess
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from benchmarks.compare import BenchmarkSkipped
+
 _DATA = Path(__file__).resolve().parents[2] / "basedata" / "seattledmi.parquet"
+_RSCRIPT_REF = Path(__file__).resolve().parents[1] / "R" / "microsynth_seattle.R"
 
 # --- R microsynth 2.0.51 reference (single-outcome any_crime) ----------------
 # Plot.Stats$Difference[any_crime, 13:16] from microsynth_seattle.R.
@@ -117,6 +123,77 @@ def run() -> dict:
         "ess": float(res.design.ess),
         # placebo-permutation inference: significant crime reduction (one-sided)
         "perm_pvalue_lower": float(res_inf.inference.p_value),
+    }
+
+
+def _reference_live() -> dict:
+    """Run R ``microsynth`` live; parse the single-outcome any_crime reference.
+
+    Skips (``BenchmarkSkipped``) when ``Rscript`` or the ``microsynth`` package is
+    unavailable, so a missing R toolchain never turns the suite red. Returns the
+    per-period effects 13..16, the ATT (their mean), and the control weight sum.
+    """
+    rscript = shutil.which("Rscript")
+    if rscript is None:
+        raise BenchmarkSkipped("Rscript not on PATH (install R + the microsynth package)")
+    probe = subprocess.run([rscript, "-e", "suppressMessages(library(microsynth))"],
+                           capture_output=True, text=True)
+    if probe.returncode != 0:
+        raise BenchmarkSkipped("R package 'microsynth' not installed")
+
+    out = subprocess.run([rscript, str(_RSCRIPT_REF)], capture_output=True, text=True)
+    if out.returncode != 0:
+        raise BenchmarkSkipped(f"microsynth reference failed: {out.stderr.strip()[-200:]}")
+
+    m = re.search(r"post effects 13:16:\s*\n\s*\[1\]\s+([-\d.eE\s]+?)\n", out.stdout)
+    att_m = re.search(r"ATT \(mean of 13:16\):\s*([-\d.eE]+)", out.stdout)
+    wsum_m = re.search(r"control weight sum \(== treated count\):\s*([-\d.eE]+)", out.stdout)
+    if not (m and att_m and wsum_m):
+        raise BenchmarkSkipped("could not parse microsynth reference output")
+    effects = np.array([float(x) for x in m.group(1).split()])
+    return {"effects": effects, "att": float(att_m.group(1)),
+            "weight_sum": float(wsum_m.group(1))}
+
+
+def comparison() -> dict:
+    """mlsynth MicroSynth vs R ``microsynth`` (run live), quantity by quantity.
+
+    Per-period total effects 13..16, the ATT, and the control weight sum, paired
+    for a side-by-side export. The reference side runs the R package live and
+    ``BenchmarkSkipped``s when Rscript/microsynth is absent.
+    """
+    ref = _reference_live()                              # skips if R/microsynth absent
+
+    from mlsynth import MicroSynth
+
+    df = pd.read_parquet(_DATA)
+    cov = ["TotalPop", "BLACK", "HISPANIC", "Males_1521", "HOUSEHOLDS",
+           "FAMILYHOUS", "FEMALE_HOU", "RENTER_HOU", "VACANT_HOU"]
+    cfg = {
+        "outcome": "any_crime", "treat": "Intervention", "unitid": "ID",
+        "time": "time", "covariates": cov,
+        "outcome_lag_periods": list(range(1, 13)),
+        "weight_method": "panel", "run_inference": False,
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = MicroSynth({**cfg, "df": df, "display_graphs": False}).fit()
+
+    eff = np.asarray(res.gap_trajectory, dtype=float)     # per-period totals 13..16
+    rows = [{"quantity": f"effect[period {13 + i}]",
+             "mlsynth": round(float(eff[i]), 6),
+             "reference": round(float(ref["effects"][i]), 6)}
+            for i in range(len(eff))]
+    rows.append({"quantity": "ATT", "mlsynth": round(float(res.att), 6),
+                 "reference": round(ref["att"], 6)})
+    rows.append({"quantity": "control_weight_sum",
+                 "mlsynth": round(float(sum(res.design.w)), 6),
+                 "reference": round(ref["weight_sum"], 6)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "MicroSynth", "config": cfg},
+        "reference": {"impl": "R package microsynth (via Rscript)",
+                      "version": "microsynth (R, live)"},
     }
 
 

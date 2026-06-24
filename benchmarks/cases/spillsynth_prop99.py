@@ -79,6 +79,37 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth SPILLSYNTH vs the committed Cao-Dowd MATLAB reference, year by year.
+
+    Pairs mlsynth's California spillover-adjusted ATT path against the authors'
+    committed ``spillover.csv`` (the ``CA`` row), one row per post-treatment year
+    1989-2000. Triggers the reference load first so a blocked clone propagates
+    ``BenchmarkSkipped`` rather than half-populating the table.
+    """
+    from benchmarks.reference.clone_spillover import _COMMIT, reference_ca_alpha
+
+    ref_ca = reference_ca_alpha()             # skips if reference unavailable
+    res = _fit()
+    ca = np.asarray(res.cd.alpha[0, :], dtype=float)   # row 0 is the treated unit
+    years = list(range(1989, 1989 + ca.size))
+
+    rows = [{"quantity": f"CA_ATT[{yr}]", "mlsynth": round(float(m), 6),
+             "reference": round(float(r), 6)}
+            for yr, m, r in zip(years, ca, ref_ca)]
+    rows.append({"quantity": "CA_ATT[avg]", "mlsynth": round(float(ca.mean()), 6),
+                 "reference": round(float(ref_ca.mean()), 6)})
+    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state",
+           "time": "year", "method": "cd", "affected_units": _AFFECTED}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SPILLSYNTH", "config": cfg},
+        "reference": {"impl": "jcao0/synthetic-control-spillover MATLAB "
+                              "spillover.csv (CA row)",
+                      "version": f"commit {_COMMIT[:7]}"},
+    }
+
+
 # Deterministic (closed-form SCM/spillover weights, no RNG). ``ca_max_abs_diff``
 # pins mlsynth to the committed Cao-Dowd MATLAB ``spillover.csv``; the averages
 # pin the paper's headline: spillover attenuates vanilla SCM's effect, with the

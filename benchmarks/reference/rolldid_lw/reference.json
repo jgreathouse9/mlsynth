@@ -1,0 +1,14 @@
+{
+  "values": {
+    "prop99_demean_att": -0.422175,
+    "prop99_demean_se": 0.1208,
+    "prop99_detrend_att": -0.226989,
+    "prop99_detrend_se": 0.094069,
+    "prop99_detrend_p": 0.020892,
+    "castle_demean_att": 0.091745,
+    "castle_demean_se": 0.057103,
+    "castle_detrend_att": 0.06655,
+    "castle_detrend_se": 0.054989
+  },
+  "weights": {}
+}

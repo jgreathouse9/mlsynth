@@ -1,0 +1,9 @@
+{
+  "case": "cwz_ttest",
+  "title": "Debiased SC t-test vs scinference (CWZ 2025, Table 5)",
+  "paper": "Chernozhukov, Wuthrich & Zhu (2025), arXiv:1812.10820; scinference R package (kwuthrich/scinference)",
+  "reference_impl": "R package scinference (sc.cf t-test, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/cwz_ttest/reference.R",
+  "data": ["basedata/carbontax_data.dta", "basedata/basque_jasa.csv", "basedata/augmented_cali_long.csv"]
+}

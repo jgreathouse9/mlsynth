@@ -1,0 +1,9 @@
+{
+  "case": "nsc_prop99",
+  "title": "Nonlinear SC vs Tian (2023) NSC.R (Proposition 99, Table 2)",
+  "paper": "Tian (2023), \"The Synthetic Control Method with Nonlinear Outcomes,\" arXiv:2306.01967v1, Section 5.1 / Table 2",
+  "reference_impl": "Tian (2023) NSC.R (vendored benchmarks/R/nsc_tian2023_reference.R, live run at a=0.3, b=0.7)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/nsc_prop99/reference.R",
+  "data": ["basedata/smoking_data.csv"]
+}

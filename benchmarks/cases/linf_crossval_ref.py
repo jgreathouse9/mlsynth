@@ -98,6 +98,56 @@ def run() -> dict:
     return out
 
 
+def comparison() -> dict:
+    """mlsynth's penalized engine vs the ``LinfinitySC`` reference, weight by weight.
+
+    For each method (L-infinity and L1+L-infinity) lays the donor weight vectors
+    side by side at the matched penalty, so the exporter can show the two
+    independent solvers (cvxopt IPM vs CLARABEL) agree cell by cell. Skips
+    gracefully when the reference clone or ``cvxopt`` is unavailable.
+    """
+    from benchmarks.compare import BenchmarkSkipped
+    from benchmarks.reference.clone_linfinitysc import import_synth, _COMMIT
+
+    synth = import_synth()                       # skips if clone/network absent
+    try:
+        import cvxopt  # noqa: F401  (reference solver backend)
+    except Exception as exc:
+        raise BenchmarkSkipped(f"cvxopt unavailable: {exc}")
+
+    Y0, Y1 = _panel()
+    lam_ml = 2 * T0 * LAM_REF
+
+    rows = []
+    for tag, alpha, method in (("linf", 0.0, "inf"), ("l1linf", 0.5, "l1-inf")):
+        try:
+            w_ref = np.asarray(
+                synth.our(Y1[:T0], Y0[:T0], alpha, LAM_REF, method=method,
+                          std=False, intercept=True),
+                dtype=float,
+            )[1:]  # drop the intercept
+        except Exception as exc:
+            raise BenchmarkSkipped(f"reference our(method={method!r}) failed: {exc}")
+        w_ml = _ml_weights(Y0, Y1, alpha, lam_ml)
+        for j in range(J):
+            rows.append({"quantity": f"{tag}/w[d{j:02d}]",
+                         "mlsynth": round(float(w_ml[j]), 6),
+                         "reference": round(float(w_ref[j]), 6)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {
+            "estimator": "fit_en_scm",
+            "config": {"fit_intercept": True, "alpha": "0.0 (inf) / 0.5 (l1-inf)",
+                       "lam": lam_ml, "second_norm": "L1_INF",
+                       "constraint_type": "unconstrained", "standardize": False,
+                       "solver": "CLARABEL"},
+        },
+        "reference": {"impl": "LinfinitySC our(method='inf'|'l1-inf') (Wang, Xing & "
+                              "Ye 2025), https://github.com/BioAlgs/LinfinitySC",
+                      "version": f"git {_COMMIT[:7]}"},
+    }
+
+
 # Two independent implementations of the same unique penalized program -> agreement
 # to solver precision (cvxopt IPM vs CLARABEL). Tolerances cover numerical slack.
 EXPECTED = {

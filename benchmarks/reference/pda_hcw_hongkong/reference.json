@@ -1,0 +1,16 @@
+{
+  "values": {
+    "n_selected": 4.0,
+    "intercept": 0.0263,
+    "r2_pre": 0.931434,
+    "att_pct": -3.96291,
+    "weight_japan": -0.675964,
+    "weight_taiwan": 0.792593
+  },
+  "weights": {
+    "Japan": -0.675964,
+    "Korea": -0.432298,
+    "Taiwan": 0.792593,
+    "United States": 0.486032
+  }
+}

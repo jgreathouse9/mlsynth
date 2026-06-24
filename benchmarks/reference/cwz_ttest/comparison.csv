@@ -1,0 +1,11 @@
+# case: cwz_ttest
+# generated_at: 2026-06-24T20:08:39Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"alpha": 0.1, "backend": "outcome-only", "inference": "ttest", "outcome": "CO2_transport_capita", "time": "year", "treat": "treated", "ttest_K": 3, "unitid": "country"}
+# reference_impl: R package scinference (sc.cf t-test, live run, captured)
+# reference_version: scinference 0.0.0.9000
+quantity,mlsynth,reference,abs_diff
+ATT,-0.273903,-0.273903,0.0
+CI_lower_90%,-0.406425,-0.406425,0.0
+CI_upper_90%,-0.14138,-0.14138,0.0

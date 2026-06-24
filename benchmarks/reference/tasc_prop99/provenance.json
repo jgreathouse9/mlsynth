@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-06-24T20:04:52Z",
+  "git_sha": "8a0fe55fe7a6864532a2c511566dd0b464f6d601",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/tasc_prop99/reference.py",
+  "data": [
+    {
+      "path": "basedata/smoking_data.csv",
+      "sha256": "a13dd4d5d6e411839c1617c6b7df773129eac0559f064b848a235651fb330b40"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+== REFERENCE VALUES ==
+prop99_demean_att	-0.422175
+prop99_demean_se	0.120800
+prop99_detrend_att	-0.226989
+prop99_detrend_se	0.094069
+prop99_detrend_p	0.020892
+castle_demean_att	0.091745
+castle_demean_se	0.057103
+castle_detrend_att	0.066550
+castle_detrend_se	0.054989
+== SESSION INFO ==
+python 3.11.15
+lwdid 0.2.3
+numpy 2.4.6
+pandas 2.3.3
+reference: lwdid (Lee & Wooldridge DiD), PyPI lwdid

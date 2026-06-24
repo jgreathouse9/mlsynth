@@ -1,0 +1,83 @@
+== REFERENCE VALUES ==
+nu	0.260749
+global_l2	0.002623
+att	-0.011190
+tc_nu	0.393901
+tc_att	-0.018158
+tau_00	-0.004300
+tau_01	-0.010858
+tau_02	0.004420
+tau_03	0.001149
+tau_04	-0.009252
+tau_05	-0.016837
+tau_06	-0.018476
+tau_07	-0.003846
+tau_08	-0.015800
+tau_09	-0.031627
+tau_10	-0.017657
+tau_tc_00	-0.000776
+tau_tc_01	-0.016062
+tau_tc_02	-0.002847
+tau_tc_03	-0.002672
+tau_tc_04	-0.018131
+tau_tc_05	-0.028490
+tau_tc_06	-0.022834
+tau_tc_07	-0.014079
+tau_tc_08	-0.024547
+tau_tc_09	-0.047692
+tau_tc_10	-0.021612
+jack_se_00	0.018574
+jack_se_01	0.015535
+jack_se_02	0.015768
+jack_se_03	0.020419
+jack_se_04	0.022359
+jack_se_05	0.025375
+jack_se_06	0.026833
+jack_se_07	0.030154
+jack_se_08	0.034942
+jack_se_09	0.031869
+jack_se_10	0.034952
+boot_se_00	0.022470
+boot_se_01	0.021393
+boot_se_02	0.024041
+boot_se_03	0.024605
+boot_se_04	0.025610
+boot_se_05	0.024454
+boot_se_06	0.024911
+boot_se_07	0.028108
+boot_se_08	0.031709
+boot_se_09	0.029161
+boot_se_10	0.032452
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] augsynth_0.2.0
+
+loaded via a namespace (and not attached):
+ [1] vctrs_0.6.5      cli_3.6.2        rlang_1.1.3      Formula_1.2-5   
+ [5] purrr_1.0.2      generics_0.1.3   S7_0.2.2         glue_1.7.0      
+ [9] colorspace_2.1-0 scales_1.3.0     fansi_1.0.5      grid_4.3.3      
+[13] munsell_0.5.0    tibble_3.2.1     lifecycle_1.0.4  compiler_4.3.3  
+[17] dplyr_1.1.4      Rcpp_1.0.12      pkgconfig_2.0.3  tidyr_1.3.1     
+[21] osqp_1.0.0       lattice_0.22-5   R6_2.5.1         tidyselect_1.2.0
+[25] utf8_1.2.4       pillar_1.9.0     magrittr_2.0.3   Matrix_1.6-5    
+[29] withr_2.5.0      gtable_0.3.4     ggplot2_3.4.4   

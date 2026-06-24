@@ -1,0 +1,9 @@
+{
+  "case": "mscmt_basque",
+  "title": "MSCMT Basque study vs the MSCMT R package (AG 2003 spec)",
+  "paper": "Becker & Klossner (2018), 'Computing Generalized Synthetic Controls with the R package MSCMT'; Abadie & Gardeazabal (2003), AER 93(1)",
+  "reference_impl": "R package MSCMT (live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/mscmt_basque/reference.R",
+  "data": ["basedata/basque_mscmt.csv"]
+}

@@ -1,0 +1,9 @@
+{
+  "case": "pda_brexit",
+  "title": "L2-relaxation solver cross-validation at a fixed tau (Brexit, multiple treated UK firms)",
+  "paper": "Shi, Zhentao & Yishu Wang, \"L2-Relaxation for Economic Prediction\"; Section 6.2 (Stock Returns of U.K. and E.U. Companies After Brexit)",
+  "reference_impl": "Authors' Fun/L2relax.R (ishwang1/L2relax-PDA), per UK firm, reproduced via cvxpy/ECOS (CVXR/MOSEK unavailable in this R)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/pda_brexit/reference.py",
+  "data": ["basedata/brexit_long.parquet"]
+}

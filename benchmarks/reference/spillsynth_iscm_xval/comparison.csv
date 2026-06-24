@@ -1,0 +1,12 @@
+# case: spillsynth_iscm_xval
+# generated_at: 2026-06-24T20:09:47Z
+# mlsynth_version: 1.0.0
+# estimator: SPILLSYNTH
+# config: {"affected_units": ["Austria"], "iscm_intercept": true, "method": "iscm", "outcome": "gdp", "time": "year", "treat": "treat", "unitid": "country"}
+# reference_impl: Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights/runInclusiveSCM), transcribed to NumPy
+# reference_version: git 282b621
+quantity,mlsynth,reference,abs_diff
+weight[Austria in West Germany],0.463661,0.454248,0.009413
+weight[West Germany in Austria],0.352566,0.355042,0.002476
+naive_ATT,-1482.011685,-1474.451116,7.560569
+inclusive_ATT,-1278.785513,-1275.530404,3.255109

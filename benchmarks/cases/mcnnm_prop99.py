@@ -84,6 +84,48 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth MC-NNM vs ``causaltensor``, the Prop 99 ATT side by side.
+
+    Re-runs both solvers (each picking its own regulariser by cross-validation)
+    and pairs the ATT estimands. Propagates ``BenchmarkSkipped`` when
+    ``causaltensor`` is not installed, so the comparison export mirrors ``run``.
+    """
+    try:
+        import causaltensor as ct
+    except ImportError as exc:  # pragma: no cover - optional reference dep
+        raise BenchmarkSkipped("causaltensor not installed "
+                               "(`pip install causaltensor`)") from exc
+
+    from mlsynth import MCNNM
+
+    df = _load_panel()
+    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state",
+           "time": "year"}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = MCNNM({**cfg, "df": df, "display_graphs": False}).fit()
+    ml_att = float(res.att)
+
+    wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
+    states, years = wide.index.tolist(), wide.columns.tolist()
+    O = wide.values.astype(float)
+    ti, sc = states.index(TREAT_UNIT), years.index(TREAT_YEAR)
+    Omega = np.ones_like(O)
+    Omega[ti, sc:] = 0  # 1 = observed, 0 = treated/missing
+    _, _, _, ct_tau = ct.MC_NNM_with_cross_validation(O, Omega)
+    ct_att = float(ct_tau)
+
+    rows = [{"quantity": "ATT", "mlsynth": round(ml_att, 6),
+             "reference": round(ct_att, 6)}]
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "MCNNM", "config": cfg},
+        "reference": {"impl": "Python package causaltensor",
+                      "version": getattr(ct, "__version__", "causaltensor (pip)")},
+    }
+
+
 # mlsynth's ATT must land on the published MC-NNM value (~-20, generous 1.5 to
 # absorb the implementation's CV choice) and agree with causaltensor to within
 # 1.0 pack -- the tolerance brackets the documented FE-solver difference plus the

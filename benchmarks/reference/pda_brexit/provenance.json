@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-06-24T19:14:00Z",
+  "git_sha": "a0674406841e35db7532c23efe71bcf1aa252bc3",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/pda_brexit/reference.py",
+  "data": [
+    {
+      "path": "basedata/brexit_long.parquet",
+      "sha256": "1e5997075c1ed7faeb3855e6c3f002af069b0364fa263cdd0e52c1e6467a102a"
+    }
+  ]
+}

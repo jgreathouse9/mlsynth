@@ -1,0 +1,40 @@
+Reference for the `sbc_germany` benchmark — Synthetic Business Cycle (SBC),
+Shi, Xi & Xie (2025), "A Synthetic Business Cycle Approach to Counterfactual
+Analysis with Nonstationary Macroeconomic Data," arXiv:2505.22388.
+Authors' code: github.com/jinxi-atlas/Synthetic-business-cycle-code (no licence).
+
+Files
+- reference.R       mlsynth's runner: the authors' SBC method (lsq Hamilton
+                    detrending + trend_predict forecast + Synth::synth on the
+                    cyclical / level components), reproduced from Germany.R with
+                    the plotting removed, run on the authoritative
+                    basedata/german_reunification.csv.
+- golden_steps.R    Emits per-step golden values (treated/donor cycles, trend
+                    coefficients, trend forecast, and the authors' Synth weights
+                    + cyclical SSE) on basedata/repgermany.dta, for the unit
+                    tests in mlsynth/tests/test_sbc_reference.py.
+- golden_steps.txt  Captured output of golden_steps.R (committed so the tests
+                    need no R toolchain).
+- reference.json / reference.out / provenance.json
+                    Captured run of reference.R (the authors' Synth::synth
+                    output, version-pinned).
+
+What the cross-validation found
+- mlsynth's Hamilton detrending and trend forecast reproduce the authors' lsq /
+  trend_predict to ~1e-8.
+- The synthetic-control step is the one divergence, and mlsynth is the more
+  accurate implementation. The cyclical simplex least-squares is strictly convex
+  and well-conditioned (donor matrix full rank, Gram condition number ~3.8e3),
+  so its optimum is unique. Four independent solvers (mlsynth's FISTA and cvxpy's
+  ECOS / OSQP / SCS) agree on it; the authors' Synth::synth (kernlab ipop) is the
+  lone outlier at a cyclical SSE ~2.6% higher, and tightening ipop's tolerances
+  does not close the gap. So the case pins mlsynth's verified optimum, NOT the
+  authors' Synth output.
+- The upstream repo's shipped wide Germany.csv permutes its donor column labels
+  (its "Japan"/"Portugal" hold the Netherlands'/Greece's series, per the
+  canonical repgermany.dta), so the paper's printed donor names ("Italy, Japan,
+  Portugal") are mislabelled; the correctly-labelled optimum is Greece /
+  Netherlands / Italy.
+
+The authors' code/data are reproduced here for offline replication of this
+benchmark only; all credit to the authors.

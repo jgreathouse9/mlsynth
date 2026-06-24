@@ -1,0 +1,30 @@
+Reference runner for the `rescm_relax_ref` benchmark.
+
+  reference.py   mlsynth's runner: the authors' scmrelax L2RelaxationCV on a
+                 deterministic toy factor panel at a single, matched relaxation
+                 level tau (half of eta-bar, the equal-weight feasibility level).
+                 Reproduces the panel the Python case generates and emits the
+                 reference L2 weight vector. Produces the captured bundle.
+                 scmrelax's hardcoded MOSEK solver is routed to the open CLARABEL
+                 solver (the L2 relaxation is a convex QP with a unique,
+                 solver-invariant optimum).
+
+  (No vendored data: the panel is generated deterministically in reference.py.)
+
+Reference
+  The reference is Liao-Shi-Zheng's relaxed-balanced synthetic control. It is
+  available as BOTH:
+    * github.com/YapengZheng/Relaxed_SC   -- the original author code (Yapeng
+      Zheng).
+    * github.com/metricshilab/scmrelax    -- the packaged version of that same
+      Relaxed_SC code (the installable `scmrelax` package, used here).
+  scmrelax hardcodes the commercial MOSEK solver; because the L2 relaxation is a
+  plain convex QP with a unique optimum, the runner transparently routes those
+  solves to the open CLARABEL solver. The optimum was independently confirmed
+  with CLARABEL, ECOS, OSQP and SCS (all agree to solver precision).
+
+Source
+  Liao, Wei, Zhentao Shi & Yapeng Zheng (2026), "A Relaxation Approach to
+  Synthetic Control" (arXiv 2508.01793). All credit to the authors. This file
+  produces the captured reference bundle only and is not part of the mlsynth
+  library.

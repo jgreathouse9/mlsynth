@@ -1,0 +1,9 @@
+{
+  "case": "rescm_balanced_gdp",
+  "title": "RESCM L2-relaxation vs Liao-Shi-Zheng's scmrelax (balanced-GDP Brexit application, UK 2016Q3)",
+  "paper": "Liao, Wei, Zhentao Shi & Yapeng Zheng (2026), \"A Relaxation Approach to Synthetic Control\" (arXiv 2508.01793); GDP application, United Kingdom / Brexit 2016Q3",
+  "reference_impl": "scmrelax.L2RelaxationCV (packaged Relaxed_SC; github.com/metricshilab/scmrelax = github.com/YapengZheng/Relaxed_SC), MOSEK routed to CLARABEL, live run",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/rescm_balanced_gdp/reference.py",
+  "data": ["basedata/balanced_gdp.csv"]
+}

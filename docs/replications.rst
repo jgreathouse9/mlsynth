@@ -65,6 +65,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/clustersc
    replications/lexscm
    replications/scmo
+   replications/sbc
    replications/rescm
    replications/linf
    replications/geolift
@@ -154,13 +155,17 @@ Decomposition-first synthetic control
   rho grid; durable: ``hsc_hongkong``). Path B: Liu-Xu regime-adaptation
   grid with ARIMA(1,1,0) trends -- HSC tracks the oracle-best fixed
   method in both regimes (rho adapts; durable: ``hsc_mc``).
-* :doc:`sbc` -- Synthetic Business Cycle. Path A: German
-  reunification -- Greece weight 0.44, Netherlands 0.37,
-  :math:`\widehat{\mathrm{ATT}} \approx -952` (durable:
-  ``sbc_germany``); also reproduces the
-  Hong Kong handover. Path B: Shi-Xi-Xie Models 1-3
-  nonstationary DGP, post-MSE ratio < 1 in every model and highest
-  (SC competitive) under cointegration (durable: ``sbc_mc``).
+* :doc:`sbc` -- Synthetic Business Cycle. Path A and cross-validation:
+  the authors' own ``Germany.R`` is run live, step by step -- the
+  Hamilton detrending and trend forecast match to :math:`10^{-8}`, and
+  mlsynth attains the verified global optimum of the cycle-matching
+  program (Greece weight 0.44, Netherlands 0.37,
+  :math:`\widehat{\mathrm{ATT}} \approx -952`) where the reference's
+  ``Synth`` ipop solver lands 2.6% short (durable: ``sbc_germany``;
+  per-step golden tests: ``test_sbc_reference.py``). Path B: Shi-Xi-Xie
+  Models 1-3 nonstationary DGP, post-MSE ratio < 1 in every model and
+  highest (SC competitive) under cointegration (durable: ``sbc_mc``).
+  → dedicated page: :doc:`replications/sbc`.
 
 .. _replications-generalised:
 

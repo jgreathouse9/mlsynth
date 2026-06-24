@@ -1,0 +1,9 @@
+{
+  "case": "synth_prop99",
+  "title": "Original R Synth solver vs VanillaSC (Prop 99, outcome-only)",
+  "paper": "Abadie, Diamond & Hainmueller (2010), JASA 105(490); Synth R package (ADH 2011, JSS 42(13))",
+  "reference_impl": "R package Synth::synth",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/synth_prop99/reference.R",
+  "data": ["basedata/california_panel.csv"]
+}

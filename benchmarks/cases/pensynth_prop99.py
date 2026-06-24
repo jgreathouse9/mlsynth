@@ -163,6 +163,51 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth penalized SC vs the authors' wsoll1, at the anchored lambda points.
+
+    Runs both solvers live on the identical MLAB predictor matrix and pairs the
+    interpretable, anchored cells the case pins -- the Idaho weight at lambda=0.1
+    and the post-period ATT at a couple of grid lambdas -- rather than the whole
+    path. Propagates ``BenchmarkSkipped`` when Rscript/LowRankQP/the clone is
+    absent, so it is a no-op where the reference is unavailable.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        X1, X0, y, Y0, pre, donors = _matrices()
+    funcs = functions_dir()                       # clones the pinned repo (skips if absent)
+    Wref = _reference_weights(X0, X1, funcs)       # (len(grid), J); skips if R/QP absent
+
+    Wml = np.array([penalized_weights(X1, X0, lam, max_iter=50000, tol=1e-13)
+                    for lam in _GRID])
+    Wml_t, Wref_t = _tzero(Wml), _tzero(Wref)
+
+    def _att(W):
+        return float(np.mean((y - Y0 @ W)[pre:]))
+
+    i01 = _GRID.index(0.1)
+    j_idaho = donors.index("Idaho")
+    rows = [
+        {"quantity": "weight[Idaho]@lambda=0.1",
+         "mlsynth": round(float(Wml_t[i01, j_idaho]), 6),
+         "reference": round(float(Wref_t[i01, j_idaho]), 6)},
+    ]
+    for lam in (0.1, 1.0):
+        i = _GRID.index(lam)
+        rows.append({"quantity": f"ATT@lambda={lam}",
+                     "mlsynth": round(_att(Wml[i]), 6),
+                     "reference": round(_att(Wref[i]), 6)})
+
+    cfg = {"outcome": "cigsale", "treat": "treated", "unitid": "state",
+           "time": "year", "backend": "penalized"}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
+        "reference": {"impl": "authors' wsoll1 (R, via Rscript + LowRankQP)",
+                      "version": "LowRankQP (R, live)"},
+    }
+
+
 # mlsynth reproduces the authors' wsoll1 on the identical MLAB predictor matrix to
 # solver precision across the whole grid (weights ~3e-4, ATT ~2e-3 packs). The
 # anchored cells fix the actual penalized fit: at lambda=0.1 the synthetic

@@ -83,6 +83,37 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth PROXIMAL vs the authors' freshtaste reference, ATT by method.
+
+    Pairs mlsynth's two-proxy PI / PI-surrogate / PI-surrogate-post ATTs against
+    the reference's committed Table-3 row, so the exporter can lay them side by
+    side. Skips (``BenchmarkSkipped``) when the reference clone is unavailable.
+    """
+    from benchmarks.reference.clone_proximal import reference_table3
+
+    ref = reference_table3()                                # skips if unavailable
+    df, donors, surrogates = _panel()
+    pi = _att(df, donors, surrogates, ["PI", "PIS", "PIPost"])
+    cfg = {"treat": "Panic", "time": "date", "outcome": "prc_log", "unitid": "ID",
+           "vars": _VARS, "donors": donors, "surrogates": surrogates,
+           "methods": ["PI", "PIS", "PIPost"]}
+    rows = [
+        {"quantity": "PI ATT", "mlsynth": round(pi["PI"], 6),
+         "reference": round(ref["PI"], 6)},
+        {"quantity": "PI-surrogate ATT", "mlsynth": round(pi["PIS"], 6),
+         "reference": round(ref["PIS"], 6)},
+        {"quantity": "PI-surrogate-post ATT", "mlsynth": round(pi["PIPost"], 6),
+         "reference": round(ref["PIPost"], 6)},
+    ]
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "PROXIMAL", "config": cfg},
+        "reference": {"impl": "authors' proximal code (freshtaste/proximal, cloned)",
+                      "version": "cloned, pinned commit a67d81e"},
+    }
+
+
 # Deterministic (closed-form GMM / weights, no RNG). The ``*_vs_ref`` cells pin
 # mlsynth to the committed freshtaste reference (PI-Post to the digit; PI / PI-S
 # within ~0.015 implementation slack); the ``*_att`` cells pin each method as a

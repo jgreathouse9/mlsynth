@@ -1,0 +1,41 @@
+Reference code/provenance for the `pda_brexit` benchmark.
+
+  Fun/L2relax.R   The authors' L2-relaxation function, vendored verbatim from
+                  github.com/ishwang1/L2relax-PDA (folder Fun/). Included for
+                  provenance only -- a single function so a reader can see the
+                  exact program the Python reference reproduces. (The multiple-
+                  treated aggregation in PDA.multitreat.R is reproduced by
+                  mlsynth's run_pda_multitreat; the per-firm fit is L2relax.R.)
+  reference.py    A faithful port of Fun/L2relax.R's convex program, solved with
+                  cvxpy per UK firm. It standardises the treated-firm/control
+                  pre-period series exactly as the R function (intercept=TRUE,
+                  standardize=TRUE) with a SHARED control Sigma = X'X/T1 and a
+                  per-firm eta = X'y/T1, minimises ||beta||^2 subject to
+                  |eta - Sigma beta| <= tau elementwise, then de-standardises.
+                  It reads the same basedata/brexit_long.parquet that mlsynth
+                  fits.
+
+License / redistribution
+  The L2relax-PDA repository ships NO explicit license file (checked: no
+  LICENSE/COPYING and no SPDX header). We therefore do not redistribute the
+  repository; we vendor only the single Fun/L2relax.R function for provenance
+  (to document precisely which program the cvxpy port reproduces) and reproduce
+  the *method* independently in reference.py. All credit for the method and the
+  R implementation belongs to the authors (Shi & Wang).
+
+Solver note
+  The authors' default solver is CVXR (MOSEK in their notebooks; ECOS_BB in the
+  L2relax.R signature). CVXR is NOT installable in this environment's R (no
+  binary/source build of CVXR for R 4.3.3, and no MOSEK licence), so the
+  identical convex program is run via cvxpy with the authors' default open
+  solver family, ECOS. The L2-relaxation primal is strictly convex (the
+  regulariser P = I), so at a fixed tau the optimum is unique even though the
+  shared Sigma is rank-deficient here (N=300 controls > T1=253 pre-periods);
+  reference.py checks ECOS, OSQP, SCS and CLARABEL attain the same objective
+  (solver_obj_spread). At a fixed tau on this degenerate Sigma the de-
+  standardised coefficients agree across solvers to ~1e-6 (near-null directions
+  of the rank-deficient Sigma amplify solver slack), while the objective agrees
+  to ~1e-9; mlsynth's batched OSQP attains the verified (lowest) objective.
+
+These files produce the captured reference bundle only and are not part of the
+mlsynth library.

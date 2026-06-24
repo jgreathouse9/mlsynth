@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-06-24T19:42:38Z",
+  "git_sha": "d7ecea2e5bb32e2385fccaab04c968f68a37b550",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/rolldid_lw/reference.py",
+  "data": [
+    {
+      "path": "basedata/smoking_data.csv",
+      "sha256": "a13dd4d5d6e411839c1617c6b7df773129eac0559f064b848a235651fb330b40"
+    },
+    {
+      "path": "basedata/castle.csv",
+      "sha256": "c1ba84268805b95af3af2156a5971e4ff6134063af0b2610d37e1573380d9ac2"
+    }
+  ]
+}

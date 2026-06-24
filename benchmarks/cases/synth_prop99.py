@@ -39,6 +39,7 @@ import numpy as np
 import pandas as pd
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference import reference_value
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "california_panel.csv")
@@ -116,6 +117,42 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth vs the captured R ``Synth`` reference, quantity by quantity.
+
+    Reads the reference side from the committed bundle (no R toolchain needed)
+    and the mlsynth side from a fresh ``VanillaSC`` outcome-only fit, so the
+    exporter can lay them side by side. Returns ``{"rows": [...],
+    "mlsynth_call": {...}}`` -- the rows are ``{quantity, mlsynth, reference}``
+    and ``mlsynth_call`` records the estimator and config the numbers came from.
+    """
+    from mlsynth import VanillaSC
+
+    d, donors, Y0, y, T0 = _panel()
+    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state",
+           "time": "year", "backend": "outcome-only", "seed": 0}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = VanillaSC({**cfg, "df": d, "display_graphs": False}).fit()
+    w_ml = {s: float(res.weights.donor_weights.get(s, 0.0)) for s in donors}
+    w_vec = np.array([w_ml[s] for s in donors])
+    ssr_ml = float(np.sum((y[:T0] - Y0[:T0] @ w_vec) ** 2))
+    att_ml = float(np.mean((y - Y0 @ w_vec)[T0:]))
+
+    from benchmarks.reference import load_reference
+    ref = load_reference("synth_prop99")
+    w_ref, vals = ref["weights"], ref["values"]
+    keep = sorted({s for s in donors if w_ml.get(s, 0) > 1e-3 or w_ref.get(s, 0) > 1e-3},
+                  key=lambda s: -max(w_ml.get(s, 0.0), w_ref.get(s, 0.0)))
+    rows = [{"quantity": f"weight[{s}]", "mlsynth": round(w_ml.get(s, 0.0), 6),
+             "reference": round(w_ref.get(s, 0.0), 6)} for s in keep]
+    rows.append({"quantity": "pre_period_SSR", "mlsynth": round(ssr_ml, 6),
+                 "reference": round(vals["synth_pre_ssr"], 6)})
+    rows.append({"quantity": "ATT", "mlsynth": round(att_ml, 6),
+                 "reference": round(vals["synth_att"], 6)})
+    return {"rows": rows, "mlsynth_call": {"estimator": "VanillaSC", "config": cfg}}
+
+
 # Deterministic (exact outcome QP vs Synth's default nested optim, fixed seed).
 # VanillaSC reproduces the published ADH synthetic California (Utah 0.3939, ATT
 # -19.51363) and matches R's Synth donor-by-donor to ~0.003, while reaching a
@@ -127,6 +164,8 @@ EXPECTED = {
     "att_outcome_only": (-19.51363, 0.02),     # canonical ADH ATT
     "weight_utah": (0.3939, 0.01),             # canonical synthetic California
     "vanillasc_pre_ssr": (52.1296, 0.05),      # the optimum mlsynth attains
-    "synth_pre_ssr": (52.1363, 0.1),           # the original solver stops short
+    # pinned from the captured reference bundle (benchmarks/reference/synth_prop99/)
+    # so the constant and the inspectable R run cannot drift apart.
+    "synth_pre_ssr": (reference_value("synth_prop99", "synth_pre_ssr"), 0.1),
     "ssr_synth_minus_vanillasc": (0.0067, 0.0067),  # >= 0: never worse than R
 }

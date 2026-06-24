@@ -1,0 +1,32 @@
+# case: pda_hongkong
+# generated_at: 2026-06-24T20:09:40Z
+# mlsynth_version: 1.0.0
+# estimator: PDA
+# config: {"l2_standardize": true, "methods": ["l2"], "outcome": "GDP", "tau": 0.07492239484050597, "time": "Time", "treat": "Integration", "unitid": "Country"}
+# reference_impl: Authors' Fun/L2relax.R (ishwang1/L2relax-PDA) reproduced via cvxpy/ECOS, live run captured
+# reference_version: Shi & Wang, L2-Relaxation for Economic Prediction; Appendix E.1 (Hong Kong)
+quantity,mlsynth,reference,abs_diff
+weight[Australia],-0.041608,-0.041608,0.0
+weight[Austria],-0.08247,-0.08247,0.0
+weight[Canada],0.131219,0.131219,0.0
+weight[China],0.110867,0.110867,0.0
+weight[Denmark],0.080796,0.080796,0.0
+weight[Finland],-0.112546,-0.112546,0.0
+weight[France],-0.125781,-0.125781,0.0
+weight[Germany],-0.166513,-0.166513,0.0
+weight[Indonesia],0.056362,0.056362,0.0
+weight[Italy],-0.070889,-0.070889,0.0
+weight[Japan],0.231405,0.231405,0.0
+weight[Korea],0.069236,0.069236,0.0
+weight[Malaysia],0.069591,0.069591,0.0
+weight[Mexico],0.071562,0.071562,0.0
+weight[Netherlands],0.047174,0.047174,0.0
+weight[New Zealand],0.174929,0.174929,0.0
+weight[Norway],0.122475,0.122475,0.0
+weight[Philippines],0.164218,0.164218,0.0
+weight[Singapore],0.090369,0.090369,0.0
+weight[Switzerland],-0.000268,-0.000268,0.0
+weight[Taiwan],0.073181,0.073181,0.0
+weight[Thailand],0.06559,0.06559,0.0
+weight[United Kingdom],-0.059014,-0.059014,0.0
+weight[United States],-0.027602,-0.027602,0.0

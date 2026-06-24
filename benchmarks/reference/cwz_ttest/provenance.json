@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-06-24T14:58:11Z",
+  "git_sha": "791963ff37a6bf3b7ee39920568a2f559dfe4452",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/cwz_ttest/reference.R",
+  "data": [
+    {
+      "path": "basedata/carbontax_data.dta",
+      "sha256": "815787c1e448f536d11472155ae0f7d52cd7c5c934abd19fadc9e52df6faf9f6"
+    },
+    {
+      "path": "basedata/basque_jasa.csv",
+      "sha256": "b3f957771c8e0b7dbcb14dacb05ef91c55471fe38c2acbcac2e639bcb65a766a"
+    },
+    {
+      "path": "basedata/augmented_cali_long.csv",
+      "sha256": "974ae6ad6ab741d29e3ca85c57f9da33ff1baf151e3dbb4b24f53c9cba607903"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "scinference": "0.0.0.9000",
+    "foreign": "0.8-86",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "limSolve": "2.0.2",
+    "lpSolve": "5.6.23",
+    "quadprog": "1.5-8"
+  }
+}

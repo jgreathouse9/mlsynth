@@ -1,0 +1,10 @@
+{
+  "values": {
+    "att": -0.290125,
+    "p_value": 0.000183,
+    "smoothing_K": 4.0,
+    "ci_lower": -0.475703,
+    "ci_upper": -0.104547
+  },
+  "weights": {}
+}

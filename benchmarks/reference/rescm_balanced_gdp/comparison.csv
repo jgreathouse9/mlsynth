@@ -1,0 +1,14 @@
+# case: rescm_balanced_gdp
+# generated_at: 2026-06-24T20:08:39Z
+# mlsynth_version: 1.0.0
+# estimator: RESCM
+# config: {"methods": ["RELAX_L2"], "outcome": "y", "spec": "UK YoY GDP growth, pre<=2016Q2, treat 2016Q3", "standardize": false, "tau": 1.796132, "time": "time", "treat": "treat", "unitid": "unit"}
+# reference_impl: scmrelax L2RelaxationCV (Liao-Shi-Zheng; github.com/metricshilab/scmrelax = github.com/YapengZheng/Relaxed_SC; MOSEK->CLARABEL; live run, captured)
+# reference_version: Liao, Shi & Zheng (2026), arXiv 2508.01793; GDP_application_2016 (UK 2016Q3)
+quantity,mlsynth,reference,abs_diff
+weight[Italy],0.0713,0.071259,4.1e-05
+weight[Japan],0.0703,0.070338,3.8e-05
+weight[Germany],0.0583,0.058252,4.8e-05
+weight[France],0.0475,0.047451,4.9e-05
+weight[United States],0.0414,0.041444,4.4e-05
+weight_L1_diff,0.001279,0.0,0.001279

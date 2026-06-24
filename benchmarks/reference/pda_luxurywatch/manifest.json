@@ -1,0 +1,9 @@
+{
+  "case": "pda_luxurywatch",
+  "title": "Forward-selected PDA vs Shi & Huang's fsPDA app (China luxury-watch imports)",
+  "paper": "Shi, Zhentao & Jingyi Huang (2023), \"Forward-Selected Panel Data Approach for Program Evaluation,\" Journal of Econometrics; Section 5 / Example 2",
+  "reference_impl": "Shi & Huang fsPDA application script (zhentaoshi/fsPDA app1_luxury_watch, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/pda_luxurywatch/reference.R",
+  "data": ["basedata/china_watches_long.csv"]
+}

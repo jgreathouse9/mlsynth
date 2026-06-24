@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-06-24T16:55:42Z",
+  "git_sha": "d80fe33210a54094fe947d929ca3a3c85be48976",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/fdid_hongkong/reference.R",
+  "data": [
+    {
+      "path": "benchmarks/reference/fdid_hongkong/GDP.csv",
+      "sha256": "487c7007cad0ee7b59e3fd315004edab64641f310ede7aeb003707f905615e55"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "compiler": "4.3.3"
+  }
+}

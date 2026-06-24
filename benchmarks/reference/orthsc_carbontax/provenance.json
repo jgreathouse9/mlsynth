@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-06-24T15:21:22Z",
+  "git_sha": "3ece555984c1d4ad74aeec63732933135b1e3380",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/orthsc_carbontax/reference.R",
+  "data": [
+    {
+      "path": "basedata/carbontax_fullsample_data.dta.txt",
+      "sha256": "0df075d00fccb6a1e58f3324119f30866a3667013b2cb6300fc84d33b1146bdd"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "comprehenr": "0.6.10",
+    "pracma": "2.4.4",
+    "foreign": "0.8-86",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "corpcor": "1.6.10",
+    "limSolve": "2.0.2",
+    "lpSolve": "5.6.23",
+    "quadprog": "1.5-8"
+  }
+}

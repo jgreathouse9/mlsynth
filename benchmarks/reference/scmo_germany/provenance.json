@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-06-24T17:19:11Z",
+  "git_sha": "1b4b98436e75c257b72f2e4fad38abae6b7ff45d",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/scmo_germany/reference.R",
+  "data": [
+    {
+      "path": "benchmarks/reference/scmo_germany/repgermany.csv",
+      "sha256": "61a624e307e647910f032f587aa30acdc44ee8549a5543d652fe196939b1abc9"
+    },
+    {
+      "path": "benchmarks/reference/scmo_germany/all.csv",
+      "sha256": "ca9681e67930539b13d4da073d1a8b197b4965891bcd0ad487c946fb1cbd79dd"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "compiler": "4.3.3"
+  }
+}

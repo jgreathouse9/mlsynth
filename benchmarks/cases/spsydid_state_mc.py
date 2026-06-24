@@ -132,6 +132,47 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth SpSyDiD vs the authors' reference, per-window ATT side by side."""
+    from mlsynth import SpSyDiD
+    from benchmarks.reference.spsydid_ref import reference_ssdid
+
+    df, W1, FIPS = _load_state_panel_and_W()
+    cfg = {"outcome": "UR2", "treat": "treat_indicator", "unitid": "ID",
+           "time": "month", "spatial_matrix": W1, "unit_order": list(FIPS),
+           "row_standardize_spatial": False}
+    rows = []
+    for year in range(1975, 1975 + N_WINDOWS):
+        if year + 3 > df["year"].max():
+            break
+        window = df.loc[(df["year"] > year) & (df["year"] < year + 4), "perc_unem"]
+        ATT = float(window.mean()) / 4.0
+        if np.isnan(ATT):
+            continue
+        panel, WD = _build_rep_panel(df, W1, year, TREATED_FIPS, ATT, RHO)
+        if panel.empty:
+            continue
+        panel["treat_indicator"] = (panel["treatment"] & panel["after_treatment"]).astype(int)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = SpSyDiD({**cfg, "df": panel[["ID", "month", "UR2", "treat_indicator"]],
+                           "display_graphs": False}).fit()
+        ref_att, _, _ = reference_ssdid(panel, WD)
+        rows.append({"quantity": f"ATT[window {year}-{year + 3}]",
+                     "mlsynth": round(float(res.att), 6), "reference": round(ref_att, 6)})
+    clean_cfg = {**{k: v for k, v in cfg.items() if k not in ("spatial_matrix", "unit_order")},
+                 "spatial_matrix": f"<row-standardized spatial weights, {len(FIPS)} units>"}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SpSyDiD", "config": clean_cfg},
+        "reference": {"impl": "authors' SDID weight functions (serenini/spatial_SDID "
+                              "functions_ssdid) + the notebook's spatial WLS, via "
+                              "benchmarks.reference.spsydid_ref",
+                      "version": "serenini/spatial_SDID @ e43427d (cloned on demand, "
+                                 "pinned in benchmarks.reference.clone_spsydid)"},
+    }
+
+
 # Deterministic panels => exact re-runs. Tolerances: per-rep ATT agreement with
 # the reference is bracketed at 0.2 pp (observed max ~0.09, residual is the
 # affected-unit weight convention); the per-rep correlation must exceed 0.98

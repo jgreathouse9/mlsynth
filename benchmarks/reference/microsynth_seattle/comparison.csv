@@ -1,0 +1,14 @@
+# case: microsynth_seattle
+# generated_at: 2026-06-24T20:10:59Z
+# mlsynth_version: 1.0.0
+# estimator: MicroSynth
+# config: {"covariates": ["TotalPop", "BLACK", "HISPANIC", "Males_1521", "HOUSEHOLDS", "FAMILYHOUS", "FEMALE_HOU", "RENTER_HOU", "VACANT_HOU"], "outcome": "any_crime", "outcome_lag_periods": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "run_inference": false, "time": "time", "treat": "Intervention", "unitid": "ID", "weight_method": "panel"}
+# reference_impl: R package microsynth (via Rscript)
+# reference_version: microsynth (R, live)
+quantity,mlsynth,reference,abs_diff
+effect[period 13],-33.059851,-33.0587,0.001151
+effect[period 14],-74.433021,-74.3515,0.081521
+effect[period 15],-45.352867,-45.4501,0.097233
+effect[period 16],-64.85865,-64.8923,0.03365
+ATT,-54.426097,-54.4382,0.012103
+control_weight_sum,39.0,39.0,0.0

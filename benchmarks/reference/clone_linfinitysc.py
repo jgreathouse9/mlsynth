@@ -23,6 +23,7 @@ from pathlib import Path
 from types import ModuleType
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference._fetch import fetch_pinned_repo
 
 _REPO = "https://github.com/BioAlgs/LinfinitySC.git"
 _COMMIT = "37499abcf3b3722cd6b9a42599e344b8653da4d4"
@@ -35,21 +36,7 @@ def _ensure_clone() -> Path:
     if synth.exists():
         return _CACHE
     _CACHE.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        subprocess.run(
-            ["git", "-c", "credential.helper=", "clone", "--quiet", _REPO, str(_CACHE)],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", str(_CACHE), "checkout", "--quiet", _COMMIT],
-            check=True, capture_output=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:  # pragma: no cover
-        detail = getattr(exc, "stderr", b"")
-        msg = detail.decode(errors="ignore").strip() if detail else str(exc)
-        raise BenchmarkSkipped(
-            f"could not clone reference repo {_REPO} @ {_COMMIT[:7]}: {msg}"
-        ) from exc
+    fetch_pinned_repo(_REPO, _COMMIT, _CACHE)    # git clone, else codeload tarball
     if not synth.exists():  # pragma: no cover - defensive
         raise BenchmarkSkipped("reference clone missing utils/synth.py")
     return _CACHE

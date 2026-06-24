@@ -1,0 +1,33 @@
+== REFERENCE VALUES ==
+fs_ate_pct	-3.089581
+fs_pre_r2	0.776819
+fs_n_controls	3
+fs_abs_tstat	2.457774
+fs_p_value	0.013980
+weight	C60	0.848546
+weight	C45	0.165238
+weight	C25	-0.368769
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] zoo_1.8-12      MASS_7.3-60.0.1 compiler_4.3.3  sandwich_3.1-0 
+[5] grid_4.3.3      lattice_0.22-5 

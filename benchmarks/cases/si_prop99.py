@@ -107,6 +107,46 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth SI vs the authors' vendored code, prediction-interval bounds for
+    each program state under the control and tax interventions."""
+    from mlsynth import SI
+
+    panel = pd.read_csv(_BASE / "prop99_packsales.csv")
+    wide = panel.pivot_table(index="state", columns="year", values="cigsale")
+    states = list(wide.index)
+    iv_states = {"control": [s for s in states if s not in set(TAX) | set(PROGRAM)],
+                 "taxes": TAX, "program": PROGRAM}
+    d = panel[panel.year.isin(FIT_YEARS + PRED_YEARS)].copy()
+    for iv, members in iv_states.items():
+        d[iv] = d.state.isin(members).astype(int)
+    cfg = {"inters": ["control", "taxes", "program"], "bias_correct": True,
+           "variance": "double", "interval": "prediction", "rank_method": "donoho"}
+    rows = []
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for target in PROGRAM:
+            dd = d.copy()
+            dd["treat"] = ((dd.state == target) & (dd.year >= 1999)).astype(int)
+            res = SI({**cfg, "df": dd, "outcome": "cigsale", "treat": "treat",
+                      "unitid": "state", "time": "year", "display_graphs": False}).fit()
+            for iv in ("control", "taxes"):
+                donors = [s for s in iv_states[iv] if s != target]
+                ref_lo, ref_hi = _reference_ci(wide, target, donors)
+                mls_lo, mls_hi = res.arms[iv].cf_mean_ci
+                rows.append({"quantity": f"{target}/{iv}/lower",
+                             "mlsynth": round(mls_lo, 6), "reference": round(ref_lo, 6)})
+                rows.append({"quantity": f"{target}/{iv}/upper",
+                             "mlsynth": round(mls_hi, 6), "reference": round(ref_hi, 6)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SI", "config": cfg},
+        "reference": {"impl": "authors' SI code (INFORMS opre.2025.1590.cd), "
+                              "vendored benchmarks/reference/synth_iv_OR25",
+                      "version": "vendored, pinned in-repo"},
+    }
+
+
 # mlsynth's public SI API matches the authors' own code to machine precision; the
 # California interval anchors are the published Section 6 values.
 EXPECTED = {

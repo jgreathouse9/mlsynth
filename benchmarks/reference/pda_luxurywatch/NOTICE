@@ -1,0 +1,21 @@
+Vendored reference code for the `pda_luxurywatch` benchmark.
+
+  fsPDA_app.R    Shi & Huang's forward-selected PDA application script for the
+                 China luxury-watch import study (forward selection by BIC, then
+                 a prewhitened Newey-West post-selection t-test). Vendored
+                 verbatim from the app1_luxury_watch/ folder of
+                 github.com/zhentaoshi/fsPDA (file fsPDA.R).
+  LICENSE.fsPDA  The fsPDA package's MIT license (Copyright (c) 2019 Zhentao Shi).
+
+Source
+  Shi, Zhentao & Jingyi Huang (2023), "Forward-Selected Panel Data Approach for
+  Program Evaluation," Journal of Econometrics. Code: github.com/zhentaoshi/fsPDA
+  (MIT). Vendored so the reference run is reproducible offline; all credit to the
+  authors. reference.R reads basedata/china_watches_long.csv -- the same panel
+  mlsynth fits -- pivots it to the script's expected form, and runs fsPDA().
+
+Note: this is the authors' *application script*, which prewhitens the long-run
+variance (the paper's Section 5 result). It differs from the packaged
+est.fsPDA(), which does not prewhiten; mlsynth's PDA "fs" method ports the
+application script. These files produce the captured reference bundle only and
+are not part of the mlsynth library.

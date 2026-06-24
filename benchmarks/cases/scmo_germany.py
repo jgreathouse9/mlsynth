@@ -14,8 +14,7 @@ Provenance
 * Data: ``basedata/germany_augmented.csv`` (West Germany + 16 OECD donors; GDP
   per capita 1960-2003 plus the OECD predictor columns).
 * Headline: Tian-Lee-Panchenko (2026, Econometrics Journal) Table 2 ("Balance on
-  economic outcomes in 1989"), reproduced cell-by-cell in the authors' Sun et al.
-  (2025) replication package as ``Output/Ger_tab.txt``:
+  economic outcomes in 1989"):
 
       Outcome (1989)        West Germany | Synth (multi) | Synth (single)
       GDP per capita            18994.0  |    19029.8    |    19075.9
@@ -24,12 +23,16 @@ Provenance
       Total tax revenue           36.2   |      34.1     |      32.9
       Real GDP growth              3.9   |       4.1     |       3.5
 
-  The synthetic 1989 balance is reconstructed from ``res.donor_weights`` applied
-  to the donors' 1989 indicator values (a pure read through the standardized
-  weights accessor). The deterministic ATTs / pre-fit RMSEs that mlsynth's SCMO
-  reports for this panel are pinned as regression guards (the paper reports the
-  post-1990 effect only graphically -- Tian et al. Figure 1 -- so no ATT number
-  is asserted against the paper).
+  The reference side is a live captured run of the authors' own ``Germany.R``
+  (their ``fn_W`` ``quadprog::solve.QP`` synthetic-control program), captured
+  under ``benchmarks/reference/scmo_germany/`` with its provenance pinned -- not
+  numbers transcribed from the printed ``Output/Ger_tab.txt``. The synthetic
+  1989 balance on the mlsynth side is reconstructed from ``res.donor_weights``
+  applied to the donors' 1989 indicator values (a pure read through the
+  standardized weights accessor). The deterministic ATTs / pre-fit RMSEs that
+  mlsynth's SCMO reports for this panel are pinned as regression guards (the
+  reference script reports the post-1990 effect only graphically -- Tian et al.
+  Figure 1 -- so no ATT number is cross-validated).
 """
 from __future__ import annotations
 
@@ -38,6 +41,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from benchmarks.reference import reference_value
 
 _BASE = Path(__file__).resolve().parents[2] / "basedata"
 
@@ -94,16 +99,48 @@ def run() -> dict:
     }
 
 
-# Deterministic (no resampling): tolerances cover display rounding of Table 2
-# (one unit in the last printed place: +-0.05 for one-decimal cells, +-0.5 for
-# the GDP-per-capita level) plus minor solver drift on the regression guards.
+def comparison() -> dict:
+    """mlsynth SCMO vs the authors' ``Germany.R``, 1989 balance quantity by
+    quantity. Pairs the synthetic West Germany's 1989 indicator values (both the
+    multiple-outcome and single-outcome synthetic controls) against the live
+    captured ``fn_W`` run (``benchmarks/reference/scmo_germany/``).
+    """
+    m = run()
+    pairs = [
+        ("multi/GDP_pc", "multi_gdp_pc_1989"),
+        ("multi/CPI", "multi_cpi_1989"),
+        ("multi/trade_openness", "multi_trade_1989"),
+        ("multi/total_tax", "multi_tax_1989"),
+        ("multi/real_GDP_growth", "multi_gdp_growth_1989"),
+        ("single/GDP_pc", "single_gdp_pc_1989"),
+    ]
+    rows = [{"quantity": q, "mlsynth": round(float(m[k]), 4),
+             "reference": round(reference_value("scmo_germany", k), 4)}
+            for q, k in pairs]
+    cfg = {"outcome": "gdp", "treat": "Reunification", "unitid": "country",
+           "time": "year", "spec": "9 indicators in 1989",
+           "schemes": ["separate", "concatenated", "averaged"]}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SCMO", "config": cfg},
+        "reference": {"impl": "Tian-Lee-Panchenko Germany.R (fn_W solve.QP, live run, captured)",
+                      "version": "Tian, Lee & Panchenko (2026), Econometrics Journal"},
+    }
+
+
+# Deterministic (no resampling). The six balance targets are pinned from the live
+# captured Germany.R run (benchmarks/reference/scmo_germany/) via reference_value;
+# tolerances cover the small gap between mlsynth's SCMO and the authors' fn_W
+# solve.QP. The four ATT / pre-RMSE figures are mlsynth regression guards (the
+# reference script has no ATT to cross-validate against).
+_sg = lambda k: reference_value("scmo_germany", k)
 EXPECTED = {
-    "multi_gdp_pc_1989": (19029.8, 0.6),
-    "multi_cpi_1989": (3.1, 0.06),
-    "multi_trade_1989": (59.1, 0.1),
-    "multi_tax_1989": (34.1, 0.1),
-    "multi_gdp_growth_1989": (4.1, 0.06),
-    "single_gdp_pc_1989": (19075.9, 0.6),
+    "multi_gdp_pc_1989": (_sg("multi_gdp_pc_1989"), 0.6),
+    "multi_cpi_1989": (_sg("multi_cpi_1989"), 0.06),
+    "multi_trade_1989": (_sg("multi_trade_1989"), 0.1),
+    "multi_tax_1989": (_sg("multi_tax_1989"), 0.1),
+    "multi_gdp_growth_1989": (_sg("multi_gdp_growth_1989"), 0.06),
+    "single_gdp_pc_1989": (_sg("single_gdp_pc_1989"), 0.6),
     "concatenated_att": (-1462.8, 5.0),
     "averaged_att": (-1720.4, 8.0),
     "concatenated_pre_rmse": (110.0, 3.0),

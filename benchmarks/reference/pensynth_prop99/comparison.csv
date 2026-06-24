@@ -1,0 +1,11 @@
+# case: pensynth_prop99
+# generated_at: 2026-06-24T20:10:16Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "penalized", "outcome": "cigsale", "time": "year", "treat": "treated", "unitid": "state"}
+# reference_impl: authors' wsoll1 (R, via Rscript + LowRankQP)
+# reference_version: LowRankQP (R, live)
+quantity,mlsynth,reference,abs_diff
+weight[Idaho]@lambda=0.1,0.53755,0.537497,5.3e-05
+ATT@lambda=0.1,-23.423374,-23.424354,0.00098
+ATT@lambda=1.0,-24.990162,-24.990433,0.000271

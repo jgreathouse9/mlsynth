@@ -1,0 +1,70 @@
+== REFERENCE VALUES ==
+weight	Alabama	-0.015000
+weight	Arkansas	-0.057000
+weight	Colorado	0.119000
+weight	Connecticut	0.112000
+weight	Delaware	-0.000000
+weight	Georgia	-0.000000
+weight	Idaho	0.183000
+weight	Illinois	0.020000
+weight	Indiana	-0.000000
+weight	Iowa	0.039000
+weight	Kansas	-0.000000
+weight	Kentucky	-0.000000
+weight	Louisiana	0.000000
+weight	Maine	-0.000000
+weight	Minnesota	0.027000
+weight	Mississippi	-0.007000
+weight	Missouri	-0.000000
+weight	Montana	0.176000
+weight	Nebraska	0.094000
+weight	Nevada	0.091000
+weight	New Hampshire	0.000000
+weight	New Mexico	0.103000
+weight	North Carolina	-0.000000
+weight	North Dakota	-0.000000
+weight	Ohio	0.000000
+weight	Oklahoma	0.000000
+weight	Pennsylvania	-0.000000
+weight	Rhode Island	-0.000000
+weight	South Carolina	-0.003000
+weight	South Dakota	-0.000000
+weight	Tennessee	-0.071000
+weight	Texas	-0.000000
+weight	Utah	0.045000
+weight	Vermont	0.000000
+weight	Virginia	-0.000000
+weight	West Virginia	0.083000
+weight	Wisconsin	0.060000
+weight	Wyoming	0.000000
+ite_1990	-9.510413
+ite_1995	-24.498297
+ite_2000	-28.699998
+att_mean_post	-20.589715
+n_donors	38
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] quadprog_1.5-8
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

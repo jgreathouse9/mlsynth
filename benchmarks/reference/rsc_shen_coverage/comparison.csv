@@ -1,0 +1,14 @@
+# case: rsc_shen_coverage
+# generated_at: 2026-06-24T20:08:36Z
+# mlsynth_version: 1.0.0
+# estimator: ClusterSC (pcr.inference _var_homo/_var_jack)
+# config: {"dataset": "prop99", "match_seed": 123, "spectral_energy": 0.999, "treated": "California"}
+# reference_impl: deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
+# reference_version: git 51e2170d33463bbf403f23fe8a72cbf66bcc34ef
+quantity,mlsynth,reference,abs_diff
+homo/var_hz,3.607793,3.607793,0.0
+homo/var_vt,1.482484,1.482484,0.0
+homo/tr_A,0.080266,0.080266,0.0
+jack/var_hz,3.072394,3.072394,0.0
+jack/var_vt,2.001512,2.001512,0.0
+jack/tr_A,0.126121,0.126121,0.0

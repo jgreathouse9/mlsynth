@@ -1,0 +1,15 @@
+# case: fdid_hongkong
+# generated_at: 2026-06-24T20:08:19Z
+# mlsynth_version: 1.0.0
+# estimator: FDID
+# config: {"outcome": "GDP", "time": "Time", "treat": "Integration", "unitid": "Country"}
+# reference_impl: Kathleen T. Li's Fun_FDID.R (MKSC replication, live run, captured)
+# reference_version: Li (2024), Marketing Science, DOI 10.1287/mksc.2022.0212
+quantity,mlsynth,reference,abs_diff
+FDID/ATT,0.0254,0.025405,5e-06
+FDID/%ATT,53.843,53.843067,6.7e-05
+FDID/R2_pre,0.8428,0.842784,1.6e-05
+FDID/n_controls,9.0,9.0,0.0
+DID/ATT,0.0317,0.031721,2.1e-05
+DID/%ATT,77.62,77.620322,0.000322
+DID/R2_pre,0.5046,0.504647,4.7e-05

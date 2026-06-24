@@ -1,0 +1,37 @@
+== REFERENCE VALUES ==
+n_selected	4
+intercept	0.026300
+r2_pre	0.931434
+att_pct	-3.962910
+weight_japan	-0.675964
+weight_taiwan	0.792593
+weight	Japan	-0.675964
+weight	Korea	-0.432298
+weight	Taiwan	0.792593
+weight	United States	0.486032
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] pampe_1.1.2 leaps_3.1  
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

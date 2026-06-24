@@ -1,0 +1,9 @@
+{
+  "case": "orthsc_carbontax",
+  "title": "Orthogonalized SC vs Fry's R code (Andersson 2019 carbon tax)",
+  "paper": "Fry (Orthogonalized Synthetic Control); Andersson (2019), AEJ: Economic Policy 11(4)",
+  "reference_impl": "Fry OrthogonalizedSyntheticControl (live run, github.com/JosephPatrickFry/OrthogonalizedSyntheticControl @ 3b38684)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/orthsc_carbontax/reference.R",
+  "data": ["basedata/carbontax_fullsample_data.dta.txt"]
+}

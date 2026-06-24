@@ -1,0 +1,22 @@
+# case: snn_prop99
+# generated_at: 2026-06-24T20:08:04Z
+# mlsynth_version: 1.0.0
+# estimator: SNN
+# config: {"outcome": "cigsale", "time": "year", "treat": "Proposition 99", "unitid": "state"}
+# reference_impl: deshen24/syntheticNN (live run, captured), SyntheticNearestNeighbors(n_neighbors=1)
+# reference_version: deshen24/syntheticNN @ a95b511 (benchmarks/reference/snn_prop99/)
+quantity,mlsynth,reference,abs_diff
+ATT,-18.434081,-18.434081,0.0
+gap[2000],-29.325823,-29.325823,0.0
+counterfactual[1989],89.236371,89.236371,0.0
+counterfactual[1990],82.673847,82.673847,0.0
+counterfactual[1991],79.485312,79.485312,0.0
+counterfactual[1992],78.230661,78.230661,0.0
+counterfactual[1993],78.142375,78.142375,0.0
+counterfactual[1994],77.473927,77.473927,0.0
+counterfactual[1995],78.417803,78.417803,0.0
+counterfactual[1996],77.388595,77.388595,0.0
+counterfactual[1997],77.785353,77.785353,0.0
+counterfactual[1998],77.89606,77.89606,0.0
+counterfactual[1999],77.752842,77.752842,0.0
+counterfactual[2000],70.925823,70.925823,0.0

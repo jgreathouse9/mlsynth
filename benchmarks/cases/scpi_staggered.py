@@ -78,6 +78,56 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth vs the recorded ``scpi`` scest reference, quantity by quantity.
+
+    The mlsynth side comes from a fresh ``VanillaSC.fit()``; the reference side is
+    the ``scpi`` scest numbers captured in ``_SCPI_ATT`` / ``_SCPI_EVENT_TIME``
+    (recorded once, since ``scpi`` is GPL and ``mlsynth`` MIT). Pairs the per-unit
+    ATTs, the overall unit-time ATT, and the event-time series. Returns the
+    ``{"rows": [...], "mlsynth_call": ..., "reference": ...}`` exporter contract.
+    """
+    from mlsynth import VanillaSC
+
+    df = _panel()
+    cfg = {"outcome": "gdp", "treat": "status", "unitid": "country",
+           "time": "year"}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = VanillaSC({**cfg, "df": df, "display_graphs": False}).fit()
+    ml_unit = {f.treated_unit_name: float(f.att)
+               for f in res.sub_method_results.values()}
+    ml_event = res.additional_outputs["event_study"]            # {ell: effect}
+    ml_overall = float(res.effects.att)
+    ev = np.array([ml_event[k] for k in sorted(ml_event)])
+    n = min(len(ev), len(_SCPI_EVENT_TIME))
+
+    rows = [
+        {"quantity": "ATT[West Germany]",
+         "mlsynth": round(ml_unit["West Germany"], 6),
+         "reference": round(_SCPI_ATT["West Germany"], 6)},
+        {"quantity": "ATT[Italy]", "mlsynth": round(ml_unit["Italy"], 6),
+         "reference": round(_SCPI_ATT["Italy"], 6)},
+        {"quantity": "ATT[overall]", "mlsynth": round(ml_overall, 6),
+         "reference": round(_SCPI_ATT["overall"], 6)},
+    ]
+    rows += [{"quantity": f"event_time[ell={i}]",
+              "mlsynth": round(float(ev[i]), 6),
+              "reference": round(float(_SCPI_EVENT_TIME[i]), 6)}
+             for i in range(n)]
+
+    try:
+        from scpi_pkg import __version__ as _scpi_ver
+        version = f"scpi_pkg {_scpi_ver}"
+    except Exception:                                           # noqa: BLE001
+        version = "scpi_pkg (pip)"
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
+        "reference": {"impl": "Python package scpi_pkg", "version": version},
+    }
+
+
 # Deterministic SC point estimates: mlsynth's fit() reproduces scpi's recorded
 # scest numbers across the per-unit, event-time, and overall predictands.
 EXPECTED = {

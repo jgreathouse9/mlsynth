@@ -1,0 +1,14 @@
+{
+  "values": {
+    "L_V": 2.743663,
+    "n_positive_donors": 6.0
+  },
+  "weights": {
+    "Utah": 0.393908,
+    "Montana": 0.231839,
+    "Nevada": 0.204923,
+    "Connecticut": 0.109089,
+    "New Hampshire": 0.045429,
+    "Colorado": 0.014811
+  }
+}

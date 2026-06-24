@@ -1,0 +1,9 @@
+{
+  "case": "malo_basque",
+  "title": "Bilevel optimum (scm.corner) vs MSCMT (Abadie-Gardeazabal Basque)",
+  "paper": "Malo, Eskelinen, Zhou & Kuosmanen (2024), MPRA 104085; Abadie & Gardeazabal (2003), AER 93(1)",
+  "reference_impl": "Malo et al. scm.corner (SCM-Debug, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/malo_basque/reference.R",
+  "data": ["basedata/basque_mscmt.csv"]
+}

@@ -1,0 +1,17 @@
+# case: rolldid_lw
+# generated_at: 2026-06-24T20:08:19Z
+# mlsynth_version: 1.0.0
+# estimator: ROLLDID
+# config: {"inference": "exact (prop99/castle-demean), hc3 (castle-detrend)", "rolling": "demean/detrend"}
+# reference_impl: lwdid.lwdid (Lee & Wooldridge DiD, live run, captured): prop99 common-timing (d, post, vce=None); castle staggered (gvar, control_group='never_treated', aggregate='overall', vce=None/hc3)
+# reference_version: lwdid 0.2.3 (benchmarks/reference/rolldid_lw/)
+quantity,mlsynth,reference,abs_diff
+prop99 demean ATT,-0.422175,-0.422175,0.0
+prop99 demean SE,0.1208,0.1208,0.0
+prop99 detrend ATT,-0.226989,-0.226989,0.0
+prop99 detrend SE,0.094069,0.094069,0.0
+prop99 detrend p,0.020892,0.020892,0.0
+castle demean ATT,0.091745,0.091745,0.0
+castle demean SE,0.057103,0.057103,0.0
+castle detrend ATT,0.06655,0.06655,0.0
+castle detrend HC3 SE,0.054989,0.054989,0.0

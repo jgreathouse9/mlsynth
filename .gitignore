@@ -27,3 +27,7 @@ benchmarks/reference/.cache/
 # Quarto render artifacts
 paper/paper.html
 paper/paper_files/
+
+# Generated benchmark validation rollups (regenerate with run_benchmarks.py --report)
+benchmarks/REPORT.md
+benchmarks/report.json
