@@ -1,0 +1,42 @@
+== REFERENCE VALUES ==
+jstatistic	0.00001024
+weight	Australia	0.05080724
+weight	Belgium	0.21662393
+weight	Canada	0.00044654
+weight	Denmark	0.38366198
+weight	France	0.00282478
+weight	Greece	0.02004017
+weight	Iceland	0.00662575
+weight	Japan	0.00180849
+weight	New Zealand	0.11995984
+weight	Poland	0.00251768
+weight	Portugal	0.00280973
+weight	Spain	0.00345849
+weight	Switzerland	0.12513582
+weight	United States	0.06327957
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] quadprog_1.5-8  LowRankQP_1.0.6 foreign_0.8-86 
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

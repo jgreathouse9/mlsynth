@@ -1,0 +1,21 @@
+{
+  "values": {
+    "jstatistic": 1.024e-05
+  },
+  "weights": {
+    "Australia": 0.05080724,
+    "Belgium": 0.21662393,
+    "Canada": 0.00044654,
+    "Denmark": 0.38366198,
+    "France": 0.00282478,
+    "Greece": 0.02004017,
+    "Iceland": 0.00662575,
+    "Japan": 0.00180849,
+    "New Zealand": 0.11995984,
+    "Poland": 0.00251768,
+    "Portugal": 0.00280973,
+    "Spain": 0.00345849,
+    "Switzerland": 0.12513582,
+    "United States": 0.06327957
+  }
+}

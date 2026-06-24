@@ -1,0 +1,23 @@
+# case: gmmsce_carbontax
+# generated_at: 2026-06-24T23:18:36Z
+# mlsynth_version: 1.0.0
+# estimator: ORTHSC
+# config: {"controls": ["Australia", "Belgium", "Canada", "Denmark", "France", "Greece", "Iceland", "Japan", "New Zealand", "Poland", "Portugal", "Spain", "Switzerland", "United States"], "instruments": ["Finland", "Germany", "Ireland", "Italy", "Netherlands", "Norway", "United Kingdom"], "method": "gmm_sce", "outcome": "Y", "time": "year", "treat": "treat", "unitid": "country"}
+# reference_impl: Fry GMM-SCE.R GMMSC() (R, live run, captured)
+# reference_version: github.com/JosephPatrickFry @ 3b38684
+quantity,mlsynth,reference,abs_diff
+J-statistic,8.56e-06,1.024e-05,2e-06
+weight[Australia],0.036926,0.050807,0.013881
+weight[Belgium],0.253572,0.216624,0.036948
+weight[Canada],0.0,0.000447,0.000447
+weight[Denmark],0.359243,0.383662,0.024419
+weight[France],0.0,0.002825,0.002825
+weight[Greece],0.0,0.02004,0.02004
+weight[Iceland],0.0,0.006626,0.006626
+weight[Japan],0.0,0.001808,0.001808
+weight[New Zealand],0.134499,0.11996,0.014539
+weight[Poland],0.0,0.002518,0.002518
+weight[Portugal],0.0,0.00281,0.00281
+weight[Spain],0.0,0.003458,0.003458
+weight[Switzerland],0.151939,0.125136,0.026803
+weight[United States],0.063821,0.06328,0.000541

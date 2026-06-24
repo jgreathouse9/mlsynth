@@ -1,0 +1,9 @@
+{
+  "case": "gmmsce_carbontax",
+  "title": "GMM-SCE vs Fry's GMM-SCE.R (Andersson 2019 carbon tax)",
+  "paper": "Fry (2024), \"A method of moments approach to asymptotically unbiased Synthetic Controls,\" Journal of Econometrics 244, 105846",
+  "reference_impl": "Fry GMM-SCE.R GMMSC() (live run, github.com/JosephPatrickFry/OrthogonalizedSyntheticControl @ 3b38684; unused library() imports dropped, GMMSC body verbatim)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/gmmsce_carbontax/reference.R",
+  "data": ["basedata/carbontax_fullsample_data.dta.txt"]
+}
