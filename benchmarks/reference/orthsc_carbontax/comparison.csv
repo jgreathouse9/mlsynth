@@ -1,13 +1,13 @@
 # case: orthsc_carbontax
-# generated_at: 2026-06-24T15:02:52Z
+# generated_at: 2026-06-24T15:22:13Z
 # mlsynth_version: 1.0.0
 # estimator: ORTHSC
 # config: {"controls": ["Australia", "Belgium", "Canada", "Denmark", "France", "Greece", "Iceland", "Japan", "New Zealand", "Poland", "Portugal", "Spain", "Switzerland", "United States"], "instruments": ["Finland", "Germany", "Ireland", "Italy", "Netherlands", "Norway", "United Kingdom"], "outcome": "Y", "time": "year", "treat": "treat", "unitid": "country"}
-# reference_impl: Fry ORTHSC (R, live)
-# reference_version: (R, live)
+# reference_impl: Fry OrthogonalizedSyntheticControl (R, live run, captured)
+# reference_version: github.com/JosephPatrickFry @ 3b38684
 quantity,mlsynth,reference,abs_diff
-ATT,-0.290125,-0.29013,5e-06
+ATT,-0.290125,-0.290125,0.0
 p_value,0.000183,0.000183,0.0
 smoothing_K,4.0,4.0,0.0
-CI_lower,-0.475703,-0.4757,3e-06
-CI_upper,-0.104547,-0.1045,4.7e-05
+CI_lower,-0.475703,-0.475703,0.0
+CI_upper,-0.104547,-0.104547,0.0

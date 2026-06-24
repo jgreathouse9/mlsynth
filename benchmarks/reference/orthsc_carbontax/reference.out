@@ -1,0 +1,33 @@
+== REFERENCE VALUES ==
+att	-0.290125
+p_value	0.000183
+smoothing_K	4.000000
+ci_lower	-0.475703
+ci_upper	-0.104547
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] comprehenr_0.6.10 pracma_2.4.4      foreign_0.8-86   
+
+loaded via a namespace (and not attached):
+[1] MASS_7.3-60.0.1 compiler_4.3.3  corpcor_1.6.10  limSolve_2.0.2 
+[5] lpSolve_5.6.23  quadprog_1.5-8 
