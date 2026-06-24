@@ -861,11 +861,11 @@ inference off this common object without any estimator-specific glue.
 
 ## Applications {#sec-applications}
 
-The next three subsections put the library to work, one per problem regime: a
-single treated unit, spillovers, and experimental design. Each is a
-self-contained, reproducible transcript, and together they show that moving
-between regimes is a change of estimator against an unchanged data frame, not a
-change of tool.
+The next four subsections put the library to work, one per problem regime: a
+single treated unit, spillovers, proximal inference under imperfect fit, and
+experimental design. Each is a self-contained, reproducible transcript, and
+together they show that moving between regimes is a change of estimator against an
+unchanged data frame, not a change of tool.
 
 ### A single treated unit {#sec-estimation}
 
@@ -1108,6 +1108,116 @@ illustration, `mlsynth` takes no position on which estimator is correct, that
 judgement belongs to the analyst and the application. What the package supplies is
 the prior thing that makes the judgement possible: a commensurable reading of all
 of them, on any of your panels, behind one interface.
+
+### Proximal inference {#sec-proximal}
+
+The illustrations so far lean on a good pre-treatment fit: the synthetic control
+tracks the treated unit before the intervention, and we trust it to keep tracking
+after. When that fit is poor, or the donors are noisy measurements of the forces
+that actually move the outcome, classical synthetic control can be biased, and the
+proxy rationale of @sec-model takes over. Read the donor outcomes as error-laden
+proxies of the treated unit's untreated path, and use a second set of proxies to
+correct the measurement error: this is the proximal-inference family, and it is the
+part of the catalog a Python user could not run until now. The single-proxy method
+of @ParkTchetgenTchetgen2025 shipped only as [an R package](https://github.com/qkrcks0218/SPSC);
+the spillover-detection screen of @oriordan2025spillover had no public
+implementation in any language. `mlsynth` carries both, and behind the one
+interface they can be run against each other on a single panel.
+
+The natural testbed is the one the proximal papers use themselves: the Panic of
+1907 [@fohlin2021panic]. A failed corner of the copper market triggered a run on
+the Knickerbocker Trust, and the panic spread to the Trust Company of America. The
+question is what the panic did to the treated trust's stock price, against a
+counterfactual built from trusts conjectured to be unaffected. The donor proxy is
+each trust's logged bid price; the affected trusts, repurposed, supply the second
+proxy.
+
+```{python}
+#| label: load-panic
+from mlsynth import PROXIMAL, SPOTSYNTH
+
+# The Panic of 1907 trust panel (Fohlin-Lu): logged stock prices of the trusts,
+# the treated trust struck by the panic after period 229. The donor proxy is each
+# trust's logged bid price; the affected trusts supply the second (surrogate) proxy.
+panic = pd.read_stata(find_data("trust.dta"))
+panic = panic[panic["ID"] != 1].copy()              # drop the one unbalanced trust
+panic["Panic"] = np.where((panic["time"] > 229) & (panic["ID"] == 34), 1, 0)
+panic[["bid_itp", "ask_itp"]] = panic[["bid_itp", "ask_itp"]].apply(np.log)
+affected = panic[panic["introuble"] == 1]["ID"].unique().tolist()
+normal = panic[panic["type"] == "normal"]["ID"].unique().tolist()
+```
+
+We fit three readings of the same panel. `PROXIMAL` carries the two-proxy estimator
+of @proximaltheory and @pmlr-v238-liu24a (here `PI`) and the single-proxy method of
+@ParkTchetgenTchetgen2025 (`SPSC`); `SPOTSYNTH` screens the donor pool for
+spillover contamination and then debiases through the donors it excludes.
+
+```{python}
+#| label: fit-proximal
+prox = PROXIMAL({
+    "df": panic, "treat": "Panic", "time": "date", "outcome": "prc_log",
+    "unitid": "ID", "vars": {"donorproxies": ["bid_itp"], "surrogatevars": ["ask_itp"]},
+    "donors": normal, "surrogates": affected, "methods": ["PI", "SPSC"],
+    "display_graphs": False}).fit()
+att = prox.att_by_method()                       # two-proxy PI and single-proxy SPSC
+
+spot = SPOTSYNTH({                               # screen the pool, then debias
+    "df": panic, "outcome": "prc_log", "treat": "Panic", "time": "time",
+    "unitid": "ID", "display_graphs": False, "selection": "S1",
+    "forecast": "loo", "inference": "frequentist", "debias": True}).fit()
+
+screen = spot.screen
+names = [int(n) for n in screen.donor_names]
+fe = np.asarray(screen.forecast_error)
+excluded = {int(names[i]) for i in np.asarray(screen.excluded_idx)}
+tca_rank = list(np.array(names)[np.argsort(-fe)]).index(57) + 1
+agree = abs(att["PI"] - spot.att_debiased)
+```
+
+The two estimators that use a second proxy agree closely. `PROXIMAL`'s two-proxy
+`PI` puts the panic's effect on the treated trust at
+`{python} f"{att['PI']:.2f}"` log points, and `SPOTSYNTH`'s proximal debias, built
+on an entirely different selection of donors, lands within
+`{python} f"{agree:.3f}"` of it. The single-proxy `SPSC`, which needs no second
+proxy and so uses less information, returns a smaller
+`{python} f"{att['SPSC']:.2f}"`. Three proximal estimators, three sets of
+assumptions, one panel, one result schema: the agreement between `PI` and the
+debiased screen is a fact about the methods, not about reconciled code, because
+each read the same prepared frame.
+
+```{python}
+#| label: fig-proximal-screen
+#| fig-cap: "The SPOTSYNTH spillover screen on the Panic of 1907. Each donor trust is placed by its leave-one-out forecast error: how far its realised post-panic price departs from a forecast built on the pre-panic donor panel. Trusts the screen keeps as valid donors are blue; those it excludes as spillover-contaminated are red. Run blind on the pool, the screen ranks the Trust Company of America, the trust the proximal papers single out as panic-struck, as the single most anomalous donor, and excludes it."
+fig, ax = plt.subplots(figsize=(5, 3))
+order = np.argsort(fe)
+rank = np.arange(len(names))
+kept = np.array([names[i] not in excluded for i in order])
+ax.scatter(rank[kept], fe[order][kept], s=14, color="C0", label="kept (valid)")
+ax.scatter(rank[~kept], fe[order][~kept], s=14, color="C3", label="excluded")
+ti = list(np.array(names)[order]).index(57)
+ax.annotate("Trust Co. of America", (ti, fe[order][ti]), fontsize=7,
+            xytext=(ti - 22, fe.max() * 0.82),
+            arrowprops=dict(arrowstyle="->", lw=0.7))
+ax.set_xlabel("donor rank (ascending forecast error)")
+ax.set_ylabel("leave-one-out forecast error")
+ax.legend(fontsize=7, loc="upper left"); fig.tight_layout(); plt.show()
+```
+
+The screen earns its keep on a second axis: deciding which donors are valid in the
+first place. @oriordan2025spillover forecast each donor's post-panic value from the
+pre-panic donor panel; a donor whose realised value departs from that forecast has
+been hit by a spillover or seen its latent shift, and is dropped. Run blind on the
+trust pool, the screen ranks the Trust Company of America, the very trust the
+proximal papers name as panic-struck, as the single most anomalous donor of
+`{python} f"{len(names)}"`, and excludes it, recovering a domain fact it was never
+told. The recovery is partial, and honestly so: the Panic of 1907 was a systemic
+shock that moved every trust's latent at once, the regime @oriordan2025spillover
+flag as their method's hard case, so the screen cleanly isolates only the most
+violently affected trust. The cross-method agreement and this ranking are pinned as
+a durable benchmark (`benchmarks/cases/spotsynth_panic1907.py`). The point the
+illustration makes is the one the package is built to make: a method that lived only
+in R, and a method that lived nowhere, read the same panel through the same
+interface and can be checked against each other.
 
 ### Experimental design {#sec-design}
 
