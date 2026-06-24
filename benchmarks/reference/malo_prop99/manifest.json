@@ -1,0 +1,9 @@
+{
+  "case": "malo_prop99",
+  "title": "Bilevel optimum (scm.corner): California Proposition 99 (Malo et al. Table 1)",
+  "paper": "Malo, Eskelinen, Zhou & Kuosmanen (2024), Table 1",
+  "reference_impl": "Malo et al. scm.corner (SCM-Debug, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/malo_prop99/reference.R",
+  "data": ["basedata/augmented_cali_long.csv"]
+}

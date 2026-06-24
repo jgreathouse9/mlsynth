@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-06-24T16:48:24Z",
+  "git_sha": "27bb474e0bd3b5b2af8904e8ba65bccc4f4ef825",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/malo_prop99/reference.R",
+  "data": [
+    {
+      "path": "basedata/augmented_cali_long.csv",
+      "sha256": "974ae6ad6ab741d29e3ca85c57f9da33ff1baf151e3dbb4b24f53c9cba607903"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "lpSolve": "5.6.23",
+    "LowRankQP": "1.0.6",
+    "kernlab": "0.9-32",
+    "compiler": "4.3.3"
+  }
+}
