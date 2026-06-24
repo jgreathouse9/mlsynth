@@ -1,0 +1,22 @@
+Vendored reference code and data for the `fdid_hongkong` benchmark.
+
+Files
+  Fun_FDID.R   Kathleen T. Li's Forward DiD function (forward control selection,
+               DiD estimation, and inference).
+  GDP.csv      Hong Kong quarterly GDP-growth panel: Hong Kong (treated, column 1)
+               and 24 control economies. The publicly available dataset of
+               Hsiao, Ching & Wan (2012), "A panel data approach for program
+               evaluation," Journal of Applied Econometrics 27(5), 705-740.
+
+Source
+  Released replication package for
+    Li, Kathleen T. (2024), "Forward Difference-in-Differences,"
+    Marketing Science. DOI: 10.1287/mksc.2022.0212
+  The author distributes this MATLAB/R code and the public Hong Kong dataset for
+  replication of the Forward DiD method. Vendored here verbatim so the reference
+  run is reproducible offline; all credit to the author. See the package's
+  ForwardDID_Readme.txt for the author's own sample output.
+
+These files are used only to produce the captured reference bundle that
+mlsynth's FDID estimator is cross-validated against; they are not part of the
+mlsynth library.

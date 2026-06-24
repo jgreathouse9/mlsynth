@@ -1,0 +1,12 @@
+{
+  "values": {
+    "fdid_att": 0.025405,
+    "fdid_att_pct": 53.843067,
+    "fdid_r2_pre": 0.842784,
+    "fdid_n_controls": 9.0,
+    "did_att": 0.031721,
+    "did_att_pct": 77.620322,
+    "did_r2_pre": 0.504647
+  },
+  "weights": {}
+}
