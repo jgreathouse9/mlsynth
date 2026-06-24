@@ -913,6 +913,20 @@ In short: when SBC and classical SCM disagree on a nonstationary outcome,
 SBC is the more conservative answer about how much of the post-treatment
 gap really reflects the intervention.
 
+Verification
+------------
+
+SBC is validated against the authors' own released R code, run live and
+checked one step at a time. On the German reunification panel mlsynth's
+Hamilton detrending and trend forecast reproduce the authors' ``lsq`` and
+``trend_predict`` to about :math:`10^{-8}`, and mlsynth attains the verified
+global optimum of the cycle-matching program — where the reference's
+``Synth::synth`` solver lands about :math:`2.6\%` short. The durable case is
+``benchmarks/cases/sbc_germany.py`` and the per-step golden tests are in
+``mlsynth/tests/test_sbc_reference.py``. See the dedicated page
+:doc:`replications/sbc` for the full design, the four-solver optimum check, and
+the donor-label finding.
+
 Core API
 --------
 
