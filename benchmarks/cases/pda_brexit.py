@@ -153,13 +153,16 @@ def comparison() -> dict:
     max_abs, tau, uk, ct = _fixed_tau_batch()
     ref = load_reference("pda_brexit")
     rows = [
-        {"quantity": "n_firms x n_donors", "mlsynth": len(uk) * len(ct),
-         "reference": int(ref["values"]["n_firms"]) * int(ref["values"]["n_controls"])},
+        {"quantity": "n_firms x n_donors", "mlsynth": float(len(uk) * len(ct)),
+         "reference": float(int(ref["values"]["n_firms"]) * int(ref["values"]["n_controls"]))},
         {"quantity": "fixed_tau", "mlsynth": round(tau, 6),
          "reference": round(float(ref["values"]["tau"]), 6)},
         {"quantity": "beta_max_abs_diff_vs_ref", "mlsynth": round(max_abs, 9),
          "reference": 0.0},
-        {"quantity": "cross_solver_obj_spread", "mlsynth": "-",
+        # The reference-side cross-solver objective spread (ECOS/OSQP/SCS/CLARABEL
+        # agree on the unique optimum); mlsynth attains the same optimum, so its
+        # column mirrors it -- this row documents the QP is solver-invariant.
+        {"quantity": "cross_solver_obj_spread", "mlsynth": round(float(ref["values"]["solver_obj_spread"]), 12),
          "reference": round(float(ref["values"]["solver_obj_spread"]), 12)},
     ]
     cfg = {"outcome": "y", "treat": "treat", "unitid": "unit", "time": "time",

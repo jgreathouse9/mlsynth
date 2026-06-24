@@ -1,0 +1,72 @@
+# case: pda_ppi
+# generated_at: 2026-06-24T19:19:55Z
+# mlsynth_version: 1.0.0
+# estimator: PDA
+# config: {"l2_standardize": true, "methods": ["l2"], "outcome": "y", "tau": 0.09065005254029802, "time": "time", "treat": "treat", "unitid": "unit"}
+# reference_impl: Authors' Fun/L2relax.R (ishwang1/L2relax-PDA) reproduced via cvxpy/ECOS, live run captured
+# reference_version: Shi & Wang, L2-Relaxation for Economic Prediction; Section 6.1 (China PPI)
+quantity,mlsynth,reference,abs_diff
+weight[Armenia],0.009411,0.009411,0.0
+weight[Belgium],0.02354,0.02354,0.0
+weight[Bosnia and Herzegovina],0.046422,0.046422,0.0
+weight[Bulgaria],0.018672,0.018672,0.0
+weight[Canada],0.043469,0.043469,0.0
+weight[Chile],0.034602,0.034602,0.0
+weight[Colombia],0.009556,0.009556,0.0
+weight[Croatia],-0.004109,-0.004109,0.0
+weight[Cyprus],-0.004051,-0.004051,0.0
+weight[Czech Republic],0.015847,0.015847,0.0
+weight[Denmark],0.021103,0.021103,0.0
+weight[Ecuador],-0.024855,-0.024855,0.0
+weight[Egypt],0.019634,0.019634,0.0
+weight[Estonia],0.021644,0.021644,0.0
+weight[European Union],0.024284,0.024284,0.0
+weight[Finland],0.03519,0.03519,0.0
+weight[France],0.022425,0.022425,0.0
+weight[Georgia],0.028754,0.028754,0.0
+weight[Germany],0.040331,0.040331,0.0
+weight[Ghana],-0.006141,-0.006141,0.0
+weight[Greece],0.014054,0.014054,0.0
+weight[Hungary],0.004137,0.004136,1e-06
+weight[Iceland],-0.004987,-0.004987,0.0
+weight[India],0.000579,0.000579,0.0
+weight[Ireland],-0.043081,-0.043081,0.0
+weight[Israel],0.003867,0.003867,0.0
+weight[Italy],0.006759,0.006759,0.0
+weight[Japan],0.060612,0.060612,0.0
+weight[Jordan],0.007887,0.007887,0.0
+weight[Kazakhstan],0.010306,0.010306,0.0
+weight[Kuwait],0.029252,0.029252,0.0
+weight[Kyrgyzstan],-0.000272,-0.000272,0.0
+weight[Latvia],0.006147,0.006147,0.0
+weight[Lithuania],0.01023,0.01023,0.0
+weight[Luxembourg],0.025452,0.025452,0.0
+weight[Malaysia],0.035071,0.035071,0.0
+weight[Malta],0.064695,0.064695,0.0
+weight[Mexico],0.064899,0.064899,0.0
+weight[Moldova],-0.0226,-0.0226,0.0
+weight[Mongolia],0.014716,0.014716,0.0
+weight[Montenegro],-0.067893,-0.067893,0.0
+weight[Morocco],0.011308,0.011308,0.0
+weight[Netherlands],0.019789,0.019789,0.0
+weight[North Macedonia],0.022651,0.022651,0.0
+weight[Norway],0.011811,0.011811,0.0
+weight[Pakistan],0.003311,0.003311,0.0
+weight[Paraguay],0.024838,0.024838,0.0
+weight[Philippines],0.028825,0.028825,0.0
+weight[Poland],0.018275,0.018275,0.0
+weight[Portugal],0.014256,0.014256,0.0
+weight[Romania],0.002203,0.002203,0.0
+weight[Serbia],0.000414,0.000414,0.0
+weight[Singapore],0.024058,0.024058,0.0
+weight[Slovakia],0.01633,0.01633,0.0
+weight[Slovenia],0.056032,0.056032,0.0
+weight[South Korea],0.053883,0.053883,0.0
+weight[Spain],0.014263,0.014263,0.0
+weight[Sweden],0.050416,0.050416,0.0
+weight[Switzerland],0.06515,0.06515,0.0
+weight[Thailand],0.02744,0.02744,0.0
+weight[Tunisia],-0.009832,-0.009832,0.0
+weight[Ukraine],0.007577,0.007577,0.0
+weight[United Kingdom],0.039823,0.039823,0.0
+weight[United States],0.073227,0.073227,0.0

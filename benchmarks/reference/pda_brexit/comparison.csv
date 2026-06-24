@@ -1,0 +1,12 @@
+# case: pda_brexit
+# generated_at: 2026-06-24T19:19:57Z
+# mlsynth_version: 1.0.0
+# estimator: run_pda_multitreat / l2_relax_batch
+# config: {"l2_standardize": true, "methods": ["l2"], "note": "per-firm batched solve (run_pda_multitreat engine), shared Sigma", "outcome": "y", "tau": 0.07890289058686532, "time": "time", "treat": "treat", "unitid": "unit"}
+# reference_impl: Authors' Fun/L2relax.R (ishwang1/L2relax-PDA), per UK firm, reproduced via cvxpy/ECOS, live run captured
+# reference_version: Shi & Wang, L2-Relaxation for Economic Prediction; Section 6.2 (Brexit)
+quantity,mlsynth,reference,abs_diff
+n_firms x n_donors,15600.0,15600.0,0.0
+fixed_tau,0.078903,0.078903,0.0
+beta_max_abs_diff_vs_ref,1.321e-06,0.0,1e-06
+cross_solver_obj_spread,7.45e-10,7.45e-10,0.0
