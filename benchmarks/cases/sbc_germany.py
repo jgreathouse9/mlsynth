@@ -9,9 +9,31 @@ classical level-matching SCM, which leans on trend donors (Austria, USA).
 Provenance
 ----------
 * Data: ``basedata/german_reunification.csv`` (16 OECD donors + West Germany,
-  GDP per capita 1960-2003; effect from 1991).
+  GDP per capita 1960-2003; effect from 1991) -- the authoritative Abadie panel
+  (identical to ``basedata/repgermany.dta``).
 * Headline: Shi-Xi-Xie (2025) Sec. 5.1 -- cycle weights Greece ~0.44,
   Netherlands ~0.37, Italy ~0.16; ATT over 1991-1994 ~ -952 (Hamilton h=4).
+
+Verification
+------------
+The SBC method is cross-validated against the authors' own R code (Germany.R:
+``lsq`` detrending, ``trend_predict`` forecast, ``Synth::synth``) run on the
+authoritative ``repgermany.dta``, captured under
+``benchmarks/reference/sbc_germany/`` and pinned per step in
+``mlsynth/tests/test_sbc_reference.py``. Two findings the live replication
+surfaced:
+
+* mlsynth's Hamilton detrending and trend forecast reproduce the authors'
+  functions to ~1e-8 (the donor cycles are detrended on the full sample, the
+  treated unit on the pre window -- exactly as the authors do).
+* On the synthetic-control step the two diverge, and mlsynth is the more
+  accurate one: the authors call ``Synth::synth`` with slack ipop tolerances,
+  which under-converges to a ~2.6%-higher cyclical SSE (the Netherlands-dominant
+  split, ATT ~-1006); mlsynth's simplex solver attains the verified global
+  optimum (cvxpy agrees to machine precision), giving the Greece-dominant split
+  and ATT ~-952. The authors' shipped wide CSV also permutes its donor labels
+  (its "Japan"/"Portugal" columns hold the Netherlands'/Greece's series), so the
+  paper's printed donor names differ from the correctly-labelled optimum here.
 """
 from __future__ import annotations
 
