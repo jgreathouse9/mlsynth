@@ -1,27 +1,27 @@
 # case: ppscm_paglayan
-# generated_at: 2026-06-24T14:04:13Z
+# generated_at: 2026-06-24T14:50:26Z
 # mlsynth_version: 1.0.0
 # estimator: PPSCM
 # config: {"outcome": "lnppexpend", "time": "year", "treat": "cbr", "unitid": "State"}
-# reference_impl: R augsynth::multisynth (via Rscript)
-# reference_version: augsynth (R, live)
+# reference_impl: R augsynth::multisynth (live run, captured)
+# reference_version: augsynth 0.2.0
 quantity,mlsynth,reference,abs_diff
 nu,0.2607,0.2607,0.0
-ATT,-0.011,-0.011,0.0
-global_L2,0.0026,0.003,0.0004
+ATT,-0.011,-0.0112,0.0002
+global_L2,0.0026,0.0026,0.0
 time_cohort/nu,0.3939,0.3939,0.0
-time_cohort/ATT,-0.017,-0.018,0.001
-event_study/tau[0],-0.004336,-0.004282,5.4e-05
-event_study/tau[1],-0.010699,-0.010857,0.000158
-event_study/tau[2],0.004367,0.004379,1.2e-05
-event_study/tau[3],0.001388,0.001155,0.000233
-event_study/tau[4],-0.009073,-0.009305,0.000232
-event_study/tau[5],-0.016488,-0.016943,0.000455
-event_study/tau[6],-0.018164,-0.018505,0.000341
-event_study/tau[7],-0.003424,-0.003867,0.000443
-event_study/tau[8],-0.015579,-0.015836,0.000257
-event_study/tau[9],-0.031283,-0.031751,0.000468
-event_study/tau[10],-0.01734,-0.017839,0.000499
+time_cohort/ATT,-0.017,-0.0182,0.0012
+event_study/tau[0],-0.004336,-0.0043,3.6e-05
+event_study/tau[1],-0.010699,-0.010858,0.000159
+event_study/tau[2],0.004367,0.00442,5.3e-05
+event_study/tau[3],0.001388,0.001149,0.000239
+event_study/tau[4],-0.009073,-0.009252,0.000179
+event_study/tau[5],-0.016488,-0.016837,0.000349
+event_study/tau[6],-0.018164,-0.018476,0.000312
+event_study/tau[7],-0.003424,-0.003846,0.000422
+event_study/tau[8],-0.015579,-0.0158,0.000221
+event_study/tau[9],-0.031283,-0.031627,0.000344
+event_study/tau[10],-0.01734,-0.017657,0.000317
 time_cohort/tau[0],0.000285,-0.000776,0.001061
 time_cohort/tau[1],-0.015282,-0.016062,0.00078
 time_cohort/tau[2],-0.001648,-0.002847,0.001199
@@ -34,7 +34,7 @@ time_cohort/tau[8],-0.024305,-0.024547,0.000242
 time_cohort/tau[9],-0.046768,-0.047692,0.000924
 time_cohort/tau[10],-0.021204,-0.021612,0.000408
 jackknife_se[0],0.01845,0.01857,0.00012
-jackknife_se[1],0.01565,0.01553,0.00012
+jackknife_se[1],0.01565,0.01554,0.00011
 jackknife_se[2],0.01571,0.01577,6e-05
 jackknife_se[3],0.02079,0.02042,0.00037
 jackknife_se[4],0.02229,0.02236,7e-05
@@ -47,7 +47,7 @@ jackknife_se[10],0.03536,0.03495,0.00041
 bootstrap_se[0],0.02236,0.02247,0.00011
 bootstrap_se[1],0.02133,0.02139,6e-05
 bootstrap_se[2],0.02311,0.02404,0.00093
-bootstrap_se[3],0.02395,0.02461,0.00066
+bootstrap_se[3],0.02395,0.0246,0.00065
 bootstrap_se[4],0.02518,0.02561,0.00043
 bootstrap_se[5],0.02402,0.02445,0.00043
 bootstrap_se[6],0.0253,0.02491,0.00039

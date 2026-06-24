@@ -16,10 +16,11 @@ Provenance
   treatment ``cbr`` from ``YearCBrequired``), restricted as the vignette does:
   drop DC and WI, years 1959-1997, leaving 32 staggered-treated and 17
   never-treated states.
-* Reference values are augsynth's documented output. Point estimates: basic
-  ``nu = 0.2607``, ATT ``-0.011``, Global L2 ``0.003``; ``time_cohort``
-  ``nu = 0.3939``, ATT ``-0.018``. Standard errors come in two flavours, both
-  cross-checked here against a live R run of augsynth:
+* Reference values come from a live ``augsynth::multisynth`` run, captured in
+  ``benchmarks/reference/ppscm_paglayan/`` with its version pinned (augsynth
+  0.2.0) -- not transcribed. Point estimates: basic ``nu = 0.2607``, ATT
+  ``-0.011``, Global L2 ``0.003``; ``time_cohort`` ``nu = 0.3939``, ATT
+  ``-0.018``. Standard errors come in two flavours, both from that run:
 
   - ``AUG_JACK_SE`` -- ``inf_type="jackknife"`` (delete-one), which mlsynth's
     jackknife reproduces to ``< 1.5e-3``;
@@ -38,18 +39,20 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from benchmarks.reference import load_reference, reference_value
+
 _BASE = Path(__file__).resolve().parents[2] / "basedata"
 
-AUG_TAU = np.array([-0.004281754, -0.010856856, 0.004378813, 0.001155346,
-                    -0.009305005, -0.016942988, -0.018505173, -0.003866657,
-                    -0.015835730, -0.031751350, -0.017839047])
-AUG_TAU_TC = np.array([-0.0007756959, -0.0160616979, -0.0028471499, -0.0026721191,
-                       -0.0181312843, -0.0284898474, -0.0228343778, -0.0140789250,
-                       -0.0245472682, -0.0476922268, -0.0216121159])
-AUG_JACK_SE = np.array([0.01857, 0.01553, 0.01577, 0.02042, 0.02236, 0.02538,
-                        0.02683, 0.03015, 0.03494, 0.03187, 0.03495])
-AUG_BOOT_SE = np.array([0.02247, 0.02139, 0.02404, 0.02461, 0.02561, 0.02445,
-                        0.02491, 0.02811, 0.03171, 0.02916, 0.03245])
+# augsynth::multisynth's event-study path and per-period SEs, pinned from a live
+# run captured in benchmarks/reference/ppscm_paglayan/ (not transcribed). The
+# point estimates and jackknife SE are deterministic; the bootstrap SE is a
+# seeded stochastic draw (mlsynth's bootstrap is a separate draw).
+_REF = load_reference("ppscm_paglayan")["values"]
+_arr = lambda p: np.array([_REF[f"{p}_{k:02d}"] for k in range(11)])
+AUG_TAU = _arr("tau")
+AUG_TAU_TC = _arr("tau_tc")
+AUG_JACK_SE = _arr("jack_se")
+AUG_BOOT_SE = _arr("boot_se")
 
 
 def _analysis_df() -> pd.DataFrame:
@@ -130,15 +133,15 @@ def comparison() -> dict:
 
     rows = [
         {"quantity": "nu", "mlsynth": round(float(jack.design.nu_used), 4),
-         "reference": 0.2607},
+         "reference": round(_REF["nu"], 4)},
         {"quantity": "ATT", "mlsynth": round(float(jack.att), 4),
-         "reference": -0.011},
+         "reference": round(_REF["att"], 4)},
         {"quantity": "global_L2", "mlsynth": round(float(jack.design.global_l2), 4),
-         "reference": 0.003},
+         "reference": round(_REF["global_l2"], 4)},
         {"quantity": "time_cohort/nu", "mlsynth": round(float(cohort.design.nu_used), 4),
-         "reference": 0.3939},
+         "reference": round(_REF["tc_nu"], 4)},
         {"quantity": "time_cohort/ATT", "mlsynth": round(float(cohort.att), 4),
-         "reference": -0.018},
+         "reference": round(_REF["tc_att"], 4)},
     ]
 
     for k in range(len(AUG_TAU)):
@@ -161,21 +164,26 @@ def comparison() -> dict:
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "PPSCM", "config": cfg},
-        "reference": {"impl": "R augsynth::multisynth (via Rscript)",
-                      "version": "augsynth (R, live)"},
+        "reference": {"impl": "R augsynth::multisynth (live run, captured)",
+                      "version": "augsynth 0.2.0"},
     }
 
 
 # All values cross-validate augsynth method-for-method; tolerances bracket the
 # OSQP solver residual (point estimates) and the bootstrap's Monte-Carlo error
 # (R RNG vs numpy RNG at n_boot=2000).
+# Scalar targets are pinned from the live augsynth run (benchmarks/reference/
+# ppscm_paglayan/); the *_max_abs_diff metrics compare mlsynth's paths/SEs to the
+# bundle's AUG_* arrays. The bootstrap SE is a seeded stochastic draw, so its
+# targets keep a wider band.
+_pp = lambda k: reference_value("ppscm_paglayan", k)
 EXPECTED = {
-    "ppscm_nu": (0.2607, 2e-3),
-    "ppscm_att": (-0.011, 1.5e-3),
-    "ppscm_global_l2": (0.003, 5e-4),
+    "ppscm_nu": (_pp("nu"), 2e-3),
+    "ppscm_att": (_pp("att"), 1.5e-3),
+    "ppscm_global_l2": (_pp("global_l2"), 5e-4),
     "ppscm_event_study_max_abs_diff": (0.0, 7e-4),
-    "ppscm_time_cohort_nu": (0.3939, 2e-3),
-    "ppscm_time_cohort_att": (-0.018, 2e-3),
+    "ppscm_time_cohort_nu": (_pp("tc_nu"), 2e-3),
+    "ppscm_time_cohort_att": (_pp("tc_att"), 2e-3),
     "ppscm_tc_event_study_max_abs_diff": (0.0, 3e-3),
     "ppscm_jackknife_se_max_abs_diff": (0.0, 1.5e-3),     # vs augsynth jackknife
     "ppscm_bootstrap_att_se": (0.022, 2e-3),              # vs augsynth bootstrap (vignette)

@@ -1,0 +1,9 @@
+{
+  "case": "ppscm_paglayan",
+  "title": "Partially-pooled SCM vs augsynth::multisynth (Paglayan 2018)",
+  "paper": "Ben-Michael, Feller & Rothstein (2021), JASA 116(536); augsynth::multisynth (ebenmichael/augsynth)",
+  "reference_impl": "R augsynth::multisynth (live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/ppscm_paglayan/reference.R",
+  "data": ["basedata/Teachingaugsynth.scv"]
+}
