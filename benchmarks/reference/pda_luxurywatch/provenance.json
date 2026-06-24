@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-06-24T17:09:21Z",
+  "git_sha": "bf99fefee9dcef2c12007b463119626ce3344029",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/pda_luxurywatch/reference.R",
+  "data": [
+    {
+      "path": "basedata/china_watches_long.csv",
+      "sha256": "1ce8146af9a9f2ed9da803b8f96fa8e2f1f46359b0e30426b34ba127c7a75e06"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "zoo": "1.8-12",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "sandwich": "3.1-0",
+    "grid": "4.3.3",
+    "lattice": "0.22-5"
+  }
+}
