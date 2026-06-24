@@ -14,11 +14,15 @@ Findings this harness locks in (see docs/replications/sbc.rst):
   ``lsq`` / ``trend_predict`` to ~1e-8 -- those steps are identical.
 * The donor cycles are detrended on the full sample and the treated unit on the
   pre window, matching the authors' code.
-* The only divergence is the synthetic-control solver: the authors call
-  ``Synth::synth`` with slack ipop tolerances, which under-converges; mlsynth's
-  in-house simplex solver attains a strictly lower cyclical SSE (the verified
-  global optimum). So mlsynth is the more accurate implementation, not a
-  divergent one.
+* The only divergence is the synthetic-control solver. The cyclical simplex
+  least-squares is strictly convex and well-conditioned (donor matrix full rank
+  16/16, Gram condition number ~3.8e3), so its optimum is unique. Four
+  independent solvers -- mlsynth's FISTA and cvxpy's ECOS / OSQP / SCS -- agree
+  on it (SSE ~1.266e6). The authors' ``Synth::synth`` (kernlab ``ipop``) is the
+  lone outlier (SSE ~1.299e6, +2.6%), and tightening ipop's tolerances does not
+  close the gap -- it converges to a suboptimal point. So mlsynth attains the
+  verified global optimum and the reference solver does not; mlsynth is the more
+  accurate implementation, not a divergent one.
 """
 from __future__ import annotations
 
@@ -103,12 +107,21 @@ def test_trend_forecast(golden, panel, treated_fit):
     assert np.max(np.abs(fc - golden["trend_forecast"])) < TOL
 
 
-def test_simplex_weights_beat_authors_loose_synth(golden, panel, treated_fit):
-    """Step 3: mlsynth's simplex solver attains a strictly lower cyclical SSE
-    than the authors' ``Synth::synth`` (which uses slack ipop tolerances).
+# The unique optimum of the cyclical simplex least-squares, cross-checked by four
+# independent solvers (mlsynth FISTA, cvxpy ECOS / OSQP / SCS) on this panel. The
+# authors' Synth::synth (kernlab ipop) instead converges to ~1.299e6 at any
+# tolerance -- it does not reach this optimum.
+VERIFIED_OPTIMUM_SSE = 1266162.6
 
-    This is the one step where the two implementations differ -- and mlsynth
-    reaches the verified global optimum while the reference under-converges.
+
+def test_simplex_weights_reach_verified_optimum(golden, panel, treated_fit):
+    """Step 3: mlsynth's simplex solver reaches the verified global optimum of
+    the cyclical SC program -- strictly better than the authors' ``Synth::synth``
+    (kernlab ipop), which converges to a suboptimal point.
+
+    This is the one step where the two implementations differ, and mlsynth is the
+    accurate one: the optimum is unique (strictly convex, well-conditioned QP) and
+    confirmed by mlsynth + three cvxpy solvers.
     """
     fit, _ = treated_fit
     idx = np.where(~np.isnan(fit.cycle_pre))[0]
@@ -124,7 +137,9 @@ def test_simplex_weights_beat_authors_loose_synth(golden, panel, treated_fit):
     sse_mlsynth = float(np.sum((c1 - c0 @ w) ** 2))
     # simplex feasibility
     assert w.min() > -1e-9 and abs(w.sum() - 1.0) < 1e-6
-    # strictly better-fitting than the authors' loose Synth solve
+    # reaches the verified global optimum ...
+    assert abs(sse_mlsynth - VERIFIED_OPTIMUM_SSE) < 5.0
+    # ... which is strictly better than the authors' Synth ipop solve
     assert sse_mlsynth < golden["synth_loose_sse"]
 
 

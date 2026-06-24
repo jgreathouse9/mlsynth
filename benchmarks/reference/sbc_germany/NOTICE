@@ -23,10 +23,13 @@ What the cross-validation found
 - mlsynth's Hamilton detrending and trend forecast reproduce the authors' lsq /
   trend_predict to ~1e-8.
 - The synthetic-control step is the one divergence, and mlsynth is the more
-  accurate implementation: the authors' Synth::synth (slack ipop tolerances)
-  under-converges to a cyclical SSE ~2.6% above the optimum; mlsynth's simplex
-  solver attains the verified global optimum (cvxpy agrees to machine
-  precision). So the case pins mlsynth's optimum, NOT the authors' Synth output.
+  accurate implementation. The cyclical simplex least-squares is strictly convex
+  and well-conditioned (donor matrix full rank, Gram condition number ~3.8e3),
+  so its optimum is unique. Four independent solvers (mlsynth's FISTA and cvxpy's
+  ECOS / OSQP / SCS) agree on it; the authors' Synth::synth (kernlab ipop) is the
+  lone outlier at a cyclical SSE ~2.6% higher, and tightening ipop's tolerances
+  does not close the gap. So the case pins mlsynth's verified optimum, NOT the
+  authors' Synth output.
 - The upstream repo's shipped wide Germany.csv permutes its donor column labels
   (its "Japan"/"Portugal" hold the Netherlands'/Greece's series, per the
   canonical repgermany.dta), so the paper's printed donor names ("Italy, Japan,
