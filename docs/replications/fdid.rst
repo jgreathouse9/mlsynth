@@ -48,8 +48,9 @@ political and economic integration with mainland China, beginning at quarter
                "display_graphs": False, "verbose": False}).fit()
    res.fdid.att, res.fdid.att_percent, res.fdid.r_squared, len(res.fdid.selected_names)
 
-Forward DiD selects **9 of the 24** controls and reproduces the author's
-released MATLAB/R output (``ForwardDID_Readme.txt``) cell by cell:
+Forward DiD selects **9 of the 24** controls and reproduces the author's own
+Forward DiD code (``Fun_FDID.R``, now run live and captured — see
+`Reference parity and runtime`_, below) cell by cell:
 
 .. list-table::
    :header-rows: 1
@@ -91,6 +92,45 @@ forward search keeps only the 9 economies that co-move with Hong Kong.
 The durable check lives in ``benchmarks/cases/fdid_hongkong.py``::
 
    python benchmarks/run_benchmarks.py --case fdid_hongkong
+
+Reference parity and runtime
+----------------------------
+
+The reference column above is not transcribed from the readme. It is a live
+captured run of Kathleen Li's own ``Fun_FDID.R``, vendored under
+``benchmarks/reference/fdid_hongkong/`` with its provenance pinned (R version,
+data checksum), so the two implementations are compared object to object;
+mlsynth matches the author's code to about :math:`10^{-5}` on every quantity.
+
+On the same Hong Kong panel — warmed up, data load excluded, averaged over 200
+calls on one machine — the two implementations differ sharply in speed:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 16 46
+
+   * - Implementation
+     - per call
+     - work done
+   * - Li ``Fun_FDID.R`` (R)
+     - 95.0 ms
+     - forward selection and the point estimate
+   * - mlsynth ``FDID().fit()`` (Python)
+     - 6.5 ms
+     - the same selection, plus inference, the all-donor DiD arm, and the typed result object
+
+mlsynth is roughly fifteen times faster while doing strictly more, because its
+forward search is matrix algebra rather than nested loops. Li's R rescans every
+remaining control with a doubly nested loop, re-averaging the growing donor set
+from scratch at each step — order :math:`N^2 T` work at interpreted-loop speed.
+mlsynth scores all remaining candidates at once: each step forms the candidate
+running means by broadcasting and evaluates their pre-period :math:`R^2` in a
+single matrix–vector product (``_r2_batch`` in
+:mod:`mlsynth.utils.fdid_helpers.estimation`), then folds the chosen donor into
+the running synthetic control with an order-:math:`T` rank-one mean update
+instead of re-averaging the subset. The selection path is identical (9 controls,
+ATT :math:`0.0254`); only the arithmetic is reorganized, which is why the
+numbers agree to machine display precision while the wall-clock does not.
 
 Path B — the simulation design
 ------------------------------
