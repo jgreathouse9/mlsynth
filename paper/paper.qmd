@@ -603,6 +603,7 @@ of distinct methods a user can run exceeds the number of classes.
 | `PDA` | Panel-data approach (HCW / lasso / forward / $\ell_2$) | Single treated unit | A, B, X |
 | `BVSS` | Bayesian synthetic control (soft simplex) | Single treated unit | — |
 | `ORTHSC` | Orthogonalized synthetic control | Single treated unit | A, B, X |
+| `MUSC` | Modified unbiased synthetic control | Single treated unit | — |
 | `CLUSTERSC` | Cluster synthetic control (PCR / RPCA) | Low-rank and factor models | A, B, X |
 | `FMA` | Factor-model approach | Low-rank and factor models | B |
 | `TASC` | Time-aware synthetic control | Low-rank and factor models | B, X |
@@ -610,15 +611,14 @@ of distinct methods a user can run exceeds the number of classes.
 | `SNN` | Synthetic nearest neighbors | Low-rank and factor models | X |
 | `MCNNM` | Matrix completion (nuclear-norm) | Low-rank and factor models | X |
 | `SI` | Synthetic interventions | Low-rank and factor models | X |
-| `SBC` | Synthetic business cycle | Nonstationary outcomes | A, B, X |
-| `HSC` | Harmonic synthetic control | Nonstationary outcomes | A, B |
-| `DSCAR` | Dynamic SC for autoregressive processes | Nonstationary outcomes | A |
+| `SBC` | Synthetic business cycle | Time series and nonstationary | A, B, X |
+| `HSC` | Harmonic synthetic control | Time series and nonstationary | A, B |
+| `DSCAR` | Dynamic SC for autoregressive processes | Time series and nonstationary | A |
+| `SHC` | Synthetic historical control | Time series and nonstationary | B |
 | `DSC` | Distributional synthetic control | Distributional and multi-outcome | A |
 | `CTSC` | Continuous-treatment synthetic control | Distributional and multi-outcome | B |
 | `SCMO` | Synthetic control with multiple outcomes | Distributional and multi-outcome | A, B, X |
 | `CMBSTS` | Causal multivariate Bayesian structural time series | Distributional and multi-outcome | A, X |
-| `MUSC` | Modified unbiased synthetic control | Endogeneity, proxies and instruments | — |
-| `SHC` | Synthetic historical control | Endogeneity, proxies and instruments | B |
 | `SIV` | Synthetic instrumental variables | Endogeneity, proxies and instruments | B |
 | `PROXIMAL` | Proximal-inference synthetic control | Endogeneity, proxies and instruments | B, X |
 | `SPILLSYNTH` | Spillover-aware synthetic control | Spillover-aware | A, B, X |
