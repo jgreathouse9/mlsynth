@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-06-24T15:23:29Z",
+  "git_sha": "52142a14233795659091939b36c168a333a62eb9",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/mscmt_basque/reference.R",
+  "data": [
+    {
+      "path": "basedata/basque_mscmt.csv",
+      "sha256": "3aca35dc9b55d75251f150758e4e43a7c28fb1768e9cf7fe42d6f59c29863956"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "MSCMT": "1.4.4",
+    "lpSolveAPI": "5.5.2.0-17.15",
+    "utf8": "1.2.4",
+    "tidyselect": "1.2.0",
+    "magrittr": "2.0.3",
+    "gtable": "0.3.4",
+    "glue": "1.7.0",
+    "tibble": "3.2.1",
+    "parallel": "4.3.3",
+    "pkgconfig": "2.0.3",
+    "generics": "0.1.3",
+    "dplyr": "1.1.4",
+    "lifecycle": "1.0.4",
+    "ggplot2": "3.4.4",
+    "DEoptim": "2.2-8",
+    "Rdpack": "2.6.6",
+    "cli": "3.6.2",
+    "lpSolve": "5.6.23",
+    "fansi": "1.0.5",
+    "scales": "1.3.0",
+    "vctrs": "0.6.5",
+    "grid": "4.3.3",
+    "Rglpk": "0.6-5.1",
+    "slam": "0.1-55",
+    "compiler": "4.3.3",
+    "rbibutils": "2.4.1",
+    "tools": "4.3.3",
+    "pillar": "1.9.0",
+    "munsell": "0.5.0",
+    "colorspace": "2.1-0",
+    "rlang": "1.1.3"
+  }
+}

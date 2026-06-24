@@ -26,9 +26,13 @@ The donor weights match to four decimals; the post-period gap (averaged over
 The fit window is essential: without it the outcome SSR would run over the full
 1955-1969 pre-period and the weights would drift off the MSCMT solution.
 
-The reference numbers were produced by installing MSCMT (and Synth) from source
-and running its vignette specification with ``outer.optim="DEoptim"`` and
-``seed=42``; see ``benchmarks/R/mscmt_basque.R``. Data ship as
+The reference numbers are a live captured run of the MSCMT R package, not
+transcribed vignette constants: ``benchmarks/reference/mscmt_basque/`` holds the
+exact ``reference.R`` (the vignette specification, ``outer.optim="DEoptim"``,
+``seed=42``), its verbatim output, the parsed weights/gap the case pins against,
+and full provenance (MSCMT version, OS, data checksum). Install MSCMT with
+``benchmarks/R/install_mscmt.sh``; regenerate the bundle with
+``python benchmarks/reference/generate.py mscmt_basque``. Data ship as
 ``basedata/basque_mscmt.csv`` (the MSCMT-transformed ``basque`` panel: schooling
 rescaled to per-unit percentage shares, ``school.higher = school.high +
 school.post.high``, Spain excluded from the donor pool downstream).
@@ -43,6 +47,8 @@ import warnings
 
 import numpy as np
 import pandas as pd
+
+from benchmarks.reference import load_reference, reference_value
 
 _DATA = os.path.join(
     os.path.dirname(__file__), "..", "..", "basedata", "basque_mscmt.csv")
@@ -103,10 +109,13 @@ def comparison() -> dict:
     """mlsynth VanillaSC (mscmt backend) vs the MSCMT vignette, quantity by quantity.
 
     The mlsynth side comes from a fresh ``VanillaSC.fit()`` on the MSCMT-transformed
-    Basque panel; the reference side is the MSCMT vignette's published values
-    (Becker & Klossner 2018), pinned as constants. Rows are
-    ``{quantity, mlsynth, reference}`` -- the three carrying donor weights and the
-    1970-1990 average post-period gap (MSCMT's ``did`` range / ``average.post``).
+    Basque panel; the reference side is a live captured MSCMT run in
+    ``benchmarks/reference/mscmt_basque/`` (the vignette specification,
+    ``outer.optim="DEoptim"``, ``seed=42``; MSCMT version pinned), read via
+    :func:`load_reference` / :func:`reference_value`, not transcribed constants.
+    Rows are ``{quantity, mlsynth, reference}`` -- the three carrying donor weights
+    and the 1970-1990 average post-period gap (MSCMT's ``did`` range /
+    ``average.post``).
     """
     cfg = {"outcome": "gdpcap", "treat": "treat", "unitid": "regionname",
            "time": "year", "backend": "mscmt", "canonical_v": "min.loss.w",
@@ -114,38 +123,44 @@ def comparison() -> dict:
            "fit_window": (1960, 1969), "mscmt_maxiter": 400,
            "mscmt_popsize": 20, "seed": 42}
     r = run()
-    # MSCMT vignette values (Becker & Klossner 2018, "Working with package MSCMT").
-    ref = {"Cataluna": 0.63279, "Baleares (Islas)": 0.21931,
-           "Madrid (Comunidad De)": 0.14790, "avg_post_gap_70_90": -0.770963}
+    # Live MSCMT run captured in benchmarks/reference/mscmt_basque/.
+    ref_w = load_reference("mscmt_basque")["weights"]
+    ref_gap = reference_value("mscmt_basque", "avg_post_gap")
     rows = [
         {"quantity": "weight[Cataluna]",
-         "mlsynth": round(r["cataluna"], 6), "reference": ref["Cataluna"]},
+         "mlsynth": round(r["cataluna"], 6), "reference": ref_w["Cataluna"]},
         {"quantity": "weight[Baleares (Islas)]",
-         "mlsynth": round(r["baleares"], 6), "reference": ref["Baleares (Islas)"]},
+         "mlsynth": round(r["baleares"], 6),
+         "reference": ref_w["Baleares (Islas)"]},
         {"quantity": "weight[Madrid (Comunidad De)]",
-         "mlsynth": round(r["madrid"], 6), "reference": ref["Madrid (Comunidad De)"]},
+         "mlsynth": round(r["madrid"], 6),
+         "reference": ref_w["Madrid (Comunidad De)"]},
         {"quantity": "avg_post_gap_1970_1990",
          "mlsynth": round(r["avg_post_gap_70_90"], 6),
-         "reference": ref["avg_post_gap_70_90"]},
+         "reference": round(ref_gap, 6)},
     ]
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
-        "reference": {"impl": "R package MSCMT (vignette)",
-                      "version": "Becker & Klossner (2018), MSCMT vignette "
-                                 "'Working with package MSCMT'; pinned constants"},
+        "reference": {"impl": "R package MSCMT (live run, captured)",
+                      "version": "MSCMT 1.4.4 (vignette 'Working with package "
+                                 "MSCMT' specification); "
+                                 "benchmarks/reference/mscmt_basque/"},
     }
 
 
 # Deterministic (DE search is seeded). VanillaSC's mscmt backend, fit over the
-# MSCMT optimisation window with the AG predictor spec, reproduces the MSCMT
-# vignette value-for-value: Cataluna ~0.633, Baleares ~0.219, Madrid ~0.148 carry
-# all the weight, and the 1970-1990 gap averages ~-0.771 (MSCMT did -0.770963).
+# MSCMT optimisation window with the AG predictor spec, reproduces the live
+# MSCMT run captured in benchmarks/reference/mscmt_basque/ value-for-value:
+# Cataluna ~0.633, Baleares ~0.219, Madrid ~0.148 carry all the weight, and the
+# 1970-1990 gap averages ~-0.771. Targets are pinned from the bundle (not
+# transcribed); mlsynth agrees with MSCMT to ~1e-3.
+_W = load_reference("mscmt_basque")["weights"]
 EXPECTED = {
-    "cataluna": (0.63279, 0.006),
-    "baleares": (0.21931, 0.006),
-    "madrid": (0.14790, 0.006),
+    "cataluna": (_W["Cataluna"], 0.005),
+    "baleares": (_W["Baleares (Islas)"], 0.005),
+    "madrid": (_W["Madrid (Comunidad De)"], 0.005),
     "three_donor_mass": (1.0, 0.01),
     "n_positive_donors": (3.0, 1.0),
-    "avg_post_gap_70_90": (-0.77096, 0.02),
+    "avg_post_gap_70_90": (reference_value("mscmt_basque", "avg_post_gap"), 0.005),
 }

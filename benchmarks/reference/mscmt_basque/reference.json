@@ -1,0 +1,10 @@
+{
+  "values": {
+    "avg_post_gap": -0.770963
+  },
+  "weights": {
+    "Cataluna": 0.632794,
+    "Baleares (Islas)": 0.219305,
+    "Madrid (Comunidad De)": 0.147901
+  }
+}
