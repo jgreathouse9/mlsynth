@@ -1,0 +1,34 @@
+== REFERENCE VALUES ==
+n_treated	2.000000
+prefit_rmse_pct	0.025938
+abs_ate_pct	0.009785
+placebo_p_value	0.160150
+ci_covers_zero	1.000000
+weight	store_2	0.454200
+weight	store_9	0.545800
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] quadprog_1.5-8 Matrix_1.6-5  
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3 grid_4.3.3     lattice_0.22-5

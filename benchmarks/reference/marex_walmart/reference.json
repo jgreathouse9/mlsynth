@@ -1,0 +1,13 @@
+{
+  "values": {
+    "n_treated": 2.0,
+    "prefit_rmse_pct": 0.025938,
+    "abs_ate_pct": 0.009785,
+    "placebo_p_value": 0.16015,
+    "ci_covers_zero": 1.0
+  },
+  "weights": {
+    "store_2": 0.4542,
+    "store_9": 0.5458
+  }
+}
