@@ -1,0 +1,13 @@
+{
+  "values": {
+    "att_scm": -0.029435,
+    "l2_scm": 0.082555,
+    "att_ridge": -0.040063,
+    "l2_ridge": 0.061515,
+    "att_covariate": -0.060937,
+    "l2_covariate": 0.053855,
+    "att_residualized": -0.052773,
+    "l2_residualized": 0.057637
+  },
+  "weights": {}
+}

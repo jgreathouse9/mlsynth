@@ -1,0 +1,9 @@
+{
+  "case": "ascm_kansas",
+  "title": "Ridge ASCM ladder vs augsynth (Kansas tax cut)",
+  "paper": "Ben-Michael, Feller & Rothstein (2021), JASA 116(536); augsynth R package (ebenmichael/augsynth)",
+  "reference_impl": "R package augsynth (live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/ascm_kansas/reference.R",
+  "data": ["basedata/kansas_ascm.csv"]
+}

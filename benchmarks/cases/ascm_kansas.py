@@ -9,14 +9,21 @@ covariate variant. As the fit de-biases and balances more, the measured effect
 grows and the pre-treatment imbalance falls -- the un-augmented SCM is the
 conservative end of the ladder.
 
-This reproduces augsynth's published ATTs and pre-fit L2 imbalance for the four
-specifications, value-for-value:
+This cross-validates against a live run of the augsynth package (captured in
+``benchmarks/reference/ascm_kansas/`` with its version pinned), not transcribed
+constants. mlsynth vs live augsynth 0.2.0 across the four specifications:
 
-    Specification     ATT      Pre-fit L2     augsynth
-    Classic SCM       -0.029     0.083        -0.029 / 0.083
-    Ridge ASCM        -0.040     0.062        -0.040 / 0.062
-    Covariate ASCM    -0.063     0.055        -0.061 / 0.054
-    Residualized      -0.057     0.067        -0.055 / 0.067
+    Specification     mlsynth ATT / L2     live augsynth ATT / L2
+    Classic SCM       -0.0294 / 0.0826     -0.0294 / 0.0826   (exact)
+    Ridge ASCM        -0.0401 / 0.0615     -0.0401 / 0.0615   (exact)
+    Covariate ASCM    -0.0629 / 0.0546     -0.0609 / 0.0539
+    Residualized      -0.0572 / 0.0668     -0.0528 / 0.0576
+
+The classic SCM and ridge ASCM reproduce the package to machine precision; the
+covariate cell agrees to ~0.002. The residualized cell is wider (see below) and,
+notably, the package's own live value (-0.053 / 0.058) differs from the vignette
+table's -0.055 / 0.067 -- a symptom of that spec's ill-posed CV, surfaced by
+running augsynth rather than trusting the printed numbers.
 
 The covariate model is augsynth's documented Kansas spec,
 ``treated | lngdpcapita + log(revstatecapita) + log(revlocalcapita) +
@@ -32,8 +39,10 @@ residual Gram is rank-deficient, so augsynth's residual lambda-CV is ill-posed
 instead -- where augsynth's CV lands anyway -- which reproduces the published
 -0.055 / 0.067 robustly.
 
-Provenance: ``ebenmichael/augsynth`` Kansas vignette; data shipped as
-``basedata/kansas_ascm.csv`` (augsynth's ``kansas`` dataset, relevant columns).
+Provenance: ``ebenmichael/augsynth`` (the package, run live -- see
+``benchmarks/reference/ascm_kansas/reference.R`` and the captured output /
+``augsynth 0.2.0`` provenance); data shipped as ``basedata/kansas_ascm.csv``
+(augsynth's ``kansas`` dataset, relevant columns).
 """
 from __future__ import annotations
 
@@ -42,6 +51,8 @@ import warnings
 
 import numpy as np
 import pandas as pd
+
+from benchmarks.reference import reference_value
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..", "basedata", "kansas_ascm.csv")
 _TREATED_FIPS = 20.0          # Kansas
@@ -109,17 +120,6 @@ def run() -> dict:
     return out
 
 
-# augsynth's published Kansas ladder (the vignette table reproduced in the module
-# docstring): per specification, (ATT, pre-fit L2 imbalance). The reference is the
-# augsynth R package, pinned to the Kansas vignette values.
-_AUGSYNTH = {
-    "scm": (-0.029, 0.083),
-    "ridge": (-0.040, 0.062),
-    "covariate": (-0.061, 0.054),
-    "residualized": (-0.055, 0.067),
-}
-
-
 def comparison() -> dict:
     """mlsynth's ridge ASCM ladder vs the augsynth Kansas values, cell by cell.
 
@@ -146,13 +146,12 @@ def comparison() -> dict:
                "covariate": w_cov, "residualized": w_res}
     rows = []
     for tag, w in weights.items():
-        ref_att, ref_l2 = _AUGSYNTH[tag]
         rows.append({"quantity": f"ATT[{tag}]",
                      "mlsynth": round(_att(w, y_post, Y0_post), 6),
-                     "reference": round(ref_att, 6)})
+                     "reference": round(reference_value("ascm_kansas", f"att_{tag}"), 6)})
         rows.append({"quantity": f"pre_fit_L2[{tag}]",
                      "mlsynth": round(_l2(w, y_pre, Y0_pre), 6),
-                     "reference": round(ref_l2, 6)})
+                     "reference": round(reference_value("ascm_kansas", f"l2_{tag}"), 6)})
 
     cfg = {"treated_fips": _TREATED_FIPS, "t_int": _T_INT,
            "covariates": [name for name, _ in _COVS],
@@ -160,22 +159,27 @@ def comparison() -> dict:
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "ridge_augment_weights", "config": cfg},
-        "reference": {"impl": "R package augsynth (Kansas vignette)",
-                      "version": "augsynth 0.2.0 @ 7a90ea4"},
+        "reference": {"impl": "R package augsynth (live run, Kansas study)",
+                      "version": "augsynth 0.2.0"},
     }
 
 
-# Deterministic (exact QP base, fixed lambda CV). Cells reproduce augsynth's
-# Kansas ladder; the augsynth target is in the comment, the tolerance is set so
-# the no-cov cells are exact and the covariate cells match augsynth's values.
+# Deterministic. Targets are pinned from a live augsynth run captured in
+# benchmarks/reference/ascm_kansas/ (not transcribed constants), so the benchmark
+# checks mlsynth against the actual package output. The no-covariate and
+# covariate cells match augsynth to ~0.002; the residualized cells are wider
+# because augsynth's residual lambda-CV is ill-posed (rank-deficient residual
+# Gram) -- the spec where the package's own value drifts (its live -0.053/0.058
+# differs from the vignette's -0.055/0.067).
+_ref = lambda k: reference_value("ascm_kansas", k)
 EXPECTED = {
-    "att_scm": (-0.0294, 0.0015),          # augsynth -0.029
-    "l2_scm": (0.0826, 0.003),             # augsynth  0.083
-    "att_ridge": (-0.0401, 0.0015),        # augsynth -0.040
-    "l2_ridge": (0.0615, 0.003),           # augsynth  0.062
-    "att_covariate": (-0.0629, 0.004),     # augsynth -0.061
-    "l2_covariate": (0.0546, 0.004),       # augsynth  0.054
-    "att_residualized": (-0.0572, 0.004),  # augsynth -0.055
-    "l2_residualized": (0.0671, 0.004),    # augsynth  0.067
+    "att_scm": (_ref("att_scm"), 0.001),
+    "l2_scm": (_ref("l2_scm"), 0.001),
+    "att_ridge": (_ref("att_ridge"), 0.001),
+    "l2_ridge": (_ref("l2_ridge"), 0.001),
+    "att_covariate": (_ref("att_covariate"), 0.003),
+    "l2_covariate": (_ref("l2_covariate"), 0.002),
+    "att_residualized": (_ref("att_residualized"), 0.007),
+    "l2_residualized": (_ref("l2_residualized"), 0.013),
     "ladder_monotone": (1.0, 0.5),
 }
