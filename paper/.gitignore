@@ -6,6 +6,7 @@ paper.tex
 paper.html
 paper_files/
 *_files/
+*.quarto_ipynb
 
 # JSS class files are vendored under _extensions/quarto-journals/jss/; Quarto
 # copies them next to the output at render time, so the copies here are
