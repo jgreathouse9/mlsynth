@@ -294,7 +294,7 @@ def test_full_optimization_loss_constraints(small_problem, intercept, constraint
     loss = OptHelpers.squared_loss(y, X, w, b0=b0_use)
     cons = OptHelpers.build_constraints(w, constraint_type=constraint_type)
     prob = cp.Problem(cp.Minimize(loss), cons)
-    prob.solve()
+    prob.solve(solver=cp.CLARABEL)
     assert prob.status == cp.OPTIMAL
     if constraint_type in ["simplex", "affine"]:
         assert np.isclose(np.sum(w.value), 1, atol=1e-6)
@@ -322,7 +322,7 @@ def test_full_optimization_with_penalty(small_problem, penalty_type):
     obj = loss + pen
     cons = OptHelpers.simplex_constraints(w)  # Suitable for all, esp. entropy/el
     prob = cp.Problem(cp.Minimize(obj), cons)
-    prob.solve()
+    prob.solve(solver=cp.CLARABEL)
     assert prob.status == cp.OPTIMAL
     assert np.isclose(np.sum(w.value), 1, atol=1e-6)
     assert np.all(w.value >= -1e-8)
@@ -335,7 +335,7 @@ def test_full_optimization_with_relaxed_balance(small_problem, objective_type):
         w, constraint_type="simplex", X=X, y=y, b0=b0, tau=0.1, objective_type=objective_type
     )
     prob = cp.Problem(cp.Minimize(loss), cons)
-    prob.solve()
+    prob.solve(solver=cp.CLARABEL)
     assert prob.status == cp.OPTIMAL
     assert np.isclose(np.sum(w.value), 1, atol=1e-6)
     assert np.all(w.value >= -1e-8)
