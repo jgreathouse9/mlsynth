@@ -72,13 +72,26 @@ The supermarket study
 The paper's empirical application is the Florence supermarket chain's permanent
 discount on store-brand cookies, modelled pair-by-pair (a store brand and its
 direct competitor) with a trend-plus-weekly-seasonal model and a regression block
-of calendar dummies, a frozen store price, the competitor price, and wine-control
-series. On the long-format panel for one store–competitor pair, the mlsynth
-estimator reproduces the R package's temporal-average effects within Monte-Carlo
-error — the treated store within about one posterior standard error, with the
-credible intervals aligned and the same price and wine regressors selected. The
-supermarket data are the authors' supplementary material and are not
-redistributed here; the durable cross-check uses the vignette data above.
+of calendar dummies, a frozen store price, the competitor price, and ten
+wine-control series. Table 3 reports the temporal-average effect per pair at the
+one-month horizon, finding significant positive store-brand effects on pairs 4, 7
+and 10 and no significant competitor effects. The authors' Supplement B data ship
+in ``basedata/cmbsts_supermarket/``, and
+`benchmarks/cases/cmbsts_supermarket.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cmbsts_supermarket.py>`_
+reproduces this at the one-month horizon.
+
+Two things hold. The mlsynth store-brand effects cross-validate against the R
+``CausalMBSTS`` package on identical controls and prior — pair 4 ``48.9`` vs
+``47.4``, pair 7 ``80.0`` vs ``78.1``, pair 10 ``12.4`` vs ``12.3`` — within
+Monte-Carlo error. And the substantive Table 3 result reproduces: large positive
+store effects with no significant competitor effect. The controls here are
+screened by dynamic time warping (the package's method) through the optional
+``fastdtw`` package rather than the authors' ``MarketMatching``, so the control
+set differs; the pair-10 effect is strictly significant in both implementations,
+while pairs 4 and 7 sit on the zero boundary where Monte-Carlo noise alone moves
+the lower credible bound across (the package and the port land on opposite sides).
+The published strict significance on all three pairs uses the ``MarketMatching``
+controls at ``niter = 2200``.
 
 A reference-implementation difference worth noting: ``CausalMBSTS`` adds a single
 observation-noise draw per posterior draw and recycles it across the forecast

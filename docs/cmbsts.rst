@@ -235,8 +235,12 @@ runs the package's own vignette example (a bivariate weekly series with a
 trend-plus-cycle model and a ``+2`` intervention) and confirms that the mlsynth
 port reproduces the R posterior-mean effects to about ``0.01`` and the credible
 bounds to a few hundredths — within Monte-Carlo error of two independent Gibbs
-samplers. See :doc:`replications/cmbsts` for the full validation, including the
-match against the package on the Florence supermarket study.
+samplers. A second case,
+`benchmarks/cases/cmbsts_supermarket.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cmbsts_supermarket.py>`_,
+reproduces the paper's empirical Table 3 on the Florence supermarket study at the
+one-month horizon — the store-brand effects cross-validate against the R package
+and the substantive finding (large positive store effects, no significant
+competitor effect) holds. See :doc:`replications/cmbsts` for the full validation.
 
 Core API
 --------
