@@ -39,6 +39,7 @@ import numpy as np
 import pandas as pd
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference import reference_value
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "california_panel.csv")
@@ -127,6 +128,8 @@ EXPECTED = {
     "att_outcome_only": (-19.51363, 0.02),     # canonical ADH ATT
     "weight_utah": (0.3939, 0.01),             # canonical synthetic California
     "vanillasc_pre_ssr": (52.1296, 0.05),      # the optimum mlsynth attains
-    "synth_pre_ssr": (52.1363, 0.1),           # the original solver stops short
+    # pinned from the captured reference bundle (benchmarks/reference/synth_prop99/)
+    # so the constant and the inspectable R run cannot drift apart.
+    "synth_pre_ssr": (reference_value("synth_prop99", "synth_pre_ssr"), 0.1),
     "ssr_synth_minus_vanillasc": (0.0067, 0.0067),  # >= 0: never worse than R
 }
