@@ -70,6 +70,37 @@ def run() -> dict:
     return out
 
 
+def comparison() -> dict:
+    """mlsynth ``VanillaSC(inference="ttest")`` vs CWZ Table 5(a), the Swedish
+    carbon-tax debiased-SC t-test: ATT and the 90% CI bounds, side by side.
+
+    The reference side is the paper's published Table 5(a) constants (the R
+    ``scinference`` values the authors report), pinned in-repo -- no R toolchain
+    is run -- against a fresh outcome-only ``VanillaSC`` fit on the Andersson
+    (2019) carbon-tax panel.
+    """
+    ct = pd.read_stata(_need("carbontax_data.dta"))
+    ct["treated"] = ((ct.country == "Sweden") & (ct.year >= 1990)).astype(int)
+    inf = _ttest(ct, "CO2_transport_capita", "country")
+    att = float(inf.details["att_debiased"])
+    lo, hi = float(inf.ci_lower), float(inf.ci_upper)
+    rows = [
+        {"quantity": "ATT", "mlsynth": round(att, 6), "reference": -0.27},
+        {"quantity": "CI_lower_90%", "mlsynth": round(lo, 6), "reference": -0.41},
+        {"quantity": "CI_upper_90%", "mlsynth": round(hi, 6), "reference": -0.14},
+    ]
+    cfg = {"outcome": "CO2_transport_capita", "treat": "treated", "unitid": "country",
+           "time": "year", "backend": "outcome-only", "inference": "ttest",
+           "ttest_K": 3, "alpha": 0.1}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
+        "reference": {"impl": "Chernozhukov-Wuthrich-Zhu scinference / Table 5(a)",
+                      "version": "pinned published constants (arXiv:1812.10820, "
+                                 "Table 5(a))"},
+    }
+
+
 # Outcome-only SC is a deterministic convex program, so these are exact re-runs.
 EXPECTED = {
     "carbontax_att": (-0.27, 0.02),        # CWZ Table 5(a): -0.27

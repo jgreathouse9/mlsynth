@@ -98,6 +98,49 @@ def _mlsynth_pool() -> pd.DataFrame:
     return pool
 
 
+def comparison() -> dict:
+    """mlsynth GEOLIFT vs live R ``GeoLiftMarketSelection``, BestMarkets top-five.
+
+    Re-runs both sides (R reference live; skips via ``BenchmarkSkipped`` when
+    ``Rscript``/GeoLift are absent, mirroring :func:`run`) and lays the anchored
+    scalars of each top-ranked design side by side: its rank, CPIC investment,
+    and minimum detectable effect (MDE). Returns ``{"rows": [...],
+    "mlsynth_call": {...}, "reference": {...}}``.
+    """
+    ref = _geolift_reference()                      # skips if R/GeoLift absent
+    pool = _mlsynth_pool()
+
+    top5 = ref[ref["rank"] <= 5].sort_values("rank")
+    rows = []
+    for _, g in top5.iterrows():
+        m = pool[(pool["cand"] == g["cand"]) & (pool["duration"] == g["duration"])]
+        if m.empty:
+            continue
+        m = m.iloc[0]
+        tag = f"rank{int(g['rank'])}/dur{int(g['duration'])}"
+        rows.append({"quantity": f"{tag}/rank", "mlsynth": float(m["rank"]),
+                     "reference": float(g["rank"])})
+        rows.append({"quantity": f"{tag}/investment",
+                     "mlsynth": round(float(m["investment"]), 6),
+                     "reference": round(float(g["investment"]), 6)})
+        rows.append({"quantity": f"{tag}/MDE", "mlsynth": round(float(m["mde"]), 6),
+                     "reference": round(float(g["EffectSize"]), 6)})
+
+    cfg = {"outcome": "Y", "unitid": "location", "time": "date",
+           "treatment_size": [2, 3, 4, 5], "to_be_treated": ["chicago"],
+           "not_to_be_treated": ["honolulu"], "durations": [10, 15],
+           "effect_sizes": [0.0, 0.05, 0.10, 0.15, 0.20], "lookback_window": 1,
+           "how": "sum", "augment": "ridge", "fixed_effects": True, "alpha": 0.1,
+           "power_threshold": 0.8, "cpic": 7.5, "budget": 1e5, "ns": 1000,
+           "seed": 0, "conformal_type": "iid", "n_jobs": -1}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "GEOLIFT", "config": cfg},
+        "reference": {"impl": "R GeoLiftMarketSelection (via Rscript)",
+                      "version": "GeoLift (R, live)"},
+    }
+
+
 def run() -> dict:
     ref = _geolift_reference()
     pool = _mlsynth_pool()

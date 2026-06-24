@@ -128,6 +128,53 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth's ported variance estimators vs the authors' ``var.var_est``.
+
+    The exact (cell-by-cell) cross-validation side of the benchmark: on one
+    calibrated draw from the Prop 99 DGP, lay mlsynth's :func:`_var_homo` /
+    :func:`_var_jack` next to the reference ``var.var_est`` component by
+    component (each returns the horizontal variance, vertical variance, and the
+    cross trace ``tr(A)``). Skips (via ``ensure_clone`` /
+    ``import_reference``) when git or the network is unavailable.
+    """
+    repo = ensure_clone()                       # skips if the clone is blocked
+    ref_var, _ref_regr, ref_rank = import_reference()
+    c = _calibrate(repo, ref_rank)
+    Y0, regr = c["Y0"], c["regr"]
+    Hu_perp, Hv_perp = c["Hu_perp"], c["Hv_perp"]
+    y_n, y_t, sig_n, sig_t = c["y_n"], c["y_t"], c["sig_n"], c["sig_t"]
+
+    np.random.seed(MATCH_SEED)
+    yn = np.random.multivariate_normal(y_n, sig_n)
+    yt = np.random.multivariate_normal(y_t, sig_t)
+    ah = regr.fit(Y0, yt).coef_
+    bh = regr.fit(Y0.T, yn).coef_
+
+    rh = ref_var.var_est(yn, yt, Y0, ah, bh, Hu_perp, Hv_perp, v_alg="homoskedastic")
+    mh = _var_homo(yn, yt, Y0, ah, bh, Hu_perp, Hv_perp)
+    rj = ref_var.var_est(yn, yt, Y0, ah, bh, Hu_perp, Hv_perp, v_alg="jackknife")
+    mj = _var_jack(yn, yt, Y0, ah, bh, Hu_perp, Hv_perp)
+
+    comps = ("var_hz", "var_vt", "tr_A")
+    rows = []
+    for kind, mvals, rvals in (("homo", mh, rh), ("jack", mj, rj)):
+        for name, mv, rv in zip(comps, mvals, rvals):
+            rows.append({"quantity": f"{kind}/{name}",
+                         "mlsynth": round(float(mv), 6),
+                         "reference": round(float(rv), 6)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "ClusterSC (pcr.inference _var_homo/_var_jack)",
+                         "config": {"dataset": DATASET, "treated": TREATED,
+                                    "spectral_energy": SPECTRAL_ENERGY,
+                                    "match_seed": MATCH_SEED}},
+        "reference": {"impl": "deshen24/panel-data-regressions var.var_est "
+                              "(homoskedastic + jackknife)",
+                      "version": "git 51e2170d33463bbf403f23fe8a72cbf66bcc34ef"},
+    }
+
+
 # The variance cross-validation is exact (a line-by-line port), so it is pinned
 # at ~0 with a tight 1e-9 band. Coverage probabilities are Monte-Carlo (seed 0,
 # 500 iters) and depend on the numpy Gaussian sampler, so they carry wider

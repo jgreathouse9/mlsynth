@@ -109,6 +109,62 @@ def run() -> dict:
     return out
 
 
+# augsynth's published Kansas ladder (the vignette table reproduced in the module
+# docstring): per specification, (ATT, pre-fit L2 imbalance). The reference is the
+# augsynth R package, pinned to the Kansas vignette values.
+_AUGSYNTH = {
+    "scm": (-0.029, 0.083),
+    "ridge": (-0.040, 0.062),
+    "covariate": (-0.061, 0.054),
+    "residualized": (-0.055, 0.067),
+}
+
+
+def comparison() -> dict:
+    """mlsynth's ridge ASCM ladder vs the augsynth Kansas values, cell by cell.
+
+    Re-derives mlsynth's ATT and pre-fit L2 imbalance for the four
+    specifications (classic SCM, ridge ASCM, covariate ASCM, residualized) with
+    the case's own helpers, and pairs each with augsynth's published value, so
+    the exporter can lay them side by side. Returns ``{"rows": [...],
+    "mlsynth_call": {...}, "reference": {...}}`` -- rows are
+    ``{quantity, mlsynth, reference}``.
+    """
+    from mlsynth.utils.bilevel.ridge_augment import (
+        ridge_augment_weights, simplex_qp, build_matching)
+
+    y_pre, Y0_pre, y_post, Y0_post, Z0, z1 = _prep()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        B, A = build_matching(y_pre, Y0_pre)
+        w_scm = simplex_qp(B, A)
+        w_ridge = ridge_augment_weights(y_pre, Y0_pre).W
+        w_cov = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1).W
+        w_res = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1, residualize=True).W
+
+    weights = {"scm": w_scm, "ridge": w_ridge,
+               "covariate": w_cov, "residualized": w_res}
+    rows = []
+    for tag, w in weights.items():
+        ref_att, ref_l2 = _AUGSYNTH[tag]
+        rows.append({"quantity": f"ATT[{tag}]",
+                     "mlsynth": round(_att(w, y_post, Y0_post), 6),
+                     "reference": round(ref_att, 6)})
+        rows.append({"quantity": f"pre_fit_L2[{tag}]",
+                     "mlsynth": round(_l2(w, y_pre, Y0_pre), 6),
+                     "reference": round(ref_l2, 6)})
+
+    cfg = {"treated_fips": _TREATED_FIPS, "t_int": _T_INT,
+           "covariates": [name for name, _ in _COVS],
+           "specifications": ["scm", "ridge", "covariate", "residualized"]}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "ridge_augment_weights", "config": cfg},
+        "reference": {"impl": "R package augsynth (Kansas vignette)",
+                      "version": "augsynth 0.2.0 @ 7a90ea4"},
+    }
+
+
 # Deterministic (exact QP base, fixed lambda CV). Cells reproduce augsynth's
 # Kansas ladder; the augsynth target is in the comment, the tolerance is set so
 # the no-cov cells are exact and the covariate cells match augsynth's values.

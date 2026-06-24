@@ -88,6 +88,47 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth NSC vs Tian's NSC.R reference, quantity by quantity.
+
+    Pairs the mlsynth NSC fit against Tian (2023) Table 2: every signed donor
+    weight (those non-zero on either side) and the reported effect path at 1990,
+    1995 and 2000. The reference side is the author's NSC.R values transcribed
+    from Table 2 (the penalty CV is stochastic and does not port, so the
+    selected ``a* = 0.3, b* = 0.7`` are fixed). Returns ``{"rows": [...],
+    "mlsynth_call": {...}, "reference": {...}}`` with rows ``{quantity, mlsynth,
+    reference}``.
+    """
+    from mlsynth import NSC
+
+    d = pd.read_csv(os.path.abspath(_DATA))
+    cfg = {"outcome": "cigsale", "treat": "Proposition 99", "unitid": "state",
+           "time": "year", "a": 0.3, "b": 0.7, "run_inference": True}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = NSC({**cfg, "df": d, "display_graphs": False}).fit()
+
+    w_ml = {str(k): float(v) for k, v in res.design.donor_weights.items()}
+    years = sorted(d["year"].unique())
+    gap = np.asarray(res.inference_detail.gap)
+
+    keep = sorted((s for s in _REF_WEIGHTS
+                   if abs(w_ml.get(s, 0.0)) > 1e-3 or abs(_REF_WEIGHTS[s]) > 1e-3),
+                  key=lambda s: -max(abs(w_ml.get(s, 0.0)), abs(_REF_WEIGHTS[s])))
+    rows = [{"quantity": f"weight[{s}]", "mlsynth": round(w_ml.get(s, 0.0), 6),
+             "reference": round(_REF_WEIGHTS[s], 6)} for s in keep]
+    for yr, ref in _REF_ITE.items():
+        rows.append({"quantity": f"ITE[{yr}]",
+                     "mlsynth": round(float(gap[years.index(yr)]), 6),
+                     "reference": round(float(ref), 6)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "NSC", "config": cfg},
+        "reference": {"impl": "Tian (2023) NSC.R (Table 2, a*=0.3, b*=0.7)",
+                      "version": "NSC.R / Tian (2023) arXiv:2306.01967v1 Table 2"},
+    }
+
+
 # Deterministic (penalty fixed at the Table-2 values; no stochastic CV) => exact
 # re-runs. Tolerances absorb the standardisation convention and Table 2's
 # 3-decimal rounding while pinning the cross-validation: mlsynth's NSC weights

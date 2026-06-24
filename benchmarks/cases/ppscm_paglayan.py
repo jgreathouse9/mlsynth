@@ -97,6 +97,75 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth PPSCM vs ``augsynth::multisynth``, quantity by quantity.
+
+    Pairs mlsynth's PPSCM fit against augsynth's documented / live-R reference
+    numbers (the ``AUG_*`` arrays and the vignette anchors): the partial-pooling
+    ``nu``, the average ATT, the global L2 imbalance, the time-cohort ``nu``/ATT,
+    and the full event-study and standard-error paths for both inference flavours
+    (delete-one jackknife and the Mammen wild bootstrap). Propagates the
+    ``BenchmarkSkipped`` raised when Rscript / augsynth is absent so a missing R
+    toolchain never turns the suite red.
+    """
+    from mlsynth import PPSCM
+
+    d = _analysis_df()
+    cfg = {"outcome": "lnppexpend", "treat": "cbr", "unitid": "State",
+           "time": "year"}
+    common = dict(df=d, display_graphs=False, **cfg)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        jack = PPSCM({**common, "run_inference": True,
+                      "inference_method": "jackknife"}).fit()
+        cohort = PPSCM({**common, "run_inference": False,
+                        "time_cohort": True}).fit()
+        boot = PPSCM({**common, "run_inference": True,
+                      "inference_method": "bootstrap", "n_boot": 2000,
+                      "seed": 0}).fit()
+    tau = np.asarray(jack.event_study.tau, dtype=float)
+    tau_tc = np.asarray(cohort.event_study.tau, dtype=float)
+    jse = np.asarray(jack.event_study.se, dtype=float)
+    bse = np.asarray(boot.event_study.se, dtype=float)
+
+    rows = [
+        {"quantity": "nu", "mlsynth": round(float(jack.design.nu_used), 4),
+         "reference": 0.2607},
+        {"quantity": "ATT", "mlsynth": round(float(jack.att), 4),
+         "reference": -0.011},
+        {"quantity": "global_L2", "mlsynth": round(float(jack.design.global_l2), 4),
+         "reference": 0.003},
+        {"quantity": "time_cohort/nu", "mlsynth": round(float(cohort.design.nu_used), 4),
+         "reference": 0.3939},
+        {"quantity": "time_cohort/ATT", "mlsynth": round(float(cohort.att), 4),
+         "reference": -0.018},
+    ]
+
+    for k in range(len(AUG_TAU)):
+        rows.append({"quantity": f"event_study/tau[{k}]",
+                     "mlsynth": round(float(tau[k]), 6),
+                     "reference": round(float(AUG_TAU[k]), 6)})
+    for k in range(len(AUG_TAU_TC)):
+        rows.append({"quantity": f"time_cohort/tau[{k}]",
+                     "mlsynth": round(float(tau_tc[k]), 6),
+                     "reference": round(float(AUG_TAU_TC[k]), 6)})
+    for k in range(len(AUG_JACK_SE)):
+        rows.append({"quantity": f"jackknife_se[{k}]",
+                     "mlsynth": round(float(jse[k]), 5),
+                     "reference": round(float(AUG_JACK_SE[k]), 5)})
+    for k in range(len(AUG_BOOT_SE)):
+        rows.append({"quantity": f"bootstrap_se[{k}]",
+                     "mlsynth": round(float(bse[k]), 5),
+                     "reference": round(float(AUG_BOOT_SE[k]), 5)})
+
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "PPSCM", "config": cfg},
+        "reference": {"impl": "R augsynth::multisynth (via Rscript)",
+                      "version": "augsynth (R, live)"},
+    }
+
+
 # All values cross-validate augsynth method-for-method; tolerances bracket the
 # OSQP solver residual (point estimates) and the bootstrap's Monte-Carlo error
 # (R RNG vs numpy RNG at n_boot=2000).

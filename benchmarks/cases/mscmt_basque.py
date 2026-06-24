@@ -99,6 +99,44 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth VanillaSC (mscmt backend) vs the MSCMT vignette, quantity by quantity.
+
+    The mlsynth side comes from a fresh ``VanillaSC.fit()`` on the MSCMT-transformed
+    Basque panel; the reference side is the MSCMT vignette's published values
+    (Becker & Klossner 2018), pinned as constants. Rows are
+    ``{quantity, mlsynth, reference}`` -- the three carrying donor weights and the
+    1970-1990 average post-period gap (MSCMT's ``did`` range / ``average.post``).
+    """
+    cfg = {"outcome": "gdpcap", "treat": "treat", "unitid": "regionname",
+           "time": "year", "backend": "mscmt", "canonical_v": "min.loss.w",
+           "covariates": _COVS, "covariate_windows": _WINDOWS,
+           "fit_window": (1960, 1969), "mscmt_maxiter": 400,
+           "mscmt_popsize": 20, "seed": 42}
+    r = run()
+    # MSCMT vignette values (Becker & Klossner 2018, "Working with package MSCMT").
+    ref = {"Cataluna": 0.63279, "Baleares (Islas)": 0.21931,
+           "Madrid (Comunidad De)": 0.14790, "avg_post_gap_70_90": -0.770963}
+    rows = [
+        {"quantity": "weight[Cataluna]",
+         "mlsynth": round(r["cataluna"], 6), "reference": ref["Cataluna"]},
+        {"quantity": "weight[Baleares (Islas)]",
+         "mlsynth": round(r["baleares"], 6), "reference": ref["Baleares (Islas)"]},
+        {"quantity": "weight[Madrid (Comunidad De)]",
+         "mlsynth": round(r["madrid"], 6), "reference": ref["Madrid (Comunidad De)"]},
+        {"quantity": "avg_post_gap_1970_1990",
+         "mlsynth": round(r["avg_post_gap_70_90"], 6),
+         "reference": ref["avg_post_gap_70_90"]},
+    ]
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
+        "reference": {"impl": "R package MSCMT (vignette)",
+                      "version": "Becker & Klossner (2018), MSCMT vignette "
+                                 "'Working with package MSCMT'; pinned constants"},
+    }
+
+
 # Deterministic (DE search is seeded). VanillaSC's mscmt backend, fit over the
 # MSCMT optimisation window with the AG predictor spec, reproduces the MSCMT
 # vignette value-for-value: Cataluna ~0.633, Baleares ~0.219, Madrid ~0.148 carry

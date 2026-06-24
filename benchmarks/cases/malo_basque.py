@@ -95,6 +95,36 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth ``backend="malo"`` vs ``scm.corner``'s bilevel optimum, weight by
+    weight. The reference is the three non-zero donor weights ``scm.corner``
+    reports on this Basque specification (Malo et al. 2024, ``benchmarks/R/
+    scmcorner_basque.R``), pinned as constants -- the R run prints the weights to
+    stdout, there is no captured bundle to load. Returns ``{"rows": [...],
+    "mlsynth_call": {...}, "reference": {...}}`` with ``{quantity, mlsynth,
+    reference}`` rows for the three bilevel-optimum donors."""
+    d = pd.read_csv(os.path.abspath(_DATA))
+    d["treat"] = ((d.regionname == "Basque Country (Pais Vasco)")
+                  & (d.year >= 1970)).astype(int)
+    res = _fit(d, "malo")
+    w_ml = {str(k): float(v) for k, v in res.weights.donor_weights.items()}
+    # scm.corner's bilevel optimum (benchmarks/R/scmcorner_basque.R, pinned).
+    w_ref = {"Madrid (Comunidad De)": 0.4404, "Baleares (Islas)": 0.3700,
+             "Rioja (La)": 0.1894}
+    rows = [{"quantity": f"weight[{s}]", "mlsynth": round(w_ml.get(s, 0.0), 6),
+             "reference": round(v, 6)} for s, v in w_ref.items()]
+    cfg = {"outcome": "gdpcap", "treat": "treat", "unitid": "regionname",
+           "time": "year", "backend": "malo", "covariates": _COVS,
+           "covariate_windows": _WINDOWS, "fit_window": (1960, 1969), "seed": 0}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
+        "reference": {"impl": "Malo et al. scm.corner (SCM-Debug)",
+                      "version": "pinned constants (benchmarks/R/scmcorner_basque.R; "
+                                 "Malo et al. 2024, github.com/Xun90/SCM-Debug)"},
+    }
+
+
 # Deterministic (exact QP). malo reproduces scm.corner's bilevel optimum value
 # for value (Madrid 0.4404, Baleares 0.3700, Rioja 0.1894) and reaches a lower
 # pre-period loss than MSCMT's nested search -- the Malo et al. thesis.

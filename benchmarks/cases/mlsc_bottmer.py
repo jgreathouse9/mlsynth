@@ -111,6 +111,56 @@ def run() -> dict:
     return out
 
 
+def comparison() -> dict:
+    """mlsynth ``MLSC`` vs the author's ``mlSC_estimator``, value for value.
+
+    Loads the reference first so a blocked clone propagates ``BenchmarkSkipped``,
+    then fits both sides on the README seed-42 panel under the heuristic and the
+    cross-validation penalty, and lays the ATT and selected penalty side by side.
+    """
+    from benchmarks.compare import BenchmarkSkipped
+    from benchmarks.reference.clone_mlsc import _COMMIT, import_mlsc
+    from mlsynth.utils.mlsc_helpers.simulation import simulate_mlsc_sample
+
+    ref = import_mlsc()                         # skips if clone/deps unavailable
+    mlSC_estimator = ref.mlSC_estimator
+
+    def ref_tau_lambda(sample, lambda_est="heuristic"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            try:
+                tau, lam, _ = mlSC_estimator(
+                    sample.data_s, sample.data_c, sample.idx,
+                    sample.n_c, sample.t, sample.w_c, lambda_est=lambda_est,
+                )
+            except Exception as exc:  # pragma: no cover - reference solve failure
+                raise BenchmarkSkipped(f"reference mlSC_estimator failed: {exc}")
+        return float(tau), float(lam)
+
+    s = simulate_mlsc_sample(rng=np.random.default_rng(SEED_A))
+    rows = []
+    for lambda_est in ("heuristic", "cross-validation"):
+        tau_ref, lam_ref = ref_tau_lambda(s, lambda_est=lambda_est)
+        res = _ml_fit(s, lambda_est=lambda_est)
+        rows.append({"quantity": f"{lambda_est}/ATT",
+                     "mlsynth": round(float(res.att), 6),
+                     "reference": round(tau_ref, 6)})
+        rows.append({"quantity": f"{lambda_est}/lambda",
+                     "mlsynth": round(float(res.design.lambda_used), 6),
+                     "reference": round(lam_ref, 6)})
+
+    cfg = {"outcome": "y", "time": "time", "treat": "treated",
+           "unitid_agg": "state", "unitid_disagg": "county",
+           "agg_id": "state", "lambda_est": "heuristic"}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "MLSC", "config": cfg},
+        "reference": {"impl": "leabottmer/multi-level-sc-estimator "
+                              "(mlSC_estimator, cvxpy+SCS)",
+                      "version": f"git {_COMMIT[:7]}"},
+    }
+
+
 # Two independent implementations of the same penalized program on a shared DGP.
 # The agreement cells (dtau/dlambda/cv/max_dtau/drmse) pin mlsynth to the
 # reference to SCS solver precision under both the heuristic and the

@@ -98,6 +98,83 @@ def run() -> dict:
     return out
 
 
+def _mlsynth_test_mse(dataset: pd.DataFrame, target_id, clustering: bool) -> float:
+    """mlsynth CLUSTERSC post-period prediction MSE for one placebo target.
+
+    Mirrors ``_ref_test_mse`` but drives mlsynth's public ``CLUSTERSC`` API on
+    the same ``time x unit`` panel: whole-pool RSC denoises at the pooled rank
+    ``K1 + K2``, ClusterSC at the subgroup rank ``K1``.
+    """
+    from mlsynth import CLUSTERSC
+
+    long = (dataset.reset_index()
+            .melt(id_vars="index", var_name="unit", value_name="y")
+            .rename(columns={"index": "time"}))
+    long["treat"] = ((long["unit"] == target_id) & (long["time"] >= T0)).astype(int)
+    rank = K1 if clustering else K1 + K2
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = CLUSTERSC({
+            "df": long, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "method": "pcr", "clustering": clustering, "pcr_objective": "OLS",
+            "rank": rank, "rank_method": "fixed",
+            "k_clusters": (K if clustering else None),
+            "project_denoised": True, "display_graphs": False,
+        }).fit()
+    gap = np.asarray(res.gap).ravel()
+    return float(np.mean(gap[T0:] ** 2))
+
+
+def comparison() -> dict:
+    """mlsynth CLUSTERSC vs the authors' code, clustering test-MSE gain by noise.
+
+    On the authors' own two-subgroup sine DGP, pairs -- at each noise level --
+    the median post-period test-MSE improvement from clustering (whole-pool RSC
+    minus ClusterSC, as a percent of RSC) computed by mlsynth and by the
+    reference. Loads the reference clone first so a blocked git/network skips
+    cleanly via ``BenchmarkSkipped``.
+    """
+    from benchmarks.reference.clone_clustersc import import_syclib
+
+    syclib = import_syclib()        # triggers the on-demand clone; skips if blocked
+    from syclib.gendata import generate_sine_dataset_A, generate_sine_dataset_B
+
+    rows = []
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for noise in NOISE_LEVELS:
+            np.random.seed(SEED)
+            dsA = generate_sine_dataset_A(N_PER_GROUP, T, noise, num_signals=K1)
+            dsB = generate_sine_dataset_B(N_PER_GROUP, T, noise, num_signals=K2)
+            dataset = pd.concat([dsA, dsB], axis=1)
+            dataset.columns = range(dataset.shape[1])
+            targets = list(dsA.columns[:N_TARGETS])
+
+            ml_rsc = [_mlsynth_test_mse(dataset, t, clustering=False) for t in targets]
+            ml_clu = [_mlsynth_test_mse(dataset, t, clustering=True) for t in targets]
+            ref_rsc = [_ref_test_mse(syclib, dataset, t, clustering=False) for t in targets]
+            ref_clu = [_ref_test_mse(syclib, dataset, t, clustering=True) for t in targets]
+
+            ml_improve = (np.median(ml_rsc) - np.median(ml_clu)) / np.median(ml_rsc) * 100.0
+            ref_improve = (np.median(ref_rsc) - np.median(ref_clu)) / np.median(ref_rsc) * 100.0
+            rows.append({"quantity": f"clustering_improve_pct/noise{int(noise * 100):03d}",
+                         "mlsynth": round(float(ml_improve), 6),
+                         "reference": round(float(ref_improve), 6)})
+
+    from benchmarks.reference.clone_clustersc import _COMMIT
+    cfg = {"outcome": "y", "treat": "treat", "unitid": "unit", "time": "time",
+           "method": "pcr", "pcr_objective": "OLS", "rank_method": "fixed",
+           "project_denoised": True}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "CLUSTERSC", "config": cfg},
+        "reference": {"impl": "authors' ClusterSC code (srho1/ClusterSC syclib), "
+                              "cloned on demand by benchmarks.reference.clone_clustersc",
+                      "version": f"srho1/ClusterSC @ {_COMMIT[:7]}"},
+    }
+
+
 # The authors' code must show clustering winning at every noise level on its own
 # DGP (the paper's headline). Per-noise values are pinned with wide bands: the
 # single-seed median over 30 targets is noisier than the paper's 500-rep median,

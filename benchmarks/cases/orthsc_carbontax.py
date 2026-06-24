@@ -33,24 +33,71 @@ _INSTRS = ["Finland", "Germany", "Ireland", "Italy", "Netherlands", "Norway",
            "United Kingdom"]
 
 
-def run() -> dict:
+def _panel() -> pd.DataFrame:
     df = pd.read_stata(os.path.abspath(_DATA))
     df = df.rename(columns={"CO2_transport_capita": "Y"})
     df["treat"] = ((df["country"] == "Sweden") & (df["year"] >= 1990)).astype(int)
+    return df
+
+
+def _config() -> dict:
+    """ORTHSC config minus the dataframe (shared by run/comparison)."""
+    return {"outcome": "Y", "treat": "treat", "unitid": "country", "time": "year",
+            "instruments": _INSTRS, "controls": _CONTROLS}
+
+
+def run() -> dict:
+    df = _panel()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = ORTHSC({
-            "df": df, "outcome": "Y", "treat": "treat",
-            "unitid": "country", "time": "year",
-            "instruments": _INSTRS, "controls": _CONTROLS,
-            "display_graphs": False,
-        }).fit()
+        res = ORTHSC({**_config(), "df": df, "display_graphs": False}).fit()
     return {
         "att": float(res.att),
         "pvalue": float(res.inference.p_value),
         "smoothing_K": float(res.method_details.parameters_used["smoothing_K"]),
         "ci_lower": float(res.inference.ci_lower),
         "ci_upper": float(res.inference.ci_upper),
+    }
+
+
+# R reference (Fry's ORTHSC R implementation, the live run mlsynth's NumPy/cvxpy
+# port reproduces to the digit). Pinned constants -- no R toolchain needed, no skip.
+_R_REFERENCE = {
+    "ATT": -0.29013,
+    "p_value": 0.000183,
+    "smoothing_K": 4.0,
+    "CI_lower": -0.4757,
+    "CI_upper": -0.1045,
+}
+
+
+def comparison() -> dict:
+    """mlsynth ORTHSC vs the Fry R reference, quantity by quantity.
+
+    The mlsynth side is a fresh ``ORTHSC`` fit on Andersson's carbon-tax panel;
+    the reference side is the live R run's pinned values (ATT, p-value, fixed-
+    smoothing K, and the CI bounds). No R toolchain is invoked, so this never
+    skips. Returns ``{"rows": [...], "mlsynth_call": {...}, "reference": {...}}``.
+    """
+    df = _panel()
+    cfg = _config()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = ORTHSC({**cfg, "df": df, "display_graphs": False}).fit()
+    ml = {
+        "ATT": float(res.att),
+        "p_value": float(res.inference.p_value),
+        "smoothing_K": float(res.method_details.parameters_used["smoothing_K"]),
+        "CI_lower": float(res.inference.ci_lower),
+        "CI_upper": float(res.inference.ci_upper),
+    }
+    rows = [{"quantity": q, "mlsynth": round(ml[q], 6),
+             "reference": round(_R_REFERENCE[q], 6)} for q in
+            ("ATT", "p_value", "smoothing_K", "CI_lower", "CI_upper")]
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "ORTHSC", "config": cfg},
+        "reference": {"impl": "Fry ORTHSC (R, live)", "version": "(R, live)"},
     }
 
 

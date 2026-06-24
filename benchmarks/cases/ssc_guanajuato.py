@@ -88,6 +88,40 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth ``SSC`` vs the committed jcao0 reference, quantity by quantity.
+
+    Pairs every event-time ATT cell (``att[<outcome>/e<k>]``, 1-based event time,
+    357 cells across the seven outcomes) and every per-outcome SSC Gram
+    min-eigenvalue (``min_eig[<outcome>]``) against the authors' committed output
+    (``results_ssc.csv`` / ``Table1_eigenvalue.csv``). Loads the reference first
+    so a blocked clone propagates ``BenchmarkSkipped`` before mlsynth is run.
+    """
+    from benchmarks.reference.clone_ssc import (
+        _COMMIT, reference_att, reference_eigenvalues)
+
+    ref_att = reference_att()                 # skips if reference unavailable
+    ref_eig = reference_eigenvalues()
+    est, eig = _fit_all()
+
+    m = est.merge(ref_att, on=["outcome", "event_time"])
+    rows = [{"quantity": f"att[{r.outcome}/e{int(r.event_time)}]",
+             "mlsynth": round(float(r.att), 6),
+             "reference": round(float(r.ref_att), 6)} for r in m.itertuples()]
+    for outcome in ref_eig:
+        rows.append({"quantity": f"min_eig[{outcome}]",
+                     "mlsynth": round(eig[outcome], 6),
+                     "reference": round(ref_eig[outcome], 6)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SSC",
+                         "config": {"inference": False, "display_graphs": False}},
+        "reference": {"impl": "jcao0/staggered_synthetic_control "
+                              "(committed results_ssc.csv / Table1_eigenvalue.csv)",
+                      "version": f"github jcao0/staggered_synthetic_control @ {_COMMIT[:7]}"},
+    }
+
+
 # Deterministic (closed-form simplex weights, no RNG). The ``*_diff`` cells pin
 # mlsynth to the committed jcao0 reference; the headline cells pin the paper's
 # lead homicide estimate / design diagnostic as a regression guard.

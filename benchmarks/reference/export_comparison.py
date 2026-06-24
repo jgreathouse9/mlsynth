@@ -150,7 +150,15 @@ def main() -> int:
     cases = _cases_with_comparison() if args.all else ([args.case] if args.case else [])
     if not cases:
         ap.error("give a case name or --all (a case must define comparison())")
-    per_case = {name: export_case(name) for name in cases}
+    from benchmarks.compare import BenchmarkSkipped
+    per_case = {}
+    for name in cases:
+        try:
+            per_case[name] = export_case(name)
+        except BenchmarkSkipped as exc:
+            print(f"[skip] {name}: {exc}")
+        except Exception as exc:                  # reference toolchain absent / draft error
+            print(f"[skip] {name}: {type(exc).__name__}: {str(exc)[:160]}")
     _write_workbook(per_case)
     return 0
 

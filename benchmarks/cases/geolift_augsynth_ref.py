@@ -109,6 +109,50 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth's ridge ASCM vs live augsynth, quantity by quantity.
+
+    Runs both sides live -- augsynth via Rscript and mlsynth's fixed-effect ridge
+    ASCM on the identical chicago+portland panel -- and pairs the CV-selected ridge
+    penalty (lambda), the post-period ATT, and each donor weight. Propagates the
+    ``BenchmarkSkipped`` from ``_augsynth_reference`` when Rscript/augsynth is absent.
+    """
+    ref = _augsynth_reference()                     # skips if Rscript/augsynth absent
+
+    Ywide = geoex_dataprep(pd.read_csv(_DATA), "location", "date", "Y")["Ywide"]
+    treated = aggregate_treated(Ywide, _TREATED, how="mean").to_numpy()
+    donors = donor_matrix(Ywide, _TREATED)
+    Y0 = donors.to_numpy()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = fit_augsynth_once(
+            treated[:_PRE], Y0[:_PRE], augment="ridge", fixed_effects=True,
+            donor_names=[str(c) for c in donors.columns])
+    gap = treated - fit.predict(Y0)
+    att = float(np.mean(gap[_PRE:]))
+    w = {str(c): float(wj) for c, wj in zip(donors.columns, fit.weights)}
+
+    rows = [{"quantity": "lambda", "mlsynth": round(float(fit.lambda_), 6),
+             "reference": round(float(ref["lambda"]), 6)},
+            {"quantity": "ATT", "mlsynth": round(att, 6),
+             "reference": round(float(ref["att"]), 6)}]
+    for k in sorted(ref["weights"], key=lambda s: -abs(ref["weights"][s])):
+        rows.append({"quantity": f"weight[{k}]", "mlsynth": round(w.get(k, 0.0), 6),
+                     "reference": round(float(ref["weights"][k]), 6)})
+
+    return {
+        "rows": rows,
+        "mlsynth_call": {
+            "estimator": "GEOLIFT",
+            "config": {"outcome": "Y", "treat": "treat", "unitid": "location",
+                       "time": "date", "treated_units": sorted(_TREATED),
+                       "augment": "ridge", "fixed_effects": True, "pre_periods": _PRE},
+        },
+        "reference": {"impl": "R package augsynth (via Rscript)",
+                      "version": "augsynth (R, live)"},
+    }
+
+
 # mlsynth reproduces live augsynth to floating point. The tolerances pin a genuine
 # match (not the looser "published walkthrough" gap): lambda within 1e-4 relative,
 # every weight within 5e-4, the ATT within half a unit (~0.3% of 156.8).

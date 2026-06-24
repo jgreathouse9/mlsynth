@@ -75,6 +75,42 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth SDID vs ``causaltensor.SDID``, the Prop 99 ATT side by side."""
+    try:
+        import causaltensor as ct
+    except ImportError as exc:  # pragma: no cover - optional reference dep
+        raise BenchmarkSkipped("causaltensor not installed "
+                               "(`pip install causaltensor`)") from exc
+
+    from mlsynth import SDID
+
+    df = _load_panel()
+    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state", "time": "year"}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = SDID({**cfg, "df": df, "display_graphs": False}).fit()
+    ml_att = float(res.att)
+
+    # causaltensor reference: O (N x T) outcome matrix + Z treatment mask.
+    wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
+    states, years = wide.index.tolist(), wide.columns.tolist()
+    O = wide.values.astype(float)
+    ti, sc = states.index(TREAT_UNIT), years.index(TREAT_YEAR)
+    Z = np.zeros_like(O)
+    Z[ti, sc:] = 1
+    ct_att = float(ct.SDID(O, Z, treat_units=[ti], starting_time=sc))
+
+    rows = [{"quantity": "SDID ATT", "mlsynth": round(ml_att, 6),
+             "reference": round(ct_att, 6)}]
+    version = getattr(ct, "__version__", None) or "causaltensor (pip)"
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SDID", "config": cfg},
+        "reference": {"impl": "Python package causaltensor", "version": version},
+    }
+
+
 # mlsynth's ATT must land on the published SDID value, and match the reference
 # implementation tightly. Tolerances: 0.05 brackets display rounding of the
 # AER/synthdid -15.6 headline; 5e-3 is the optimiser-level agreement with

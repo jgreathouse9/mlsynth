@@ -114,6 +114,81 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth RESCM L2-relaxation vs the authors' ``scmrelax``, donor by donor.
+
+    Solves the same unique L2-relaxation QP at a shared ``tau`` with each
+    implementation and lays the relaxed donor weights side by side (one row per
+    donor). Mirrors :func:`run`'s skip behaviour: raises ``BenchmarkSkipped``
+    when ``scmrelax``/``cvxpy`` is absent or no open solver can stand in for the
+    reference's MOSEK dependency.
+    """
+    import pandas as pd
+
+    from benchmarks.compare import BenchmarkSkipped
+    try:
+        import cvxpy as cp
+        from scmrelax.scmrelax import L2RelaxationCV
+    except Exception as exc:
+        raise BenchmarkSkipped(f"scmrelax/cvxpy unavailable: {exc}")
+
+    from mlsynth import RESCM
+    from mlsynth.utils.laxscm_helpers.simulation import to_panel
+
+    Yc, y0 = _toy_panel()
+    X_pre = Yc[:, :T0].T            # (T0, J) for scmrelax
+    y_pre = y0[:T0]
+
+    # Same interior relaxation level as run(): half of eta-bar.
+    Sig = X_pre.T @ X_pre / T0
+    Ups = X_pre.T @ y_pre / T0
+    g = cp.Variable()
+    prob = cp.Problem(cp.Minimize(
+        cp.pnorm(Sig @ (np.ones(J) / J) - Ups + g * np.ones(J), "inf")))
+    try:
+        etabar = float(prob.solve(solver=cp.CLARABEL))
+    except Exception as exc:
+        raise BenchmarkSkipped(f"no open solver for the reference QP: {exc}")
+    tau = 0.5 * etabar
+
+    # Reference (scmrelax) with MOSEK transparently routed to CLARABEL.
+    _orig = cp.Problem.solve
+
+    def _patched(self, *a, **k):
+        if k.get("solver") == cp.MOSEK:
+            k["solver"] = cp.CLARABEL
+            k.pop("mosek_params", None)
+        return _orig(self, *a, **k)
+
+    try:
+        cp.Problem.solve = _patched
+        ref = L2RelaxationCV(taus=np.array([tau]), cv=2, nonneg=True).fit(X_pre, y_pre)
+    except Exception as exc:
+        raise BenchmarkSkipped(f"scmrelax reference solve failed: {exc}")
+    finally:
+        cp.Problem.solve = _orig
+    w_ref = np.asarray(ref.coef_, dtype=float)
+
+    cfg = {"outcome": "y", "treat": "treat", "unitid": "unit", "time": "time",
+           "methods": ["RELAX_L2"], "tau": tau, "standardize": False}
+    df = to_panel(Yc, y0, T0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = RESCM({**cfg, "df": df, "display_graphs": False}).fit()
+    dw = res.fits["RELAX_L2"].donor_weights
+    w_ml = np.array([dw.get(f"c{j:03d}", 0.0) for j in range(J)], dtype=float)
+
+    rows = [{"quantity": f"weight[c{j:03d}]", "mlsynth": round(float(w_ml[j]), 6),
+             "reference": round(float(w_ref[j]), 6)} for j in range(J)]
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "RESCM", "config": cfg},
+        "reference": {"impl": "scmrelax (Liao-Shi-Zheng)",
+                      "version": "git+https://github.com/PanJi-0/scmrelax.git "
+                                 "(not on PyPI; L2RelaxationCV)"},
+    }
+
+
 # Two independent implementations of the same unique QP -> agreement to solver
 # precision. Tolerances cover the CLARABEL-vs-CLARABEL numerical slack only.
 EXPECTED = {
