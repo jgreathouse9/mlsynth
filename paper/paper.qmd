@@ -1159,17 +1159,17 @@ spillover contamination and then debiases through the donors it excludes.
 
 ```{python}
 #| label: fit-proximal
-prox = PROXIMAL({
-    "df": panic, "treat": "Panic", "time": "date", "outcome": "prc_log",
-    "unitid": "ID", "vars": {"donorproxies": ["bid_itp"], "surrogatevars": ["ask_itp"]},
-    "donors": normal, "surrogates": affected, "methods": ["PI", "SPSC"],
-    "display_graphs": False}).fit()
+prox_base = dict(df=panic, treat="Panic", time="date", outcome="prc_log", unitid="ID",
+                 vars={"donorproxies": ["bid_itp"], "surrogatevars": ["ask_itp"]},
+                 donors=normal, surrogates=affected, display_graphs=False)
+spot_base = dict(df=panic, outcome="prc_log", treat="Panic", time="time", unitid="ID",
+                 display_graphs=False, selection="S1", forecast="loo")
+
+prox = PROXIMAL({**prox_base, "methods": ["PI", "SPSC"]}).fit()
 att = prox.att_by_method()                       # two-proxy PI and single-proxy SPSC
 
-spot = SPOTSYNTH({                               # screen the pool, then debias
-    "df": panic, "outcome": "prc_log", "treat": "Panic", "time": "time",
-    "unitid": "ID", "display_graphs": False, "selection": "S1",
-    "forecast": "loo", "inference": "frequentist", "debias": True}).fit()
+spot = SPOTSYNTH({**spot_base,                    # screen the pool, then debias
+                  "inference": "frequentist", "debias": True}).fit()
 
 screen = spot.screen
 names = [int(n) for n in screen.donor_names]
@@ -1218,11 +1218,77 @@ proximal papers name as panic-struck, as the single most anomalous donor of
 told. The recovery is partial, and honestly so: the Panic of 1907 was a systemic
 shock that moved every trust's latent at once, the regime @oriordan2025spillover
 flag as their method's hard case, so the screen cleanly isolates only the most
-violently affected trust. The cross-method agreement and this ranking are pinned as
-a durable benchmark (`benchmarks/cases/spotsynth_panic1907.py`). The point the
-illustration makes is the one the package is built to make: a method that lived only
-in R, and a method that lived nowhere, read the same panel through the same
-interface and can be checked against each other.
+violently affected trust.
+
+What makes `SPOTSYNTH` worth a worked example is that detection is only the first of
+several needs it meets in a single pass. A practitioner facing contaminated donors
+has, in order, to *detect* which donors are compromised, *mitigate* the damage by
+setting them aside, and then *correct* the bias that noisy proxies leave behind even
+after the worst offenders are gone. These are ordinarily three literatures and three
+pieces of code; `SPOTSYNTH` does all three from one configuration. The forecast test
+flags the contaminated donors; excluding them builds the synthetic control on the
+survivors; and the excluded donors are then turned into instruments and used to
+debias what remains, an instrumental-variables correction in proximal dress. The
+econometric advance is the paper's; what the package adds is that the whole pipeline,
+and the practical questions it lets an analyst answer, are reachable at all, in any
+language, off the shelf.
+
+A last need is honest uncertainty, and here the package offers more than one kind.
+`SPOTSYNTH` can wrap its counterfactual in a Bayesian credible band by sampling the
+donor-weight posterior; `SPSC` instead inverts a conformal test for a finite-sample
+prediction interval that assumes no model of the weights at all. Both read the same
+panel, and @fig-proximal-intervals draws them together.
+
+```{python}
+#| label: fig-proximal-intervals
+#| fig-cap: "Two kinds of uncertainty on the same panel. The treated trust's observed log price (black) collapses after the panic (vertical line), while two counterfactuals hold near the pre-panic level. SPOTSYNTH's Bayesian 95% credible band (blue), from sampling the donor-weight posterior, and SPSC's 95% conformal prediction interval (red), from inverting a finite-sample test, are drawn as shaded regions. The conformal interval is the wider, buying distribution-free coverage at the cost of precision."
+treated = panic[panic["ID"] == 34].sort_values("time")
+y, tax = treated["prc_log"].to_numpy(), treated["time"].to_numpy()
+post = tax > 229
+
+# SPSC with a conformal interval on the per-period effect (Park-Tchetgen); turn the
+# effect band into a band on the counterfactual, y - effect.
+spsc = PROXIMAL({**prox_base, "methods": ["SPSC"], "spsc_conformal": True}).fit().spsc
+conf = spsc.metadata["conformal"]
+pidx = np.asarray(conf["periods"])
+spsc_lo = y[pidx] - np.asarray(conf["upper"])
+spsc_hi = y[pidx] - np.asarray(conf["lower"])
+
+# SPOTSYNTH with a Bayesian credible band (sample the donor-weight posterior).
+spb = SPOTSYNTH({**spot_base, "inference": "bayes",
+                 "n_samples": 1000, "n_warmup": 1000, "ci_level": 0.95, "seed": 0}).fit()
+cf_b = np.asarray(spb.time_series.counterfactual_outcome)
+
+cmp = compare_counterfactuals({
+    "SPOTSYNTH (Bayesian 95% credible)": {
+        "counterfactual": cf_b, "time": tax, "periods": tax[post],
+        "lower": np.asarray(spb.counterfactual_lower)[post],
+        "upper": np.asarray(spb.counterfactual_upper)[post]},
+    "SPSC (95% conformal)": {
+        "counterfactual": np.asarray(spsc.counterfactual), "time": tax,
+        "periods": tax[pidx], "lower": spsc_lo, "upper": spsc_hi},
+}, observed=y, time=tax)
+
+fig, ax = plt.subplots(figsize=(5.2, 3.2))
+cmp.plot(ax=ax, band="fill",                     # shaded bands, not error-bar spikes
+         colors={"SPOTSYNTH (Bayesian 95% credible)": "C0", "SPSC (95% conformal)": "C3"},
+         styles={"SPOTSYNTH (Bayesian 95% credible)": "--", "SPSC (95% conformal)": "-."})
+ax.axvline(229, color="0.4", lw=1.0); ax.set_xlim(180, 330)
+ax.set_xlabel("period"); ax.set_ylabel("log stock price")
+ax.legend(fontsize=6.5, loc="lower left"); fig.tight_layout(); plt.show()
+```
+
+The two bands answer different questions, and by visibly different amounts. The
+conformal interval is the wider: it buys distribution-free, finite-sample coverage at
+the price of precision. The Bayesian band is tighter, but leans on the weight model
+it samples. Neither is uniformly right, and that is the point: an analyst who needs a
+coverage guarantee and one who needs a sharp interval are both served, from the same
+panel, by changing an `inference` keyword. The cross-method agreement, the screen's
+ranking, and these intervals are pinned as a durable benchmark
+(`benchmarks/cases/spotsynth_panic1907.py`). What the illustration shows is what the
+package is built for: methods that lived only in R, or nowhere, read one panel
+through one interface, answer detection, mitigation, bias-correction, and inference in
+a single place, and can be checked against each other.
 
 ### Experimental design {#sec-design}
 
