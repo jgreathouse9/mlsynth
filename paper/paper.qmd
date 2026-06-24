@@ -1665,7 +1665,7 @@ versions = {
 The results above were produced with `mlsynth`
 `{python} versions["mlsynth"]` on Python `{python} versions["Python"]`, with
 NumPy `{python} versions["NumPy"]` [@harris2020array] and pandas
-`{python} versions["pandas"]`, on `{python} versions["Platform"]`. The convex
+`{python} versions["pandas"]`, on `{python} versions["Platform"]`. Many convex
 weight problems are solved with `CVXPY` [@diamond2016cvxpy]. The package and its dependencies are open source; `mlsynth`
 is available from the Python Package Index via `pip install mlsynth`, with source
 and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
