@@ -1,5 +1,5 @@
 # case: scpi_staggered
-# generated_at: 2026-06-24T19:24:52Z
+# generated_at: 2026-06-24T19:52:17Z
 # mlsynth_version: 1.0.0
 # estimator: VanillaSC
 # config: {"outcome": "gdp", "time": "year", "treat": "status", "unitid": "country"}

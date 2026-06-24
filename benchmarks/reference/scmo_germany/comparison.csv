@@ -1,5 +1,5 @@
 # case: scmo_germany
-# generated_at: 2026-06-24T19:22:50Z
+# generated_at: 2026-06-24T19:49:56Z
 # mlsynth_version: 1.0.0
 # estimator: SCMO
 # config: {"outcome": "gdp", "schemes": ["separate", "concatenated", "averaged"], "spec": "9 indicators in 1989", "time": "year", "treat": "Reunification", "unitid": "country"}

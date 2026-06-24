@@ -1,0 +1,51 @@
+# case: linf_prop99
+# generated_at: 2026-06-24T19:49:56Z
+# mlsynth_version: 1.0.0
+# estimator: fit_en_scm
+# config: {"alpha": 0.0, "constraint_type": "unconstrained", "fit_intercept": true, "lam": 0.0474841236, "second_norm": "L1_INF", "solver": "CLARABEL", "standardize": false}
+# reference_impl: LinfinitySC our(method='inf') (Wang, Xing & Ye 2025), https://github.com/BioAlgs/LinfinitySC, lambda via param_selector(method='inf', n_folds=10)
+# reference_version: benchmarks/reference/linf_prop99/ (live captured run)
+quantity,mlsynth,reference,abs_diff
+ATT[mean post],-15.210944,-15.486194,0.27525
+ITE[1990],-8.748008,-9.142648,0.39464
+ITE[1995],-16.309564,-16.199268,0.110296
+ITE[2000],-21.408741,-21.793828,0.385087
+pre-RMSPE,0.000127,8.7e-05,4e-05
+weight[South Dakota],-0.0384,-0.112861,0.074461
+weight[West Virginia],0.113,0.111995,0.001005
+weight[Louisiana],0.104,0.111764,0.007764
+weight[Connecticut],0.113,0.111332,0.001668
+weight[Kansas],0.113,0.111127,0.001873
+weight[Texas],0.113,0.110586,0.002414
+weight[Kentucky],0.113,0.110507,0.002493
+weight[Mississippi],-0.113,-0.11034,0.00266
+weight[Montana],0.113,0.11029,0.00271
+weight[Nebraska],0.113,0.110219,0.002781
+weight[Illinois],0.113,0.110053,0.002947
+weight[Tennessee],-0.113,-0.109719,0.003281
+weight[Wisconsin],0.113,0.109631,0.003369
+weight[South Carolina],-0.113,-0.109226,0.003774
+weight[North Dakota],-0.113,-0.108515,0.004485
+weight[Utah],0.106,0.107342,0.001342
+weight[Nevada],0.107,0.104724,0.002276
+weight[New Mexico],0.109,0.100806,0.008194
+weight[Oklahoma],-0.113,-0.099493,0.013507
+weight[Vermont],-0.11,-0.097786,0.012214
+weight[Missouri],-0.0603,-0.091945,0.031645
+weight[Minnesota],0.081,0.091139,0.010139
+weight[Indiana],-0.083,-0.091077,0.008077
+weight[North Carolina],0.0791,0.089142,0.010042
+weight[Idaho],0.0586,0.083609,0.025009
+weight[Colorado],0.0758,0.058209,0.017591
+weight[Ohio],0.044,0.055663,0.011663
+weight[Maine],0.0422,0.052088,0.009888
+weight[Delaware],-0.0273,-0.050441,0.023141
+weight[Rhode Island],-0.0375,-0.043524,0.006024
+weight[Alabama],-0.0261,-0.037461,0.011361
+weight[Pennsylvania],0.0312,0.025523,0.005677
+weight[New Hampshire],0.025,0.025141,0.000141
+weight[Virginia],-0.00658,-0.020095,0.013515
+weight[Arkansas],0.00318,0.019464,0.016284
+weight[Georgia],0.0109,0.014307,0.003407
+weight[Iowa],-0.00282,0.012581,0.015401
+weight[Wyoming],-0.0117,0.007088,0.018788

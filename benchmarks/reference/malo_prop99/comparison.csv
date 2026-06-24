@@ -1,5 +1,5 @@
 # case: malo_prop99
-# generated_at: 2026-06-24T19:23:42Z
+# generated_at: 2026-06-24T19:50:50Z
 # mlsynth_version: 1.0.0
 # estimator: VanillaSC
 # config: {"backend": "malo", "covariate_windows": {"cig1975": [1975, 1975], "cig1980": [1980, 1980], "cig1988": [1988, 1988], "loginc": [1980, 1988], "p_cig": [1980, 1988], "pc_beer": [1984, 1988], "pct15-24": [1980, 1988]}, "covariates": ["loginc", "p_cig", "pct15-24", "pc_beer", "cig1975", "cig1980", "cig1988"], "outcome": "cigsale", "seed": 0, "time": "year", "treat": "treated", "unitid": "state"}
