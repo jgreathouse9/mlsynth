@@ -592,7 +592,7 @@ of distinct methods a user can run exceeds the number of classes.
 
 | Estimator | Method | Regime | Validation |
 |:--|:--|:--|:--|
-| `FDID` | Forward difference-in-differences | Single treated unit | A, B |
+| `FDID` | Forward difference-in-differences | Single treated unit | A, B, X |
 | `VanillaSC` | Canonical (simplex) synthetic control | Single treated unit | A, X |
 | `TSSC` | Two-step synthetic control | Single treated unit | A, B |
 | `MASC` | Matching and synthetic control | Single treated unit | A, X |
@@ -600,9 +600,9 @@ of distinct methods a user can run exceeds the number of classes.
 | `RESCM` | Relaxed and penalized synthetic control | Single treated unit | A, B, X |
 | `FSCM` | Forward-selected synthetic control | Single treated unit | A |
 | `SparseSC` | Sparse synthetic control | Single treated unit | A |
-| `PDA` | Panel-data approach (HCW / lasso / forward / $\ell_2$) | Single treated unit | A, B |
+| `PDA` | Panel-data approach (HCW / lasso / forward / $\ell_2$) | Single treated unit | A, B, X |
 | `BVSS` | Bayesian synthetic control (soft simplex) | Single treated unit | — |
-| `ORTHSC` | Orthogonalized synthetic control | Single treated unit | A, B |
+| `ORTHSC` | Orthogonalized synthetic control | Single treated unit | A, B, X |
 | `CLUSTERSC` | Cluster synthetic control (PCR / RPCA) | Low-rank and factor models | A, B, X |
 | `FMA` | Factor-model approach | Low-rank and factor models | B |
 | `TASC` | Time-aware synthetic control | Low-rank and factor models | B, X |
@@ -610,30 +610,30 @@ of distinct methods a user can run exceeds the number of classes.
 | `SNN` | Synthetic nearest neighbors | Low-rank and factor models | X |
 | `MCNNM` | Matrix completion (nuclear-norm) | Low-rank and factor models | X |
 | `SI` | Synthetic interventions | Low-rank and factor models | X |
-| `SBC` | Synthetic business cycle | Nonstationary outcomes | A, B |
+| `SBC` | Synthetic business cycle | Nonstationary outcomes | A, B, X |
 | `HSC` | Harmonic synthetic control | Nonstationary outcomes | A, B |
 | `DSCAR` | Dynamic SC for autoregressive processes | Nonstationary outcomes | A |
 | `DSC` | Distributional synthetic control | Distributional and multi-outcome | A |
 | `CTSC` | Continuous-treatment synthetic control | Distributional and multi-outcome | B |
-| `SCMO` | Synthetic control with multiple outcomes | Distributional and multi-outcome | A, B |
+| `SCMO` | Synthetic control with multiple outcomes | Distributional and multi-outcome | A, B, X |
 | `CMBSTS` | Causal multivariate Bayesian structural time series | Distributional and multi-outcome | A, X |
 | `MUSC` | Modified unbiased synthetic control | Endogeneity, proxies and instruments | — |
 | `SHC` | Synthetic historical control | Endogeneity, proxies and instruments | B |
 | `SIV` | Synthetic instrumental variables | Endogeneity, proxies and instruments | B |
 | `PROXIMAL` | Proximal-inference synthetic control | Endogeneity, proxies and instruments | B, X |
-| `MSQRT` | Multivariate square-root-lasso synthetic control | Endogeneity, proxies and instruments | B |
 | `SPILLSYNTH` | Spillover-aware synthetic control | Spillover-aware | A, B, X |
 | `SPOTSYNTH` | Spillover-detecting synthetic control | Spillover-aware | A |
 | `ISCM` | Imperfect synthetic control | Spillover-aware | A, X |
 | `SpSyDiD` | Spatial synthetic difference-in-differences | Spillover-aware | X |
+| `MSQRT` | Multivariate square-root-lasso synthetic control | Many treated / staggered | B |
 | `SDID` | Synthetic difference-in-differences | Many treated / staggered | X |
 | `SequentialSDID` | Sequential synthetic difference-in-differences | Many treated / staggered | B |
-| `ROLLDID` | Rolling-transformation difference-in-differences | Many treated / staggered | A |
+| `ROLLDID` | Rolling-transformation difference-in-differences | Many treated / staggered | A, X |
 | `PPSCM` | Partially-pooled synthetic control | Many treated / staggered | X |
 | `SSC` | Staggered synthetic control | Many treated / staggered | X |
 | `MicroSynth` | Micro-level (calibrated) synthetic control | Many treated / staggered | X |
 | `MLSC` | Multi-level synthetic control | Many treated / staggered | X |
-| `MAREX` | Synthetic control for experimental design | Experimental design | A |
+| `MAREX` | Synthetic control for experimental design | Experimental design | A, X |
 | `LEXSCM` | Lexicographic synthetic-control design | Experimental design | A, B |
 | `SYNDES` | Synthetic design | Experimental design | B |
 | `SPCD` | Synthetic principal-component design | Experimental design | A |
