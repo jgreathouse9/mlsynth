@@ -160,9 +160,11 @@ def comparison() -> dict:
         ref_att, _, _ = reference_ssdid(panel, WD)
         rows.append({"quantity": f"ATT[window {year}-{year + 3}]",
                      "mlsynth": round(float(res.att), 6), "reference": round(ref_att, 6)})
+    clean_cfg = {**{k: v for k, v in cfg.items() if k not in ("spatial_matrix", "unit_order")},
+                 "spatial_matrix": f"<row-standardized spatial weights, {len(FIPS)} units>"}
     return {
         "rows": rows,
-        "mlsynth_call": {"estimator": "SpSyDiD", "config": cfg},
+        "mlsynth_call": {"estimator": "SpSyDiD", "config": clean_cfg},
         "reference": {"impl": "authors' SDID weight functions (serenini/spatial_SDID "
                               "functions_ssdid) + the notebook's spatial WLS, via "
                               "benchmarks.reference.spsydid_ref",

@@ -65,7 +65,7 @@ def _metadata(name: str, result: dict) -> dict:
         "generated_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "mlsynth_version": getattr(mlsynth, "__version__", "unknown"),
         "estimator": call.get("estimator", ""),
-        "config": json.dumps(call.get("config", {}), sort_keys=True),
+        "config": json.dumps(call.get("config", {}), sort_keys=True, default=str),
     }
     ref = result.get("reference", {})
     if ref:                                       # case-supplied (live reference)
