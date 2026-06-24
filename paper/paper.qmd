@@ -382,6 +382,7 @@ estimators across two case studies through one dispatcher; and experimental desi
 using MAREX to
 design an experiment on Abadie and Zhao's simulation, recover a known effect, and
 situate it in the broader design family.
+@sec-quality describes the library's testing, validation, and documentation,
 @sec-summary concludes, and @sec-computational records the computational and
 reproducibility details.
 
@@ -1561,6 +1562,54 @@ calls against one library rather than two separate tools, and to our knowledge
 no other package places this design family alongside the full estimation catalog
 behind a common interface.
 
+## Code quality and documentation {#sec-quality}
+
+`mlsynth` is built to be stable, consistent, and inspectable. One
+data-preparation routine, one runtime-validated configuration object, and one
+standardized result stand in front of every estimator (@sec-arch), so a single
+set of coding and naming conventions holds across more than forty methods and
+the interface a user learns once transfers to all of them. Each estimator is a
+thin class over a dedicated helper package, which keeps the code for a method,
+its numerics, and its tests in one directory rather than threaded through a
+shared core. Configurations are validated with Pydantic [@pydantic]: they refuse
+unknown or ill-typed fields at construction, so a mis-specified analysis fails as
+an immediate, legible error rather than a silent miscomputation. The package is
+free and open-source under the MIT license; it depends only on the
+scientific-Python stack, with the two heavier solver dependencies it can use
+loaded lazily so that the base installation runs every estimator. It is
+available from the Python Package Index via `pip install mlsynth`, with source
+and an issue tracker at <https://github.com/jgreathouse9/mlsynth>, and
+contributions and bug reports from the applied community are encouraged.
+
+To keep the library correct as it grows, every estimator ships with automated
+tests, written before the code they cover and run in a continuous-integration
+environment on each change. Correctness against the literature is checked
+separately, by a benchmark suite of ninety-eight small re-runnable cases that
+hold each estimator to an outside answer rather than to its own past output. When
+an authoritative implementation of a method can be run, usually an R package or
+the original authors' replication code, the benchmark runs it on the same input
+and records its output, together with the input checksums and the exact package
+versions that produced it, as a captured reference the library is then pinned to;
+when no such implementation can be run, the benchmark instead targets a figure
+the source paper itself reports, its headline result or a cell of its simulation
+table. Because every target is either a re-runnable reference or a published
+fact, a regression in `mlsynth` or a drift in a reference surfaces as a failed
+benchmark rather than a quiet disagreement. Running the references, rather than
+transcribing their printed numbers, has a further benefit: each discrepancy is
+traced to its cause, and in several cases `mlsynth` is found to reach the
+verified optimum of the estimation problem where a published reference solver, at
+its default tolerances, does not.
+
+The package is documented at <https://mlsynth.readthedocs.io>. Every estimator
+has its own page, organized the same way: when to use the method, the notation
+and model it assumes, its identifying assumptions each paired with a remark, a
+runnable example, and a pointer to the benchmark or replication that validates
+it. A decision tree guides the choice among methods for a given design, and a set
+of dedicated replication pages records, method by method, how the library's
+numbers were reconciled with their sources. The documentation is regenerated from
+the source for each release, and remains the up-to-date description of the
+project's functionality as new estimators are added.
+
 ## Summary {#sec-summary}
 
 Synthetic control has grown from a single method into a sprawling family, and the
@@ -1629,44 +1678,14 @@ handful of analyses that draw random numbers, the differential-evolution solver 
 the Basque fit, the MAREX design search, and the SPOTSYNTH Bayesian sampler, fix a
 seed at the call site, so their output is stable from one render to the next.
 
-The library also ships a benchmark suite, ninety-four small re-runnable cases that
-each hold an estimator to an outside answer rather than to its own past output. Each
-benchmark fits one estimator on a fixed dataset and asks whether its numbers match
-a trusted target to within a stated tolerance, and `mlsynth` obtains that target in
-one of two ways depending on whether a reference implementation of the method can
-actually be run. When an authoritative implementation exists and can be built,
-usually an R package such as `augsynth` or `Synth`, sometimes a research codebase
-in Python, the benchmark installs that implementation frozen at a specific commit,
-runs it on the very same input, and compares `mlsynth`'s output to the numbers the
-reference returns on the spot, quantity by quantity. On the GeoLift geo-experiment
-walkthrough, for instance, `mlsynth` reproduces a freshly run `augsynth` (the ridge
-augmented-SCM engine inside Meta's `GeoLift`) to floating point: the
-cross-validated ridge penalty agrees to about eleven digits, every donor weight to
-seven, and the post-period effect to four significant figures. When no such
-implementation can be run, because the method was only ever published as a paper or
-its reference code cannot be installed, the benchmark instead targets a number the
-source paper itself reports, either its headline result on the authors' own data or
-a cell of its simulation table, recorded once as the value the run must reproduce.
-The reference cross-checks need the other language's toolchain to be present, so
-each one skips itself cleanly when that toolchain is missing (for example in
-routine continuous integration, which carries no R) and runs only where the
-reference is installed; the paper-number checks need nothing beyond `mlsynth` and
-run everywhere.
-
-Pinning an estimator to an outside answer in this way, a live reference or a
-printed paper value, is what keeps it from drifting unnoticed. Expected numbers
-that a developer once typed into a test slowly rot as a reference is updated or an
-estimator is refactored, yet the test keeps passing against a stale target; here a
-reference is recomputed from frozen source on every run and a paper value is a
-published fact the method must keep matching, so a regression in either `mlsynth`
-or an updated reference surfaces as a failed benchmark rather than a quiet
-disagreement the paper never notices. Freezing each reference at an exact commit,
-rather than tracking its moving development tip, makes the comparison a stable,
-dated checkpoint that runs the same code every time and is refreshed only by
-deliberately bumping the pinned commit and re-recording the expected numbers. The
-install scripts, the re-run harness, and the full replication code are provided as
-the replication materials accompanying this article and in the `benchmarks` suite
-of the source repository.
+The benchmark suite that holds each estimator to its outside answer is described
+in @sec-quality. Its reference cross-checks are frozen at pinned commits and run
+only where the other language's toolchain is present, skipping cleanly otherwise
+(for example in routine continuous integration, which carries no R), while the
+paper-number checks need nothing beyond `mlsynth` and run everywhere. The install
+scripts, the re-run harness, and the full replication code are provided as the
+replication materials accompanying this article and in the `benchmarks` suite of
+the source repository.
 
 ## References {.unnumbered}
 
