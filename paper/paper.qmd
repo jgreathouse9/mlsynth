@@ -26,13 +26,17 @@ abstract: |
   forty unrelated tools but one family with a shared computational shape, so a
   unified interface makes them directly comparable and lets the library reach
   a capability the ecosystem never packaged: experimental design. We demonstrate
-  it with three illustrations, one per regime. The first refits Abadie and
+  it with four illustrations, one per regime. The first refits Abadie and
   Gardeazabal's Basque study with two solvers, a nested search and a provably
   better bilevel optimizer that no other package carries together, with Cattaneo,
   Feng, and Titiunik prediction intervals. The second
   relaxes the no-interference assumption, running four spillover-aware estimators
   (each otherwise a separate codebase) across two case studies through one
-  dispatcher. The third turns from estimation to design: MAREX, the first packaged
+  dispatcher. The third turns to proximal inference on the Panic of 1907, where
+  three estimators that existed only in R or nowhere agree on the effect, a
+  forecast screen recovers which trusts the panic struck, and a Bayesian credible
+  band and a conformal prediction interval are read side by side. The fourth turns
+  from estimation to design: MAREX, the first packaged
   synthetic-control experimental design, reproduces Abadie and Zhao's simulation,
   choosing which units to treat before the experiment and recovering a known
   effect, then opens onto the broader design family behind the same interface.
@@ -174,9 +178,11 @@ until recently, to install several packages, reshape the data several ways, lear
 several syntaxes, and reconcile several output formats by hand.
 
 This paper introduces `mlsynth`, a Python [@harris2020array] library that
-addresses this fragmentation. It ships `{python} n_estimators` estimators behind
-one data-preparation routine, one validated configuration-and-fit interface, and
-one standardized result. Our central argument is that this consolidation is worth
+addresses this fragmentation. It ships `{python} n_estimators` estimators^[Counted
+as the public classes that implement the `fit` contract; several are dispatchers
+that host a family of related methods behind one class, so the number of distinct
+methods a user can run is larger.] behind one data-preparation routine, one
+validated configuration-and-fit interface, and one standardized result. Our central argument is that this consolidation is worth
 having: these are not `{python} n_estimators` unrelated tools but one family. As
 @sec-unified makes precise, most of them run the same computation: a treated-unit
 vector and a donor matrix enter an optimization that returns weights, a
@@ -751,13 +757,13 @@ numerics, and its tests, is exactly one directory, not a thread chased across a
 monolithic configuration module, a monolithic estimator module, and a shared
 helper file.
 
-What stays shared is deliberately small and cross-cutting. Every configuration
-inherits one base, `BaseEstimatorConfig`, which fixes the common
-`df / outcome / treat / unitid / time` surface and forbids unknown fields, so a
-method's own `config.py` declares only what is genuinely specific to it. Every
-failure is raised in one hierarchy, `MlsynthConfigError`, `MlsynthDataError`,
-and `MlsynthEstimationError` beneath a common `MlsynthError`, so that user code
-catches the same types no matter which estimator raised them. And when a method
+What stays shared is deliberately small and cross-cutting, and most of it was met
+already in @sec-config: every configuration inherits one base that fixes the common
+`df / outcome / treat / unitid / time` surface, so a method's own `config.py`
+declares only what is genuinely specific to it. Two further commitments are shared
+the same way. Every failure is raised in one hierarchy, `MlsynthConfigError`,
+`MlsynthDataError`, and `MlsynthEstimationError` beneath a common `MlsynthError`, so
+that user code catches the same types no matter which estimator raised them. And when a method
 is really a family of related variants, the package gains a dispatcher rather than
 the library gaining several near-duplicate estimators: [SPILLSYNTH]{.pkg} selects
 among five spillover-adjustment schemes through a single `method` argument, each
@@ -825,6 +831,21 @@ res.time_series.counterfactual_outcome  # the synthetic control path
 res.weights.donor_weights               # the fitted donor weights
 res.inference.p_value                   # inference, on the same object
 ```
+
+@tbl-result-schema names the six standardized sub-objects and what each holds; an
+estimator populates whichever apply to it and leaves the rest empty, so the same
+field access works across the catalog.
+
+| Sub-object | What it carries |
+|:--|:--|
+| `effects` | the ATT, its percentage version, and its standard error |
+| `fit_diagnostics` | pre- and post-treatment RMSE and the pre-period $R^2$ |
+| `time_series` | the observed and counterfactual paths, their gap, and the time axis |
+| `weights` | donor weights, and where they apply, time weights or a unit-weight matrix |
+| `inference` | the $p$-value, confidence interval, standard error, and inference method |
+| `method_details` | the variant that produced the result and the parameters it used |
+
+: The standardized result sub-objects shared by every estimator. Beyond these, two typed escape hatches carry anything a method needs that the schema does not name. {#tbl-result-schema}
 
 The same fields, read off a real fit, return the numbers themselves. Here is
 [VanillaSC]{.pkg} on the Basque Country data
@@ -1553,29 +1574,39 @@ behind a common interface.
 ## Summary {#sec-summary}
 
 Synthetic control has grown from a single method into a sprawling family, and the
-software has fragmented along with it. We have argued the fragmentation is
-largely incidental: most of these estimators run the same computation, a
-treated-unit vector and a donor matrix through an optimization to weights, a
-counterfactual, and a gap, differing only in how they constrain or denoise that
-fit. `mlsynth` takes that observation seriously, placing more than forty estimators
-behind one data contract, one validated configuration-and-fit interface, and one
-standardized result. The three illustrations show what the consolidation buys.
-Estimation becomes a genuine comparison: on Abadie and Gardeazabal's Basque study,
-a nested solver and a provably better bilevel one, which exist together in no other
-package, reach different synthetic controls from the same data, each by a one-field
-change against an unchanged data frame. Relaxing the
-no-interference assumption becomes a measurable sensitivity check: four
-spillover-aware estimators, otherwise four separate codebases in another language,
-run across two case studies behind one keyword, their disagreement a quantity to
-read rather than four outputs to reconcile. And design becomes available at all: MAREX, the first
-packaged synthetic-control experimental design, chooses an experiment on Abadie
-and Zhao's simulation and recovers the known effect through the same
-configure-and-fit interface and standardized result as every estimator before
-it, opening onto a broader design family the surrounding ecosystem has never
-packaged for applied users. The value of having all of this in one place is not
-convenience but capability: a single validated interface makes forty methods
-comparable and lets one library answer both what an intervention did and how to
-design the experiment that will measure it.
+software has fragmented along with it. We have argued the fragmentation is largely
+incidental: most of these estimators run one computation, differing only in how they
+constrain or denoise a single shared fit (@sec-unified). `mlsynth` takes that
+observation seriously, placing more than forty estimators behind one data contract,
+one validated configuration-and-fit interface, and one standardized result. The four
+illustrations show what the consolidation buys. Estimation becomes a genuine
+comparison: on Abadie and Gardeazabal's Basque study, a nested solver and a provably
+better bilevel one, which exist together in no other package, reach different
+synthetic controls from the same data, each by a one-field change against an
+unchanged data frame. Relaxing the no-interference assumption becomes a measurable
+sensitivity check: four spillover-aware estimators, otherwise four separate codebases
+in another language, run across two case studies behind one keyword, their
+disagreement a quantity to read rather than four outputs to reconcile. Methods that
+lived only in R, or nowhere, become usable and mutually checkable: on the Panic of
+1907 a proximal screen flags the trusts the panic struck, its bias correction and a
+single-proxy estimator agree on the effect, and a Bayesian credible band and a
+conformal interval quantify it side by side. And design becomes available at all:
+MAREX, the first packaged synthetic-control experimental design, chooses an
+experiment on Abadie and Zhao's simulation and recovers the known effect through the
+same configure-and-fit interface and standardized result as every estimator before
+it, opening onto a broader design family the surrounding ecosystem has never packaged
+for applied users.
+
+The value of having all of this in one place is not convenience but capability: a
+single validated interface makes forty methods comparable and lets one library answer
+both what an intervention did and how to design the experiment that will measure it.
+There is a quieter shift underneath. Once a dozen estimators report in one format on
+one panel, the applied question moves from which method is right to how far the answer
+depends on the method at all, a robustness check across estimators and inference
+schemes that was logistically out of reach when each method meant another package,
+another language, and another reshaping of the data. `mlsynth` makes that check a
+one-line change, turning a choice among methods into a sensitivity analysis across
+them.
 
 ## Computational details {#sec-computational}
 
@@ -1601,8 +1632,15 @@ is available from the Python Package Index via `pip install mlsynth`, with sourc
 and issue tracker at <https://github.com/jgreathouse9/mlsynth> and documentation
 at <https://mlsynth.readthedocs.io>.
 
-The library also ships a benchmark suite, a set of small re-runnable scripts that
-hold every estimator to an outside answer rather than to its own past output. Each
+The paper is reproducible from its own source. Rendering `paper/paper.qmd` re-runs
+every code block above and regenerates each number and figure from the installed
+library, against the package versions pinned in `paper/requirements.txt`. The
+handful of analyses that draw random numbers, the differential-evolution solver in
+the Basque fit, the MAREX design search, and the SPOTSYNTH Bayesian sampler, fix a
+seed at the call site, so their output is stable from one render to the next.
+
+The library also ships a benchmark suite, ninety-four small re-runnable cases that
+each hold an estimator to an outside answer rather than to its own past output. Each
 benchmark fits one estimator on a fixed dataset and asks whether its numbers match
 a trusted target to within a stated tolerance, and `mlsynth` obtains that target in
 one of two ways depending on whether a reference implementation of the method can
@@ -1625,7 +1663,7 @@ routine continuous integration, which carries no R) and runs only where the
 reference is installed; the paper-number checks need nothing beyond `mlsynth` and
 run everywhere.
 
-Pinning each estimator to an outside answer in this way, a live reference or a
+Pinning an estimator to an outside answer in this way, a live reference or a
 printed paper value, is what keeps it from drifting unnoticed. Expected numbers
 that a developer once typed into a test slowly rot as a reference is updated or an
 estimator is refactored, yet the test keeps passing against a stale target; here a
