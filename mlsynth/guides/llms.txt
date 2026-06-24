@@ -25,6 +25,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
+- **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
 - **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
