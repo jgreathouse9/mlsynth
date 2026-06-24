@@ -13,12 +13,12 @@ reproducible; bump it deliberately, never silently.
 from __future__ import annotations
 
 import importlib
-import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference._fetch import fetch_pinned_repo
 
 _REPO = "https://github.com/serenini/spatial_SDID.git"
 _COMMIT = "e43427d67c88d06a80db690416f7c61ef0143287"
@@ -31,21 +31,7 @@ def _ensure_clone() -> Path:
     if funcs.exists():
         return _CACHE
     _CACHE.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        subprocess.run(
-            ["git", "-c", "credential.helper=", "clone", "--quiet", _REPO, str(_CACHE)],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", str(_CACHE), "checkout", "--quiet", _COMMIT],
-            check=True, capture_output=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:  # pragma: no cover
-        detail = getattr(exc, "stderr", b"")
-        msg = detail.decode(errors="ignore").strip() if detail else str(exc)
-        raise BenchmarkSkipped(
-            f"could not clone reference repo {_REPO} @ {_COMMIT[:7]}: {msg}"
-        ) from exc
+    fetch_pinned_repo(_REPO, _COMMIT, _CACHE)    # git clone, else codeload tarball
     if not funcs.exists():  # pragma: no cover - defensive
         raise BenchmarkSkipped("reference clone missing functions_ssdid.py")
     return _CACHE

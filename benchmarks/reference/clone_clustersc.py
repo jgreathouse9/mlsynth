@@ -17,6 +17,7 @@ from pathlib import Path
 from types import ModuleType
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference._fetch import fetch_pinned_repo
 
 _REPO = "https://github.com/srho1/ClusterSC.git"
 _COMMIT = "b223e1e2a2fd68aaff9da9feac8a5c08e1163ad7"
@@ -29,21 +30,7 @@ def _ensure_clone() -> Path:
     if marker.exists():
         return _CACHE
     _CACHE.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        subprocess.run(
-            ["git", "-c", "credential.helper=", "clone", "--quiet", _REPO, str(_CACHE)],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", str(_CACHE), "checkout", "--quiet", _COMMIT],
-            check=True, capture_output=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:  # pragma: no cover
-        detail = getattr(exc, "stderr", b"")
-        msg = detail.decode(errors="ignore").strip() if detail else str(exc)
-        raise BenchmarkSkipped(
-            f"could not clone reference repo {_REPO} @ {_COMMIT[:7]}: {msg}"
-        ) from exc
+    fetch_pinned_repo(_REPO, _COMMIT, _CACHE)    # git clone, else codeload tarball
     if not marker.exists():  # pragma: no cover - defensive
         raise BenchmarkSkipped("reference clone missing syclib package")
     return _CACHE
