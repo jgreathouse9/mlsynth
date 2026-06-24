@@ -1,0 +1,27 @@
+NOTICE -- vendored reference code (benchmarks/reference/tasc_prop99/vendor/)
+===========================================================================
+
+The files under vendor/ are taken verbatim from the Time-Aware Synthetic
+Control reference implementation:
+
+    srho1/tasc  (repository "tasc")
+    Rho, S., Illick, C., Narasipura, S., Abadie, A., Hsu, D., & Misra, V.
+    "Time-Aware Synthetic Control." AISTATS 2026. arXiv:2601.03099.
+
+Fetched from the authors' repository (src/) on 2026-06-24. The repository ships
+WITHOUT a LICENSE file. We vendor only the minimal subset required to run the
+authors' TimeAwareSC EM on the Proposition 99 panel for the sole purpose of
+cross-validating mlsynth's port -- not for redistribution or other use:
+
+    vendor/tasc.py            -> src/tasc.py        (class TimeAwareSC)
+    vendor/matrix.py          -> src/matrix.py      (imported by tasc.py)
+    vendor/syslibutils.py     -> src/syslibutils.py (imported by matrix.py)
+    vendor/genData/SSM.py     -> src/genData/SSM.py (gen_dirchelet_params etc.)
+    vendor/genData/__init__.py-> minimal shim re-exporting SSM only (the
+                                 upstream __init__ also pulls Sine/cricket/nba,
+                                 which are unrelated to this cross-validation)
+
+No modifications were made to the vendored .py sources beyond the trimmed
+genData/__init__.py shim. All copyright remains with the original authors.
+If the authors add a LICENSE (or request removal), update or drop this bundle
+accordingly.

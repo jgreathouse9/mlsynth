@@ -54,6 +54,7 @@ CASES = {
     "malo_prop99": "benchmarks.cases.malo_prop99",            # Path A: Malo et al. 2024 Table 1 bilevel optimum (Prop 99)
     "malo_basque": "benchmarks.cases.malo_basque",            # cross-val vs scm.corner: AG Basque bilevel optimum, beats MSCMT
     "tasc_mc": "benchmarks.cases.tasc_mc",                    # Path B: TASC vs SC state-space ablation (Rho et al.)
+    "tasc_prop99": "benchmarks.cases.tasc_prop99",            # cross-val vs authors' TimeAwareSC (srho1/tasc) on Prop 99 (d=2)
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)

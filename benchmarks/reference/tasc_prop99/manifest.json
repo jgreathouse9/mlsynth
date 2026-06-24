@@ -1,0 +1,11 @@
+{
+  "case": "tasc_prop99",
+  "description": "Live cross-validation of mlsynth TASC vs the authors' TimeAwareSC (srho1/tasc, Rho et al., AISTATS 2026, arXiv:2601.03099) on the California Prop 99 panel: target counterfactual path, ATT, pre-period RMSE, and fitted pre-period log-likelihood at d=2.",
+  "command": "python benchmarks/reference/tasc_prop99/reference.py",
+  "reference": {
+    "impl": "srho1/tasc TimeAwareSC (vendored under vendor/; em_pre, naive init)",
+    "paper": "Rho, Illick, Narasipura, Abadie, Hsu & Misra (2026), Time-Aware Synthetic Control, AISTATS 2026, arXiv:2601.03099",
+    "settings": {"d": 2, "T0": 19, "n_em_iter_N1": 1000, "seed": 1, "init": "naive"}
+  },
+  "data": ["basedata/smoking_data.csv"]
+}
