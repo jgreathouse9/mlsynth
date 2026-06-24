@@ -239,7 +239,13 @@ through [VanillaSC]{.pkg}'s outcome-only backend, and the match against the
 reference is exact: fit to the California tobacco data, [VanillaSC]{.pkg} and the
 installed `MSCMT` package agree on every donor weight, Utah $0.3939$, Montana
 $0.2318$, Nevada $0.2049$, Connecticut $0.1091$, and on an average treatment
-effect of $-19.51363$, to five decimals.
+effect of $-19.51363$, to five decimals. Run against the original `Synth` solver
+itself, on the same tobacco panel under outcome-only matching, [VanillaSC]{.pkg}
+agrees with `Synth`'s donor weights to about $0.003$ but reaches a strictly lower
+pre-period loss, a sum of squared residuals of $52.130$ against `Synth`'s
+$52.136$. The original nested solver stops just short of the optimum, the gap the
+numerics literature describes, shown here against the reference implementation
+rather than a reimplementation of it.
 
 `synth2` [@yan2023synth2] re-implements that estimator in Stata
 and adds the inference practitioners want around it: in-space and
@@ -344,7 +350,7 @@ the source paper at validation time (@tbl-related).
 
 | Package | Language | Method implemented | In `mlsynth` | Checked |
 |:--|:--|:--|:--|:--|
-| `Synth` | R | simplex SCM, predictor matching | [VanillaSC]{.pkg} | n/a |
+| `Synth` | R | simplex SCM, predictor matching | [VanillaSC]{.pkg} | outcome-only: weights ~3e-3, lower SSR |
 | `synth2` | Stata | simplex SCM, placebo and robustness tests | [VanillaSC]{.pkg}, `inference=` | n/a |
 | `rcm` | Stata | regression control (subset, lasso, stepwise) | [PDA]{.pkg}, `method=` | n/a |
 | `pampe` | R | Hsiao-Ching-Wan panel-data approach | [PDA]{.pkg}, `method="hcw"` | donor set, effect path |
