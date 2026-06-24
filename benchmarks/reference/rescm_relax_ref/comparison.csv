@@ -1,5 +1,5 @@
 # case: rescm_relax_ref
-# generated_at: 2026-06-24T15:01:33Z
+# generated_at: 2026-06-24T15:27:22Z
 # mlsynth_version: 1.0.0
 # estimator: RESCM
 # config: {"methods": ["RELAX_L2"], "outcome": "y", "standardize": false, "tau": 0.5102251605443775, "time": "time", "treat": "treat", "unitid": "unit"}
