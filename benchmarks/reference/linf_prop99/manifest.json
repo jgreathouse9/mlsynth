@@ -1,0 +1,9 @@
+{
+  "case": "linf_prop99",
+  "title": "L-infinity SC vs LinfinitySC reference (Proposition 99)",
+  "paper": "Wang, Xing & Ye (2025), \"A L-infinity Norm Counterfactual and Synthetic Control Approach,\" arXiv:2510.26053, Section 6.1 (Tobacco / Proposition 99)",
+  "reference_impl": "LinfinitySC our(method='inf') (https://github.com/BioAlgs/LinfinitySC, cloned at clone_linfinitysc._COMMIT), lambda selected by the authors' param_selector(method='inf', n_folds=10)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/linf_prop99/reference.py",
+  "data": ["basedata/smoking_data.csv"]
+}
