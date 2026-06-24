@@ -301,19 +301,21 @@ an average effect of $-\$585$ per capita against the paper's $-\$580$, and
 Seattle drug-market study of @robbins2021microsynth to within the table tolerance of
 that paper.
 
-A final strand replaces the fixed-weight optimization with a Bayesian model. The R
-package `CausalImpact` [@brodersen2015inferring] fits a Bayesian structural
-time-series counterfactual, a state-space model with the donors entering as
-contemporaneous regressors under a spike-and-slab prior, and `mbsts`
+A final strand brings a Bayesian treatment to the problem, though by a different
+route. The R package `CausalImpact` [@brodersen2015inferring] fits a Bayesian
+structural time-series counterfactual, a state-space model with the donors entering
+as contemporaneous regressors under a spike-and-slab prior, and `mbsts`
 [@qiu2018multivariate] extends that idea to multiple outcomes; in Python,
 `CausalPy` [@causalpy2024] places a Bayesian synthetic control alongside regression
 discontinuity, difference-in-differences, and interrupted-time-series designs on a
-`PyMC` backend. `mlsynth`'s counterpart is [BVSS]{.pkg}, the Bayesian
-soft-simplex estimator of @xu2025bayesian, which puts a spike-and-slab prior over the
-donors and a soft simplex constraint on their weights, returning full posteriors for
-the weights and the effect path. The structural time-series tools target a related
-but distinct counterfactual, a fitted state-space model rather than a weighted
-combination of donors, so they complement rather than duplicate the SC family.
+`PyMC` backend. These tools target a related but distinct counterfactual, a fitted
+state-space (or multi-design) model rather than a weighted combination of donors, so
+they solve a different estimation problem and `mlsynth` does not reproduce them. Its
+own Bayesian offering, [BVSS]{.pkg}, the Bayesian soft-simplex estimator of
+@xu2025bayesian, stays inside the synthetic-control family: it puts a spike-and-slab
+prior over the donors and a soft simplex constraint on their weights and returns full
+posteriors for the weights and the effect path. It is a Bayesian way to fit donor
+weights, not a port of these structural time-series tools.
 
 The Python options for synthetic control itself are fewer and narrower.
 `SyntheticControlMethods` [@engelbrektson2020synthetic] implements the classic
@@ -352,14 +354,14 @@ the source paper at validation time (@tbl-related).
 | `masc` | R | matching + synthetic control | [MASC]{.pkg} | $-\$585$ vs $-\$580$ (paper) |
 | `microsynth` | R | calibrated SCM for micro-level panels | [MicroSynth]{.pkg} | weights vs R package |
 | `causaltensor` | Python | matrix completion, factor models | [MCNNM]{.pkg}, [SNN]{.pkg} | n/a |
-| `CausalImpact` | R | Bayesian structural time series | [BVSS]{.pkg} | n/a |
-| `mbsts` | R | multivariate Bayesian structural time series | [BVSS]{.pkg} | n/a |
-| `CausalPy` | Python | Bayesian SC, RD, DiD, ITS (`PyMC`) | [BVSS]{.pkg} | n/a |
+| `CausalImpact` | R | Bayesian structural time series | — | n/a |
+| `mbsts` | R | multivariate Bayesian structural time series | — | n/a |
+| `CausalPy` | Python | Bayesian SC, RD, DiD, ITS (`PyMC`) | — | n/a |
 | `tidysynth` | R | simplex SCM (tidyverse API) | [VanillaSC]{.pkg} | n/a |
-| `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | n/a |
+| `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg} | n/a |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | n/a |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically. {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. A dash in the fourth column marks an adjacent tool that targets a distinct counterfactual, which `mlsynth` does not reproduce. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically. {#tbl-related}
 
 The remainder of the paper is organized as follows. @sec-unified develops the
 shared computational view and the resulting taxonomy of estimators. @sec-arch
@@ -416,15 +418,6 @@ pool is never treated, so by @eq-switch its outcomes trace the untreated regime
 throughout; every estimator below borrows that information to fill in $y_{1t}(0)$,
 which the synthetic control $\hat{y}_{1t}$ estimates.
 
-However different their statistical motivations, the estimators in `mlsynth` share
-one computational shape. Each takes the treated unit's pre-treatment outcome vector
-$\mathbf{y}_1$ and the donor matrix $\mathbf{Y}_0$, solves an optimization that
-chooses how to combine the donors, uses the result to impute the missing
-counterfactual, and reports the gap between the two. Vector, matrix, optimization,
-weights, plot: that recurring shape, not any one statistical model, is what makes a
-single interface the right abstraction, and it is the contract that `dataprep`
-(@sec-dataprep) and the fit-and-result interface were built to encode.
-
 What the family shares at the level of theory is narrower than any single model,
 and is worth stating on its own: there exist donor weights $\mathbf{w}$ under which
 a combination of the donors reproduces the treated unit's untreated potential
@@ -442,9 +435,8 @@ estimates the missing counterfactual, and the period-$t$ effect is the gap
 $\hat{\tau}_t = y_{1t} - \hat{y}_{1t}$. The existence of $\mathbf{w}$ is the
 load-bearing assumption; what the methods disagree about is *why* such weights
 should exist and *how* to recover them. The library takes no position among these
-rationales, and by design it does not need one: what the common interface
-abstracts is the computational shape the estimators share, not the theory they do
-not. Its estimators were built on different justifications, and it is worth setting
+rationales, and by design it does not need one. Its estimators were built on
+different justifications, and it is worth setting
 the main four side by side, because together they show how one interface can host
 methods with such different motivations.
 
@@ -480,15 +472,28 @@ rationales reach the same existence claim from different premises:
   best forecast combination always does; whether it recovers latent structure is
   beside the point.
 - Balancing makes the weights the solution to a set of moment constraints
-  [@hainmueller2012entropy; @liao2026relaxation]. One requires the weighted donors
-  to match the treated unit on chosen characteristics, covariate means or outcome
-  lags, and, among all weights that achieve this balance, selects the least
-  dispersed by an information-theoretic criterion (entropy, empirical likelihood,
-  an $\ell_2$ divergence). Existence becomes a feasibility statement about the
-  balance constraints, and ties synthetic control to the wider reweighting
-  literature for observational studies.
+  [@hainmueller2012entropy]. One requires the weighted donors to match the treated
+  unit on chosen characteristics, covariate means or outcome lags, and, among all
+  weights that achieve this balance, selects the least dispersed by an
+  information-theoretic criterion (entropy, empirical likelihood, an $\ell_2$
+  divergence). @liao2026relaxation make this precise for synthetic control: their
+  relaxation approach replaces exact matching with an approximate-balance constraint
+  that keeps the weighted donors within a tolerance of the treated unit's
+  characteristics, the relaxation level $\eta$ in @eq-program below, and shows the
+  resulting weights stay well behaved even when exact balance is infeasible.
+  Existence then becomes a feasibility statement about the balance constraints, and
+  ties synthetic control to the wider reweighting literature for observational
+  studies.
 
-These rationales converge on one computation. For almost every estimator in the
+However different these justifications, the estimators they motivate share one
+computational shape. Each takes the treated unit's pre-treatment outcome vector
+$\mathbf{y}_1$ and the donor matrix $\mathbf{Y}_0$, solves an optimization that
+chooses how to combine the donors, uses the result to impute the missing
+counterfactual, and reports the gap between the two. Vector, matrix, optimization,
+weights, plot: that recurring shape, not any one statistical model, is what makes a
+single interface the right abstraction, and it is the contract that `dataprep`
+(@sec-dataprep) and the fit-and-result interface were built to encode. The four
+rationales thus converge on one computation: for almost every estimator in the
 library the weights solve a single optimization program. Writing $\mathbf{Y}_0$ and
 $\mathbf{y}_1$ now for their pre-treatment ($T_0$-row) blocks, the donor weights
 solve
@@ -537,16 +542,7 @@ to the unit simplex
 $\mathcal{C}_{\Delta} = \{\mathbf{w} \ge \mathbf{0} : \mathbf{1}^{\top}\mathbf{w} = 1\}$,
 which yields an interpretable, sparse convex combination of donors. The rest of
 the family is, to a first approximation, a catalog of other choices for the four
-objects in @eq-program. The most visible is the admissible set $\mathcal{C}$
-itself: relaxing the simplex to merely non-negative weights drops the sum-to-one
-requirement; an affine constraint, $\mathbf{1}^{\top}\mathbf{w}=1$ alone, permits
-signed weights and extrapolation beyond the donors' range; a unit box confines
-each weight to $[0,1]$ on its own; and dropping the constraint altogether leaves
-an ordinary regression of the treated unit onto the donors. Penalties $\mathcal{P}$
-supply the rest: an $\ell_2$ term gives ridge-augmented weights, an $\ell_1$ term
-gives a sparse selection of donors, and an intercept $b_0$, folded in by augmenting
-$\mathbf{Y}_0$ with a column of ones and left unpenalized, absorbs level
-differences between the treated unit and its donors.
+objects in @eq-program.
 
 What then separates the estimators is which rationale they commit to and, with it,
 how the weights $\mathbf{w}$ (or, more generally, the projection onto the donor
@@ -581,18 +577,6 @@ theoretical worlds, with their own notation, assumptions, and software; reduced 
 the same inputs and outputs, they can be run on one panel and judged side by side,
 by the counterfactuals they produce rather than the premises they require. Holding
 no position among the rationales is what makes that comparison possible.
-
-### From estimation to design {#sec-design-view}
-
-The same pipeline runs in reverse for experimental design. If a credible synthetic
-control needs donors whose pre-treatment outcomes can reconstruct the treated unit,
-then before running an experiment one can ask which candidate units *should* be
-treated so the remaining units form a good donor pool, and how long the experiment
-must run to detect a given effect size. Design-first methods [@syndes] solve
-exactly this, turning the estimation machinery around: the fit quality that
-validates a synthetic control after the fact becomes the objective that selects
-treatment units beforehand. `mlsynth` treats design as a first-class peer of
-estimation rather than a separate concern, and @sec-design demonstrates it.
 
 ## Software design {#sec-arch}
 
