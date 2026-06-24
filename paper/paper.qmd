@@ -1640,7 +1640,7 @@ the Basque fit, the MAREX design search, and the SPOTSYNTH Bayesian sampler, fix
 seed at the call site, so their output is stable from one render to the next.
 
 The library also ships a benchmark suite, ninety-four small re-runnable cases that
-hold every estimator to an outside answer rather than to its own past output. Each
+each hold an estimator to an outside answer rather than to its own past output. Each
 benchmark fits one estimator on a fixed dataset and asks whether its numbers match
 a trusted target to within a stated tolerance, and `mlsynth` obtains that target in
 one of two ways depending on whether a reference implementation of the method can
@@ -1663,7 +1663,7 @@ routine continuous integration, which carries no R) and runs only where the
 reference is installed; the paper-number checks need nothing beyond `mlsynth` and
 run everywhere.
 
-Pinning each estimator to an outside answer in this way, a live reference or a
+Pinning an estimator to an outside answer in this way, a live reference or a
 printed paper value, is what keeps it from drifting unnoticed. Expected numbers
 that a developer once typed into a test slowly rot as a reference is updated or an
 estimator is refactored, yet the test keeps passing against a stale target; here a
