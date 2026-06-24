@@ -61,3 +61,21 @@ def test_provenance_records_reference_versions():
     prov = json.loads((_BUNDLE / "provenance.json").read_text())
     assert "Synth" in prov.get("packages", {})
     assert re.match(r"R version", prov.get("r_version", ""))
+
+
+def test_comparison_csv_is_self_consistent():
+    # The committed side-by-side table: abs_diff must equal |mlsynth - reference|
+    # in every row, and the reference column must match the captured bundle.
+    import csv
+
+    ref = load_reference("synth_prop99")
+    rows = list(csv.DictReader((_BUNDLE / "comparison.csv").read_text().splitlines()))
+    assert rows, "comparison.csv is empty"
+    for r in rows:
+        ml, rf = float(r["mlsynth"]), float(r["reference"])
+        assert abs(ml - rf) == pytest.approx(float(r["abs_diff"]), abs=1e-6)
+        if r["quantity"].startswith("weight["):
+            donor = r["quantity"][len("weight["):-1]
+            assert rf == pytest.approx(ref["weights"].get(donor, 0.0), abs=1e-6)
+        elif r["quantity"] == "pre_period_SSR":
+            assert rf == pytest.approx(ref["values"]["synth_pre_ssr"], abs=1e-6)

@@ -45,6 +45,29 @@ EXPECTED = {
 
 `benchmarks/cases/synth_prop99.py` is the worked exemplar.
 
+## Side-by-side comparison tables
+
+A case may also define `comparison() -> list[dict]` returning rows
+`{quantity, mlsynth, reference}` that pair the library's own number against the
+captured reference value, quantity by quantity (donor weights, the fit loss, the
+ATT, ...). Export them to committed, inspectable tables:
+
+```bash
+python benchmarks/reference/export_comparison.py synth_prop99   # one case
+python benchmarks/reference/export_comparison.py --all          # every case
+```
+
+This writes `benchmarks/reference/<case>/comparison.csv` (GitHub renders it as a
+table) and, when `openpyxl` is installed, a combined
+`benchmarks/reference/comparisons.xlsx` with one sheet per case — open it in
+Excel and read mlsynth next to the reference, with the absolute difference:
+
+| quantity | mlsynth | reference | abs_diff |
+|----------|--------:|----------:|---------:|
+| weight[Utah] | 0.393908 | 0.396212 | 0.002304 |
+| pre_period_SSR | 52.129571 | 52.136289 | 0.006718 |
+| ATT | -19.51363 | -19.493546 | 0.020084 |
+
 ## Generating / refreshing
 
 ```bash

@@ -1,0 +1,9 @@
+quantity,mlsynth,reference,abs_diff
+weight[Utah],0.393908,0.396212,0.002304
+weight[Montana],0.23184,0.22878,0.00306
+weight[Nevada],0.204923,0.204171,0.000752
+weight[Connecticut],0.10909,0.10923,0.00014
+weight[New Hampshire],0.045429,0.046482,0.001053
+weight[Colorado],0.014811,0.015103,0.000292
+pre_period_SSR,52.129571,52.136289,0.006718
+ATT,-19.51363,-19.493546,0.020084
