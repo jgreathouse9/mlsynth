@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-06-24T19:06:52Z",
+  "git_sha": "4f098873ac17dda3c3b1284dfa9dde4741bb5e83",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/pda_hongkong/reference.py",
+  "data": [
+    {
+      "path": "basedata/HongKong.csv",
+      "sha256": "ad5b35ff563a71304c38ee266d5b420dbeb9e26dcbc5954a94d9cfdda3f4c9a7"
+    }
+  ]
+}

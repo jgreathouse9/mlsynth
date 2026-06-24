@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-06-24T19:08:55Z",
+  "git_sha": "4f098873ac17dda3c3b1284dfa9dde4741bb5e83",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/pda_ppi/reference.py",
+  "data": [
+    {
+      "path": "basedata/china_ppi_long.csv",
+      "sha256": "cc4cda27e17bbab13a4c4ce94403972711b2a1efd46e4423d94f7887fdc913b3"
+    }
+  ]
+}

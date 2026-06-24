@@ -1,0 +1,39 @@
+== REFERENCE VALUES ==
+tau	0.0749223948405
+obj_sqnorm	0.137069552202
+alpha	-0.0159995088154
+beta_l2_norm	0.523597783948
+pre_rmse	0.0137360842976
+post_mean_pred	0.0458010735476
+solver_obj_spread	1.15645170107e-08
+weight	Australia	-0.0416083154256
+weight	Austria	-0.0824702688169
+weight	Canada	0.131218669391
+weight	China	0.110867259241
+weight	Denmark	0.0807955262359
+weight	Finland	-0.112546200936
+weight	France	-0.125781389468
+weight	Germany	-0.166512539845
+weight	Indonesia	0.0563617626933
+weight	Italy	-0.0708888677184
+weight	Japan	0.231405346989
+weight	Korea	0.0692362502975
+weight	Malaysia	0.0695908960461
+weight	Mexico	0.0715623129624
+weight	Netherlands	0.0471741378799
+weight	New Zealand	0.174929365987
+weight	Norway	0.122475286619
+weight	Philippines	0.164218018686
+weight	Singapore	0.0903692689976
+weight	Switzerland	-0.000268305152177
+weight	Taiwan	0.0731808886417
+weight	Thailand	0.0655900598752
+weight	United Kingdom	-0.0590143814078
+weight	United States	-0.0276019388832
+
+== SESSION INFO ==
+python	3.11.15
+cvxpy	1.7.5
+numpy	2.4.6
+pandas	2.3.3
+solvers	ECOS,OSQP,SCS,CLARABEL

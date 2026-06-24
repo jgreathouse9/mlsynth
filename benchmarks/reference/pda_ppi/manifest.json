@@ -1,0 +1,9 @@
+{
+  "case": "pda_ppi",
+  "title": "L2-relaxation solver cross-validation at a fixed tau (China PPI / real-estate regulation)",
+  "paper": "Shi, Zhentao & Yishu Wang, \"L2-Relaxation for Economic Prediction\"; Section 6.1 (China PPI and Real Estate Regulation)",
+  "reference_impl": "Authors' Fun/L2relax.R (ishwang1/L2relax-PDA) reproduced via cvxpy/ECOS (CVXR/MOSEK unavailable in this R)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/pda_ppi/reference.py",
+  "data": ["basedata/china_ppi_long.csv"]
+}

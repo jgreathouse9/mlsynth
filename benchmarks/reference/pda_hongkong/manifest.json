@@ -1,0 +1,9 @@
+{
+  "case": "pda_hongkong",
+  "title": "L2-relaxation solver cross-validation at a fixed tau (Hong Kong / CEPA handover)",
+  "paper": "Shi, Zhentao & Yishu Wang, \"L2-Relaxation for Economic Prediction\"; Appendix E.1 (Hsiao, Ching & Wan 2012 Hong Kong handover study)",
+  "reference_impl": "Authors' Fun/L2relax.R (ishwang1/L2relax-PDA) reproduced via cvxpy/ECOS (CVXR/MOSEK unavailable in this R)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/pda_hongkong/reference.py",
+  "data": ["basedata/HongKong.csv"]
+}

@@ -1,0 +1,33 @@
+Reference code/provenance for the `pda_hongkong` benchmark.
+
+  Fun/L2relax.R   The authors' L2-relaxation function, vendored verbatim from
+                  github.com/ishwang1/L2relax-PDA (folder Fun/). Included for
+                  provenance only -- a single function so a reader can see the
+                  exact program the Python reference reproduces.
+  reference.py    A faithful port of Fun/L2relax.R's convex program, solved with
+                  cvxpy. It standardises the treated/donor pre-period series
+                  exactly as the R function (intercept=TRUE, standardize=TRUE),
+                  forms Sigma = X'X/T1 and eta = X'y/T1, minimises ||beta||^2
+                  subject to |eta - Sigma beta| <= tau elementwise, then
+                  de-standardises beta and the intercept. It reads the same
+                  basedata/HongKong.csv that mlsynth fits.
+
+License / redistribution
+  The L2relax-PDA repository ships NO explicit license file (checked: no
+  LICENSE/COPYING and no SPDX header). We therefore do not redistribute the
+  repository; we vendor only the single Fun/L2relax.R function for provenance
+  (to document precisely which program the cvxpy port reproduces) and reproduce
+  the *method* independently in reference.py. All credit for the method and the
+  R implementation belongs to the authors (Shi & Wang).
+
+Solver note
+  The authors' default solver is CVXR (MOSEK in their notebooks; ECOS_BB in the
+  L2relax.R signature). CVXR is NOT installable in this environment's R (no
+  binary/source build of CVXR for R 4.3.3, and no MOSEK licence), so the
+  identical convex program is run via cvxpy with the authors' default open
+  solver family, ECOS. The L2-relaxation primal is strictly convex, so at a
+  fixed tau the optimum is unique and solver-invariant; reference.py checks
+  ECOS, OSQP, SCS and CLARABEL attain the same objective (solver_obj_spread).
+
+These files produce the captured reference bundle only and are not part of the
+mlsynth library.
