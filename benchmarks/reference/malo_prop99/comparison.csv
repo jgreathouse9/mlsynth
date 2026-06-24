@@ -1,0 +1,14 @@
+# case: malo_prop99
+# generated_at: 2026-06-24T17:24:21Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "malo", "covariate_windows": {"cig1975": [1975, 1975], "cig1980": [1980, 1980], "cig1988": [1988, 1988], "loginc": [1980, 1988], "p_cig": [1980, 1988], "pc_beer": [1984, 1988], "pct15-24": [1980, 1988]}, "covariates": ["loginc", "p_cig", "pct15-24", "pc_beer", "cig1975", "cig1980", "cig1988"], "outcome": "cigsale", "seed": 0, "time": "year", "treat": "treated", "unitid": "state"}
+# reference_impl: Malo et al. scm.corner (SCM-Debug, live run, captured)
+# reference_version: live captured run (benchmarks/reference/malo_prop99/; Malo et al. 2024, Table 1, github.com/Xun90/SCM-Debug)
+quantity,mlsynth,reference,abs_diff
+weight[Utah],0.397651,0.393908,0.003743
+weight[Montana],0.227047,0.231839,0.004792
+weight[Nevada],0.203913,0.204923,0.00101
+weight[Connecticut],0.10928,0.109089,0.000191
+weight[New Hampshire],0.046999,0.045429,0.00157
+weight[Colorado],0.01511,0.014811,0.000299

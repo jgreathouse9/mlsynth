@@ -1,5 +1,5 @@
 # case: mlsc_bottmer
-# generated_at: 2026-06-24T15:50:21Z
+# generated_at: 2026-06-24T17:24:26Z
 # mlsynth_version: 1.0.0
 # estimator: MLSC
 # config: {"agg_id": "state", "lambda_est": "heuristic", "outcome": "y", "time": "time", "treat": "treated", "unitid_agg": "state", "unitid_disagg": "county"}

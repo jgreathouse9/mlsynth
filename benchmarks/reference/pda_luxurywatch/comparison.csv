@@ -1,0 +1,12 @@
+# case: pda_luxurywatch
+# generated_at: 2026-06-24T17:24:23Z
+# mlsynth_version: 1.0.0
+# estimator: PDA
+# config: {"fs_intercept": true, "methods": ["fs"], "outcome": "y", "time": "time", "treat": "treat", "unitid": "unit"}
+# reference_impl: Shi & Huang fsPDA application script (zhentaoshi/fsPDA, live run, captured)
+# reference_version: Shi & Huang (2023), J. Econometrics; fsPDA app1_luxury_watch
+quantity,mlsynth,reference,abs_diff
+ATE_pct,-3.089581,-3.089581,0.0
+pre_R2,0.776819,0.776819,0.0
+n_controls,3.0,3.0,0.0
+abs_t_stat,2.513969,2.457774,0.056195

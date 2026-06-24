@@ -1,5 +1,5 @@
 # case: spillsynth_iscm_xval
-# generated_at: 2026-06-24T15:50:24Z
+# generated_at: 2026-06-24T17:24:29Z
 # mlsynth_version: 1.0.0
 # estimator: SPILLSYNTH
 # config: {"affected_units": ["Austria"], "iscm_intercept": true, "method": "iscm", "outcome": "gdp", "time": "year", "treat": "treat", "unitid": "country"}

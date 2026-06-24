@@ -1,5 +1,5 @@
 # case: ascm_kansas
-# generated_at: 2026-06-24T15:50:25Z
+# generated_at: 2026-06-24T17:24:29Z
 # mlsynth_version: 1.0.0
 # estimator: ridge_augment_weights
 # config: {"covariates": ["lngdpcapita", "revstatecapita", "revlocalcapita", "avgwklywagecapita", "estabscapita", "emplvlcapita"], "specifications": ["scm", "ridge", "covariate", "residualized"], "t_int": 2012.25, "treated_fips": 20.0}

@@ -1,5 +1,5 @@
 # case: malo_basque
-# generated_at: 2026-06-24T15:50:17Z
+# generated_at: 2026-06-24T17:24:23Z
 # mlsynth_version: 1.0.0
 # estimator: VanillaSC
 # config: {"backend": "malo", "covariate_windows": {"gdpcap": [1960, 1969], "invest": [1964, 1969], "popdens": [1969, 1969], "school.higher": [1964, 1969], "school.illit": [1964, 1969], "school.med": [1964, 1969], "school.prim": [1964, 1969], "sec.agriculture": [1961, 1969], "sec.construction": [1961, 1969], "sec.energy": [1961, 1969], "sec.industry": [1961, 1969], "sec.services.nonventa": [1961, 1969], "sec.services.venta": [1961, 1969]}, "covariates": ["school.illit", "school.prim", "school.med", "school.higher", "invest", "gdpcap", "sec.agriculture", "sec.energy", "sec.industry", "sec.construction", "sec.services.venta", "sec.services.nonventa", "popdens"], "fit_window": [1960, 1969], "outcome": "gdpcap", "seed": 0, "time": "year", "treat": "treat", "unitid": "regionname"}

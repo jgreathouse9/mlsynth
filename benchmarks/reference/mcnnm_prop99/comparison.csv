@@ -1,5 +1,5 @@
 # case: mcnnm_prop99
-# generated_at: 2026-06-24T15:49:01Z
+# generated_at: 2026-06-24T17:23:09Z
 # mlsynth_version: 1.0.0
 # estimator: MCNNM
 # config: {"outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}

@@ -1,0 +1,14 @@
+# case: scmo_germany
+# generated_at: 2026-06-24T17:23:25Z
+# mlsynth_version: 1.0.0
+# estimator: SCMO
+# config: {"outcome": "gdp", "schemes": ["separate", "concatenated", "averaged"], "spec": "9 indicators in 1989", "time": "year", "treat": "Reunification", "unitid": "country"}
+# reference_impl: Tian-Lee-Panchenko Germany.R (fn_W solve.QP, live run, captured)
+# reference_version: Tian, Lee & Panchenko (2026), Econometrics Journal
+quantity,mlsynth,reference,abs_diff
+multi/GDP_pc,19029.7763,19029.7761,0.0002
+multi/CPI,3.059,3.0588,0.0002
+multi/trade_openness,59.0612,59.0507,0.0105
+multi/total_tax,34.0678,34.0638,0.004
+multi/real_GDP_growth,4.1201,4.1198,0.0003
+single/GDP_pc,19075.9118,19075.9114,0.0004

@@ -1,5 +1,5 @@
 # case: geolift_marketselection_ref
-# generated_at: 2026-06-24T15:51:40Z
+# generated_at: 2026-06-24T17:25:30Z
 # mlsynth_version: 1.0.0
 # estimator: GEOLIFT
 # config: {"alpha": 0.1, "augment": "ridge", "budget": 100000.0, "conformal_type": "iid", "cpic": 7.5, "durations": [10, 15], "effect_sizes": [0.0, 0.05, 0.1, 0.15, 0.2], "fixed_effects": true, "how": "sum", "lookback_window": 1, "n_jobs": -1, "not_to_be_treated": ["honolulu"], "ns": 1000, "outcome": "Y", "power_threshold": 0.8, "seed": 0, "time": "date", "to_be_treated": ["chicago"], "treatment_size": [2, 3, 4, 5], "unitid": "location"}
