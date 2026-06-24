@@ -1,0 +1,28 @@
+# case: si_prop99
+# generated_at: 2026-06-24T12:42:27Z
+# mlsynth_version: 1.0.0
+# estimator: SI
+# config: {"bias_correct": true, "inters": ["control", "taxes", "program"], "interval": "prediction", "rank_method": "donoho", "variance": "double"}
+# reference_impl: authors' SI code (INFORMS opre.2025.1590.cd), vendored benchmarks/reference/synth_iv_OR25
+# reference_version: vendored, pinned in-repo
+quantity,mlsynth,reference,abs_diff
+California/control/lower,70.932154,70.932154,0.0
+California/control/upper,80.632061,80.632061,0.0
+California/taxes/lower,47.994623,47.994623,0.0
+California/taxes/upper,67.061138,67.061138,0.0
+Arizona/control/lower,70.070237,70.070237,0.0
+Arizona/control/upper,84.076662,84.076662,0.0
+Arizona/taxes/lower,47.958065,47.958065,0.0
+Arizona/taxes/upper,67.577703,67.577703,0.0
+Massachusetts/control/lower,77.496196,77.496196,0.0
+Massachusetts/control/upper,91.280602,91.280602,0.0
+Massachusetts/taxes/lower,49.47124,49.47124,0.0
+Massachusetts/taxes/upper,68.332072,68.332072,0.0
+Oregon/control/lower,74.66798,74.66798,0.0
+Oregon/control/upper,88.640784,88.640784,0.0
+Oregon/taxes/lower,52.756417,52.756417,0.0
+Oregon/taxes/upper,86.746487,86.746487,0.0
+Florida/control/lower,88.565125,88.565125,0.0
+Florida/control/upper,100.977472,100.977472,0.0
+Florida/taxes/lower,54.317905,54.317905,0.0
+Florida/taxes/upper,73.161716,73.161716,0.0

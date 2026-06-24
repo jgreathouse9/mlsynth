@@ -54,9 +54,12 @@ def _cases_with_comparison() -> list:
     return out
 
 
-def _metadata(name: str, call: dict) -> dict:
+def _metadata(name: str, result: dict) -> dict:
     """Provenance for one case's comparison: when, which mlsynth call, which
-    reference (and its version), pulled from the captured bundle when present."""
+    reference (and version). The reference descriptor comes from the case's
+    ``comparison()`` (for live, vendored references) or from the captured bundle's
+    manifest/provenance when present."""
+    call = result.get("mlsynth_call", {})
     meta = {
         "case": name,
         "generated_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -64,7 +67,12 @@ def _metadata(name: str, call: dict) -> dict:
         "estimator": call.get("estimator", ""),
         "config": json.dumps(call.get("config", {}), sort_keys=True),
     }
-    bundle = REF_DIR / name
+    ref = result.get("reference", {})
+    if ref:                                       # case-supplied (live reference)
+        meta["reference_impl"] = ref.get("impl", "")
+        meta["reference_version"] = ref.get("version", "")
+        return meta
+    bundle = REF_DIR / name                       # captured-bundle reference
     if (bundle / "manifest.json").exists():
         meta["reference_impl"] = json.loads((bundle / "manifest.json").read_text()).get("reference_impl", "")
     if (bundle / "provenance.json").exists():
@@ -85,7 +93,7 @@ def export_case(name: str) -> dict:
     rows = result["rows"]
     for r in rows:
         r["abs_diff"] = round(abs(float(r["mlsynth"]) - float(r["reference"])), 6)
-    meta = _metadata(name, result.get("mlsynth_call", {}))
+    meta = _metadata(name, result)
     bundle = REF_DIR / name
     bundle.mkdir(exist_ok=True)
     with open(bundle / "comparison.csv", "w", newline="") as fh:
