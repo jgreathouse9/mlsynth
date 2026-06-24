@@ -1,0 +1,11 @@
+# case: cwz_ttest
+# generated_at: 2026-06-24T14:05:12Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"alpha": 0.1, "backend": "outcome-only", "inference": "ttest", "outcome": "CO2_transport_capita", "time": "year", "treat": "treated", "ttest_K": 3, "unitid": "country"}
+# reference_impl: Chernozhukov-Wuthrich-Zhu scinference / Table 5(a)
+# reference_version: pinned published constants (arXiv:1812.10820, Table 5(a))
+quantity,mlsynth,reference,abs_diff
+ATT,-0.273903,-0.27,0.003903
+CI_lower_90%,-0.406425,-0.41,0.003575
+CI_upper_90%,-0.14138,-0.14,0.00138

@@ -1,0 +1,12 @@
+# case: mlsc_bottmer
+# generated_at: 2026-06-24T14:06:27Z
+# mlsynth_version: 1.0.0
+# estimator: MLSC
+# config: {"agg_id": "state", "lambda_est": "heuristic", "outcome": "y", "time": "time", "treat": "treated", "unitid_agg": "state", "unitid_disagg": "county"}
+# reference_impl: leabottmer/multi-level-sc-estimator (mlSC_estimator, cvxpy+SCS)
+# reference_version: git 0fb2639
+quantity,mlsynth,reference,abs_diff
+heuristic/ATT,0.011928,0.011928,0.0
+heuristic/lambda,1.970185,1.970185,0.0
+cross-validation/ATT,0.05263,0.052631,1e-06
+cross-validation/lambda,316.227766,316.227766,0.0

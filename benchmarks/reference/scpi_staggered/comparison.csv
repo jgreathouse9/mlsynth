@@ -1,0 +1,23 @@
+# case: scpi_staggered
+# generated_at: 2026-06-24T14:08:20Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"outcome": "gdp", "time": "year", "treat": "status", "unitid": "country"}
+# reference_impl: Python package scpi_pkg
+# reference_version: scpi_pkg (pip)
+quantity,mlsynth,reference,abs_diff
+ATT[West Germany],-1.847601,-1.8476,1e-06
+ATT[Italy],-1.121062,-1.1211,3.8e-05
+ATT[overall],-1.498862,-1.4989,3.8e-05
+event_time[ell=0],0.131033,0.131,3.3e-05
+event_time[ell=1],0.03164,0.0316,4e-05
+event_time[ell=2],-0.425509,-0.4255,9e-06
+event_time[ell=3],-0.670003,-0.67,3e-06
+event_time[ell=4],-0.901268,-0.9013,3.2e-05
+event_time[ell=5],-1.230443,-1.2304,4.3e-05
+event_time[ell=6],-1.252886,-1.2529,1.4e-05
+event_time[ell=7],-1.601529,-1.6015,2.9e-05
+event_time[ell=8],-2.275757,-2.2758,4.3e-05
+event_time[ell=9],-2.673439,-2.6734,3.9e-05
+event_time[ell=10],-2.845683,-2.8457,1.7e-05
+event_time[ell=11],-3.083194,-3.0832,6e-06

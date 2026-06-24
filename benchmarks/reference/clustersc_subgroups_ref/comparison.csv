@@ -1,0 +1,11 @@
+# case: clustersc_subgroups_ref
+# generated_at: 2026-06-24T14:05:11Z
+# mlsynth_version: 1.0.0
+# estimator: CLUSTERSC
+# config: {"method": "pcr", "outcome": "y", "pcr_objective": "OLS", "project_denoised": true, "rank_method": "fixed", "time": "time", "treat": "treat", "unitid": "unit"}
+# reference_impl: authors' ClusterSC code (srho1/ClusterSC syclib), cloned on demand by benchmarks.reference.clone_clustersc
+# reference_version: srho1/ClusterSC @ b223e1e
+quantity,mlsynth,reference,abs_diff
+clustering_improve_pct/noise010,38.435644,38.801423,0.365779
+clustering_improve_pct/noise025,16.941335,71.260604,54.319269
+clustering_improve_pct/noise040,18.815538,70.615248,51.79971

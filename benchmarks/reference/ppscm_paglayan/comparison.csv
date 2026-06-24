@@ -1,0 +1,57 @@
+# case: ppscm_paglayan
+# generated_at: 2026-06-24T14:04:13Z
+# mlsynth_version: 1.0.0
+# estimator: PPSCM
+# config: {"outcome": "lnppexpend", "time": "year", "treat": "cbr", "unitid": "State"}
+# reference_impl: R augsynth::multisynth (via Rscript)
+# reference_version: augsynth (R, live)
+quantity,mlsynth,reference,abs_diff
+nu,0.2607,0.2607,0.0
+ATT,-0.011,-0.011,0.0
+global_L2,0.0026,0.003,0.0004
+time_cohort/nu,0.3939,0.3939,0.0
+time_cohort/ATT,-0.017,-0.018,0.001
+event_study/tau[0],-0.004336,-0.004282,5.4e-05
+event_study/tau[1],-0.010699,-0.010857,0.000158
+event_study/tau[2],0.004367,0.004379,1.2e-05
+event_study/tau[3],0.001388,0.001155,0.000233
+event_study/tau[4],-0.009073,-0.009305,0.000232
+event_study/tau[5],-0.016488,-0.016943,0.000455
+event_study/tau[6],-0.018164,-0.018505,0.000341
+event_study/tau[7],-0.003424,-0.003867,0.000443
+event_study/tau[8],-0.015579,-0.015836,0.000257
+event_study/tau[9],-0.031283,-0.031751,0.000468
+event_study/tau[10],-0.01734,-0.017839,0.000499
+time_cohort/tau[0],0.000285,-0.000776,0.001061
+time_cohort/tau[1],-0.015282,-0.016062,0.00078
+time_cohort/tau[2],-0.001648,-0.002847,0.001199
+time_cohort/tau[3],-0.00052,-0.002672,0.002152
+time_cohort/tau[4],-0.016981,-0.018131,0.00115
+time_cohort/tau[5],-0.026611,-0.02849,0.001879
+time_cohort/tau[6],-0.021237,-0.022834,0.001597
+time_cohort/tau[7],-0.012238,-0.014079,0.001841
+time_cohort/tau[8],-0.024305,-0.024547,0.000242
+time_cohort/tau[9],-0.046768,-0.047692,0.000924
+time_cohort/tau[10],-0.021204,-0.021612,0.000408
+jackknife_se[0],0.01845,0.01857,0.00012
+jackknife_se[1],0.01565,0.01553,0.00012
+jackknife_se[2],0.01571,0.01577,6e-05
+jackknife_se[3],0.02079,0.02042,0.00037
+jackknife_se[4],0.02229,0.02236,7e-05
+jackknife_se[5],0.02572,0.02538,0.00034
+jackknife_se[6],0.0268,0.02683,3e-05
+jackknife_se[7],0.03032,0.03015,0.00017
+jackknife_se[8],0.03485,0.03494,9e-05
+jackknife_se[9],0.0319,0.03187,3e-05
+jackknife_se[10],0.03536,0.03495,0.00041
+bootstrap_se[0],0.02236,0.02247,0.00011
+bootstrap_se[1],0.02133,0.02139,6e-05
+bootstrap_se[2],0.02311,0.02404,0.00093
+bootstrap_se[3],0.02395,0.02461,0.00066
+bootstrap_se[4],0.02518,0.02561,0.00043
+bootstrap_se[5],0.02402,0.02445,0.00043
+bootstrap_se[6],0.0253,0.02491,0.00039
+bootstrap_se[7],0.02853,0.02811,0.00042
+bootstrap_se[8],0.03147,0.03171,0.00024
+bootstrap_se[9],0.02939,0.02916,0.00023
+bootstrap_se[10],0.03303,0.03245,0.00058

@@ -1,0 +1,21 @@
+# case: spillsynth_prop99
+# generated_at: 2026-06-24T14:06:32Z
+# mlsynth_version: 1.0.0
+# estimator: SPILLSYNTH
+# config: {"affected_units": ["Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii", "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada", "New York", "Oregon", "Washington"], "method": "cd", "outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}
+# reference_impl: jcao0/synthetic-control-spillover MATLAB spillover.csv (CA row)
+# reference_version: commit 60bbebe
+quantity,mlsynth,reference,abs_diff
+CA_ATT[1989],0.082663,0.082658,5e-06
+CA_ATT[1990],3.714398,3.714415,1.7e-05
+CA_ATT[1991],-3.758437,-3.758424,1.3e-05
+CA_ATT[1992],-3.427074,-3.427054,2e-05
+CA_ATT[1993],-7.614578,-7.614542,3.6e-05
+CA_ATT[1994],-10.913725,-10.913696,2.9e-05
+CA_ATT[1995],-12.834583,-12.834558,2.5e-05
+CA_ATT[1996],-13.084344,-13.084287,5.7e-05
+CA_ATT[1997],-14.913645,-14.913619,2.6e-05
+CA_ATT[1998],-16.081157,-16.081133,2.4e-05
+CA_ATT[1999],-18.958765,-18.958718,4.7e-05
+CA_ATT[2000],-15.490055,-15.49001,4.5e-05
+CA_ATT[avg],-9.439942,-9.439914,2.8e-05

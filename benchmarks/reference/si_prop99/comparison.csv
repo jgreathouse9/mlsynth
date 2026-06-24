@@ -1,5 +1,5 @@
 # case: si_prop99
-# generated_at: 2026-06-24T12:42:27Z
+# generated_at: 2026-06-24T14:03:54Z
 # mlsynth_version: 1.0.0
 # estimator: SI
 # config: {"bias_correct": true, "inters": ["control", "taxes", "program"], "interval": "prediction", "rank_method": "donoho", "variance": "double"}

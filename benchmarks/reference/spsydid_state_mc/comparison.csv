@@ -1,0 +1,28 @@
+# case: spsydid_state_mc
+# generated_at: 2026-06-24T14:04:41Z
+# mlsynth_version: 1.0.0
+# estimator: SpSyDiD
+# config: {"outcome": "UR2", "row_standardize_spatial": false, "spatial_matrix": "<row-standardized spatial weights, 49 units>", "time": "month", "treat": "treat_indicator", "unitid": "ID"}
+# reference_impl: authors' SDID weight functions (serenini/spatial_SDID functions_ssdid) + the notebook's spatial WLS, via benchmarks.reference.spsydid_ref
+# reference_version: serenini/spatial_SDID @ e43427d (cloned on demand, pinned in benchmarks.reference.clone_spsydid)
+quantity,mlsynth,reference,abs_diff
+ATT[window 1975-1978],1.800613,1.805918,0.005305
+ATT[window 1976-1979],1.190939,1.18298,0.007959
+ATT[window 1977-1980],1.598348,1.672725,0.074377
+ATT[window 1978-1981],1.776762,1.760288,0.016474
+ATT[window 1979-1982],0.77793,0.780299,0.002369
+ATT[window 1980-1983],2.645709,2.651806,0.006097
+ATT[window 1981-1984],2.486992,2.392616,0.094376
+ATT[window 1982-1985],2.068123,2.022975,0.045148
+ATT[window 1983-1986],1.81798,1.817226,0.000754
+ATT[window 1984-1987],1.863759,1.874688,0.010929
+ATT[window 1985-1988],1.54942,1.599861,0.050441
+ATT[window 1986-1989],1.008876,1.067605,0.058729
+ATT[window 1987-1990],1.346338,1.362333,0.015995
+ATT[window 1988-1991],1.05107,1.017976,0.033094
+ATT[window 1989-1992],1.111924,1.03694,0.074984
+ATT[window 1990-1993],1.467458,1.484014,0.016556
+ATT[window 1991-1994],1.640686,1.621185,0.019501
+ATT[window 1992-1995],1.339307,1.365395,0.026088
+ATT[window 1993-1996],1.44247,1.458547,0.016077
+ATT[window 1994-1997],1.718275,1.747356,0.029081
