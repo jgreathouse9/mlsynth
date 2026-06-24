@@ -75,6 +75,7 @@ CASES = {
     "spillsynth_iterative_germany": "benchmarks.cases.spillsynth_iterative_germany",  # Path A: iterative waterfall SCM German reunification (Melnychuk)
     "spillsynth_sar_mc": "benchmarks.cases.spillsynth_sar_mc",  # Path B: SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
     "spotsynth_real_data": "benchmarks.cases.spotsynth_real_data",  # SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
+    "spotsynth_panic1907": "benchmarks.cases.spotsynth_panic1907",  # cross-method: SPOTSYNTH debias vs PROXIMAL PI on Panic 1907 + TCA screen + systemic-shock limit
     "ctsc_powell_mc": "benchmarks.cases.ctsc_powell_mc",      # Path B: CTSC vs two-way FE bias (Powell 2022 Table 1)
     "siv_syria_mc": "benchmarks.cases.siv_syria_mc",          # Path B: SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
     "orthsc_carbontax": "benchmarks.cases.orthsc_carbontax",  # Path A: ORTHSC Fry carbon-tax ATT/p/K/CI (Andersson 2019 data, vs live R)
