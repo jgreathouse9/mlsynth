@@ -22,6 +22,7 @@ import warnings
 import pandas as pd
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference import reference_value
 
 _BASE = os.path.join(os.path.dirname(__file__), "..", "..", "basedata")
 
@@ -74,10 +75,10 @@ def comparison() -> dict:
     """mlsynth ``VanillaSC(inference="ttest")`` vs CWZ Table 5(a), the Swedish
     carbon-tax debiased-SC t-test: ATT and the 90% CI bounds, side by side.
 
-    The reference side is the paper's published Table 5(a) constants (the R
-    ``scinference`` values the authors report), pinned in-repo -- no R toolchain
-    is run -- against a fresh outcome-only ``VanillaSC`` fit on the Andersson
-    (2019) carbon-tax panel.
+    The reference side is a live ``scinference`` run captured in
+    ``benchmarks/reference/cwz_ttest/`` (the authors' ``sc.cf`` t-test, version
+    pinned), not transcribed -- laid against a fresh outcome-only ``VanillaSC``
+    fit on the Andersson (2019) carbon-tax panel.
     """
     ct = pd.read_stata(_need("carbontax_data.dta"))
     ct["treated"] = ((ct.country == "Sweden") & (ct.year >= 1990)).astype(int)
@@ -85,9 +86,12 @@ def comparison() -> dict:
     att = float(inf.details["att_debiased"])
     lo, hi = float(inf.ci_lower), float(inf.ci_upper)
     rows = [
-        {"quantity": "ATT", "mlsynth": round(att, 6), "reference": -0.27},
-        {"quantity": "CI_lower_90%", "mlsynth": round(lo, 6), "reference": -0.41},
-        {"quantity": "CI_upper_90%", "mlsynth": round(hi, 6), "reference": -0.14},
+        {"quantity": "ATT", "mlsynth": round(att, 6),
+         "reference": round(reference_value("cwz_ttest", "carbontax_att"), 6)},
+        {"quantity": "CI_lower_90%", "mlsynth": round(lo, 6),
+         "reference": round(reference_value("cwz_ttest", "carbontax_ci_lower"), 6)},
+        {"quantity": "CI_upper_90%", "mlsynth": round(hi, 6),
+         "reference": round(reference_value("cwz_ttest", "carbontax_ci_upper"), 6)},
     ]
     cfg = {"outcome": "CO2_transport_capita", "treat": "treated", "unitid": "country",
            "time": "year", "backend": "outcome-only", "inference": "ttest",
@@ -95,17 +99,19 @@ def comparison() -> dict:
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
-        "reference": {"impl": "Chernozhukov-Wuthrich-Zhu scinference / Table 5(a)",
-                      "version": "pinned published constants (arXiv:1812.10820, "
-                                 "Table 5(a))"},
+        "reference": {"impl": "R package scinference (sc.cf t-test, live run, captured)",
+                      "version": "scinference 0.0.0.9000"},
     }
 
 
-# Outcome-only SC is a deterministic convex program, so these are exact re-runs.
+# Outcome-only SC is a deterministic convex program. Targets are pinned from a
+# live scinference run captured in benchmarks/reference/cwz_ttest/ (not
+# transcribed): mlsynth's ported t-test reproduces the package to ~1e-3.
+_cw = lambda k: reference_value("cwz_ttest", k)
 EXPECTED = {
-    "carbontax_att": (-0.27, 0.02),        # CWZ Table 5(a): -0.27
-    "carbontax_ci_lower": (-0.41, 0.02),   # CWZ Table 5(a): -0.41
-    "carbontax_ci_upper": (-0.14, 0.02),   # CWZ Table 5(a): -0.14
-    "basque_att": (-0.6575, 0.02),         # debiased ATT, K=3
-    "prop99_att": (-17.99, 0.3),           # debiased ATT, K=3 (~ -19 packs naive)
+    "carbontax_att": (_cw("carbontax_att"), 0.005),
+    "carbontax_ci_lower": (_cw("carbontax_ci_lower"), 0.005),
+    "carbontax_ci_upper": (_cw("carbontax_ci_upper"), 0.005),
+    "basque_att": (_cw("basque_att"), 0.005),
+    "prop99_att": (_cw("prop99_att"), 0.05),
 }

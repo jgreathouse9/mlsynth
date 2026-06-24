@@ -1,0 +1,10 @@
+{
+  "values": {
+    "carbontax_att": -0.273903,
+    "carbontax_ci_lower": -0.406425,
+    "carbontax_ci_upper": -0.14138,
+    "basque_att": -0.657511,
+    "prop99_att": -17.991121
+  },
+  "weights": {}
+}

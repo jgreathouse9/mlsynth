@@ -1,0 +1,33 @@
+== REFERENCE VALUES ==
+carbontax_att	-0.273903
+carbontax_ci_lower	-0.406425
+carbontax_ci_upper	-0.141380
+basque_att	-0.657511
+prop99_att	-17.991121
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] scinference_0.0.0.9000 foreign_0.8-86        
+
+loaded via a namespace (and not attached):
+[1] MASS_7.3-60.0.1 compiler_4.3.3  limSolve_2.0.2  lpSolve_5.6.23 
+[5] quadprog_1.5-8 
