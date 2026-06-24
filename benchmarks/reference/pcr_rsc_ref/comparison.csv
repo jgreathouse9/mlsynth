@@ -1,0 +1,16 @@
+# case: pcr_rsc_ref
+# generated_at: 2026-06-24T19:47:39Z
+# mlsynth_version: 1.0.0
+# estimator: ClusterSC/PCR (run_pcr OLS, fixed rank)
+# config: {"method": "PCR", "objective": "OLS", "outcome": "cigsale", "rank": 3, "time": "year", "treat": "Proposition 99", "unitid": "state"}
+# reference_impl: jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
+# reference_version: jehangiramjad/tslib @ 3e50bc1 (benchmarks/reference/pcr_rsc_ref/)
+quantity,mlsynth,reference,abs_diff
+ATT,-21.340034,-21.303756,0.036278
+pre_RMSE,2.067659,2.061349,0.00631
+weight[New Hampshire],0.132769,0.133181,0.000412
+weight[Nevada],0.090052,0.090266,0.000214
+weight[North Carolina],0.066889,0.06653,0.000359
+weight[Delaware],0.055135,0.055454,0.000319
+weight[Colorado],0.038723,0.038909,0.000186
+weight[Connecticut],0.034214,0.034528,0.000314

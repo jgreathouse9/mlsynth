@@ -1,0 +1,57 @@
+Reference implementation: jehangiramjad/tslib (Robust Synthetic Control)
+========================================================================
+
+This benchmark cross-validates mlsynth's PCR (principal component regression /
+robust synthetic control) against the ORIGINAL Robust Synthetic Control:
+
+    https://github.com/jehangiramjad/tslib
+    Authors: Jehangir Amjad, Devavrat Shah, Dennis Shen
+    Implements: Amjad, Shah & Shin, "Robust Synthetic Control",
+                Journal of Machine Learning Research 19(22):1-51, 2018.
+
+The class used is ``src/synthcontrol/syntheticControl.py::RobustSyntheticControl``
+(the OG RSC: hard singular-value thresholding of the stacked donor+treated
+pre-matrix, then an unconstrained pseudo-inverse / OLS of the de-noised treated
+row on the de-noised donor rows -- no intercept, no simplex constraint).
+
+The repository carries no LICENSE file. Rather than vendoring un-licensed source
+into mlsynth, the reference is fetched on demand at a pinned commit and imported
+from a local cache; nothing from it is redistributed in this tree.
+
+Fetch (performed automatically by benchmarks/reference/clone_tslib.py):
+
+    pinned commit: 3e50bc1fbe0178bf2c1b21b2ce9fd0f0ca2d5f76  (master @ 2021-12-14)
+    git clone is proxy-blocked in the build sandbox (HTTP 403), so the helper
+    falls back to the codeload tarball of the same pinned commit:
+
+        curl -sL -o tslib.tar.gz \
+          https://codeload.github.com/jehangiramjad/tslib/tar.gz/3e50bc1fbe0178bf2c1b21b2ce9fd0f0ca2d5f76
+
+    It extracts into benchmarks/reference/.cache/tslib/ (gitignored) and runs
+    the genuine RobustSyntheticControl fit from there.
+
+Dependencies: numpy, pandas, scikit-learn.
+
+Compatibility note: tslib targets Python 2.7 / early 3, and
+src/synthcontrol/syntheticControl.py mixes tabs and spaces in its predict() /
+getControl() methods, which raises TabError on import under Python 3. RSC's fit
+path does not use those methods -- RobustSyntheticControl.fit delegates straight
+to src/models/tsSVDModel.py::SVDModel.fit (N=1, includePastDataOnly=False,
+SVD/numpy). clone_tslib.py therefore imports the clean SVDModel and constructs +
+fits it exactly as the RobustSyntheticControl constructor does
+(build_rsc_weights). The RSC algorithm itself is the upstream source, unmodified.
+
+No modifications are made to the reference source.
+
+Convention note (see benchmarks/cases/pcr_rsc_ref.py)
+-----------------------------------------------------
+HSVT+OLS is deterministic given the retained rank k, but tslib and mlsynth
+de-noise slightly differently: tslib forms the donor-subspace projection from an
+SVD of the *stacked donor+treated* pre-matrix (the treated row participates in
+the rank-k truncation), whereas mlsynth's PCR (Amjad-Shah-Shen 2018 convention,
+the deliberate choice in mlsynth.utils.clustersc_helpers.pcr.pipeline) de-noises
+the donor pre-matrix *alone*. Both then OLS the treated pre-series onto the
+de-noised donors; neither constrains the weights or adds an intercept. Stacking
+the treated row rotates the rank-k donor subspace marginally, so the two learned
+weight vectors agree to ~5e-4 and the ATTs to ~0.04 packs/capita at k=3 -- the
+genuine numerical gap of the differing de-noising convention, not a bug.

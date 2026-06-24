@@ -1,0 +1,9 @@
+{
+  "case": "pcr_rsc_ref",
+  "title": "PCR (principal component regression) vs original Robust Synthetic Control (tslib) on Proposition 99",
+  "paper": "Amjad, Shah & Shin, \"Robust Synthetic Control\", JMLR 19(22):1-51, 2018 (tslib RobustSyntheticControl)",
+  "reference_impl": "jehangiramjad/tslib (live run, codeload @ 3e50bc1)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/pcr_rsc_ref/reference.py",
+  "data": ["basedata/smoking_data.csv"]
+}

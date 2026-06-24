@@ -1,0 +1,49 @@
+== REFERENCE VALUES ==
+weight	Alabama	-0.0089696464
+weight	Arkansas	-0.0075907115
+weight	Colorado	0.0389091930
+weight	Connecticut	0.0345282048
+weight	Delaware	0.0554544441
+weight	Georgia	0.0085003805
+weight	Idaho	0.0301949849
+weight	Illinois	0.0273408460
+weight	Indiana	0.0288111254
+weight	Iowa	0.0123346553
+weight	Kansas	0.0055231581
+weight	Kentucky	-0.0159631428
+weight	Louisiana	0.0068361323
+weight	Maine	0.0296694454
+weight	Minnesota	0.0159551463
+weight	Mississippi	0.0006793948
+weight	Missouri	0.0182356847
+weight	Montana	0.0296203163
+weight	Nebraska	0.0200645152
+weight	Nevada	0.0902664951
+weight	New Hampshire	0.1331811990
+weight	New Mexico	0.0198836556
+weight	North Carolina	0.0665303612
+weight	North Dakota	-0.0039054969
+weight	Ohio	0.0238171206
+weight	Oklahoma	-0.0032497292
+weight	Pennsylvania	0.0092909565
+weight	Rhode Island	0.0089656965
+weight	South Carolina	-0.0010619497
+weight	South Dakota	0.0044234377
+weight	Tennessee	-0.0048977911
+weight	Texas	0.0047760023
+weight	Utah	0.0113106394
+weight	Vermont	-0.0086687532
+weight	Virginia	0.0097137034
+weight	West Virginia	0.0217628567
+weight	Wisconsin	0.0193848538
+weight	Wyoming	0.0094303248
+pre_rmse	2.0613486763
+post_cf_mean	81.6537560314
+att	-21.3037560314
+k	3.0
+== SESSION INFO ==
+python 3.11.15
+numpy 2.4.6
+pandas 2.3.3
+scikit-learn 1.9.0
+reference: jehangiramjad/tslib @ 3e50bc1fbe0178bf2c1b21b2ce9fd0f0ca2d5f76 (RobustSyntheticControl, codeload tarball)
