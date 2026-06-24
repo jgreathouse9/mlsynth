@@ -1,0 +1,9 @@
+{
+  "case": "rescm_relax_ref",
+  "title": "RESCM L2-relaxation vs Liao-Shi-Zheng's scmrelax (toy factor panel, matched tau)",
+  "paper": "Liao, Wei, Zhentao Shi & Yapeng Zheng (2026), \"A Relaxation Approach to Synthetic Control\" (arXiv 2508.01793)",
+  "reference_impl": "scmrelax.L2RelaxationCV (packaged Relaxed_SC; github.com/metricshilab/scmrelax = github.com/YapengZheng/Relaxed_SC), MOSEK routed to CLARABEL, live run",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/rescm_relax_ref/reference.py",
+  "data": []
+}

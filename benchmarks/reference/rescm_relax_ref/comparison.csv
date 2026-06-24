@@ -1,10 +1,10 @@
 # case: rescm_relax_ref
-# generated_at: 2026-06-24T17:23:25Z
+# generated_at: 2026-06-24T19:11:49Z
 # mlsynth_version: 1.0.0
 # estimator: RESCM
 # config: {"methods": ["RELAX_L2"], "outcome": "y", "standardize": false, "tau": 0.5102251605443775, "time": "time", "treat": "treat", "unitid": "unit"}
-# reference_impl: scmrelax (Liao-Shi-Zheng)
-# reference_version: git+https://github.com/PanJi-0/scmrelax.git (not on PyPI; L2RelaxationCV)
+# reference_impl: scmrelax L2RelaxationCV (Liao-Shi-Zheng; github.com/metricshilab/scmrelax = github.com/YapengZheng/Relaxed_SC; MOSEK->CLARABEL; live run, captured)
+# reference_version: Liao, Shi & Zheng (2026), arXiv 2508.01793; L2RelaxationCV (packaged Relaxed_SC)
 quantity,mlsynth,reference,abs_diff
 weight[c000],0.103,0.103358,0.000358
 weight[c001],0.0895,0.089468,3.2e-05

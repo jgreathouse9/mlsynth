@@ -36,7 +36,8 @@ CASES = {
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
     "rescm_brexit": "benchmarks.cases.rescm_brexit",            # Path A: SCM-relaxation Brexit/UK GDP (2016Q3)
     "rescm_brexit_2020": "benchmarks.cases.rescm_brexit_2020",  # Path A: SCM-relaxation Brexit robustness (2020Q1)
-    "rescm_relax_ref": "benchmarks.cases.rescm_relax_ref",      # cross-val vs scmrelax (skips if absent)
+    "rescm_relax_ref": "benchmarks.cases.rescm_relax_ref",      # cross-val vs scmrelax toy panel (skips if absent)
+    "rescm_balanced_gdp": "benchmarks.cases.rescm_balanced_gdp",  # cross-val vs scmrelax on authors' balanced-GDP Brexit panel (UK 2016Q3; skips if absent)
     "rescm_relax_mc": "benchmarks.cases.rescm_relax_mc",        # Path B: latent-group MC, relaxations beat SCM
     "linf_crossval_ref": "benchmarks.cases.linf_crossval_ref",  # cross-val: LINF vs LinfinitySC (skips if absent)
     "linf_prop99": "benchmarks.cases.linf_prop99",              # Path A: dense L-inf vs sparse SC (Prop 99)

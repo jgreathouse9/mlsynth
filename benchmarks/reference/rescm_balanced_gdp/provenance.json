@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-06-24T19:07:43Z",
+  "git_sha": "4f098873ac17dda3c3b1284dfa9dde4741bb5e83",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/rescm_balanced_gdp/reference.py",
+  "data": [
+    {
+      "path": "basedata/balanced_gdp.csv",
+      "sha256": "26fee37d55d91b4a5972191f05593ec510c894c6b675c2d5dfa20c126353f420"
+    }
+  ]
+}

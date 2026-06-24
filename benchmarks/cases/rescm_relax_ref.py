@@ -1,18 +1,23 @@
 """Cross-validation: mlsynth RESCM L2-relaxation vs the authors' ``scmrelax``.
 
 Matches mlsynth's relaxed-SCM engine cell-by-cell against the reference
-implementation of Liao, Shi & Zheng (2026) -- the ``scmrelax`` package
-(https://github.com/metricshilab/scmrelax) -- on a shared panel at a matched
-relaxation level ``tau``. At a fixed ``tau`` the L2-relaxation program is a
-unique QP, so the two independent implementations should agree to solver
+implementation of Liao, Shi & Zheng (2026) on a shared toy factor panel at a
+matched relaxation level ``tau``. At a fixed ``tau`` the L2-relaxation program is
+a unique convex QP, so the two independent implementations should agree to solver
 precision; this guards mlsynth's relaxed branch against drift from the source.
+(The companion case ``rescm_balanced_gdp`` runs the same cross-validation on the
+authors' real GDP / Brexit panel.)
 
 Provenance / scenario
 ---------------------
 * Full repo (scenario 3): cross-validation is mandatory and done here.
-* Reference: ``scmrelax.L2RelaxationCV`` at a single ``tau``; pinned package
-  https://github.com/metricshilab/scmrelax (installable from
-  https://github.com/PanJi-0/scmrelax).
+* Reference: ``scmrelax.L2RelaxationCV`` at a single ``tau`` -- Liao-Shi-Zheng's
+  relaxed-balanced synthetic control, available as BOTH
+  https://github.com/YapengZheng/Relaxed_SC (the original author code) and
+  https://github.com/metricshilab/scmrelax (the installable package of that same
+  code, used here). The live solve is captured under
+  ``benchmarks/reference/rescm_relax_ref/``; its ``tau`` and per-donor weights
+  are pinned from that bundle via :func:`reference_value` / :func:`load_reference`.
 * mlsynth side: ``RESCM(methods=["RELAX_L2"], tau=tau, standardize=False)`` --
   ``standardize=False`` matches the reference, which solves on the raw series.
 * The case **skips gracefully** when ``scmrelax`` is not installed, or when no
@@ -23,13 +28,17 @@ Notes
 ``scmrelax`` hardcodes the commercial MOSEK solver; the L2 relaxation is a plain
 QP, so we transparently route its solves to an open solver (CLARABEL) for the
 duration of the case and restore cvxpy afterwards. The optimum is solver-
-invariant for this convex program.
+invariant for this convex program (independently confirmed with CLARABEL, ECOS,
+OSQP and SCS, all agreeing to solver precision), so the matched-``tau`` weights
+are the verified optimum, not one solver's idiosyncrasy.
 """
 from __future__ import annotations
 
 import warnings
 
 import numpy as np
+
+from benchmarks.reference import load_reference, reference_value
 
 T0, J, T1 = 30, 10, 8
 SEED = 1
@@ -111,6 +120,9 @@ def run() -> dict:
         # RESCM rounds its public donor_weights to 3 sig figs, so the reported
         # vector sums to ~1 only up to that rounding.
         "ml_on_simplex": float(abs(w_ml.sum() - 1.0) < 1e-2 and (w_ml >= -1e-6).all()),
+        # Two headline donor weights, cross-validated against the captured run.
+        "w_c003": float(w_ml[3]),
+        "w_c000": float(w_ml[0]),
     }
 
 
@@ -183,17 +195,26 @@ def comparison() -> dict:
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "RESCM", "config": cfg},
-        "reference": {"impl": "scmrelax (Liao-Shi-Zheng)",
-                      "version": "git+https://github.com/PanJi-0/scmrelax.git "
-                                 "(not on PyPI; L2RelaxationCV)"},
+        "reference": {"impl": "scmrelax L2RelaxationCV (Liao-Shi-Zheng; "
+                              "github.com/metricshilab/scmrelax = "
+                              "github.com/YapengZheng/Relaxed_SC; MOSEK->CLARABEL; "
+                              "live run, captured)",
+                      "version": "Liao, Shi & Zheng (2026), arXiv 2508.01793; "
+                                 "L2RelaxationCV (packaged Relaxed_SC)"},
     }
 
 
 # Two independent implementations of the same unique QP -> agreement to solver
-# precision. Tolerances cover the CLARABEL-vs-CLARABEL numerical slack only.
+# precision. Tolerances cover the CLARABEL-vs-CLARABEL numerical slack only. The
+# two headline donor weights are pinned from the live captured scmrelax run
+# (benchmarks/reference/rescm_relax_ref/) via load_reference, so the constant in
+# EXPECTED and the captured reference are the same object and cannot drift.
+_w = lambda k: float(load_reference("rescm_relax_ref")["weights"][k])
 EXPECTED = {
     "weight_l1_diff": (0.0, 5e-3),
     "weight_max_abs_diff": (0.0, 2e-3),
     "ref_on_simplex": (1.0, 0.0),
     "ml_on_simplex": (1.0, 0.0),
+    "w_c003": (_w("c003"), 2e-3),
+    "w_c000": (_w("c000"), 2e-3),
 }
