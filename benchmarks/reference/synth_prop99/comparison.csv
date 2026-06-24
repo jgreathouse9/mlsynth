@@ -1,3 +1,11 @@
+# case: synth_prop99
+# generated_at: 2026-06-24T12:39:13Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "outcome-only", "outcome": "cigsale", "seed": 0, "time": "year", "treat": "treat", "unitid": "state"}
+# reference_impl: R package Synth::synth
+# reference_version: R version 4.3.3 (2024-02-29); Synth 1.1-10
+# reference_generated_at: 2026-06-24T12:20:00Z
 quantity,mlsynth,reference,abs_diff
 weight[Utah],0.393908,0.396212,0.002304
 weight[Montana],0.23184,0.22878,0.00306

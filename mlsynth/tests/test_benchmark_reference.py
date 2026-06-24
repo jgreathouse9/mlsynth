@@ -64,12 +64,17 @@ def test_provenance_records_reference_versions():
 
 
 def test_comparison_csv_is_self_consistent():
-    # The committed side-by-side table: abs_diff must equal |mlsynth - reference|
-    # in every row, and the reference column must match the captured bundle.
+    # The committed side-by-side table: a metadata header (timestamp, mlsynth
+    # version + call) then rows whose abs_diff equals |mlsynth - reference| and
+    # whose reference column matches the captured bundle.
     import csv
 
     ref = load_reference("synth_prop99")
-    rows = list(csv.DictReader((_BUNDLE / "comparison.csv").read_text().splitlines()))
+    text = (_BUNDLE / "comparison.csv").read_text().splitlines()
+    meta = dict(re.match(r"# (\w+): (.*)", ln).groups() for ln in text if ln.startswith("#"))
+    assert meta["generated_at"] and meta["mlsynth_version"]
+    assert meta["estimator"] == "VanillaSC" and "backend" in meta["config"]
+    rows = list(csv.DictReader([ln for ln in text if not ln.startswith("#")]))
     assert rows, "comparison.csv is empty"
     for r in rows:
         ml, rf = float(r["mlsynth"]), float(r["reference"])

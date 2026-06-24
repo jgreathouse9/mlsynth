@@ -117,24 +117,23 @@ def run() -> dict:
     }
 
 
-def comparison() -> list:
+def comparison() -> dict:
     """mlsynth vs the captured R ``Synth`` reference, quantity by quantity.
 
     Reads the reference side from the committed bundle (no R toolchain needed)
     and the mlsynth side from a fresh ``VanillaSC`` outcome-only fit, so the
-    exporter can lay them side by side. Each row is ``{quantity, mlsynth,
-    reference}``.
+    exporter can lay them side by side. Returns ``{"rows": [...],
+    "mlsynth_call": {...}}`` -- the rows are ``{quantity, mlsynth, reference}``
+    and ``mlsynth_call`` records the estimator and config the numbers came from.
     """
     from mlsynth import VanillaSC
 
     d, donors, Y0, y, T0 = _panel()
+    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state",
+           "time": "year", "backend": "outcome-only", "seed": 0}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = VanillaSC({
-            "df": d, "outcome": "cigsale", "treat": "treat", "unitid": "state",
-            "time": "year", "backend": "outcome-only", "seed": 0,
-            "display_graphs": False,
-        }).fit()
+        res = VanillaSC({**cfg, "df": d, "display_graphs": False}).fit()
     w_ml = {s: float(res.weights.donor_weights.get(s, 0.0)) for s in donors}
     w_vec = np.array([w_ml[s] for s in donors])
     ssr_ml = float(np.sum((y[:T0] - Y0[:T0] @ w_vec) ** 2))
@@ -151,7 +150,7 @@ def comparison() -> list:
                  "reference": round(vals["synth_pre_ssr"], 6)})
     rows.append({"quantity": "ATT", "mlsynth": round(att_ml, 6),
                  "reference": round(vals["synth_att"], 6)})
-    return rows
+    return {"rows": rows, "mlsynth_call": {"estimator": "VanillaSC", "config": cfg}}
 
 
 # Deterministic (exact outcome QP vs Synth's default nested optim, fixed seed).
