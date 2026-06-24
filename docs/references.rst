@@ -13,6 +13,10 @@ References
 
 .. [Amjad2018] Amjad, Muhammad, Devavrat Shah, and Dennis Shen. *"Robust Synthetic Control."* Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.
 
+.. [MenchettiBojinov2022] Menchetti, Fiammetta, and Iavor Bojinov. *"Estimating the Effectiveness of Permanent Price Reductions for Competing Products Using Multivariate Bayesian Structural Time Series Models."* Annals of Applied Statistics, vol. 16, no. 1, 2022, pp. 414–435. https://doi.org/10.1214/21-AOAS1498.
+
+.. [Brodersen2015] Brodersen, Kay H., Fabian Gallusser, Jim Koehler, Nicolas Remy, and Steven L. Scott. *"Inferring Causal Impact Using Bayesian Structural Time-Series Models."* Annals of Applied Statistics, vol. 9, no. 1, 2015, pp. 247–274. https://doi.org/10.1214/14-AOAS788.
+
 .. [Agarwal2021] Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. *"On Robustness of Principal Component Regression."* Journal of the American Statistical Association, vol. 116, no. 536, 2021, pp. 1731–1745. doi:10.1080/01621459.2021.1928513.
 
 .. [ClusterSC]

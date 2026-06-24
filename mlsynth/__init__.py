@@ -39,6 +39,7 @@ from .utils.design_compare import (
 )
 from .estimators.spcd import SPCD
 from .estimators.tasc import TASC
+from .estimators.cmbsts import CMBSTS
 from .estimators.sbc import SBC
 from .estimators.bvss import BVSS
 from .estimators.mlsc import MLSC
@@ -100,6 +101,7 @@ __all__ = [
     "LEXSCM",
     "SPCD",
     "TASC",
+    "CMBSTS",
     "SBC", "BVSS",
     "MLSC",
     "MSQRT",

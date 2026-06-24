@@ -75,6 +75,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/syndes
    replications/spcd
    replications/spotsynth
+   replications/cmbsts
    replications/marex
    replications/dsc
    replications/microsynth

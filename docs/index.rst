@@ -295,6 +295,7 @@ headline numbers.
    spsydid
    spillsynth
    spotsynth
+   cmbsts
 
 .. toctree::
    :hidden:

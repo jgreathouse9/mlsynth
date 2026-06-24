@@ -549,6 +549,7 @@ _RELOCATED_CONFIGS = {
     "FSCMConfig": "mlsynth.utils.fscm_helpers.config",
     "LEXSCMConfig": "mlsynth.utils.fast_scm_helpers.config",
     "TASCConfig": "mlsynth.utils.tasc_helpers.config",
+    "CMBSTSConfig": "mlsynth.utils.cmbsts_helpers.config",
     "SBCConfig": "mlsynth.utils.sbc_helpers.config",
     "HSCConfig": "mlsynth.utils.hsc_helpers.config",
     "BVSSConfig": "mlsynth.utils.bvss_helpers.config",
