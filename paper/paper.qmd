@@ -1117,11 +1117,16 @@ after. When that fit is poor, or the donors are noisy measurements of the forces
 that actually move the outcome, classical synthetic control can be biased, and the
 proxy rationale of @sec-model takes over. Read the donor outcomes as error-laden
 proxies of the treated unit's untreated path, and use a second set of proxies to
-correct the measurement error: this is the proximal-inference family, and it is the
-part of the catalog a Python user could not run until now. The single-proxy method
-of @ParkTchetgenTchetgen2025 shipped only as [an R package](https://github.com/qkrcks0218/SPSC);
-the spillover-detection screen of @oriordan2025spillover had no public
-implementation in any language. `mlsynth` carries both, and behind the one
+correct the measurement error: this is the proximal-inference family, and until now
+no installable package put it in a Python user's hands. The two-proxy surrogate
+estimator of @proximaltheory and @pmlr-v238-liu24a existed only as its authors'
+replication code;^[`github.com/freshtaste/proximal` -- a research repository rather
+than a documented, installable package, known to few and usable off the shelf by
+fewer. `mlsynth` cross-validates against it (pinned commit `a67d81e`) in
+`benchmarks/cases/proximal_panic1907.py`.] the single-proxy method of
+@ParkTchetgenTchetgen2025 shipped only as [an R package](https://github.com/qkrcks0218/SPSC);
+and the spillover-detection screen of @oriordan2025spillover had no public
+implementation in any language. `mlsynth` carries all three, and behind the one
 interface they can be run against each other on a single panel.
 
 The natural testbed is the one the proximal papers use themselves: the Panic of
