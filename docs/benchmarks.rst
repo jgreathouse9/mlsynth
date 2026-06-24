@@ -241,3 +241,151 @@ Cross-validation against reference implementations
      - vs authors' repo
    * - ``ssc_guanajuato``
      - vs jcao0/staggered_synthetic_control (criminality Sec 4)
+
+The captured reference corpus
+-----------------------------
+
+For many of the cross-validation cases above, the reference is not a number
+transcribed from a paper or a package that has to be re-installed every time the
+suite runs. It is a captured artifact: the original authors' code, the exact
+command that ran it, the verbatim output, and a record of the environment that
+produced it, all committed under ``benchmarks/reference/<case>/``. mlsynth's
+result is then pinned to that captured output, so the comparison is reproducible
+offline and the reference value cannot silently drift from what the authors'
+code actually produces.
+
+This section documents that machinery in detail.
+
+Anatomy of a bundle
+~~~~~~~~~~~~~~~~~~~~~
+
+A captured bundle is a directory ``benchmarks/reference/<case>/`` containing:
+
+* ``manifest.json`` -- the bundle's contract. It records the ``case`` name, a
+  human ``title``, the ``paper`` being validated, a ``reference_impl`` string
+  naming the exact code that was run, the ``path_type`` (Path A / Path B /
+  cross-validation), the ``command`` that regenerates the bundle, and the list
+  of input ``data`` files. The ``command`` is run verbatim, so it can be an
+  ``Rscript`` invocation, a ``python`` script, or anything else that prints the
+  expected output block.
+* ``reference.R`` or ``reference.py`` -- the runnable reference. It drives the
+  authors' code on the case's data at the matched settings and prints two
+  blocks: a ``== REFERENCE VALUES ==`` block of ``key<TAB>value`` lines (and
+  ``weight<TAB>label<TAB>value`` rows for weight vectors), and a
+  ``== SESSION INFO ==`` block of tool and package versions.
+* The authors' code itself, vendored alongside (for example ``Fun_FDID.R``,
+  ``scm.corner.R``, or a ``vendor/`` subdirectory of the minimal modules
+  needed), together with any small input data the run requires (for example
+  ``GDP.csv``). A ``NOTICE`` file records provenance and licensing -- and where
+  an upstream repository ships no license, only the minimal subset needed to run
+  the reference is vendored, for provenance rather than redistribution.
+* ``reference.out`` -- the verbatim captured stdout of the run, kept as the
+  human-readable evidence of what the authors' code printed.
+* ``reference.json`` -- the parsed result, a mapping ``{"values": {...}}`` that
+  the test harness reads.
+* ``provenance.json`` -- a record of the run: a UTC ``generated_at`` timestamp,
+  the ``git_sha`` of the repository at capture time, the ``platform``, the
+  ``command``, the input ``data`` with SHA-256 checksums, and the interpreter
+  and package versions (for example ``r_version`` and the loaded ``packages``).
+* ``comparison.csv`` -- the side-by-side table of mlsynth against the reference,
+  one row per quantity, with the absolute difference (described under
+  :ref:`benchmarks-comparison-tables`).
+
+How a live cross-validation is built
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each live cross-validation follows the same recipe, designed to isolate the one
+thing being tested -- whether mlsynth and the authors' code compute the same
+quantity -- from everything that would otherwise confound it.
+
+#. Run the authors' code, not a paraphrase of it. The reference fetches or
+   vendors the upstream implementation and calls it directly, on the same input
+   data the mlsynth case uses.
+#. Match the settings that are free to differ. Estimators expose tuning choices
+   (a penalty level, a number of retained singular values, a transformation
+   window, an EM initialisation). The reference and the mlsynth call are driven
+   at the same values so that any remaining difference is attributable to the
+   implementation, not the configuration. Where a method's own tuning differs
+   from a paper's by construction -- for example a time-respecting
+   cross-validation against a future-leaking K-fold -- the cross-validation
+   pins the solve at a single fixed setting (where the program is a unique
+   optimisation) rather than the tuned end-to-end number, and the tuned number
+   is kept as a separate, clearly labelled pin.
+#. Capture the output with provenance. ``benchmarks/reference/generate.py`` runs
+   the manifest ``command``, parses the ``== REFERENCE VALUES ==`` block into
+   ``reference.json``, stores the verbatim ``reference.out``, and writes
+   ``provenance.json`` with the checksums and versions above.
+#. Pin mlsynth to the captured values. The case reads the captured numbers with
+   :func:`benchmarks.reference.reference_value` (or ``load_reference``) and uses
+   them as the ``EXPECTED`` targets, so the constant in the test and the
+   captured run are the same object -- they cannot diverge without the bundle
+   being regenerated.
+
+.. _benchmarks-comparison-tables:
+
+Comparison tables
+~~~~~~~~~~~~~~~~~~
+
+Every bundle with a ``comparison()`` writes a ``comparison.csv``: a metadata
+header (the case title, the reference implementation, the generation timestamp
+and versions) followed by one row per quantity with columns ``quantity``,
+``mlsynth``, ``reference`` and ``abs_diff``. A combined workbook,
+``benchmarks/reference/comparisons.xlsx``, collects a summary sheet (one row per
+case, with its largest absolute difference) plus a metadata-stamped sheet per
+case, so the whole corpus can be scanned at a glance. Both are rebuilt by
+
+.. code-block:: bash
+
+   python benchmarks/reference/export_comparison.py --all
+
+What running the authors' code surfaced
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Executing the reference rather than trusting a printed table repeatedly turned
+up things a number-for-number comparison could not have. In each case the
+discrepancy was traced to its cause rather than absorbed into a loose
+tolerance, and mlsynth was found to be at the correct optimum.
+
+* Synthetic Business Cycle (``sbc_germany``). The Hamilton detrending and trend
+  forecast match the authors' ``Germany.R`` to about :math:`10^{-8}`, but the
+  cycle-matching weight solve diverged. The program is strictly convex and well
+  conditioned, so its optimum is unique; four independent solvers (mlsynth's
+  and three from cvxpy) agree on it, while the authors' ``Synth::synth`` ipop
+  solver lands about :math:`2.6\%` short and does not improve when its
+  tolerances are tightened. Running the code also revealed that the shipped wide
+  CSV permutes its donor column labels. The full account is on the dedicated
+  page :doc:`replications/sbc`.
+* Time-Aware Synthetic Control (``tasc_prop99``). Because TASC fits a
+  state-space model by a non-convex EM, the two implementations can converge to
+  different local optima. Comparing the fitted pre-period log-likelihoods --
+  computed identically on both fits -- showed mlsynth's optimum is the better
+  one, so the small counterfactual difference is local-optima spread, not an
+  error; ``tasc_loglik_advantage`` is pinned as a guard.
+* PCR against the original Robust Synthetic Control library (``pcr_rsc_ref``).
+  Both implementations solve hard-singular-value-thresholding plus regression,
+  but tslib forms the rank-:math:`k` subspace from the stacked donor-and-treated
+  matrix while mlsynth de-noises the donor matrix alone (the Amjad-Shah-Shen
+  convention). Each is exact for its own convention; the small gap is
+  documented rather than tuned away.
+* L-infinity synthetic control (``linf_prop99``). With more donors than
+  pre-periods the :math:`\ell_\infty`-minimising weight vector is genuinely
+  non-unique, so individual weights are not identified. The case cross-validates
+  the quantities that are -- the effect path, the pre-fit, the dense
+  weight signature, and the effect estimate -- and a multi-solver check confirms
+  mlsynth sits at or below the reference's objective.
+
+Regenerating a bundle
+~~~~~~~~~~~~~~~~~~~~~~~
+
+A bundle is rebuilt from its manifest with
+
+.. code-block:: bash
+
+   python benchmarks/reference/generate.py <case>
+
+which re-runs the captured ``command``, refreshes ``reference.out`` /
+``reference.json`` / ``provenance.json``, and so re-stamps the environment and
+checksums. Regeneration requires whatever the reference needs (an R toolchain
+and the named packages, or the relevant Python dependency); when that toolchain
+is absent the corresponding case raises ``BenchmarkSkipped`` at suite time
+rather than failing, and the committed bundle remains the offline record.
