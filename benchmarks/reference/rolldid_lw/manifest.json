@@ -1,0 +1,9 @@
+{
+  "case": "rolldid_lw",
+  "title": "ROLLDID vs lwdid (Lee & Wooldridge DiD) -- Prop 99 + castle",
+  "paper": "Lee & Wooldridge (2026), rolling-transformation DiD; lwdid Python package (PyPI lwdid)",
+  "reference_impl": "lwdid.lwdid (live run, captured)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/rolldid_lw/reference.py",
+  "data": ["basedata/smoking_data.csv", "basedata/castle.csv"]
+}
