@@ -1,5 +1,5 @@
 # case: orthsc_carbontax
-# generated_at: 2026-06-24T17:24:29Z
+# generated_at: 2026-06-24T19:23:51Z
 # mlsynth_version: 1.0.0
 # estimator: ORTHSC
 # config: {"controls": ["Australia", "Belgium", "Canada", "Denmark", "France", "Greece", "Iceland", "Japan", "New Zealand", "Poland", "Portugal", "Spain", "Switzerland", "United States"], "instruments": ["Finland", "Germany", "Ireland", "Italy", "Netherlands", "Norway", "United Kingdom"], "outcome": "Y", "time": "year", "treat": "treat", "unitid": "country"}

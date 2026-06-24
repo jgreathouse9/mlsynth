@@ -1,5 +1,5 @@
 # case: linf_crossval_ref
-# generated_at: 2026-06-24T17:23:26Z
+# generated_at: 2026-06-24T19:22:50Z
 # mlsynth_version: 1.0.0
 # estimator: fit_en_scm
 # config: {"alpha": "0.0 (inf) / 0.5 (l1-inf)", "constraint_type": "unconstrained", "fit_intercept": true, "lam": 2.4, "second_norm": "L1_INF", "solver": "CLARABEL", "standardize": false}

@@ -1,5 +1,5 @@
 # case: pda_luxurywatch
-# generated_at: 2026-06-24T17:24:23Z
+# generated_at: 2026-06-24T19:23:44Z
 # mlsynth_version: 1.0.0
 # estimator: PDA
 # config: {"fs_intercept": true, "methods": ["fs"], "outcome": "y", "time": "time", "treat": "treat", "unitid": "unit"}

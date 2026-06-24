@@ -1,5 +1,5 @@
 # case: marex_walmart
-# generated_at: 2026-06-24T17:23:25Z
+# generated_at: 2026-06-24T19:22:50Z
 # mlsynth_version: 1.0.0
 # estimator: MAREX
 # config: {"T_post": 15, "design": "standard", "display_graph": false, "inference": true, "m_eq": 2, "outcome": "sales", "post_col": "post", "program_type": "MIQP", "relaxed": false, "standardize": true, "time": "week", "unitid": "store"}

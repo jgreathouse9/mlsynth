@@ -1,5 +1,5 @@
 # case: rsc_shen_coverage
-# generated_at: 2026-06-24T17:23:23Z
+# generated_at: 2026-06-24T19:22:48Z
 # mlsynth_version: 1.0.0
 # estimator: ClusterSC (pcr.inference _var_homo/_var_jack)
 # config: {"dataset": "prop99", "match_seed": 123, "spectral_energy": 0.999, "treated": "California"}

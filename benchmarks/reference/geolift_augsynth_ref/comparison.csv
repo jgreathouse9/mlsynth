@@ -1,5 +1,5 @@
 # case: geolift_augsynth_ref
-# generated_at: 2026-06-24T17:24:52Z
+# generated_at: 2026-06-24T19:24:11Z
 # mlsynth_version: 1.0.0
 # estimator: GEOLIFT
 # config: {"augment": "ridge", "fixed_effects": true, "outcome": "Y", "pre_periods": 90, "time": "date", "treat": "treat", "treated_units": ["chicago", "portland"], "unitid": "location"}

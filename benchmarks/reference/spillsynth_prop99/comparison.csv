@@ -1,5 +1,5 @@
 # case: spillsynth_prop99
-# generated_at: 2026-06-24T17:24:29Z
+# generated_at: 2026-06-24T19:23:51Z
 # mlsynth_version: 1.0.0
 # estimator: SPILLSYNTH
 # config: {"affected_units": ["Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii", "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada", "New York", "Oregon", "Washington"], "method": "cd", "outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}

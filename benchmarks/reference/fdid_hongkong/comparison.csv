@@ -1,5 +1,5 @@
 # case: fdid_hongkong
-# generated_at: 2026-06-24T17:22:56Z
+# generated_at: 2026-06-24T19:22:32Z
 # mlsynth_version: 1.0.0
 # estimator: FDID
 # config: {"outcome": "GDP", "time": "Time", "treat": "Integration", "unitid": "Country"}

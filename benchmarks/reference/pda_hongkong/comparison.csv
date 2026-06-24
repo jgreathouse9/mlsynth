@@ -1,5 +1,5 @@
 # case: pda_hongkong
-# generated_at: 2026-06-24T19:19:55Z
+# generated_at: 2026-06-24T19:23:44Z
 # mlsynth_version: 1.0.0
 # estimator: PDA
 # config: {"l2_standardize": true, "methods": ["l2"], "outcome": "GDP", "tau": 0.07492239484050597, "time": "Time", "treat": "Integration", "unitid": "Country"}

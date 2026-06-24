@@ -1,5 +1,5 @@
 # case: rescm_balanced_gdp
-# generated_at: 2026-06-24T19:11:53Z
+# generated_at: 2026-06-24T19:22:50Z
 # mlsynth_version: 1.0.0
 # estimator: RESCM
 # config: {"methods": ["RELAX_L2"], "outcome": "y", "spec": "UK YoY GDP growth, pre<=2016Q2, treat 2016Q3", "standardize": false, "tau": 1.796132, "time": "time", "treat": "treat", "unitid": "unit"}
