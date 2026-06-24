@@ -1,0 +1,20 @@
+Vendored reference code and data for the `scmo_germany` benchmark.
+
+  reference.R      mlsynth's runner: the authors' fn_W synthetic-control QP
+                   (quadprog::solve.QP) and 1989 balance table, trimmed from
+                   Germany.R (plotting removed). Produces the captured bundle.
+  Germany_orig.R   The authors' original Germany.R, vendored verbatim for
+                   provenance (reference.R reproduces its computation).
+  repgermany.csv   The Abadie, Diamond & Hainmueller West-German reunification
+                   panel (per-capita GDP + covariates), as shipped in the package.
+  all.csv          Lossless CSV export of the package's Data_Germany/all.xlsx
+                   (OECD economic indicators); used so the reference does not need
+                   the readxl R package. reference.R filters it exactly as
+                   Germany.R filters all.xlsx.
+
+Source
+  Tian, Wei, Seojeong Lee & Valentyn Panchenko (2026), "Synthetic Control with
+  Multiple Outcomes," Econometrics Journal. Files taken from the authors'
+  replication package (Germany.R, Data_Germany/). Vendored so the reference run
+  is reproducible offline; all credit to the authors. These files produce the
+  captured reference bundle only and are not part of the mlsynth library.

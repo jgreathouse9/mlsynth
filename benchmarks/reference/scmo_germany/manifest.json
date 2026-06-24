@@ -1,0 +1,9 @@
+{
+  "case": "scmo_germany",
+  "title": "SCMO balance table vs Tian-Lee-Panchenko's Germany.R (West German reunification)",
+  "paper": "Tian, Wei, Seojeong Lee & Valentyn Panchenko (2026), \"Synthetic Control with Multiple Outcomes,\" Econometrics Journal; Table 2",
+  "reference_impl": "Tian-Lee-Panchenko Germany.R (replication package, fn_W solve.QP, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/scmo_germany/reference.R",
+  "data": ["benchmarks/reference/scmo_germany/repgermany.csv", "benchmarks/reference/scmo_germany/all.csv"]
+}

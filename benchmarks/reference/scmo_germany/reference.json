@@ -1,0 +1,19 @@
+{
+  "values": {
+    "multi_gdp_pc_1989": 19029.776051,
+    "multi_cpi_1989": 3.058765,
+    "multi_trade_1989": 59.050673,
+    "multi_tax_1989": 34.063824,
+    "multi_gdp_growth_1989": 4.119806,
+    "single_gdp_pc_1989": 19075.911363
+  },
+  "weights": {
+    "USA": 0.207541,
+    "Belgium": 0.006967,
+    "France": 0.267012,
+    "Netherlands": 0.247678,
+    "Norway": 0.043352,
+    "Switzerland": 0.135092,
+    "Japan": 0.092359
+  }
+}
