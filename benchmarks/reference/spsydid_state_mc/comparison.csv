@@ -1,5 +1,5 @@
 # case: spsydid_state_mc
-# generated_at: 2026-06-24T19:49:54Z
+# generated_at: 2026-06-24T20:08:36Z
 # mlsynth_version: 1.0.0
 # estimator: SpSyDiD
 # config: {"outcome": "UR2", "row_standardize_spatial": false, "spatial_matrix": "<row-standardized spatial weights, 49 units>", "time": "month", "treat": "treat_indicator", "unitid": "ID"}

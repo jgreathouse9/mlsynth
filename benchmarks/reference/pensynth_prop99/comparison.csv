@@ -1,5 +1,5 @@
 # case: pensynth_prop99
-# generated_at: 2026-06-24T19:51:39Z
+# generated_at: 2026-06-24T20:10:16Z
 # mlsynth_version: 1.0.0
 # estimator: VanillaSC
 # config: {"backend": "penalized", "outcome": "cigsale", "time": "year", "treat": "treated", "unitid": "state"}

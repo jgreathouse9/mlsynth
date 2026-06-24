@@ -1,0 +1,23 @@
+# case: tasc_prop99
+# generated_at: 2026-06-24T20:09:40Z
+# mlsynth_version: 1.0.0
+# estimator: TASC
+# config: {"d": 2, "n_em_iter": 1000, "outcome": "cigsale", "time": "year", "treat": "Proposition 99", "unitid": "state"}
+# reference_impl: srho1/tasc TimeAwareSC (live run, captured; em_pre, naive init, set_seed(1))
+# reference_version: srho1/tasc @ vendored (benchmarks/reference/tasc_prop99/)
+quantity,mlsynth,reference,abs_diff
+ATT,-17.243965,-17.202014,0.041951
+pre_RMSE,1.133681,1.396537,0.262856
+"pre_loglik(prequential, higher=better)",-2067.3099,-2091.8242,24.5143
+counterfactual[1989],86.584296,85.876106,0.70819
+counterfactual[1990],82.719069,81.561745,1.157324
+counterfactual[1991],81.518049,80.698105,0.819944
+counterfactual[1992],80.824173,80.254395,0.569778
+counterfactual[1993],79.667948,79.267822,0.400126
+counterfactual[1994],78.517744,78.169174,0.34857
+counterfactual[1995],78.457891,78.68454,0.226649
+counterfactual[1996],76.954301,76.813889,0.140412
+counterfactual[1997],76.179903,76.644615,0.464712
+counterfactual[1998],74.536501,75.538551,1.00205
+counterfactual[1999],70.499556,71.541031,1.041475
+counterfactual[2000],64.668145,65.574196,0.906051

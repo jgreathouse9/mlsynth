@@ -1,5 +1,5 @@
 # case: linf_prop99
-# generated_at: 2026-06-24T19:49:56Z
+# generated_at: 2026-06-24T20:08:39Z
 # mlsynth_version: 1.0.0
 # estimator: fit_en_scm
 # config: {"alpha": 0.0, "constraint_type": "unconstrained", "fit_intercept": true, "lam": 0.0474841236, "second_norm": "L1_INF", "solver": "CLARABEL", "standardize": false}

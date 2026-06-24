@@ -1,5 +1,5 @@
 # case: rolldid_lw
-# generated_at: 2026-06-24T19:49:38Z
+# generated_at: 2026-06-24T20:08:19Z
 # mlsynth_version: 1.0.0
 # estimator: ROLLDID
 # config: {"inference": "exact (prop99/castle-demean), hc3 (castle-detrend)", "rolling": "demean/detrend"}
