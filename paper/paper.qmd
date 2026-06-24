@@ -27,8 +27,9 @@ abstract: |
   unified interface makes them directly comparable and lets the library reach
   a capability the ecosystem never packaged: experimental design. We demonstrate
   it with four illustrations, one per regime. The first refits Abadie and
-  Gardeazabal's Basque study with two solvers, a nested search and a provably
-  better bilevel optimizer that no other package carries together, with Cattaneo,
+  Gardeazabal's Basque study with two solvers, a nested search and a bilevel
+  optimizer that targets the global optimum the search only approximates, which
+  no other package carries together, with Cattaneo,
   Feng, and Titiunik prediction intervals. The second
   relaxes the no-interference assumption, running four spillover-aware estimators
   (each otherwise a separate codebase) across two case studies through one
@@ -169,13 +170,10 @@ implementation. Well-maintained packages exist [@robbins2021microsynth;
 paper-replication scripts, not as software a data scientist can use off the shelf.
 
 
-All are capable tools, and `mlsynth` critiques none of them. But they span at
-least two languages, with no shared data format, no shared notion of a result, and
-no way to run one against another on the same panel without redoing the work each
-time. A researcher who wanted to compare a simplex control, a panel-data
-regression, and a synthetic difference-in-differences estimate on one dataset had,
-until recently, to install several packages, reshape the data several ways, learn
-several syntaxes, and reconcile several output formats by hand.
+All are capable tools, and `mlsynth` critiques none of them. The obstacle is not
+any one of them but their dispersion: they span at least two languages, with no
+shared data format, no shared notion of a result, and no way to run one against
+another on the same panel without redoing the work each time.
 
 This paper introduces `mlsynth`, a Python [@harris2020array] library that
 addresses this fragmentation. It ships `{python} n_estimators` estimators^[Counted
@@ -367,7 +365,7 @@ the source paper at validation time (@tbl-related).
 | `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg} | n/a |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | n/a |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. A dash in the fourth column marks an adjacent tool that targets a distinct counterfactual, which `mlsynth` does not reproduce. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically. {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. A dash in the fourth column marks an adjacent tool that targets a distinct counterfactual, which `mlsynth` does not reproduce. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically; ``n/a`` there marks a package whose engine `mlsynth` reaches through an estimator cross-checked elsewhere rather than against that package directly (for instance the canonical `Synth` check covers the simplex backend that `tidysynth` and `SyntheticControlMethods` share), not an unverified claim. The full per-estimator validation is in @tbl-catalogue. {#tbl-related}
 
 The remainder of the paper is organized as follows. @sec-unified develops the
 shared computational view and the resulting taxonomy of estimators. @sec-arch
@@ -584,6 +582,66 @@ theoretical worlds, with their own notation, assumptions, and software; reduced 
 the same inputs and outputs, they can be run on one panel and judged side by side,
 by the counterfactuals they produce rather than the premises they require. Holding
 no position among the rationales is what makes that comparison possible.
+
+Every estimator the library ships is listed in @tbl-catalogue, grouped by the
+regime it targets and annotated with the durable benchmark that guards it
+(@sec-quality). Three are illustrated in detail in @sec-applications; the table
+is the map of everything else a one-line change can reach. Six classes are
+dispatchers that host several named methods behind one interface, so the number
+of distinct methods a user can run exceeds the number of classes.
+
+| Estimator | Method | Regime | Validation |
+|:--|:--|:--|:--|
+| `FDID` | Forward difference-in-differences | Single treated unit | A, B |
+| `VanillaSC` | Canonical (simplex) synthetic control | Single treated unit | A, X |
+| `TSSC` | Two-step synthetic control | Single treated unit | A, B |
+| `MASC` | Matching and synthetic control | Single treated unit | A, X |
+| `NSC` | Nonlinear synthetic control | Single treated unit | B, X |
+| `RESCM` | Relaxed and penalized synthetic control | Single treated unit | A, B, X |
+| `FSCM` | Forward-selected synthetic control | Single treated unit | A |
+| `SparseSC` | Sparse synthetic control | Single treated unit | A |
+| `PDA` | Panel-data approach (HCW / lasso / forward / $\ell_2$) | Single treated unit | A, B |
+| `BVSS` | Bayesian synthetic control (soft simplex) | Single treated unit | — |
+| `ORTHSC` | Orthogonalized synthetic control | Single treated unit | A, B |
+| `CLUSTERSC` | Cluster synthetic control (PCR / RPCA) | Low-rank and factor models | A, B, X |
+| `FMA` | Factor-model approach | Low-rank and factor models | B |
+| `TASC` | Time-aware synthetic control | Low-rank and factor models | B, X |
+| `RMSI` | Robust matrix estimation with side information | Low-rank and factor models | — |
+| `SNN` | Synthetic nearest neighbors | Low-rank and factor models | X |
+| `MCNNM` | Matrix completion (nuclear-norm) | Low-rank and factor models | X |
+| `SI` | Synthetic interventions | Low-rank and factor models | X |
+| `SBC` | Synthetic business cycle | Nonstationary outcomes | A, B |
+| `HSC` | Harmonic synthetic control | Nonstationary outcomes | A, B |
+| `DSCAR` | Dynamic SC for autoregressive processes | Nonstationary outcomes | A |
+| `DSC` | Distributional synthetic control | Distributional and multi-outcome | A |
+| `CTSC` | Continuous-treatment synthetic control | Distributional and multi-outcome | B |
+| `SCMO` | Synthetic control with multiple outcomes | Distributional and multi-outcome | A, B |
+| `CMBSTS` | Causal multivariate Bayesian structural time series | Distributional and multi-outcome | A, X |
+| `MUSC` | Modified unbiased synthetic control | Endogeneity, proxies and instruments | — |
+| `SHC` | Synthetic historical control | Endogeneity, proxies and instruments | B |
+| `SIV` | Synthetic instrumental variables | Endogeneity, proxies and instruments | B |
+| `PROXIMAL` | Proximal-inference synthetic control | Endogeneity, proxies and instruments | B, X |
+| `MSQRT` | Multivariate square-root-lasso synthetic control | Endogeneity, proxies and instruments | B |
+| `SPILLSYNTH` | Spillover-aware synthetic control | Spillover-aware | A, B, X |
+| `SPOTSYNTH` | Spillover-detecting synthetic control | Spillover-aware | A |
+| `ISCM` | Imperfect synthetic control | Spillover-aware | A, X |
+| `SpSyDiD` | Spatial synthetic difference-in-differences | Spillover-aware | X |
+| `SDID` | Synthetic difference-in-differences | Many treated / staggered | X |
+| `SequentialSDID` | Sequential synthetic difference-in-differences | Many treated / staggered | B |
+| `ROLLDID` | Rolling-transformation difference-in-differences | Many treated / staggered | A |
+| `PPSCM` | Partially-pooled synthetic control | Many treated / staggered | X |
+| `SSC` | Staggered synthetic control | Many treated / staggered | X |
+| `MicroSynth` | Micro-level (calibrated) synthetic control | Many treated / staggered | X |
+| `MLSC` | Multi-level synthetic control | Many treated / staggered | X |
+| `MAREX` | Synthetic control for experimental design | Experimental design | A |
+| `LEXSCM` | Lexicographic synthetic-control design | Experimental design | A, B |
+| `SYNDES` | Synthetic design | Experimental design | B |
+| `SPCD` | Synthetic principal-component design | Experimental design | A |
+| `PANGEO` | Parallel-trends supergeo design | Experimental design | B |
+| `GEOLIFT` | GeoLift market selection | Experimental design | X |
+| `MULTICELLGEOLIFT` | Multi-cell GeoLift | Experimental design | X |
+
+: Every estimator `mlsynth` ships, grouped by the regime it targets, with the validation that guards it. Dispatcher classes (`PDA`, `CLUSTERSC`, `SCMO`, `TSSC`, `PROXIMAL`, `SPILLSYNTH`) host several named methods behind one class, so the number of distinct methods exceeds the number of classes. The Validation column records the durable benchmarks of @sec-quality: A, the source paper's empirical result on the authors' own data; B, a Monte Carlo or simulation-table target; X, a numerical cross-check against an external reference implementation. A dash marks an estimator whose durable benchmark case is still being written. Each method's source paper, assumptions, and worked example are on its documentation page. {#tbl-catalogue}
 
 ## Software design {#sec-arch}
 
@@ -998,8 +1056,9 @@ ax.legend(fontsize=7); fig.tight_layout(); plt.show()
 
 That the comparison is controlled is the point. Only the solver changes; the data
 frame, the data-preparation contract, and the result schema are held fixed, so the
-disagreement between a widely used nested solver and the provably better bilevel one
-is attributable to the solver alone rather than to two reconciled implementations.
+disagreement between a widely used nested solver and a bilevel one that targets the
+global optimum the nested search only approximates is attributable to the solver
+alone rather than to two reconciled implementations.
 That attribution is sound only because `mlsynth` hosts both, each cross-validated
 against its reference (the R package `MSCMT` and @malo2024computing's `scm.corner`),
 behind one estimator and one `backend` keyword.
@@ -1584,7 +1643,7 @@ contributions and bug reports from the applied community are encouraged.
 To keep the library correct as it grows, every estimator ships with automated
 tests, written before the code they cover and run in a continuous-integration
 environment on each change. Correctness against the literature is checked
-separately, by a benchmark suite of ninety-eight small re-runnable cases that
+separately, by a benchmark suite of one hundred small re-runnable cases that
 hold each estimator to an outside answer rather than to its own past output. When
 an authoritative implementation of a method can be run, usually an R package or
 the original authors' replication code, the benchmark runs it on the same input
@@ -1619,8 +1678,9 @@ constrain or denoise a single shared fit (@sec-unified). `mlsynth` takes that
 observation seriously, placing more than forty estimators behind one data contract,
 one validated configuration-and-fit interface, and one standardized result. The four
 illustrations show what the consolidation buys. Estimation becomes a genuine
-comparison: on Abadie and Gardeazabal's Basque study, a nested solver and a provably
-better bilevel one, which exist together in no other package, reach different
+comparison: on Abadie and Gardeazabal's Basque study, a nested solver and a bilevel
+one that targets the global optimum the nested search only approximates, which
+exist together in no other package, reach different
 synthetic controls from the same data, each by a one-field change against an
 unchanged data frame. Relaxing the no-interference assumption becomes a measurable
 sensitivity check: four spillover-aware estimators, otherwise four separate codebases
@@ -1646,6 +1706,21 @@ schemes that was logistically out of reach when each method meant another packag
 another language, and another reshaping of the data. `mlsynth` makes that check a
 one-line change, turning a choice among methods into a sensitivity analysis across
 them.
+
+The library has limits worth stating plainly. It consolidates existing methods
+rather than improving any one of them: for a single estimator a dedicated package
+may expose options `mlsynth` does not, and the library reproduces these methods
+rather than re-deriving or extending them. Coverage is uneven across regimes —
+most estimators target a single treated unit, with a smaller set for staggered
+adoption and for experimental design — and a few of the newest additions are
+still awaiting a durable benchmark case (the dashes in @tbl-catalogue). The
+Bayesian and design-search estimators are markedly slower than the convex-program
+ones, and the weight solves scale with the size of the donor pool, so very large
+panels carry a cost. Inference is method-specific by design: each estimator
+carries the procedure its own theory supports rather than one uniform scheme.
+None of these is fundamental, and the shared interface makes each a contained
+target for later work; we record them so the catalog's breadth is not mistaken
+for uniform depth.
 
 ## Computational details {#sec-computational}
 
