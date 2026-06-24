@@ -1,0 +1,41 @@
+scm.corner.R is vendored verbatim from the SCM-Debug repository:
+
+    https://github.com/Xun90/SCM-Debug  (file scm.corner.R)
+    Copyright (c) 2021 Xun Zhou -- MIT License (full text below).
+
+It implements the bilevel synthetic-control solver of
+
+    Malo, P., Eskelinen, J., Zhou, X., & Kuosmanen, T. (2024). Computing
+    Synthetic Controls Using Bilevel Optimization. (MPRA Paper 104085);
+    Kuosmanen, T., Zhou, X., Eskelinen, J., & Malo, P. (2021). Design Flaw of
+    the Synthetic Control Method. (MPRA Paper 106390).
+
+It is bundled here (rather than fetched at run time) so the malo_basque
+cross-validation reference is reproducible offline; the repository is reachable
+only via the codeload tarball in this sandbox (git clone is proxy-blocked), and
+benchmarks/reference/.cache/ is gitignored. install_scmcorner.sh documents the
+upstream fetch. The function consumes only quadprog/limSolve/lpSolve/kernlab QP
+and LP solvers; no modifications were made.
+
+-------------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2021 Xun Zhou
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
