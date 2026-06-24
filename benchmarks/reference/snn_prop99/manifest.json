@@ -1,0 +1,9 @@
+{
+  "case": "snn_prop99",
+  "title": "Synthetic Nearest Neighbors vs deshen24/syntheticNN (Proposition 99)",
+  "paper": "Agarwal, Dwivedi, Shah & Shen, \"Causal Matrix Completion\" (syntheticNN), arXiv:2109.15154",
+  "reference_impl": "deshen24/syntheticNN (live run, codeload @ a95b511)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/snn_prop99/reference.py",
+  "data": ["basedata/smoking_data.csv"]
+}

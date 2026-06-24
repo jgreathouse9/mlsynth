@@ -1,0 +1,22 @@
+== REFERENCE VALUES ==
+cf_1989	89.236371
+cf_1990	82.673847
+cf_1991	79.485312
+cf_1992	78.230661
+cf_1993	78.142375
+cf_1994	77.473927
+cf_1995	78.417803
+cf_1996	77.388595
+cf_1997	77.785353
+cf_1998	77.896060
+cf_1999	77.752842
+cf_2000	70.925823
+snn_att	-18.434081
+snn_gap_2000	-29.325823
+== SESSION INFO ==
+python 3.11.15
+numpy 2.4.6
+pandas 2.3.3
+scikit-learn 1.9.0
+networkx 3.6.1
+reference: deshen24/syntheticNN @ a95b511 (codeload tarball)

@@ -1,0 +1,35 @@
+Reference implementation: deshen24/syntheticNN
+================================================
+
+This benchmark cross-validates mlsynth's ``SNN`` against the canonical
+Synthetic Nearest Neighbors implementation:
+
+    https://github.com/deshen24/syntheticNN  (single module: snn.py)
+    Author: Dennis Shen (deshen@mit.edu / dshen24@berkeley.edu)
+    Implements: Agarwal, Dwivedi, Shah & Shen, "Causal Matrix Completion"
+                (arXiv:2109.15154).
+
+The repository carries no LICENSE file. Rather than vendoring un-licensed
+source into mlsynth, the reference is fetched on demand at a pinned commit and
+imported from a local cache; nothing from it is redistributed in this tree.
+
+Fetch (performed automatically by benchmarks/reference/clone_syntheticnn.py):
+
+    pinned commit: a95b511385d93717d535bd0342d0d6150634ff30
+    git clone is proxy-blocked in the build sandbox (HTTP 403), so the helper
+    falls back to the codeload tarball of the same pinned commit:
+
+        curl -sL -o snn.tar.gz \
+          https://codeload.github.com/deshen24/syntheticNN/tar.gz/a95b511385d93717d535bd0342d0d6150634ff30
+
+    It extracts into benchmarks/reference/.cache/syntheticNN/ (gitignored) and
+    imports snn.SyntheticNearestNeighbors from there.
+
+Dependencies: numpy, pandas, scikit-learn, networkx (`pip install networkx`).
+
+Compatibility note: snn.py predates the scikit-learn 1.6 kwarg rename
+(check_array's force_all_finite -> ensure_all_finite). clone_syntheticnn.py
+installs a thin translation shim so the upstream module runs unmodified on
+current scikit-learn; the SNN algorithm itself is not altered.
+
+No modifications are made to the reference source.
