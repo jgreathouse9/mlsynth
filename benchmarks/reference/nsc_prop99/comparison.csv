@@ -1,10 +1,10 @@
 # case: nsc_prop99
-# generated_at: 2026-06-24T15:27:23Z
+# generated_at: 2026-06-24T15:49:05Z
 # mlsynth_version: 1.0.0
 # estimator: NSC
 # config: {"a": 0.3, "b": 0.7, "outcome": "cigsale", "run_inference": true, "time": "year", "treat": "Proposition 99", "unitid": "state"}
-# reference_impl: Tian (2023) NSC.R (Table 2, a*=0.3, b*=0.7)
-# reference_version: NSC.R / Tian (2023) arXiv:2306.01967v1 Table 2
+# reference_impl: Tian (2023) NSC.R (vendored, live run, captured), a*=0.3, b*=0.7
+# reference_version: NSC.R / Tian (2023) arXiv:2306.01967v1 (benchmarks/reference/nsc_prop99/)
 quantity,mlsynth,reference,abs_diff
 weight[Idaho],0.173088,0.183,0.009912
 weight[Montana],0.172712,0.176,0.003288
@@ -26,6 +26,6 @@ weight[Alabama],-0.018876,-0.015,0.003876
 weight[South Carolina],-0.016664,-0.003,0.013664
 weight[Oklahoma],-0.015986,0.0,0.015986
 weight[Vermont],-0.008519,0.0,0.008519
-ITE[1990],-9.054038,-9.5,0.445962
-ITE[1995],-22.621129,-24.5,1.878871
-ITE[2000],-27.011011,-28.7,1.688989
+ITE[1990],-9.054038,-9.510413,0.456375
+ITE[1995],-22.621129,-24.498297,1.877168
+ITE[2000],-27.011011,-28.699998,1.688987

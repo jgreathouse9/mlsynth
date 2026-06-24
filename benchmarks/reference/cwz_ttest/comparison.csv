@@ -1,5 +1,5 @@
 # case: cwz_ttest
-# generated_at: 2026-06-24T15:27:23Z
+# generated_at: 2026-06-24T15:49:05Z
 # mlsynth_version: 1.0.0
 # estimator: VanillaSC
 # config: {"alpha": 0.1, "backend": "outcome-only", "inference": "ttest", "outcome": "CO2_transport_capita", "time": "year", "treat": "treated", "ttest_K": 3, "unitid": "country"}
