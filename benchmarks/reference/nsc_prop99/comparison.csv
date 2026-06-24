@@ -1,5 +1,5 @@
 # case: nsc_prop99
-# generated_at: 2026-06-24T14:05:12Z
+# generated_at: 2026-06-24T15:01:33Z
 # mlsynth_version: 1.0.0
 # estimator: NSC
 # config: {"a": 0.3, "b": 0.7, "outcome": "cigsale", "run_inference": true, "time": "year", "treat": "Proposition 99", "unitid": "state"}
