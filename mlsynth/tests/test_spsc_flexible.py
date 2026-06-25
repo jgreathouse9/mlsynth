@@ -20,6 +20,10 @@ import pytest
 from mlsynth import PROXIMAL
 from mlsynth.config_models import PROXIMALConfig
 from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.utils.proximal_helpers.spsc.conformal import (
+    _conformal_pvalue,
+    conformal_intervals,
+)
 from mlsynth.utils.proximal_helpers.spsc.estimation import (
     _att_basis,
     _build_detrend_matrix,
@@ -167,3 +171,86 @@ def test_california_linear_config_reproduces_reference():
                        0.0145, 0.0163, 0.0181, 0.0199, 0.0217, 0.0235])
     np.testing.assert_allclose(out[6], ref, atol=2e-3)
     np.testing.assert_allclose(out[7], ref_se, atol=2e-4)
+
+
+# --------------------------------------------------------------------------- #
+# Conformal prediction intervals
+# --------------------------------------------------------------------------- #
+def test_conformal_pvalue_uses_reference_complement_form():
+    """``_conformal_pvalue`` is ``1 - mean(|r| < s_base)``, matching R's
+    ``Calculate.PValue`` -- not the algebraically-equal ``mean(|r| >= s_base)``.
+
+    The two forms differ by one ULP at the discrete conformal threshold, and the
+    interval inversion compares the p-value to ``valid_p = k/(T0+1)`` with
+    ``>=``; the complement form lands just below ``valid_p`` exactly where the
+    reference excludes the boundary, which is what stops the band running wide.
+    """
+    rng = np.random.default_rng(0)
+    resid = rng.normal(size=37)
+    assert _conformal_pvalue(resid) == 1.0 - np.mean(np.abs(resid) < abs(resid[-1]))
+
+    # A boundary case (n = 230, count_ge = 11) where the two forms disagree by
+    # one ULP: the complement form is strictly below the direct fraction, so a
+    # ``>= 11/230`` test rejects it where the naive form would accept.
+    r = np.arange(230.0)
+    r[-1] = 219.0                              # exactly 11 entries (219..229) tie/exceed it
+    pv = _conformal_pvalue(r)
+    assert pv == 1.0 - 219.0 / 230.0
+    assert pv < 11.0 / 230.0                   # one ULP below -> excluded at the threshold
+    assert pv < float(np.mean(np.abs(r) >= abs(r[-1])))
+
+
+def test_conformal_band_brackets_point_effect():
+    """The conformal interval for each post period contains the point effect and
+    has finite, ordered endpoints (smoke + invariant on the Prop 99 panel)."""
+    df = pd.read_csv(_SMOKING)
+    donors = [s for s in dict.fromkeys(df["state"]) if s != "California"]
+    W = np.column_stack([df["cigsale"][df["state"] == s].to_numpy(float)
+                         for s in donors])
+    y = df["cigsale"][df["state"] == "California"].to_numpy(float)
+    T0 = 18
+    out = estimate_spsc(y, W, T0, detrend=True, ridge_lambda=0.0, att_degree=1,
+                        detrend_basis="poly", detrend_degree=1)
+    gamma, se = out[1], out[3]
+    # The interval is for the per-period effect xi_t = y_t - W_t gamma (the raw
+    # gap it centers the search grid on), not the fitted linear path.
+    gap_post = (y - W @ gamma)[T0:]
+    # T0 = 18 cannot support a 95% conformal level (finest is 2/19); use ~89%.
+    res = conformal_intervals(y, W, T0, gamma=gamma, ridge_lambda=0.0,
+                              detrend=True, spline_df=5, att_se=se, alpha=0.11,
+                              att_degree=1, detrend_basis="poly", detrend_degree=1)
+    lo, hi = res["lower"], res["upper"]
+    assert lo.shape == hi.shape == gap_post.shape
+    assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
+    assert np.all(lo <= hi)
+    assert np.all(lo <= gap_post + 1e-9) and np.all(gap_post - 1e-9 <= hi)
+
+
+def test_conformal_band_reproduces_california_reference():
+    """The Prop 99 (linear-ATT) conformal band reproduces qkrcks0218/SPSC
+    value-for-value: the band grows with the horizon and matches R's endpoints
+    to ~1e-3 (exercises the per-period SE grid and the 10*unit edge extension)."""
+    df = pd.read_csv(_SMOKING)
+    donors = [s for s in dict.fromkeys(df["state"]) if s != "California"]
+    W = np.column_stack([df["cigsale"][df["state"] == s].to_numpy(float)
+                         for s in donors])
+    y = df["cigsale"][df["state"] == "California"].to_numpy(float)
+    T0 = 18
+    out = estimate_spsc(y, W, T0, detrend=True, ridge_lambda=0.0, att_degree=1,
+                        detrend_basis="poly", detrend_degree=1)
+    gamma, se, path_se = out[1], out[3], out[7]
+    res = conformal_intervals(y, W, T0, gamma=gamma, ridge_lambda=0.0,
+                              detrend=True, spline_df=5, att_se=se,
+                              period_se=path_se, alpha=0.11, att_degree=1,
+                              detrend_basis="poly", detrend_degree=1)
+    # Reference endpoints from qkrcks0218/SPSC @ 054f1fbb (conformal.pvalue=0.11).
+    r_lb = np.array([-4.2369, -8.3921, -8.0471, -13.5131, -13.5930, -18.1992,
+                     -21.8254, -25.2814, -26.6277, -28.5783, -30.8327, -34.1152,
+                     -33.3970])
+    r_ub = np.array([-4.0974, -8.1272, -7.6571, -12.9974, -12.9525, -17.4323,
+                     -20.9334, -24.2641, -25.4844, -27.3094, -29.4385, -32.5956,
+                     -31.7520])
+    np.testing.assert_allclose(res["lower"], r_lb, atol=2e-3)
+    np.testing.assert_allclose(res["upper"], r_ub, atol=2e-3)
+    widths = res["upper"] - res["lower"]
+    assert np.all(np.diff(widths) > 0)        # grows with the horizon

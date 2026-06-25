@@ -62,10 +62,18 @@ standard errors value-for-value:
    * - average ATT
      - :math:`-20.06`
      - :math:`-20.06`
+   * - conformal band width (1988 … 2000)
+     - :math:`0.139 \,\dots\, 1.645`
+     - :math:`0.139 \,\dots\, 1.645`
 
 The case runs the R package live and asserts the path and SE agree to solver
-tolerance (``path_vs_ref`` and ``se_vs_ref`` are zero to five digits). Durable
-case ``spsc_prop99``.
+tolerance (``path_vs_ref`` and ``se_vs_ref`` are zero to five digits). It also
+cross-checks the pointwise conformal prediction intervals for the per-period
+effect: a short pre-period (:math:`T_0 = 18`) supports only a coarse discrete
+level (the finest is :math:`2/19 \approx 0.105`), so the band is taken at
+:math:`\alpha \approx 0.11`; its endpoints match the reference to
+:math:`\sim 10^{-3}` at every post period (``conformal_lb_vs_ref`` /
+``conformal_ub_vs_ref``). Durable case ``spsc_prop99``.
 
 Cross-validation — Panic of 1907
 --------------------------------

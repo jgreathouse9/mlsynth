@@ -39,16 +39,29 @@ def _panel():
     return y, W, donors
 
 
+# T0 = 18 cannot support a 95% conformal level (the finest achievable is
+# 2/19 ~ 0.105), so the conformal cross-check runs at ~89%.
+_CONFORMAL_ALPHA = 0.11
+
+
 def run() -> dict:
     from benchmarks.reference.clone_spsc import run_reference
+    from mlsynth.utils.proximal_helpers.spsc.conformal import conformal_intervals
     from mlsynth.utils.proximal_helpers.spsc.estimation import estimate_spsc
 
     y, W, donors = _panel()
+    T1 = len(y) - _T0
     ref = run_reference(y, W, _T0, detrend=True, att_degree=1,
-                        detrend_linear=True, ridge_lambda=_LAMBDA)   # skips if no R
+                        detrend_linear=True, ridge_lambda=_LAMBDA,
+                        conformal_periods=list(range(1, T1 + 1)),
+                        conformal_alpha=_CONFORMAL_ALPHA)             # skips if no R
     out = estimate_spsc(y, W, _T0, detrend=True, ridge_lambda=_LAMBDA,
                         att_degree=1, detrend_basis="poly", detrend_degree=1)
     path, path_se = out[6], out[7]
+    band = conformal_intervals(
+        y, W, _T0, gamma=out[1], ridge_lambda=_LAMBDA, detrend=True,
+        spline_df=5, att_se=out[3], period_se=path_se, alpha=_CONFORMAL_ALPHA,
+        att_degree=1, detrend_basis="poly", detrend_degree=1)
     return {
         "att": float(out[2]),                       # mean of the fitted path
         "path_first": float(path[0]),
@@ -56,12 +69,16 @@ def run() -> dict:
         "n_donors": float(len(donors)),
         "path_vs_ref": float(np.max(np.abs(path - ref["effect_path"]))),
         "se_vs_ref": float(np.max(np.abs(path_se - ref["path_se"]))),
+        "conformal_lb_vs_ref": float(np.max(np.abs(band["lower"] - ref["conformal_lb"]))),
+        "conformal_ub_vs_ref": float(np.max(np.abs(band["upper"] - ref["conformal_ub"]))),
     }
 
 
 # Validated value-for-value against qkrcks0218/SPSC @ 054f1fbb (lambda = 10**0):
 # the linear effect path runs -4.845 ... -35.284 (mean -20.06), per-period SE
-# 0.0020 ... 0.0235; mlsynth reproduces both to solver tolerance.
+# 0.0020 ... 0.0235; mlsynth reproduces both to solver tolerance. The pointwise
+# conformal prediction intervals (level ~0.11, the finest T0=18 supports) run
+# from a width of 0.139 (1988) to 1.645 (2000) and match the reference to ~1e-3.
 EXPECTED = {
     "att": (-20.064, 0.05),
     "path_first": (-4.845, 0.02),
@@ -69,4 +86,6 @@ EXPECTED = {
     "n_donors": (38.0, 0.0),
     "path_vs_ref": (0.0, 5e-3),       # bit-for-bit vs the R package
     "se_vs_ref": (0.0, 5e-4),
+    "conformal_lb_vs_ref": (0.0, 3e-3),
+    "conformal_ub_vs_ref": (0.0, 3e-3),
 }

@@ -112,17 +112,46 @@ def _instruments(y: np.ndarray, D_pre: Optional[np.ndarray], T0: int,
     return np.column_stack([D_pre, _poly_basis(residual, degree)]), eta
 
 
-def _ridge_gamma(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, lam: float) -> np.ndarray:
-    """Ridge-GMM weights solving ``(GW' GW + 10^lam I) gamma = GW' GY``.
+def _ridge_ginv(GW: np.ndarray, GY: np.ndarray, lam: float) -> np.ndarray:
+    """Ridge-GMM donor weights ``(GW' GW + 10^lam I)^+ (GW' GY)``, solved stably.
 
-    The ``10^lam I`` ridge makes the system full rank, so a deterministic
-    ``solve`` matches R's ``ginv`` here while avoiding the run-to-run
-    instability of a multithreaded pseudo-inverse on a near-singular matrix.
+    The GMM is under-identified -- ``GW`` is ``(m, N)`` with only ``m`` moments
+    for ``N`` donors -- so ``GW' GW`` is rank-``m`` and ``10^lam I`` merely
+    floors its ``N - m`` null eigenvalues at ``10^lam``. A plain ``solve``
+    inverts that floor (``1 / 10^lam``) and blows the null-space noise up into
+    ``gamma`` when the penalty is small (the CV choice can be ``10^-5`` or
+    less), which is what skewed and inflated the conformal band; R's
+    ``MASS::ginv`` truncates those directions instead.
+
+    The real instability is a *near-collinear* instrument: ``GW`` (``m`` rows)
+    can have a singular value so small that ``solve`` inverts it and lets its
+    direction dominate ``gamma``, while ``ginv`` truncates it. Solve through the
+    thin SVD of ``GW = U diag(s) V^T``. The non-trivial eigenvalues of
+    ``GW'GW + 10^lam I`` are ``s^2 + 10^lam`` (the ``N - m`` null directions sit
+    at ``10^lam`` but carry no ``GW'GY`` mass, so they never enter ``gamma``).
+    Drop exactly the directions ``MASS::ginv`` would -- those whose eigenvalue
+    ``s^2 + 10^lam`` is below ``sqrt(eps)`` times the largest -- then
+    ``gamma = V diag(s / (s^2 + 10^lam)) U^T GY`` over the kept directions. The
+    cutoff is on the *penalised* eigenvalue, so the ridge floor ``10^lam`` makes
+    it ``lambda``-aware exactly as the reference: a near-collinear direction is
+    truncated at a small penalty but retained once ``10^lam`` lifts it above the
+    tolerance, which is what keeps the CV ``lambda`` choice (and hence the
+    conformal band) aligned with ``MASS::ginv``. This avoids forming the
+    rank-deficient ``N x N`` Gram and matches the reference to machine precision.
     """
+    U, s, Vt = np.linalg.svd(GW, full_matrices=False)   # GW (m, N): U (m, m), s (m,), Vt (m, N)
+    eig = s ** 2 + 10.0 ** lam                           # eigenvalues of GW'GW + 10^lam I (instrument block)
+    keep = eig > _GINV_RCOND * eig.max()                 # MASS::ginv sqrt(eps) tol on that matrix
+    scale = np.where(keep, s / eig, 0.0)
+    return Vt.T @ (scale * (U.T @ GY))
+
+
+def _ridge_gamma(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, lam: float) -> np.ndarray:
+    """Ridge-GMM donor weights (reference ``SPSC.Effect``); see :func:`_ridge_ginv`."""
     N = W_pre.shape[1]
     GY = (g_pre * y_pre[:, None]).mean(0)
     GW = np.stack([(g_pre * W_pre[:, n: n + 1]).mean(0) for n in range(N)], axis=1)
-    return np.linalg.solve(GW.T @ GW + (10.0 ** lam) * np.eye(N), GW.T @ GY)
+    return _ridge_ginv(GW, GY, lam)
 
 
 def _cv_lambda(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, grid: np.ndarray) -> float:
@@ -136,7 +165,7 @@ def _cv_lambda(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, grid: np
             g, yy, ww = g_pre[idx], y_pre[idx], W_pre[idx]
             GY = (g * yy[:, None]).mean(0)
             GW = np.stack([(g * ww[:, n: n + 1]).mean(0) for n in range(N)], axis=1)
-            gamma = np.linalg.solve(GW.T @ GW + (10.0 ** lam) * np.eye(N), GW.T @ GY)
+            gamma = _ridge_ginv(GW, GY, lam)
             resid[j] = y_pre[j] - W_pre[j] @ gamma
         err = np.log(np.mean(resid ** 2))
         if err < best_err:
@@ -162,6 +191,40 @@ def _effect(y, W, A, D, lam, lam_grid, B_post, degree=1):
     post = A == 1
     beta = np.linalg.lstsq(B_post[post], (y - W @ gamma)[post], rcond=None)[0]
     return dict(eta=eta, gamma=gamma, beta=beta, lam=lam)
+
+
+def _scaled_detrend_basis(y, W, T0, spline_df, ridge_lambda, basis_degree,
+                          att_degree, detrend_basis, detrend_degree):
+    """Detrend basis after the reference ``Scale`` rescaling, shape ``(T, nd)``.
+
+    The point fit rescales the detrend columns so the trend-moment (``YDT``) and
+    proxy-moment (``GYb``) blocks of the HAC meat have matched magnitude
+    (reference ``SPSC()``: ``Scale``). The conformal refit must run on this same
+    rescaled basis: the ridge ``ginv`` truncation depends on the instrument
+    magnitudes, so an unscaled basis yields a different ``gamma`` and a band that
+    no longer matches ``MASS::ginv``. Factored out so the point fit and the
+    conformal refit share one definition.
+    """
+    T = len(y)
+    T1 = T - T0
+    D = _build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree))
+    if T1 <= 1:
+        return D
+    degree = int(basis_degree)
+    nd = D.shape[1]
+    A = (np.arange(T) >= T0).astype(float)
+    B_post = _att_basis(T, T0, int(att_degree))
+    nb = B_post.shape[1]
+    theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
+    ncol = _psi(theta, y, W, A, D, B_post, degree).shape[1]
+    beta_pos = list(range(ncol - nb, ncol))
+    diag = np.diag(_hac_meat(_psi(theta, y, W, A, D, B_post, degree), beta_pos))
+    ydt_mean = np.mean(diag[0:nd])
+    gyb_mean = np.mean(diag[2 * nd: 2 * nd + degree])
+    scale = np.sqrt(gyb_mean / ydt_mean) if ydt_mean > 0 else 1.0
+    if not np.isfinite(scale):
+        scale = 1.0
+    return D * scale
 
 
 def _psi(theta, y, W, A, D, B_post, degree=1) -> np.ndarray:
@@ -208,13 +271,23 @@ def _grad_psi(theta, y, W, A, D, B_post, degree=1, eps: float = 1e-6) -> np.ndar
 
 
 def _ar1_params(x: np.ndarray) -> Tuple[float, float]:
-    """AR(1) coefficient and innovation variance for the auto-bandwidth rule."""
+    """AR(1) coefficient and innovation variance for the auto-bandwidth rule.
+
+    Uses the exact-likelihood ``innovations_mle`` fit to match the reference,
+    which fits the AR(1) with R's ``arima(order=c(1,0,0))`` (its default
+    ``CSS-ML`` lands on the exact-ML optimum). statsmodels' default state-space
+    optimiser converges to a different root for these near-unit-root moment
+    series (e.g. ``rho`` 0.9535 vs R's 0.9512), which shifts the Andrews
+    bandwidth -- through ``(1 - rho)`` -- and hence the HAC meat enough to move
+    the detrend ``Scale`` ~8% and the conformal band ~13%. ``innovations_mle``
+    reproduces R's ``rho``/``sigma2`` to ~1e-5.
+    """
     from statsmodels.tsa.arima.model import ARIMA
 
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fit = ARIMA(x, order=(1, 0, 0)).fit(method_kwargs={"warn_convergence": False})
+            fit = ARIMA(x, order=(1, 0, 0), trend="c").fit(method="innovations_mle")
         return float(fit.arparams[0]), float(fit.params[-1])
     except Exception:
         return 0.0, float(np.var(x))
@@ -342,27 +415,19 @@ def estimate_spsc(
     B_post = _att_basis(T, T0, int(att_degree))      # (T, att_degree+1)
     nb = B_post.shape[1]
 
-    D = (_build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree))
-         if detrend else None)
+    # Build the detrend basis, applying the reference "Scale" rescaling (which
+    # balances the trend- and proxy-moment magnitudes before the variance step).
+    if detrend:
+        D = (_scaled_detrend_basis(y, W, T0, spline_df, ridge_lambda, degree,
+                                   int(att_degree), detrend_basis, int(detrend_degree))
+             if T1 > 1 else
+             _build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree)))
+    else:
+        D = None
     theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
     nd = len(theta["eta"]) if detrend else 0
     _ncol = _psi(theta, y, W, A, D, B_post, degree).shape[1]
     beta_pos = list(range(_ncol - nb, _ncol))         # the ATT-basis moment block
-
-    # Detrend rescaling: balance the trend-moment and proxy-moment magnitudes
-    # before the variance step (reference SPSC(), "Scale"): the ratio of the
-    # mean GYb-block diagonal to the mean YDT-block diagonal of the meat.
-    if detrend and T1 > 1:
-        Psi0 = _psi(theta, y, W, A, D, B_post, degree)
-        Sig0 = _hac_meat(Psi0, beta_pos)
-        diag = np.diag(Sig0)
-        ydt_mean = np.mean(diag[0:nd])
-        gyb_mean = np.mean(diag[2 * nd: 2 * nd + degree])
-        scale = np.sqrt(gyb_mean / ydt_mean) if ydt_mean > 0 else 1.0
-        if not np.isfinite(scale):
-            scale = 1.0
-        D = D * scale
-        theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
 
     gamma = theta["gamma"]
     counterfactual = W @ gamma
