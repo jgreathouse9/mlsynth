@@ -112,17 +112,38 @@ def _instruments(y: np.ndarray, D_pre: Optional[np.ndarray], T0: int,
     return np.column_stack([D_pre, _poly_basis(residual, degree)]), eta
 
 
-def _ridge_gamma(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, lam: float) -> np.ndarray:
-    """Ridge-GMM weights solving ``(GW' GW + 10^lam I) gamma = GW' GY``.
+def _ridge_ginv(GW: np.ndarray, GY: np.ndarray, lam: float) -> np.ndarray:
+    """Ridge-GMM donor weights ``(GW' GW + 10^lam I)^+ (GW' GY)``, solved stably.
 
-    The ``10^lam I`` ridge makes the system full rank, so a deterministic
-    ``solve`` matches R's ``ginv`` here while avoiding the run-to-run
-    instability of a multithreaded pseudo-inverse on a near-singular matrix.
+    The GMM is under-identified -- ``GW`` is ``(m, N)`` with only ``m`` moments
+    for ``N`` donors -- so ``GW' GW`` is rank-``m`` and ``10^lam I`` merely
+    floors its ``N - m`` null eigenvalues at ``10^lam``. A plain ``solve``
+    inverts that floor (``1 / 10^lam``) and blows the null-space noise up into
+    ``gamma`` when the penalty is small (the CV choice can be ``10^-5`` or
+    less), which is what skewed and inflated the conformal band; R's
+    ``MASS::ginv`` truncates those directions instead.
+
+    The real instability is a *near-collinear* instrument: ``GW`` (``m`` rows)
+    can have a singular value so small that ``solve`` inverts it and lets its
+    direction dominate ``gamma``, while ``ginv`` truncates it. Solve through the
+    thin SVD of ``GW = U diag(s) V^T`` and drop the directions ``ginv`` would --
+    those whose eigenvalue ``s^2 + 10^lam`` of ``GW'GW + 10^lam I`` falls below
+    its ``sqrt(eps)`` relative tolerance -- then
+    ``gamma = V diag(s / (s^2 + 10^lam)) U^T GY`` over the kept directions. This
+    avoids forming the rank-deficient ``N x N`` Gram and matches the reference.
     """
+    U, s, Vt = np.linalg.svd(GW, full_matrices=False)   # GW (m, N): U (m, m), s (m,), Vt (m, N)
+    keep = s > np.sqrt(_GINV_RCOND) * s.max()            # drop near-collinear instruments (rank cutoff)
+    scale = np.where(keep, s / (s ** 2 + 10.0 ** lam), 0.0)
+    return Vt.T @ (scale * (U.T @ GY))
+
+
+def _ridge_gamma(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, lam: float) -> np.ndarray:
+    """Ridge-GMM donor weights (reference ``SPSC.Effect``); see :func:`_ridge_ginv`."""
     N = W_pre.shape[1]
     GY = (g_pre * y_pre[:, None]).mean(0)
     GW = np.stack([(g_pre * W_pre[:, n: n + 1]).mean(0) for n in range(N)], axis=1)
-    return np.linalg.solve(GW.T @ GW + (10.0 ** lam) * np.eye(N), GW.T @ GY)
+    return _ridge_ginv(GW, GY, lam)
 
 
 def _cv_lambda(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, grid: np.ndarray) -> float:
@@ -136,7 +157,7 @@ def _cv_lambda(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, grid: np
             g, yy, ww = g_pre[idx], y_pre[idx], W_pre[idx]
             GY = (g * yy[:, None]).mean(0)
             GW = np.stack([(g * ww[:, n: n + 1]).mean(0) for n in range(N)], axis=1)
-            gamma = np.linalg.solve(GW.T @ GW + (10.0 ** lam) * np.eye(N), GW.T @ GY)
+            gamma = _ridge_ginv(GW, GY, lam)
             resid[j] = y_pre[j] - W_pre[j] @ gamma
         err = np.log(np.mean(resid ** 2))
         if err < best_err:

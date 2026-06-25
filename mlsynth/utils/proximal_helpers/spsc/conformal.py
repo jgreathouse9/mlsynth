@@ -21,11 +21,17 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 
-from .estimation import _build_detrend_matrix, _poly_basis
+from .estimation import _build_detrend_matrix, _poly_basis, _ridge_ginv
 
 
 def _refit_gamma(y_aug, W_aug, D_aug, lam, detrend, degree=1):
-    """Re-fit the ridge SC weights on an augmented all-pre sample (fixed lam)."""
+    """Re-fit the ridge SC weights on an augmented all-pre sample (fixed lam).
+
+    Uses the same ``ginv`` ridge solve as the point fit (:func:`_ridge_ginv`):
+    a plain ``solve`` at the small CV penalty makes the refit gamma swing with
+    the single appended period, which inflates and skews the conformal band
+    away from the reference.
+    """
     if detrend:
         eta = np.linalg.lstsq(D_aug, y_aug, rcond=None)[0]
         g = np.column_stack([D_aug, _poly_basis(y_aug - D_aug @ eta, degree)])
@@ -34,7 +40,7 @@ def _refit_gamma(y_aug, W_aug, D_aug, lam, detrend, degree=1):
     N = W_aug.shape[1]
     GY = (g * y_aug[:, None]).mean(0)
     GW = np.stack([(g * W_aug[:, n: n + 1]).mean(0) for n in range(N)], axis=1)
-    return np.linalg.solve(GW.T @ GW + (10.0 ** lam) * np.eye(N), GW.T @ GY)
+    return _ridge_ginv(GW, GY, lam)
 
 
 def _conformal_pvalue(residuals: np.ndarray) -> float:
