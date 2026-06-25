@@ -224,3 +224,33 @@ def test_conformal_band_brackets_point_effect():
     assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
     assert np.all(lo <= hi)
     assert np.all(lo <= gap_post + 1e-9) and np.all(gap_post - 1e-9 <= hi)
+
+
+def test_conformal_band_reproduces_california_reference():
+    """The Prop 99 (linear-ATT) conformal band reproduces qkrcks0218/SPSC
+    value-for-value: the band grows with the horizon and matches R's endpoints
+    to ~1e-3 (exercises the per-period SE grid and the 10*unit edge extension)."""
+    df = pd.read_csv(_SMOKING)
+    donors = [s for s in dict.fromkeys(df["state"]) if s != "California"]
+    W = np.column_stack([df["cigsale"][df["state"] == s].to_numpy(float)
+                         for s in donors])
+    y = df["cigsale"][df["state"] == "California"].to_numpy(float)
+    T0 = 18
+    out = estimate_spsc(y, W, T0, detrend=True, ridge_lambda=0.0, att_degree=1,
+                        detrend_basis="poly", detrend_degree=1)
+    gamma, se, path_se = out[1], out[3], out[7]
+    res = conformal_intervals(y, W, T0, gamma=gamma, ridge_lambda=0.0,
+                              detrend=True, spline_df=5, att_se=se,
+                              period_se=path_se, alpha=0.11, att_degree=1,
+                              detrend_basis="poly", detrend_degree=1)
+    # Reference endpoints from qkrcks0218/SPSC @ 054f1fbb (conformal.pvalue=0.11).
+    r_lb = np.array([-4.2369, -8.3921, -8.0471, -13.5131, -13.5930, -18.1992,
+                     -21.8254, -25.2814, -26.6277, -28.5783, -30.8327, -34.1152,
+                     -33.3970])
+    r_ub = np.array([-4.0974, -8.1272, -7.6571, -12.9974, -12.9525, -17.4323,
+                     -20.9334, -24.2641, -25.4844, -27.3094, -29.4385, -32.5956,
+                     -31.7520])
+    np.testing.assert_allclose(res["lower"], r_lb, atol=2e-3)
+    np.testing.assert_allclose(res["upper"], r_ub, atol=2e-3)
+    widths = res["upper"] - res["lower"]
+    assert np.all(np.diff(widths) > 0)        # grows with the horizon

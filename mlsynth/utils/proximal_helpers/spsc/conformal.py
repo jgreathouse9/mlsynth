@@ -189,18 +189,19 @@ def conformal_intervals(
         hi = center
         while hi + 1 < grid_size and accept[hi + 1]:
             hi += 1
-        # Narrow refinement just outside each edge.
+        # Narrow refinement just outside each edge. When the accepted run already
+        # reaches a grid boundary the true edge lies past the coarse window, so
+        # extend the search by ``10 * unit`` there (reference behaviour) rather
+        # than the one-step refinement used for an interior edge.
         step = grid[1] - grid[0]
-        lower = grid[lo]
-        if lo > 0:
-            fine = np.linspace(grid[lo] - step, grid[lo], 51)
-            acc = np.array([pvalue(idx, xi) >= valid_p for xi in fine])
-            lower = fine[acc].min() if acc.any() else grid[lo]
-        upper = grid[hi]
-        if hi < grid_size - 1:
-            fine = np.linspace(grid[hi], grid[hi] + step, 51)
-            acc = np.array([pvalue(idx, xi) >= valid_p for xi in fine])
-            upper = fine[acc].max() if acc.any() else grid[hi]
+        bll = grid[lo] - step if lo > 0 else grid[lo] - 10.0 * unit
+        fine = np.linspace(bll, grid[lo], 51)
+        acc = np.array([pvalue(idx, xi) >= valid_p for xi in fine])
+        lower = fine[acc].min() if acc.any() else grid[lo]
+        buu = grid[hi] + step if hi < grid_size - 1 else grid[hi] + 10.0 * unit
+        fine = np.linspace(grid[hi], buu, 51)
+        acc = np.array([pvalue(idx, xi) >= valid_p for xi in fine])
+        upper = fine[acc].max() if acc.any() else grid[hi]
         return float(lower), float(upper)
 
     lowers, uppers = [], []
