@@ -58,8 +58,9 @@ jobs:
             fi
 
             if [ -z "$last_qmd" ]; then
-              echo "No .qmd file changes detected. Exiting."
-              exit 1
+              echo "No .qmd file changes detected -- nothing to render, skipping."
+              echo "target_qmd=" >> "$GITHUB_OUTPUT"
+              exit 0
             fi
 
             echo "Found modified .qmd file: $last_qmd"
@@ -67,6 +68,7 @@ jobs:
           fi
 
       - name: Install requirements one level below .qmd file
+        if: steps.select_qmd.outputs.target_qmd != ''
         run: |
           qmd_file="${{ steps.select_qmd.outputs.target_qmd }}"
           qmd_dir=$(dirname "$qmd_file")
@@ -81,6 +83,7 @@ jobs:
           fi
 
       - name: Render selected .qmd file
+        if: steps.select_qmd.outputs.target_qmd != ''
         run: |
           qmd_file="${{ steps.select_qmd.outputs.target_qmd }}"
           dir=$(dirname "$qmd_file")
@@ -105,6 +108,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload rendered PDFs (for verification)
+        if: steps.select_qmd.outputs.target_qmd != ''
         uses: actions/upload-artifact@v4
         with:
           name: rendered-pdf
