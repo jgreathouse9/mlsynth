@@ -245,6 +245,7 @@ _EXTRAS = {
     "MicroSynth": {"covariates": ["x1"]},
     "PANGEO": {"arm": "treated"},
     "PROXIMAL": {"donors": ["u1", "u2"], "methods": ["PI"]},
+    "SCTA": {"block_length": 2},
     "SI": {"inters": ["u1"]},
     "SIV": {"instrument": "z"},
     "SpSyDiD": {"spatial_matrix": np.eye(6)},

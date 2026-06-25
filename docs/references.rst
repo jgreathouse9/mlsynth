@@ -420,6 +420,18 @@ References
     *The Review of Economics and Statistics*, 2025.
     DOI: https://doi.org/10.1162/rest_a_01592
 
+.. [SunBenMichaelFellerTA]
+    Sun, Liyang, Ben-Michael, Eli, and Feller, Avi.
+    "Temporal Aggregation for the Synthetic Control Method."
+    *AEA Papers and Proceedings*, 114: 614-617, 2024.
+    DOI: https://doi.org/10.1257/pandp.20241050
+
+.. [BellStuartGemmill]
+    Bell, Suzanne O., Stuart, Elizabeth A., and Gemmill, Alison.
+    "Texas' 2021 Ban on Abortion in Early Pregnancy and Changes in Live Births."
+    *JAMA*, 330 (3): 281-282, 2023.
+    DOI: https://doi.org/10.1001/jama.2023.10342
+
 .. [SI]
     Agarwal, Anish, Shah, Devavrat, and Shen, Dennis.
     "Synthetic Interventions: Extending Synthetic Controls to Multiple Treatments."
