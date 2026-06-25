@@ -25,6 +25,9 @@ class PROXIMALConfig(BaseEstimatorConfig):
     spsc_lambda: Optional[float] = Field(default=None, description="log10 ridge penalty for SPSC. If None, selected by leave-one-out cross-validation.")
     spsc_spline_df: int = Field(default=5, ge=3, description="Degrees of freedom of the SPSC detrend B-spline basis.")
     spsc_basis_degree: int = Field(default=1, ge=1, description="Degree of the polynomial sieve applied to the SPSC treated-outcome instrument. 1 is the linear single proxy; >=2 is the nonparametric (series) SPSC that over-identifies a nonlinear bridge.")
+    spsc_att_degree: int = Field(default=0, ge=0, description="Polynomial degree of the SPSC ATT basis in post-treatment time (the reference att.ft). 0 is a constant ATT; 1 is a linear effect path (the authors' California example). With att_degree>0 the headline att is the mean of the fitted effect path; the per-period path and its CIs are in the fit metadata.")
+    spsc_detrend_basis: str = Field(default="bspline", pattern="^(bspline|poly)$", description="SPSC detrend trend family: 'bspline' (cubic B-spline, df=spsc_spline_df) or 'poly' (polynomial [1, t, ..., t^spsc_detrend_degree]; degree 1 is the linear (1,t) trend of the authors' California example).")
+    spsc_detrend_degree: int = Field(default=1, ge=1, description="Polynomial degree of the SPSC detrend trend when spsc_detrend_basis='poly'.")
     spsc_conformal: bool = Field(default=False, description="Whether to compute SPSC conformal prediction intervals for the per-period treatment effect.")
     spsc_conformal_periods: Optional[List[int]] = Field(default=None, description="Absolute post-period indices to cover with SPSC conformal intervals. If None, every post-treatment period is covered.")
 

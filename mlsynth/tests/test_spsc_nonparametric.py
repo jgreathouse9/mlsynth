@@ -66,7 +66,7 @@ class TestBasisDegreeInEstimation:
     def test_sieve_runs_and_recovers_effect(self, degree, detrend):
         """The nonparametric sieve returns a finite ATT/SE near the true effect."""
         y, donors, T0 = _toy_panel(seed=2, effect=2.0)
-        cf, gamma, att, se, trend, lam = estimate_spsc(
+        cf, gamma, att, se, trend, lam, _path, _pse = estimate_spsc(
             y, donors, T0, detrend=detrend, basis_degree=degree)
         assert np.isfinite(att) and np.isfinite(se)
         assert cf.shape == y.shape and gamma.shape == (donors.shape[1],)
@@ -84,7 +84,7 @@ class TestBasisDegreeInEstimation:
         D = _build_detrend_matrix(T0, T, 5)
         widths = []
         for degree in (1, 3):
-            theta = _effect(y, donors, A, D, None, _LAMBDA_GRID, degree)
+            theta = _effect(y, donors, A, D, None, _LAMBDA_GRID, B_post, degree)
             widths.append(_psi(theta, y, donors, A, D, B_post, degree).shape[1])
         assert widths[1] == widths[0] + 2     # two extra GYb columns at degree 3
 
