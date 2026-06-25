@@ -205,6 +205,22 @@ papers note, equal-weight averaging can *wash out* signal that is specific to
 individual outcomes. Which scheme wins is therefore regime-dependent (see
 *When to Use Concatenated vs Averaged*).
 
+Ridge augmentation (``augment``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each scheme solves a simplex SC on its matching matrix; when that pre-treatment
+fit is imperfect, the residual imbalance biases the estimate. Setting
+``augment="ridge"`` corrects it by routing the fit through mlsynth's bilevel
+ridge-augmented solver -- the Augmented Synthetic Control of Ben-Michael, Feller
+and Rothstein (2021), the ``progfunc="ridge"`` default of the ``augsynth`` R
+package. The simplex weights are nudged off the simplex by a ridge regression on
+the matching residual, with the penalty selected by leave-one-period-out
+cross-validation (the 1-SE rule) unless a fixed ``ridge_lambda`` is given.
+Combine it with ``demean=True`` to match ``augsynth``'s ``fixedeff=True`` (unit
+fixed effects); on a single outcome this reproduces ``VanillaSC(augment="ridge")``
+up to SCMO's standardized matching design, and the disaggregated single-outcome
+fit reproduces ``augsynth``'s ridge baseline to the decimal.
+
 Assumptions
 -----------
 

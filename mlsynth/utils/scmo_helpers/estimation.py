@@ -86,30 +86,43 @@ def _counterfactual(w: np.ndarray, Y_donors: np.ndarray, y: np.ndarray, T0: int,
     return w @ Y_donors
 
 
+def _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda):
+    """Simplex SC weights on the matching matrix, optionally ridge-augmented."""
+    if augment == "ridge":
+        from ..bilevel.ridge_augment import ridge_augment_weights
+        ra = ridge_augment_weights(
+            M[treated_idx], M[donor_idx].T, lambda_=ridge_lambda)
+        return np.asarray(ra.W, dtype=float)
+    return simplex_weights(M[treated_idx], M[donor_idx])
+
+
 def _fit_core(
     Z: np.ndarray, Y: np.ndarray, treated_idx: int, donor_idx: np.ndarray,
     T0: int, scheme: str, col_period: Optional[np.ndarray], demean: bool,
+    augment: Optional[str] = None, ridge_lambda: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray, float, float, np.ndarray]:
     """Solve weights + counterfactual for any (treated, donors) selection."""
     M = _matching_vectors(Z, Y, T0, scheme, col_period, demean)
-    w = simplex_weights(M[treated_idx], M[donor_idx])
+    w = _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda)
     cf = _counterfactual(w, Y[donor_idx], Y[treated_idx], T0, demean)
     att, pre_rmse, gap = _effects(Y[treated_idx], cf, T0)
     return w, cf, att, pre_rmse, gap
 
 
-def fit_scheme(inputs: SCMOInputs, scheme: str, demean: bool = False) -> SCMOMethodFit:
+def fit_scheme(inputs: SCMOInputs, scheme: str, demean: bool = False,
+               augment: Optional[str] = None,
+               ridge_lambda: Optional[float] = None) -> SCMOMethodFit:
     """Fit one weighting scheme on the real treated unit."""
     w, cf, att, pre_rmse, gap = _fit_core(
         inputs.Z, inputs.Y, inputs.treated_idx, inputs.donor_idx,
-        inputs.T0, scheme, inputs.col_period, demean,
+        inputs.T0, scheme, inputs.col_period, demean, augment, ridge_lambda,
     )
     donor_labels = inputs.donor_labels
     donor_weights = {donor_labels[i]: float(round(w[i], 4)) for i in range(len(w))}
     return SCMOMethodFit(
         name=scheme, weights=w, counterfactual=cf, gap=gap, att=att,
         pre_rmse=pre_rmse, donor_weights=donor_weights,
-        metadata={"demean": demean},
+        metadata={"demean": demean, "augment": augment},
     )
 
 

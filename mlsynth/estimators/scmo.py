@@ -104,6 +104,8 @@ class SCMO:
             demean=self.config.demean,
             conformal_alpha=self.config.conformal_alpha,
             conformal_q=self.config.conformal_q,
+            augment=self.config.augment,
+            ridge_lambda=self.config.ridge_lambda,
         )
         results = assemble_scmo_results(
             inputs, fits, selected_variant=schemes[0] if schemes else CONCATENATED

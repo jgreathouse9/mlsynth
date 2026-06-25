@@ -6,9 +6,10 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
-from pydantic import Field
+from typing import Any, Dict, List, Literal, Optional, Union
+from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
+from ...exceptions import MlsynthConfigError
 
 
 class SCMOConfig(BaseEstimatorConfig):
@@ -45,3 +46,22 @@ class SCMOConfig(BaseEstimatorConfig):
         description="Norm exponent q of the CWZ conformal test statistic S_q (1 = average effect; larger targets sparse/large effects across outcomes).",
         gt=0,
     )
+    augment: Optional[Literal["ridge"]] = Field(
+        default=None,
+        description="If 'ridge', augment each scheme's simplex SC fit with the bilevel ridge-augmented solver (Ben-Michael Augmented SCM; the augsynth progfunc='ridge' default). None -> plain simplex. Combine with demean=True to match augsynth's fixedeff=True.",
+    )
+    ridge_lambda: Optional[float] = Field(
+        default=None,
+        description="Fixed ridge penalty for augment='ridge'; None selects it by leave-one-period-out cross-validation (augsynth's 1-SE rule).",
+    )
+
+    @model_validator(mode="after")
+    def _check_augment(self):
+        if self.ridge_lambda is not None:
+            if self.augment != "ridge":
+                raise MlsynthConfigError(
+                    "ridge_lambda is only used with augment='ridge'.")
+            if self.ridge_lambda <= 0:
+                raise MlsynthConfigError(
+                    f"ridge_lambda must be > 0; got {self.ridge_lambda}.")
+        return self
