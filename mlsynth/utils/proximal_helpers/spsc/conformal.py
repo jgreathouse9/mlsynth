@@ -47,10 +47,18 @@ def _conformal_pvalue(residuals: np.ndarray) -> float:
     """Rank-based conformal p-value: fraction of |residual| >= the appended one.
 
     The appended (hypothesized post) period is the last row. Mirrors the
-    reference ``Calculate.PValue`` with a single post period.
+    reference ``Calculate.PValue`` with a single post period, which returns
+    ``1 - mean(|residual| < s_base)`` -- *not* the algebraically-equal
+    ``mean(|residual| >= s_base)``. The two differ by one ULP at the discrete
+    threshold (``1 - 219/230`` rounds just below ``11/230`` while the direct
+    fraction equals it exactly), and the interval inversion compares the
+    p-value to ``valid_p = k/(T0+1)`` with ``>=``. Matching R's exact form is
+    what keeps the boundary grid points -- where the p-value lands on
+    ``valid_p`` -- excluded as the reference excludes them, so the band width
+    agrees instead of running ~13% wide.
     """
     s_base = abs(residuals[-1])
-    return float(np.mean(np.abs(residuals) >= s_base))
+    return float(1.0 - np.mean(np.abs(residuals) < s_base))
 
 
 def conformal_intervals(
