@@ -809,6 +809,142 @@ regime where the paper itself cedes ground.
 
 ---
 
+## 9. BASC -- Bayesian Donor Set Selection in Synthetic Controls
+
+**Status: Parked on cost (demonstrate-first DONE; faithful NumPy port validated
+against the authors' R within its own MCMC chain envelope). Capability overlaps
+the existing ``BVSS``; the sampler needs a very large number of MCMC iterations
+to converge. Revisit only if it shows a clear performance edge at reasonable
+sample sizes.**
+
+### Source
+
+> Lee, S., Lim, J., Kim, J., & Wang, X. (2025). "Bayesian Donor Set Selection in
+> Synthetic Controls." Manuscript CSDA-D-25-01439, *Computational Statistics &
+> Data Analysis* (under review at time of writing; JAG was a referee).
+
+Reference repo (R; read in full, run): **https://github.com/sll-lee/paper-BASC**
+-- ``BASC_realdata.R`` (a single-script hand-written Gibbs/MH sampler; deps
+``tmvtnorm`` / ``MCMCpack`` / ``fields`` / ``coda``). Data: ``repgermany.dta``
+(already in ``basedata/``). Builds on, and is pitched as an improvement over:
+
+> Martinez & Vives-i-Bastida (2024), Bayesian SCM (``bsynth``) -- the
+> Dirichlet-prior Bayesian SC. NOT in mlsynth.
+
+### The idea in one line
+
+A Bayesian hierarchical SCM that does donor-set selection JOINTLY with weight
+estimation: replace B-MV's Dirichlet weight prior with a Gamma x Bernoulli
+construction ``w_j = gamma_j u_j / sum_k gamma_k u_k`` (Bernoulli
+``gamma_j ~ Ber(eta)`` selects active donors, Gamma ``u_j`` sets relative
+influence), add a Gaussian-process temporal term ``f_t`` (squared-exponential
+kernel) and a basis-expanded post-treatment effect ``sum_m alpha_m D_mt``, fit by
+MCMC. Model: ``y_1t = sum_j w_j y_jt + f_t + sum_m alpha_m D_mt * 1(t>T0) + e_t``.
+
+### Closest existing estimator -- capability overlap with BVSS
+
+``BVSS`` ("Bayesian SC with a Soft Simplex", BVS-SS) already does Bayesian donor
+selection via Bernoulli inclusion indicators (posterior inclusion probabilities,
+spike-and-slab) -- the same CAPABILITY. BASC differs by the prior construction
+(Gamma x Bernoulli vs soft-simplex spike-and-slab) plus the GP temporal term and
+flexible effect, which BVSS lacks. So not a duplicate, but the marginal value
+over BVSS is narrow (see verdict).
+
+### Demonstrate-first findings (KEEP THESE)
+
+Ported the full Gibbs/MH sampler to NumPy/SciPy (oracle: ``BASC_realdata.R``):
+conjugate draws for ``f`` (GP), ``sigma^2``, ``tau^2``, ``eta`` (Beta), ``alpha``
+(truncated normal <= 0); RW-MH for the length-scale ``kappa`` (log scale);
+Bernoulli-Gibbs for ``gamma_j``; log-``u`` RW-MH (x5/iter) for the Gamma weights.
+Hyperparameters from the R: ``a_sig=10, b_sig=5000, a_tau=3, b_tau=2e4, a_l=3,
+b_l=1000, a_u=2.5``; ``sig.a ~ IG(3, 2e6)``. The three R deps (``rinvgamma``,
+``rtmvnorm``, ``rdist``) reduce to one-liners (q=1 => the truncated MVN is a
+univariate TN). Cholesky updates need jitter (``safe_chol``) -- the GP covariance
+goes near-singular when ``kappa`` is large; the R jitters too.
+
+1. **The port is FAITHFUL -- it lands inside the authors' own MCMC chain
+   envelope.** On West Germany at N=4000 the R's three chains (seeds 100/200/300)
+   themselves disagree: ATT -238 / -599 / -365, 3rd donor flipping
+   Italy<->Portugal. The NumPy port (ATT -310; Switzerland .48, Japan .36,
+   Portugal .11) sits squarely inside that envelope -- identical top-2 donors,
+   ATT in the middle of the R's range, 3rd donor matching R's chain 3.
+   Statistically indistinguishable from a fourth R chain => port validated within
+   MC error (the ``CMBSTS`` standard).
+
+2. **West Germany comparison (raw per-capita GDP, the repo's actual scale):**
+
+   | Method | pre-RMSE | ATT |
+   |---|---|---|
+   | VanillaSC (classic) | 60.8 | -1297 |
+   | Bayani RPCA-SC (``CLUSTERSC method="rpca"``) | 88.6 | -1501 |
+   | BVSS | 385.0 | -313 |
+   | BASC (R / port) | ~172 | ~-600 |
+
+   The two Bayesian methods fit the pre-period looser (regularization) and give
+   attenuated effects; BASC's GP absorbs post-period trend, roughly halving the
+   canonical reunification cost.
+
+3. **Code/paper mismatch on normalization (the referee's Major #2).** The paper
+   Section 5 text says each series is centered on its own pre-mean and scaled by
+   *West Germany's* pre-SD; the RELEASED ``BASC_realdata.R`` does NOT -- it uses
+   raw scale (``y <- raw.y; x <- t(raw.x); # Final manuscript version: original
+   per-capita GDP scale``). The raw-scale ATT (~-599) matches the referee's
+   reported "~-635". For an mlsynth build, raw ``dataprep`` ingestion is the
+   natural choice and sidesteps the disputed normalization.
+
+4. **Attribution (the referee's Major #1).** The RPCA-SC comparator (functional
+   PCA + Robust PCA + NNLS) is **Bayani (2021, arXiv:2108.12542; 2022
+   dissertation)**, NOT Greathouse 2023 (the paper miscredits it). mlsynth
+   already cites Bayani correctly (``clustersc_rpca_germany``). Do NOT call the
+   CLUSTERSC-rpca method "fPCA-SYNTH (Greathouse)".
+
+### Why it is parked -- the cost (KEEP THIS)
+
+The authors run **N=500000 + nburn=500000 (one million iterations)**. At N=4000
+(3 chains, ~20 min) the chains do NOT agree (ATT -238 to -599), i.e. it mixes
+slowly; the convergence point is somewhere between 4k and 500k and was not
+bisected, but even a fraction of 1M is hours per fit -- the wrong cost class for
+mlsynth, whose value is interactive estimator-swapping. (Note: the chain spread
+at N=4000 is partly a reduced-N artifact -- the full run almost certainly mixes
+tighter, as the referee credited "proper convergence diagnostics" -- so the
+honest framing is "slow-mixing / expensive," not "weakly identified".) Combined
+with: capability overlap with ``BVSS`` (Bayesian donor selection in seconds), and
+a narrow benefit (per the referee, BASC's gains concentrate in sparse /
+heterogeneous donor pools; comparable to B-MV in full-donor settings)
+=> narrow benefit x high cost = poor ROI.
+
+### Build path if resumed
+
+The NumPy sampler port is validated and ~complete (faithful to the R, reproduces
+within the chain envelope). To resume: (1) bisect a REASONABLE iteration budget
+between 4k and 500k -- if it needs >> ~50k to stabilize, do not build; (2) wrap
+as a top-level ``BASC`` estimator (``utils/basc_helpers/{sampler,gp,selection,
+pipeline,structures}.py``), riding ``dataprep`` + ``BaseEstimatorResults``,
+returning counterfactual + credible bands + posterior inclusion probabilities
+(mirror ``BVSS``); (3) MUST ship multi-chain R-hat diagnostics and report the ATT
+as an interval (the authors' own chains span -238 to -599); (4) durable
+validation = West Germany cross-val vs ``BASC_realdata.R`` posterior summaries
+within MC error (raw scale), a captured-reference case under ``benchmarks/``.
+Catalogue home: next to ``BVSS`` / ``CMBSTS``.
+
+### The bar to clear (owner's call, recorded verbatim)
+
+> "Maybe it'll be added someday, but I'd need to see much better performance in
+> reasonable samples."
+
+Park until BASC demonstrates clearly better predictive performance at reasonable
+MCMC sample sizes than the cheap alternatives already in the library (``BVSS``).
+A method that needs ~1M iterations to stabilize is not worth the build cost
+unless the sparse-pool edge is large and shows up well before that.
+
+### Verdict
+
+In-lane, sound, faithfully portable, and the referee / demonstrate-first
+cross-checks agree -- but the capability overlaps ``BVSS`` and the convergence
+cost is prohibitive for an interactive library. Parked on cost, not correctness.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
