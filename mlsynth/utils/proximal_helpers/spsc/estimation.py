@@ -271,13 +271,23 @@ def _grad_psi(theta, y, W, A, D, B_post, degree=1, eps: float = 1e-6) -> np.ndar
 
 
 def _ar1_params(x: np.ndarray) -> Tuple[float, float]:
-    """AR(1) coefficient and innovation variance for the auto-bandwidth rule."""
+    """AR(1) coefficient and innovation variance for the auto-bandwidth rule.
+
+    Uses the exact-likelihood ``innovations_mle`` fit to match the reference,
+    which fits the AR(1) with R's ``arima(order=c(1,0,0))`` (its default
+    ``CSS-ML`` lands on the exact-ML optimum). statsmodels' default state-space
+    optimiser converges to a different root for these near-unit-root moment
+    series (e.g. ``rho`` 0.9535 vs R's 0.9512), which shifts the Andrews
+    bandwidth -- through ``(1 - rho)`` -- and hence the HAC meat enough to move
+    the detrend ``Scale`` ~8% and the conformal band ~13%. ``innovations_mle``
+    reproduces R's ``rho``/``sigma2`` to ~1e-5.
+    """
     from statsmodels.tsa.arima.model import ARIMA
 
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fit = ARIMA(x, order=(1, 0, 0)).fit(method_kwargs={"warn_convergence": False})
+            fit = ARIMA(x, order=(1, 0, 0), trend="c").fit(method="innovations_mle")
         return float(fit.arparams[0]), float(fit.params[-1])
     except Exception:
         return 0.0, float(np.var(x))
