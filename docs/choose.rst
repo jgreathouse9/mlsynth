@@ -824,3 +824,9 @@ A reverse lookup: the symptom, and the method named for it.
 When in doubt, fit two or three of the candidate methods and compare the
 counterfactuals and ATTs. Disagreement is itself diagnostic: it usually means
 one of the gates above is binding harder than you thought.
+
+Whichever method you pick, the :doc:`truncated_history` robustness check
+re-estimates it on truncated pre-treatment windows and profiles the effect
+against the pretreatment horizon -- a stable profile supports the causal
+reading, an unstable one says report an interval. It is the pretreatment-horizon
+companion to the in-space placebo and leave-one-out checks.
