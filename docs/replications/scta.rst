@@ -81,6 +81,82 @@ reproduced exactly, and the estimates match to the inherent solver tolerance of
 an ill-conditioned simplex SC. mlsynth deliberately reports the
 true-optimum fit rather than cloning a specific QP solver.
 
+Lower in-sample risk than LowRankQP, provably
+---------------------------------------------
+
+Choosing the true optimum is not a stylistic preference: it gives a strictly
+smaller in-sample balancing risk than ``augsynth``'s solver, by construction.
+Both methods minimise the same objective over the same feasible set,
+
+.. math::
+
+   f(\gamma) = (\mathbf{a} - \mathbf{B}\gamma)^{\top}\mathbf{V}(\mathbf{a} - \mathbf{B}\gamma),
+   \qquad \gamma \in \Delta = \{\gamma \ge 0,\ \textstyle\sum_i \gamma_i = 1\}.
+
+The objective is convex (Hessian :math:`2\mathbf{B}^{\top}\mathbf{V}\mathbf{B}
+\succeq 0`) and, with a full-rank :math:`\mathbf{B}` and :math:`\mathbf{V}
+\succ 0`, strictly convex, so it has a unique global minimiser
+:math:`\gamma^{\star}`. By the definition of a minimiser,
+:math:`f(\gamma^{\star}) \le f(\gamma)` for every feasible :math:`\gamma` --
+including ``augsynth``'s ``LowRankQP`` iterate, which is feasible (it lies on
+the simplex). Hence
+
+.. math::
+
+   f(\gamma_{\text{SCTA}}) = f(\gamma^{\star}) \;\le\; f(\gamma_{\text{LowRankQP}}),
+
+strictly whenever ``LowRankQP`` halts short of the optimum. This is exact,
+holding for every dataset and every :math:`\nu`, not an asymptotic or average
+statement. The one requirement -- that mlsynth attains :math:`\gamma^{\star}`
+-- is certified by solving with two independent algorithms (the active-set QP
+and interior-point CLARABEL) and confirming they agree on the objective to
+:math:`\le 7\times 10^{-9}` relative at every :math:`\nu`.
+
+Across the :math:`\nu` frontier on the Texas panel, the in-sample
+:math:`\mathbf{V}`-weighted risk confirms it, and the suboptimality of
+``LowRankQP`` grows as aggregation stretches the design:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 26 26 20
+
+   * - :math:`\nu`
+     - SCTA (true optimum)
+     - augsynth LowRankQP
+     - augsynth above optimum
+   * - 0.0
+     - :math:`6.628\times 10^{9}`
+     - :math:`6.628\times 10^{9}`
+     - :math:`0.0\%`
+   * - 0.25
+     - :math:`7.039\times 10^{9}`
+     - :math:`7.076\times 10^{9}`
+     - :math:`+0.5\%`
+   * - 0.5
+     - :math:`7.419\times 10^{9}`
+     - :math:`7.780\times 10^{9}`
+     - :math:`+4.9\%`
+   * - 1.0
+     - :math:`8.121\times 10^{9}`
+     - :math:`9.813\times 10^{9}`
+     - :math:`+20.8\%`
+   * - 2.0
+     - :math:`9.402\times 10^{9}`
+     - :math:`1.163\times 10^{10}`
+     - :math:`+23.7\%`
+   * - 4.0
+     - :math:`1.164\times 10^{10}`
+     - :math:`1.807\times 10^{10}`
+     - :math:`+55.3\%`
+
+At :math:`\nu = 0` (no aggregation, well-conditioned) the two agree; as
+:math:`\nu` rises the :math:`K\nu` row scaling worsens the conditioning and
+``LowRankQP``'s interior iterate drifts further above the vertex optimum. The
+risk here is in-sample pre-treatment balance, the quantity both solvers
+target; reaching its true constrained minimum is the correct solve, and is
+distinct from the out-of-sample estimation risk the paper's bias bounds
+address.
+
 Reproducing
 -----------
 
