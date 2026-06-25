@@ -1347,7 +1347,7 @@ fig, ax = plt.subplots(figsize=(5.2, 3.2))
 cmp.plot(ax=ax, band="fill",                     # shaded bands, not error-bar spikes
          colors={"SPOTSYNTH (Bayesian 95% credible)": "C0", "SPSC (95% conformal)": "C3"},
          styles={"SPOTSYNTH (Bayesian 95% credible)": "--", "SPSC (95% conformal)": "-."})
-ax.axvline(229, color="0.4", lw=1.0); ax.set_xlim(180, 330)
+ax.axvline(229, color="0.4", lw=1.0)            # full series; no x-axis crop
 ax.set_xlabel("period"); ax.set_ylabel("log stock price")
 ax.legend(fontsize=6.5, loc="lower left"); fig.tight_layout(); plt.show()
 ```
