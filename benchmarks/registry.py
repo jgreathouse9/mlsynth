@@ -83,6 +83,7 @@ CASES = {
     "siv_syria_mc": "benchmarks.cases.siv_syria_mc",          # Path B: SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
     "orthsc_carbontax": "benchmarks.cases.orthsc_carbontax",  # Path A: ORTHSC Fry carbon-tax ATT/p/K/CI (Andersson 2019 data, vs live R)
     "orthsc_size_power": "benchmarks.cases.orthsc_size_power",  # Path B: ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
+    "th_prop99": "benchmarks.cases.th_prop99",  # Path A: Spoelstra et al. 2025 Table 1 left-TH SDID (Prop 99)
     "gmmsce_carbontax": "benchmarks.cases.gmmsce_carbontax",  # cross-val vs Fry GMM-SCE.R GMMSC (carbon tax, J-statistic + optimality)
     "fma_coverage_mc": "benchmarks.cases.fma_coverage_mc",      # Path B: FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
     "pangeo_supergeo_mc": "benchmarks.cases.pangeo_supergeo_mc",  # Path B: PANGEO trajectory match vs scalar (Chen et al.)
