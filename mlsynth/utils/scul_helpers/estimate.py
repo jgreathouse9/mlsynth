@@ -29,9 +29,14 @@ import numpy as np
 from sklearn.linear_model import Lasso, lasso_path
 
 # Tight convergence: the lasso optimum is unique (continuous donors), and
-# glmnet's default threshold under-converges this correlated p>>n problem, so we
-# solve tightly to land on the unique solution.
+# glmnet's default threshold under-converges this correlated p>>n problem, so the
+# headline fit solves tightly to land on the unique solution. The placebo
+# distribution only needs the *rank* of an RMSE ratio, which is robust well short
+# of that precision -- a coarser tolerance there is ~4x faster with an identical
+# p-value (the fancy working-set / exact solvers do not pay off at SCUL's tiny
+# n, p scale; the lever is precision-per-solve, not the solver).
 _LASSO_TOL = 1e-12
+_PLACEBO_TOL = 1e-7
 _LASSO_MAXITER = 2_000_000
 
 
@@ -57,7 +62,8 @@ def _glmnet_lambda_path(x: np.ndarray, y: np.ndarray, n_lambda: int = 100) -> np
 
 
 def _lasso_fit_predict(
-    x_train: np.ndarray, y_train: np.ndarray, lam: float, x_new: np.ndarray
+    x_train: np.ndarray, y_train: np.ndarray, lam: float, x_new: np.ndarray,
+    tol: float = _LASSO_TOL,
 ) -> Tuple[np.ndarray, np.ndarray, float]:
     """Fit a glmnet-standardised lasso at penalty ``lam`` and predict ``x_new``.
 
@@ -70,7 +76,7 @@ def _lasso_fit_predict(
     sd = _mysd(x_train)
     sd[sd == 0] = 1.0
     model = Lasso(alpha=float(lam), fit_intercept=True,
-                  max_iter=_LASSO_MAXITER, tol=_LASSO_TOL)
+                  max_iter=_LASSO_MAXITER, tol=tol)
     model.fit((x_train - mu) / sd, y_train)
     coef = model.coef_ / sd
     intercept = float(model.intercept_ - mu @ coef)
@@ -80,7 +86,7 @@ def _lasso_fit_predict(
 def rolling_cv_lambda(
     x_pre: np.ndarray, y_pre: np.ndarray,
     number_initial_periods: int, training_post_length: int,
-    cv_option: str = "median",
+    cv_option: str = "median", tol: float = _LASSO_TOL,
 ) -> float:
     """Rolling-origin expanding-window CV penalty (``SCUL.R`` ``lambda.median``).
 
@@ -121,7 +127,7 @@ def rolling_cv_lambda(
         sd[sd == 0] = 1.0
         ybar = y_tr.mean()
         _, coefs, _ = lasso_path((x_tr - mu) / sd, y_tr - ybar, alphas=path,
-                                 tol=_LASSO_TOL, max_iter=_LASSO_MAXITER)
+                                 tol=tol, max_iter=_LASSO_MAXITER)
         coefs = coefs / sd[:, None]                      # (P, n_lambda), original scale
         intercepts = ybar - mu @ coefs                   # (n_lambda,)
         preds = x_te @ coefs + intercepts                # (T_te, n_lambda)
@@ -143,6 +149,7 @@ def fit_scul(
     number_initial_periods: int = 5,
     training_post_length: int = 7,
     cv_option: str = "median",
+    tol: float = _LASSO_TOL,
 ) -> dict:
     """Fit SCUL and return weights, the synthetic series, and the fit measure.
 
@@ -179,8 +186,8 @@ def fit_scul(
     x_pre, y_pre = X[:T0], y[:T0]
 
     lam = rolling_cv_lambda(x_pre, y_pre, number_initial_periods,
-                            training_post_length, cv_option)
-    counterfactual, coef, intercept = _lasso_fit_predict(x_pre, y_pre, lam, X)
+                            training_post_length, cv_option, tol)
+    counterfactual, coef, intercept = _lasso_fit_predict(x_pre, y_pre, lam, X, tol)
 
     pre_sd = float(np.std(y_pre, ddof=1)) or 1.0
     cohens_d = float(np.mean(np.abs(counterfactual[:T0] - y_pre)) / pre_sd)
