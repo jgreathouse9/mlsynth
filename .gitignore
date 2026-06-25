@@ -23,3 +23,10 @@ y_lexplot.png
 
 # on-demand reference clones (benchmarks)
 benchmarks/reference/.cache/
+
+# generated benchmark run outputs
+benchmarks/REPORT.md
+benchmarks/report.json
+
+# local Quarto paper render (never tracked)
+paper/

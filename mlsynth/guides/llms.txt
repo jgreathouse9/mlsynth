@@ -56,6 +56,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **ROLLDID** — Rolling-transformation difference-in-differences.  (config: ROLLDIDConfig)
 - **SBC** — Synthetic Business Cycle (SBC) estimator.  (config: SBCConfig)
 - **SCMO** — Synthetic Control with Multiple Outcomes estimator.  (config: SCMOConfig)
+- **SCTA** — Synthetic Control with Temporal Aggregation estimator.  (config: SCTAConfig)
 - **SDID** — Synthetic Difference-in-Differences estimator with event-study output.  (config: SDIDConfig)
 - **SHC** — Synthetic Historical Control (SHC) estimator.  (config: SHCConfig)
 - **SI** — Synthetic Interventions (SI) estimator.  (config: SIConfig)

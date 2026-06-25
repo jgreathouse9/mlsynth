@@ -251,6 +251,8 @@ for one binary treatment)?
 * The whole distribution (quantiles, Lorenz, tails) -- :doc:`dsc`.
 * A continuous or multi-valued dose with no clean control -- :doc:`ctsc`.
 * Several related outcomes (helps most with a short pre-period) -- :doc:`scmo`.
+* A high-frequency outcome where you must decide whether to aggregate the
+  pre-period (months vs years) -- :doc:`scta`.
 * Several distinct intervention arms to compare -- :doc:`si`.
 
 Q1.9 · Are you worried about interpolation bias -- the synthetic control having
@@ -390,6 +392,8 @@ A reverse lookup: the symptom, and the method named for it.
      - :doc:`ctsc`
    * - Several related outcomes / short pre-period
      - :doc:`scmo`
+   * - High-frequency outcome / aggregate the pre-period
+     - :doc:`scta`
    * - Several distinct intervention arms
      - :doc:`si`
    * - Interpolation bias (interpolating across dissimilar donors)

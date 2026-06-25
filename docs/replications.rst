@@ -64,6 +64,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/clustersc
    replications/lexscm
    replications/scmo
+   replications/scta
    replications/rescm
    replications/linf
    replications/geolift
@@ -171,6 +172,15 @@ Generalising the estimand, treatment, or unit
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
   → dedicated page: :doc:`replications/scmo`.
+
+* :doc:`scta` -- temporal aggregation for SC, cross-validated against
+  ``augsynth`` on the Texas SB8 study (Sun-Ben-Michael-Feller 2024). The
+  construction is exact (fed augsynth's weights, the combined :math:`\nu = 0.5`
+  ATT reproduces to the digit, :math:`18917.86`); run end to end, mlsynth
+  reaches the true optimum of the ill-conditioned simplex, so the estimates
+  match augsynth to solver tolerance (plain :math:`\approx 19800` vs
+  :math:`18918`; ridge :math:`\approx 12500` vs :math:`12982`, annualised).
+  → dedicated page: :doc:`replications/scta`.
 * :doc:`rescm` -- SCM-relaxation (Liao, Shi & Zheng 2026).
   Path A: Brexit / UK real GDP -- the L2 relaxation's cumulative
   GDP loss is :math:`\approx 4.0\%` (paper 3.85%, treatment 2016Q3),
