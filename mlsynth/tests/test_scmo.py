@@ -194,3 +194,50 @@ def test_scmo_no_treated_raises(panel):
     with pytest.raises(MlsynthDataError):
         SCMO({"df": df, "outcome": "y1", "treat": "treat", "unitid": "unit",
               "time": "time", "spec": SPEC, "display_graphs": False}).fit()
+
+
+# ------------------------------------------------- augment="ridge" (bilevel) ----
+
+def test_fit_scheme_augment_runs(inputs):
+    fit = fit_scheme(inputs, CONCATENATED, demean=False, augment="ridge")
+    assert np.isfinite(fit.att)
+    assert np.all(np.isfinite(fit.counterfactual))
+    assert fit.metadata.get("augment") == "ridge"
+
+
+def test_augment_changes_weights(inputs):
+    plain = fit_scheme(inputs, CONCATENATED, demean=False)
+    ridge = fit_scheme(inputs, CONCATENATED, demean=False, augment="ridge")
+    assert not np.allclose(plain.weights, ridge.weights)
+    assert ridge.weights.shape == plain.weights.shape
+
+
+def test_scmo_augment_end_to_end(panel):
+    cfg = {"df": panel, "outcome": "y1", "treat": "treat", "unitid": "unit",
+           "time": "time", "addout": ["y2"], "schemes": ["concatenated"],
+           "augment": "ridge", "demean": True, "display_graphs": False}
+    res = SCMO(cfg).fit()
+    assert np.isfinite(res.att)
+
+
+def test_scmo_augment_fixed_lambda_changes_att(panel):
+    common = {"df": panel, "outcome": "y1", "treat": "treat", "unitid": "unit",
+              "time": "time", "schemes": ["concatenated"], "display_graphs": False}
+    plain = SCMO(common).fit().att
+    ridge = SCMO({**common, "augment": "ridge", "ridge_lambda": 5.0}).fit().att
+    assert np.isfinite(ridge)
+    assert abs(plain - ridge) > 1e-6
+
+
+def test_ridge_lambda_without_augment_raises(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", ridge_lambda=5.0)
+
+
+def test_ridge_lambda_nonpositive_raises(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", augment="ridge", ridge_lambda=0.0)

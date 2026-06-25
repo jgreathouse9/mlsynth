@@ -65,10 +65,13 @@ def run_scmo(
     demean: bool,
     conformal_alpha: float,
     conformal_q: float = 1.0,
+    augment: Optional[str] = None,
+    ridge_lambda: Optional[float] = None,
 ) -> Dict[str, SCMOMethodFit]:
     """Fit each requested scheme and attach CWZ conformal inference to every fit."""
     base = [s for s in schemes if s != MA]
-    fits: Dict[str, SCMOMethodFit] = {s: fit_scheme(inputs, s, demean) for s in base}
+    fits: Dict[str, SCMOMethodFit] = {
+        s: fit_scheme(inputs, s, demean, augment, ridge_lambda) for s in base}
 
     if MA in schemes:
         components = [fits[s] for s in (CONCATENATED, AVERAGED) if s in fits]
