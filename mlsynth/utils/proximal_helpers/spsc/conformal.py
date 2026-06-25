@@ -71,6 +71,7 @@ def conformal_intervals(
     spline_df: int,
     att_se: float,
     periods: Optional[Sequence[int]] = None,
+    period_se: Optional[Sequence[float]] = None,
     alpha: float = 0.05,
     window: float = 25.0,
     grid_size: int = 101,
@@ -111,6 +112,12 @@ def conformal_intervals(
     periods : sequence of int, optional
         Post-treatment period indices (absolute, in ``[T0, T)``) to cover.
         Defaults to every post-treatment period.
+    period_se : sequence of float, optional
+        Per-post-period ATT standard errors (length ``T1``, the reference
+        ``ASE.ATT``). When given, the search grid for post period ``idx`` is
+        scaled by ``period_se[idx - T0]`` rather than the scalar ``att_se`` --
+        required for a time-varying ATT path, whose per-period SE grows with the
+        horizon. Falls back to ``att_se`` where missing or non-finite.
     alpha : float, default 0.05
         Target miscoverage (95% interval).
     window : float, default 25.0
@@ -132,6 +139,8 @@ def conformal_intervals(
     if periods is None:
         periods = list(range(T0, T))
     periods = [int(p) for p in periods]
+    period_se = (np.asarray(period_se, dtype=float).ravel()
+                 if period_se is not None else None)
 
     # Refit on the SAME rescaled detrend basis the point fit used: the ridge
     # ginv truncation depends on the instrument magnitudes, so an unscaled basis
@@ -158,8 +167,15 @@ def conformal_intervals(
 
     def interval_for(idx: int):
         point = y[idx] - W[idx] @ gamma
-        unit = att_se if (att_se is not None and np.isfinite(att_se) and att_se > 0) else \
-            float(np.std(y[T0:] - (W[T0:] @ gamma))) or 1.0
+        # Per-period SE scales the search grid (reference: window.unit =
+        # ASE.ATT[period]). For a time-varying ATT path the per-period SE grows
+        # with the horizon, so a single scalar would give constant-width bands;
+        # fall back to the scalar att_se, then a data-driven width.
+        unit = period_se[idx - T0] if (period_se is not None
+                                       and np.isfinite(period_se[idx - T0])
+                                       and period_se[idx - T0] > 0) else att_se
+        if not (unit is not None and np.isfinite(unit) and unit > 0):
+            unit = float(np.std(y[T0:] - (W[T0:] @ gamma))) or 1.0
         center = grid_size // 2
         grid = point + np.linspace(-window, window, grid_size) * unit
         accept = np.array([pvalue(idx, xi) >= valid_p for xi in grid])
