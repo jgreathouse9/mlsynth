@@ -312,14 +312,17 @@ as contemporaneous regressors under a spike-and-slab prior, and `mbsts`
 [@qiu2018multivariate] extends that idea to multiple outcomes; in Python,
 `CausalPy` [@causalpy2024] places a Bayesian synthetic control alongside regression
 discontinuity, difference-in-differences, and interrupted-time-series designs on a
-`PyMC` backend. These tools target a related but distinct counterfactual, a fitted
-state-space (or multi-design) model rather than a weighted combination of donors, so
-they solve a different estimation problem and `mlsynth` does not reproduce them. Its
-own Bayesian offering, [BVSS]{.pkg}, the Bayesian soft-simplex estimator of
-@xu2025bayesian, stays inside the synthetic-control family: it puts a spike-and-slab
-prior over the donors and a soft simplex constraint on their weights and returns full
-posteriors for the weights and the effect path. It is a Bayesian way to fit donor
-weights, not a port of these structural time-series tools.
+`PyMC` backend. `mlsynth` brings this state-space route inside its interface as
+[CMBSTS]{.pkg}, a port of the `CausalMBSTS` package of @menchetti2022estimating that
+fits the causal multivariate Bayesian structural time-series counterfactual and is
+cross-checked cell by cell against the R reference (@tbl-related); the wider menu of
+`CausalPy`, which steps outside the synthetic-control family to regression
+discontinuity, difference-in-differences, and interrupted time series, is the part
+`mlsynth` does not target. A second Bayesian offering, [BVSS]{.pkg}, the Bayesian
+soft-simplex estimator of @xu2025bayesian, stays inside the weighted-donor family
+rather than the state-space one: it puts a spike-and-slab prior over the donors and a
+soft simplex constraint on their weights and returns full posteriors for the weights
+and the effect path.
 
 The Python options for synthetic control itself are fewer and narrower.
 `SyntheticControlMethods` [@engelbrektson2020synthetic] implements the classic
@@ -359,7 +362,7 @@ the source paper at validation time (@tbl-related).
 | `microsynth` | R | calibrated SCM for micro-level panels | [MicroSynth]{.pkg} | weights vs R package |
 | `causaltensor` | Python | matrix completion, factor models | [MCNNM]{.pkg}, [SNN]{.pkg} | n/a |
 | `CausalImpact` | R | Bayesian structural time series | — | n/a |
-| `mbsts` | R | multivariate Bayesian structural time series | — | n/a |
+| `mbsts` | R | multivariate Bayesian structural time series | [CMBSTS]{.pkg} | cell-by-cell vs `CausalMBSTS` |
 | `CausalPy` | Python | Bayesian SC, RD, DiD, ITS (`PyMC`) | — | n/a |
 | `tidysynth` | R | simplex SCM (tidyverse API) | [VanillaSC]{.pkg} | n/a |
 | `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg} | n/a |
