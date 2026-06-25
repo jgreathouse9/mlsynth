@@ -28,5 +28,13 @@ benchmarks/reference/.cache/
 benchmarks/REPORT.md
 benchmarks/report.json
 
-# local Quarto paper render (never tracked)
-paper/
+# local Quarto paper render artifacts (the tracked source lives on main as
+# paper/paper.qmd; these are build outputs, mirroring paper/.gitignore there)
+paper/.quarto/
+paper/paper.tex
+paper/paper.html
+paper/paper_files/
+paper/*.log
+paper/jss.cls
+paper/jss.bst
+paper/jsslogo.jpg
