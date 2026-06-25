@@ -47,11 +47,41 @@ def _spline_basis(T0: int, df: int) -> np.ndarray:
     )
 
 
-def _build_detrend_matrix(T0: int, T: int, df: int) -> np.ndarray:
-    """Length-``T`` detrend basis; post-period rows are held at the ``T0+1`` value."""
+def _build_detrend_matrix(T0: int, T: int, df: int,
+                          basis: str = "bspline", degree: int = 1) -> np.ndarray:
+    """Length-``T`` detrend basis.
+
+    ``basis="bspline"`` is the cubic B-spline trend (``df`` degrees of freedom),
+    with post-period rows held at the ``T0+1`` value -- the default. ``basis=
+    "poly"`` is the polynomial trend ``[1, t, ..., t^degree]`` over the full
+    ``1..T`` grid, reproducing the reference's ``detrend.ft`` (``degree=1`` is the
+    linear ``(1, t)`` trend used in the authors' California example). Only the
+    pre-period rows enter the GMM moments, so the post-row convention does not
+    affect the weights either way.
+    """
+    if basis == "poly":
+        t = np.arange(1, T + 1, dtype=float)
+        return np.column_stack([t ** k for k in range(degree + 1)])
     B = _spline_basis(T0, df)
     rows = np.minimum(np.arange(1, T + 1), T0 + 1) - 1
     return B[rows]
+
+
+def _att_basis(T: int, T0: int, att_degree: int) -> np.ndarray:
+    """Post-treatment ATT basis (reference ``att.ft``), shape ``(T, att_degree+1)``.
+
+    Pre-period rows are zero; post rows are ``[s^0, ..., s^att_degree]`` in the
+    within-post index ``s = 1..T1``. ``att_degree=0`` gives the single constant
+    column (the treatment indicator on post rows), i.e. a constant ATT; ``att_
+    degree=1`` is the linear-in-time effect path of the authors' California
+    example.
+    """
+    T1 = T - T0
+    s = np.arange(1, T1 + 1, dtype=float)
+    post = np.column_stack([s ** k for k in range(att_degree + 1)])
+    B = np.zeros((T, att_degree + 1))
+    B[T0:] = post
+    return B
 
 
 def _poly_basis(u: np.ndarray, degree: int) -> np.ndarray:
@@ -114,8 +144,13 @@ def _cv_lambda(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, grid: np
     return float(best_lam)
 
 
-def _effect(y, W, A, D, lam, lam_grid, degree=1):
-    """One estimation pass: detrend, ridge gamma, constant-ATT beta."""
+def _effect(y, W, A, D, lam, lam_grid, B_post, degree=1):
+    """One estimation pass: detrend, ridge gamma, ATT-basis beta.
+
+    ``beta`` is the least-squares fit of the post-treatment gap on the ATT basis
+    ``B_post`` (post rows); a single constant column reproduces the mean-gap
+    (constant-ATT) estimate, a ``[1, s]`` basis gives the linear effect path.
+    """
     pre = A == 0
     T0 = int(pre.sum())
     D_pre = D[pre] if D is not None else None
@@ -124,7 +159,8 @@ def _effect(y, W, A, D, lam, lam_grid, degree=1):
     if lam is None:
         lam = _cv_lambda(g_pre, y_pre, W_pre, lam_grid)
     gamma = _ridge_gamma(g_pre, y_pre, W_pre, lam)
-    beta = np.array([float(np.mean(y[A == 1] - W[A == 1] @ gamma))])  # constant ATT
+    post = A == 1
+    beta = np.linalg.lstsq(B_post[post], (y - W @ gamma)[post], rcond=None)[0]
     return dict(eta=eta, gamma=gamma, beta=beta, lam=lam)
 
 
@@ -225,7 +261,10 @@ def estimate_spsc(
     spline_df: int = 5,
     ridge_lambda: Optional[float] = None,
     basis_degree: int = 1,
-) -> Tuple[np.ndarray, np.ndarray, float, float, np.ndarray, float]:
+    att_degree: int = 0,
+    detrend_basis: str = "bspline",
+    detrend_degree: int = 1,
+) -> Tuple[np.ndarray, np.ndarray, float, float, np.ndarray, float, np.ndarray, np.ndarray]:
     """Single Proxy Synthetic Control estimate.
 
     Parameters
@@ -258,17 +297,40 @@ def estimate_spsc(
     gamma : np.ndarray
         Donor weights.
     att : float
-        Mean post-treatment gap.
+        Average post-treatment effect (mean of the fitted ATT path; equals the
+        mean post-treatment gap when ``att_degree=0``).
     se : float
-        GMM/HAC standard error of the ATT (``np.nan`` if ``T1 <= 1``).
+        GMM/HAC standard error of ``att`` (``np.nan`` if ``T1 <= 1``).
     trend : np.ndarray
         Estimated treated-outcome trend (zeros if ``detrend=False``).
     lambda_opt : float
         Selected log10 ridge penalty.
+    effect_path : np.ndarray
+        Fitted per-post-period effect ``B_post @ beta``, shape ``(T1,)``. A flat
+        path at ``att`` when ``att_degree=0``.
+    path_se : np.ndarray
+        Per-post-period standard error of ``effect_path`` (delta method), shape
+        ``(T1,)``; all ``np.nan`` if ``T1 <= 1``.
+
+    Other Parameters
+    ----------------
+    att_degree : int, default 0
+        Polynomial degree of the ATT basis in post-treatment time (reference
+        ``att.ft``). ``0`` is a constant ATT; ``1`` is the linear effect path of
+        the authors' California example.
+    detrend_basis : {"bspline", "poly"}, default "bspline"
+        Detrend trend family. ``"poly"`` uses ``[1, t, ..., t^detrend_degree]``
+        (the reference ``detrend.ft``; ``detrend_degree=1`` is the linear trend).
+    detrend_degree : int, default 1
+        Polynomial degree when ``detrend_basis="poly"``.
     """
 
     if int(basis_degree) < 1:
         raise ValueError("basis_degree must be a positive integer.")
+    if int(att_degree) < 0:
+        raise ValueError("att_degree must be a non-negative integer.")
+    if int(detrend_degree) < 1:
+        raise ValueError("detrend_degree must be a positive integer.")
     degree = int(basis_degree)
 
     y = np.asarray(outcome_vector, dtype=float).ravel()
@@ -277,18 +339,22 @@ def estimate_spsc(
     T0 = int(num_pre_treatment_periods)
     T1 = T - T0
     A = (np.arange(T) >= T0).astype(float)
-    B_post = A.reshape(-1, 1)  # constant-ATT basis
+    B_post = _att_basis(T, T0, int(att_degree))      # (T, att_degree+1)
+    nb = B_post.shape[1]
 
-    D = _build_detrend_matrix(T0, T, spline_df) if detrend else None
-    theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, degree)
+    D = (_build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree))
+         if detrend else None)
+    theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
     nd = len(theta["eta"]) if detrend else 0
+    _ncol = _psi(theta, y, W, A, D, B_post, degree).shape[1]
+    beta_pos = list(range(_ncol - nb, _ncol))         # the ATT-basis moment block
 
     # Detrend rescaling: balance the trend-moment and proxy-moment magnitudes
     # before the variance step (reference SPSC(), "Scale"): the ratio of the
     # mean GYb-block diagonal to the mean YDT-block diagonal of the meat.
     if detrend and T1 > 1:
         Psi0 = _psi(theta, y, W, A, D, B_post, degree)
-        Sig0 = _hac_meat(Psi0, [Psi0.shape[1] - 1])
+        Sig0 = _hac_meat(Psi0, beta_pos)
         diag = np.diag(Sig0)
         ydt_mean = np.mean(diag[0:nd])
         gyb_mean = np.mean(diag[2 * nd: 2 * nd + degree])
@@ -296,27 +362,37 @@ def estimate_spsc(
         if not np.isfinite(scale):
             scale = 1.0
         D = D * scale
-        theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, degree)
+        theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
 
     gamma = theta["gamma"]
     counterfactual = W @ gamma
-    att = float(np.mean(y[T0:] - counterfactual[T0:]))
+    B_post_post = B_post[T0:]                          # (T1, nb)
+    effect_path = B_post_post @ theta["beta"]          # (T1,)
+    att = float(np.mean(effect_path))
     trend = D @ theta["eta"] if detrend else np.zeros(T)
 
     se = np.nan
+    path_se = np.full(T1, np.nan)
     if T1 > 1:
         ng = N
         G = _grad_psi(theta, y, W, A, D, B_post, degree)
         Psi = _psi(theta, y, W, A, D, B_post, degree)
-        Sigma = _hac_meat(Psi, [Psi.shape[1] - 1])
-        npar = nd + ng + 1
+        Sigma = _hac_meat(Psi, beta_pos)
+        npar = nd + ng + nb
         grad_lambda = np.zeros((npar, npar))
         grad_lambda[nd: nd + ng, nd: nd + ng] = np.eye(ng)
         S1 = G.T @ G + (10.0 ** theta["lam"]) * grad_lambda
         S2 = G.T @ Sigma @ G
         S1_inv = np.linalg.pinv(S1, rcond=_GINV_RCOND)  # match R MASS::ginv tolerance
         avar = S1_inv @ S2 @ S1_inv.T / T
-        var_beta = avar[nd + ng, nd + ng]
-        se = float(np.sqrt(var_beta)) if var_beta >= 0 else np.nan
+        cov_beta = avar[nd + ng: nd + ng + nb, nd + ng: nd + ng + nb]  # (nb, nb)
+        # Average-ATT variance (delta method on the mean ATT-basis row) and the
+        # per-period path variance b_t' cov b_t.
+        bbar = B_post_post.mean(0)
+        var_att = float(bbar @ cov_beta @ bbar)
+        se = float(np.sqrt(var_att)) if var_att >= 0 else np.nan
+        pv = np.einsum("ti,ij,tj->t", B_post_post, cov_beta, B_post_post)
+        path_se = np.sqrt(np.where(pv >= 0, pv, np.nan))
 
-    return counterfactual, gamma, att, se, trend, float(theta["lam"])
+    return (counterfactual, gamma, att, se, trend, float(theta["lam"]),
+            effect_path, path_se)

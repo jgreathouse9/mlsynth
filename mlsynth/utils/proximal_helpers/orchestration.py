@@ -91,23 +91,32 @@ def _run_pipost(inputs: PROXIMALInputs) -> ProximalMethodFit:
 
 
 def _run_spsc(inputs: PROXIMALInputs) -> ProximalMethodFit:
-    cf, gamma, att, se, trend, lam = estimate_spsc(
+    cf, gamma, att, se, trend, lam, effect_path, path_se = estimate_spsc(
         inputs.y, inputs.donor_outcomes, inputs.T0,
         detrend=inputs.spsc_detrend,
         spline_df=inputs.spsc_spline_df,
         ridge_lambda=inputs.spsc_lambda,
         basis_degree=inputs.spsc_basis_degree,
+        att_degree=inputs.spsc_att_degree,
+        detrend_basis=inputs.spsc_detrend_basis,
+        detrend_degree=inputs.spsc_detrend_degree,
     )
     gap = inputs.y - cf
     variant = "SPSC-DT" if inputs.spsc_detrend else "SPSC-NoDT"
     if inputs.spsc_basis_degree > 1:
         variant += f"-NP{inputs.spsc_basis_degree}"   # nonparametric sieve degree
+    if inputs.spsc_att_degree > 0:
+        variant += f"-ATT{inputs.spsc_att_degree}"    # time-varying ATT path
     metadata = {
         "variant": variant,
         "detrend": inputs.spsc_detrend,
         "basis_degree": inputs.spsc_basis_degree,
+        "att_degree": inputs.spsc_att_degree,
+        "detrend_basis": inputs.spsc_detrend_basis,
         "ridge_lambda": lam,
         "trend": trend,
+        "effect_path": effect_path,
+        "effect_path_se": path_se,
     }
     if inputs.spsc_conformal:
         metadata["conformal"] = conformal_intervals(

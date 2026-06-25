@@ -133,7 +133,7 @@ def _spsc_panel(seed=0, T=120, T0=80, N=6):
 
 def test_estimate_spsc_smoke_nodt():
     y, W, T0 = _spsc_panel()
-    cf, gamma, att, se, trend, lam = estimate_spsc(y, W, T0, detrend=False)
+    cf, gamma, att, se, trend, lam, _path, _pse = estimate_spsc(y, W, T0, detrend=False)
     assert cf.shape == (len(y),)
     assert gamma.shape == (W.shape[1],)
     assert np.isfinite(att)
@@ -143,7 +143,7 @@ def test_estimate_spsc_smoke_nodt():
 
 def test_estimate_spsc_smoke_dt():
     y, W, T0 = _spsc_panel(seed=1)
-    cf, gamma, att, se, trend, lam = estimate_spsc(y, W, T0, detrend=True, spline_df=5)
+    cf, gamma, att, se, trend, lam, _path, _pse = estimate_spsc(y, W, T0, detrend=True, spline_df=5)
     assert cf.shape == (len(y),)
     assert np.isfinite(att)
     assert trend.shape == (len(y),)
@@ -159,7 +159,7 @@ def test_estimate_spsc_deterministic():
 
 def test_estimate_spsc_fixed_lambda():
     y, W, T0 = _spsc_panel(seed=3)
-    cf, gamma, att, se, trend, lam = estimate_spsc(y, W, T0, detrend=False, ridge_lambda=-1.0)
+    cf, gamma, att, se, trend, lam, _path, _pse = estimate_spsc(y, W, T0, detrend=False, ridge_lambda=-1.0)
     assert lam == -1.0
 
 

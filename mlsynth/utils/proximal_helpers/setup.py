@@ -41,6 +41,9 @@ def prepare_proximal_inputs(
     spsc_lambda: Optional[float] = None,
     spsc_spline_df: int = 5,
     spsc_basis_degree: int = 1,
+    spsc_att_degree: int = 0,
+    spsc_detrend_basis: str = "bspline",
+    spsc_detrend_degree: int = 1,
     spsc_conformal: bool = False,
     spsc_conformal_periods: Optional[Sequence[int]] = None,
 ) -> PROXIMALInputs:
@@ -132,6 +135,9 @@ def prepare_proximal_inputs(
         spsc_lambda=spsc_lambda,
         spsc_spline_df=spsc_spline_df,
         spsc_basis_degree=spsc_basis_degree,
+        spsc_att_degree=spsc_att_degree,
+        spsc_detrend_basis=spsc_detrend_basis,
+        spsc_detrend_degree=spsc_detrend_degree,
         spsc_conformal=spsc_conformal,
         spsc_conformal_periods=spsc_conformal_periods,
     )

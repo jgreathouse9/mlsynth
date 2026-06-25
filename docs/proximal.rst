@@ -827,6 +827,27 @@ proxy. The fitted variant is labelled accordingly
 (``res.spsc.metadata["variant"]`` becomes e.g. ``"SPSC-DT-NP3"``), and the
 detrending and conformal machinery carry the same sieve.
 
+Choosing the detrend and effect bases
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The reference exposes the detrend trend (``detrend.ft``) and the effect basis
+(``att.ft``) as free choices; mlsynth surfaces both. ``spsc_detrend_basis``
+selects the trend family: ``"bspline"`` (the default cubic spline with
+``spsc_spline_df`` degrees of freedom) or ``"poly"`` for a polynomial trend
+``[1, t, \dots, t^{\text{spsc\_detrend\_degree}}]`` (degree 1 is a linear
+trend). ``spsc_att_degree`` sets the degree of a polynomial-in-time effect
+basis: ``0`` (the default) is a constant ATT, while ``1`` fits a linear effect
+path :math:`\tau_t = \beta_0 + \beta_1 t` over the post-treatment window.
+
+With ``spsc_att_degree > 0`` the headline ``att`` is the average of the fitted
+path; the per-period path and its standard errors are returned in the fit
+metadata (``res.spsc.metadata["effect_path"]`` and ``["effect_path_se"]``), and
+the variant gains an ``"-ATT1"`` suffix. Together these reproduce the authors'
+California (Proposition 99) example -- a linear detrend with a linear effect
+basis -- value-for-value: the effect path runs from :math:`-4.8` in the first
+post-period to :math:`-35.3` in the last, matching the ``qkrcks0218/SPSC``
+reference path and its per-period standard errors.
+
 Doubly Robust Proximal Synthetic Control (DR & PIPW)
 ----------------------------------------------------
 

@@ -109,6 +109,9 @@ class PROXIMALInputs:
     spsc_lambda: Optional[float] = None
     spsc_spline_df: int = 5
     spsc_basis_degree: int = 1
+    spsc_att_degree: int = 0
+    spsc_detrend_basis: str = "bspline"
+    spsc_detrend_degree: int = 1
     spsc_conformal: bool = False
     spsc_conformal_periods: Optional[Sequence[int]] = None
 

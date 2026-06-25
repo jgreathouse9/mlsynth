@@ -52,8 +52,8 @@ def _mc(detrend: bool, base_seed: int):
         s = simulate_spsc_ifem(rng=rng)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            _, _, att, se, _, _ = estimate_spsc(s.y, s.donors, s.T0,
-                                                detrend=detrend, spline_df=5)
+            _, _, att, se, _, _, _, _ = estimate_spsc(s.y, s.donors, s.T0,
+                                                      detrend=detrend, spline_df=5)
         atts[i] = att
         lo, hi = att - 1.96 * se, att + 1.96 * se
         covers[i] = 1.0 if lo <= s.true_att <= hi else 0.0
