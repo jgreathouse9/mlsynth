@@ -1235,7 +1235,8 @@ spillover contamination and then debiases through the donors it excludes.
 #| label: fit-proximal
 prox_base = dict(df=panic, treat="Panic", time="date", outcome="prc_log", unitid="ID",
                  vars={"donorproxies": ["bid_itp"], "surrogatevars": ["ask_itp"]},
-                 donors=normal, surrogates=affected, display_graphs=False)
+                 donors=normal, surrogates=affected, display_graphs=False,
+                 spsc_spline_df=6)   # the authors' six-dim cubic B-spline detrend B_6(t)
 spot_base = dict(df=panic, outcome="prc_log", treat="Panic", time="time", unitid="ID",
                  display_graphs=False, selection="S1", forecast="loo")
 
