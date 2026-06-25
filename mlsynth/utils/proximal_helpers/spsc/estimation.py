@@ -126,15 +126,23 @@ def _ridge_ginv(GW: np.ndarray, GY: np.ndarray, lam: float) -> np.ndarray:
     The real instability is a *near-collinear* instrument: ``GW`` (``m`` rows)
     can have a singular value so small that ``solve`` inverts it and lets its
     direction dominate ``gamma``, while ``ginv`` truncates it. Solve through the
-    thin SVD of ``GW = U diag(s) V^T`` and drop the directions ``ginv`` would --
-    those whose eigenvalue ``s^2 + 10^lam`` of ``GW'GW + 10^lam I`` falls below
-    its ``sqrt(eps)`` relative tolerance -- then
-    ``gamma = V diag(s / (s^2 + 10^lam)) U^T GY`` over the kept directions. This
-    avoids forming the rank-deficient ``N x N`` Gram and matches the reference.
+    thin SVD of ``GW = U diag(s) V^T``. The non-trivial eigenvalues of
+    ``GW'GW + 10^lam I`` are ``s^2 + 10^lam`` (the ``N - m`` null directions sit
+    at ``10^lam`` but carry no ``GW'GY`` mass, so they never enter ``gamma``).
+    Drop exactly the directions ``MASS::ginv`` would -- those whose eigenvalue
+    ``s^2 + 10^lam`` is below ``sqrt(eps)`` times the largest -- then
+    ``gamma = V diag(s / (s^2 + 10^lam)) U^T GY`` over the kept directions. The
+    cutoff is on the *penalised* eigenvalue, so the ridge floor ``10^lam`` makes
+    it ``lambda``-aware exactly as the reference: a near-collinear direction is
+    truncated at a small penalty but retained once ``10^lam`` lifts it above the
+    tolerance, which is what keeps the CV ``lambda`` choice (and hence the
+    conformal band) aligned with ``MASS::ginv``. This avoids forming the
+    rank-deficient ``N x N`` Gram and matches the reference to machine precision.
     """
     U, s, Vt = np.linalg.svd(GW, full_matrices=False)   # GW (m, N): U (m, m), s (m,), Vt (m, N)
-    keep = s > np.sqrt(_GINV_RCOND) * s.max()            # drop near-collinear instruments (rank cutoff)
-    scale = np.where(keep, s / (s ** 2 + 10.0 ** lam), 0.0)
+    eig = s ** 2 + 10.0 ** lam                           # eigenvalues of GW'GW + 10^lam I (instrument block)
+    keep = eig > _GINV_RCOND * eig.max()                 # MASS::ginv sqrt(eps) tol on that matrix
+    scale = np.where(keep, s / eig, 0.0)
     return Vt.T @ (scale * (U.T @ GY))
 
 
