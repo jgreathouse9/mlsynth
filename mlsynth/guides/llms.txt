@@ -74,4 +74,6 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SparseSC** — L1-penalized Sparse Synthetic Control estimator.  (config: SparseSCConfig)
 - **TASC** — Time-Aware Synthetic Control (TASC) estimator.  (config: TASCConfig)
 - **TSSC** — Two-Step Synthetic Control (TSSC) estimator.  (config: TSSCConfig)
+- **TruncatedHistoryResult** — The TH stability profile across truncated pre-treatment windows.
+- **TruncatedHistoryWindow** — One truncated-window re-estimate.
 - **VanillaSC** — Standard synthetic control estimator (bilevel engine).  (config: VanillaSCConfig)

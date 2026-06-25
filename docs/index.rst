@@ -331,6 +331,7 @@ headline numbers.
    :caption: Utilities and internals
 
    compare
+   truncated_history
    data
    helpers
 

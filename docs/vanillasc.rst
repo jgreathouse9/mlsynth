@@ -217,7 +217,10 @@ Five inference modes are available via ``inference=``:
     each donor as pseudo-treated, and the treated unit's post/pre RMSPE ratio
     is ranked against the placebo distribution to give a p-value. Simple and
     assumption-light, but the smallest achievable p-value is about
-    :math:`1/(N_0+1)`.
+    :math:`1/(N_0+1)`. Its pretreatment-horizon companion is the Truncated
+    History check (:doc:`truncated_history`), which re-fits this estimator on
+    truncated pre-treatment windows to see whether the effect is robust to how
+    far back the fit reaches.
 
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test

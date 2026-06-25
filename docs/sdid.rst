@@ -400,6 +400,13 @@ The two-sided placebo p-value reported on
 of placebo iterations whose :math:`|\widehat\tau^{\,*}_{att}|` is at least
 as large as the observed :math:`|\widehat{ATT}|`.
 
+.. seealso::
+
+   To check that the SDID effect is robust to the pretreatment horizon, run the
+   Truncated History diagnostic (:doc:`truncated_history`), which re-estimates
+   SDID on truncated pre-treatment windows. It reproduces the California
+   Proposition 99 left-TH profile of Spoelstra et al. (2025) to the decimal.
+
 Two-DataFrame and Single-Cohort Convergence
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

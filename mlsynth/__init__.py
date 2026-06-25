@@ -69,6 +69,11 @@ from .utils.spcd_helpers.plotter import (
     plot_power_curves,
     plot_detectability,
 )
+from .utils.truncated_history import (
+    truncated_history,
+    TruncatedHistoryResult,
+    TruncatedHistoryWindow,
+)
 from .spec import save_spec, load_spec
 
 __all__ = [
@@ -130,6 +135,7 @@ __all__ = [
     "SpSyDiD",
     "ISCM",
     "VanillaSC",
+    "truncated_history", "TruncatedHistoryResult", "TruncatedHistoryWindow",
     "DSCAR",
     "SPILLSYNTH",
     "CTSC",
