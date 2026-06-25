@@ -577,6 +577,7 @@ _RELOCATED_CONFIGS = {
     "PROXIMALConfig": "mlsynth.utils.proximal_helpers.config",
     "SCMOConfig": "mlsynth.utils.scmo_helpers.config",
     "SCTAConfig": "mlsynth.utils.scta_helpers.config",
+    "SCULConfig": "mlsynth.utils.scul_helpers.config",
     "SIConfig": "mlsynth.utils.si_helpers.config",
     "FMAConfig": "mlsynth.utils.fma_helpers.config",
     "PDAConfig": "mlsynth.utils.pda_helpers.config",

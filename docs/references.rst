@@ -273,10 +273,22 @@ References
     DOI: https://doi.org/10.1016/j.econlet.2024.111976
 
 .. [FECT2024]
-    Liu, Licheng, Wang, Ye, and Xu, Yiqing. 
-    "A Practical Guide to Counterfactual Estimators for Causal Inference with Time-Series Cross-Sectional Data." 
-    *American Journal of Political Science*, 68(1): 160-176, 2024. 
+    Liu, Licheng, Wang, Ye, and Xu, Yiqing.
+    "A Practical Guide to Counterfactual Estimators for Causal Inference with Time-Series Cross-Sectional Data."
+    *American Journal of Political Science*, 68(1): 160-176, 2024.
     URL: https://doi.org/10.1111/ajps.12723
+
+.. [HollingsworthWing2022]
+    Hollingsworth, Alex, and Wing, Coady.
+    "Tactics for design and inference in synthetic control studies:
+    An applied example using high-dimensional data."
+    Working paper, 2022. Reference implementation: https://github.com/hollina/scul
+
+.. [TIBSHIRANI2013]
+    Tibshirani, Ryan J.
+    "The Lasso Problem and Uniqueness."
+    *Electronic Journal of Statistics*, 7: 1456-1490, 2013.
+    DOI: https://doi.org/10.1214/13-EJS815
 
 .. [SYNTH22023]
     Yan, Guanpeng and Chen, Qiang. 

@@ -21,7 +21,7 @@ import pytest
 
 from mlsynth import (
     BVSS, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MCNNM,
-    MSQRT, NSC, PDA, RESCM, RMSI, SBC, SCMO, SDID, SequentialSDID, SHC, SNN,
+    MSQRT, NSC, PDA, RESCM, RMSI, SBC, SCMO, SCUL, SDID, SequentialSDID, SHC, SNN,
     SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
@@ -78,6 +78,8 @@ OBSERVATIONAL = [
     pytest.param(HSC, {}, id="HSC"),
     pytest.param(FSCM, {}, id="FSCM"),
     pytest.param(SCMO, {}, id="SCMO"),
+    pytest.param(SCUL, {"inference": False, "number_initial_periods": 4,
+                        "training_post_length": 5}, id="SCUL"),
     pytest.param(RESCM, {}, id="RESCM"),
     pytest.param(PDA, {}, id="PDA"),
     pytest.param(MASC, {}, id="MASC"),

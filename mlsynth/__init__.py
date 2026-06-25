@@ -13,6 +13,7 @@ from .estimators.proximal import PROXIMAL ## Check
 from .estimators.fscm import FSCM ## Check
 from .estimators.scmo import SCMO
 from .estimators.scta import SCTA
+from .estimators.scul import SCUL
 from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
@@ -97,6 +98,7 @@ __all__ = [
     "FSCM",
     "SCMO",
     "SCTA",
+    "SCUL",
     "SI",
     "NSC",
     "MUSC",
