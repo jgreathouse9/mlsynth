@@ -53,7 +53,10 @@ synthetic control is the lasso fit
        \;+\; \lambda \lVert \beta \rVert_1 ,
 
 with the donor columns standardised to unit (population) variance before the
-penalty is applied. The synthetic series is
+penalty is applied. The lasso is solved *exactly* by the Langlois & Darbon
+[LangloisDarbon2025]_ differential-inclusion homotopy: there is no convergence
+tolerance, and one warm-started sweep returns the whole regularisation path, so
+the cross-validation is both exact and cheap. The synthetic series is
 :math:`\hat{y}_t = \hat{\beta}_0 + X_t' \hat{\beta}` over all :math:`t`, and the
 treatment effect in a post period is :math:`\hat{\tau}_t = y_t - \hat{y}_t`. The
 reported ATT is the post-period mean
@@ -142,8 +145,9 @@ SCUL is cross-validated value-for-value against the authors' reference R package
 (`hollina/scul <https://github.com/hollina/scul>`_) on the California
 (Proposition 99) cigarette panel: the rolling-origin cross-validation penalty
 matches ``glmnet`` to ten digits, and -- since the lasso solution is unique for
-continuous donors -- the weights and synthetic series agree up to solver
-tolerance. See the durable benchmark
+continuous donors and mlsynth solves it exactly -- the weights and synthetic
+series agree up to ``glmnet``'s own convergence threshold. See the durable
+benchmark
 `benchmarks/cases/scul_prop99.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scul_prop99.py>`_
 and the :doc:`replications/scul` page.

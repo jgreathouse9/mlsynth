@@ -15,7 +15,7 @@ from typing import Tuple
 
 import numpy as np
 
-from .estimate import _PLACEBO_TOL, fit_scul
+from .estimate import fit_scul
 
 
 def _rmspe_ratio(gap: np.ndarray, T0: int) -> float:
@@ -53,7 +53,7 @@ def placebo_pvalue(
                     target, pool, T0,
                     number_initial_periods=number_initial_periods,
                     training_post_length=training_post_length,
-                    cv_option=cv_option, tol=_PLACEBO_TOL,
+                    cv_option=cv_option,
                 )
         except (ValueError, np.linalg.LinAlgError):    # pragma: no cover - degenerate placebo
             continue

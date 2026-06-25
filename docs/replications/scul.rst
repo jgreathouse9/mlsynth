@@ -43,9 +43,10 @@ the selection procedure ports exactly. The small ATT difference is not a method
 difference: the lasso solution is unique for continuously distributed donors
 [TIBSHIRANI2013]_, and ``glmnet``'s default convergence threshold slightly
 under-converges this correlated, high-dimensional (donors > pre-periods)
-problem. mlsynth solves the same penalty to a tight tolerance and lands on the
-unique optimum; when ``glmnet`` is run to the same tolerance, the two agree on
-the donor support and on the weights to within :math:`10^{-5}`.
+problem. mlsynth solves the same penalty *exactly* (the Langlois & Darbon
+[LangloisDarbon2025]_ differential-inclusion homotopy, no convergence tolerance)
+and lands on the unique optimum; when ``glmnet`` is run to a tight threshold, the
+two agree on the donor support and on the weights to within :math:`10^{-5}`.
 
 The case runs the R package live and asserts the penalty matches bit-for-bit and
 the ATT and synthetic series agree to solver tolerance. Durable case

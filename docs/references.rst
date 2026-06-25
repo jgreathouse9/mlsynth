@@ -290,6 +290,12 @@ References
     *Electronic Journal of Statistics*, 7: 1456-1490, 2013.
     DOI: https://doi.org/10.1214/13-EJS815
 
+.. [LangloisDarbon2025]
+    Langlois, Gabriel P., and Darbon, Jerome.
+    "A fast algorithm for solving the lasso problem exactly without homotopy
+    using differential inclusions."
+    arXiv:2507.05562, 2025.
+
 .. [SYNTH22023]
     Yan, Guanpeng and Chen, Qiang. 
     "synth2: Synthetic control method with placebo tests, robustness test, and visualization." 
