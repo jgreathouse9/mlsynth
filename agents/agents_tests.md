@@ -75,6 +75,14 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
 
 ## The recipe
 
+0. **Pre-flight: confirm the reference implements the *same version* of the
+   spec.** Before mapping a single seam, check that the reference targets the
+   paper (and the *edition* of the paper) you target. A method can evolve between
+   a working paper and its published version, and two faithful implementations of
+   "the same" estimator can then optimize genuinely different objectives. If you
+   skip this, the seam will "disagree" and you will be tempted to *break* a
+   correct port to match a reference that is solving a different problem. Verify
+   first; only a same-spec reference earns a bit-for-bit comparison.
 1. **Decompose both sides into matching units.** Find the function boundaries
    that correspond across the implementations (`Spline.Trend` ↔
    `_build_detrend_matrix`, `MASS::ginv` ↔ `_ridge_ginv`, `CV.lambda` ↔
@@ -150,6 +158,36 @@ causes — none visible from `conformal.py` alone, because mlsynth agreed with
 The end state is pinned by unit tests (the p-value form incl. the boundary ULP)
 and the `spsc_prop99` durable benchmark, which now cross-checks the conformal
 LB/UB against live R — so the six-cause bug can never silently come back.
+
+## Worked example — CTSC vs `pgsc` (the pre-flight catch)
+
+`mlsynth`'s `CTSC` is Powell's generalized synthetic control; Philip Barrett's
+`pgsc` R package is "the" reference implementation. Mapping the very first seam —
+the objective — showed an immediate "disagreement": `pgsc` optimizes a *single
+shared* coefficient `b` across all units, while `CTSC` fits *per-unit* slopes
+`b_i` and averages them (`α^AE = Σ π_i α_i`). The tempting conclusion was a
+`CTSC` bug. It was the opposite. **The reference implements a different edition
+of the paper.** Powell's 2017 working paper (which `pgsc` and its vignette cite)
+used a shared `α₀`; the published 2022 JBES version's baseline is the per-unit
+`α_i` with an average-effect summary — exactly what `CTSC` implements (its
+docstring cites Powell 2022). The shared-`b` form survives only as the published
+paper's §3.3.3 "homogeneous effects" *simplification*. Had we "fixed" `CTSC` to
+match `pgsc` bit-for-bit, we'd have regressed it *away* from the paper it
+correctly follows.
+
+Once the version skew was understood, the comparison was reframed as
+corroboration on the vignette's homogeneous DGP (true `b = (1,2)`), where both
+estimators are consistent for the same truth:
+
+| Estimator | `CTSC` (published, per-unit AE) | `pgsc` (2017, shared `b`) | truth  |
+| --------- | ------------------------------- | ------------------------- | ------ |
+| one-step  | `[0.886, 1.782]`                | `[0.874, 1.897]`          | `(1,2)`|
+| two-step  | `[0.997, 1.992]`                | `[0.987, 1.993]` (aggte)  | `(1,2)`|
+
+The two-step estimates agree to ~1%, both recovering the truth, with the residual
+gap explained by per-unit-average vs jointly-shared — not a bug in either. The
+lesson: the pre-flight version check (recipe step 0) is not optional; here it was
+the entire finding.
 
 ---
 
