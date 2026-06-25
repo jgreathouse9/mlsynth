@@ -125,6 +125,9 @@ def _run_spsc(inputs: PROXIMALInputs) -> ProximalMethodFit:
             detrend=inputs.spsc_detrend, spline_df=inputs.spsc_spline_df,
             att_se=se, periods=inputs.spsc_conformal_periods,
             basis_degree=inputs.spsc_basis_degree,
+            att_degree=inputs.spsc_att_degree,
+            detrend_basis=inputs.spsc_detrend_basis,
+            detrend_degree=inputs.spsc_detrend_degree,
         )
     return ProximalMethodFit(
         name=SPSC,

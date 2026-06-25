@@ -193,6 +193,40 @@ def _effect(y, W, A, D, lam, lam_grid, B_post, degree=1):
     return dict(eta=eta, gamma=gamma, beta=beta, lam=lam)
 
 
+def _scaled_detrend_basis(y, W, T0, spline_df, ridge_lambda, basis_degree,
+                          att_degree, detrend_basis, detrend_degree):
+    """Detrend basis after the reference ``Scale`` rescaling, shape ``(T, nd)``.
+
+    The point fit rescales the detrend columns so the trend-moment (``YDT``) and
+    proxy-moment (``GYb``) blocks of the HAC meat have matched magnitude
+    (reference ``SPSC()``: ``Scale``). The conformal refit must run on this same
+    rescaled basis: the ridge ``ginv`` truncation depends on the instrument
+    magnitudes, so an unscaled basis yields a different ``gamma`` and a band that
+    no longer matches ``MASS::ginv``. Factored out so the point fit and the
+    conformal refit share one definition.
+    """
+    T = len(y)
+    T1 = T - T0
+    D = _build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree))
+    if T1 <= 1:
+        return D
+    degree = int(basis_degree)
+    nd = D.shape[1]
+    A = (np.arange(T) >= T0).astype(float)
+    B_post = _att_basis(T, T0, int(att_degree))
+    nb = B_post.shape[1]
+    theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
+    ncol = _psi(theta, y, W, A, D, B_post, degree).shape[1]
+    beta_pos = list(range(ncol - nb, ncol))
+    diag = np.diag(_hac_meat(_psi(theta, y, W, A, D, B_post, degree), beta_pos))
+    ydt_mean = np.mean(diag[0:nd])
+    gyb_mean = np.mean(diag[2 * nd: 2 * nd + degree])
+    scale = np.sqrt(gyb_mean / ydt_mean) if ydt_mean > 0 else 1.0
+    if not np.isfinite(scale):
+        scale = 1.0
+    return D * scale
+
+
 def _psi(theta, y, W, A, D, B_post, degree=1) -> np.ndarray:
     """Stacked moment matrix (rows = periods). Mirrors the reference ``Psi.Ft``."""
     pre = 1 - A
@@ -371,27 +405,19 @@ def estimate_spsc(
     B_post = _att_basis(T, T0, int(att_degree))      # (T, att_degree+1)
     nb = B_post.shape[1]
 
-    D = (_build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree))
-         if detrend else None)
+    # Build the detrend basis, applying the reference "Scale" rescaling (which
+    # balances the trend- and proxy-moment magnitudes before the variance step).
+    if detrend:
+        D = (_scaled_detrend_basis(y, W, T0, spline_df, ridge_lambda, degree,
+                                   int(att_degree), detrend_basis, int(detrend_degree))
+             if T1 > 1 else
+             _build_detrend_matrix(T0, T, spline_df, detrend_basis, int(detrend_degree)))
+    else:
+        D = None
     theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
     nd = len(theta["eta"]) if detrend else 0
     _ncol = _psi(theta, y, W, A, D, B_post, degree).shape[1]
     beta_pos = list(range(_ncol - nb, _ncol))         # the ATT-basis moment block
-
-    # Detrend rescaling: balance the trend-moment and proxy-moment magnitudes
-    # before the variance step (reference SPSC(), "Scale"): the ratio of the
-    # mean GYb-block diagonal to the mean YDT-block diagonal of the meat.
-    if detrend and T1 > 1:
-        Psi0 = _psi(theta, y, W, A, D, B_post, degree)
-        Sig0 = _hac_meat(Psi0, beta_pos)
-        diag = np.diag(Sig0)
-        ydt_mean = np.mean(diag[0:nd])
-        gyb_mean = np.mean(diag[2 * nd: 2 * nd + degree])
-        scale = np.sqrt(gyb_mean / ydt_mean) if ydt_mean > 0 else 1.0
-        if not np.isfinite(scale):
-            scale = 1.0
-        D = D * scale
-        theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, B_post, degree)
 
     gamma = theta["gamma"]
     counterfactual = W @ gamma

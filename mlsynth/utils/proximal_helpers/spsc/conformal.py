@@ -21,7 +21,7 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 
-from .estimation import _build_detrend_matrix, _poly_basis, _ridge_ginv
+from .estimation import _poly_basis, _ridge_ginv, _scaled_detrend_basis
 
 
 def _refit_gamma(y_aug, W_aug, D_aug, lam, detrend, degree=1):
@@ -67,6 +67,9 @@ def conformal_intervals(
     window: float = 25.0,
     grid_size: int = 101,
     basis_degree: int = 1,
+    att_degree: int = 0,
+    detrend_basis: str = "bspline",
+    detrend_degree: int = 1,
 ) -> Dict[str, np.ndarray]:
     """Pointwise conformal prediction intervals for the per-period effect.
 
@@ -86,6 +89,14 @@ def conformal_intervals(
         Whether the SPSC fit detrends (must match the point fit).
     spline_df : int
         Detrend B-spline degrees of freedom.
+    att_degree : int, default 0
+        ATT-basis polynomial degree of the point fit (reference ``att.ft``);
+        only affects the detrend ``Scale`` via the HAC bandwidth, so it must
+        match the point fit.
+    detrend_basis : {"bspline", "poly"}, default "bspline"
+        Detrend trend family of the point fit (must match it).
+    detrend_degree : int, default 1
+        Polynomial degree when ``detrend_basis="poly"``.
     att_se : float
         Asymptotic ATT standard error, used to scale the search grid. If
         not finite, a data-driven width is used.
@@ -114,7 +125,13 @@ def conformal_intervals(
         periods = list(range(T0, T))
     periods = [int(p) for p in periods]
 
-    D_full = _build_detrend_matrix(T0, T, spline_df) if detrend else None
+    # Refit on the SAME rescaled detrend basis the point fit used: the ridge
+    # ginv truncation depends on the instrument magnitudes, so an unscaled basis
+    # gives a different gamma and a band that drifts from the reference.
+    D_full = (_scaled_detrend_basis(y, W, T0, spline_df, ridge_lambda,
+                                    basis_degree, att_degree, detrend_basis,
+                                    detrend_degree)
+              if detrend else None)
     pre_idx = np.arange(T0)
 
     # Achievable discrete level (reference: max of {2/(T0+1),...,1} <= alpha).
