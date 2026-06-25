@@ -78,6 +78,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/spcd
    replications/spotsynth
    replications/spsc
+   replications/scul
    replications/cmbsts
    replications/marex
    replications/dsc

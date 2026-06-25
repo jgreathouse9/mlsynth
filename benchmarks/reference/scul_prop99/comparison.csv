@@ -1,0 +1,11 @@
+# case: scul_prop99
+# generated_at: 2026-06-25T16:07:00Z
+# mlsynth_version: 1.0.0
+# estimator: SCUL
+# config: {"donor_variables": ["retprice"], "outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}
+# reference_impl: authors' SCUL() (R, via Rscript + glmnet)
+# reference_version: hollina/scul @ 121b588 (R, live)
+quantity,mlsynth,reference,abs_diff
+cv lambda (median),0.02121478,0.02121478,0.0
+ATT (post-1988 mean),-13.17061,-13.306,0.13539
+Cohen's D (pre-fit),0.01371,0.01597,0.00226

@@ -70,6 +70,7 @@ CASES = {
     "spsc_ifem_mc": "benchmarks.cases.spsc_ifem_mc",          # Path B: SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
     "spsc_prop99": "benchmarks.cases.spsc_prop99",            # Path A/X: SPSC California (Prop 99) linear effect path vs qkrcks0218/SPSC
     "spsc_panic": "benchmarks.cases.spsc_panic",              # Path A/X: SPSC averaged-treated Panic of 1907 vs qkrcks0218/SPSC
+    "scul_prop99": "benchmarks.cases.scul_prop99",            # Path A/X: SCUL California (Prop 99) lasso SC vs hollina/scul
     "dr_proximal_mc": "benchmarks.cases.dr_proximal_mc",      # Path B: DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
     "proximal_surrogates_mc": "benchmarks.cases.proximal_surrogates_mc",  # Path B: PI/PIS/PIPost vs SC under trending factor (Liu et al.)
     "ssc_guanajuato": "benchmarks.cases.ssc_guanajuato",      # cross-val vs jcao0/staggered_synthetic_control (criminality Sec 4)

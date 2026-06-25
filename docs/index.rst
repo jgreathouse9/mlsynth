@@ -270,6 +270,7 @@ headline numbers.
    msqrt
    sparse_sc
    pda
+   scul
    rescm
 
 .. toctree::
