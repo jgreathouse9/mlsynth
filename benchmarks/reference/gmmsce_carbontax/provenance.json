@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-06-24T23:16:38Z",
+  "git_sha": "cb6583d63b669824fcc99081cdc60c3ee1c02cc5",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/gmmsce_carbontax/reference.R",
+  "data": [
+    {
+      "path": "basedata/carbontax_fullsample_data.dta.txt",
+      "sha256": "0df075d00fccb6a1e58f3324119f30866a3667013b2cb6300fc84d33b1146bdd"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "LowRankQP": "1.0.6",
+    "foreign": "0.8-86",
+    "compiler": "4.3.3"
+  }
+}

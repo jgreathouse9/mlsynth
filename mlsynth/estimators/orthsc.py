@@ -20,6 +20,7 @@ from ..config_models import BaseEstimatorResults
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from ..utils.orthsc_helpers.config import OrthSCConfig
 from ..utils.orthsc_helpers.pipeline import run_orthsc
+from ..utils.orthsc_helpers.gmm_sce import run_gmm_sce
 
 try:  # pydantic v2 / v1 compatibility for the error type
     from pydantic import ValidationError
@@ -57,8 +58,15 @@ class ORTHSC:
         self.config = config
 
     def fit(self) -> BaseEstimatorResults:
-        """Estimate the orthogonalized ATT and return standardized results."""
+        """Estimate the ATT and return standardized results.
+
+        Dispatches on ``config.method``: ``"orthogonalized"`` runs Fry's (2026)
+        orthogonalized t-test estimator; ``"gmm_sce"`` runs the GMM Synthetic
+        Control Estimator of Fry (2024).
+        """
         try:
+            if self.config.method == "gmm_sce":
+                return run_gmm_sce(self.config)
             return run_orthsc(self.config)
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

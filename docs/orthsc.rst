@@ -212,6 +212,50 @@ a convex mix of the controls, the instruments share the factors):
    print(f"p = {res.inference.p_value:.3g},  smoothing K = "
          f"{res.method_details.parameters_used['smoothing_K']}")
 
+The GMM-SCE method (``method="gmm_sce"``)
+-----------------------------------------
+
+The same class hosts a second estimator from the same author: the GMM Synthetic
+Control Estimator of Fry (2024). It shares the central idea -- units excluded
+from the control pool serve as instruments for the control weights -- but instead
+of orthogonalizing an ATT it estimates the control weights themselves by a
+one-step General Method of Moments on the unit simplex, which removes the
+attenuation bias that the ordinary regression of the treated unit on the controls
+suffers when the pre-treatment fit is imperfect (Ferman and Pinto 2021). Select
+it with ``method="gmm_sce"``.
+
+The weights solve
+
+.. math::
+
+   \hat{\mathbf{w}} \;=\; \operatorname*{arg\,min}_{\mathbf{w}\,\ge\,0,\;
+   \mathbf{1}^{\top}\mathbf{w}=1}\;\;
+   \left\lVert \tilde{\mathbf{Y}}_K^{\top}
+   \left(\mathbf{y}_0 - \mathbf{Y}_J \mathbf{w}\right)\right\rVert_2^2 ,
+
+where :math:`\mathbf{Y}_J` are the control units, :math:`\tilde{\mathbf{Y}}_K`
+the instrument units (with a constant mean-matching moment), and the
+pre-treatment data are normalized to unit variance in each period. The treatment
+effect is the post-period gap :math:`\hat\alpha_{0t} = y_{0t} -
+\mathbf{Y}_{J,t}\hat{\mathbf{w}}`, and the over-identification J-statistic is
+reported as a diagnostic.
+
+You can either name the controls and instruments yourself, or let the
+Andrews--Lu (2001) downward-testing procedure choose the split for you with
+``model_selection=True`` (units always to be treated as instruments go in
+``guaranteed_instruments``):
+
+.. code-block:: python
+
+   res = ORTHSC({
+       "df": panel, "outcome": "y", "treat": "treated",
+       "unitid": "country", "time": "year",
+       "method": "gmm_sce", "model_selection": True,
+   }).fit()
+   print(f"ATT = {res.att:+.3f}")
+   print("controls:", res.additional_outputs["controls"])
+   print("J-statistic:", res.additional_outputs["jstatistic"])
+
 Verification
 ------------
 
@@ -355,6 +399,19 @@ small convex solves, so it takes ~30s):
 
 See :doc:`replications/orthsc` for the live-R cross-check and the demonstrate-
 first port story.
+
+GMM-SCE: Fry's GMM-SCE.R (cross-validation)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``method="gmm_sce"`` estimator is cross-validated against the author's own
+``GMM-SCE.R`` ``GMMSC()`` in the durable case ``gmmsce_carbontax``: run on
+Andersson's carbon-tax panel with the same control pool and instruments, mlsynth
+reproduces the reference over-identification J-statistic and attains a GMM
+objective no worse than the reference's ``LowRankQP`` solve. Because the donors
+fit Sweden almost exactly, the individual weights are only partially identified
+there; the discriminating weight-level cross-check against the R, on an
+over-identified example with a unique optimum, is in
+``mlsynth/tests/test_gmm_sce.py``.
 
 References
 ----------

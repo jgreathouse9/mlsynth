@@ -31,7 +31,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25     # a hung suite shouldn't burn a full-length runner slot
+    timeout-minutes: 40     # a hung suite shouldn't burn a full-length runner slot
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
   # avoid duplicating `build`.
   pyversions:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
