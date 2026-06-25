@@ -50,13 +50,20 @@ def _have_rscript() -> bool:
 def run_reference(y: np.ndarray, W: np.ndarray, T0: int, *,
                   detrend: bool = True, att_degree: int = 0,
                   detrend_linear: bool = False,
-                  ridge_lambda: float | None = None) -> dict:
+                  ridge_lambda: float | None = None,
+                  conformal_periods=None,
+                  conformal_alpha: float = 0.05) -> dict:
     """Run the reference ``SPSC()`` on ``(y, W, T0)`` and parse its output.
 
     ``att_degree`` and ``detrend_linear`` mirror the package's ``att.ft`` and
     ``detrend.ft`` (``att_degree=1`` is a linear effect path; ``detrend_linear``
     swaps the spline trend for the linear ``(1, t)`` trend). Returns
     ``{"effect_path", "path_se"}`` as NumPy arrays.
+
+    When ``conformal_periods`` (1-based post-period indices) is given, the
+    reference's pointwise conformal prediction intervals are computed at level
+    ``conformal_alpha`` and returned as ``{"conformal_lb", "conformal_ub"}`` too
+    (the achievable discrete level needs ``conformal_alpha >= 2/(T0+1)``).
 
     Raises
     ------
@@ -75,6 +82,19 @@ def run_reference(y: np.ndarray, W: np.ndarray, T0: int, *,
               else "function(t){matrix(c(1),1,1)}")
     detrend_ft = ("function(t){matrix(c(1,t),1,2)}" if detrend_linear
                   else "function(t){Spline.Trend(t,T0,df=5)}")
+    want_conformal = conformal_periods is not None
+    if want_conformal:
+        periods_r = "c(" + ",".join(str(int(p)) for p in conformal_periods) + ")"
+        conf_line = (f"conformal.period={periods_r}, conformal.cover=FALSE, "
+                     f"true.effect=NULL, conformal.interval=TRUE, "
+                     f"conformal.pvalue={float(conformal_alpha)}")
+        conf_dump = ('cat("CILB", paste(s$conformal.interval[,1], collapse=" "), "\\n")\n'
+                     'cat("CIUB", paste(s$conformal.interval[,2], collapse=" "), "\\n")')
+    else:
+        conf_line = ("conformal.period=NULL, conformal.cover=FALSE, "
+                     "true.effect=NULL, conformal.interval=FALSE, "
+                     "conformal.pvalue=0.05")
+        conf_dump = ""
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         np.savetxt(tmp / "y.csv", y, delimiter=",")
@@ -89,21 +109,30 @@ s <- SPSC(Y.Pre=y[1:T0], Y.Post=y[T0+1:T1], W.Pre=W[1:T0,], W.Post=W[T0+1:T1,],
           detrend={'TRUE' if detrend else 'FALSE'}, detrend.ft={detrend_ft},
           Y.basis=function(y){{matrix(c(y),1,1)}}, att.ft={att_ft},
           {lam_line}, lambda.grid=seq(-6,2,by=0.5), bootstrap.num=0,
-          conformal.period=NULL, conformal.cover=FALSE, true.effect=NULL,
-          conformal.interval=FALSE, conformal.pvalue=0.05)
+          {conf_line})
 cat("PATH", paste(as.numeric(s$ATT), collapse=" "), "\\n")
 cat("SE", paste(as.numeric(s$ASE.ATT), collapse=" "), "\\n")
+{conf_dump}
 """
         proc = subprocess.run(["Rscript", "-e", script], capture_output=True,
                               text=True, cwd=str(tmp))
         if proc.returncode != 0:
             raise BenchmarkSkipped(f"SPSC reference run failed: {proc.stderr[-300:]}")
-    path, se = None, None
+    path, se, lb, ub = None, None, None, None
     for line in proc.stdout.splitlines():
         if line.startswith("PATH"):
             path = np.array([float(x) for x in line.split()[1:]])
         elif line.startswith("SE"):
             se = np.array([float(x) for x in line.split()[1:]])
+        elif line.startswith("CILB"):
+            lb = np.array([float(x) for x in line.split()[1:]])
+        elif line.startswith("CIUB"):
+            ub = np.array([float(x) for x in line.split()[1:]])
     if path is None or se is None:  # pragma: no cover - defensive
         raise BenchmarkSkipped("could not parse SPSC reference output")
-    return {"effect_path": path, "path_se": se}
+    out = {"effect_path": path, "path_se": se}
+    if want_conformal:
+        if lb is None or ub is None:  # pragma: no cover - defensive
+            raise BenchmarkSkipped("could not parse SPSC conformal interval")
+        out["conformal_lb"], out["conformal_ub"] = lb, ub
+    return out
