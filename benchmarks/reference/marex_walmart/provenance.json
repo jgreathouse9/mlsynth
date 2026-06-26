@@ -1,20 +1,20 @@
 {
-  "generated_at": "2026-06-24T16:50:44Z",
-  "git_sha": "27bb474e0bd3b5b2af8904e8ba65bccc4f4ef825",
+  "generated_at": "2026-06-26T11:03:53Z",
+  "git_sha": "ac622cb44843a73d4bb56212cca6826313d921c7",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
   "command": "Rscript benchmarks/reference/marex_walmart/reference.R",
   "data": [
     {
-      "path": "basedata/walmart_weekly_sales.csv",
-      "sha256": "67804df817663386a1a2f555a791985bfa7a43740a0694e8e35e3573428702f8"
+      "path": "basedata/walmart_weekly_sales_covariates.csv",
+      "sha256": "906fb3cd9e2fa24e610afa2769cebf0f875066ffe4c968e7d59e766c27513a5f"
     }
   ],
-  "r_version": "R version 4.3.3 (2024-02-29)",
+  "r_version": "R version 4.5.3 (2026-03-11)",
   "packages": {
     "quadprog": "1.5-8",
-    "Matrix": "1.6-5",
-    "compiler": "4.3.3",
-    "grid": "4.3.3",
-    "lattice": "0.22-5"
+    "Matrix": "1.7-5",
+    "compiler": "4.5.3",
+    "grid": "4.5.3",
+    "lattice": "0.22-9"
   }
 }

@@ -1,13 +1,15 @@
 # case: marex_walmart
-# generated_at: 2026-06-24T20:08:39Z
+# generated_at: 2026-06-26T11:18:10Z
 # mlsynth_version: 1.0.0
 # estimator: MAREX
-# config: {"T_post": 15, "design": "standard", "display_graph": false, "inference": true, "m_eq": 2, "outcome": "sales", "post_col": "post", "program_type": "MIQP", "relaxed": false, "standardize": true, "time": "week", "unitid": "store"}
-# reference_impl: jinglongzhao2/SCDesign (cardinality-K design, live run, captured)
+# config: {"T0": 128, "T_post": 15, "blank_periods": 28, "covariates": ["Temperature", "Fuel_Price", "CPI", "Unemployment"], "design": "standard", "display_graph": false, "inference": true, "m_eq": 2, "outcome": "sales", "program_type": "MIQP", "relaxed": false, "standardize": true, "time": "week", "unitid": "store"}
+# reference_impl: jinglongzhao2/SCDesign (cardinality-K design, open quadprog, live run)
 # reference_version: live captured run (benchmarks/reference/marex_walmart/; Abadie & Zhao 2026, github.com/jinglongzhao2/SCDesign)
 quantity,mlsynth,reference,abs_diff
 n_treated,2.0,2.0,0.0
-prefit_rmse_pct,0.026633,0.025938,0.000695
-abs_ate_pct,0.009801,0.009785,1.6e-05
-placebo_p_value,0.153,0.16015,0.00715
+treated_weight_lo,0.461323,0.4611,0.000223
+treated_weight_hi,0.538677,0.5389,0.000223
+prefit_rmse_pct,0.029009,0.028381,0.000628
+abs_ate_pct,0.027312,0.027396,8.4e-05
+placebo_p_value,0.125,0.10929,0.01571
 ci_covers_zero,1.0,1.0,0.0

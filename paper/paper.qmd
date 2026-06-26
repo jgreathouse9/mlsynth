@@ -1365,7 +1365,7 @@ covs = ["Temperature", "Fuel_Price", "CPI", "Unemployment"]  # store-level covar
 
 experiment = MAREX({
     "df": walmart, "outcome": "sales", "unitid": "store", "time": "week",
-    "T0": 100, "blank_periods": 28, "T_post": 15,   # fit 100, 28 blank, 15 experimental
+    "T0": 128, "blank_periods": 28, "T_post": 15,   # 128 pre weeks: fit 1..100, blank 101..128, exp 129..143
     "m_eq": 2,                                       # exactly two treated stores
     "covariates": covs, "standardize": True,         # match on sales and covariates
     "design": "standard", "inference": True, "display_graph": False,
@@ -1455,16 +1455,16 @@ pd.Series({
 
 The placebo effect is `{python} f"{ate_pct:.1f}"`% of mean sales with a confidence
 band that covers zero, and the permutation test fails to reject the null of no
-effect (`{python} f"p = {float(pf.p_value):.2f}"`). Abadie and Zhao report a
-closely analogous result on this panel, a design that tracks well and a placebo
-$p$-value of $0.933$ that does not reject. The small numerical gap is expected:
-the design problem @eq-marex is non-convex with a flat objective near the optimum,
-so the open SCIP solver and the authors' Gurobi reach different but
-comparably-balanced two-store designs. `mlsynth` cross-validates against the
-authors' own design code (their open cardinality-constrained solver) on a
-tractable store subset in the durable benchmark `marex_walmart`, where the two
-agree to within solver tolerance. The conclusion is the one the placebo is meant
-to deliver: the design manufactures no effect where there is none.
+effect (`{python} f"p = {float(pf.p_value):.2f}"`): the design manufactures no
+effect where there is none. `mlsynth` reproduces the authors' own design code
+cell-by-cell. On this full 45-store panel, MAREX's mixed-integer solve and
+SCDesign's open cardinality-constrained routine (``quadprog``, no commercial
+Gurobi) select the same two stores, with treated weights agreeing to $2\times
+10^{-4}$, the same pre-period fit, and the same placebo effect to $10^{-4}$ of
+mean sales -- pinned in the durable benchmark `marex_walmart`. Abadie and Zhao's
+headline placebo $p$-value of $0.933$ is the no-covariate special case; matching
+on the four covariates here tightens the design and lowers the placebo $p$, as it
+does in the authors' own covariate runs.
 
 Inference is the other half of the paper's contribution, and `mlsynth` carries
 it faithfully. Both the permutation $p$-value just quoted and the confidence band

@@ -1,10 +1,11 @@
 # Reference run for the `marex_walmart` benchmark case.
 #
 # Runs Abadie & Zhao's own synthetic-control experimental-design routine
-# (jinglongzhao2/SCDesign -- the Walmart application, Table 1 / Figures 2-3) on
-# the SAME 10-store weekly Walmart panel mlsynth's MAREX is fitted to, and prints
-# the design quantities the Python case pins against. These are genuine SCDesign
-# outputs, not transcribed Table-1 constants.
+# (jinglongzhao2/SCDesign -- the Walmart application, Section 4 / Figures 2-3) on
+# the SAME full 45-store weekly Walmart panel, with the SAME four store-level
+# covariates, that mlsynth's MAREX is fitted to, and prints the design quantities
+# the Python case pins against. These are genuine SCDesign outputs, not
+# transcribed constants.
 #
 # What is reproduced verbatim from SCDesign's `Walmart_LazyRun.R`:
 #   * `Synthetic_Control`            -- the constrained-least-squares SC weight QP
@@ -23,15 +24,20 @@
 #                                       and conformal interval half-width.
 # Gurobi's non-convex `Synthetic_Experiment` (the unconstrained MIQP) is NOT used:
 # it needs a commercial licence, and the constrained routine above is the exact
-# design MAREX's `m_eq` solves. SCDesign ships as loose R source (not a package);
-# the fetch is documented in benchmarks/R/install_scdesign.sh.
+# design MAREX's `m_eq` solves -- on the open quadprog backend, no Gurobi. SCDesign
+# ships as loose R source (not a package); the fetch is documented in
+# benchmarks/R/install_scdesign.sh.
 #
-# Time structure matches the case exactly: weeks 1..143; experimental period
-# weeks 129..143 (T.naught = 128 pre-periods, 15 post -- the case's placebo
-# intervention at week 129); fit weeks 1..90, blank weeks 91..128 (MAREX's
-# blank_periods = floor(0.3 * 128) = 38). No covariates (the case uses
-# walmart_weekly_sales.csv), uniform population weights, per-row standardisation
-# (the paper's Walmart normalisation -- MAREX's standardize = TRUE).
+# Time structure matches the paper and the case exactly: weeks 1..143;
+# experimental period weeks 129..143 (T.naught = 128 pre-periods, 15 post -- the
+# placebo intervention at week 129); fit weeks 1..100 (T.prime = 100), blank weeks
+# 101..128 (28 -- MAREX's blank_periods = 28). Four store-level covariates
+# (Temperature, Fuel_Price, CPI, Unemployment), each aggregated to its per-store
+# pre-period (fit-window) mean exactly as MAREX does, are stacked onto the
+# pre-period outcomes as predictors. Uniform population weights; per-predictor
+# standardisation (the paper's Walmart normalisation -- MAREX's standardize=TRUE;
+# centering cancels on the simplex and the n/(n-1) factor is uniform, so it does
+# not affect the selected design).
 #
 # Run from the repository root:  Rscript benchmarks/reference/marex_walmart/reference.R
 suppressMessages({library(Matrix); library(quadprog)})
@@ -112,9 +118,9 @@ permutation.test <- function(pre, post, permutation.SAMPLES_ = 100000, seed_ = 1
 # SCDesign conformal-interval half-width (verbatim)
 quantile_blank <- function(r, phi_ = 0.95) sort(abs(r))[ceiling(length(r) * phi_)]
 
-# --- Data: the case's walmart_weekly_sales.csv, first 10 stores ---------------
-df <- read.csv("basedata/walmart_weekly_sales.csv")
-df <- df[df$store <= 10, ]
+# --- Data: the case's walmart_weekly_sales_covariates.csv, all 45 stores -------
+df <- read.csv("basedata/walmart_weekly_sales_covariates.csv")
+covcols <- c("Temperature", "Fuel_Price", "CPI", "Unemployment")
 stores <- sort(unique(df$store)); weeks <- sort(unique(df$week))
 Y <- matrix(NA, nrow = length(stores), ncol = length(weeks))
 for (i in seq_along(stores)) {
@@ -126,8 +132,16 @@ mean_sales <- mean(df$sales)
 
 f.vector <- rep(1 / N.Regions, N.Regions)   # uniform population weights
 T.naught <- 128                              # experimental period = weeks 129..143 (15)
-T.prime  <- 90                               # fit 1..90; blank 91..128 (MAREX blank=38)
-Z <- matrix(NA, nrow = 0, ncol = N.Regions); r.cov <- 0   # no covariates
+T.prime  <- 100                              # fit 1..100; blank 101..128 (MAREX blank=28)
+
+# Covariates: per-store mean over the fitting window (weeks 1..T.prime), exactly
+# as MAREX aggregates them (pre_mean over pre_periods = T0). Z is r.cov x N.
+r.cov <- length(covcols)
+Z <- matrix(NA, nrow = r.cov, ncol = N.Regions)
+for (j in seq_along(stores)) {
+  sj <- df[df$store == stores[j] & df$week <= T.prime, ]
+  for (k in seq_along(covcols)) Z[k, j] <- mean(sj[[covcols[k]]])
+}
 
 res <- Synthetic_Experiment_Cardinality_Constraint(
   T.prime, r.cov, N.Regions, Y, Z, f.vector, K.cardinality_ = 2)
