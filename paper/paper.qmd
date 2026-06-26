@@ -34,7 +34,7 @@ abstract: |
   spillover-aware estimation across two case studies through one dispatcher;
   proximal inference on the Panic of 1907, including methods previously available
   only in R or nowhere; and experimental design with MAREX, which reproduces
-  Abadie and Zhao's simulation and recovers a known effect.
+  Abadie and Zhao's Walmart placebo design on real store data.
 keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
 keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
 bibliography: paper.bib
@@ -319,7 +319,7 @@ spillovers, relaxing the no-interference assumption by running four spillover-aw
 estimators across two case studies through one dispatcher; proximal inference on the
 Panic of 1907, with three estimators that existed only in R or nowhere; and
 experimental design, using MAREX to
-design an experiment on Abadie and Zhao's simulation, recover a known effect, and
+reproduce Abadie and Zhao's Walmart placebo design on real store data and
 situate it in the broader design family.
 @sec-quality describes the library's testing, validation, and documentation,
 @sec-summary concludes, and @sec-computational records the computational and
@@ -1294,28 +1294,34 @@ are the same shape as before, a panel of units over time, but the assignment is
 now the thing being chosen rather than given, and choosing it well is what makes
 the eventual estimate trustworthy.
 
-A clean way to measure what a firm's paid media buys is a go-dark test: the firm
-turns advertising off in a few markets for a fixed window, keeps it on elsewhere,
-and asks what the darkened markets would have sold had the spending continued. The
-revenue the advertising generated is that counterfactual minus the dark markets'
-actual sales. The hard part is choosing which markets go dark. A market is a metro
-advertising region, and a firm usually has only a handful, large and quite
-different from one another, so a single random split can easily put the biggest
-markets on one side and compromise the comparison before the test begins. MAREX
-[@abadie2026syntheticcontrolsexperimentaldesign] instead chooses the dark and lit
-markets up front, so that each group's pre-launch sales reproduce the whole
-market's; the paper proves this non-randomized design sharply reduces the bias of
-the effect later estimated, and to our knowledge `mlsynth` is the first package to
-make it available off the shelf.
+The hard part of a design is choosing which units to treat. When an experimenter
+can intervene in only a handful of large, heterogeneous units and must pick them
+and their controls before the experiment runs, splitting at random is unbiased on
+average, but a single random split can land the biggest units on one side and
+compromise the comparison before it begins. MAREX
+[@abadie2026syntheticcontrolsexperimentaldesign] instead chooses the treated and
+control units up front, so that each group reproduces the population on its
+pre-period predictors; the paper proves this non-randomized design sharply reduces
+the bias of the effect later estimated, and to our knowledge `mlsynth` is the
+first package to make it available off the shelf.
 
-Choosing the two groups is combinatorial: each market may join the dark
-(treated) group, the lit (control) group, or neither, and the two synthetic
-units must each reproduce the population predictor mean. Write $\mathbf{x}_j$ for
-market $j$'s predictors (its pre-launch sales together with a handful of market
-covariates), $\bar{\mathbf{x}} = \frac{1}{N}\sum_j \mathbf{x}_j$ for the
+We reproduce the authors' own empirical illustration (their Section 4): a
+*placebo* experiment on a balanced panel of weekly sales for forty-five Walmart
+stores over 143 weeks [@prakash2023walmart]. The intervention is
+fictitious, so no store is actually treated, and a sound design must therefore
+produce synthetic treated and control units that track closely before the
+experiment and an estimated effect indistinguishable from zero. A placebo tests
+the design where it must not fail: it should not manufacture an effect that is not
+there.
+
+Choosing the two groups is combinatorial: each unit may join the treated group,
+the control group, or neither, and the two synthetic units must each reproduce
+the population predictor mean. Write $\mathbf{x}_j$ for unit $j$'s predictors (its
+pre-period outcomes together with any covariates), $\bar{\mathbf{x}} =
+\frac{1}{N}\sum_j \mathbf{x}_j$ for the
 population mean, $\mathbf{w}$ and
 $\mathbf{v}$ for the treated and control weights, and $z_j \in \{0,1\}$ for
-whether market $j$ is darkened. The base (`standard`) design solves
+whether unit $j$ is treated. The base (`standard`) design solves
 
 $$
 \min_{\mathbf{w},\,\mathbf{v},\,\mathbf{z}}\;
@@ -1328,86 +1334,75 @@ w_j \le z_j,\;\;
 v_j \le 1 - z_j,
 $$ {#eq-marex}
 
-with the number of darkened markets bounded by $m_{\min} \le \sum_j z_j \le
-m_{\max}$. The constraints $w_j \le z_j$ and $v_j \le 1 - z_j$ make a market
-treated or control but never both, while the objective drives each synthetic
-unit's pre-launch sales onto the population's. This is a mixed-integer quadratic
-program (the binary $\mathbf{z}$), which `mlsynth` solves with the open-source
-SCIP solver (the paper used commercial Gurobi). Once the weights are fixed, the
-per-week effect is the gap between the two synthetic markets, $\widehat{\tau}_t =
-\sum_j w_j y_{jt} - \sum_j v_j y_{jt}$. The `MAREX` class also exposes the paper's
-other objectives through one `design` argument (`weakly_targeted`, `penalized`,
-`unit_penalized`); we use the base design here for simplicity.
+with the number of treated units bounded by $m_{\min} \le \sum_j z_j \le
+m_{\max}$ (or fixed to an exact count $m$). The constraints $w_j \le z_j$ and
+$v_j \le 1 - z_j$ make a unit treated or control but never both, while the
+objective drives each synthetic unit's predictors onto the population's. This is a
+mixed-integer quadratic program (the binary $\mathbf{z}$), which `mlsynth` solves
+with the open-source SCIP solver (the paper used commercial Gurobi). Once the
+weights are fixed, the per-period effect is the gap between the two synthetic
+units, $\widehat{\tau}_t = \sum_j w_j y_{jt} - \sum_j v_j y_{jt}$. The `MAREX`
+class also exposes the paper's other objectives through one `design` argument
+(`weakly_targeted`, `penalized`, `unit_penalized`); we use the base design here.
 
-We illustrate on a simulated go-dark test where the true effect is known, so we
-can check that MAREX recovers it. Apple wants the incremental revenue its paid
-media generates across twenty DMAs (the metro regions above) observed over fifty
-weeks; for the final ten it goes dark in a few markets, where paid media drives a
-fixed share of sales, and measures the shortfall. The pre-launch sales follow
-@abadie2026syntheticcontrolsexperimentaldesign's own factor model (seven observed
-covariates and eleven latent factors, their Section 5), so the markets carry the
-heterogeneous, correlated histories that make the design problem real. We load
-the panel and hand it to MAREX:
+We hand the authors' own Walmart panel to MAREX. It carries weekly sales for
+forty-five stores together with four store-level covariates an experimenter can
+also balance on, the local average temperature, fuel price, consumer price index,
+and unemployment rate [@prakash2023walmart]. We design a placebo experiment with a
+fictitious intervention at week 129, taking the first hundred weeks as the fitting
+window, the next twenty-eight as held-out blank weeks, and the final fifteen as
+the experimental period, and fix the number of treated stores to two, the count
+the paper adopts (one store fits poorly, three barely improves it):
 
 ```{python}
 #| label: marex-design
 from mlsynth import MAREX
 from mlsynth.utils.marex_helpers.plotter import plot_marex
 
-godark = pd.read_csv(find_data("apple_godark_dmas.csv"))   # 20 DMAs x 50 weeks
-J, T, T0, T_post = godark["dma"].nunique(), godark["week"].nunique(), 40, 10
-covs = ["median_income", "population", "iphone_share", "retail_density",
-        "median_age", "broadband_pct", "ad_spend_index"]   # per-DMA market traits
+walmart = pd.read_csv(find_data("walmart_weekly_sales_covariates.csv"))  # 45 stores x 143 weeks
+T = walmart["week"].nunique()
+covs = ["Temperature", "Fuel_Price", "CPI", "Unemployment"]  # store-level covariates
 
-cfg = {"outcome": "sales", "unitid": "dma", "time": "week",
-       "T0": T0, "T_post": T_post,        # 40 pre-launch weeks, then a 10-week test
-       "m_min": 4, "m_max": 6,            # take four to six markets dark
-       "covariates": covs, "standardize": True,   # match on sales and market traits
-       "design": "standard", "inference": True, "display_graph": False}
+experiment = MAREX({
+    "df": walmart, "outcome": "sales", "unitid": "store", "time": "week",
+    "T0": 100, "blank_periods": 28, "T_post": 15,   # fit 100, 28 blank, 15 experimental
+    "m_eq": 2,                                       # exactly two treated stores
+    "covariates": covs, "standardize": True,         # match on sales and covariates
+    "design": "standard", "inference": True, "display_graph": False,
+}).fit()
 
-experiment = MAREX({**cfg, "df": godark[["dma", "week", "sales"] + covs]}).fit()
-dark = sorted(experiment.treated_units)
-w = experiment.globres.treated_weights_agg     # treated (dark) weights, one per DMA
-v = experiment.globres.control_weights_agg     # control (lit) weights
-Y = godark.pivot(index="dma", columns="week", values="sales").to_numpy()
+treated = sorted(int(s) for s in experiment.treated_units)
+w = experiment.globres.treated_weights_agg          # treated weights, one per store
+v = experiment.globres.control_weights_agg          # control weights
 ```
 
-The panel holds `{python} J` DMAs over `{python} T` weeks, the first
-`{python} T0` of them before the test. MAREX reads only that pre-launch window
-to design, never the post-launch sales, and takes between four and six markets
-dark, the count left to the optimizer because the paper's own simulations find
-that allowing more treated units improves the design. On this panel it darkens
-`{python} len(dark)` of the `{python} J` markets and builds a synthetic control
-for them from the markets that keep spending. A single `fit` does both jobs: the
-chosen markets' pre-launch sales are untouched by the later blackout, so reading
-the one panel through to the post-launch weeks turns the design straight into the
-analysis. The design it returns is the weight vectors $\mathbf{w}$ and
-$\mathbf{v}$ of @eq-marex, one weight per DMA:
+The panel holds forty-five stores over `{python} int(T)` weeks. MAREX reads only
+the pre-experimental window to design, never the experimental sales, and matches
+each synthetic unit to the population on both the pre-period sales and the four
+covariates. It selects stores `{python} f"{treated}"` as the two treated units and
+builds a synthetic control for them from the remaining forty-three. A single `fit`
+does both jobs: the chosen stores' pre-period sales are untouched by the fictitious
+intervention, so reading the one panel through to the experimental weeks turns the
+design straight into the analysis.
 
-```{python}
-#| label: tbl-marex-weights
-#| tbl-cap: "The chosen design: treated (dark) and control (lit) weights, one row per DMA. Each market carries weight in exactly one group; the weights within a group sum to one."
-pd.DataFrame({"Treated weight": w, "Control weight": v},
-             index=pd.Index(sorted(godark["dma"].unique()), name="DMA")).round(3)
-```
-
-A design is only as good as its balance. Each DMA carries seven market traits, and
-MAREX matches on them alongside the pre-launch sales; @fig-marex-balance is a love
-plot contrasting the raw dark-versus-lit gap with each synthetic unit against the
-population, the quantity @eq-marex drives to zero.
+A design is only as good as its balance. @fig-marex-balance is a love plot of the
+four covariates: it contrasts the raw gap between the treated and control stores
+with each synthetic unit against the population, the quantity @eq-marex drives to
+zero.
 
 ```{python}
 #| label: fig-marex-balance
-#| fig-cap: "Covariate balance for the chosen design (a love plot), one row per market trait. Grey squares are the raw standardized difference between the darkened and lit markets before weighting; the red and blue dots are the synthetic treated and synthetic control, each against the population. The raw split is off by up to a third of a standard deviation, but MAREX pulls both synthetics onto the population, well inside the dotted 0.1 guides: the design is balanced before the test begins."
-Z = godark.drop_duplicates("dma").sort_values("dma")[covs].to_numpy()
-dark_i = np.where(w > 1e-8)[0]; lit_i = np.where(v > 1e-8)[0]
+#| fig-cap: "Covariate balance for the chosen design (a love plot), one row per store-level covariate. Grey squares are the raw standardized difference between the two treated stores and the controls before weighting; the red and blue dots are the synthetic treated and synthetic control, each against the population. The synthetic control (blue), free to draw on all forty-three remaining stores, sits on the population; the synthetic treated (red), restricted to two stores by the cardinality constraint, is pulled most of the way from the raw split toward balance."
+Z = (walmart[walmart["week"] <= 100].groupby("store")[covs].mean()
+     .reindex(sorted(walmart["store"].unique())).to_numpy())   # per-store pre-period means
+t_i = np.where(w > 1e-8)[0]; c_i = np.where(v > 1e-8)[0]
 sd = Z.std(axis=0); popz = Z.mean(axis=0)
-raw   = (Z[dark_i].mean(0) - Z[lit_i].mean(0)) / sd      # unweighted dark - lit
-smd_t = (w @ Z - popz) / sd                              # synthetic treated vs population
-smd_c = (v @ Z - popz) / sd                              # synthetic control vs population
+raw   = (Z[t_i].mean(0) - Z[c_i].mean(0)) / sd      # unweighted treated - control
+smd_t = (w @ Z - popz) / sd                         # synthetic treated vs population
+smd_c = (v @ Z - popz) / sd                         # synthetic control vs population
 rows = np.arange(len(covs))
-fig, ax = plt.subplots(figsize=(6.4, 3.2))
-ax.scatter(raw,   rows, color="0.55", marker="s", s=26, label="Dark minus lit, unweighted")
+fig, ax = plt.subplots(figsize=(6.4, 3.0))
+ax.scatter(raw,   rows, color="0.55", marker="s", s=26, label="Treated minus control, unweighted")
 ax.scatter(smd_t, rows, color="#d62728", s=30, label="Synthetic treated vs population")
 ax.scatter(smd_c, rows, color="#1f77b4", s=30, label="Synthetic control vs population")
 ax.axvline(0, color="black", lw=1)
@@ -1417,64 +1412,67 @@ ax.set_yticks(rows); ax.set_yticklabels(covs); ax.set_xlabel("Standardized mean 
 ax.legend(loc="lower right", fontsize=7); plt.tight_layout(); plt.show()
 ```
 
-With balance established, @fig-marex is MAREX's own diagnostic of the experiment,
-drawn by the library. Through the fitting window and the held-out blank weeks the
-two synthetic series sit on top of the population mean, and only after week
-`{python} T0` does the treated series fall away, when paid media in the chosen
-markets goes dark and their sales drop below the spending counterfactual.
+@fig-marex is MAREX's own diagnostic of the experiment, drawn by the library.
+Through the fitting window and the held-out blank weeks the synthetic treated and
+synthetic control series track each other closely, and after the placebo
+intervention at week 129 the gap between them stays small, because there is no
+effect to find.
 
 ```{python}
 #| label: fig-marex
-#| fig-cap: "MAREX's own design diagnostic, drawn by the library, for Apple's go-dark test, a reproduction of Abadie and Zhao's Figure 4. The thick solid line is the population mean; the red and blue dashed lines are the synthetic treated and synthetic control markets (the dark and the lit DMAs) the design built from pre-launch sales alone; the faint lines are the individual DMAs. The synthetics track the population through the fitting window and the shaded blank weeks, then the treated series separates once paid media goes dark at week 40. That gap is the sales the dark markets forgo, which is what the advertising had been generating."
+#| fig-cap: "MAREX's own design diagnostic, drawn by the library, for the Walmart placebo experiment, reproducing Abadie and Zhao's Figure 2. The red and blue dashed lines are the synthetic treated and synthetic control units the design built from the pre-experimental window; the faint lines are the individual stores. The two synthetics track each other through the fitting and blank weeks and stay close after the fictitious intervention at week 129: the design produces no spurious effect."
 plot_marex(experiment, plot_type="prediction", donor_cloud=True, figsize=(7, 3.6))
 ```
 
 ```{python}
 #| label: marex-numbers
 #| include: false
-tau_hat = (w @ Y - v @ Y)[T0:]
-tau_true = (godark.drop_duplicates("week").sort_values("week")["tau_true"]
-            .to_numpy()[T0:])
-mae = float(np.mean(np.abs(tau_hat - tau_true)))
-scale = float(np.mean(np.abs(tau_true)))
 pf = experiment.post_fit
+mean_sales = float(walmart["sales"].mean())
+fit_pct = float(pf.rmse_fit) / mean_sales * 100
+ate_pct = float(pf.ate_percent)
 ```
 
-Because this is a simulation the true effect is known, and the design recovers
-it: the mean absolute error of the per-week effect is `{python} f"{mae:.2f}"`,
-about `{python} f"{mae/scale:.0%}"` of the effect's own scale of
-`{python} f"{scale:.1f}"`, and the two synthetic series track to a pre-launch fit
-RMSE of `{python} f"{float(pf.rmse_fit):.2f}"`. The result reads like every other
-estimator's; because MAREX designs an experiment it returns a *design* result,
-whose `report` is the realized effect and whose `post_fit` carries the
-diagnostics.
+Because the intervention is a placebo, the test of a good design is that it finds
+no effect, and it does. The synthetic treated and control units track to a
+pre-experimental fit RMSE of `{python} f"{fit_pct:.1f}"`% of mean sales, and the
+estimated experimental effect is statistically indistinguishable from zero. The
+result reads like every other estimator's; because MAREX designs an experiment it
+returns a *design* result, whose `report` is the realized effect and whose
+`post_fit` carries the diagnostics.
 
 ```{python}
 #| label: marex-fields
 pd.Series({
-    "report.att":           round(experiment.report.att, 2),   # sales forgone going dark
-    "post_fit.ate_percent": round(pf.ate_percent, 1),          # ... as a percentage
-    "post_fit.rmse_fit":    round(pf.rmse_fit, 2),             # pre-launch tracking
+    "report.att":           round(experiment.report.att, 1),   # placebo effect (sales units)
+    "post_fit.ate_percent": round(pf.ate_percent, 2),          # ... as a percentage of mean
+    "post_fit.rmse_fit":    round(pf.rmse_fit, 1),             # pre-period tracking
     "post_fit.p_value":     round(pf.p_value, 3),              # permutation test
-    "post_fit.ci_lower":    round(pf.ci_lower, 2),             # conformal band
-    "post_fit.ci_upper":    round(pf.ci_upper, 2),
+    "post_fit.ci_lower":    round(pf.ci_lower, 1),             # conformal band
+    "post_fit.ci_upper":    round(pf.ci_upper, 1),
 })
 ```
 
-Read back into Apple's question, the markets that went dark gave up about
-`{python} f"{abs(float(pf.ate_percent)):.0f}"`% of their sales over the test
-window. That forgone revenue is exactly the incremental sales the paid media had
-been generating.
+The placebo effect is `{python} f"{ate_pct:.1f}"`% of mean sales with a confidence
+band that covers zero, and the permutation test fails to reject the null of no
+effect (`{python} f"p = {float(pf.p_value):.2f}"`). Abadie and Zhao report a
+closely analogous result on this panel, a design that tracks well and a placebo
+$p$-value of $0.933$ that does not reject. The small numerical gap is expected:
+the design problem @eq-marex is non-convex with a flat objective near the optimum,
+so the open SCIP solver and the authors' Gurobi reach different but
+comparably-balanced two-store designs. `mlsynth` cross-validates against the
+authors' own design code (their open cardinality-constrained solver) on a
+tractable store subset in the durable benchmark `marex_walmart`, where the two
+agree to within solver tolerance. The conclusion is the one the placebo is meant
+to deliver: the design manufactures no effect where there is none.
 
 Inference is the other half of the paper's contribution, and `mlsynth` carries
-it faithfully. Both the permutation $p$-value for the global null of no effect
-(`{python} ("p < 0.001" if float(pf.p_value) < 0.001 else "p = " + f"{float(pf.p_value):.3f}")` on this draw)
-and the confidence band around each week's effect are built on the *blank*
-periods, pre-launch weeks deliberately withheld from the fit, where the
-dark-minus-lit gap is pure noise and so calibrates the size of a null
-fluctuation. Writing $\mathcal{B}$ for those blank weeks, the band is the
-post-launch effect plus or minus the $(1-\alpha)$ empirical quantile of the
-held-out gaps,
+it faithfully. Both the permutation $p$-value just quoted and the confidence band
+around each period's effect are built on the *blank* periods, pre-experimental
+weeks deliberately withheld from the fit, where the treated-minus-control gap is
+pure noise and so calibrates the size of a null fluctuation. Writing $\mathcal{B}$
+for those blank weeks, the band is the experimental-period effect plus or minus
+the $(1-\alpha)$ empirical quantile of the held-out gaps,
 
 $$
 \widehat{\tau}_t \;\pm\; q_{1-\alpha},
@@ -1486,10 +1484,10 @@ a split-conformal interval [@lei2018distribution; @vovk2005algorithmic]
 calibrated on data the weights never saw. The construction is deliberately not
 the conformal method of @chernozhukov2021conformal: where that procedure
 rearranges over all periods, including the pre-intervention window used to fit
-the weights, Abadie and Zhao permute only over the blank and post-intervention
+the weights, Abadie and Zhao permute only over the blank and experimental
 periods. The payoff is inference that stays valid under serial dependence and
 non-stationarity, rather than assuming the gaps are i.i.d. over time, which matters
-because market sales are persistent. Within that same framework `mlsynth` also surfaces a power
+because store sales are persistent. Within that same framework `mlsynth` also surfaces a power
 analysis: an analytical minimum detectable effect, read off the blank-period
 residuals and inflated for their serial correlation by an AR(1)
 variance-inflation factor, exposed on `res.post_fit.power` as a headline number
@@ -1583,8 +1581,8 @@ illustrations show what the consolidation buys: a controlled comparison of two
 solvers on Abadie and Gardeazabal's Basque study; a measurable spillover sensitivity
 check across two case studies; three proximal estimators, previously available only
 in R or nowhere, agreeing on the Panic of 1907; and an experimental design with
-MAREX, the first packaged synthetic-control design, that recovers a known effect
-through the same interface as every estimator before it. Once a dozen estimators
+MAREX, the first packaged synthetic-control design, reproducing Abadie and Zhao's
+Walmart placebo on real data through the same interface as every estimator before it. Once a dozen estimators
 report in one format on one panel, the applied question can shift from which method
 is right to how far the answer depends on the method at all, a robustness check
 across estimators that `mlsynth` makes a one-line change.
