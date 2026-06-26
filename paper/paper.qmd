@@ -1216,18 +1216,13 @@ shock that moved every trust's latent at once, the regime @oriordan2025spillover
 flag as their method's hard case, so the screen cleanly isolates only the most
 violently affected trust.
 
-What makes `SPOTSYNTH` worth a worked example is that detection is only the first of
-several needs it meets in a single pass. A practitioner facing contaminated donors
-has, in order, to *detect* which donors are compromised, *mitigate* the damage by
-setting them aside, and then *correct* the bias that noisy proxies leave behind even
-after the worst offenders are gone. These are ordinarily three literatures and three
-pieces of code; `SPOTSYNTH` does all three from one configuration. The forecast test
-flags the contaminated donors; excluding them builds the synthetic control on the
-survivors; and the excluded donors are then turned into instruments and used to
-debias what remains, an instrumental-variables correction in proximal dress. The
-econometric advance is the paper's; what the package adds is that the whole pipeline,
-and the practical questions it lets an analyst answer, are reachable at all, in any
-language, off the shelf.
+`SPOTSYNTH` meets three needs in a single pass: it *detects* which donors are
+compromised with the forecast test, *mitigates* the damage by excluding them and
+fitting on the survivors, and *corrects* the residual bias by turning the excluded
+donors into instruments, an instrumental-variables correction in proximal dress.
+These are ordinarily three literatures and three pieces of code; the econometric
+advance is @oriordan2025spillover's, and the package makes the whole pipeline
+reachable off the shelf.
 
 A last need is honest uncertainty, and here the package offers more than one kind.
 `SPOTSYNTH` can wrap its counterfactual in a Bayesian credible band by sampling the
@@ -1299,28 +1294,19 @@ are the same shape as before, a panel of units over time, but the assignment is
 now the thing being chosen rather than given, and choosing it well is what makes
 the eventual estimate trustworthy.
 
-A recurring question in marketing measurement is what a firm's advertising
-actually buys: when we spend on paid media, how many additional sales does that
-spending cause? One clean way to answer it is a go-dark test. The firm turns paid
-media off in a few of its markets for a fixed window, keeps it on everywhere
-else, and asks what the darkened markets would have sold had the spending
-continued. The revenue the advertising was generating is that counterfactual,
-how much the firm would be selling if it had never cut funding to zero, minus
-what the dark markets actually sold.
-
-The hard part is choosing which markets go dark. A market here is a metro
-advertising region, the smallest unit a firm can darken, and a firm usually has
-only a handful of them, large and quite different from one another. Splitting
-them into dark and lit groups at random is unbiased on average, but a single
-random split can easily put the biggest markets on one side, so the two groups
-start from different sales levels and the comparison is compromised before the
-test begins; you run the experiment once, so you are stuck with whatever that one
-split gave you. MAREX [@abadie2026syntheticcontrolsexperimentaldesign] instead
-chooses the dark and lit markets up front, so that each group's pre-launch sales
-reproduce the whole market's. The paper proves this deliberately non-randomized
-design sharply reduces the bias of the effect you later estimate, and to our
-knowledge `mlsynth` is the first package to make the method available off the
-shelf.
+A clean way to measure what a firm's paid media buys is a go-dark test: the firm
+turns advertising off in a few markets for a fixed window, keeps it on elsewhere,
+and asks what the darkened markets would have sold had the spending continued. The
+revenue the advertising generated is that counterfactual minus the dark markets'
+actual sales. The hard part is choosing which markets go dark. A market is a metro
+advertising region, and a firm usually has only a handful, large and quite
+different from one another, so a single random split can easily put the biggest
+markets on one side and compromise the comparison before the test begins. MAREX
+[@abadie2026syntheticcontrolsexperimentaldesign] instead chooses the dark and lit
+markets up front, so that each group's pre-launch sales reproduce the whole
+market's; the paper proves this non-randomized design sharply reduces the bias of
+the effect later estimated, and to our knowledge `mlsynth` is the first package to
+make it available off the shelf.
 
 Choosing the two groups is combinatorial: each market may join the dark
 (treated) group, the lit (control) group, or neither, and the two synthetic
@@ -1405,13 +1391,10 @@ pd.DataFrame({"Treated weight": w, "Control weight": v},
              index=pd.Index(sorted(godark["dma"].unique()), name="DMA")).round(3)
 ```
 
-A design is only as good as its balance, so before reading any effect we check
-it. Each DMA carries seven market traits (median income, population, iPhone
-share, and so on), and MAREX matches on them alongside the pre-launch sales.
-@fig-marex-balance is a love plot of those traits: it contrasts the raw gap
-between the darkened and lit markets, the imbalance a naive split would carry,
-with each synthetic unit against the population, the quantity @eq-marex drives to
-zero.
+A design is only as good as its balance. Each DMA carries seven market traits, and
+MAREX matches on them alongside the pre-launch sales; @fig-marex-balance is a love
+plot contrasting the raw dark-versus-lit gap with each synthetic unit against the
+population, the quantity @eq-marex drives to zero.
 
 ```{python}
 #| label: fig-marex-balance
@@ -1435,11 +1418,8 @@ ax.legend(loc="lower right", fontsize=7); plt.tight_layout(); plt.show()
 ```
 
 With balance established, @fig-marex is MAREX's own diagnostic of the experiment,
-drawn by the library. The population mean is the thick solid line, the synthetic
-treated and synthetic control markets (the dark and the lit DMAs) are the red and
-blue dashed lines, and the faint grey lines are the individual DMAs. Through the
-fitting window and the held-out blank weeks the two synthetic series sit on top of
-the population mean, behaving identically before the test, and only after week
+drawn by the library. Through the fitting window and the held-out blank weeks the
+two synthetic series sit on top of the population mean, and only after week
 `{python} T0` does the treated series fall away, when paid media in the chosen
 markets goes dark and their sales drop below the spending counterfactual.
 
