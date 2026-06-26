@@ -2117,8 +2117,13 @@ Verification
    Reference cross-checks. This port reproduces the authors' compiled
    sampler on the well-identified cases: the simulation cell (``N=36``,
    ``rho=-0.8``) recovers their bias/RMSE and ~95% coverage, and the Sudan
-   application matches the reported ``rho`` to three digits with a roughly
-   :math:`-9.5\%`-per-year GDP effect and the largest spillover on Egypt. The
+   application reproduces the authors' converged result -- a roughly
+   :math:`-9.5\%` GDP effect by 2015 and the deepest spillover on Egypt and
+   Kenya. Its ``rho`` is *weakly identified* (the authors' own posterior has an
+   effective sample size near 390 even at one million draws): at a matched
+   100,000 draws the released C++ returns ``rho`` 0.43 and this port 0.41, both
+   converging on the reported 0.427, so the match is in the converged posterior,
+   not a short smoke run. The
    California ``rho`` is *weakly identified* in the source data (the authors'
    own posterior has an effective sample size around 44): the synthetic weights,
    the spillover ranking (Nevada, then Idaho and Utah), and the larger-than-SCM

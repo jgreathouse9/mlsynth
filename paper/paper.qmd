@@ -31,7 +31,8 @@ abstract: |
   packaged together. We illustrate the library with four worked applications, one
   per regime: a single treated unit on Abadie and Gardeazabal's Basque study, fit
   with two solvers and Cattaneo, Feng, and Titiunik prediction intervals;
-  spillover-aware estimation across two case studies through one dispatcher;
+  a spatial-autoregressive model of spillover on the 2011 Sudan secession,
+  recovering the GDP cost and mapping it onto neighbouring economies;
   proximal inference on the Panic of 1907, including methods previously available
   only in R or nowhere; and experimental design with MAREX, which reproduces
   Abadie and Zhao's simulation and recovers a known effect.
@@ -315,8 +316,8 @@ structure, the internal data-preparation routine, and the standardized result
 hierarchy. @sec-applications then illustrates the library by problem regime: one
 treated unit on Abadie and Gardeazabal's Basque data, fit with two synthetic-control
 solvers that no other package carries together and with prediction intervals;
-spillovers, relaxing the no-interference assumption by running four spillover-aware
-estimators across two case studies through one dispatcher; proximal inference on the
+spillovers, relaxing the no-interference assumption with a spatial-autoregressive
+model of the 2011 Sudan secession through the SPILLSYNTH dispatcher; proximal inference on the
 Panic of 1907, with three estimators that existed only in R or nowhere; and
 experimental design, using MAREX to
 design an experiment on Abadie and Zhao's simulation, recover a known effect, and
@@ -1000,110 +1001,92 @@ de-noises the donor matrix before fitting [@amjad2018robust], each on the unchan
 
 ### Spillovers {#sec-spillovers}
 
-The illustration so far treats the donor pool as clean: untreated units are
-assumed unaffected by the treatment, the stable-unit-treatment-value assumption
-(SUTVA) that synthetic control inherits from the broader causal-inference
-literature. That assumption is often indefensible. When California raised its
-cigarette tax, some sales simply crossed the border into Nevada, so a neighbouring
-state's outcomes were themselves moved by the treatment; using it as a donor
-contaminates the counterfactual. For most of the method's history the remedy was
-subtractive (drop the units you suspect, as @abadie2010synthetic do), trading a
-SUTVA violation for a smaller, weaker comparison. A more recent literature instead
-keeps the units and models the spillover: @cao2023estimation,
-@distefano2024inclusive, @melnychuk2024synthetic, and @grossi2025direct each
-estimate the direct effect and the leakage jointly.
+The illustration so far treats the donor pool as clean: untreated units are assumed
+unaffected by the treatment, the stable-unit-treatment-value assumption (SUTVA) that
+synthetic control inherits from the wider causal-inference literature. Interventions
+often violate it, and a national breakup is a stark case. When South Sudan seceded in
+2011 the shock did not halt at the new border: it moved the economies of Sudan's
+trading partners, so those countries are contaminated donors. The long-standing
+remedy is subtractive, dropping the units you suspect, as an earlier synthetic-control
+analysis of this very episode dropped Sudan's neighbours, trading a SUTVA violation
+for a smaller, weaker comparison. A newer literature keeps every unit and models the
+leakage instead, and `mlsynth` gathers five such estimators behind one dispatcher,
+[SPILLSYNTH]{.pkg}, chosen by a `method` keyword [@cao2023estimation;
+@distefano2024inclusive; @melnychuk2024synthetic; @grossi2025direct;
+@sakaguchi2026identification].
 
-These four estimators arrived as four separate codebases, in another language,
-with four data conventions. `mlsynth` exposes them through one dispatcher,
-[SPILLSYNTH]{.pkg}, selected by a `method` keyword; the treated unit, the donor
-pool, and the units suspected of absorbing spillover are declared once, so the four
-estimates can be compared on one panel rather than reconciled across four output
-formats. We run all
-four on the California tobacco panel, with the dozen neighbours
-@abadie2010synthetic discard reinstated as suspected spillover recipients, and
-on West Germany's 1990 reunification [@abadie2015comparative], with Austria,
-France, and the Netherlands as the recipients, plotting each method's
-spillover-adjusted counterfactual against the observed treated unit.
+We use the spatial-autoregressive model of @sakaguchi2026identification
+(`method="sar"`), a Bayesian synthetic control that lets the treatment propagate
+across a trade-weighted spatial-weight matrix and so estimates the treated effect and
+a *per-donor* spillover jointly, rather than assuming the donors inert. The treated
+unit is the former united Sudan (North and South recombined); the donors are other
+African economies; the weights `spatial_W` and `spatial_w` are built from pre-period
+bilateral trade. The partition year 2011 is dropped, since GDP per capita is
+undefined for the split itself.
+
+```{python}
+#| label: fit-sudan-sar
+panel = pd.read_csv(find_data("sudan_panel.csv"))
+W = pd.read_csv(find_data("sudan_W_matrix.csv"), index_col=0)            # control-to-control
+w = pd.read_csv(find_data("sudan_w_vector.csv"), index_col=0).squeeze()  # treated-to-control
+gdp, covs = panel.columns[3], list(panel.columns[4:10])   # GDP per capita + six covariates
+panel["treated"] = ((panel["country"] == "Sudan") & (panel["year"] >= 2011)).astype(int)
+
+res = SPILLSYNTH({"df": panel, "outcome": gdp, "treat": "treated", "unitid": "country",
+                  "time": "year", "method": "sar", "spatial_W": W, "spatial_w": w,
+                  "covariates": covs, "p_factors": 1, "mcmc_iter": 8000, "mcmc_burn": 2000,
+                  "step_rho": 0.02, "mcmc_seed": 20251022, "display_graphs": False}).fit()
+
+sud = panel[panel["country"] == "Sudan"].sort_values("year")
+yr, obs = sud["year"].to_numpy(), sud[gdp].to_numpy(float)
+cf = np.asarray(res.time_series.counterfactual_outcome, float).ravel()
+pct = 100 * (obs - cf) / cf                                # per-year % effect vs counterfactual
+e12, e15 = pct[yr == 2012][0], pct[yr == 2015][0]
+spill = {k.split(",")[0]: float(np.mean(v)) for k, v in res.spillover_effects.items()}
+top2 = [k for k, _ in sorted(spill.items(), key=lambda kv: kv[1])[:2]]
+```
+
+The spatial model recovers the secession's cost: GDP per capita in the Sudans falls
+about `{python} f"{abs(e12):.0f}"`% below its synthetic counterfactual by 2012,
+widening to about `{python} f"{abs(e15):.0f}"`% by 2015, reproducing the
+@sakaguchi2026identification finding (their estimates are 7.8% then 9.5%, a 34%
+cumulative loss). The spillover is not a nuisance assumed away but an estimand of its
+own: the deepest negative spillovers fall on `{python} top2[0]` and
+`{python} top2[1]`, the partners with the strongest trade ties to Sudan, exactly the
+units a subtractive analysis would have deleted from the pool.
 
 ```{python}
 #| label: fig-spillovers
-#| fig-cap: "Four spillover-aware estimators on two case studies, reached by changing one `method` keyword in a loop. Each panel plots the observed treated unit (black) against each method's spillover-adjusted synthetic counterfactual. On Proposition 99 (left) the methods disagree substantially, since spillover into the reinstated neighbours is large; on German reunification (right) they nearly coincide, since the declared spillover is small. The spread within a panel is a cross-method sensitivity check that the shared interface makes free."
+#| echo: false
+#| fig-cap: "The 2011 Sudan secession through the spatial-autoregressive SPILLSYNTH model. Left: GDP per capita in the former united Sudan (black) against its SAR counterfactual (red dashed, with a 95% credible band), an estimator that keeps and models every donor; the partition year 2011 is omitted and the vertical line marks the pre/post split. The economy holds to its synthetic path through 2010, then settles well below it. Right: the estimated per-donor spillover, the model's distinctive output: the secession's shock leaks onto Sudan's trading partners, deepest on Egypt and Kenya, the economies a neighbour-dropping analysis would have discarded."
+keep = yr != 2011                                       # omit the partition transition year
+postf = yr >= 2011
+gci = np.asarray(res.sar.gap_ci, float)                # gap credible band, 2011..2015
+cflo, cfhi = obs[postf] - gci[:, 1], obs[postf] - gci[:, 0]
+show = yr[postf] != 2011
 
-adh_covariates = ["trade", "infrate", "industry", "schooling",
-                  "invest60", "invest70", "invest80"]
-cases = [
-    dict(name="Proposition 99", file="prop99_with_dc.csv", span=(1970, 2000),
-         outcome="cigsale", unit="state", time="year", treated="California",
-         t0=1989, ylab="cigarette sales (packs p.c.)", covariates=None,
-         affected=["Alaska", "Arizona", "District of Columbia", "Florida",
-                   "Hawaii", "Massachusetts", "Maryland", "Michigan",
-                   "New Jersey", "Nevada", "New York", "Oregon", "Washington"]),
-    dict(name="Reunification", file="scpi_germany.csv", span=(1960, 2003),
-         outcome="gdp", unit="country", time="year", treated="West Germany",
-         t0=1990, ylab="GDP p.c. (000s USD)", covariates=adh_covariates,
-         affected=["Austria", "France", "Netherlands"]),
-]
-methods = {"cd": ("C0", "-"), "iscm": ("C3", "--"),
-           "iterative": ("C1", "-."), "grossi": ("C4", ":")}
+fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.2, 3.0))
+a1.plot(yr[keep], obs[keep], "k-", lw=1.6, label="the Sudans (observed)")
+a1.plot(yr[keep], cf[keep], "C3--", lw=1.4, label="SAR counterfactual")
+a1.fill_between(yr[postf][show], cflo[show], cfhi[show], color="C3", alpha=0.18)
+a1.axvline(2010, color="0.4", lw=1.0); a1.set_xticks([2000, 2005, 2010, 2015])
+a1.set_xlabel("year"); a1.set_ylabel("GDP per capita (2015 US$)", fontsize=8)
+a1.set_title("Sudan secession (2011)", fontsize=8); a1.legend(fontsize=6.5, loc="lower right")
 
-fig, axes = plt.subplots(1, 2, figsize=(7, 3))
-records = []
-for ax, case in zip(axes, cases):
-    df = pd.read_csv(find_data(case["file"]))
-    df = df[df[case["time"]].between(*case["span"])].copy()
-    df["treat"] = ((df[case["unit"]] == case["treated"])
-                   & (df[case["time"]] >= case["t0"])).astype(int)
-    cfg = dict(df=df, outcome=case["outcome"], treat="treat", unitid=case["unit"],
-               time=case["time"], affected_units=case["affected"],
-               display_graphs=False)
-    fits = {}
-    for m in methods:
-        kw = {**cfg, "method": m}
-        if m == "iscm" and case["covariates"]:
-            kw["covariates"] = case["covariates"]      # only iscm matches on covariates
-        fits[m] = SPILLSYNTH(kw).fit()                  # the one line that varies
-    # Each result is a standard EffectResult, so the helper reads the
-    # counterfactual, observed series, and att straight off it -- no glue.
-    cmp = compare_counterfactuals(fits)
-    cmp.plot(ax=ax, colors={m: methods[m][0] for m in methods},
-             styles={m: methods[m][1] for m in methods}, legend=False)
-    records += [{"case": case["name"], "method": m, "ATT": cmp.summary.loc[m, "att"]}
-                for m in methods]
-    ax.axvline(case["t0"], color="0.4", ls="-", lw=1.0)
-    ax.set_title(case["name"], fontsize=8)
-    ax.set_xlabel("year"); ax.set_ylabel(case["ylab"], fontsize=8)
-axes[0].legend(fontsize=6, ncol=2)
-fig.tight_layout()
-plt.show()
-```
-
-```{python}
-#| label: fig-spillover-att
-#| fig-cap: "Average treatment effect on the treated for each spillover-aware estimator on each case study (the `att` field). One panel per case because the outcomes are in different units; within a panel the bars share an axis, so the cross-method spread is read directly. The Proposition 99 methods disagree by more than a factor of two; the reunification methods nearly agree, tracking how much spillover each case has to model."
-att = pd.DataFrame(records)
-att_units = {"Proposition 99": "ATT (packs p.c.)", "Reunification": "ATT (000s USD)"}
-
-fig, axes = plt.subplots(1, 2, figsize=(7, 2.8))
-for ax, case in zip(axes, att_units):
-    sub = att[att["case"] == case].set_index("method").reindex(methods)
-    ax.bar(np.arange(len(methods)), sub["ATT"],
-           color=[methods[m][0] for m in methods])
-    ax.axhline(0, color="0.4", lw=0.8)
-    ax.set_xticks(np.arange(len(methods))); ax.set_xticklabels(list(methods))
-    ax.set_title(case, fontsize=8); ax.set_ylabel(att_units[case], fontsize=8)
+top8 = sorted(spill.items(), key=lambda kv: kv[1])[:8]
+a2.barh(range(len(top8))[::-1], [v for _, v in top8], color="C3")
+a2.set_yticks(range(len(top8))[::-1]); a2.set_yticklabels([k for k, _ in top8], fontsize=7)
+a2.axvline(0, color="0.5", lw=0.8); a2.set_xlabel("GDP per capita spillover", fontsize=8)
+a2.set_title("Spillover onto trade partners", fontsize=8)
 fig.tight_layout(); plt.show()
 ```
 
-The two panels make the same point from opposite directions. On Proposition 99 the
-four methods disagree by more than a factor of two, because the treatment genuinely
-leaks into the reinstated neighbours and each estimator apportions that leakage
-differently; on reunification, where only three modest neighbours are declared
-affected, the corrections are small and the four counterfactuals nearly coincide.
-The spread tracks how much spillover there is to model, and it measures the methods
-rather than four hand-aligned outputs, because every method saw the same prepared
-panel and returned the same result schema. `mlsynth` takes no position on which
-estimator is correct; it supplies the commensurable reading of all four that lets
-the analyst make that judgement.
+What a cross-method panel would give as a band of disagreement, the SAR model gives
+as a map: not just how large the effect on Sudan is, but where it went. The treated
+effect and the per-donor spillovers come from one fit under one declared spatial
+structure, and the result carries the standard schema, so the spillover ranking is
+read off the same object as the counterfactual. SUTVA is relaxed by modelling the
+interference, not by guessing which units to discard.
 
 ### Proximal inference {#sec-proximal}
 
@@ -1188,6 +1171,7 @@ rather than reconciled code, since each read the same prepared frame.
 
 ```{python}
 #| label: fig-proximal-screen
+#| echo: false
 #| fig-cap: "The SPOTSYNTH spillover screen on the Panic of 1907. Each donor trust is placed by its leave-one-out forecast error: how far its realised post-panic price departs from a forecast built on the pre-panic donor panel. Trusts the screen keeps as valid donors are blue; those it excludes as spillover-contaminated are red. Run blind on the pool, the screen ranks the Trust Company of America, the trust the proximal papers single out as panic-struck, as the single most anomalous donor, and excludes it."
 fig, ax = plt.subplots(figsize=(5, 3))
 order = np.argsort(fe)
@@ -1232,7 +1216,7 @@ panel, and @fig-proximal-intervals draws them together.
 
 ```{python}
 #| label: fig-proximal-intervals
-#| fig-cap: "Two kinds of uncertainty on the same panel. The treated trust's observed log price (black) collapses after the panic (vertical line), while two counterfactuals hold near the pre-panic level. SPOTSYNTH's Bayesian 95% credible band (blue), from sampling the donor-weight posterior, and SPSC's 95% conformal prediction interval (red), from inverting a finite-sample test, are drawn as shaded regions. The conformal interval is the wider, buying distribution-free coverage at the cost of precision."
+#| fig-cap: "Two kinds of uncertainty on the same panel. The treated trust's observed log price (black) collapses after the panic (vertical line), while two counterfactuals hold near the pre-panic level. SPOTSYNTH's Bayesian 95% credible band (blue), from sampling the donor-weight posterior, and SPSC's 95% conformal prediction interval (red), from inverting a finite-sample test, are drawn as shaded regions. On this panel the two are comparably tight, the conformal interval if anything the narrower, so its distribution-free coverage costs little precision here."
 treated = panic[panic["ID"] == 34].sort_values("time")
 y, tax = treated["prc_log"].to_numpy(), treated["time"].to_numpy()
 post = tax > 229
@@ -1269,12 +1253,13 @@ ax.set_xlabel("period"); ax.set_ylabel("log stock price")
 ax.legend(fontsize=6.5, loc="lower left"); fig.tight_layout(); plt.show()
 ```
 
-The two bands answer different questions, and by visibly different amounts. The
-conformal interval is the wider: it buys distribution-free, finite-sample coverage at
-the price of precision. The Bayesian band is tighter, but leans on the weight model
-it samples. Neither is uniformly right, and that is the point: an analyst who needs a
-coverage guarantee and one who needs a sharp interval are both served, from the same
-panel, by changing an `inference` keyword. The cross-method agreement, the screen's
+The two bands answer different questions. The conformal interval makes no model of
+the weights at all, yet here it is no wider than the Bayesian band, if anything
+slightly tighter, so its distribution-free, finite-sample coverage costs little
+precision on this panel. The Bayesian band is comparably narrow, but leans on the
+weight model it samples. Neither is uniformly right, and that is the point: an analyst
+who needs a coverage guarantee and one who needs a sharp interval are both served,
+from the same panel, by changing an `inference` keyword. The cross-method agreement, the screen's
 ranking, and these intervals are pinned as a durable benchmark
 (`benchmarks/cases/spotsynth_panic1907.py`). Methods that lived only in R, or
 nowhere, thus read one panel through one interface, answer detection, mitigation,
@@ -1398,6 +1383,7 @@ population, the quantity @eq-marex drives to zero.
 
 ```{python}
 #| label: fig-marex-balance
+#| echo: false
 #| fig-cap: "Covariate balance for the chosen design (a love plot), one row per market trait. Grey squares are the raw standardized difference between the darkened and lit markets before weighting; the red and blue dots are the synthetic treated and synthetic control, each against the population. The raw split is off by up to a third of a standard deviation, but MAREX pulls both synthetics onto the population, well inside the dotted 0.1 guides: the design is balanced before the test begins."
 Z = godark.drop_duplicates("dma").sort_values("dma")[covs].to_numpy()
 dark_i = np.where(w > 1e-8)[0]; lit_i = np.where(v > 1e-8)[0]
@@ -1580,8 +1566,8 @@ constrain or denoise a single shared fit (@sec-unified). `mlsynth` takes that
 observation seriously, placing more than forty estimators behind one data contract,
 one validated configuration-and-fit interface, and one standardized result. The four
 illustrations show what the consolidation buys: a controlled comparison of two
-solvers on Abadie and Gardeazabal's Basque study; a measurable spillover sensitivity
-check across two case studies; three proximal estimators, previously available only
+solvers on Abadie and Gardeazabal's Basque study; a spatial-autoregressive model
+mapping the 2011 Sudan secession's spillover onto its trade partners; three proximal estimators, previously available only
 in R or nowhere, agreeing on the Panic of 1907; and an experimental design with
 MAREX, the first packaged synthetic-control design, that recovers a known effect
 through the same interface as every estimator before it. Once a dozen estimators
