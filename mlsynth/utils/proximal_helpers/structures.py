@@ -39,6 +39,7 @@ PIPOST = "PIPost"
 SPSC = "SPSC"
 DR = "DR"
 PIPW = "PIPW"
+DR_OID = "DR-OID"
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,13 @@ class PROXIMALInputs:
     spsc_detrend_degree: int = 1
     spsc_conformal: bool = False
     spsc_conformal_periods: Optional[Sequence[int]] = None
+    # Over-identified DR (DR-OID): instrument *units* (not a separate variable).
+    # outcome_instruments = full proxy pool for the outcome bridge h; the
+    # treatment bridge q uses only the smaller treatment_instruments subset.
+    outcome_instruments: Optional[np.ndarray] = None
+    treatment_instruments: Optional[np.ndarray] = None
+    dr_oid_ridge: float = 0.0
+    dr_oid_n_starts: int = 8
 
     @property
     def has_surrogates(self) -> bool:
@@ -215,6 +223,7 @@ class PROXIMALResults:
     spsc: Optional[ProximalMethodFit] = None
     dr: Optional[ProximalMethodFit] = None
     pipw: Optional[ProximalMethodFit] = None
+    dr_oid: Optional[ProximalMethodFit] = None
     selected_variant: str = PI
     metadata: Dict[str, Any] = field(default_factory=dict)
 

@@ -72,6 +72,7 @@ CASES = {
     "spsc_panic": "benchmarks.cases.spsc_panic",              # Path A/X: SPSC averaged-treated Panic of 1907 vs qkrcks0218/SPSC
     "scul_prop99": "benchmarks.cases.scul_prop99",            # Path A/X: SCUL California (Prop 99) lasso SC vs hollina/scul
     "dr_proximal_mc": "benchmarks.cases.dr_proximal_mc",      # Path B: DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
+    "dr_proximal_brazil": "benchmarks.cases.dr_proximal_brazil",  # cross-val vs LIVE R (authors' analysis.Rmd commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
     "proximal_surrogates_mc": "benchmarks.cases.proximal_surrogates_mc",  # Path B: PI/PIS/PIPost vs SC under trending factor (Liu et al.)
     "ssc_guanajuato": "benchmarks.cases.ssc_guanajuato",      # cross-val vs jcao0/staggered_synthetic_control (criminality Sec 4)
     "spillsynth_prop99": "benchmarks.cases.spillsynth_prop99",  # cross-val vs jcao0/synthetic-control-spillover (Cao-Dowd Prop 99)

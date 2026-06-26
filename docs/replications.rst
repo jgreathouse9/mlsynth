@@ -583,6 +583,34 @@ Identification under endogeneity
   misspecification that collapses the outcome-only PI
   (:math:`\approx 4.2` vs. DR :math:`\approx 2.0`; durable:
   ``dr_proximal_mc``).
+  Path A (cross-validation against live R): the authors' own
+  empirical analyses use an *over-identified* doubly-robust GMM --
+  the outcome bridge :math:`h(W)` is instrumented by the full pool of
+  negative-control proxies while the treatment bridge
+  :math:`q(Z)=\exp(Z\beta)` uses only a small selected subset, so
+  :math:`\#\text{instruments}\neq\#\text{donors}`. ``PROXIMAL`` exposes
+  this as ``methods=["DR-OID"]`` (separate ``outcome_instruments`` /
+  ``treatment_instruments`` unit lists). It is cross-validated on the
+  Brazil 2010 pneumococcal-vaccine study (pneumonia ``J12_18`` against
+  donor causes, the Bruhn et al. PNAS negative-control design) against
+  the authors' ``analysis.Rmd`` run live at commit ``3bcb5ec``: the
+  outcome bridge matches R to the digit (:math:`-3645.80`) and the
+  single-instrument DR to :math:`<0.05\%` (:math:`-2753.5` vs.
+  :math:`-2752.4`), every cell converging to a single basin
+  (durable: ``dr_proximal_brazil``).
+  A methodological note recorded by this case: the same paper's Kansas
+  tax-cut analysis runs the *identical* GMM but is **ill-conditioned**
+  -- there :math:`q=\exp(Z\beta)` separates on the clean pre/post split
+  into a flat valley with no stable optimum, and the *published* table
+  merely records where R's ``optim(BFGS)`` happened to stop (tightening
+  R's tolerance moves DR[Iowa] from :math:`-0.077` to :math:`-0.107`).
+  Brazil's negative controls share seasonality/reporting confounders,
+  so its :math:`q`-block is well-conditioned; mlsynth's decoupled solver
+  (exact closed-form outcome bridge, trust-region treatment bridge with
+  a multistart basin diagnostic and an optional ``dr_oid_ridge``)
+  reaches the genuine optimum that R only approaches. The Kansas
+  configuration is retained as a unit-test fixture that documents the
+  ill-conditioning rather than a cross-validation target.
 
 .. _replications-design:
 

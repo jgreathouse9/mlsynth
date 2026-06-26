@@ -200,7 +200,7 @@ Where do real surrogates come from?
 The Methods
 -----------
 
-``PROXIMAL`` exposes six estimators. They are idiosyncratic -- each
+``PROXIMAL`` exposes seven estimators. They are idiosyncratic -- each
 makes a different identification bet and needs different inputs -- so you
 choose the ones you want with the ``methods`` argument and the
 estimator runs *exactly* those (validating that your inputs support them):
@@ -233,19 +233,30 @@ estimator runs *exactly* those (validating that your inputs support them):
      - Donors + donor proxies; a weighting-only estimator (treatment
        confounding bridge), no outcome model.
      - Qiu et al. [DRProx]_
+   * - DR-OID
+     - The over-identified DR the authors use *empirically*: a full pool
+       of negative-control units instruments the outcome bridge while a
+       small selected subset drives the weighting bridge
+       (``#instruments != #donors``).
+     - Qiu et al. [DRProx]_
 
 .. code-block:: python
 
    PROXIMAL({..., "methods": ["SPSC"]})              # SPSC alone (no proxies needed)
    PROXIMAL({..., "methods": ["PI"]})                # classic proximal inference
    PROXIMAL({..., "methods": ["DR", "PIPW"]})        # doubly robust + weighting
-   PROXIMAL({..., "methods": ["PI", "PIS", "PIPost", "SPSC", "DR", "PIPW"]})  # all six
+   PROXIMAL({..., "methods": ["DR-OID"]})            # over-identified empirical DR
+   PROXIMAL({..., "methods": ["PI", "PIS", "PIPost", "SPSC", "DR", "PIPW"]})  # the six bridge methods
 
 ``methods`` is required -- there is no implicit default -- so a run
 only ever computes what you asked for. The config layer enforces input
 consistency: ``"PI"``/``"PIS"``/``"PIPost"``/``"DR"``/``"PIPW"`` require
 donor proxies (and, for the surrogate methods, surrogate units and
-proxies), whereas ``"SPSC"`` needs only the donor pool. Results are
+proxies), whereas ``"SPSC"`` needs only the donor pool. ``"DR-OID"`` is
+the odd one out: instead of donor proxies it takes two lists of *control
+units* -- ``outcome_instruments`` (the pool instrumenting the outcome
+bridge) and ``treatment_instruments`` (the selected subset driving the
+weighting bridge). Results are
 returned on a
 :class:`~mlsynth.utils.proximal_helpers.structures.PROXIMALResults`, with
 ``results.methods`` mapping each requested method to its fit.
@@ -952,17 +963,93 @@ robustness:
    print(f"misspecified h:  PI={np.mean(pi):.2f} (collapses)  DR={np.mean(dr):.2f} (holds)")
    # misspecified h:  PI=4.30 (collapses)  DR=1.99 (holds)
 
-.. admonition:: Over-identified / empirical use
+The over-identified empirical form (DR-OID)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   The paper's real analyses (Brazil, Florida, Kansas) use a separate,
-   larger set of proxy units ``Z`` than donors ``W``, which makes the
-   GMM *over-identified*. mlsynth's DR/PIPW are the *just-identified* form
-   (``Z`` = the donor proxies, matched to ``W``). In the over-identified
-   regime with many near-collinear control-unit instruments, the GMM
-   minimizer is ill-conditioned and its value is sensitive to the
-   optimizer, so those published point estimates are not bit-reproducible
-   across languages. We therefore validate DR/PIPW synthetically (Path
-   B; see *Replication Status*) rather than against the empirical tables.
+``DR`` and ``PIPW`` above are the *just-identified* GMM: the proxy units
+``Z`` are matched one-to-one to the donors ``W``, so the moment system is
+square and the parameters solve it exactly. The paper's real analyses
+(Brazil, Florida, Kansas) instead use a separate, larger pool of
+negative-control units. The outcome bridge :math:`h(\mathbf{W})` is
+instrumented by the *full* pool, while the weighting bridge
+:math:`q(\mathbf{Z})` is driven by a small *selected subset* -- so the
+number of instruments no longer equals the number of donors and the GMM
+is over-identified. ``methods=["DR-OID"]`` is that estimator.
+
+Two things change relative to ``DR``. First, the inputs: instead of
+``vars={"donorproxies": ...}`` you pass two lists of control *units* --
+``outcome_instruments`` (the full pool) and ``treatment_instruments``
+(the subset). Second, the solver. With many near-collinear instruments
+the joint GMM minimizer is ill-conditioned, and a black-box optimizer can
+stop short of the true optimum (in the authors' Kansas table it does --
+tightening the R optimizer's tolerance moves the headline estimate
+materially). mlsynth's DR-OID decouples the system instead: the outcome
+weights are the exact closed-form least-squares solution of the linear
+moment block, two moment blocks are zeroed by the estimand definitions,
+and only the small :math:`(\boldsymbol{\beta}, \psi)` weighting block is
+solved nonlinearly -- by a profiled, multi-start trust-region step that
+reports whether it found a single basin (``metadata["converged"]`` and
+``metadata["n_basins"]``).
+
+Empirical illustration: the Brazil pneumococcal vaccine. Bruhn et al.
+(PNAS 2017) study Brazil's 2010 rollout of the pneumococcal conjugate
+vaccine; the outcome is monthly pneumonia hospitalisations (ICD chapter
+``J12_18``) and the controls are hospitalisations for *other* causes,
+which share Brazil's seasonality and reporting confounders but are
+unaffected by the vaccine -- a textbook negative-control / proximal
+design. Three respiratory and metabolic causes serve as the donors
+:math:`\mathbf{W}`; the remaining ICD chapters are the instrument pool.
+The long-form panel is vendored in the repository, so the block is
+runnable as written:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import PROXIMAL
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "main/basedata/pnas_brazil_age9_long.csv")
+   long = pd.read_csv(url)                      # date, t, cause, hospitalization
+
+   # Report the ATT in hospitalisation units, then normalise each cause to its
+   # own maximum (the authors' preprocessing keeps the GMM well-scaled).
+   yscale = long.loc[long.cause == "J12_18", "hospitalization"].max()
+   long["hosp"] = long.groupby("cause")["hospitalization"].transform(lambda s: s / s.max())
+
+   # Pneumonia is "treated" once the vaccine rolls out (t > 84).
+   long["treat"] = ((long.cause == "J12_18") & (long.t > 84)).astype(int)
+
+   donors = ["cJ20_J22", "E00_99", "E40_46"]                 # outcome-bridge donors W
+   pool = [c for c in long.cause.unique()                    # negative-control pool Z
+           if c not in ["J12_18"] + donors]
+
+   res = PROXIMAL({
+       "df": long, "outcome": "hosp", "treat": "treat",
+       "unitid": "cause", "time": "t",
+       "methods": ["DR-OID"],
+       "donors": donors,
+       "outcome_instruments": pool,                          # full pool instruments h(W)
+       "treatment_instruments": ["A10_B99_nopneumo"],        # selected subset drives q(Z)
+       "display_graphs": False,
+   }).fit()
+
+   dr = res.dr_oid
+   print(f"DR-OID ATT       = {dr.att * yscale:,.0f} hospitalisations (SE {dr.att_se * yscale:,.0f})")
+   print(f"outcome bridge h = {dr.metadata['outcome_bridge_att'] * yscale:,.0f}")
+   print(f"converged={dr.metadata['converged']}  basins={dr.metadata['n_basins']}")
+   # DR-OID ATT       = -2,754 hospitalisations (SE 357)
+   # outcome bridge h = -3,646
+   # converged=True  basins=1
+
+The vaccine cuts pneumonia hospitalisations by roughly 2,750 per month
+relative to the proximal counterfactual. These numbers reproduce the
+authors' own R analysis (their ``analysis.Rmd`` at commit ``3bcb5ec``)
+cell-for-cell -- the outcome bridge matches to the digit and the
+single-instrument DR to within 0.05% -- and the agreement is pinned by
+the durable benchmark ``dr_proximal_brazil``, which runs that R script
+live and compares it against this exact ``PROXIMAL(...).fit()`` call. See
+*Replication Status* and the benchmark
+`benchmarks/cases/dr_proximal_brazil.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`_.
 
 Replication Status
 ------------------
@@ -1031,9 +1118,24 @@ Replication Status
    durable benchmark ``dr_proximal_mc`` -- it drives the same DGP through
    the packaged estimators and pins recovery, coverage, and the
    double-robustness collapse (PI ≈ 4.23 vs DR ≈ 1.96 under misspecification).
-   The over-identified empirical analyses (Brazil/Florida/Kansas) are not
-   bit-reproducible cross-language (ill-conditioned GMM; see the admonition
-   above), so DR/PIPW rest on this synthetic validation.
+
+   DR-OID (Path A, Brazil vaccine) -- live cross-validation. The
+   over-identified empirical estimator is checked against the authors' own R
+   analysis of Brazil's 2010 pneumococcal-vaccine rollout (their
+   ``analysis.Rmd`` at commit ``3bcb5ec``, reproduced verbatim in
+   ``benchmarks/R/dr_proximal_brazil.R`` with two documented edits). The
+   durable benchmark ``dr_proximal_brazil`` runs that R script live and
+   compares it cell-for-cell against ``PROXIMAL(methods=["DR-OID"]).fit()``:
+   the outcome bridge matches to the digit (-3,646 hospitalisations) and the
+   single-instrument DR to within 0.05% (-2,754 vs. -2,752), with every cell
+   converging to a single basin. The Kansas tax-cut analysis from the same
+   paper runs the identical GMM but is ill-conditioned -- ``q = exp(Z beta)``
+   separates on the clean pre/post split, so the published table records only
+   where R's ``optim(BFGS)`` happened to stop (tightening the tolerance moves
+   DR[Iowa] from -0.077 to -0.107). Brazil's negative-control causes share
+   seasonality/reporting confounders, so its weighting block is
+   well-conditioned and reproducible; see the *over-identified empirical form*
+   section above and ``docs/replications.rst``.
 
    Per the project's replication contract
    (``agents/agents_estimators.md``), PROXIMAL is considered validated on
