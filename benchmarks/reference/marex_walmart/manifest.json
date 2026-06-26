@@ -1,9 +1,11 @@
 {
   "case": "marex_walmart",
-  "title": "MAREX Walmart placebo design vs SCDesign (Abadie & Zhao 2026, Sec. 4, Table 1)",
-  "paper": "Abadie & Zhao (2026), Section 4, Table 1",
+  "title": "MAREX Walmart placebo design vs SCDesign (Abadie & Zhao 2026, Sec. 4) -- full 45-store panel, 4 covariates",
+  "paper": "Abadie & Zhao (2026), Section 4",
   "reference_impl": "jinglongzhao2/SCDesign (live run)",
   "path_type": "cross-validation",
   "command": "Rscript benchmarks/reference/marex_walmart/reference.R",
-  "data": ["basedata/walmart_weekly_sales.csv"]
+  "data": [
+    "basedata/walmart_weekly_sales_covariates.csv"
+  ]
 }

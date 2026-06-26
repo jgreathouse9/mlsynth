@@ -606,6 +606,24 @@ and the permutation test fails to reject the null of no effect
    level differences dominate the match. The solve takes roughly a minute with
    the open-source SCIP solver (the paper used commercial Gurobi).
 
+.. note::
+
+   Cross-validated against the authors' code, without Gurobi. The durable
+   benchmark ``benchmarks/cases/marex_walmart.py`` runs this design on the full
+   45-store panel, additionally matching on the four store-level covariates the
+   reference data carries (temperature, fuel price, CPI, unemployment -- the R
+   code's "few covariates" configuration), and compares it cell-by-cell against a
+   live run of SCDesign's own design code. The authors' published routine is a
+   Gurobi non-convex MIQP, but their *constrained* (cardinality-:math:`K`)
+   design -- ``Synthetic_Experiment_Cardinality_Constraint``, which enumerates
+   the partitions of size :math:`\le K` and solves each treated/control synthetic
+   control through the open ``quadprog`` path -- is exactly the design ``m_eq``
+   solves and needs no commercial solver. MAREX (SCIP) and SCDesign (``quadprog``)
+   select the same two treated stores with treated weights agreeing to
+   :math:`2\times10^{-4}`, the same pre-period fit, and the same placebo effect to
+   :math:`10^{-4}` of mean sales; see ``benchmarks/reference/marex_walmart/`` for
+   the captured reference run.
+
 Correspondence with the Authors' Code
 -------------------------------------
 
