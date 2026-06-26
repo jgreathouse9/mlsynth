@@ -72,6 +72,7 @@ CASES = {
     "spsc_panic": "benchmarks.cases.spsc_panic",              # Path A/X: SPSC averaged-treated Panic of 1907 vs qkrcks0218/SPSC
     "scul_prop99": "benchmarks.cases.scul_prop99",            # Path A/X: SCUL California (Prop 99) lasso SC vs hollina/scul
     "dr_proximal_mc": "benchmarks.cases.dr_proximal_mc",      # Path B: DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
+    "dr_proximal_brazil": "benchmarks.cases.dr_proximal_brazil",  # cross-val vs LIVE R (authors' analysis.Rmd commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
     "proximal_surrogates_mc": "benchmarks.cases.proximal_surrogates_mc",  # Path B: PI/PIS/PIPost vs SC under trending factor (Liu et al.)
     "ssc_guanajuato": "benchmarks.cases.ssc_guanajuato",      # cross-val vs jcao0/staggered_synthetic_control (criminality Sec 4)
     "spillsynth_prop99": "benchmarks.cases.spillsynth_prop99",  # cross-val vs jcao0/synthetic-control-spillover (Cao-Dowd Prop 99)
@@ -80,6 +81,7 @@ CASES = {
     "spillsynth_grossi_germany": "benchmarks.cases.spillsynth_grossi_germany",  # Path A: grossi direct+spillover German reunification (Grossi et al.)
     "spillsynth_iterative_germany": "benchmarks.cases.spillsynth_iterative_germany",  # Path A: iterative waterfall SCM German reunification (Melnychuk)
     "spillsynth_sar_mc": "benchmarks.cases.spillsynth_sar_mc",  # Path B: SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
+    "spillsynth_sudan": "benchmarks.cases.spillsynth_sudan",  # cross-val vs Sakaguchi-Tagawa Rcpp SAR (2011 Sudan secession, empirical)
     "spotsynth_real_data": "benchmarks.cases.spotsynth_real_data",  # SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
     "spotsynth_panic1907": "benchmarks.cases.spotsynth_panic1907",  # cross-method: SPOTSYNTH debias vs PROXIMAL PI on Panic 1907 + TCA screen + systemic-shock limit
     "ctsc_powell_mc": "benchmarks.cases.ctsc_powell_mc",      # Path B: CTSC vs two-way FE bias (Powell 2022 Table 1)

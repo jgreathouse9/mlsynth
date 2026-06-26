@@ -1,0 +1,13 @@
+{
+  "values": {
+    "rho": 0.4315,
+    "rho_ci_lo": 0.3165,
+    "rho_ci_hi": 0.5429,
+    "effect_2012_pct": -7.647,
+    "effect_2015_pct": -9.999,
+    "ate_level": -30.711,
+    "top_spillover": "Egypt",
+    "egypt_share": 0.4263,
+    "kenya_share": 0.1443
+  }
+}

@@ -13,7 +13,7 @@ from typing import Dict
 
 import numpy as np
 
-from .dr import estimate_dr
+from .dr import estimate_dr, estimate_dr_overid
 from .pi import estimate_pi
 from .pipw import estimate_pipw
 from .pis import estimate_pi_surrogate
@@ -26,6 +26,7 @@ from .structures import (
     PIS,
     SPSC,
     DR,
+    DR_OID,
     PROXIMALInputs,
     ProximalMethodFit,
 )
@@ -186,9 +187,38 @@ def _run_pipw(inputs: PROXIMALInputs) -> ProximalMethodFit:
     )
 
 
+def _run_dr_overid(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    res = estimate_dr_overid(
+        inputs.y, inputs.donor_outcomes,
+        inputs.outcome_instruments, inputs.treatment_instruments,
+        inputs.T0, inputs.bandwidth,
+        ridge=inputs.dr_oid_ridge, n_starts=inputs.dr_oid_n_starts,
+    )
+    gap = inputs.y - res.counterfactual
+    return ProximalMethodFit(
+        name=DR_OID,
+        counterfactual=res.counterfactual,
+        gap=gap,
+        time_varying_effect=gap,
+        att=float(res.att),
+        att_se=None if res.se is None or not np.isfinite(res.se) else float(res.se),
+        pre_rmse=_rmse(gap[: inputs.T0]),
+        post_rmse=_rmse(gap[inputs.T0:]),
+        alpha_weights=res.alpha,
+        donor_weights={name: float(w) for name, w in zip(inputs.donor_names, res.alpha[1:])},
+        metadata={"intercept": float(res.alpha[0]),
+                  "treatment_bridge_beta": res.beta,
+                  "psi_minus": float(res.psi_minus),
+                  "objective": float(res.objective),
+                  "converged": bool(res.converged),
+                  "n_basins": int(res.n_basins),
+                  "outcome_bridge_att": float(np.mean(gap[inputs.T0:]))},
+    )
+
+
 _RUNNERS = {
     PI: _run_pi, PIS: _run_pis, PIPOST: _run_pipost, SPSC: _run_spsc,
-    DR: _run_dr, PIPW: _run_pipw,
+    DR: _run_dr, PIPW: _run_pipw, DR_OID: _run_dr_overid,
 }
 
 

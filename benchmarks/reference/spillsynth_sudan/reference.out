@@ -1,0 +1,7 @@
+[Step 1] Sampling alpha via BSCM (horseshoe prior)...
+[Step 2] Sampling rho (and others) with fixed alpha_hat...
+rho: 0.4315 CI [ 0.3165 , 0.5429 ]
+effect 2012: -7.647 %  2015: -9.999 %  ATE(level): -30.711 
+top spillover: Egypt  egypt_share: 0.4263  kenya_share: 0.1443 
+spillover ranking: Egypt > Kenya > Uganda > Algeria > Tunisia 
+REF EXIT 0

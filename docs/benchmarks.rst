@@ -221,6 +221,8 @@ Cross-validation against reference implementations
      - vs Tian's NSC.R (Prop 99 Table 2)
    * - ``ppscm_paglayan``
      - vs augsynth::multisynth (jackknife + bootstrap SEs)
+   * - ``dr_proximal_brazil``
+     - vs live R (authors' analysis.Rmd, commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
    * - ``proximal_panic1907``
      - vs freshtaste/proximal (Panic 1907 Table 3)
    * - ``rescm_relax_ref``

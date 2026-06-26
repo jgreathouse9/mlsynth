@@ -50,6 +50,7 @@ from ..utils.proximal_helpers.structures import (
     PIS,
     SPSC,
     DR,
+    DR_OID,
     PROXIMALResults,
 )
 
@@ -100,6 +101,10 @@ class PROXIMAL:
         self.spsc_detrend_degree: int = config.spsc_detrend_degree
         self.spsc_conformal: bool = config.spsc_conformal
         self.spsc_conformal_periods = config.spsc_conformal_periods
+        self.outcome_instruments: List[Union[str, int]] = config.outcome_instruments
+        self.treatment_instruments: List[Union[str, int]] = config.treatment_instruments
+        self.dr_oid_ridge: float = config.dr_oid_ridge
+        self.dr_oid_n_starts: int = config.dr_oid_n_starts
 
     def fit(self) -> PROXIMALResults:
         """Run the proximal pipeline and return a :class:`PROXIMALResults`."""
@@ -126,6 +131,10 @@ class PROXIMAL:
                 spsc_detrend_degree=self.spsc_detrend_degree,
                 spsc_conformal=self.spsc_conformal,
                 spsc_conformal_periods=self.spsc_conformal_periods,
+                outcome_instruments=self.outcome_instruments,
+                treatment_instruments=self.treatment_instruments,
+                dr_oid_ridge=self.dr_oid_ridge,
+                dr_oid_n_starts=self.dr_oid_n_starts,
             )
 
             fits = run_proximal(inputs)
@@ -138,6 +147,7 @@ class PROXIMAL:
                 spsc=fits.get(SPSC),
                 dr=fits.get(DR),
                 pipw=fits.get(PIPW),
+                dr_oid=fits.get(DR_OID),
                 selected_variant=self.methods[0],
                 metadata={
                     "methods": list(self.methods),
