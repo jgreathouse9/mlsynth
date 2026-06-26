@@ -1,0 +1,13 @@
+# case: spillsynth_sudan
+# generated_at: 2026-06-26T02:58:08Z
+# mlsynth_version: 1.0.0
+# estimator: SPILLSYNTH
+# config: {"mcmc_burn": 10000, "mcmc_iter": 20000, "mcmc_seed": 20251022, "method": "sar", "outcome": "GDP per capita", "p_factors": 1, "time": "year", "treat": "treated", "unitid": "country"}
+# reference_impl: Sakaguchi-Tagawa RcppArmadillo sc_spillover (method=sar, live run on the nonproprietary panel, captured)
+# reference_version: Zenodo doi:10.5281/zenodo.19066186
+quantity,mlsynth,reference,abs_diff
+rho,0.435706,0.4315,0.004206
+effect_2012_pct,-7.579607,-7.647,0.067393
+effect_2015_pct,-9.59278,-9.999,0.40622
+egypt_spillover_share,0.421715,0.4263,0.004585
+kenya_spillover_share,0.143824,0.1443,0.000476

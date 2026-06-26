@@ -1,0 +1,13 @@
+{
+  "case": "spillsynth_sudan",
+  "title": "SAR spillover SC vs Sakaguchi-Tagawa Rcpp sampler (2011 Sudan secession)",
+  "paper": "Sakaguchi & Tagawa (2026), The Econometrics Journal, doi:10.1093/ectj/utag006; replication Zenodo doi:10.5281/zenodo.19066186",
+  "reference_impl": "authors' RcppArmadillo sc_spillover (method=sar, live run captured)",
+  "path_type": "cross-validation",
+  "command": "SAR_REF_DIR=<unpacked replication package> Rscript benchmarks/reference/spillsynth_sudan/reference.R",
+  "data": [
+    "basedata/sudan_panel.csv",
+    "basedata/sudan_W_matrix.csv",
+    "basedata/sudan_w_vector.csv"
+  ]
+}
