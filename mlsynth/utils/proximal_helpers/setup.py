@@ -46,6 +46,10 @@ def prepare_proximal_inputs(
     spsc_detrend_degree: int = 1,
     spsc_conformal: bool = False,
     spsc_conformal_periods: Optional[Sequence[int]] = None,
+    outcome_instruments: Optional[List[Union[str, int]]] = None,
+    treatment_instruments: Optional[List[Union[str, int]]] = None,
+    dr_oid_ridge: float = 0.0,
+    dr_oid_n_starts: int = 8,
 ) -> PROXIMALInputs:
     """Pivot a long panel into the typed inputs the PROXIMAL pipeline expects.
 
@@ -99,6 +103,20 @@ def prepare_proximal_inputs(
         donor_proxy_pivot = df.pivot(index=time, columns=unitid, values=vars["donorproxies"][0])
         donor_proxies = donor_proxy_pivot[valid_donors].to_numpy()
 
+    # Over-identified DR: instrument *units* (same outcome variable), not a proxy
+    # variable. The outcome bridge h uses the full pool; q uses the subset.
+    oi_mat: Optional[np.ndarray] = None
+    ti_mat: Optional[np.ndarray] = None
+    if "DR-OID" in methods:
+        oi = [u for u in (outcome_instruments or []) if u in prepared["Ywide"].columns]
+        ti = [u for u in (treatment_instruments or []) if u in prepared["Ywide"].columns]
+        if not oi:
+            raise MlsynthDataError("None of the configured 'outcome_instruments' units are present in the panel.")
+        if not ti:
+            raise MlsynthDataError("None of the configured 'treatment_instruments' units are present in the panel.")
+        oi_mat = prepared["Ywide"][oi].to_numpy()
+        ti_mat = prepared["Ywide"][ti].to_numpy()
+
     T = int(prepared["total_periods"])
     T0 = int(prepared["pre_periods"])
     num_post = int(prepared["post_periods"])
@@ -140,4 +158,8 @@ def prepare_proximal_inputs(
         spsc_detrend_degree=spsc_detrend_degree,
         spsc_conformal=spsc_conformal,
         spsc_conformal_periods=spsc_conformal_periods,
+        outcome_instruments=oi_mat,
+        treatment_instruments=ti_mat,
+        dr_oid_ridge=dr_oid_ridge,
+        dr_oid_n_starts=dr_oid_n_starts,
     )

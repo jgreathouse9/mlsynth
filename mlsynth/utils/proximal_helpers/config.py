@@ -31,15 +31,25 @@ class PROXIMALConfig(BaseEstimatorConfig):
     spsc_conformal: bool = Field(default=False, description="Whether to compute SPSC conformal prediction intervals for the per-period treatment effect.")
     spsc_conformal_periods: Optional[List[int]] = Field(default=None, description="Absolute post-period indices to cover with SPSC conformal intervals. If None, every post-treatment period is covered.")
 
+    outcome_instruments: List[Union[str, int]] = Field(default_factory=list, description='Over-identified DR ("DR-OID"): unit identifiers whose outcome series instrument the outcome bridge h (the full proxy pool). Required when "DR-OID" is requested.')
+    treatment_instruments: List[Union[str, int]] = Field(default_factory=list, description='Over-identified DR ("DR-OID"): the (smaller) subset of unit identifiers whose outcome series enter the treatment bridge q. Required when "DR-OID" is requested.')
+    dr_oid_ridge: float = Field(default=0.0, ge=0.0, description='Over-identified DR ("DR-OID"): L2 penalty on the treatment-bridge coefficients (excluding intercept), regularising the flat exp(Z beta) valley that arises with few instruments. 0 reproduces the unregularised optimum.')
+    dr_oid_n_starts: int = Field(default=8, ge=1, description='Over-identified DR ("DR-OID"): multistart restarts for the treatment-bridge solve (a basin-disagreement diagnostic is reported in the fit metadata).')
+
     @model_validator(mode='after')
     def check_methods_and_vars(cls, values: Any) -> Any:
-        valid_methods = {"PI", "PIS", "PIPost", "SPSC", "DR", "PIPW"}
+        valid_methods = {"PI", "PIS", "PIPost", "SPSC", "DR", "PIPW", "DR-OID"}
         methods = list(values.methods)
         unknown = [m for m in methods if m not in valid_methods]
         if unknown:
             raise MlsynthConfigError(
-                f"Unknown PROXIMAL method(s) {unknown}. Valid choices: 'PI', 'PIS', 'PIPost', 'SPSC', 'DR', 'PIPW'."
+                f"Unknown PROXIMAL method(s) {unknown}. Valid choices: 'PI', 'PIS', 'PIPost', 'SPSC', 'DR', 'PIPW', 'DR-OID'."
             )
+        if "DR-OID" in methods:
+            if not values.outcome_instruments:
+                raise MlsynthConfigError("DR-OID requires a non-empty 'outcome_instruments' list (the proxy pool for the outcome bridge).")
+            if not values.treatment_instruments:
+                raise MlsynthConfigError("DR-OID requires a non-empty 'treatment_instruments' list (the subset for the treatment bridge).")
 
         vars_dict = values.vars
         needs_donorproxies = any(m in methods for m in ("PI", "PIS", "PIPost", "DR", "PIPW"))
