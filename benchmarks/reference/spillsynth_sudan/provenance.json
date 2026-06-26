@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-06-26T02:56:25Z",
+  "git_sha": "5e310b5ed00ee6418c9763e8bff3c958ef55f8d5",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "SAR_REF_DIR=<unpacked replication package> MLSYNTH_BASEDATA=basedata Rscript benchmarks/reference/spillsynth_sudan/reference.R",
+  "data": [
+    {
+      "path": "basedata/sudan_panel.csv",
+      "sha256": "722471a42b6c308f2b3713565b5384e7cb455a521569f326392e3deeee35d174"
+    },
+    {
+      "path": "basedata/sudan_W_matrix.csv",
+      "sha256": "c489af7467005e7e8f3fbfdaf9c0490f62b59dcec512a351d83a195f463e7434"
+    },
+    {
+      "path": "basedata/sudan_w_vector.csv",
+      "sha256": "ba570b782fb7512960356540455298f82172b543fa47cc83cd84bcdd5ea8a3b7"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": "Rcpp 1.0.12; RcppArmadillo 0.12.8.1.0; dplyr 1.1.4",
+  "mcmc": {
+    "iter": 100000,
+    "burn": 50000,
+    "seed": 20251022,
+    "step_rho": 0.02,
+    "p_factors": 1
+  },
+  "notes": "rho is weakly identified in this model (authors' reported ESS ~390 at 1e6 draws); the match is in the converged posterior, not a smoke run. Spillover compared as top-8 magnitude shares to be invariant to a per-donor reporting-scale convention between the two codebases."
+}
