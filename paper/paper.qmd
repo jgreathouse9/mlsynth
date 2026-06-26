@@ -1188,6 +1188,7 @@ rather than reconciled code, since each read the same prepared frame.
 
 ```{python}
 #| label: fig-proximal-screen
+#| echo: false
 #| fig-cap: "The SPOTSYNTH spillover screen on the Panic of 1907. Each donor trust is placed by its leave-one-out forecast error: how far its realised post-panic price departs from a forecast built on the pre-panic donor panel. Trusts the screen keeps as valid donors are blue; those it excludes as spillover-contaminated are red. Run blind on the pool, the screen ranks the Trust Company of America, the trust the proximal papers single out as panic-struck, as the single most anomalous donor, and excludes it."
 fig, ax = plt.subplots(figsize=(5, 3))
 order = np.argsort(fe)
@@ -1232,7 +1233,7 @@ panel, and @fig-proximal-intervals draws them together.
 
 ```{python}
 #| label: fig-proximal-intervals
-#| fig-cap: "Two kinds of uncertainty on the same panel. The treated trust's observed log price (black) collapses after the panic (vertical line), while two counterfactuals hold near the pre-panic level. SPOTSYNTH's Bayesian 95% credible band (blue), from sampling the donor-weight posterior, and SPSC's 95% conformal prediction interval (red), from inverting a finite-sample test, are drawn as shaded regions. The conformal interval is the wider, buying distribution-free coverage at the cost of precision."
+#| fig-cap: "Two kinds of uncertainty on the same panel. The treated trust's observed log price (black) collapses after the panic (vertical line), while two counterfactuals hold near the pre-panic level. SPOTSYNTH's Bayesian 95% credible band (blue), from sampling the donor-weight posterior, and SPSC's 95% conformal prediction interval (red), from inverting a finite-sample test, are drawn as shaded regions. On this panel the two are comparably tight, the conformal interval if anything the narrower, so its distribution-free coverage costs little precision here."
 treated = panic[panic["ID"] == 34].sort_values("time")
 y, tax = treated["prc_log"].to_numpy(), treated["time"].to_numpy()
 post = tax > 229
@@ -1269,12 +1270,13 @@ ax.set_xlabel("period"); ax.set_ylabel("log stock price")
 ax.legend(fontsize=6.5, loc="lower left"); fig.tight_layout(); plt.show()
 ```
 
-The two bands answer different questions, and by visibly different amounts. The
-conformal interval is the wider: it buys distribution-free, finite-sample coverage at
-the price of precision. The Bayesian band is tighter, but leans on the weight model
-it samples. Neither is uniformly right, and that is the point: an analyst who needs a
-coverage guarantee and one who needs a sharp interval are both served, from the same
-panel, by changing an `inference` keyword. The cross-method agreement, the screen's
+The two bands answer different questions. The conformal interval makes no model of
+the weights at all, yet here it is no wider than the Bayesian band, if anything
+slightly tighter, so its distribution-free, finite-sample coverage costs little
+precision on this panel. The Bayesian band is comparably narrow, but leans on the
+weight model it samples. Neither is uniformly right, and that is the point: an analyst
+who needs a coverage guarantee and one who needs a sharp interval are both served,
+from the same panel, by changing an `inference` keyword. The cross-method agreement, the screen's
 ranking, and these intervals are pinned as a durable benchmark
 (`benchmarks/cases/spotsynth_panic1907.py`). Methods that lived only in R, or
 nowhere, thus read one panel through one interface, answer detection, mitigation,
@@ -1398,6 +1400,7 @@ population, the quantity @eq-marex drives to zero.
 
 ```{python}
 #| label: fig-marex-balance
+#| echo: false
 #| fig-cap: "Covariate balance for the chosen design (a love plot), one row per market trait. Grey squares are the raw standardized difference between the darkened and lit markets before weighting; the red and blue dots are the synthetic treated and synthetic control, each against the population. The raw split is off by up to a third of a standard deviation, but MAREX pulls both synthetics onto the population, well inside the dotted 0.1 guides: the design is balanced before the test begins."
 Z = godark.drop_duplicates("dma").sort_values("dma")[covs].to_numpy()
 dark_i = np.where(w > 1e-8)[0]; lit_i = np.where(v > 1e-8)[0]
