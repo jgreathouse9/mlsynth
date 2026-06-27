@@ -151,6 +151,33 @@ class MAREXGlobalDesign:
     inference: Optional[MAREXInference] = None
 
 
+@dataclass(frozen=True)
+class MAREXRecommendation:
+    """Composite power-vs-fit recommendation over a MAREX solution pool.
+
+    Parameters
+    ----------
+    winner : dict
+        The recommended pool entry (lowest composite score among power-feasible
+        designs).
+    shortlist : list of dict
+        Pool entries ordered by composite score, truncated to ``max_shortlist``.
+    pareto : list of int
+        Indices (into the pool) of the designs on the fit-vs-power Pareto front.
+    weights : dict
+        Normalised ``{"power": pw, "fit": fw}`` (sum to one).
+    status : str
+        ``"OK"`` when at least one design has a finite MDE, else
+        ``"POWER_NOT_ESTABLISHED"``.
+    """
+
+    winner: Dict[str, Any]
+    shortlist: List[Dict[str, Any]]
+    pareto: List[int]
+    weights: Dict[str, float]
+    status: str
+
+
 class MAREXResults(DesignResult):
     """User-facing output of the MAREX estimator.
 
@@ -185,6 +212,8 @@ class MAREXResults(DesignResult):
     study: MAREXStudy
     globres: MAREXGlobalDesign
     post_fit: Optional[Any] = None      # SyntheticControlPostFit; Any to dodge import cycle
+    pool: Optional[List[Dict[str, Any]]] = None    # top-K menu when top_K > 1
+    recommendation: Optional[Any] = None           # MAREXRecommendation when a pool exists
 
     @property
     def mode(self) -> str:
