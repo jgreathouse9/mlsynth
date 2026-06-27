@@ -72,6 +72,36 @@ class TestMAREXConfig:
             MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
                    "cluster": "missing", "m_eq": 1})
 
+    def test_date_string_time_is_accepted(self):
+        # ISO-date string time (as the geoex pipeline supplies) must be accepted,
+        # not rejected as an "unsupported dtype".
+        df = _panel(J=6, T=12)
+        weeks = pd.date_range("2025-01-06", periods=12, freq="W-MON").date
+        df["time"] = df["time"].map({t: weeks[t].isoformat() for t in range(12)})
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 9, "m_eq": 2}).fit()
+        assert res is not None
+
+    def test_non_consecutive_time_is_accepted(self):
+        # Ingestion is delegated to geoex_dataprep, which only requires a
+        # *balanced* panel (every unit observed at every period) and sorts the
+        # time axis -- it does not require consecutive time. A balanced panel
+        # with a gap in the integer time index must therefore be accepted.
+        df = _panel(J=6, T=12)
+        df["time"] = df["time"].map(lambda t: t if t < 6 else t + 5)  # gap
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 9, "m_eq": 2}).fit()
+        assert res is not None
+
+    def test_unbalanced_panel_rejected(self):
+        # geoex_dataprep owns the balance check: dropping a single unit-time
+        # observation makes the panel unbalanced and must raise MlsynthDataError.
+        df = _panel(J=6, T=12)
+        df = df[~((df["unit"] == "u00") & (df["time"] == 0))]
+        with pytest.raises(MlsynthDataError):
+            MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                   "T0": 9, "m_eq": 2}).fit()
+
 
 # ----------------------------------------------------------------------
 # Estimation
