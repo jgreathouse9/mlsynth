@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.design_compare import (
     DesignComparison,
     DesignSpec,
@@ -23,6 +23,7 @@ from mlsynth.utils.design_compare import (
     compare_methods,
     compare_pareto,
     from_geolift,
+    from_lexscm,
     from_syndes,
     plot_compare_pareto,
     simulated_mde,
@@ -299,6 +300,75 @@ class TestCompareMethods:
             compare_methods(df, outcome="Y", unitid="unit", time="time",
                             treated_size=2, n_post=n_post, methods=("GEOLIFT",),
                             geolift_options={"not_a_real_option": 123})
+
+
+# ----------------------------------------------------------------------
+# LEXSCM as a third design method on the shared plane
+# ----------------------------------------------------------------------
+
+class TestLEXSCM:
+    # small search budgets keep the lexicographic fit quick in tests
+    _LEX = {"top_K": 4, "top_P": 3, "n_sims": 40, "max_shortlist": 4}
+
+    def test_from_lexscm_specs(self):
+        from mlsynth import LEXSCM
+        df, T, n_post = _shared_panel()
+        df = df.copy()
+        df["cand"] = True                                # every unit eligible
+        res = LEXSCM({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                      "candidate_col": "cand", "m": 2, "post_col": "post",
+                      **self._LEX}).fit()
+        specs = from_lexscm(res)
+        assert len(specs) == len(res.search.candidates)
+        assert all(s.method == "LEXSCM" for s in specs)
+        for s in specs:
+            assert set(s.contrast) <= set(f"u{j}" for j in range(8))
+            # treated weights sum to +1 (the MDE identity); net contrast ~ 0.
+            # LEXSCM reports weights rounded to 3 decimals, so allow that residual.
+            assert sum(v for v in s.contrast.values() if v > 0) == pytest.approx(1.0, abs=5e-3)
+            assert sum(s.contrast.values()) == pytest.approx(0.0, abs=5e-3)
+
+    def test_compare_methods_lexscm_only(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, methods=("LEXSCM",),
+            lexscm_options=self._LEX,
+        )
+        assert set(cmp.table["method"]) == {"LEXSCM"}
+        assert cmp.lexscm is not None and cmp.syndes is None and cmp.geolift is None
+        assert {"fit_rmse", "mde_pct", "pareto"} <= set(cmp.table.columns)
+        assert cmp.table.groupby("method")["pareto"].any().all()
+
+    def test_compare_methods_all_three(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4,
+            methods=("SYNDES", "GEOLIFT", "LEXSCM"),
+            syndes_options={"time_limit": 3.0, "gap_limit": 0.2},
+            geolift_options={"ns": 120}, lexscm_options=self._LEX,
+        )
+        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT", "LEXSCM"}
+        assert np.isfinite(cmp.table["fit_rmse"]).all()
+
+    def test_candidate_col_defaults_to_all_units(self):
+        # no candidate_col supplied -> compare_methods marks every unit eligible.
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, methods=("LEXSCM",), lexscm_options=self._LEX,
+        )
+        assert len(cmp.table) >= 1
+
+    def test_lexscm_options_are_forwarded(self):
+        # an unknown key must reach the LEXSCM config and raise, proving the
+        # override dict is not silently dropped.
+        df, T, n_post = _shared_panel()
+        with pytest.raises((MlsynthConfigError, MlsynthDataError)):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, n_post=n_post, methods=("LEXSCM",),
+                            lexscm_options={"not_a_real_option": 123})
 
 
 # ----------------------------------------------------------------------

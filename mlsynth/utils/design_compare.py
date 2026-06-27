@@ -239,6 +239,28 @@ def from_geolift(res) -> List[DesignSpec]:
     return specs
 
 
+def from_lexscm(res) -> List[DesignSpec]:
+    """Build DesignSpecs from a fitted LEXSCM result (its candidate search).
+
+    Each ``SEDCandidate`` exposes ``treated_weight_dict`` (sums to one) and
+    ``control_weight_dict`` (sums to one); the cross-method contrast is their
+    difference, so the treated side sums to ``+1`` and the control side to
+    ``-1`` -- the same convention as :func:`from_syndes` / :func:`from_geolift`.
+    """
+    specs: List[DesignSpec] = []
+    for cand in res.search.candidates:
+        treated_w = {str(u): float(w) for u, w in cand.treated_weight_dict.items()}
+        control_w = {str(u): float(v) for u, v in cand.control_weight_dict.items()}
+        treated = sorted(treated_w)
+        contrast: Dict[Any, float] = dict(treated_w)
+        for u, v in control_w.items():
+            contrast[u] = contrast.get(u, 0.0) - v
+        specs.append(DesignSpec(
+            "LEXSCM", f"L:{'+'.join(map(str, treated))}", contrast, treated,
+        ))
+    return specs
+
+
 _SYNDES_DEFAULTS: Dict[str, Any] = dict(
     mode="two_way_global", gap_limit=0.05, time_limit=20.0, run_inference=False,
 )
@@ -246,6 +268,7 @@ _GEOLIFT_DEFAULTS: Dict[str, Any] = dict(
     effect_sizes=[0.0, 0.1], lookback_window=1, how="mean",
     fixed_effects=True, ns=200, seed=0, display_graphs=False,
 )
+_LEXSCM_DEFAULTS: Dict[str, Any] = dict(display_graph=False, verbose=False)
 
 
 @dataclass(frozen=True)
@@ -258,7 +281,7 @@ class DesignComparison:
         One row per design across all requested methods, with ``method``,
         ``label``, ``treated``, ``fit_rmse``, ``mde_pct`` (at ``horizon``), and a
         per-method ``pareto`` flag -- the dataframe form of the comparison.
-    syndes, geolift : optional
+    syndes, geolift, lexscm : optional
         The underlying fitted results (``None`` for any method not requested),
         kept for inspection.
     specs : list of DesignSpec
@@ -270,6 +293,7 @@ class DesignComparison:
     table: pd.DataFrame
     syndes: Any = None
     geolift: Any = None
+    lexscm: Any = None
     specs: List[DesignSpec] = field(default_factory=list)
     horizon: int = 5
 
@@ -296,8 +320,9 @@ def compare_methods(
     syndes_holdout_frac: Optional[float] = 0.3,
     syndes_options: Optional[Dict[str, Any]] = None,
     geolift_options: Optional[Dict[str, Any]] = None,
+    lexscm_options: Optional[Dict[str, Any]] = None,
 ) -> DesignComparison:
-    """Fit GEOLIFT and SYNDES on one panel and compare them on the shared plane.
+    """Fit SYNDES, GEOLIFT, and/or LEXSCM on one panel and compare them.
 
     A one-call wrapper around the adapters + :func:`compare_pareto`: it fits each
     requested method on the same data with the same treated-set size and post
@@ -334,9 +359,12 @@ def compare_methods(
         selection (``oos_rmse`` is ``NaN``). Ignored when ``top_K < 2`` (a pool
         is required to validate). An explicit ``holdout_frac`` in
         ``syndes_options`` overrides this.
-    syndes_options, geolift_options : dict, optional
+    syndes_options, geolift_options, lexscm_options : dict, optional
         Per-method overrides merged over the defaults (e.g.
-        ``{"time_limit": 20.0}`` to give SYNDES a larger budget).
+        ``{"time_limit": 20.0}`` to give SYNDES a larger budget, or
+        ``{"top_K": 8}`` to widen LEXSCM's search). For LEXSCM, ``treated_size``
+        maps to ``m`` and every unit is marked eligible unless an explicit
+        ``candidate_col`` is supplied in ``lexscm_options``.
 
     Returns
     -------
@@ -344,10 +372,10 @@ def compare_methods(
         ``.table`` (dataframe form) and ``.plot()`` (plot form).
     """
     methods = tuple(methods)
-    unknown = set(methods) - {"SYNDES", "GEOLIFT"}
+    unknown = set(methods) - {"SYNDES", "GEOLIFT", "LEXSCM"}
     if unknown:
         raise ValueError(f"Unknown method(s): {sorted(unknown)}; "
-                         "expected 'SYNDES' and/or 'GEOLIFT'.")
+                         "expected any of 'SYNDES', 'GEOLIFT', 'LEXSCM'.")
     if not methods:
         raise ValueError("methods must name at least one estimator.")
 
@@ -371,7 +399,7 @@ def compare_methods(
 
     common = dict(df=df, outcome=outcome, unitid=unitid, time=time,
                   post_col=post_col)
-    syn = gl = None
+    syn = gl = lex = None
     specs: List[DesignSpec] = []
 
     if "SYNDES" in methods:
@@ -399,6 +427,21 @@ def compare_methods(
         gl = GEOLIFT(gk).fit()
         specs += from_geolift(gl)
 
+    if "LEXSCM" in methods:
+        from ..estimators.lexscm import LEXSCM
+        lex_over = lexscm_options or {}
+        # LEXSCM needs a per-unit eligibility column; compare_methods treats
+        # every unit as a candidate, so inject an all-eligible column unless the
+        # caller names their own. treated_size maps to LEXSCM's `m`.
+        cand_col = lex_over.get("candidate_col")
+        if cand_col is None:
+            cand_col = "__compare_candidate__"
+            df[cand_col] = True
+        lk = {**_LEXSCM_DEFAULTS, **common, "candidate_col": cand_col,
+              "m": treated_size, "alpha": alpha, **lex_over}
+        lex = LEXSCM(lk).fit()
+        specs += from_lexscm(lex)
+
     table = compare_pareto(specs, Ywide, n_pre, horizon=horizon,
                            effects_pct=effects_pct, alpha=alpha,
                            power_target=power_target)
@@ -410,8 +453,8 @@ def compare_methods(
         syn_sorted = table[syn_mask].sort_values("oos_rmse", kind="stable")
         table = pd.concat([syn_sorted, table[~syn_mask]], ignore_index=True)
 
-    return DesignComparison(table=table, syndes=syn, geolift=gl, specs=specs,
-                            horizon=horizon)
+    return DesignComparison(table=table, syndes=syn, geolift=gl, lexscm=lex,
+                            specs=specs, horizon=horizon)
 
 
 def plot_compare_pareto(frame: pd.DataFrame, ax=None):
