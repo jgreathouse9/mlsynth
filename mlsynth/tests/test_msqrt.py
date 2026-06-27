@@ -173,6 +173,44 @@ class TestIngestion:
         with pytest.raises(MlsynthDataError):
             prepare_msqrt_inputs(df, "Y", "treated", "unit", "time")
 
+    def test_weight_col_extracts_per_treated_unit_weights(self):
+        df = _block_panel(n_tr=3, n_co=8)
+        df["pop"] = df["unit"].map({u: 10.0 + i for i, u in
+                                    enumerate(sorted(df["unit"].unique()))})
+        inp = prepare_msqrt_inputs(df, "Y", "treated", "unit", "time", weight_col="pop")
+        assert inp.unit_weights is not None
+        assert set(inp.unit_weights) == {str(u) for u in inp.treated_names}
+        assert all(v > 0 for v in inp.unit_weights.values())
+
+    def test_weight_col_missing_column_raises(self):
+        df = _block_panel(n_tr=2, n_co=4)
+        with pytest.raises(MlsynthDataError):
+            prepare_msqrt_inputs(df, "Y", "treated", "unit", "time", weight_col="nope")
+
+    def test_weight_col_negative_raises(self):
+        df = _block_panel(n_tr=2, n_co=4)
+        df["pop"] = -1.0
+        with pytest.raises(MlsynthDataError):
+            prepare_msqrt_inputs(df, "Y", "treated", "unit", "time", weight_col="pop")
+
+    def test_no_weight_col_leaves_unit_weights_none(self):
+        df = _block_panel(n_tr=2, n_co=4)
+        inp = prepare_msqrt_inputs(df, "Y", "treated", "unit", "time")
+        assert inp.unit_weights is None
+
+    def test_weight_col_missing_value_for_treated_unit_raises(self):
+        df = _block_panel(n_tr=2, n_co=4)
+        df["pop"] = 10.0
+        df.loc[df["unit"] == "t0", "pop"] = np.nan        # a treated unit has no weight
+        with pytest.raises(MlsynthDataError):
+            prepare_msqrt_inputs(df, "Y", "treated", "unit", "time", weight_col="pop")
+
+    def test_weight_col_all_zero_raises(self):
+        df = _block_panel(n_tr=2, n_co=4)
+        df["pop"] = 0.0                                    # non-negative but sums to zero
+        with pytest.raises(MlsynthDataError):
+            prepare_msqrt_inputs(df, "Y", "treated", "unit", "time", weight_col="pop")
+
 
 # ----------------------------------------------------------------------
 # Layer 3: estimator integration
@@ -213,6 +251,37 @@ class TestIntegration:
         lo, hi = scpi.ci
         assert lo < res.att < hi
         assert scpi.taua.point == res.att
+        # no weight_col -> no weighted aggregate
+        assert scpi.taua_weighted is None and scpi.tsua_weighted is None
+
+    def test_weight_col_adds_size_weighted_aggregate(self):
+        df = _block_panel(n_tr=3, n_co=8, T0=24, n_post=6, seed=3)
+        # distinct per-unit sizes (unit-constant); only treated ones matter
+        units = sorted(df["unit"].unique())
+        df["size"] = df["unit"].map({u: 100.0 + 40.0 * i for i, u in enumerate(units)})
+        res = MSQRT({
+            "df": df, "outcome": "Y", "treat": "treated", "unitid": "unit",
+            "time": "time", "n_lambda": 4, "inference": True, "alpha": 0.1,
+            "weight_col": "size",
+        }).fit()
+        scpi = res.inference_intervals
+        # both aggregates present; weighted band is finite and brackets its point
+        assert scpi.taua_weighted is not None and scpi.tsua_weighted is not None
+        assert np.isfinite(scpi.taua_weighted.point)
+        assert scpi.taua_weighted.lower < scpi.taua_weighted.point < scpi.taua_weighted.upper
+        assert set(scpi.tsua_weighted) == set(scpi.tsua)
+
+    def test_equal_weight_col_reproduces_equal_weight_aggregate(self):
+        df = _block_panel(n_tr=3, n_co=8, T0=24, n_post=6, seed=3)
+        df["size"] = 1.0                                  # every unit equal
+        res = MSQRT({
+            "df": df, "outcome": "Y", "treat": "treated", "unitid": "unit",
+            "time": "time", "n_lambda": 4, "inference": True, "alpha": 0.1,
+            "weight_col": "size",
+        }).fit()
+        scpi = res.inference_intervals
+        assert scpi.taua_weighted.point == pytest.approx(scpi.taua.point)
+        assert scpi.taua_weighted.lower == pytest.approx(scpi.taua.lower)
         # full predictand family present
         assert len(scpi.tsus) == 3 * 6          # units x periods
         assert len(scpi.taus) == 3              # one per unit

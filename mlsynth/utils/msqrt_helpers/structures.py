@@ -47,6 +47,7 @@ class MSQRTInputs:
     control_names: List[Any]
     time_labels: np.ndarray
     T0: int
+    unit_weights: Optional[Dict[Any, float]] = None    # {treated unit: size weight}
 
     @property
     def m(self) -> int:        # number of treated units

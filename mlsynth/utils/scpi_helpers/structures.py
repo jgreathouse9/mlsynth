@@ -105,6 +105,13 @@ class SCPIResults:
     sigma: Dict[Any, float]
     time_dependence: str = "iid"
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # Size-weighted unit aggregation (when ``unit_weights`` are supplied): the
+    # same TSUA/TAUA predictands but with a convex combination of treated units
+    # by user weights (e.g. market size) instead of the 1/m equal weights. The
+    # in-sample and out-of-sample components combine with the same weights, per
+    # CFPT's predictand decomposition. ``None`` when no weights were given.
+    taua_weighted: Optional[SCPIBand] = None
+    tsua_weighted: Optional[Dict[Any, SCPIBand]] = None
 
     # Convenience accessors mirroring the old single-CI surface.
     @property

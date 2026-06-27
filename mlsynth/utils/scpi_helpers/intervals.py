@@ -46,6 +46,25 @@ def _band(predictand, label, point, mu, sigma, alpha) -> SCPIBand:
     )
 
 
+def _resolve_unit_weights(unit_weights, units) -> np.ndarray:
+    """Normalised cross-section weights aligned to ``units`` order.
+
+    Accepts a ``{unit: weight}`` mapping. Raises ``ValueError`` on a missing
+    unit, any negative weight, or a non-positive total. Returns ``omega`` with
+    ``sum(omega) == 1`` -- the convex weights for the size-weighted predictand.
+    """
+    try:
+        w = np.array([float(unit_weights[u]) for u in units], dtype=float)
+    except KeyError as e:
+        raise ValueError(f"unit_weights is missing a weight for unit {e}.") from e
+    if np.any(w < 0) or not np.all(np.isfinite(w)):
+        raise ValueError("unit_weights must be finite and non-negative.")
+    total = float(w.sum())
+    if total <= 0.0:
+        raise ValueError("unit_weights must sum to a positive value.")
+    return w / total
+
+
 def out_of_sample_intervals(
     effects: np.ndarray,
     pre_residuals: np.ndarray,
@@ -55,6 +74,7 @@ def out_of_sample_intervals(
     alpha: float = 0.1,
     time_dependence: str = "iid",
     assume_zero_mean: bool = False,
+    unit_weights: Optional[Dict] = None,
 ) -> SCPIResults:
     """Build the full CFPT out-of-sample interval family for a block design.
 
@@ -114,6 +134,25 @@ def out_of_sample_intervals(
     s_taua = sigma_bar / np.sqrt(L) if (time_dependence == "iid" and L > 0) else sigma_bar
     taua = _band("TAUA", None, point_all, mu_bar, s_taua, alpha)
 
+    # ---- Size-weighted unit aggregation (optional) ----------------------
+    # Same TSUA/TAUA predictands but with a convex combination of treated units
+    # by user weights omega (e.g. market size) instead of 1/m. Per CFPT's
+    # decomposition the aggregate error is sum_i omega_i (in_sample_i +
+    # out_sample_i), so point, mu and sigma all combine with the same omega.
+    taua_weighted: Optional[SCPIBand] = None
+    tsua_weighted: Optional[Dict] = None
+    if unit_weights is not None:
+        omega = _resolve_unit_weights(unit_weights, units)
+        mu_w = float(sum(omega[j] * mu[u] for j, u in enumerate(units)))
+        sigma_w = float(sum(omega[j] * sigma[u] for j, u in enumerate(units)))
+        tsua_weighted = {}
+        for k, p in enumerate(periods):
+            point = float(effects[k, :] @ omega)
+            tsua_weighted[p] = _band("TSUA", p, point, mu_w, sigma_w, alpha)
+        point_all_w = float((effects @ omega).mean())
+        s_taua_w = sigma_w / np.sqrt(L) if (time_dependence == "iid" and L > 0) else sigma_w
+        taua_weighted = _band("TAUA", None, point_all_w, mu_w, s_taua_w, alpha)
+
     # ---- Simultaneous: TSUS widened for joint coverage over k -----------
     # Bonferroni over the L periods: spend alpha/L per period.
     simultaneous: Dict = {}
@@ -129,6 +168,7 @@ def out_of_sample_intervals(
         simultaneous=simultaneous, sigma=sigma, time_dependence=time_dependence,
         metadata={"L": int(L), "n_treated": int(m),
                   "alpha_simultaneous_per_period": float(alpha_simul)},
+        taua_weighted=taua_weighted, tsua_weighted=tsua_weighted,
     )
 
 
