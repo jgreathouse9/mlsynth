@@ -320,8 +320,14 @@ def test_sdid_config_valid(base_config_data: Dict[str, Any]):
 
 
 # ---------------------------
-# Numeric time column
+# Time axis is delegated to geoex_dataprep
 # ---------------------------
+# MAREX ingestion routes through ``geoex_dataprep`` (the same balanced-panel
+# prep GeoLift uses), which sorts the time axis and enforces a *balanced* panel.
+# The config validator therefore no longer imposes a dtype-specific
+# "consecutive time" requirement -- any orderable time (integer, datetime, or
+# ISO-date string) is accepted at construction. The fit-time behaviour (balance
+# check, date-string acceptance) is exercised in ``tests/test_marex.py``.
 def test_numeric_time_consecutive():
     df = pd.DataFrame({
         "unit": [1, 1, 2, 2],
@@ -329,16 +335,17 @@ def test_numeric_time_consecutive():
         "y": [0, 1, 2, 3]
     })
     # Should not raise
-    config = MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
+    MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
-def test_numeric_time_non_consecutive():
+def test_numeric_time_non_consecutive_is_accepted():
     df = pd.DataFrame({
         "unit": [1, 1, 2, 2],
-        "time": [1, 3, 1, 3],  # non-consecutive
+        "time": [1, 3, 1, 3],  # gap in the integer time index, but balanced
         "y": [0, 1, 2, 3]
     })
-    with pytest.raises(MlsynthDataError, match="Time periods in 'time' are not consecutive"):
-        MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
+    # geoex_dataprep only requires a balanced panel, not consecutive time, so
+    # the config no longer rejects gapped time.
+    MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
 # ---------------------------
 # Datetime time column
@@ -350,26 +357,21 @@ def test_datetime_time_consecutive():
         "y": [0, 1, 2, 3]
     })
     # Should not raise
-    config = MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
+    MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
 
-def test_datetime_time_non_consecutive():
-    import pandas as pd
-    import pytest
-    from datetime import datetime, timedelta
-    from mlsynth.config_models import MAREXConfig
-    from mlsynth.exceptions import MlsynthDataError
+def test_datetime_time_non_consecutive_is_accepted():
+    from datetime import datetime
 
     df = pd.DataFrame({
         "unit": [1, 1, 1],
         "time": [datetime(2020, 1, 1),
-                 datetime(2020, 1, 3),  # Gap here
+                 datetime(2020, 1, 3),  # Gap here -- balanced single unit
                  datetime(2020, 1, 4)],
         "y": [1, 2, 3]
     })
-
-    with pytest.raises(MlsynthDataError, match="Datetime time periods in 'time' are not consecutive"):
-        MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
+    # Gapped datetime is accepted: geoex_dataprep sorts and balance-checks.
+    MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
 
 
@@ -377,13 +379,14 @@ def test_datetime_time_non_consecutive():
 
 
 # ---------------------------
-# Unsupported dtype
+# String time column
 # ---------------------------
-def test_time_unsupported_dtype():
+def test_string_time_is_accepted():
     df = pd.DataFrame({
         "unit": [1, 1, 2, 2],
-        "time": ["a", "b", "a", "b"],  # string dtype
+        "time": ["a", "b", "a", "b"],  # string dtype -- orderable
         "y": [0, 1, 2, 3]
     })
-    with pytest.raises(MlsynthDataError, match="Unsupported dtype for time column"):
-        MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
+    # String time is no longer rejected at the config level; geoex_dataprep
+    # sorts the labels at fit time.
+    MAREXConfig(df=df, outcome="y", unitid="unit", time="time")

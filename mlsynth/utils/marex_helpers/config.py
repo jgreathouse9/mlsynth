@@ -7,7 +7,6 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
-import numpy as np
 import pandas as pd
 import warnings
 from pydantic import Field, model_validator
@@ -115,6 +114,40 @@ class MAREXConfig(BaseMAREXConfig):
     min_size: Optional[float] = Field(default=None, description="Lower size bound.")
     max_size: Optional[float] = Field(default=None, description="Upper size bound.")
 
+    # --- solution pool + power-based recommendation (mirrors SYNDES) ---
+    top_K: int = Field(
+        default=1, ge=1,
+        description=(
+            "Size of the returned solution pool. ``1`` (default) returns only the "
+            "MSE-optimal design and no pool. ``>1`` enumerates the top-K distinct "
+            "designs via no-good cuts (forbid each chosen treated set and re-solve "
+            "for the next-best), each scored on a minimum-detectable-effect (MDE) "
+            "power curve, and attaches them as ``results.pool`` plus a composite "
+            "``results.recommendation`` -- the SYNDES-style menu."),
+    )
+    power_weight: float = Field(
+        default=0.51, gt=0.0,
+        description=("Weight on power (MDE) in the composite recommendation score, "
+                     "normalised against ``fit_weight`` to sum to one."),
+    )
+    fit_weight: float = Field(
+        default=0.49, gt=0.0,
+        description=("Weight on fit (the design objective) in the composite "
+                     "recommendation score, normalised against ``power_weight``."),
+    )
+    max_shortlist: int = Field(
+        default=5, ge=1,
+        description="Maximum number of designs in results.recommendation.shortlist.",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided significance level for the MDE power curve.",
+    )
+    power_target: float = Field(
+        default=0.80, gt=0.0, lt=1.0,
+        description="Target power (1 - beta) for the MDE.",
+    )
+
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
         df = values.df
@@ -168,19 +201,12 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthDataError(
                 f"design must be one of {sorted(valid_designs)}, got '{design}'")
 
-        # --- consecutive time check ---
-        time_vals = df[time_col].sort_values().unique()
-        time_dtype = df[time_col].dtype
-        if pd.api.types.is_numeric_dtype(time_dtype):
-            if not np.all(np.diff(time_vals) == 1):
-                raise MlsynthDataError(f"Time periods in '{time_col}' are not consecutive: {time_vals}")
-        elif pd.api.types.is_datetime64_any_dtype(time_dtype):
-            diffs = np.diff(time_vals)
-            if len(diffs) > 0 and not np.all(diffs == diffs[0]):
-                raise MlsynthDataError(f"Datetime time periods in '{time_col}' are not consecutive.")
-
-        else:
-            raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_dtype}")
+        # --- time axis ---
+        # Time handling is delegated to ``geoex_dataprep`` (the same balanced-
+        # panel prep GeoLift uses), invoked in ``prepare_marex_panel``: it sorts
+        # the time index, so any orderable time — integer, datetime, or ISO-date
+        # string as the geoex pipeline supplies — is accepted, and it enforces a
+        # strongly balanced panel. No dtype-specific check is needed here.
 
         # --- cluster handling ---
         if cluster_col is not None:

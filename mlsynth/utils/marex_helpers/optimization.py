@@ -65,9 +65,15 @@ def solve_design(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
-    solver=cp.SCIP, verbose=False, restrictions=None,
+    solver=cp.SCIP, verbose=False, restrictions=None, forbidden=None,
 ):
-    """Exact mixed-integer MAREX design (was ``SCMEXP``)."""
+    """Exact mixed-integer MAREX design (was ``SCMEXP``).
+
+    ``forbidden`` is an optional list of previously-chosen assignments, each a
+    list of ``(unit_idx, cluster_idx)`` pairs; for every one a no-good cut
+    ``sum z[pairs] <= |pairs| - 1`` is added, forbidding that exact design so a
+    re-solve yields the next-best distinct one (used to build a solution pool).
+    """
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
                         lambda2, xi, lambda1_unit, lambda2_unit)
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
@@ -82,6 +88,12 @@ def solve_design(
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
                                     m_eq, m_min, m_max, costs_np, budget_dict,
                                     exclusive, restrictions=restrictions)
+    # no-good cuts: forbid each previously chosen assignment so a re-solve finds
+    # the next-best distinct design (solution pool).
+    for pairs in (forbidden or []):
+        if pairs:
+            constraints = constraints + [
+                cp.sum([z[int(j), int(k)] for (j, k) in pairs]) <= len(pairs) - 1]
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
                                lambda1_unit, lambda2_unit, D1, D2_list)
@@ -96,6 +108,9 @@ def solve_design(
                    "the cluster cardinality (m_min/m_max). Relax them.")
         raise MlsynthEstimationError(msg)
     w_opt, v_opt, z_opt = w.value, v.value, z.value
+    if w_opt is None or z_opt is None:
+        raise MlsynthEstimationError(
+            f"MAREX design is infeasible (solver status: {prob.status}).")
     Y_full_T = Y_full_np.T
     rmse_cluster = []
     for k_idx in range(K):
@@ -114,7 +129,32 @@ def solve_design(
         "T_fit": T_fit, "Y_fit": Y_fit, "Y_blank": Y_blank,
         "rmse_cluster": rmse_cluster, "design": design,
         "original_cluster_vector": clusters,
+        "objective": float(prob.value) if prob.value is not None else float("nan"),
     }
+
+
+def solve_design_pool(Y_full, T0, clusters, *, top_K=1, **kwargs):
+    """Enumerate up to ``top_K`` distinct exact designs via no-good cuts.
+
+    Calls :func:`solve_design` repeatedly, forbidding each chosen assignment so
+    the next solve returns the next-best distinct design. Stops early when the
+    feasible region is exhausted (the solver becomes infeasible).
+    """
+    designs: list = []
+    forbidden: list = []
+    for _ in range(int(top_K)):
+        try:
+            raw = solve_design(Y_full=Y_full, T0=T0, clusters=clusters,
+                               forbidden=forbidden, **kwargs)
+        except MlsynthEstimationError:
+            break
+        designs.append(raw)
+        z_opt = np.asarray(raw["z_opt"])
+        pairs = [(int(j), int(k)) for j, k in zip(*np.where(z_opt > 0.5))]
+        if not pairs:                       # nothing selected -> cannot cut further
+            break
+        forbidden.append(pairs)
+    return designs
 
 
 def post_hoc_discretize(w_opt, v_opt, cluster_members, cluster_labels,

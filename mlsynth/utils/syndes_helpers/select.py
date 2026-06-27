@@ -33,11 +33,16 @@ from scipy.stats import rankdata
 
 
 def _fit_value(d: "SYNDESDesignMetrics") -> float:
-    """Fit criterion: pre-period RMSE (treated vs weighted control), lower better.
+    """Fit criterion (lower better): the held-out RMSE when a holdout window
+    exists, else the in-sample pre-period RMSE, else the MIP objective.
 
-    Falls back to the MIP objective when a design carries no RMSE (e.g. a mode
-    that does not populate it), so the recommender is always well-defined.
+    The held-out (``oos_rmse``) fit is preferred because it measures how the
+    design generalises beyond the window it was tuned on, rather than rewarding
+    in-sample overfit. It is only defined in holdout selection mode; otherwise
+    the recommender falls back to the in-sample RMSE so it is always defined.
     """
+    if d.oos_rmse is not None and np.isfinite(d.oos_rmse):
+        return float(d.oos_rmse)
     if d.pre_fit_rmse is not None and np.isfinite(d.pre_fit_rmse):
         return float(d.pre_fit_rmse)
     return float(d.objective)
@@ -81,6 +86,7 @@ class SYNDESDesignMetrics:
     mde_feasible: bool
     cost: Optional[float] = None
     pre_fit_rmse: Optional[float] = None
+    oos_rmse: Optional[float] = None
     design: Any = field(default=None, repr=False)
 
 
@@ -202,6 +208,9 @@ def recommend_syndes(
         )
 
     def _entry_fit(e: Dict[str, Any]) -> float:
+        oos = e.get("oos_rmse")
+        if oos is not None and np.isfinite(oos):
+            return float(oos)
         r = e.get("pre_fit_rmse")
         if r is not None and np.isfinite(r):
             return float(r)
@@ -222,6 +231,8 @@ def recommend_syndes(
             cost=(None if e.get("cost") is None else float(e["cost"])),
             pre_fit_rmse=(None if e.get("pre_fit_rmse") is None
                           else float(e["pre_fit_rmse"])),
+            oos_rmse=(None if e.get("oos_rmse") is None
+                      else float(e["oos_rmse"])),
             design=e.get("design"),
         )
         for rank, e in enumerate(ordered)

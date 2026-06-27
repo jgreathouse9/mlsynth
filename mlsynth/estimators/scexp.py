@@ -164,6 +164,48 @@ class MAREX:
         except Exception as exc:
             raise MlsynthEstimationError(f"MAREX design failed: {exc}") from exc
 
+        # Solution pool + MDE power + recommendation (SYNDES parity): when
+        # top_K > 1, enumerate distinct designs via no-good cuts (exact MIQP),
+        # score each on a Newey-West MDE power curve, and attach the menu plus a
+        # composite recommendation. The primary result above is unchanged.
+        if self.config.top_K and self.config.top_K > 1:
+            try:
+                import cvxpy as cp
+                from ..utils.marex_helpers.optimization import solve_design_pool
+                from ..utils.marex_helpers.pool import build_marex_pool
+                from ..utils.marex_helpers.select import recommend_marex
+                # Hold out a blank tail of the pre-period so each pooled design
+                # can be ranked on its OUT-OF-SAMPLE (blank) fit, not in-sample
+                # overfit. Reuse the configured blank window if any, else the
+                # 30% pre-tail convention shared by the MAREX-family estimators.
+                pool_blank = (panel.blank_periods if panel.blank_periods > 0
+                              else max(1, int(0.3 * panel.T0)))
+                raws = solve_design_pool(
+                    Y_full=panel.Y_full, T0=panel.T0, clusters=panel.clusters,
+                    top_K=self.config.top_K, blank_periods=pool_blank,
+                    m_eq=self.m_eq, m_min=self.m_min, m_max=self.m_max,
+                    exclusive=self.exclusive, design=self.design, beta=self.beta,
+                    lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
+                    lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
+                    costs=self.costs, budget=self.budget, covariates=panel.covariates,
+                    covariate_weight=self.covariate_weight, standardize=self.standardize,
+                    solver=self.solver or cp.SCIP, verbose=self.verbose,
+                )
+                pool = build_marex_pool(
+                    raws, alpha=self.config.alpha, power=self.config.power_target,
+                    n_post=self.config.T_post or 1)
+                if pool:
+                    rec = recommend_marex(
+                        pool, power_weight=self.config.power_weight,
+                        fit_weight=self.config.fit_weight,
+                        max_shortlist=self.config.max_shortlist)
+                    results = results.model_copy(
+                        update={"pool": pool, "recommendation": rec})
+            except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
+                raise
+            except Exception as exc:
+                raise MlsynthEstimationError(f"MAREX pool failed: {exc}") from exc
+
         if self.display_graph:
             try:
                 plot_marex(results, plot_type="treatment")

@@ -239,6 +239,80 @@ def from_geolift(res) -> List[DesignSpec]:
     return specs
 
 
+def from_lexscm(res) -> List[DesignSpec]:
+    """Build DesignSpecs from a fitted LEXSCM result (its candidate search).
+
+    The cross-method contrast is ``w_treated - w_control``; the treated side
+    sums to ``+1`` and the control side to ``-1`` -- the same convention as
+    :func:`from_syndes` / :func:`from_geolift`.
+
+    Weights are taken from the candidate's full-precision dicts
+    (``treated_weight_dict_full`` / ``control_weight_dict_full``), so both sides
+    sum to one exactly and the net contrast is exactly zero -- the rounded
+    ``*_weight_dict`` views are for display only.
+    """
+    specs: List[DesignSpec] = []
+    for cand in res.search.candidates:
+        treated_w = {str(u): float(w) for u, w in cand.treated_weight_dict_full.items()}
+        control_w = {str(u): float(v) for u, v in cand.control_weight_dict_full.items()}
+        treated = sorted(treated_w)
+        contrast: Dict[Any, float] = dict(treated_w)
+        for u, v in control_w.items():
+            contrast[u] = contrast.get(u, 0.0) - v
+        specs.append(DesignSpec(
+            "LEXSCM", f"L:{'+'.join(map(str, treated))}", contrast, treated,
+        ))
+    return specs
+
+
+def from_marex(res) -> List[DesignSpec]:
+    """Build DesignSpecs from a fitted MAREX result.
+
+    Uses the solution-pool menu when present (``top_K > 1``), else the single
+    aggregate design. Each design's contrast is ``w_treated - v_control`` over
+    units (treated side sums to +1, control to -1), matching the convention of
+    the other adapters.
+    """
+    def _spec(labels, w, v, treated):
+        w = np.asarray(w, dtype=float)
+        v = np.asarray(v, dtype=float)
+        contrast = {str(labels[i]): float(w[i] - v[i]) for i in range(len(labels))
+                    if abs(float(w[i] - v[i])) > 1e-12}
+        treated = sorted(str(t) for t in treated)
+        return DesignSpec("MAREX", f"M:{'+'.join(treated)}", contrast, treated)
+
+    pool = getattr(res, "pool", None)
+    if pool:
+        out = []
+        for e in pool:
+            raw = e["design"]
+            # raw["df"] is the units x time panel; its index carries the unit
+            # labels the aggregate weight vectors are aligned to.
+            labels = list(raw["df"].index)
+            out.append(_spec(labels, raw["w_agg"], raw["v_agg"], e["markets"]))
+        return out
+
+    # Single-design fallback (top_K == 1): globres.Y_full is a bare ndarray with
+    # no labels, so assemble the contrast from the per-cluster unit-weight maps,
+    # which carry the unit labels. Size-weight clusters so the treated/control
+    # sides each sum to +1 / -1 across the whole design (matching *_weights_agg).
+    clusters = list(res.clusters.values())
+    sizes = np.array([float(c.cardinality) for c in clusters], dtype=float)
+    total = float(sizes.sum()) or 1.0
+    multi = len(clusters) > 1
+    contrast: Dict[str, float] = {}
+    treated: List[str] = []
+    for c, sz in zip(clusters, sizes):
+        scale = (sz / total) if multi else 1.0
+        for u, w in c.unit_weight_map.get("Treated", {}).items():
+            contrast[str(u)] = contrast.get(str(u), 0.0) + scale * float(w)
+            treated.append(str(u))
+        for u, v in c.unit_weight_map.get("Control", {}).items():
+            contrast[str(u)] = contrast.get(str(u), 0.0) - scale * float(v)
+    treated = sorted(set(treated))
+    return [DesignSpec("MAREX", f"M:{'+'.join(treated)}", contrast, treated)]
+
+
 _SYNDES_DEFAULTS: Dict[str, Any] = dict(
     mode="two_way_global", gap_limit=0.05, time_limit=20.0, run_inference=False,
 )
@@ -246,6 +320,9 @@ _GEOLIFT_DEFAULTS: Dict[str, Any] = dict(
     effect_sizes=[0.0, 0.1], lookback_window=1, how="mean",
     fixed_effects=True, ns=200, seed=0, display_graphs=False,
 )
+_LEXSCM_DEFAULTS: Dict[str, Any] = dict(display_graph=False, verbose=False)
+_MAREX_DEFAULTS: Dict[str, Any] = dict(design="standard", display_graph=False,
+                                       verbose=False)
 
 
 @dataclass(frozen=True)
@@ -258,7 +335,7 @@ class DesignComparison:
         One row per design across all requested methods, with ``method``,
         ``label``, ``treated``, ``fit_rmse``, ``mde_pct`` (at ``horizon``), and a
         per-method ``pareto`` flag -- the dataframe form of the comparison.
-    syndes, geolift : optional
+    syndes, geolift, lexscm, marex : optional
         The underlying fitted results (``None`` for any method not requested),
         kept for inspection.
     specs : list of DesignSpec
@@ -270,6 +347,8 @@ class DesignComparison:
     table: pd.DataFrame
     syndes: Any = None
     geolift: Any = None
+    lexscm: Any = None
+    marex: Any = None
     specs: List[DesignSpec] = field(default_factory=list)
     horizon: int = 5
 
@@ -296,8 +375,10 @@ def compare_methods(
     syndes_holdout_frac: Optional[float] = 0.3,
     syndes_options: Optional[Dict[str, Any]] = None,
     geolift_options: Optional[Dict[str, Any]] = None,
+    lexscm_options: Optional[Dict[str, Any]] = None,
+    marex_options: Optional[Dict[str, Any]] = None,
 ) -> DesignComparison:
-    """Fit GEOLIFT and SYNDES on one panel and compare them on the shared plane.
+    """Fit SYNDES, GEOLIFT, LEXSCM, and/or MAREX on one panel and compare them.
 
     A one-call wrapper around the adapters + :func:`compare_pareto`: it fits each
     requested method on the same data with the same treated-set size and post
@@ -325,7 +406,8 @@ def compare_methods(
     effects_pct : sequence of float, optional
         Common effect grid (percent of baseline) for the MDE simulation.
     methods : sequence of str, default ``("SYNDES", "GEOLIFT")``
-        Which methods to fit and compare.
+        Which methods to fit and compare. Any of ``"SYNDES"``, ``"GEOLIFT"``,
+        ``"LEXSCM"``, ``"MAREX"``.
     syndes_holdout_frac : float or None, default 0.3
         Holdout fraction for SYNDES design selection: SYNDES learns its pool on
         the leading ``1 - syndes_holdout_frac`` of the pre-period and is ranked
@@ -334,9 +416,16 @@ def compare_methods(
         selection (``oos_rmse`` is ``NaN``). Ignored when ``top_K < 2`` (a pool
         is required to validate). An explicit ``holdout_frac`` in
         ``syndes_options`` overrides this.
-    syndes_options, geolift_options : dict, optional
+    syndes_options, geolift_options, lexscm_options, marex_options : dict, optional
         Per-method overrides merged over the defaults (e.g.
-        ``{"time_limit": 20.0}`` to give SYNDES a larger budget).
+        ``{"time_limit": 20.0}`` to give SYNDES a larger budget, or
+        ``{"top_K": 8}`` to widen LEXSCM's search). For LEXSCM, ``treated_size``
+        maps to ``m`` and every unit is marked eligible unless an explicit
+        ``candidate_col`` is supplied in ``lexscm_options``. For MAREX,
+        ``treated_size`` maps to the per-cluster ``m_eq`` (the exact number of
+        treated units) and ``top_K`` drives its solution-pool menu, unless the
+        caller supplies their own cardinality keys (``m_eq`` / ``m_min`` /
+        ``m_max``) in ``marex_options``.
 
     Returns
     -------
@@ -344,10 +433,11 @@ def compare_methods(
         ``.table`` (dataframe form) and ``.plot()`` (plot form).
     """
     methods = tuple(methods)
-    unknown = set(methods) - {"SYNDES", "GEOLIFT"}
+    unknown = set(methods) - {"SYNDES", "GEOLIFT", "LEXSCM", "MAREX"}
     if unknown:
         raise ValueError(f"Unknown method(s): {sorted(unknown)}; "
-                         "expected 'SYNDES' and/or 'GEOLIFT'.")
+                         "expected any of 'SYNDES', 'GEOLIFT', 'LEXSCM', "
+                         "'MAREX'.")
     if not methods:
         raise ValueError("methods must name at least one estimator.")
 
@@ -371,7 +461,7 @@ def compare_methods(
 
     common = dict(df=df, outcome=outcome, unitid=unitid, time=time,
                   post_col=post_col)
-    syn = gl = None
+    syn = gl = lex = mar = None
     specs: List[DesignSpec] = []
 
     if "SYNDES" in methods:
@@ -382,12 +472,16 @@ def compare_methods(
         # picks a selection rule (or holdout_frac) explicitly, defer to it and
         # do not inject the default holdout (they are mutually exclusive).
         explicit = "selection" in syn_over or "holdout_frac" in syn_over
-        holdout = (None if explicit
-                   else (syndes_holdout_frac
-                         if (syndes_holdout_frac is not None and top_K >= 2)
-                         else None))
         sk = {**_SYNDES_DEFAULTS, **common, "K": treated_size, "top_K": top_K,
-              "alpha": alpha, "holdout_frac": holdout, **syn_over}
+              "alpha": alpha}
+        if not explicit:
+            if syndes_holdout_frac is not None and top_K >= 2:
+                sk["holdout_frac"] = syndes_holdout_frac
+            else:
+                # SYNDES now holdout-validates pools by default, so to honour
+                # syndes_holdout_frac=None (disable) we ask for in-sample.
+                sk["selection"] = "in_sample"
+        sk.update(syn_over)
         syn = SYNDES(sk).fit()
         specs += from_syndes(syn)
 
@@ -398,6 +492,35 @@ def compare_methods(
               **(geolift_options or {})}
         gl = GEOLIFT(gk).fit()
         specs += from_geolift(gl)
+
+    if "LEXSCM" in methods:
+        from ..estimators.lexscm import LEXSCM
+        lex_over = lexscm_options or {}
+        # LEXSCM needs a per-unit eligibility column; compare_methods treats
+        # every unit as a candidate, so inject an all-eligible column unless the
+        # caller names their own. treated_size maps to LEXSCM's `m`.
+        cand_col = lex_over.get("candidate_col")
+        if cand_col is None:
+            cand_col = "__compare_candidate__"
+            df[cand_col] = True
+        lk = {**_LEXSCM_DEFAULTS, **common, "candidate_col": cand_col,
+              "m": treated_size, "alpha": alpha, **lex_over}
+        lex = LEXSCM(lk).fit()
+        specs += from_lexscm(lex)
+
+    if "MAREX" in methods:
+        from ..estimators.scexp import MAREX
+        mar_over = marex_options or {}
+        # treated_size -> MAREX's per-cluster exact count m_eq, unless the caller
+        # specifies their own cardinality (m_eq / m_min / m_max). top_K drives
+        # the solution-pool menu the adapter reduces to DesignSpecs.
+        mk = {**_MAREX_DEFAULTS, **common, "top_K": top_K, "alpha": alpha,
+              "power_target": power_target}
+        if not ({"m_eq", "m_min", "m_max"} & set(mar_over)):
+            mk["m_eq"] = treated_size
+        mk.update(mar_over)
+        mar = MAREX(mk).fit()
+        specs += from_marex(mar)
 
     table = compare_pareto(specs, Ywide, n_pre, horizon=horizon,
                            effects_pct=effects_pct, alpha=alpha,
@@ -410,8 +533,8 @@ def compare_methods(
         syn_sorted = table[syn_mask].sort_values("oos_rmse", kind="stable")
         table = pd.concat([syn_sorted, table[~syn_mask]], ignore_index=True)
 
-    return DesignComparison(table=table, syndes=syn, geolift=gl, specs=specs,
-                            horizon=horizon)
+    return DesignComparison(table=table, syndes=syn, geolift=gl, lexscm=lex,
+                            marex=mar, specs=specs, horizon=horizon)
 
 
 def plot_compare_pareto(frame: pd.DataFrame, ax=None):
