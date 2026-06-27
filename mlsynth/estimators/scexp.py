@@ -150,9 +150,15 @@ class MAREX:
                 from ..utils.marex_helpers.optimization import solve_design_pool
                 from ..utils.marex_helpers.pool import build_marex_pool
                 from ..utils.marex_helpers.select import recommend_marex
+                # Hold out a blank tail of the pre-period so each pooled design
+                # can be ranked on its OUT-OF-SAMPLE (blank) fit, not in-sample
+                # overfit. Reuse the configured blank window if any, else the
+                # 30% pre-tail convention shared by the MAREX-family estimators.
+                pool_blank = (panel.blank_periods if panel.blank_periods > 0
+                              else max(1, int(0.3 * panel.T0)))
                 raws = solve_design_pool(
                     Y_full=panel.Y_full, T0=panel.T0, clusters=panel.clusters,
-                    top_K=self.config.top_K, blank_periods=panel.blank_periods,
+                    top_K=self.config.top_K, blank_periods=pool_blank,
                     m_eq=self.m_eq, m_min=self.m_min, m_max=self.m_max,
                     exclusive=self.exclusive, design=self.design, beta=self.beta,
                     lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,

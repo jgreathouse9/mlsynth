@@ -30,12 +30,26 @@ def build_marex_pool(raws: List[Dict[str, Any]], *, alpha: float = 0.05,
         markets = [str(labels[i]) for i in treated_idx]
         control_group = [str(labels[i]) for i in control_idx]
 
-        Y_fit = np.asarray(raw["Y_fit"], dtype=float)
-        g = Y_fit.T @ contrast                       # pre-period contrast series
-        pre_fit_rmse = float(np.sqrt(np.mean(g ** 2)))
-        baseline = (float(np.mean(Y_fit[treated_idx, :]))
+        Y_fit = np.asarray(raw["Y_fit"], dtype=float)              # leading (fit) window
+        Y_blank = raw.get("Y_blank")
+        Y_blank = None if Y_blank is None else np.asarray(Y_blank, dtype=float)
+
+        # In-sample fit (for transparency) and the held-out BLANK fit (the
+        # ranking metric): the design's weights are tuned on Y_fit, so the blank
+        # window is genuinely out-of-sample.
+        pre_fit_rmse = float(np.sqrt(np.mean((Y_fit.T @ contrast) ** 2)))
+        if Y_blank is not None and Y_blank.size:
+            blank_rmse = float(np.sqrt(np.mean((Y_blank.T @ contrast) ** 2)))
+            full_pre = np.concatenate([Y_fit, Y_blank], axis=1)
+        else:
+            blank_rmse = None
+            full_pre = Y_fit
+        fit_metric = blank_rmse if blank_rmse is not None else pre_fit_rmse
+
+        # Power on the full pre-period; the fit axis uses the held-out blank.
+        baseline = (float(np.mean(full_pre[treated_idx, :]))
                     if treated_idx.size else float("nan"))
-        curve = marex_mde_curve(Y_fit, contrast, horizons=range(1, 13),
+        curve = marex_mde_curve(full_pre, contrast, horizons=range(1, 13),
                                 alpha=alpha, power=power, baseline=baseline)
         h = max(1, min(int(n_post), 12))
         mde_pct = float(curve["mde_pct"][h - 1])
@@ -43,7 +57,8 @@ def build_marex_pool(raws: List[Dict[str, Any]], *, alpha: float = 0.05,
         menu.append({
             "markets": markets, "control_group": control_group,
             "n_treated": len(markets), "n_control": len(control_group),
-            "objective": pre_fit_rmse,            # fit metric for ranking
+            "objective": fit_metric,              # fit metric for ranking (held-out blank RMSE)
+            "blank_rmse": blank_rmse,
             "pre_fit_rmse": pre_fit_rmse,
             "mip_objective": float(raw.get("objective", float("nan"))),
             "mde_pct": mde_pct, "power_curve": curve,
