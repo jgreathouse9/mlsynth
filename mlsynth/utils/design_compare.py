@@ -414,12 +414,16 @@ def compare_methods(
         # picks a selection rule (or holdout_frac) explicitly, defer to it and
         # do not inject the default holdout (they are mutually exclusive).
         explicit = "selection" in syn_over or "holdout_frac" in syn_over
-        holdout = (None if explicit
-                   else (syndes_holdout_frac
-                         if (syndes_holdout_frac is not None and top_K >= 2)
-                         else None))
         sk = {**_SYNDES_DEFAULTS, **common, "K": treated_size, "top_K": top_K,
-              "alpha": alpha, "holdout_frac": holdout, **syn_over}
+              "alpha": alpha}
+        if not explicit:
+            if syndes_holdout_frac is not None and top_K >= 2:
+                sk["holdout_frac"] = syndes_holdout_frac
+            else:
+                # SYNDES now holdout-validates pools by default, so to honour
+                # syndes_holdout_frac=None (disable) we ask for in-sample.
+                sk["selection"] = "in_sample"
+        sk.update(syn_over)
         syn = SYNDES(sk).fit()
         specs += from_syndes(syn)
 

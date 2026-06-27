@@ -333,6 +333,16 @@ class SYNDESConfig(BaseMAREXConfig):
         n_periods = df[values.time].nunique()
 
         # Resolve the design-selection rule (None infers from holdout_frac).
+        # A solution pool (top_K >= 2) is holdout-validated by default: rank the
+        # candidate designs by out-of-sample fit rather than in-sample overfit.
+        # The in-sample (paper-faithful) rule stays available via
+        # selection="in_sample"; single designs (top_K < 2) and the annealed
+        # mode (no candidate pool) are unaffected.
+        if (values.selection is None and values.holdout_frac is None
+                and values.top_K is not None and values.top_K >= 2
+                and values.mode != "two_way_global_annealed"):
+            values.holdout_frac = 0.3
+
         resolved = values.selection or (
             "holdout" if values.holdout_frac is not None else "in_sample"
         )

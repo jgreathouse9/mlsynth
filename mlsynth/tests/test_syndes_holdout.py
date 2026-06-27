@@ -184,9 +184,16 @@ class TestSYNDESHoldoutIntegration:
             assert e["oos_rmse"] == pytest.approx(
                 oos_contrast_rmse(e["design"], Y_val))
 
-    def test_default_none_preserves_in_sample_pool(self):
-        # No holdout: pool ranked by the MIP objective and oos_rmse is absent/None.
+    def test_pool_defaults_to_holdout(self):
+        # A pool (top_K>1) now holdout-validates by default: oos_rmse is populated.
         res = self._fit(top_K=4)
+        assert res.pool is not None
+        assert all(e.get("oos_rmse") is not None
+                   and np.isfinite(e["oos_rmse"]) for e in res.pool)
+
+    def test_explicit_in_sample_opts_out_of_holdout(self):
+        # selection='in_sample' keeps the paper-faithful in-sample pool (no oos).
+        res = self._fit(top_K=4, selection="in_sample")
         assert res.pool is not None
         assert all(e.get("oos_rmse") is None for e in res.pool)
 
