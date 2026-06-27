@@ -24,6 +24,7 @@ from mlsynth.utils.design_compare import (
     compare_pareto,
     from_geolift,
     from_lexscm,
+    from_marex,
     from_syndes,
     plot_compare_pareto,
     simulated_mde,
@@ -436,3 +437,100 @@ class TestSyndesOOSRanking:
         assert set(cmp.table["method"]) == {"SYNDES"}
         # IC is in-sample, so there is no holdout OOS error to report.
         assert cmp.table["oos_rmse"].isna().all()
+
+
+# ----------------------------------------------------------------------
+# MAREX adapter + cross-method integration
+# ----------------------------------------------------------------------
+
+class TestMAREX:
+    # small pool keeps the MIQP enumeration quick in tests
+    _MAR = {"top_K": 3}
+
+    def test_from_marex_specs(self):
+        from mlsynth import MAREX
+        df, T, n_post = _shared_panel()
+        res = MAREX({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                     "post_col": "post", "m_eq": 2, **self._MAR}).fit()
+        specs = from_marex(res)
+        assert len(specs) >= 1
+        assert all(s.method == "MAREX" for s in specs)
+        for s in specs:
+            assert set(s.contrast) <= {f"u{j}" for j in range(8)}
+            # treated side sums to +1 and the net contrast (treated - control)
+            # is zero -- both sides come from the simplex-constrained weights.
+            treated_sum = sum(s.contrast[u] for u in s.treated)
+            assert treated_sum == pytest.approx(1.0, abs=1e-6)
+            assert sum(s.contrast.values()) == pytest.approx(0.0, abs=1e-6)
+            # treated and control labels are disjoint
+            ctrl = [u for u, w in s.contrast.items() if w < 0]
+            assert set(ctrl).isdisjoint(set(s.treated))
+
+    def test_from_marex_single_design_fallback(self):
+        # top_K == 1 -> no pool; the adapter falls back to the aggregate design
+        # built from the per-cluster unit-weight maps.
+        from mlsynth import MAREX
+        df, T, n_post = _shared_panel()
+        res = MAREX({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                     "post_col": "post", "m_eq": 2}).fit()
+        assert res.pool is None
+        specs = from_marex(res)
+        assert len(specs) == 1
+        s = specs[0]
+        assert s.method == "MAREX" and len(s.treated) == 2
+        assert sum(s.contrast[u] for u in s.treated) == pytest.approx(1.0, abs=1e-6)
+        assert sum(s.contrast.values()) == pytest.approx(0.0, abs=1e-6)
+
+    def test_compare_methods_marex_only(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=3, methods=("MAREX",),
+            marex_options=self._MAR,
+        )
+        assert set(cmp.table["method"]) == {"MAREX"}
+        assert cmp.marex is not None
+        assert cmp.syndes is None and cmp.geolift is None and cmp.lexscm is None
+        assert {"fit_rmse", "mde_pct", "pareto"} <= set(cmp.table.columns)
+        assert cmp.table.groupby("method")["pareto"].any().all()
+        assert np.isfinite(cmp.table["fit_rmse"]).all()
+
+    def test_marex_accepts_date_string_time(self):
+        # The whole point of routing MAREX through geoex_dataprep: ISO-date
+        # string time (as the geoex pipeline supplies) flows through unmodified.
+        df, T, n_post = _shared_panel()
+        weeks = pd.date_range("2025-01-06", periods=T, freq="W-MON").date
+        df = df.copy()
+        df["time"] = df["time"].map({t: weeks[t].isoformat() for t in range(T)})
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=3, methods=("MAREX",),
+            marex_options=self._MAR,
+        )
+        assert set(cmp.table["method"]) == {"MAREX"}
+        assert len(cmp.table) >= 1
+
+    def test_compare_methods_all_four(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=3,
+            methods=("SYNDES", "GEOLIFT", "LEXSCM", "MAREX"),
+            syndes_options={"time_limit": 3.0, "gap_limit": 0.2},
+            geolift_options={"ns": 120},
+            lexscm_options={"top_K": 3, "top_P": 3, "n_sims": 40,
+                            "max_shortlist": 3},
+            marex_options=self._MAR,
+        )
+        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT", "LEXSCM",
+                                            "MAREX"}
+        assert np.isfinite(cmp.table["fit_rmse"]).all()
+
+    def test_marex_options_are_forwarded(self):
+        # an unknown key must reach the MAREX config and raise, proving the
+        # override dict is not silently dropped.
+        df, T, n_post = _shared_panel()
+        with pytest.raises((MlsynthConfigError, MlsynthDataError)):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, n_post=n_post, methods=("MAREX",),
+                            marex_options={"not_a_real_option": 123})

@@ -7,7 +7,6 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
-import numpy as np
 import pandas as pd
 import warnings
 from pydantic import Field, model_validator
@@ -202,19 +201,12 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthDataError(
                 f"design must be one of {sorted(valid_designs)}, got '{design}'")
 
-        # --- consecutive time check ---
-        time_vals = df[time_col].sort_values().unique()
-        time_dtype = df[time_col].dtype
-        if pd.api.types.is_numeric_dtype(time_dtype):
-            if not np.all(np.diff(time_vals) == 1):
-                raise MlsynthDataError(f"Time periods in '{time_col}' are not consecutive: {time_vals}")
-        elif pd.api.types.is_datetime64_any_dtype(time_dtype):
-            diffs = np.diff(time_vals)
-            if len(diffs) > 0 and not np.all(diffs == diffs[0]):
-                raise MlsynthDataError(f"Datetime time periods in '{time_col}' are not consecutive.")
-
-        else:
-            raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_dtype}")
+        # --- time axis ---
+        # Time handling is delegated to ``geoex_dataprep`` (the same balanced-
+        # panel prep GeoLift uses), invoked in ``prepare_marex_panel``: it sorts
+        # the time index, so any orderable time — integer, datetime, or ISO-date
+        # string as the geoex pipeline supplies — is accepted, and it enforces a
+        # strongly balanced panel. No dtype-specific check is needed here.
 
         # --- cluster handling ---
         if cluster_col is not None:
