@@ -115,6 +115,40 @@ class MAREXConfig(BaseMAREXConfig):
     min_size: Optional[float] = Field(default=None, description="Lower size bound.")
     max_size: Optional[float] = Field(default=None, description="Upper size bound.")
 
+    # --- solution pool + power-based recommendation (mirrors SYNDES) ---
+    top_K: int = Field(
+        default=1, ge=1,
+        description=(
+            "Size of the returned solution pool. ``1`` (default) returns only the "
+            "MSE-optimal design and no pool. ``>1`` enumerates the top-K distinct "
+            "designs via no-good cuts (forbid each chosen treated set and re-solve "
+            "for the next-best), each scored on a minimum-detectable-effect (MDE) "
+            "power curve, and attaches them as ``results.pool`` plus a composite "
+            "``results.recommendation`` -- the SYNDES-style menu."),
+    )
+    power_weight: float = Field(
+        default=0.51, gt=0.0,
+        description=("Weight on power (MDE) in the composite recommendation score, "
+                     "normalised against ``fit_weight`` to sum to one."),
+    )
+    fit_weight: float = Field(
+        default=0.49, gt=0.0,
+        description=("Weight on fit (the design objective) in the composite "
+                     "recommendation score, normalised against ``power_weight``."),
+    )
+    max_shortlist: int = Field(
+        default=5, ge=1,
+        description="Maximum number of designs in results.recommendation.shortlist.",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided significance level for the MDE power curve.",
+    )
+    power_target: float = Field(
+        default=0.80, gt=0.0, lt=1.0,
+        description="Target power (1 - beta) for the MDE.",
+    )
+
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
         df = values.df
