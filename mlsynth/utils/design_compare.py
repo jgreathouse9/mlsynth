@@ -242,14 +242,20 @@ def from_geolift(res) -> List[DesignSpec]:
 def from_lexscm(res) -> List[DesignSpec]:
     """Build DesignSpecs from a fitted LEXSCM result (its candidate search).
 
-    Each ``SEDCandidate`` exposes ``treated_weight_dict`` (sums to one) and
-    ``control_weight_dict`` (sums to one); the cross-method contrast is their
-    difference, so the treated side sums to ``+1`` and the control side to
-    ``-1`` -- the same convention as :func:`from_syndes` / :func:`from_geolift`.
+    The cross-method contrast is ``w_treated - w_control``; the treated side
+    sums to ``+1`` and the control side to ``-1`` -- the same convention as
+    :func:`from_syndes` / :func:`from_geolift`.
+
+    Treated weights are taken from the candidate's solution ``weight_dict``,
+    which is full precision (so the treated side sums to one exactly and the MDE
+    additive identity is exact). Control weights come from
+    ``control_weight_dict``, which LEXSCM reports rounded to three decimals --
+    an immaterial perturbation of the synthetic level for fit/power scoring.
     """
     specs: List[DesignSpec] = []
     for cand in res.search.candidates:
-        treated_w = {str(u): float(w) for u, w in cand.treated_weight_dict.items()}
+        treated_w = {str(u): float(w)
+                     for u, w in cand.identification.solution.weight_dict.items()}
         control_w = {str(u): float(v) for u, v in cand.control_weight_dict.items()}
         treated = sorted(treated_w)
         contrast: Dict[Any, float] = dict(treated_w)
