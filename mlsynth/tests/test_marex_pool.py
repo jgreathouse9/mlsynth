@@ -73,6 +73,14 @@ class TestPool:
         assert all(isinstance(e["mde_pct"], float) for e in res.pool)
         assert any(np.isfinite(e["mde_pct"]) for e in res.pool)
 
+    def test_fit_metric_is_the_held_out_blank_rmse(self):
+        # the ranking fit metric (objective) is the out-of-sample blank RMSE,
+        # not the in-sample pre-period RMSE
+        res = MAREX(_cfg(top_K=3)).fit()
+        for e in res.pool:
+            assert e["blank_rmse"] is not None
+            assert e["objective"] == pytest.approx(e["blank_rmse"])
+
 
 class TestRecommendation:
     def test_recommendation_present_and_consistent(self):
