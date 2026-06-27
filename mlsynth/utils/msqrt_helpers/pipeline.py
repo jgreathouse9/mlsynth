@@ -141,6 +141,7 @@ def run_msqrt(
             unit_names=[str(u) for u in inputs.treated_names],
             period_labels=post_labels, alpha=alpha,
             time_dependence=time_dependence,
+            unit_weights=inputs.unit_weights,
         )
 
     metadata = {

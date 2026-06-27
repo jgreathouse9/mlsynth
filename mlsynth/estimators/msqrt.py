@@ -95,6 +95,7 @@ class MSQRT:
             inputs = prepare_msqrt_inputs(
                 df=self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
+                weight_col=self.config.weight_col,
             )
             results = run_msqrt(
                 inputs=inputs,

@@ -119,6 +119,66 @@ class TestPredictands:
 
 
 # ----------------------------------------------------------------------
+# Weighted unit aggregation (size-weighted TSUA / TAUA predictands)
+# ----------------------------------------------------------------------
+
+class TestWeightedAggregation:
+    def test_no_weights_leaves_weighted_bands_none(self):
+        effects, pre, units, periods = _toy()
+        res = out_of_sample_intervals(effects, pre, units, periods, alpha=0.1)
+        assert res.taua_weighted is None and res.tsua_weighted is None
+
+    def test_uniform_weights_reproduce_equal_weight_band(self):
+        effects, pre, units, periods = _toy(seed=1)
+        w = {u: 1.0 for u in units}                       # equal -> same as the mean
+        res = out_of_sample_intervals(effects, pre, units, periods, alpha=0.1,
+                                      unit_weights=w)
+        assert res.taua_weighted.point == pytest.approx(res.taua.point)
+        assert res.taua_weighted.lower == pytest.approx(res.taua.lower)
+        assert res.taua_weighted.upper == pytest.approx(res.taua.upper)
+        for k in periods:
+            assert res.tsua_weighted[k].point == pytest.approx(res.tsua[k].point)
+
+    def test_weighted_point_is_the_convex_combination(self):
+        effects, pre, units, periods = _toy(seed=2)
+        w = {"u0": 5.0, "u1": 1.0, "u2": 0.0}             # skewed, unnormalised
+        res = out_of_sample_intervals(effects, pre, units, periods, alpha=0.1,
+                                      unit_weights=w)
+        omega = np.array([5.0, 1.0, 0.0]); omega = omega / omega.sum()
+        unit_time_means = effects.mean(axis=0)            # per-unit time-mean
+        assert res.taua_weighted.point == pytest.approx(float(omega @ unit_time_means))
+        # per-period TSUA point is the weighted cross-section mean
+        assert res.tsua_weighted[0].point == pytest.approx(float(effects[0, :] @ omega))
+        # a real reweighting moves the estimate off the equal-weight one
+        assert res.taua_weighted.point != pytest.approx(res.taua.point)
+
+    def test_all_weight_on_one_unit_matches_its_time_averaged_band(self):
+        effects, pre, units, periods = _toy(seed=3)
+        w = {"u0": 0.0, "u1": 1.0, "u2": 0.0}             # all mass on u1
+        res = out_of_sample_intervals(effects, pre, units, periods, alpha=0.1,
+                                      unit_weights=w)
+        taus_u1 = res.taus["u1"]                          # u1's time-averaged band
+        assert res.taua_weighted.point == pytest.approx(taus_u1.point)
+        assert res.taua_weighted.lower == pytest.approx(taus_u1.lower)
+        assert res.taua_weighted.upper == pytest.approx(taus_u1.upper)
+
+    @pytest.mark.parametrize("bad", [
+        {"u0": -1.0, "u1": 1.0, "u2": 1.0},               # negative
+        {"u0": 0.0, "u1": 0.0, "u2": 0.0},                # zero-sum
+    ])
+    def test_invalid_weights_raise(self, bad):
+        effects, pre, units, periods = _toy()
+        with pytest.raises(ValueError):
+            out_of_sample_intervals(effects, pre, units, periods, unit_weights=bad)
+
+    def test_missing_unit_weight_raises(self):
+        effects, pre, units, periods = _toy()
+        with pytest.raises((ValueError, KeyError)):
+            out_of_sample_intervals(effects, pre, units, periods,
+                                    unit_weights={"u0": 1.0, "u1": 1.0})  # u2 missing
+
+
+# ----------------------------------------------------------------------
 # Layer 4: API contracts
 # ----------------------------------------------------------------------
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -15,6 +17,7 @@ def prepare_msqrt_inputs(
     treat: str,
     unitid: str,
     time: str,
+    weight_col: Optional[str] = None,
 ) -> MSQRTInputs:
     """Pivot a long panel into the stacked ``Y = X Theta + E`` block matrices.
 
@@ -69,6 +72,28 @@ def prepare_msqrt_inputs(
     treated_names = [unit_names[i] for i in treated_idx]
     control_names = [unit_names[i] for i in control_idx]
 
+    # Optional per-treated-unit size weights for the weighted aggregate ATT.
+    # The column is taken to be unit-constant (first value per unit).
+    unit_weights = None
+    if weight_col is not None:
+        if weight_col not in df.columns:
+            raise MlsynthDataError(f"weight_col {weight_col!r} missing from df.")
+        wmap = (df.drop_duplicates(subset=[unitid])
+                  .set_index(unitid)[weight_col])
+        unit_weights = {}
+        for u in treated_names:
+            val = wmap.get(u)
+            if val is None or pd.isna(val):
+                raise MlsynthDataError(
+                    f"weight_col {weight_col!r} has no value for treated unit {u!r}.")
+            fv = float(val)
+            if fv < 0:
+                raise MlsynthDataError(f"weight_col {weight_col!r} is negative for {u!r}.")
+            unit_weights[str(u)] = fv
+        if sum(unit_weights.values()) <= 0:
+            raise MlsynthDataError(
+                f"weight_col {weight_col!r} sums to zero across treated units.")
+
     Y_pre = Y[np.ix_(treated_idx, np.arange(T0))].T        # (T0, m)
     Y_post = Y[np.ix_(treated_idx, np.arange(T0, T))].T    # (T_post, m)
     X_pre = Y[np.ix_(control_idx, np.arange(T0))].T        # (T0, n)
@@ -77,5 +102,5 @@ def prepare_msqrt_inputs(
     return MSQRTInputs(
         Y_pre=Y_pre, Y_post=Y_post, X_pre=X_pre, X_post=X_post,
         treated_names=treated_names, control_names=control_names,
-        time_labels=time_labels, T0=int(T0),
+        time_labels=time_labels, T0=int(T0), unit_weights=unit_weights,
     )

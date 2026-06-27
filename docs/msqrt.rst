@@ -269,6 +269,44 @@ serial-dependence assumption). The reusable
 :mod:`mlsynth.utils.scpi_helpers` module also implements the in-sample
 simulation bound for use by quadratic-loss SC estimators.
 
+Size-weighted aggregate
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The unit-averaged predictands (TSUA, TAUA) weight every treated unit equally:
+they answer "what happened in the average treated unit". When the treated units
+differ in scale -- markets of different population, stores of different revenue
+-- a size-weighted aggregate is often the quantity of interest instead: "what
+happened across the footprint, weighting units by how much of it they are". This
+is the population-weighted aggregate noted by Wing, Freedman and Hollingsworth
+(2024), and it sits squarely inside the CFPT predictand framework: the
+unit-averaged predictand is a convex combination of the per-unit effects, and
+nothing in the construction requires the weights to be equal.
+
+Pass a per-unit-constant column of weights through ``weight_col`` (for example a
+market's population). The estimator then additionally reports the
+size-weighted TSUA/TAUA: with weights :math:`\omega_i` summing to one, the point
+estimate is :math:`\sum_i \omega_i\,\widehat\tau_i`, and -- because the
+prediction error decomposes linearly across units into an in-sample and an
+out-of-sample piece -- the band is built from the same two components combined
+with the same :math:`\omega_i`. Equal weights reproduce the ordinary TAUA band
+exactly. The weighted bands appear on the
+:class:`~mlsynth.utils.scpi_helpers.structures.SCPIResults` as ``taua_weighted``
+and ``tsua_weighted`` (``None`` when no ``weight_col`` is given), alongside the
+equal-weight ``taua`` / ``tsua``, so both views are available from one fit.
+
+.. code-block:: python
+
+   res = MSQRT({
+       "df": df, "outcome": "Y", "treat": "treated",
+       "unitid": "unit", "time": "time",
+       "inference": True, "weight_col": "population",   # size weights
+   }).fit()
+
+   eq = res.inference_intervals.taua            # equal-weight ATT + band
+   wt = res.inference_intervals.taua_weighted   # population-weighted ATT + band
+   print(f"equal-weight ATT    = {eq.point:+.3f}  [{eq.lower:+.3f}, {eq.upper:+.3f}]")
+   print(f"population-weighted = {wt.point:+.3f}  [{wt.lower:+.3f}, {wt.upper:+.3f}]")
+
 Example
 -------
 

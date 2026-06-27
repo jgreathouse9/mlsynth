@@ -69,3 +69,13 @@ class MSQRTConfig(BaseEstimatorConfig):
     time_dependence: Literal["iid", "general"] = Field(
         default="iid",
         description="Time-averaging assumption for time-averaged predictands.")
+    weight_col: Optional[str] = Field(
+        default=None,
+        description=(
+            "Per-unit-constant column of size weights (e.g. market population / "
+            "TV homes). When given, the unit-averaged predictands (TSUA/TAUA) are "
+            "additionally reported as a size-weighted convex combination of the "
+            "treated units -- a population-weighted aggregate ATT with valid SCPI "
+            "intervals -- alongside the equal-weight ones. ``None`` (default) "
+            "reports only the equal-weight aggregate."),
+    )
