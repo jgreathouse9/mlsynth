@@ -154,6 +154,20 @@ def evaluate_candidates(
             if (r := round(float(w[i]), 3)) > 0.001
         }
 
+        # Full-precision, label-keyed weights (the rounded dicts above are for
+        # display): consumers that need exact weights -- e.g. reapplying a frozen
+        # design to measure an effect -- use these.
+        control_weights_full = {
+            index_set.labels[i]: float(v[i])
+            for i in range(len(v))
+            if abs(float(v[i])) > 1e-10
+        }
+        treated_weights_full = {
+            index_set.labels[treated_idx[i]]: float(w[i])
+            for i in range(len(treated_idx))
+            if abs(float(w[i])) > 1e-10
+        }
+
         synth_treated = X[:, treated_idx] @ w
         synth_control = X @ v
         effects = synth_treated - synth_control
@@ -215,7 +229,9 @@ def evaluate_candidates(
 
             # NEW structured metadata
             treated_weight_dict=treated_weights,
-            control_weight_dict=control_weights
+            control_weight_dict=control_weights,
+            treated_weight_dict_full=treated_weights_full,
+            control_weight_dict_full=control_weights_full,
         )
 
         results.append(candidate)

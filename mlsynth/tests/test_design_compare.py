@@ -323,12 +323,11 @@ class TestLEXSCM:
         assert all(s.method == "LEXSCM" for s in specs)
         for s in specs:
             assert set(s.contrast) <= set(f"u{j}" for j in range(8))
-            # treated weights come from the full-precision solution weight_dict,
-            # so the treated side sums to one exactly (the MDE identity).
+            # both sides come from the full-precision weight dicts: the treated
+            # side sums to one and the net contrast is zero, exactly.
             treated_sum = sum(s.contrast[u] for u in s.treated)
             assert treated_sum == pytest.approx(1.0, abs=1e-9)
-            # net contrast ~ 0; control weights are LEXSCM's 3-decimal rounded.
-            assert sum(s.contrast.values()) == pytest.approx(0.0, abs=5e-3)
+            assert sum(s.contrast.values()) == pytest.approx(0.0, abs=1e-9)
 
     def test_compare_methods_lexscm_only(self):
         df, T, n_post = _shared_panel()

@@ -200,6 +200,11 @@ class SEDCandidate:
     treated_weight_dict: Dict[str, float] = field(default_factory=dict)
     control_weight_dict: Dict[str, float] = field(default_factory=dict)
 
+    # Full-precision, label-keyed weights (the dicts above are rounded for
+    # display); use these when exact weights matter (e.g. reapplying a design).
+    treated_weight_dict_full: Dict[str, float] = field(default_factory=dict)
+    control_weight_dict_full: Dict[str, float] = field(default_factory=dict)
+
     # -------- Useful derived helpers --------
     @property
     def treated_size(self) -> int:

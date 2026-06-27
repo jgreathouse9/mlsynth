@@ -246,17 +246,15 @@ def from_lexscm(res) -> List[DesignSpec]:
     sums to ``+1`` and the control side to ``-1`` -- the same convention as
     :func:`from_syndes` / :func:`from_geolift`.
 
-    Treated weights are taken from the candidate's solution ``weight_dict``,
-    which is full precision (so the treated side sums to one exactly and the MDE
-    additive identity is exact). Control weights come from
-    ``control_weight_dict``, which LEXSCM reports rounded to three decimals --
-    an immaterial perturbation of the synthetic level for fit/power scoring.
+    Weights are taken from the candidate's full-precision dicts
+    (``treated_weight_dict_full`` / ``control_weight_dict_full``), so both sides
+    sum to one exactly and the net contrast is exactly zero -- the rounded
+    ``*_weight_dict`` views are for display only.
     """
     specs: List[DesignSpec] = []
     for cand in res.search.candidates:
-        treated_w = {str(u): float(w)
-                     for u, w in cand.identification.solution.weight_dict.items()}
-        control_w = {str(u): float(v) for u, v in cand.control_weight_dict.items()}
+        treated_w = {str(u): float(w) for u, w in cand.treated_weight_dict_full.items()}
+        control_w = {str(u): float(v) for u, v in cand.control_weight_dict_full.items()}
         treated = sorted(treated_w)
         contrast: Dict[Any, float] = dict(treated_w)
         for u, v in control_w.items():
