@@ -28,6 +28,7 @@ from .helpers.constraints import (
     eligible_by_size,
     unit_attribute_map,
 )
+from .helpers.feasibility import audit_geolift_feasibility
 from .helpers.design import design_fit, CandidateDesign
 
 
@@ -155,7 +156,19 @@ def run_design(config: GeoLiftConfig) -> GEOLIFTResults:
             max_per_stratum=config.max_per_stratum, required_strata=required_strata,
         )
         if not candidates:
-            raise MlsynthConfigError(
+            # No admissible region: report *which* constraint bound the search,
+            # itemised in have-vs-need shape, rather than a catch-all message.
+            audit_geolift_feasibility(
+                eligible_for_treatment, config.treatment_size,
+                conflict=conflict, stratum_map=stratum_map,
+                min_per_stratum=config.min_per_stratum,
+                max_per_stratum=config.max_per_stratum,
+                required_strata=required_strata,
+            )
+            # The audit's individual checks did not pinpoint the cause (a rare
+            # interaction of constraints, or forced-in markets that interfere);
+            # fall back to the catch-all so the failure is still reported.
+            raise MlsynthConfigError(            # pragma: no cover - audit covers the common cases
                 "no candidate test region satisfies the design constraints "
                 "(e.g. treatment_size exceeds the number of clusters/strata to "
                 "cover, or the forced-in markets interfere). Relax the constraint "
