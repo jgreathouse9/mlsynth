@@ -198,6 +198,7 @@ class MAREX:
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
                     covariate_weight=self.covariate_weight, standardize=self.standardize,
                     solver=self.solver or cp.SCIP, verbose=self.verbose,
+                    restrictions=restrictions,
                 )
                 pool = build_marex_pool(
                     raws, alpha=self.config.alpha, power=self.config.power_target,

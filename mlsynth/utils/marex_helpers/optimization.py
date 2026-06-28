@@ -111,6 +111,28 @@ def solve_design(
     if w_opt is None or z_opt is None:
         raise MlsynthEstimationError(
             f"MAREX design is infeasible (solver status: {prob.status}).")
+
+    # Guard against a solver that reports "optimal" but returns a point that
+    # violates the integer cardinality (SCIP can do this intermittently on the
+    # harder constrained re-solves of the no-good-cut pool, yielding a degenerate
+    # all-units design). Reject such a solve so it never poisons the pool; the
+    # pool loop treats this as the feasible region being exhausted.
+    z_round = np.asarray(z_opt) > 0.5
+    for k_idx, lab in enumerate(cluster_labels):
+        members = cluster_members[k_idx]
+        sel = int(z_round[members, k_idx].sum())
+        me = get_per_cluster_param(m_eq, lab)
+        mn = get_per_cluster_param(m_min, lab)
+        mx = get_per_cluster_param(m_max, lab)
+        if ((me is not None and sel != int(me))
+                or (mn is not None and sel < int(mn))
+                or (mx is not None and sel > int(mx))):
+            raise MlsynthEstimationError(
+                f"MAREX solver returned a cardinality-violating design for "
+                f"cluster {lab!r} (selected {sel}; expected m_eq={me}, "
+                f"m_min={mn}, m_max={mx}); treating the feasible region as "
+                f"exhausted."
+            )
     Y_full_T = Y_full_np.T
     rmse_cluster = []
     for k_idx in range(K):

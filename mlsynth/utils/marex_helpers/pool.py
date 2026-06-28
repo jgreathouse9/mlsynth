@@ -24,8 +24,20 @@ def build_marex_pool(raws: List[Dict[str, Any]], *, alpha: float = 0.05,
         v_agg = np.asarray(raw["v_agg"], dtype=float)
         labels = (list(df.index) if hasattr(df, "index")
                   else list(range(w_agg.size)))
+        # Treated/control identity comes from the integer selection ``z`` (mapped
+        # through the unit order), NOT from thresholding the continuous weights:
+        # a solver can leak tiny weights (~1e-7) onto non-selected units, which
+        # would otherwise misreport the treated set. Zeroing the leakage against
+        # ``z`` also cleans the contrast used for fit / power.
+        z_opt = raw.get("z_opt")
+        if z_opt is not None:
+            treated_mask = (np.asarray(z_opt) > 0.5).any(axis=1)
+        else:                                       # pragma: no cover - z always present
+            treated_mask = w_agg > 1e-8
+        w_agg = np.where(treated_mask, w_agg, 0.0)
+        v_agg = np.where(treated_mask, 0.0, v_agg)
         contrast = w_agg - v_agg
-        treated_idx = np.where(w_agg > 1e-8)[0]
+        treated_idx = np.where(treated_mask)[0]
         control_idx = np.where(v_agg > 1e-8)[0]
         markets = [str(labels[i]) for i in treated_idx]
         control_group = [str(labels[i]) for i in control_idx]
