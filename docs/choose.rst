@@ -742,9 +742,12 @@ similar but are distinct -- pick by what you want, not by the word "group":
   study.
 * *One* design representative of *every* group (coverage): the stratum quota
   ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` -- one shared donor
-  pool, one estimand. In MAREX this quota is just the per-cluster cardinality.
+  pool, one estimand. Honoured by all four design methods; in MAREX it can also
+  be expressed as the per-cluster cardinality when each region is its own design.
 * *One* design with geographic / forcing limits: the restriction suite (force
-  in/out, border conflict, size band, donor rules) on SYNDES, MAREX, or GEOLIFT.
+  in/out, border conflict, cluster, coverage quota, size band) is honoured by all
+  four design methods -- SYNDES, GEOLIFT, LEXSCM, and MAREX -- so a constraint
+  binds whichever method (or comparison) you run.
 
 A constraint cannot turn one design into K designs, so ``cluster`` / ``arm`` are
 not special cases of the quota; the quota is the lighter choice when you only
