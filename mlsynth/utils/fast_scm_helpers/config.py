@@ -142,8 +142,35 @@ class LEXSCMConfig(BaseMAREXConfig):
                     "reproduced by a convex combination of others (e.g. mega-markets)."
     )
 
+    # =========================================================
+    # FORCED-IN / FORBIDDEN TREATED MARKETS
+    # =========================================================
+
+    to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Market labels that must always be in the treated set "
+                    "(forced in). Each must be a treatment candidate "
+                    "(candidate_col True and within the size band); the count "
+                    "cannot exceed m."
+    )
+
+    not_to_be_treated: Optional[List] = Field(
+        default=None,
+        description="Market labels that must never be treated (forbidden); they "
+                    "are removed from the treatment pool but remain eligible as "
+                    "donors."
+    )
+
     @model_validator(mode="after")
     def _validate_coverage_and_size(self) -> "LEXSCMConfig":
+        if self.to_be_treated and self.not_to_be_treated:
+            overlap = set(map(str, self.to_be_treated)) & set(
+                map(str, self.not_to_be_treated))
+            if overlap:
+                raise ValueError(
+                    f"markets {sorted(overlap)} appear in both to_be_treated and "
+                    f"not_to_be_treated; a market cannot be forced in and out."
+                )
         if (self.min_per_stratum is not None or self.max_per_stratum is not None) \
                 and self.stratum_col is None:
             raise ValueError(

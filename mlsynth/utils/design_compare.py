@@ -321,6 +321,17 @@ _GEOLIFT_DEFAULTS: Dict[str, Any] = dict(
     fixed_effects=True, ns=200, seed=0, display_graphs=False,
 )
 _LEXSCM_DEFAULTS: Dict[str, Any] = dict(display_graph=False, verbose=False)
+
+# The geographic-design constraint vocabulary, identical across all four method
+# configs (SYNDES / GEOLIFT / LEXSCM / MAREX). ``compare_methods`` routes a single
+# ``constraints`` dict of these to every requested method, so a constraint binds
+# the comparison uniformly instead of having to be hand-coded per method.
+_GEO_CONSTRAINT_KEYS = frozenset({
+    "to_be_treated", "not_to_be_treated",
+    "cluster_col", "adjacency", "spillover_threshold",
+    "stratum_col", "min_per_stratum", "max_per_stratum",
+    "size_col", "min_size", "max_size",
+})
 _MAREX_DEFAULTS: Dict[str, Any] = dict(design="standard", display_graph=False,
                                        verbose=False)
 
@@ -372,6 +383,7 @@ def compare_methods(
     power_target: float = 0.80,
     effects_pct: Optional[Sequence[float]] = None,
     methods: Sequence[str] = ("SYNDES", "GEOLIFT"),
+    constraints: Optional[Dict[str, Any]] = None,
     syndes_holdout_frac: Optional[float] = 0.3,
     syndes_options: Optional[Dict[str, Any]] = None,
     geolift_options: Optional[Dict[str, Any]] = None,
@@ -408,6 +420,17 @@ def compare_methods(
     methods : sequence of str, default ``("SYNDES", "GEOLIFT")``
         Which methods to fit and compare. Any of ``"SYNDES"``, ``"GEOLIFT"``,
         ``"LEXSCM"``, ``"MAREX"``.
+    constraints : dict, optional
+        Geographic-design constraints applied uniformly to *every* requested
+        method, so a constraint binds the whole comparison (all four methods now
+        honour the same vocabulary). Any of ``to_be_treated`` /
+        ``not_to_be_treated`` (forced-in / forbidden markets), ``cluster_col``
+        (no two treated markets from one cluster), ``adjacency`` +
+        ``spillover_threshold`` (no two bordering markets treated), ``stratum_col``
+        + ``min_per_stratum`` / ``max_per_stratum`` (coverage quota), and
+        ``size_col`` + ``min_size`` / ``max_size`` (treated-unit size band). A
+        key set in a per-method ``*_options`` dict overrides the routed value for
+        that method.
     syndes_holdout_frac : float or None, default 0.3
         Holdout fraction for SYNDES design selection: SYNDES learns its pool on
         the leading ``1 - syndes_holdout_frac`` of the pre-period and is ranked
@@ -440,6 +463,17 @@ def compare_methods(
                          "'MAREX'.")
     if not methods:
         raise ValueError("methods must name at least one estimator.")
+
+    # Geographic constraints are routed uniformly to every requested method (the
+    # config field names are identical across the four), so a constraint binds the
+    # whole comparison rather than one method. Per-method options still override.
+    constraints = dict(constraints or {})
+    unknown_c = set(constraints) - _GEO_CONSTRAINT_KEYS
+    if unknown_c:
+        raise ValueError(
+            f"Unknown constraint(s): {sorted(unknown_c)}; expected any of "
+            f"{sorted(_GEO_CONSTRAINT_KEYS)}."
+        )
 
     times = sorted(df[time].unique())
     df = df.copy()
@@ -481,6 +515,7 @@ def compare_methods(
                 # SYNDES now holdout-validates pools by default, so to honour
                 # syndes_holdout_frac=None (disable) we ask for in-sample.
                 sk["selection"] = "in_sample"
+        sk.update(constraints)
         sk.update(syn_over)
         syn = SYNDES(sk).fit()
         specs += from_syndes(syn)
@@ -489,7 +524,7 @@ def compare_methods(
         from ..estimators.geolift import GEOLIFT
         gk = {**_GEOLIFT_DEFAULTS, **common, "treatment_size": treated_size,
               "durations": [n_post_resolved], "alpha": alpha,
-              **(geolift_options or {})}
+              **constraints, **(geolift_options or {})}
         gl = GEOLIFT(gk).fit()
         specs += from_geolift(gl)
 
@@ -504,7 +539,7 @@ def compare_methods(
             cand_col = "__compare_candidate__"
             df[cand_col] = True
         lk = {**_LEXSCM_DEFAULTS, **common, "candidate_col": cand_col,
-              "m": treated_size, "alpha": alpha, **lex_over}
+              "m": treated_size, "alpha": alpha, **constraints, **lex_over}
         lex = LEXSCM(lk).fit()
         specs += from_lexscm(lex)
 
@@ -518,6 +553,7 @@ def compare_methods(
               "power_target": power_target}
         if not ({"m_eq", "m_min", "m_max"} & set(mar_over)):
             mk["m_eq"] = treated_size
+        mk.update(constraints)
         mk.update(mar_over)
         mar = MAREX(mk).fit()
         specs += from_marex(mar)

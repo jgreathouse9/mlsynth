@@ -185,6 +185,16 @@ constraints on the MIP:
 * ``size_col`` + ``min_size`` / ``max_size`` -- a treated-unit size band (the
   floor is a power minimum, the ceiling is synthesizability); out-of-band markets
   stay donors.
+* ``cluster_col`` -- at most one treated market per cluster value
+  (:math:`\sum_k z_{ik} + \sum_k z_{jk} \le 1` for same-cluster pairs), a
+  no-two-from-one-cluster rule for markets that share a media buy or retail
+  footprint. This is distinct from the ``cluster`` design grouping above: it adds
+  conflict constraints to the treated set rather than splitting the objective.
+* ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` -- a coverage quota
+  on the treated set of one design (at least / at most this many treated per
+  stratum). Use this when the design is a single cluster but the read still has to
+  span regions; when each region is its own design, ``cluster`` with per-cluster
+  ``m_min`` / ``m_max`` expresses the same quota.
 * ``exclude_bordering_donors`` -- drop a treated market's bordering neighbours
   from its (within-cluster) control pool, so a market partly treated by spillover
   never sits in its counterfactual. Requires ``adjacency``.

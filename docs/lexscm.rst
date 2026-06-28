@@ -558,6 +558,29 @@ than :math:`m` candidates inside the size band).
            "stratum_col": "region", "min_per_stratum": 1, "max_per_stratum": 2,
            "size_col": "population", "min_size": 50_000, "max_size": 2_000_000}).fit()
 
+Forced-in and forbidden markets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Two hard market lists complete the treatment-criteria vocabulary, matching SYNDES
+and GeoLift. ``to_be_treated`` pins specified markets into the treated set: every
+candidate :math:`m`-tuple the search considers must contain them, which is useful
+when a market is decided in advance (a client insists on testing it) and the
+design only has to choose the rest around it. ``not_to_be_treated`` does the
+opposite -- those markets are removed from the treatment pool but stay available
+as donors -- for a market already running another campaign, with poor data, or
+earmarked as a clean control. A forced-in market must be a treatment candidate
+(``candidate_col`` true and within any size band), at most :math:`m` may be
+forced, and a market cannot appear in both lists; each violation raises
+:class:`~mlsynth.exceptions.MlsynthConfigError`. Forcing in a market that is hard
+to synthesize costs imbalance, so check the achieved fit.
+
+.. code-block:: python
+
+   # always test DMA 501; never test DMA 635 (it stays an eligible donor)
+   LEXSCM({"df": df, "outcome": "y", "unitid": "unit", "time": "year",
+           "candidate_col": "eligible", "m": 4,
+           "to_be_treated": [501], "not_to_be_treated": [635]}).fit()
+
 Stage 3 -- Power analysis (minimum detectable effect)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

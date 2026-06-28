@@ -177,10 +177,13 @@ where the cardinality constraint :math:`|\mathcal{S}| = k` already lives and onl
 *shrink* the candidate set. If no region satisfies them (e.g.
 :math:`k` exceeds :math:`|\mathcal{C}|` or :math:`|\mathcal{G}_{\mathrm{elig}}|`,
 or :math:`|\mathcal{N}_{\mathrm{size}}| < k`) the design reports infeasibility
-(:class:`~mlsynth.exceptions.MlsynthConfigError`) rather than returning a
-degenerate region. With none of the constraints supplied,
-:math:`\mathbf{A} = \mathbf{0}` and every region is admissible — the unconstrained
-nomination.
+(:class:`~mlsynth.exceptions.MlsynthConfigError`). The error is itemised: it names
+every binding constraint together, each in a ``have vs need`` shape — the
+candidate-pool count, the coverage arithmetic (``min_per_stratum`` times the number
+of strata to cover), the per-stratum cap, and the largest conflict-free treated set
+versus :math:`k` — so the fix is read off the message rather than guessed. With
+none of the constraints supplied, :math:`\mathbf{A} = \mathbf{0}` and every region
+is admissible — the unconstrained nomination.
 
 Stage 2 — The synthetic control
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
