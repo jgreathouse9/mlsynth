@@ -187,6 +187,8 @@ class LEXSCM:
         self.size_col: Optional[str] = config.size_col
         self.min_size: Optional[float] = config.min_size
         self.max_size: Optional[float] = config.max_size
+        self.to_be_treated: Optional[list] = config.to_be_treated
+        self.not_to_be_treated: Optional[list] = config.not_to_be_treated
         self.frac_E: float = config.frac_E
 
         # =========================================================
@@ -332,6 +334,15 @@ class LEXSCM:
         size_band = (None if self.size_col is None
                      else (self.min_size, self.max_size))
 
+        # --- Forbidden treated markets (not_to_be_treated): drop from the
+        # treatment pool; they stay eligible as donors (same as a size-band
+        # exclusion). ---
+        if self.not_to_be_treated:
+            forbid = set(map(str, self.not_to_be_treated))
+            forbid_mask = np.array([str(lab) in forbid
+                                    for lab in unit_index.labels])
+            candidate_mask = np.asarray(candidate_mask, dtype=bool) & ~forbid_mask
+
         # The candidate pool is needed before the matrices are built, so report a
         # too-small pool here in the SAME shape the Stage-1 audit uses for every
         # other binding constraint (e.g. when a size band leaves fewer than m).
@@ -434,6 +445,21 @@ class LEXSCM:
                           .first().to_dict())
         strata = build_strata(unit_index, stratum_of)
 
+        # --- Forced-in treated markets (to_be_treated): map labels to indices;
+        # select_treated_designs enforces forced subset of the candidate pool and
+        # |forced| <= m. ---
+        forced_idx = None
+        if self.to_be_treated:
+            want = set(map(str, self.to_be_treated))
+            forced_idx = [i for i, lab in enumerate(unit_index.labels)
+                          if str(lab) in want]
+            missing = sorted(want - {str(unit_index.labels[i])
+                                     for i in forced_idx})
+            if missing:
+                raise MlsynthConfigError(
+                    f"to_be_treated markets {missing} are not in the panel."
+                )
+
         # ---------- Stage 1: treated-tuple selection (lexsearch) ----------
         search = select_treated_designs(
             G=G,
@@ -451,6 +477,7 @@ class LEXSCM:
             max_per_stratum=self.max_per_stratum,
             size_band=size_band,
             targeting_penalty=self.targeting_penalty,
+            forced=forced_idx,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 

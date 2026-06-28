@@ -186,11 +186,23 @@ def _budget_feasible_candidates(candidate_idx, m, unit_costs, budget):
 
 def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000,
                conflict=None, strata=None, min_per=None, max_per=None,
-               required=None):
+               required=None, forced=None):
     cand = np.sort(np.asarray(cand))
     from itertools import combinations, chain
-    combs = np.fromiter(chain.from_iterable(combinations(cand.tolist(), m)), dtype=int)
-    combs = combs.reshape(-1, m)
+    forced = sorted({int(f) for f in (forced or [])})
+    if forced:
+        # Every tuple must contain ``forced``: enumerate the remaining m-|forced|
+        # over the non-forced candidates and prepend the forced units. With
+        # k==0 (forced fills the set) combinations yields the lone forced tuple.
+        free = [int(c) for c in cand.tolist() if int(c) not in set(forced)]
+        k = m - len(forced)
+        rows = [sorted(forced + list(r)) for r in combinations(free, k)]
+        combs = (np.array(rows, dtype=int).reshape(-1, m) if rows
+                 else np.empty((0, m), dtype=int))
+    else:
+        combs = np.fromiter(chain.from_iterable(combinations(cand.tolist(), m)),
+                            dtype=int)
+        combs = combs.reshape(-1, m)
     if unit_costs is not None and budget is not None and not np.isinf(budget):
         feasible = unit_costs[combs].sum(1) <= budget
         combs = combs[feasible]
@@ -223,7 +235,7 @@ def _cost_ok(idx_list, unit_costs, budget):
 
 def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
                   n_kicks=4, conflict=None, strata=None, min_per=None,
-                  max_per=None, required=None):
+                  max_per=None, required=None, forced=None):
     """Multi-start best-improvement swap search with basin-hopping kicks.
 
     Returns (ranked_designs, n_distinct_subsets, consensus) where ``consensus``
@@ -232,9 +244,15 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
     local optima were seen, and the incumbent-improvement trail.
 
     Every generated tuple is required to be both budget-feasible and an
-    independent set of ``conflict`` (the spillover "No interference" constraint).
+    independent set of ``conflict`` (the spillover "No interference" constraint),
+    and -- when ``forced`` is given -- to contain every forced (``to_be_treated``)
+    unit, which is pinned across the greedy build, the descent swaps, and the
+    basin-hopping kicks.
     """
     cand = list(np.sort(np.asarray(cand)))
+    forced = sorted({int(f) for f in (forced or [])})
+    forced_set = set(forced)
+    free = [j for j in cand if j not in forced_set]   # the swappable candidates
 
     def _ok(S):
         # max-per-stratum is partial-safe (prunes during construction); the min
@@ -262,9 +280,13 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
         return v
 
     def greedy(start):
-        S = [start]
+        # Always seed with the forced units; the random ``start`` only adds a
+        # non-forced unit (forced are pinned and never dropped).
+        S = list(forced)
+        if start not in forced_set and len(S) < m and _ok(sorted(S + [start])):
+            S = sorted(S + [start])
         while len(S) < m:
-            rem = [j for j in cand if j not in S and _ok(S + [j])]
+            rem = [j for j in free if j not in S and _ok(S + [j])]
             if not rem:
                 return None
             cands = [sorted(S + [j]) for j in rem]
@@ -275,8 +297,10 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
         improved = True
         while improved:
             improved = False
+            # Only swap out non-forced positions; forced units stay put.
+            swap_pos = [a for a in range(m) if S[a] not in forced_set]
             moves = [sorted(S[:a] + S[a + 1:] + [j])
-                     for a in range(m) for j in cand
+                     for a in swap_pos for j in free
                      if j not in S and _ok(S[:a] + S[a + 1:] + [j])]
             if not moves:
                 break
@@ -287,12 +311,18 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
         return S
 
     def kick(S):
+        # Evict only non-forced *values* and refill from free units, so the kick
+        # never drops a forced unit (works regardless of sort order).
+        swappable = [x for x in S if x not in forced_set]
+        if not swappable:                             # forced fills the set: nothing to kick
+            return S
+        n_kick = min(2, len(swappable))
         for _ in range(20):
-            T = sorted(S)
-            for a in rng.choice(m, size=min(2, m), replace=False):
-                free = [j for j in cand if j not in T]
-                if free:
-                    T = sorted(T[:a] + T[a + 1:] + [int(rng.choice(free))])
+            evict = set(rng.choice(swappable, size=n_kick, replace=False).tolist())
+            T = [x for x in S if x not in evict]
+            avail = [j for j in free if j not in T]
+            if len(avail) >= n_kick:
+                T = sorted(T + rng.choice(avail, size=n_kick, replace=False).tolist())
             if len(set(T)) == m and _ok(T):
                 return T
         return S
@@ -365,6 +395,7 @@ def select_treated_designs(
     max_per_stratum: Optional[int] = None,
     size_band: Optional[Any] = None,
     targeting_penalty: float = 0.0,
+    forced: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """Select the ``top_K`` treated m-tuples with smallest imbalance.
 
@@ -403,6 +434,23 @@ def select_treated_designs(
         raise MlsynthConfigError(
             f"targeting_penalty (gamma) must be >= 0; got {targeting_penalty}."
         )
+
+    # Forced-in units (``to_be_treated``): every selected m-tuple must contain
+    # them. Validate against the candidate pool and m before the search.
+    forced = sorted({int(f) for f in (forced or [])})
+    if forced:
+        cand_set = {int(c) for c in candidate_idx}
+        missing = [f for f in forced if f not in cand_set]
+        if missing:
+            raise MlsynthConfigError(
+                f"forced (to_be_treated) units {missing} are not in the candidate "
+                f"pool; a forced market must be eligible for treatment."
+            )
+        if len(forced) > m:
+            raise MlsynthConfigError(
+                f"forced (to_be_treated) names {len(forced)} units but m={m}; "
+                f"cannot force in more markets than the treated-set size."
+            )
     # Weakly-targeted ridge: search and weight-solve on G + gamma I; the true
     # targeting imbalance is read off the original G at the penalized weights.
     Gsearch = G + targeting_penalty * np.eye(G.shape[0]) if targeting_penalty > 0 else G
@@ -434,7 +482,7 @@ def select_treated_designs(
         raw, n_eval = _enumerate(Gsearch, cand, m, top_K, unit_costs, budget, iters,
                                  conflict=conflict, strata=strata,
                                  min_per=min_per_stratum, max_per=max_per_stratum,
-                                 required=required)
+                                 required=required, forced=forced)
         exact = True
     elif method == "heuristic":
         raw, n_eval, consensus = _local_search(Gsearch, cand, m, top_K, unit_costs,
@@ -442,7 +490,7 @@ def select_treated_designs(
                                                conflict=conflict, strata=strata,
                                                min_per=min_per_stratum,
                                                max_per=max_per_stratum,
-                                               required=required)
+                                               required=required, forced=forced)
         exact = False
     else:
         raise ValueError(f"unknown method {method!r}")
