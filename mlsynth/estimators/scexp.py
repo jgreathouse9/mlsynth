@@ -96,6 +96,10 @@ class MAREX:
         self.size_col = config.size_col
         self.min_size = config.min_size
         self.max_size = config.max_size
+        self.cluster_col = config.cluster_col
+        self.stratum_col = config.stratum_col
+        self.min_per_stratum = config.min_per_stratum
+        self.max_per_stratum = config.max_per_stratum
 
         if self.cluster and self.cluster not in self.df.columns:
             raise MlsynthDataError(f"Cluster column '{self.cluster}' not found in DataFrame.")
@@ -135,7 +139,11 @@ class MAREX:
             self.df, self.unitid, panel.unit_index,
             to_be_treated=self.to_be_treated,
             not_to_be_treated=self.not_to_be_treated,
+            cluster_col=self.cluster_col,
             adjacency=self.adjacency, spillover_threshold=self.spillover_threshold,
+            stratum_col=self.stratum_col,
+            min_per_stratum=self.min_per_stratum,
+            max_per_stratum=self.max_per_stratum,
             size_col=self.size_col, min_size=self.min_size, max_size=self.max_size,
             exclude_bordering_donors=self.exclude_bordering_donors,
         )

@@ -113,6 +113,27 @@ class MAREXConfig(BaseMAREXConfig):
         "[min_size, max_size] lose treatment eligibility (stay donors).")
     min_size: Optional[float] = Field(default=None, description="Lower size bound.")
     max_size: Optional[float] = Field(default=None, description="Upper size bound.")
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column whose value defines an interference "
+        "cluster: at most one treated market per cluster value (a no-two-from-one-"
+        "cluster rule). Distinct from `cluster` (the design grouping); enforced as "
+        "conflict constraints on the treated set, the same as SYNDES/GeoLift's "
+        "cluster_col.")
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column defining coverage strata for a "
+        "treated-set quota via `min_per_stratum` / `max_per_stratum`. (For a "
+        "per-region representativeness target use `cluster`; this is a coverage "
+        "constraint on one design.)")
+    min_per_stratum: Optional[int] = Field(
+        default=None, ge=1,
+        description="At least this many treated markets in every stratum that has "
+        "a treatable member. Requires `stratum_col`.")
+    max_per_stratum: Optional[int] = Field(
+        default=None, ge=1,
+        description="At most this many treated markets per stratum. Requires "
+        "`stratum_col`.")
 
     # --- solution pool + power-based recommendation (mirrors SYNDES) ---
     top_K: int = Field(
@@ -147,6 +168,19 @@ class MAREXConfig(BaseMAREXConfig):
         default=0.80, gt=0.0, lt=1.0,
         description="Target power (1 - beta) for the MDE.",
     )
+
+    @model_validator(mode="after")
+    def _validate_geo_quota(self) -> "MAREXConfig":
+        if (self.min_per_stratum is not None or self.max_per_stratum is not None) \
+                and self.stratum_col is None:
+            raise MlsynthConfigError(
+                "min_per_stratum / max_per_stratum require `stratum_col`.")
+        if (self.min_per_stratum is not None and self.max_per_stratum is not None
+                and self.min_per_stratum > self.max_per_stratum):
+            raise MlsynthConfigError(
+                f"min_per_stratum ({self.min_per_stratum}) cannot exceed "
+                f"max_per_stratum ({self.max_per_stratum}).")
+        return self
 
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:

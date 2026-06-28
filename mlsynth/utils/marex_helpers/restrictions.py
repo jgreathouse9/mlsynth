@@ -74,6 +74,14 @@ def apply_restrictions_marex(z: Any, v: Any, M: np.ndarray,
         cons.append(cp.sum(z[j, :]) == 0)
     for i, j in restrictions.conflict_pairs:
         cons.append(cp.sum(z[i, :]) + cp.sum(z[j, :]) <= 1)
+    # Stratum coverage quotas: a unit's treated indicator is sum_k z[j,k], so the
+    # treated count in a stratum is the sum of z over its members across clusters.
+    for members, lo, hi in restrictions.strata:
+        treated_in_stratum = cp.sum(z[list(members), :])
+        if lo is not None:
+            cons.append(treated_in_stratum >= lo)
+        if hi is not None:
+            cons.append(treated_in_stratum <= hi)
     # Donor (control) exclusion: "if i is treated, j may not be its donor". MAREX
     # builds one control synthetic per cluster, so a donor for treated unit i is a
     # control unit in i's cluster; the exclusion only binds when i and j share a
