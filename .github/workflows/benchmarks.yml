@@ -4,17 +4,22 @@ name: Daily benchmark validation
 # once a day, with the full reference toolchain provisioned so the LIVE
 # cross-checks actually execute instead of self-skipping.
 #
-# The suite has two kinds of reference dependency, and they DO NOT coexist in one
-# environment, so they are split into two jobs:
+# The reference dependencies do not all coexist in one environment, so the work
+# is split across four jobs:
 #
-#   suite        -- mlsynth[all] (the design/SCIP + bayes/JAX extras, which need
-#                   numpy>=2 / pandas>=3) plus the R reference stack. The R-backed
-#                   live cross-checks (Synth, augsynth, pensynth, MSCMT, orthsc,
-#                   ...) run here; git-based references self-clone on demand.
-#   python-refs  -- the Python reference packages (causaltensor, libpysal,
-#                   scmrelax, kneed, toolz) pull numpy<2 / pandas<2, which is
-#                   incompatible with the JAX backend above. They run in their own
-#                   isolated environment against only the cases that need them.
+#   suite                    -- mlsynth[all] (the design/SCIP + bayes/JAX extras,
+#                               which need numpy>=2 / pandas>=3) plus the R
+#                               reference stack. The R-backed live cross-checks
+#                               (Synth, augsynth, pensynth, MSCMT, orthsc, ...)
+#                               run here; git-based references self-clone on demand.
+#   python-refs-causaltensor -- causaltensor alone (see note below).
+#   python-refs-relax        -- kneed / toolz / scmrelax.
+#   python-refs-spsydid      -- libpysal only (kept apart from scmrelax/mosek).
+#
+# The three python-refs jobs use Python references that pull numpy<2 (incompatible
+# with the JAX backend in `suite`), so they run WITHOUT the bayes extra, against
+# only the cases that call them live. Why three and not one: see the note above
+# those jobs.
 #
 # A numerical FAIL fails the job (run_benchmarks.py exits non-zero); a graceful
 # SKIP (missing optional toolchain) does not. Reference provisioning is
@@ -97,13 +102,26 @@ jobs:
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
-  # Python reference cross-checks, isolated. These packages downgrade numpy/pandas
-  # below what the JAX backend needs, so they get a clean environment WITHOUT the
-  # bayes extra and run only against the cases that call them live.
+  # Python reference cross-checks. These packages pull numpy<2 (incompatible with
+  # the JAX backend in `suite`), so they get clean environments WITHOUT the bayes
+  # extra and run only the cases that call them live. They are split into three
+  # jobs by two dependency conflicts:
+  #
+  # causaltensor must be installed ALONE -- co-installing it with the relaxation
+  # stack makes pip backtrack it to an old release whose top-level SDID / MC_NNM
+  # entry points are gone (AttributeError at runtime). On its own it resolves to a
+  # version with the expected API (validated: SDID agrees to 3e-3, MC-NNM to 0.44
+  # packs on Prop 99).
+  #
+  # spsydid_state_mc must be kept AWAY from scmrelax: scmrelax drags in the mosek
+  # Python package, and the spsydid reference calls cvxpy's `problem.solve()` with
+  # no solver, so cvxpy auto-selects MOSEK and dies on its missing license. With no
+  # mosek in the env, cvxpy falls back to CLARABEL and the case passes -- so it
+  # gets its own libpysal-only job (validated: passes in ~9s).
   # ---------------------------------------------------------------------------
-  python-refs:
+  python-refs-causaltensor:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -114,26 +132,82 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install mlsynth + Python reference implementations
+      - name: Install mlsynth + causaltensor (isolated, pinned)
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          # The reference stack (pulls numpy<2 / pandas<2 -- fine here, no JAX).
-          pip install causaltensor libpysal kneed toolz \
-            "scmrelax @ git+https://github.com/metricshilab/scmrelax" \
-            || echo "::warning::one or more Python references failed to install (their cross-checks will skip)"
+          # Pinned so the cross-check runs the same reference API every day; if it
+          # cannot install, the cases skip on ImportError rather than red the job.
+          pip install "causaltensor==0.1.12" \
+            || echo "::warning::causaltensor failed to install (its cross-checks will skip)"
 
-      # Only the cases whose live reference is one of the packages above. Each is
-      # run individually so one regression is attributable; the loop fails the job
-      # if any case fails (a SKIP is fine -- missing ref is not a regression).
-      - name: Run Python reference cross-checks
+      - name: Run causaltensor cross-checks
         run: |
           set -o pipefail
-          CASES="mcnnm_prop99 sdid_prop99 spsydid_state_mc clustersc_subgroups_ref rsc_shen_coverage rescm_relax_ref rescm_balanced_gdp"
           rc=0
-          for c in $CASES; do
+          for c in mcnnm_prop99 sdid_prop99; do
             echo "::group::$c"
             python -u benchmarks/run_benchmarks.py --case "$c" || rc=1
             echo "::endgroup::"
           done
           exit $rc
+
+  python-refs-relax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth + relaxation/clustering references
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install kneed toolz \
+            "scmrelax @ git+https://github.com/metricshilab/scmrelax" \
+            || echo "::warning::a Python reference failed to install (its cross-check will skip)"
+
+      # Each case is run individually so a regression is attributable; the loop
+      # fails the job if any case fails (a SKIP -- missing ref -- is not a failure).
+      - name: Run relaxation/clustering cross-checks
+        run: |
+          set -o pipefail
+          rc=0
+          for c in clustersc_subgroups_ref rsc_shen_coverage rescm_relax_ref rescm_balanced_gdp; do
+            echo "::group::$c"
+            python -u benchmarks/run_benchmarks.py --case "$c" || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
+
+  # spsydid's spatial reference needs libpysal but NOT scmrelax -- isolating it
+  # keeps mosek out of the env so cvxpy uses CLARABEL (see note above).
+  python-refs-spsydid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth + libpysal (no scmrelax, so no mosek)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install libpysal \
+            || echo "::warning::libpysal failed to install (the spsydid cross-check will skip)"
+
+      - name: Run spsydid spatial cross-check
+        run: |
+          python -u benchmarks/run_benchmarks.py --case spsydid_state_mc
