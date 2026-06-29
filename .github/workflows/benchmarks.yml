@@ -23,7 +23,10 @@ name: Daily benchmark validation
 
 on:
   schedule:
-    - cron: "0 5 * * *"     # 05:00 UTC daily (offset from the 00:00 coverage job)
+    # 07:00 UTC = 02:00 EST. GitHub cron is UTC-only and does NOT observe
+    # daylight saving, so this fires at 02:00 Eastern in winter (EST) and 03:00
+    # Eastern in summer (EDT). Runs every day regardless of whether code changed.
+    - cron: "0 7 * * *"
   workflow_dispatch:
 
 permissions:
