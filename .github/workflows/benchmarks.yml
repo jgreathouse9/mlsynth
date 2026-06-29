@@ -1,0 +1,139 @@
+name: Daily benchmark validation
+
+# Runs the durable paper/reference validation suite (benchmarks/run_benchmarks.py)
+# once a day, with the full reference toolchain provisioned so the LIVE
+# cross-checks actually execute instead of self-skipping.
+#
+# The suite has two kinds of reference dependency, and they DO NOT coexist in one
+# environment, so they are split into two jobs:
+#
+#   suite        -- mlsynth[all] (the design/SCIP + bayes/JAX extras, which need
+#                   numpy>=2 / pandas>=3) plus the R reference stack. The R-backed
+#                   live cross-checks (Synth, augsynth, pensynth, MSCMT, orthsc,
+#                   ...) run here; git-based references self-clone on demand.
+#   python-refs  -- the Python reference packages (causaltensor, libpysal,
+#                   scmrelax, kneed, toolz) pull numpy<2 / pandas<2, which is
+#                   incompatible with the JAX backend above. They run in their own
+#                   isolated environment against only the cases that need them.
+#
+# A numerical FAIL fails the job (run_benchmarks.py exits non-zero); a graceful
+# SKIP (missing optional toolchain) does not. Reference provisioning is
+# best-effort: a reference that fails to build leaves its case skipping, which is
+# logged but never reds the run -- only a real regression does.
+
+on:
+  schedule:
+    # 07:00 UTC = 02:00 EST. GitHub cron is UTC-only and does NOT observe
+    # daylight saving, so this fires at 02:00 Eastern in winter (EST) and 03:00
+    # Eastern in summer (EDT). Runs every day regardless of whether code changed.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One benchmark run at a time; let an in-flight run finish rather than cancel it.
+concurrency:
+  group: benchmarks
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONWARNINGS: "ignore"
+  MPLBACKEND: "Agg"          # headless matplotlib
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Main suite: mlsynth[all] + the R reference stack. Runs every registered case;
+  # the R-backed live cross-checks execute because R is provisioned here.
+  # ---------------------------------------------------------------------------
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth + optional backends (design + bayes)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[all]'
+
+      # Bring up R and the CRAN references (Synth, synthdid, did), then the
+      # commit-pinned GitHub references. Each provisioner is best-effort: a build
+      # that fails leaves its cross-check skipping, surfaced in the log, without
+      # failing the job. The benchmark run itself is the gate.
+      - name: Provision R reference toolchain
+        run: |
+          set -x
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            r-base r-base-dev build-essential cmake gfortran
+          sudo Rscript benchmarks/R/requirements.R || echo "::warning::requirements.R partial"
+          for s in benchmarks/R/install_*.sh; do
+            echo "::group::$s"
+            sudo bash "$s" || echo "::warning::provisioner failed: $s (its cross-check will skip)"
+            echo "::endgroup::"
+          done
+
+      - name: Run benchmark suite (live references)
+        run: |
+          python -u benchmarks/run_benchmarks.py --all --with-reference --report
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: |
+            benchmarks/REPORT.md
+            benchmarks/report.json
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Python reference cross-checks, isolated. These packages downgrade numpy/pandas
+  # below what the JAX backend needs, so they get a clean environment WITHOUT the
+  # bayes extra and run only against the cases that call them live.
+  # ---------------------------------------------------------------------------
+  python-refs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth + Python reference implementations
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          # The reference stack (pulls numpy<2 / pandas<2 -- fine here, no JAX).
+          pip install causaltensor libpysal kneed toolz \
+            "scmrelax @ git+https://github.com/metricshilab/scmrelax" \
+            || echo "::warning::one or more Python references failed to install (their cross-checks will skip)"
+
+      # Only the cases whose live reference is one of the packages above. Each is
+      # run individually so one regression is attributable; the loop fails the job
+      # if any case fails (a SKIP is fine -- missing ref is not a regression).
+      - name: Run Python reference cross-checks
+        run: |
+          set -o pipefail
+          CASES="mcnnm_prop99 sdid_prop99 spsydid_state_mc clustersc_subgroups_ref rsc_shen_coverage rescm_relax_ref rescm_balanced_gdp"
+          rc=0
+          for c in $CASES; do
+            echo "::group::$c"
+            python -u benchmarks/run_benchmarks.py --case "$c" || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
