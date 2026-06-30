@@ -131,6 +131,20 @@ with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
 ``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
 relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
 
+Most of the MIQP's cost is SCIP *proving* a design optimal, which grows steeply
+with the number of markets and treated units. Two options manage that. A
+``warm_start`` (a list of treated unit labels) seeds the search with a known
+good design — for instance LEXSCM's top candidate, which solves a near-identical
+problem by lexicographic search rather than by proof:
+``MAREX(..., warm_start=lexscm_warm_start(lex.fit()))`` (the helper
+``lexscm_warm_start`` lives in ``mlsynth.utils.marex_helpers.warmstart``). The
+seed is only a hint,
+so a solve that runs to completion returns the identical proven optimum; it just
+starts the branch-and-bound from a strong incumbent instead of hunting for one.
+Paired with ``time_limit`` (seconds), MAREX then returns the best design found
+within the budget — typically the seed, confirmed or refined — instead of paying
+the full optimality proof. Both default to off and apply to the exact MIQP only.
+
 ``mlsynth`` exposes four objective variants through ``design`` (clear names
 that map to the paper's formulations):
 

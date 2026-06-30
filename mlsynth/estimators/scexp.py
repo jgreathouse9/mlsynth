@@ -86,6 +86,8 @@ class MAREX:
         self.inference: bool = config.inference
         self.T_post = config.T_post
         self.relaxed: bool = getattr(config, "relaxed", False)
+        self.warm_start = config.warm_start
+        self.time_limit = config.time_limit
         self.display_graph: bool = config.display_graph
         # geographic design restrictions
         self.to_be_treated = config.to_be_treated
@@ -149,6 +151,13 @@ class MAREX:
         )
         restrictions = None if restrictions.is_empty else restrictions
 
+        # Resolve warm-start labels to row indices against the canonical
+        # unit_index (the same source of truth restrictions use).
+        warm_idx = None
+        if self.warm_start is not None:
+            pos = {lab: i for i, lab in enumerate(panel.unit_index.labels)}
+            warm_idx = [pos[u] for u in self.warm_start if u in pos]
+
         try:
             import cvxpy as cp
             results = solve_marex(
@@ -166,6 +175,7 @@ class MAREX:
                 relaxed=self.relaxed, inference=self.inference,
                 unit_index=panel.unit_index, time_index=panel.time_index,
                 restrictions=restrictions,
+                warm_start=warm_idx, time_limit=self.time_limit,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

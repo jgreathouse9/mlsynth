@@ -53,6 +53,8 @@ def solve_marex(
     unit_index=None,
     time_index=None,
     restrictions=None,
+    warm_start=None,
+    time_limit=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -74,6 +76,8 @@ def solve_marex(
     # them); the config rejects the combination, so only the exact solver sees it.
     if not relaxed:
         solve_kw["restrictions"] = restrictions
+        solve_kw["warm_start"] = warm_start
+        solve_kw["time_limit"] = time_limit
     raw = solve(**solve_kw)
 
     df = raw["df"]

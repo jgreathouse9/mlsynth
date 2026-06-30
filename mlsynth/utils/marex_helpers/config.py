@@ -75,6 +75,16 @@ class MAREXConfig(BaseMAREXConfig):
     relaxed: bool = Field(default=False, description="Relax the MIQP (continuous z) and discretise post hoc.")
     solver: Any = Field(default=None)
     verbose: bool = Field(default=False)
+    warm_start: Optional[List] = Field(
+        default=None,
+        description="Treated unit labels to seed the exact MIQP as a SCIP "
+        "partial-solution MIP start (e.g. LEXSCM's top candidate). A hint only -- "
+        "the proven optimum is unchanged; it speeds the branch-and-bound and, with "
+        "`time_limit`, lets MAREX refine the seed within a budget. MIQP-only.")
+    time_limit: Optional[float] = Field(
+        default=None, gt=0,
+        description="Wall-clock cap (seconds) on the SCIP solve; returns the best "
+        "incumbent found instead of proving optimality. MIQP-only.")
 
     # --- NEW inference options ---
     inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
@@ -347,7 +357,20 @@ class MAREXConfig(BaseMAREXConfig):
                 "design restrictions are only supported in the exact MIQP, not "
                 "with relaxed=True (its post-hoc rounding cannot guarantee them)."
             )
+        if (values.warm_start is not None or values.time_limit is not None) \
+                and values.relaxed:
+            raise MlsynthConfigError(
+                "warm_start / time_limit apply to the exact MIQP only, not "
+                "relaxed=True."
+            )
         units = set(df[values.unitid].unique())
+        if values.warm_start is not None:
+            unknown_ws = [u for u in values.warm_start if u not in units]
+            if unknown_ws:
+                raise MlsynthConfigError(
+                    "warm_start contains units not in df: "
+                    f"{sorted(map(str, set(unknown_ws)))}."
+                )
         forced = list(values.to_be_treated or [])
         forbidden = list(values.not_to_be_treated or [])
         unknown = [u for u in (forced + forbidden) if u not in units]

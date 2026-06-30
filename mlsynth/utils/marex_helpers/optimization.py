@@ -66,6 +66,7 @@ def solve_design(
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
     solver=cp.SCIP, verbose=False, restrictions=None, forbidden=None,
+    warm_start=None, time_limit=None,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``).
 
@@ -73,6 +74,14 @@ def solve_design(
     list of ``(unit_idx, cluster_idx)`` pairs; for every one a no-good cut
     ``sum z[pairs] <= |pairs| - 1`` is added, forbidding that exact design so a
     re-solve yields the next-best distinct one (used to build a solution pool).
+
+    ``warm_start`` is an optional iterable of treated unit indices (row order of
+    ``Y_full``); each is seeded ``z[j, cluster(j)] = 1`` as a SCIP partial-solution
+    MIP start. It is a hint -- the proven optimum is unchanged -- but gives the
+    branch-and-bound a strong incumbent immediately. ``time_limit`` (seconds) caps
+    the SCIP solve and returns the best incumbent found; with both set, MAREX can
+    refine a seed design under a budget instead of proving optimality. Defaults of
+    ``None`` leave the original solve path untouched.
     """
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
                         lambda2, xi, lambda1_unit, lambda2_unit)
@@ -98,9 +107,30 @@ def solve_design(
                                design, beta, lambda1, lambda2, xi,
                                lambda1_unit, lambda2_unit, D1, D2_list)
     prob = cp.Problem(objective, constraints)
-    prob.solve(solver=solver, verbose=verbose)
+    if warm_start is None and time_limit is None:
+        prob.solve(solver=solver, verbose=verbose)          # original solve path
+    else:
+        scip_params = {"limits/time": float(time_limit)} if time_limit else None
+        if warm_start is not None:
+            from .warmstart import solve_warmstarted
+            z_warm = np.zeros((N, K))
+            for j in warm_start:
+                z_warm[int(j), label_to_k[clusters[int(j)]]] = 1.0
+            solve_warmstarted(
+                prob, z, z_warm, verbose=verbose,
+                solver_opts={"scip_params": scip_params} if scip_params else None)
+        else:
+            eff_solver = solver if solver is not None else cp.SCIP
+            kw = {"solver": eff_solver, "verbose": verbose}
+            if scip_params:
+                kw["scip_params"] = scip_params
+            prob.solve(**kw)
 
     if z.value is None or w.value is None:
+        if time_limit is not None:
+            raise MlsynthEstimationError(
+                f"MAREX found no feasible design within time_limit={time_limit}s "
+                f"(solver status: {prob.status}); increase the budget.")
         msg = f"MAREX optimization failed: {prob.status}"
         if restrictions is not None and "infeasible" in str(prob.status).lower():
             msg = ("MAREX design is infeasible under the active restrictions "
