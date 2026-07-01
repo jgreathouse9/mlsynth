@@ -461,3 +461,12 @@ References
     "Combining Matching and Synthetic Control to Trade Off Biases From Extrapolation and Interpolation."
     *Journal of the American Statistical Association*, 116(536): 1804-1816, 2021.
     DOI: https://doi.org/10.1080/01621459.2021.1979562
+
+.. [BomzeSparseQP] Bomze, Immanuel M., Peng, Bo, Qiu, Yuzhou, and Yıldırım, E. Alper.
+    *"On Tractable Convex Relaxations of Standard Quadratic Optimization Problems under Sparsity Constraints."*
+    arXiv:2310.04340, 2023. https://arxiv.org/abs/2310.04340
+
+.. [HanPerspShor] Han, Shaoning, Gómez, Andrés, and Atamtürk, Alper.
+    *"The Equivalence of Optimal Perspective Formulation and Shor's SDP for Quadratic Programs with Indicator Variables."*
+    *Operations Research Letters*, 50(2): 195-198, 2022.
+    https://www.sciencedirect.com/science/article/pii/S0167637722000141

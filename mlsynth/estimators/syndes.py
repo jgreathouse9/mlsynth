@@ -329,6 +329,8 @@ class SYNDES:
         self.solver: Any = config.solver
         self.gap_limit: Optional[float] = config.gap_limit
         self.time_limit: Optional[float] = config.time_limit
+        self.certify: bool = config.certify
+        self.certify_sdp_n_max: int = config.certify_sdp_n_max
         self.relaxed_max_iter: int = config.relaxed_max_iter
         self.relaxed_decay: float = config.relaxed_decay
         self.display_graph: bool = config.display_graph
@@ -554,9 +556,18 @@ class SYNDES:
             )
             if pool else None
         )
+        certificate = None
+        if self.certify:
+            from ..utils.syndes_helpers.certificate import syndes_certificate
+            certificate = syndes_certificate(
+                inputs.Y_pre, self.K, mode_internal,
+                float(design.objective_value), lam=self.lam,
+                sdp_n_max=self.certify_sdp_n_max,
+            )
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,
             post_fit=post_fit, pool=pool, recommendation=recommendation,
+            certificate=certificate,
         )
         results = replace(
             results, power_curve=_syndes_power_curve(results, self.alpha)

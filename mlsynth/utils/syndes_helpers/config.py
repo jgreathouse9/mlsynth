@@ -152,6 +152,29 @@ class SYNDESConfig(BaseMAREXConfig):
             "to ``None`` for no cap."
         ),
     )
+    certify: bool = Field(
+        default=False,
+        description=(
+            "Attach a validated optimality gap to the result. Computes a "
+            "mode-appropriate lower bound on the optimal objective without "
+            "branch-and-bound (a convex QP for one-way; the SDP/moment "
+            "relaxation for two-way; per-unit is not cheaply certifiable and "
+            "returns certified=False). The result gains a ``certificate`` "
+            "(``SYNDESCertificate``) with ``lower_bound`` and ``optimality_gap``. "
+            "A design-time diagnostic and an mlsynth addition -- not part of "
+            "Doudchenko et al. (2021), which gives the MIP but no relaxation "
+            "bound; it does not change the returned design."
+        ),
+    )
+    certify_sdp_n_max: int = Field(
+        default=120, ge=1,
+        description=(
+            "Largest N for which the two-way SDP certificate is attempted (it "
+            "is O(N^3)); above it the two-way certificate falls back to the "
+            "loose continuous bound with certified=False. Only used when "
+            "``certify=True``."
+        ),
+    )
     display_graph: bool = Field(default=False,
                                  description="Whether to render the SYNDES design plot.")
     verbose: bool = Field(default=False,

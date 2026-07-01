@@ -496,6 +496,24 @@ and defaults them to the production-friendly setting:
   as the primal-dual gap is within this fraction of the incumbent.
 * ``time_limit`` (default ``60.0`` seconds) -- wall-clock cap on the
   solve, passed through as ``scip_params={"limits/time": value}``.
+* ``certify`` (default ``False``) -- attach a *validated* optimality gap to the
+  result, computed without branch-and-bound. SCIP's own gap closes slowly because
+  its dual bound is the continuous (McCormick) relaxation, loose for the two-way
+  objective; ``certify`` instead builds a mode-appropriate lower bound directly --
+  a convex QP for one-way (already tight), the SDP/moment relaxation for two-way
+  (tight to ~2-3%, gated by ``certify_sdp_n_max`` since it is :math:`O(N^3)`) --
+  and reports ``result.certificate.optimality_gap`` with the guarantee
+  ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent. The per-unit
+  objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
+  it returns ``certified=False`` rather than a misleading number.
+
+This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
+the paper proves the design NP-hard and gives the mixed-integer program but
+derives no relaxation-based lower bound. It is a design-time preprocessing step,
+computed on the pre-treatment panel before any unit is treated -- off the
+critical path of the experiment. It does not change the design SYNDES returns;
+it only reports how far that design can be from the unattainable optimum, so you
+can stop the solver early on a large panel and still know what you gave up.
 
 With these defaults Walmart-scale designs return in under a minute
 with a known :math:`\le 5\%` gap to the (provable) optimum. Tighten
@@ -548,6 +566,97 @@ the incumbent's feasibility, not the proof of optimality.
    magnitude faster than SCIP — these solvers handle MIQP / MIQCP
    relaxations natively. The default of SCIP is chosen because it
    ships with mlsynth (via ``pyscipopt``) with no license required.
+
+Certifying near-optimality
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Write the two-way program above as a quadratically constrained quadratic program
+in :math:`\mathbf{x} \coloneqq (\mathbf{w}, \mathbf{q}, \mathbf{D}) \in
+\mathbb{R}^{3N}`. With :math:`\mathbf{Y} \in \mathbb{R}^{T_0 \times N}` the
+pre-treatment matrix and :math:`\mathbf{G} \coloneqq \mathbf{Y}^\top \mathbf{Y}`,
+the per-period contrast collects into :math:`\mathbf{Y}(2\mathbf{q} - \mathbf{w})`
+and
+
+.. math::
+
+   p^\star \;\coloneqq\; \min_{\mathbf{w}, \mathbf{q}, \mathbf{D}}\;
+     \tfrac{1}{T_0}\,(2\mathbf{q} - \mathbf{w})^\top \mathbf{G}\,(2\mathbf{q} - \mathbf{w})
+     \;+\; \lambda\, \mathbf{w}^\top \mathbf{w},
+
+subject to :math:`\mathbf{1}^\top\mathbf{q} = 1`, :math:`\mathbf{1}^\top\mathbf{w} = 2`,
+:math:`\mathbf{1}^\top\mathbf{D} = K`, :math:`\mathbf{q} \ge \mathbf{0}`,
+:math:`\mathbf{w} \ge \mathbf{0}`, the coupling :math:`q_i = w_i D_i`, and the
+integrality :math:`D_i \in \{0, 1\}`. The objective is convex in
+:math:`(\mathbf{w}, \mathbf{q})`; the whole difficulty sits in the product
+:math:`q_i = w_i D_i` and the integrality of :math:`\mathbf{D}`.
+
+Continuous (McCormick) relaxation. Replace :math:`D_i \in \{0, 1\}` by
+:math:`D_i \in [0, 1]` and :math:`q_i = w_i D_i` by its McCormick envelope
+(:math:`q_i \le D_i`, :math:`q_i \le w_i`, :math:`q_i \ge w_i - (1 - D_i)`). The
+result is one convex QP whose value :math:`p_{\mathrm{LP}}` satisfies
+:math:`p_{\mathrm{LP}} \le p^\star`. For a single product :math:`q_i = w_i D_i`
+with box bounds the envelope is already the exact convex hull, so nothing is lost
+per coordinate -- yet :math:`p_{\mathrm{LP}}` sits far below :math:`p^\star`
+(empirically ~80% low), because the envelope discards the joint second moments
+the squared, coupled contrast depends on. This weak bound is precisely SCIP's
+dual bound, which is why ``gap_limit`` closes so slowly.
+
+SDP / moment relaxation (the ``certify`` bound). Lift :math:`\mathbf{x}` to a
+moment matrix and re-introduce the joint structure as second-moment identities:
+
+.. math::
+
+   \mathbf{M} \coloneqq
+     \begin{bmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} & \mathbf{X} \end{bmatrix}
+     \succeq 0, \qquad \mathbf{X} \;\approx\; \mathbf{x}\mathbf{x}^\top .
+
+The objective is linear in the second moments :math:`\mathbf{X}` (it is a
+quadratic form in :math:`\mathbf{x}`), and the two facts McCormick drops become
+exact linear constraints on :math:`\mathbf{X}`:
+
+.. math::
+
+   X_{D_i, D_i} = D_i \;\;(\text{from } D_i^2 = D_i), \qquad
+   X_{w_i, D_i} = q_i \;\;(\text{from } q_i = w_i D_i), \qquad
+   X_{q_i, D_i} = q_i .
+
+Minimizing the lifted objective over :math:`\mathbf{M} \succeq 0` and the original
+linear constraints is the Shor / Lasserre level-1 relaxation of the cardinality-
+constrained mixed-binary QP (see [BomzeSparseQP]_ for the Shor and RLT relaxations
+of exactly this sparsity-constrained quadratic family; the coordinate-wise
+McCormick step is why we lift rather than take a perspective reformulation, which
+for indicator quadratics gives the same bound as Shor [HanPerspShor]_). Its value
+:math:`p_{\mathrm{SDP}}` is sandwiched by
+
+.. math::
+
+   p_{\mathrm{LP}} \;\le\; p_{\mathrm{SDP}} \;\le\; p^\star \;\le\; \bar{p},
+
+where :math:`\bar{p}` is any feasible design's objective -- in particular the
+incumbent SYNDES returns. Empirically :math:`p_{\mathrm{SDP}}` recovers ~90% of
+the integrality gap (within ~2--3% of :math:`p^\star`), so the reported
+
+.. math::
+
+   \texttt{optimality\_gap} \;\coloneqq\;
+     \frac{\bar{p} - p_{\mathrm{SDP}}}{\lvert \bar{p} \rvert}
+     \;\ge\; \frac{\bar{p} - p^\star}{\lvert \bar{p} \rvert}
+
+is a valid -- and tight -- bound on how far the returned design is from optimal,
+obtained without any branch-and-bound. (The lift is solved with a first-order
+conic method, so the bound holds up to solver tolerance.)
+
+How the modes interact with the lift. In one-way global the treated weights are
+pinned at :math:`1/K`, so :math:`\mathbf{D}` enters the contrast linearly: there
+is no :math:`w_i D_i` product, the McCormick step is vacuous, and
+:math:`p_{\mathrm{LP}} = p^\star` already (to ~1% in practice). The plain QP is
+the certificate and no lift is needed. In per-unit the weights form an
+:math:`N \times N` array :math:`\{w^i_j\}`, so :math:`\mathbf{x}` carries
+:math:`O(N^2)` entries and the moment matrix is :math:`O(N^2) \times O(N^2)`,
+i.e. :math:`O(N^4)` -- intractable -- while the continuous relaxation is ~70%
+loose. Per-unit therefore returns ``certified=False`` with the valid-but-loose
+continuous bound. The two-way lift is :math:`O(N^3)`, which is what
+``certify_sdp_n_max`` guards.
 
 Multiple Treatment Arms
 -----------------------
