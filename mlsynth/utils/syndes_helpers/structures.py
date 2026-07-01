@@ -276,6 +276,7 @@ class SYNDESResults:
     pool: Optional[Any] = None        # solution-pool menu (list of dicts) when top_K > 1
     power_curve: Optional[Any] = None  # SYNDESPower over horizons 1..12 (default)
     recommendation: Optional[Any] = None  # SYNDESRecommendation when a pool exists
+    certificate: Optional[Any] = None  # SYNDESCertificate when certify=True; Any to dodge import cycle
 
     @property
     def mode(self) -> str:
