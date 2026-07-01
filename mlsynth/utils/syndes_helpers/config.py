@@ -169,10 +169,47 @@ class SYNDESConfig(BaseMAREXConfig):
     certify_sdp_n_max: int = Field(
         default=120, ge=1,
         description=(
-            "Largest N for which the two-way SDP certificate is attempted (it "
-            "is O(N^3)); above it the two-way certificate falls back to the "
-            "loose continuous bound with certified=False. Only used when "
-            "``certify=True``."
+            "Largest N for which the two-way SDP bound is attempted (it is "
+            "O(N^3)). Governs both the ``certify=True`` certificate (above it the "
+            "two-way certificate falls back to the loose continuous bound with "
+            "certified=False) and the ``accelerate`` accelerator (above it the "
+            "large two-way solve is left un-accelerated)."
+        ),
+    )
+    accelerate: bool = Field(
+        default=True,
+        description=(
+            "Speed up the large two-way MIP by injecting a valid SDP objective "
+            "lower-bound cut and a deterministic LEXSCM warm start, so the "
+            "existing ``gap_limit`` certifies against the tight SDP/moment bound "
+            "instead of SCIP's loose McCormick relaxation (which makes the exact "
+            "two-way MIP time out even at modest N). Size-gated and automatic: it "
+            "engages only for ``mode='two_way_global'`` with an explicit ``K`` "
+            "when the treated-tuple count C(N, K) exceeds ``accel_min_tuples`` and "
+            "N <= ``certify_sdp_n_max``; otherwise it is a no-op and the solve is "
+            "unchanged. The returned design is certified-near-optimal (to "
+            "``gap_limit`` against the SDP bound), not proven-optimal. An mlsynth "
+            "addition -- not part of Doudchenko et al. (2021)."
+        ),
+    )
+    accel_min_tuples: int = Field(
+        default=2000, ge=1,
+        description=(
+            "Combinatorial-size gate for ``accelerate``: the two-way accelerator "
+            "engages only when the number of treated K-tuples C(N, K) exceeds "
+            "this. Below it the exact MIP is small and fast, so it is solved "
+            "directly (unchanged). Mirrors LEXSCM's enumerate-vs-search size "
+            "switch."
+        ),
+    )
+    accel_safety_margin: float = Field(
+        default=0.01, gt=0.0, lt=1.0,
+        description=(
+            "The SDP lower bound is injected as the cut ``objective >= L*(1 - "
+            "accel_safety_margin)`` so it stays a valid lower bound under the SDP "
+            "solver's first-order tolerance (a too-high cut would remove the "
+            "optimum). A small positive fraction; larger is safer but slightly "
+            "loosens the certified gap."
         ),
     )
     display_graph: bool = Field(default=False,
