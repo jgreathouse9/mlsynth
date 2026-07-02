@@ -19,6 +19,83 @@ from scipy.stats import norm
 
 from .engine import run_multisynth, predict_tau
 
+
+def per_unit_intervals(
+    M: np.ndarray, tau_rel: np.ndarray, *, alpha: float,
+    time_dependence: str = "iid",
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per-unit CFPT/SCPI prediction intervals for each unit's time-averaged ATT.
+
+    The pooled bootstrap / jackknife measures variability *across* units and so
+    cannot give one treated unit its own interval. This builds a per-unit band from
+    that unit's own fit and reuses mlsynth's out-of-sample interval engine (the same
+    CFPT/SCPI machinery MSQRT uses), so PPSCM's per-unit bands are methodologically
+    consistent with MSQRT's.
+
+    For unit ``k`` the band comes from its post-period effect path
+    ``tau_rel[k, :]`` (the CFPT ``effects``) and its pre-period residuals
+    ``M[:, k]`` (the CFPT ``pre_residuals``): the residual moments set the
+    sub-Gaussian scale of the counterfactual prediction error, which correctly
+    accounts for the in-sample fit -- unlike a naive permutation over the
+    QP-optimised pre-residuals, which are not exchangeable with the post gaps and
+    over-reject. The engine is called per unit (one column at a time), so units
+    with different post horizons (ragged ``NaN``) are handled by trimming.
+
+    Parameters
+    ----------
+    M : numpy.ndarray
+        Pre-period residual columns, shape ``(d, J)`` (a 1-D array is a single
+        unit). ``NaN`` entries are dropped per unit.
+    tau_rel : numpy.ndarray
+        Post-period relative-time effect paths, shape ``(J, H)`` (a 1-D array is a
+        single unit). Trailing ``NaN`` (past a unit's horizon) is dropped.
+    alpha : float
+        Total miscoverage level; the interval is ``100 * (1 - alpha)`` percent.
+        Keyword-only.
+    time_dependence : {"iid", "general"}, default "iid"
+        Time-averaging bound passed through to the CFPT engine. Keyword-only.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(ci_lower, ci_upper, p_value)``, each shape ``(J,)``: the per-unit band
+        bounds on the time-averaged ATT and a band-implied two-sided p-value (the
+        house convention ``2 * (alpha/2) ** ((point/half_width) ** 2)``, clamped to
+        ``[0, 1]``). A unit with no usable residuals yields ``NaN``.
+    """
+    from ..scpi_helpers import out_of_sample_intervals
+
+    M = np.asarray(M, dtype=float)
+    tau_rel = np.asarray(tau_rel, dtype=float)
+    if M.ndim == 1:
+        M = M[:, None]
+    if tau_rel.ndim == 1:
+        tau_rel = tau_rel[None, :]
+    J = tau_rel.shape[0]
+    lo = np.full(J, np.nan)
+    hi = np.full(J, np.nan)
+    pval = np.full(J, np.nan)
+
+    for k in range(J):
+        pre = M[:, k][np.isfinite(M[:, k])]
+        post = tau_rel[k, :][np.isfinite(tau_rel[k, :])]
+        if pre.size == 0 or post.size == 0:  # pragma: no cover - guarded upstream
+            continue
+        res = out_of_sample_intervals(
+            effects=post[:, None], pre_residuals=pre[:, None],
+            unit_names=[k], period_labels=list(range(post.size)),
+            alpha=alpha, time_dependence=time_dependence,
+        )
+        band = res.taus[k]
+        lo[k], hi[k] = float(band.lower), float(band.upper)
+        half = 0.5 * (band.upper - band.lower)
+        if half > 0:
+            pval[k] = float(min(1.0, 2.0 * (alpha / 2.0) ** ((band.point / half) ** 2)))
+        else:  # pragma: no cover - degenerate zero-width band
+            pval[k] = 1.0
+    return lo, hi, pval
+
+
 # Mammen (1993) two-point wild-bootstrap multipliers (mean 0, variance 1) --
 # augsynth's default ``rwild_b``.
 _PHI = np.sqrt(5.0)

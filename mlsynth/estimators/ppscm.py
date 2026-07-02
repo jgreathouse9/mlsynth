@@ -29,7 +29,8 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.ppscm_helpers.engine import run_multisynth
-from ..utils.ppscm_helpers.inference import jackknife_inference, bootstrap_inference
+from ..utils.ppscm_helpers.inference import (
+    jackknife_inference, bootstrap_inference, per_unit_intervals)
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -170,6 +171,15 @@ class PPSCM:
             # n1-weighted ``tau`` paths reconstruct the pooled event study, so the
             # unit-level report is the same fit as the aggregate one (no re-run).
             M, nnz, tau_rel, n1 = fit["M"], fit["nnz"], fit["tau_rel"], fit["n1"]
+            # Per-unit CFPT/SCPI prediction bands (the same engine MSQRT uses) --
+            # the per-unit analogue of the pooled inference, from each unit's own
+            # effect path + pre-residuals. Only when inference is on; the pooled
+            # inference stays unchanged.
+            if self.run_inference:
+                pu_lo, pu_hi, pu_p = per_unit_intervals(M, tau_rel, alpha=self.alpha)
+            else:
+                nan = np.full(len(fit["groups"]), np.nan)
+                pu_lo, pu_hi, pu_p = nan, nan, nan
             per_unit: Dict[Any, PPSCMUnitFit] = {}
             for k, g in enumerate(fit["groups"]):
                 key = (str(inputs.time_labels[fit["adopt_of"][g]]) if self.time_cohort
@@ -185,6 +195,9 @@ class PPSCM:
                     tau=tau_k,
                     pre_imbalance=np.asarray(M[:, k], dtype=float),
                     donor_weights=donor_weights.get(key, {}),
+                    ci_lower=(float(pu_lo[k]) if np.isfinite(pu_lo[k]) else None),
+                    ci_upper=(float(pu_hi[k]) if np.isfinite(pu_hi[k]) else None),
+                    p_value=(float(pu_p[k]) if np.isfinite(pu_p[k]) else None),
                 )
 
             results = PPSCMResults(

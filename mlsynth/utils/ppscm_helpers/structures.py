@@ -9,7 +9,7 @@ pooled SCM (``nu`` large), on top of two-way fixed effects.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import numpy as _np
@@ -168,6 +168,12 @@ class PPSCMUnitFit:
     tau: np.ndarray
     pre_imbalance: np.ndarray
     donor_weights: Dict[Any, float]
+    # Per-unit CFPT/SCPI prediction band on this unit's time-averaged ATT (the same
+    # engine MSQRT uses). None when inference is off. See ``per_unit_intervals`` in
+    # ``inference.py``.
+    ci_lower: Optional[float] = None
+    ci_upper: Optional[float] = None
+    p_value: Optional[float] = None
 
 
 class PPSCMResults(_BaseEstimatorResults):
