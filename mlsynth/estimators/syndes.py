@@ -331,6 +331,9 @@ class SYNDES:
         self.time_limit: Optional[float] = config.time_limit
         self.certify: bool = config.certify
         self.certify_sdp_n_max: int = config.certify_sdp_n_max
+        self.accelerate: bool = config.accelerate
+        self.accel_min_tuples: int = config.accel_min_tuples
+        self.accel_safety_margin: float = config.accel_safety_margin
         self.relaxed_max_iter: int = config.relaxed_max_iter
         self.relaxed_decay: float = config.relaxed_decay
         self.display_graph: bool = config.display_graph
@@ -484,6 +487,30 @@ class SYNDES:
                 "requested K. Relax the restrictions or reduce K."
             )
 
+    def _accel_kwargs(self, inputs, mode_internal) -> dict:
+        """Warm start + SDP objective cut for the eligible large two-way solve.
+
+        Size-gated auto policy (see ``SYNDESConfig.accelerate``): engages only for
+        two-way with an explicit ``K`` when the treated-tuple count ``C(N, K)``
+        exceeds ``accel_min_tuples`` and ``N <= certify_sdp_n_max``. Returns the
+        extra ``solve_synthetic_design`` kwargs, or an empty dict (no-op) so small
+        problems solve exactly, unchanged. Only the plain single-solve path is
+        accelerated; the pool / holdout / ic selectors are left untouched.
+        """
+        if not self.accelerate or mode_internal != "global_2way" or self.K is None:
+            return {}
+        from math import comb
+        N = int(inputs.Y_pre.shape[1])
+        if N > self.certify_sdp_n_max:
+            return {}
+        if comb(N, int(self.K)) <= self.accel_min_tuples:
+            return {}
+        from ..utils.syndes_helpers.accelerate import two_way_accel_inputs
+        warm_D, L_safe = two_way_accel_inputs(
+            inputs.Y_pre, self.K, self.lam, margin=self.accel_safety_margin,
+        )
+        return {"warm_start_D": warm_D, "objective_lower_bound": L_safe}
+
     def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
 
@@ -529,7 +556,8 @@ class SYNDES:
             design = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
         else:
-            design = solve_synthetic_design(**solve_kw)
+            design = solve_synthetic_design(
+                **solve_kw, **self._accel_kwargs(inputs, mode_internal))
 
         # Re-tag with the paper-aligned mode label so the design surface
         # the user sees uses SYNDES vocabulary.

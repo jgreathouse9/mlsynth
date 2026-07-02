@@ -506,6 +506,17 @@ and defaults them to the production-friendly setting:
   ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent. The per-unit
   objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
   it returns ``certified=False`` rather than a misleading number.
+* ``accelerate`` (default ``True``) -- inject that same two-way SDP lower bound
+  back into the solve *as a valid cut* (plus a deterministic LEXSCM warm start),
+  so SCIP's dual bound is lifted to the SDP bound and the ordinary ``gap_limit``
+  certifies against it instead of the loose McCormick relaxation. Size-gated and
+  automatic (see "Accelerating the solve" below): it engages only for
+  ``two_way_global`` with an explicit ``K`` when the treated-tuple count
+  :math:`\binom{N}{K}` exceeds ``accel_min_tuples`` and :math:`N \le`
+  ``certify_sdp_n_max``, and is a no-op otherwise (small problems solve exactly,
+  unchanged). Unlike ``certify`` (a passive diagnostic), this changes the *path*
+  the solver takes, not the problem: the returned design is certified to
+  ``gap_limit`` against the SDP bound.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
@@ -657,6 +668,50 @@ i.e. :math:`O(N^4)` -- intractable -- while the continuous relaxation is ~70%
 loose. Per-unit therefore returns ``certified=False`` with the valid-but-loose
 continuous bound. The two-way lift is :math:`O(N^3)`, which is what
 ``certify_sdp_n_max`` guards.
+
+Accelerating the solve
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``certify`` reports the SDP gap *beside* the solver. ``accelerate`` (default
+``True`` for the large two-way solve) feeds the same bound *into* it. Because the
+canonical two-way objective is minimized as an epigraph variable :math:`t` (with
+:math:`t \ge` the quadratic), adding the single linear constraint
+
+.. math::
+
+   t \;\ge\; L, \qquad L \coloneqq (1 - \varepsilon)\, p_{\mathrm{SDP}},
+
+lifts every node relaxation -- and hence SCIP's global dual bound -- to :math:`L`.
+The cut is valid whenever :math:`L \le p^\star`: no feasible design has objective
+below the optimum, so none is removed. Since :math:`p_{\mathrm{SDP}} \le p^\star`,
+the small safety margin :math:`\varepsilon` (``accel_safety_margin``, default
+:math:`0.01`) keeps :math:`L` a valid lower bound even under the first-order SDP
+solver's tolerance -- a too-high :math:`L` would inflate :math:`t` and return a
+garbage design, so the margin is a correctness requirement, not a tuning knob.
+As a backstop, if a bad :math:`L` ever pushes the recovered objective below the
+cut floor, the solve drops the cut and re-solves, so correctness always holds.
+
+With the dual bound sitting at :math:`L`, the ordinary ``gap_limit`` now measures
+against a *tight* bound: SCIP terminates as soon as the incumbent (seeded by the
+LEXSCM warm start, the same primal MAREX uses) is within ``gap_limit`` of
+:math:`L`, rather than climbing the McCormick bound for minutes to prove the same
+thing. The floor on the achievable gap is the SDP integrality gap itself
+(:math:`\sim 2\text{--}4\%`), so ``gap_limit`` below that will not terminate early
+-- set it at or above the certified gap you saw from ``certify``.
+
+The mechanism only helps in the sense of an early, *certified* stop -- it does not
+make SCIP prove exact optimality faster (the dual bound cannot climb above
+:math:`L` on its own). So ``accelerate`` is a size-gated change to the returned
+design's *contract*: at :math:`\binom{N}{K}` below ``accel_min_tuples`` the exact
+MIP is small and solved directly (unchanged, proven-optimal); above it -- where
+the exact two-way MIP does not terminate at any practical size, since the
+McCormick dual never closes -- SYNDES returns a design certified to ``gap_limit``
+against the SDP bound. On a two-way :math:`N = 100,\ K = 5` panel this turns a 60s
+time-out (an uncertified incumbent) into a :math:`\sim 25\text{s}` solve that SCIP
+*terminates* with a certified :math:`\sim 3\%` gap. This is an mlsynth addition,
+not part of Doudchenko et al. (2021); the shared machinery lives in
+:mod:`mlsynth.utils.miqp_accel` so other exact designs (MAREX, and the GEDI
+experimentation wrapper) can adopt it.
 
 Multiple Treatment Arms
 -----------------------
