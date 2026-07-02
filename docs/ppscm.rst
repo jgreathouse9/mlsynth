@@ -155,6 +155,19 @@ off a single fit. ``results.per_unit`` is a dict keyed the same as
 and member units, and its in-sample fit ``prefit_rmspe`` -- the root-mean-square
 pre-treatment imbalance :math:`q_j` of that unit's synthetic control.
 
+Each ``PPSCMUnitFit`` additionally carries a per-unit prediction interval on its
+time-averaged effect -- ``ci_lower`` / ``ci_upper`` with a band-implied ``p_value``
+-- populated when ``run_inference`` is on. It is built by the CFPT/SCPI
+out-of-sample interval engine (:mod:`mlsynth.utils.scpi_helpers`, the same
+machinery behind MSQRT's bands), applied to each unit's own pre-period residuals
+and post-period gap with the synthetic-control weights held fixed. This is the
+per-unit analogue of the pooled inference above: the delete-one jackknife (or
+bootstrap) quantifies uncertainty *across* units for the aggregate, whereas the
+per-unit SCPI band quantifies each unit's own effect. A naive permutation over the
+QP-optimised pre-period residuals would over-reject -- the fit makes those residuals
+small, so they are not exchangeable with the post-period gaps -- which is why the
+per-unit band uses the SCPI construction rather than a residual permutation.
+
 The two levels reconcile exactly, so the unit-level and pooled reports never
 disagree: the reported separate imbalance ``design.ind_l2`` equals
 :math:`\sqrt{\tfrac1J\sum_j q_j^2}`, and the ``n_units``-weighted per-horizon
