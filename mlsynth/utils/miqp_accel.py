@@ -92,6 +92,10 @@ class _WarmCutSCIP(_CvxSCIP):
         self._L = objective_lower_bound
         self.warm_applied = False
         self.cut_applied = False
+        # The built SCIP model, kept so the caller can read the dual bound / gap /
+        # status directly rather than through cvxpy's solution dict, whose keys
+        # ("model", "scip_status") are internal and vary across cvxpy versions.
+        self.model = None
 
     def solve_via_data(self, data, warm_start, verbose, solver_opts,
                        solver_cache=None):
@@ -124,6 +128,7 @@ class _WarmCutSCIP(_CvxSCIP):
                 model.addSol(sol)
                 self.warm_applied = True
 
+        self.model = model
         return self._solve(model, variables, constraints, data, dims)
 
 
@@ -203,12 +208,22 @@ def solve_warm_cut(
             prob.unpack(chain.invert(raw, inv))
             fell_back = True
 
-    model = raw.get("model")
+    # Read diagnostics from the SCIP model we built (version-robust), not from
+    # cvxpy's solution dict whose keys differ across cvxpy releases.
+    model = solver.model
+    if model is not None:
+        dual_bound = float(model.getDualbound())
+        gap = float(model.getGap())
+        status = str(model.getStatus())
+        solve_time = float(model.getSolvingTime())
+    else:                                   # pragma: no cover - model always built
+        dual_bound = gap = solve_time = float("nan")
+        status = "unknown"
     info = AccelInfo(
-        status=str(raw.get("scip_status")),
-        dual_bound=float(model.getDualbound()) if model is not None else float("nan"),
-        gap=float(model.getGap()) if model is not None else float("nan"),
-        solve_time=float(raw.get(s.SOLVE_TIME, float("nan"))),
+        status=status,
+        dual_bound=dual_bound,
+        gap=gap,
+        solve_time=solve_time,
         cut_applied=solver.cut_applied,
         warm_applied=solver.warm_applied,
         fell_back=fell_back,
