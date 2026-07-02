@@ -25,6 +25,7 @@ Layout:
 
 from .structures import (
     PPSCMInputs, PPSCMDesign, PPSCMEventStudy, PPSCMInference, PPSCMResults,
+    PPSCMUnitFit,
 )
 from .setup import prepare_ppscm_inputs
 from .engine import run_multisynth, fit_feff
@@ -33,6 +34,6 @@ from .plotter import plot_ppscm
 
 __all__ = [
     "PPSCMInputs", "PPSCMDesign", "PPSCMEventStudy", "PPSCMInference",
-    "PPSCMResults", "prepare_ppscm_inputs", "run_multisynth", "fit_feff",
-    "jackknife_inference", "plot_ppscm",
+    "PPSCMResults", "PPSCMUnitFit", "prepare_ppscm_inputs", "run_multisynth",
+    "fit_feff", "jackknife_inference", "plot_ppscm",
 ]
