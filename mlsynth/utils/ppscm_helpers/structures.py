@@ -118,6 +118,58 @@ class PPSCMInference:
     method: str
 
 
+@dataclass(frozen=True)
+class PPSCMUnitFit:
+    """The synthetic-control fit for one treated unit (or cohort) in the pool.
+
+    Partially-pooled SCM fits a separate synthetic control per treated unit (or
+    per adoption cohort with ``time_cohort=True``) and averages them into the ATT,
+    so these are the *components* of the pooled estimate at the chosen ``nu`` -- not
+    a separate re-run. The two aggregates reconstruct exactly: the reported
+    ``design.ind_l2`` equals ``sqrt(mean_j prefit_rmspe_j**2)``, and the n1-weighted
+    per-horizon average of the ``tau`` paths reproduces the pooled event study.
+
+    Attributes
+    ----------
+    label : str
+        The unit label (``time_cohort=False``) or adoption-time label
+        (``time_cohort=True``); matches the key in ``donor_weights_by_cohort``.
+    adoption_time : Any
+        The (public) time label at which this unit / cohort adopts treatment.
+    member_units : list of str
+        Treated unit label(s) in this group (one unless a cohort pools several).
+    n_units : int
+        Cohort size (``len(member_units)``); the aggregation weight ``n1``.
+    att : float
+        This unit's/cohort's average post-treatment effect (mean of ``tau``).
+    prefit_rmspe : float
+        Pre-treatment in-sample fit error ``q_j`` -- the root-mean-square
+        pre-period imbalance of this synthetic control (residual, fixed-effect-
+        removed space, matching the estimator's balance objective). A large value
+        flags a poorly fit unit whose ``att`` should not be over-trusted (the
+        ``nu``-pooling caveat). Aggregates to ``design.ind_l2``.
+    tau : np.ndarray
+        Relative-time effect path (length ``n_leads``); ``NaN`` past this unit's
+        observed horizon.
+    pre_imbalance : np.ndarray
+        The pre-treatment imbalance vector (front-padded to the balance window)
+        whose weighted RMS is ``prefit_rmspe``; the per-period in-sample residual.
+    donor_weights : dict
+        ``{donor_label: weight}`` for this unit's synthetic control (nonneg,
+        sums to 1).
+    """
+
+    label: str
+    adoption_time: Any
+    member_units: List[str]
+    n_units: int
+    att: float
+    prefit_rmspe: float
+    tau: np.ndarray
+    pre_imbalance: np.ndarray
+    donor_weights: Dict[Any, float]
+
+
 class PPSCMResults(_BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.PPSCM.fit`.
 
@@ -138,6 +190,7 @@ class PPSCMResults(_BaseEstimatorResults):
     event_study: PPSCMEventStudy
     inference_detail: PPSCMInference
     donor_weights_by_cohort: Dict[Any, Dict[Any, float]]
+    per_unit: Dict[Any, PPSCMUnitFit] = _PydField(default_factory=dict)
     metadata: Dict[str, Any] = _PydField(default_factory=dict)
 
     @property

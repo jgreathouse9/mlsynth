@@ -182,5 +182,10 @@ def run_multisynth(
         "weights": W, "n1": n1, "tau_rel": tau_rel, "per_time": per_time, "att": att,
         "nu_used": nu_used, "global_l2": fin_global, "ind_l2": fin_ind,
         "scaled_global_l2": fin_global / unif_global, "scaled_ind_l2": fin_ind / unif_ind,
+        # Per-cohort final imbalance columns ``M`` (d, J) and the ``nnz`` counts
+        # from the separate fit -- the components of ``ind_l2`` (each cohort's
+        # in-sample error is ``sqrt((M[:,k]**2).sum() / nnz[k])``), returned so the
+        # estimator can surface per-unit fit without recomputing the QP.
+        "M": M, "nnz": np.asarray(nnz, dtype=float),
         "res": res, "n": n, "n_leads": n_leads,
     }

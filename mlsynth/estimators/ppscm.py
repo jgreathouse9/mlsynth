@@ -37,6 +37,7 @@ from ..utils.ppscm_helpers.structures import (
     PPSCMEventStudy,
     PPSCMInference,
     PPSCMResults,
+    PPSCMUnitFit,
 )
 
 
@@ -54,7 +55,11 @@ class PPSCM:
     -------
     PPSCMResults
         Design (pooling level + balance diagnostics), relative-time event
-        study, overall ATT with jackknife inference, and donor weights.
+        study, overall ATT with jackknife inference, donor weights, and
+        ``per_unit`` -- the per-treated-unit (or per-cohort) fits (``att``,
+        in-sample ``prefit_rmspe``, ``tau`` path, donor weights) that are the
+        components of the pooled estimate and reconstruct ``design.ind_l2`` and
+        the aggregate ATT.
     """
 
     def __init__(self, config: Union[PPSCMConfig, dict]) -> None:
@@ -160,9 +165,32 @@ class PPSCM:
                     str(inputs.units[i]): float(w[i]) for i in np.nonzero(w > 1e-8)[0]
                 }
 
+            # Per-unit (per-cohort) fits: the components of the pooled estimate at
+            # this ``nu``. ``prefit_rmspe`` aggregates to ``design.ind_l2`` and the
+            # n1-weighted ``tau`` paths reconstruct the pooled event study, so the
+            # unit-level report is the same fit as the aggregate one (no re-run).
+            M, nnz, tau_rel, n1 = fit["M"], fit["nnz"], fit["tau_rel"], fit["n1"]
+            per_unit: Dict[Any, PPSCMUnitFit] = {}
+            for k, g in enumerate(fit["groups"]):
+                key = (str(inputs.time_labels[fit["adopt_of"][g]]) if self.time_cohort
+                       else str(inputs.units[fit["members"][g][0]]))
+                tau_k = np.asarray(tau_rel[k, :], dtype=float)
+                per_unit[key] = PPSCMUnitFit(
+                    label=key,
+                    adoption_time=inputs.time_labels[fit["adopt_of"][g]],
+                    member_units=[str(inputs.units[i]) for i in fit["members"][g]],
+                    n_units=int(n1[k]),
+                    att=float(np.nanmean(tau_k)),
+                    prefit_rmspe=float(np.sqrt((M[:, k] ** 2).sum() / nnz[k])),
+                    tau=tau_k,
+                    pre_imbalance=np.asarray(M[:, k], dtype=float),
+                    donor_weights=donor_weights.get(key, {}),
+                )
+
             results = PPSCMResults(
                 inputs=inputs, design=design, event_study=event_study,
                 inference_detail=inference, donor_weights_by_cohort=donor_weights,
+                per_unit=per_unit,
                 metadata={"n_treated": int(np.isfinite(trt).sum()),
                           "n_control": int((~np.isfinite(trt)).sum())},
             )

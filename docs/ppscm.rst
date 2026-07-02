@@ -143,6 +143,40 @@ full estimator (holding :math:`\nu` fixed), and form
 :math:`\widehat{\text{se}}^2 = \tfrac{N-1}{N}\sum_{j \in \mathcal{N}}(\widehat{\tau}_j - \bar{\tau})^2`
 for the overall ATT and each relative-time horizon, with Wald intervals.
 
+Per-unit fits alongside the pooled report
+-----------------------------------------
+
+Because partially pooled SCM fits a separate synthetic control per treated unit
+(or per cohort with ``time_cohort=True``) and averages them into the ATT, the
+unit-level estimates are the *components* of the pooled one -- so both are read
+off a single fit. ``results.per_unit`` is a dict keyed the same as
+``donor_weights_by_cohort``; each value is a ``PPSCMUnitFit`` carrying the unit's
+``att``, its relative-time ``tau`` path, its ``donor_weights``, its adoption time
+and member units, and its in-sample fit ``prefit_rmspe`` -- the root-mean-square
+pre-treatment imbalance :math:`q_j` of that unit's synthetic control.
+
+The two levels reconcile exactly, so the unit-level and pooled reports never
+disagree: the reported separate imbalance ``design.ind_l2`` equals
+:math:`\sqrt{\tfrac1J\sum_j q_j^2}`, and the ``n_units``-weighted per-horizon
+average of the unit ``tau`` paths reproduces ``event_study.tau`` and hence the
+aggregate ``effects.att``. This makes it a one-line switch to serve either
+request -- pooled error via ``design.ind_l2`` / ``global_l2`` and the aggregate
+ATT, or per-unit estimates and their in-sample error via ``results.per_unit``.
+
+A caveat worth surfacing to whoever reads the unit-level numbers: at a high
+:math:`\nu` (heavily pooled), the per-unit synthetic controls fit poorly, so a
+unit's ``att`` is only as trustworthy as its ``prefit_rmspe`` -- read the two
+together, and prefer a lower :math:`\nu` (toward separate SCM) when unit-level
+estimates are the deliverable.
+
+.. code-block:: python
+
+   res = PPSCM(config).fit()
+   res.design.ind_l2                       # pooled/separate in-sample error
+   res.effects.att                         # aggregate ATT
+   for label, uf in res.per_unit.items():  # per-unit estimates + in-sample error
+       print(label, uf.att, uf.prefit_rmspe)
+
 Empirical Illustration: mandatory collective bargaining
 -------------------------------------------------------
 
