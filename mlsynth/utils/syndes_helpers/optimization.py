@@ -208,6 +208,8 @@ def solve_synthetic_design(
     time_limit: Optional[float] = None,
     forbidden_sets: Optional[list] = None,
     restrictions: Optional[Any] = None,
+    warm_start_D: Optional[np.ndarray] = None,
+    objective_lower_bound: Optional[float] = None,
 ) -> SYNDESDesign:
     """
     Solve the SYNDES synthetic design optimization problem.
@@ -309,8 +311,26 @@ def solve_synthetic_design(
         if scip_params:
             solve_kwargs["scip_params"] = scip_params
 
+    # Accelerated path: when a warm start and/or a valid objective lower-bound
+    # cut are supplied (SCIP only), route through ``miqp_accel.solve_warm_cut``,
+    # which injects the binary MIP start and the cut ``objective >= L`` so SCIP's
+    # dual bound is lifted to ``L`` and ``gap_limit`` certifies against it. When
+    # both are None the original ``problem.solve`` path is byte-identical.
+    accel_info = None
+    use_accel = (str(solver).upper() == "SCIP"
+                 and (warm_start_D is not None or objective_lower_bound is not None))
     try:
-        problem.solve(**solve_kwargs)
+        if use_accel:
+            from ..miqp_accel import solve_warm_cut
+            warm_bits = (None if warm_start_D is None
+                         else np.asarray(warm_start_D, dtype=float).reshape(-1))
+            _, accel_info = solve_warm_cut(
+                problem, D, warm_bits=warm_bits,
+                objective_lower_bound=objective_lower_bound,
+                gap_limit=gap_limit, time_limit=time_limit, verbose=verbose,
+            )
+        else:
+            problem.solve(**solve_kwargs)
     except Exception as exc:
         raise MlsynthEstimationError(
             f"SYNDES optimization failed to solve: {exc}"
@@ -370,6 +390,17 @@ def solve_synthetic_design(
         "status": problem.status,
         "solver": solver,
     }
+    if accel_info is not None:
+        raw_results["accel"] = {
+            "status": accel_info.status,
+            "dual_bound": accel_info.dual_bound,
+            "gap": accel_info.gap,
+            "solve_time": accel_info.solve_time,
+            "cut_applied": accel_info.cut_applied,
+            "warm_applied": accel_info.warm_applied,
+            "fell_back": accel_info.fell_back,
+            "objective_lower_bound": objective_lower_bound,
+        }
 
     return SYNDESDesign(
         mode=mode,
