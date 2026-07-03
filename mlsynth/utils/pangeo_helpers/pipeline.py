@@ -201,16 +201,17 @@ def run_pangeo(
 
     arm_designs = {}
     assignment = {}
+    solver_diagnostics = {}
     for arm, idx in inputs.arm_units.items():
         if fast:
             # OSD-style heuristic: cluster into size-bounded groups + split,
             # skipping the O(n^{2Q}) enumeration and the exact-cover MIP.
-            chosen = fast_partition(
+            chosen, solver_diagnostics[arm] = fast_partition(
                 idx, Y[:, e_idx], max_supergeo_size,
                 objective=objective, weights=weights,
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
                 unit_weights=uw, n_candidates=fast_candidates,
-                min_pairs=min_pairs, seed=0,
+                min_pairs=min_pairs, seed=0, return_diagnostics=True,
             )
         else:
             candidates = enumerate_candidate_pairs(
@@ -219,7 +220,8 @@ def run_pangeo(
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
                 unit_weights=uw,
             )
-            chosen = solve_partition(candidates, idx, min_pairs=min_pairs)
+            chosen, solver_diagnostics[arm] = solve_partition(
+                candidates, idx, min_pairs=min_pairs, return_diagnostics=True)
         pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names,
                              e_idx=e_idx, b_idx=b_idx, unit_weights=uw,
                              att_augment=att_augment, att_trend=att_trend)
@@ -254,6 +256,8 @@ def run_pangeo(
         "T_pre": T0,
         "solver": ("OSD-style fast partition (PCA clustering + per-group split)"
                    if fast else "cvxpy/HiGHS set-partitioning MIP"),
+        "fast_candidates": fast_candidates if fast else None,
+        "solver_diagnostics": solver_diagnostics,
         "objective": objective,
         "recency_decay": recency_decay if objective == "weighted" else None,
         "covariates": list(cov_names) if cov is not None else None,

@@ -21,6 +21,7 @@ preference, else SCIP / GLPK_MI / CBC).
 
 from __future__ import annotations
 
+import time
 from typing import List
 
 import cvxpy as cp
@@ -53,7 +54,8 @@ def solve_partition(
     candidate_pairs: List[dict],
     unit_indices: np.ndarray,
     min_pairs: int = 1,
-) -> List[dict]:
+    return_diagnostics: bool = False,
+):
     """Select the exact-cover set of supergeo pairs of minimum total score.
 
     Parameters
@@ -65,6 +67,13 @@ def solve_partition(
         The arm's unit indices that must all be covered exactly once.
     min_pairs : int
         Minimum number of supergeo pairs in the design (>= 1).
+    return_diagnostics : bool
+        If ``True``, return ``(chosen, diagnostics)`` where ``diagnostics`` is a
+        dict recording the MIP solve: ``path`` (``"exact_mip"``),
+        ``n_candidate_pairs`` (``|F|`` -- the size of the candidate set fed to
+        the cover), ``objective_value``, ``status``, ``solver_name``,
+        ``solve_seconds``, and ``n_selected_pairs``. Default ``False`` keeps the
+        original contract (returns just the chosen list).
 
     Returns
     -------
@@ -91,12 +100,14 @@ def solve_partition(
     if min_pairs > 1:
         constraints.append(cp.sum(x) >= min_pairs)
     problem = cp.Problem(cp.Minimize(cost @ x), constraints)
+    t0 = time.perf_counter()
     try:
         problem.solve(solver=_pick_milp_solver())
     except cp.error.SolverError as exc:
         raise MlsynthEstimationError(
             f"PANGEO partition MIP failed: {exc}"
         ) from exc
+    solve_seconds = time.perf_counter() - t0
     if problem.status not in {"optimal", "optimal_inaccurate"}:
         raise MlsynthEstimationError(
             f"PANGEO partition MIP did not solve (status={problem.status}); "
@@ -105,4 +116,17 @@ def solve_partition(
 
     chosen = [candidate_pairs[c] for c in range(n_cand)
               if x.value is not None and x.value[c] > 0.5]
+    if return_diagnostics:
+        stats = getattr(problem, "solver_stats", None)
+        diagnostics = {
+            "path": "exact_mip",
+            "n_candidate_pairs": int(n_cand),
+            "objective_value": (float(problem.value)
+                                if problem.value is not None else float("nan")),
+            "status": problem.status,
+            "solver_name": getattr(stats, "solver_name", None),
+            "solve_seconds": float(solve_seconds),
+            "n_selected_pairs": len(chosen),
+        }
+        return chosen, diagnostics
     return chosen

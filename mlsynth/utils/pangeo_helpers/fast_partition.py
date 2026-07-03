@@ -153,7 +153,8 @@ def fast_partition(
     n_candidates: int = 5,
     min_pairs: int = 1,
     seed: int = 0,
-) -> List[dict]:
+    return_diagnostics: bool = False,
+):
     """OSD-style fast supergeo-pair partition (drop-in for the enumerate+MIP path).
 
     Generates ``n_candidates`` size-bounded groupings (Stage 1), splits each
@@ -161,18 +162,34 @@ def fast_partition(
     with the smallest total score -- a list of ``{members, score, side_a,
     side_b}`` dicts, the same contract as ``solve_partition``. At least
     ``min_pairs`` supergeo pairs are produced (raises if infeasible).
+
+    Parameters
+    ----------
+    return_diagnostics : bool
+        If ``True``, return ``(design, diagnostics)`` where ``diagnostics`` is a
+        dict recording how the heuristic searched: ``path`` (``"fast"``),
+        ``n_candidates_requested``, ``n_candidates_feasible``,
+        ``winning_candidate`` (index), ``winning_linkage``,
+        ``winning_total_score``, and ``candidate_scores`` (per-candidate total
+        score, ``None`` for an infeasible grouping). Default ``False`` keeps the
+        original contract (returns just the design list).
     """
     unit_indices = np.asarray(unit_indices, dtype=int)
     bs_kwargs = dict(objective=objective, weights=weights, cov=cov,
                      cov_scales=cov_scales, cov_weights=cov_weights,
                      unit_weights=unit_weights)
 
+    n_cand = max(1, n_candidates)
+    candidate_scores: List[Optional[float]] = []
+    winning_candidate = -1
+    winning_linkage: Optional[str] = None
     best_design: Optional[List[dict]] = None
     best_total = np.inf
-    for c in range(max(1, n_candidates)):
+    for c in range(n_cand):
+        linkage = _LINKAGES[c % len(_LINKAGES)]
         groups = group_units(
             Ypre, unit_indices, max_size, seed=seed + c,
-            linkage=_LINKAGES[c % len(_LINKAGES)], perturb=0.0 if c == 0 else 0.05,
+            linkage=linkage, perturb=0.0 if c == 0 else 0.05,
             min_groups=min_pairs)
         design: List[dict] = []
         total = 0.0
@@ -189,11 +206,24 @@ def fast_partition(
                 "side_b": np.asarray(side_b, dtype=int),
             })
             total += score
+        candidate_scores.append(float(total) if ok else None)
         if ok and total < best_total:
             best_total, best_design = total, design
+            winning_candidate, winning_linkage = c, linkage
 
     if best_design is None:  # pragma: no cover - every group is splittable by size
         raise MlsynthEstimationError(
             "PANGEO fast partition: no feasible grouping produced a valid design."
         )
+    if return_diagnostics:
+        diagnostics = {
+            "path": "fast",
+            "n_candidates_requested": n_cand,
+            "n_candidates_feasible": sum(s is not None for s in candidate_scores),
+            "winning_candidate": winning_candidate,
+            "winning_linkage": winning_linkage,
+            "winning_total_score": float(best_total),
+            "candidate_scores": candidate_scores,
+        }
+        return best_design, diagnostics
     return best_design
