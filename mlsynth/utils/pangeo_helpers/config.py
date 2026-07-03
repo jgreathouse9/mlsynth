@@ -77,6 +77,30 @@ class PANGEOConfig(BaseModel):
     min_pairs: int = Field(
         default=1, ge=1,
         description="Minimum number of supergeo pairs per arm.")
+    q_selection: Literal["mde_min", "pareto_1se"] = Field(
+        default="mde_min",
+        description="Rule for automatic Q (only when max_supergeo_size is "
+                    "None). 'mde_min' picks the feasible Q of smallest program "
+                    "MDE. 'pareto_1se' treats Q as a two-objective choice "
+                    "(minimise MDE, maximise pair count K): keep the "
+                    "Pareto-efficient Q on (MDE down, K up), then a 1-SE "
+                    "tie-break takes the largest K whose MDE is within one "
+                    "standard error of the frontier's best -- spending pairs on "
+                    "power only when the gain beats its own sampling noise.")
+    q_min_pairs: int = Field(
+        default=1, ge=1,
+        description="Inference floor for q_selection='pareto_1se': prefer a Q "
+                    "with at least this many supergeo pairs when the 1-SE band "
+                    "admits one (more pairs => more credible permutation / "
+                    "t-based inference). Ignored for 'mde_min'.")
+    compute_q_sweep: bool = Field(
+        default=False,
+        description="When max_supergeo_size is fixed, also run the full Q sweep "
+                    "and attach it to metadata['q_sweep'] (feasibility, pair "
+                    "count, mean program MDE + its SE, randomization p-value "
+                    "floor per Q) so the chosen Q can be audited against the "
+                    "Pareto/1-SE alternatives. No effect in auto-Q mode, where "
+                    "the sweep is always produced.")
     fast: bool = Field(
         default=True,
         description="Partition solver. Default (True) uses the OSD-style fast "

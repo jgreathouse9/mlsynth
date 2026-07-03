@@ -64,11 +64,12 @@ aggregate at each level; the program number is the headline.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import itertools
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
+from scipy.stats import norm, t as _t
 
 from .parallelism import _wavg
 
@@ -125,6 +126,56 @@ class AttEstimate:
 
 
 @dataclass(frozen=True)
+class RandomizationInference:
+    """Design-based (randomization) inference for one level's realized ATT.
+
+    Because treatment is randomized within each supergeo pair, the sharp null
+    of no effect can be tested without a model: recompute the (weighted) mean
+    of the antisymmetric within-pair DiD contrasts under every within-pair sign
+    flip and compare to the observed statistic.
+
+    Attributes
+    ----------
+    level : str
+        ``"program"`` or an arm label.
+    att : float
+        Design-based point estimate: the treated-size-weighted mean of the
+        within-pair DiD contrasts ``d_k = (\\bar y^T_{post}-\\bar y^T_{pre}) -
+        (\\bar y^C_{post}-\\bar y^C_{pre})`` (model-free; flips sign exactly
+        when a pair's treatment assignment flips).
+    se_pair : float
+        Matched-pair (pair-clustered) standard error
+        ``sqrt(sum wn_k^2 (d_k-att)^2) * K/(K-1)``; reduces to
+        ``sd(d_k)/sqrt(K)`` under equal weights. ``nan`` for a single pair.
+    ci_lower, ci_upper : float
+        ``att +/- t_{K-1} * se_pair`` interval.
+    p_permutation : float
+        Two-sided randomization p-value: fraction of within-pair sign flips
+        whose ``|statistic| >= |observed|``.
+    n_pairs : int
+        Number of supergeo pairs (K) -- the randomization units.
+    df : int
+        Degrees of freedom ``K-1`` for the matched-pair t interval.
+    exact : bool
+        ``True`` if all ``2**K`` sign flips were enumerated; ``False`` if the
+        null distribution was Monte-Carlo sampled (large K).
+    n_perm : int
+        Number of sign patterns evaluated.
+    """
+
+    level: str
+    att: float
+    se_pair: float
+    ci_lower: float
+    ci_upper: float
+    p_permutation: float
+    n_pairs: int
+    df: int
+    exact: bool
+    n_perm: int
+
+
+@dataclass(frozen=True)
 class PangeoEffects:
     """Realized ATT for a PANGEO design scored against post-period data.
 
@@ -142,6 +193,9 @@ class PangeoEffects:
         Whether a population weight was used in the aggregation.
     alpha : float
         Significance level for the intervals.
+    randomization : dict
+        ``{"program"|arm_label: RandomizationInference}`` -- the design-based
+        (permutation + matched-pair) companion to the model-based ADID SE.
     """
 
     program: AttEstimate
@@ -151,11 +205,27 @@ class PangeoEffects:
     weighted: bool
     alpha: float
     metadata: Dict[str, Any] = field(default_factory=dict)
+    randomization: Dict[str, RandomizationInference] = field(default_factory=dict)
 
     def summary(self) -> pd.DataFrame:
         """Tidy table of the program and per-arm ATT estimates."""
         rows = [_att_row(self.program)]
         rows += [_att_row(c) for c in self.arms.values()]
+        return pd.DataFrame(rows).set_index("level")
+
+    def randomization_summary(self) -> pd.DataFrame:
+        """Tidy table of the design-based (permutation) inference per level."""
+        rows = []
+        for key in ["program"] + [str(a) for a in self.arms]:
+            r = self.randomization.get(key)
+            if r is None:
+                continue
+            rows.append({
+                "level": r.level, "att": r.att, "se_pair": r.se_pair,
+                "ci_lower": r.ci_lower, "ci_upper": r.ci_upper,
+                "p_permutation": r.p_permutation, "n_pairs": r.n_pairs,
+                "exact": r.exact,
+            })
         return pd.DataFrame(rows).set_index("level")
 
 
@@ -336,6 +406,68 @@ def _adid_att_batch(YT, YC, n_pre, augment, trend) -> np.ndarray:
     return u.mean(axis=1)
 
 
+def _pair_did_contrasts(recs):
+    """Antisymmetric within-pair DiD contrast ``d_k`` and weight per pair.
+
+    ``d_k = (mean post treated - mean pre treated) - (mean post control -
+    mean pre control)``. Swapping which supergeo is treated negates ``d_k``
+    exactly, which is what makes the sign-flip randomization test valid.
+    """
+    d, w = [], []
+    for r in recs:
+        dt = float(r["YT_post"].mean() - r["YT_pre"].mean())
+        dc = float(r["YC_post"].mean() - r["YC_pre"].mean())
+        d.append(dt - dc)
+        w.append(float(r["weight"]))
+    return np.asarray(d), np.asarray(w)
+
+
+def _null_abs_stats(coef: np.ndarray, *, rng, exact_max_k: int = 14,
+                    n_mc: int = 20000):
+    """``|sum_k s_k coef_k|`` over sign flips ``s in {+-1}^K``.
+
+    Enumerated exactly for ``K <= exact_max_k`` (``2**K`` patterns), else
+    Monte-Carlo sampled with the supplied (seeded) ``rng``.
+    """
+    k = coef.size
+    if k <= exact_max_k:
+        signs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))
+        exact = True
+    else:
+        signs = rng.choice((-1.0, 1.0), size=(n_mc, k))
+        exact = False
+    return np.abs(signs @ coef), exact
+
+
+def _randomization_inference(level, recs, alpha, *, rng) -> RandomizationInference:
+    """Permutation p-value + matched-pair (pair-clustered) SE for one level."""
+    d, w = _pair_did_contrasts(recs)
+    k = d.size
+    wsum = w.sum()
+    wn = w / wsum if wsum > 0 else np.full(k, 1.0 / k)
+    att = float(wn @ d)
+
+    coef = wn * d
+    obs = abs(float(coef.sum()))
+    null_abs, exact = _null_abs_stats(coef, rng=rng)
+    n_perm = int(null_abs.size)
+    p_perm = float((null_abs >= obs - 1e-12).sum() / n_perm)
+
+    if k > 1:
+        se = float(np.sqrt(np.sum(wn ** 2 * (d - att) ** 2) * k / (k - 1)))
+        df = k - 1
+        tcrit = float(_t.ppf(1.0 - alpha / 2.0, df))
+        ci_lower, ci_upper = att - tcrit * se, att + tcrit * se
+    else:
+        se, df, ci_lower, ci_upper = float("nan"), 0, float("nan"), float("nan")
+
+    return RandomizationInference(
+        level=str(level), att=att, se_pair=se, ci_lower=ci_lower,
+        ci_upper=ci_upper, p_permutation=p_perm, n_pairs=int(k), df=int(df),
+        exact=bool(exact), n_perm=n_perm,
+    )
+
+
 def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
     w, MT, MC = _stack(recs)
     n_pre = recs[0]["YT_pre"].size
@@ -353,6 +485,43 @@ def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
         ci_lower_pct=pct(r["ci_lower"]), ci_upper_pct=pct(r["ci_upper"]),
         p_value=r["p_value"], n_post=int(n_post), scale=r["scale"],
         observed=YT, counterfactual=r["counterfactual"],
+    )
+
+
+def build_effect_report(effects: "PangeoEffects"):
+    """Map the realized program-level ATT to a standard ``EffectResult``.
+
+    Resolves a PANGEO :class:`DesignResult` to the observational report family:
+    the program Augmented-DiD ATT, its counterfactual/gap path, and the CI are
+    packed into the standardized sub-models so ``report`` satisfies the same
+    flat read-contract (``att``, ``counterfactual``, ``gap``, ``att_ci``) as any
+    effect estimator. The richer per-pair / design-based numbers stay on
+    :attr:`PangeoResults.effects`.
+    """
+    from ...config_models import (
+        BaseEstimatorResults, EffectsResults, InferenceResults,
+        TimeSeriesResults,
+    )
+
+    p = effects.program
+    observed = np.asarray(p.observed, dtype=float)
+    counterfactual = np.asarray(p.counterfactual, dtype=float)
+    gap = observed - counterfactual
+    return BaseEstimatorResults(
+        effects=EffectsResults(
+            att=p.att, att_percent=p.att_pct, att_std_err=p.se,
+            additional_effects={"scale_delta2": p.scale},
+        ),
+        time_series=TimeSeriesResults(
+            observed_outcome=observed, counterfactual_outcome=counterfactual,
+            estimated_gap=gap, intervention_time=int(observed.size - p.n_post),
+        ),
+        inference=InferenceResults(
+            p_value=p.p_value, ci_lower=p.ci_lower, ci_upper=p.ci_upper,
+            standard_error=p.se, confidence_level=1.0 - effects.alpha,
+            method="Augmented DiD prediction-variance (Li & Van den Bulte "
+                   "2022); design-based permutation on .randomization",
+        ),
     )
 
 
@@ -398,14 +567,26 @@ def compute_pangeo_effects(
     arms = {arm: _aggregate(str(arm), recs, alpha, augment, trend)
             for arm, recs in by_arm.items()}
 
+    # Design-based (randomization) companion inference. Deterministic: exact
+    # sign enumeration for small pair counts, else a fixed-seed Monte Carlo.
+    rng = np.random.default_rng(0)
+    randomization = {"program": _randomization_inference(
+        "program", all_recs, alpha, rng=rng)}
+    for arm, recs in by_arm.items():
+        randomization[str(arm)] = _randomization_inference(
+            str(arm), recs, alpha, rng=rng)
+
     return PangeoEffects(
         program=program, arms=arms, pair_att=pair_att, n_post=n_post,
         weighted=weights is not None, alpha=alpha,
         metadata={
             "estimator": "Augmented DiD (Li & Van den Bulte 2022); "
                          "treated-size-weighted supergeo aggregate per level",
-            "inference": "prediction-variance SE (C.13) with Newey-West "
-                         "long-run residual variance",
+            "inference": "model-based prediction-variance SE (C.13) with "
+                         "Newey-West long-run residual variance; plus "
+                         "design-based within-pair permutation p-value and "
+                         "matched-pair (pair-clustered) SE (see .randomization)",
             "augment": augment, "trend": trend,
         },
+        randomization=randomization,
     )
