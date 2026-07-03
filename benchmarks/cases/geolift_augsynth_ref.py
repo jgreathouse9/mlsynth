@@ -1,26 +1,27 @@
-"""GEOLIFT live cross-check vs augsynth: the GeoLift_Walkthrough fit.
+"""GEOLIFT cross-check vs augsynth: the GeoLift_Walkthrough fit.
 
-Cross-validation against the *running* reference. ``geolift_walkthrough`` pins the
-public ``GEOLIFT`` API against GeoLift's *published* walkthrough numbers; this case
-goes further and checks mlsynth's fixed-effect ridge ASCM against **live augsynth**
-(``ebenmichael/augsynth``, which GeoLift wraps) on the identical chicago+portland
-panel -- the gold-standard cross-validation the replication contract asks for.
+Cross-validation of mlsynth's fixed-effect ridge ASCM against **augsynth**
+(``ebenmichael/augsynth``, which GeoLift wraps) on the chicago+portland panel --
+the gold-standard the replication contract asks for. ``geolift_walkthrough`` pins
+the public ``GEOLIFT`` API against GeoLift's *published* walkthrough numbers; this
+case goes further and matches augsynth's CV-selected ridge penalty, donor weights,
+and post-period ATT. mlsynth reproduces augsynth to floating-point on lambda
+(rel-diff ~1e-11), to ~7 decimals on every weight, and to 4 sig figs on the ATT.
 
-It shells out to ``benchmarks/R/augsynth_geolift.R`` (install the reference once
-with ``benchmarks/R/install_augsynth.sh``) and compares the CV-selected ridge
-penalty, the donor weights, and the post-period ATT. mlsynth matches augsynth to
-floating-point on lambda (rel-diff ~1e-11), to ~7 decimals on every weight, and
-to 4 sig figs on the ATT -- so the gaps are pinned near zero, not at the looser
-"published walkthrough" tolerances. (The vignette's printed ATT 155.556 is an
-older augsynth release; today's augsynth returns 156.8, which mlsynth reproduces.)
+The gate compares against a **captured** augsynth reference, not a fresh live run.
+augsynth's ridge ASCM is a live R build: its CV-selected lambda is sensitive to
+the exact CRAN dependency build (BLAS / osqp / matrix-routine versions), so a live
+re-run's lambda can drift ~1% between environments even at a pinned augsynth SHA,
+which would spuriously fail a stable mlsynth. mlsynth's own lambda is a
+deterministic closed form (the ~1e-11 agreement is a formula match, not a knife-
+edge CV argmin), so pinning the reference to the capture makes this a durable
+regression test of *mlsynth* against a provenance-tracked augsynth run.
 
-The reference is **commit-pinned** -- the install script freezes augsynth (and
-every source-compiled dep) to a SHA -- so this is a stable timestamp, not a moving
-tip. Numbers below are augsynth ``0.2.0 @ 7a90ea4`` (frozen 2026-06-12); refresh
-by re-pinning ``install_augsynth.sh`` and updating ``EXPECTED``.
-
-Skips itself (``BenchmarkSkipped``) when ``Rscript`` or ``augsynth`` is absent, so
-it is a no-op in CI and runs only where the reference is installed.
+Reference: augsynth ``0.2.0 @ 7a90ea4`` on this panel, captured 2026-06-24 (see
+``benchmarks/reference/geolift_augsynth_ref/comparison.csv``). To re-validate
+against a fresh live augsynth run -- e.g. before re-pinning -- set
+``GEOLIFT_AUGSYNTH_LIVE=1`` (needs ``benchmarks/R/install_augsynth.sh``); to
+refresh the capture, re-run live and update ``_FROZEN_REFERENCE``.
 """
 from __future__ import annotations
 
@@ -44,6 +45,34 @@ _DATA = os.path.join(_ROOT, "basedata", "geolift_test_data.csv")
 _RSCRIPT_REF = os.path.join(_ROOT, "benchmarks", "R", "augsynth_geolift.R")
 _TREATED = frozenset({"chicago", "portland"})
 _PRE = 90
+
+# Captured augsynth reference: augsynth 0.2.0 @ 7a90ea4 on the chicago+portland
+# GeoLift panel, run 2026-06-24. Source of record:
+# benchmarks/reference/geolift_augsynth_ref/comparison.csv (the "reference"
+# column). The gate compares mlsynth against this frozen capture so a live
+# augsynth re-run's dependency-build-sensitive lambda cannot spuriously red the
+# case; set GEOLIFT_AUGSYNTH_LIVE=1 to re-validate against live augsynth instead.
+_FROZEN_REFERENCE = {
+    "lambda": 1673101687.1,
+    "att": 156.805406,
+    "weights": {
+        "cincinnati": 0.227306, "miami": 0.202933, "baton rouge": 0.133658,
+        "minneapolis": 0.090122, "dallas": 0.074116, "nashville": 0.068726,
+        "honolulu": 0.067404, "austin": 0.046682, "san diego": 0.045221,
+        "reno": 0.030821, "san antonio": 0.0056, "houston": 0.004812,
+        "new york": 0.004793,
+    },
+}
+
+
+def _reference() -> dict:
+    """The augsynth reference the gate compares against: the deterministic frozen
+    capture by default, or a fresh live augsynth run when ``GEOLIFT_AUGSYNTH_LIVE=1``
+    (which propagates ``BenchmarkSkipped`` if Rscript/augsynth is absent).
+    """
+    if os.environ.get("GEOLIFT_AUGSYNTH_LIVE") == "1":
+        return _augsynth_reference()
+    return _FROZEN_REFERENCE
 
 
 def _augsynth_reference() -> dict:
@@ -82,7 +111,7 @@ def _augsynth_reference() -> dict:
 
 
 def run() -> dict:
-    ref = _augsynth_reference()
+    ref = _reference()
 
     Ywide = geoex_dataprep(pd.read_csv(_DATA), "location", "date", "Y")["Ywide"]
     treated = aggregate_treated(Ywide, _TREATED, how="mean").to_numpy()
