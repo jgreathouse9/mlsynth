@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import Field
+
+from ...config_models import DesignResult
 
 
 @dataclass(frozen=True)
@@ -91,28 +94,47 @@ class ArmDesign:
     control_units: List[Any]
 
 
-@dataclass(frozen=True)
-class PangeoResults:
+class PangeoResults(DesignResult):
     """Top-level container returned by :meth:`mlsynth.PANGEO.fit`.
 
-    Attributes
-    ----------
-    arm_designs : dict
-        ``{arm_label: ArmDesign}`` -- the design for each arm.
-    max_supergeo_size : int
-        The Q used (max size of either supergeo within a pair).
+    A :class:`~mlsynth.config_models.DesignResult` (the experimental-design
+    family): it chooses the treatment/control assignment *before* any
+    intervention, and -- once post-period outcomes exist -- resolves to an
+    :class:`~mlsynth.config_models.EffectResult` via :attr:`report`.
+
+    Inherited design fields
+    -----------------------
+    report : EffectResult or None
+        The realized effect report (program-level Augmented-DiD ATT mapped to
+        the standard effect surface); ``None`` for a design-only fit.
     assignment : dict
         Flat ``{unit_name: "treatment"|"control"}`` map across all arms.
+    selected_units : list
+        Units assigned to treatment (the design's chosen treated set).
+    power : PangeoPower or None
+        Program- and arm-level MDE / power analysis.
+    metadata : dict
+        Free-form design diagnostics (solver, q_sweep, solver_diagnostics, ...).
+
+    PANGEO-specific fields
+    ----------------------
+    arm_designs : dict
+        ``{arm_label: ArmDesign}`` -- the supergeo-pair design per arm.
+    max_supergeo_size : int
+        The Q used (max size of either supergeo within a pair).
     time_labels : np.ndarray
         Pre-period time labels the design was built on.
-    metadata : dict
-        Free-form diagnostics.
+    effects : PangeoEffects or None
+        The rich realized-ATT object (per-pair, per-arm, program, plus the
+        design-based randomization inference) when post-period data is given.
     """
 
-    arm_designs: Dict[Any, ArmDesign]
-    max_supergeo_size: int
-    assignment: Dict[Any, str]
-    time_labels: np.ndarray
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    power: Optional[Any] = None  # PangeoPower (see pangeo_helpers.power)
+    arm_designs: Dict[Any, ArmDesign] = Field(default_factory=dict)
+    max_supergeo_size: Optional[int] = None
+    time_labels: Optional[np.ndarray] = None
     effects: Optional[Any] = None  # PangeoEffects when post-period data given
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "allow"
+        frozen = True  # preserve the immutable-result contract (use model_copy)

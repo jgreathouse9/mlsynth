@@ -28,7 +28,6 @@ not a treatment effect.
 
 from __future__ import annotations
 
-import dataclasses
 from typing import Union
 
 import pandas as pd
@@ -40,7 +39,10 @@ from ..exceptions import (
     MlsynthDataError,
     MlsynthEstimationError,
 )
-from ..utils.pangeo_helpers.effects import compute_pangeo_effects
+from ..utils.pangeo_helpers.effects import (
+    build_effect_report,
+    compute_pangeo_effects,
+)
 from ..utils.pangeo_helpers.pipeline import run_pangeo
 from ..utils.pangeo_helpers.plotter import plot_pangeo
 from ..utils.pangeo_helpers.setup import build_post_matrix, prepare_pangeo_inputs
@@ -148,7 +150,10 @@ class PANGEO:
                 effects = compute_pangeo_effects(
                     results, inputs, Y_post, alpha=self.power_alpha,
                     augment=self.att_augment, trend=self.att_trend)
-                results = dataclasses.replace(results, effects=effects)
+                results = results.model_copy(update={
+                    "effects": effects,
+                    "report": build_effect_report(effects),
+                })
 
             if self.display_graphs:
                 plot_pangeo(results, save=self.save, outcome_label=self.outcome)

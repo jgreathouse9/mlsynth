@@ -488,6 +488,43 @@ def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
     )
 
 
+def build_effect_report(effects: "PangeoEffects"):
+    """Map the realized program-level ATT to a standard ``EffectResult``.
+
+    Resolves a PANGEO :class:`DesignResult` to the observational report family:
+    the program Augmented-DiD ATT, its counterfactual/gap path, and the CI are
+    packed into the standardized sub-models so ``report`` satisfies the same
+    flat read-contract (``att``, ``counterfactual``, ``gap``, ``att_ci``) as any
+    effect estimator. The richer per-pair / design-based numbers stay on
+    :attr:`PangeoResults.effects`.
+    """
+    from ...config_models import (
+        BaseEstimatorResults, EffectsResults, InferenceResults,
+        TimeSeriesResults,
+    )
+
+    p = effects.program
+    observed = np.asarray(p.observed, dtype=float)
+    counterfactual = np.asarray(p.counterfactual, dtype=float)
+    gap = observed - counterfactual
+    return BaseEstimatorResults(
+        effects=EffectsResults(
+            att=p.att, att_percent=p.att_pct, att_std_err=p.se,
+            additional_effects={"scale_delta2": p.scale},
+        ),
+        time_series=TimeSeriesResults(
+            observed_outcome=observed, counterfactual_outcome=counterfactual,
+            estimated_gap=gap, intervention_time=int(observed.size - p.n_post),
+        ),
+        inference=InferenceResults(
+            p_value=p.p_value, ci_lower=p.ci_lower, ci_upper=p.ci_upper,
+            standard_error=p.se, confidence_level=1.0 - effects.alpha,
+            method="Augmented DiD prediction-variance (Li & Van den Bulte "
+                   "2022); design-based permutation on .randomization",
+        ),
+    )
+
+
 def compute_pangeo_effects(
     results, inputs, Y_post: np.ndarray, *, alpha: float = 0.05,
     augment: bool = True, trend: bool = True,

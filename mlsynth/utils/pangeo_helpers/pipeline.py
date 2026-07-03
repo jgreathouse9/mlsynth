@@ -9,7 +9,6 @@ halves.
 
 from __future__ import annotations
 
-import dataclasses
 from typing import Dict, Optional, Sequence
 
 import numpy as np
@@ -293,10 +292,12 @@ def run_pangeo(
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
 
+    selected_units = [u for u, s in assignment.items() if s == "treatment"]
     return PangeoResults(
         arm_designs=arm_designs,
         max_supergeo_size=max_supergeo_size,
         assignment=assignment,
+        selected_units=selected_units,
         time_labels=inputs.time_labels,
         metadata=metadata,
         power=power,
@@ -462,4 +463,4 @@ def _auto_select_q(
                 "q_selected": q_selected, "q_selection": q_selection,
                 "q_sweep": sweep}
     power = best.power if compute_power else None
-    return dataclasses.replace(best, metadata=metadata, power=power)
+    return best.model_copy(update={"metadata": metadata, "power": power})
