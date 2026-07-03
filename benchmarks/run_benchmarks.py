@@ -96,6 +96,23 @@ def write_report(results: list, out_dir: Path) -> None:
     print(f"\nwrote {report_json} and {out_dir / 'REPORT.md'}")
 
 
+def select_cases(names, needs_reference, *, with_reference, shard, num_shards):
+    """The ordered case names to run for a selection, filter and shard.
+
+    Reference-only cases are dropped unless ``with_reference``. With
+    ``num_shards > 1`` the filtered list is split round-robin
+    (``names[shard::num_shards]``) so the heavy R-backed cases --- scattered
+    through the registry --- spread evenly across shards; the shards partition
+    the list exactly (disjoint and, unioned, exhaustive).
+    """
+    if not with_reference:
+        needs = set(needs_reference)
+        names = [n for n in names if n not in needs]
+    if num_shards > 1:
+        names = names[shard::num_shards]
+    return names
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true")
@@ -104,11 +121,21 @@ def main() -> int:
                     help="also run cases that require an R reference implementation")
     ap.add_argument("--report", action="store_true",
                     help="write benchmarks/REPORT.md and benchmarks/report.json")
+    ap.add_argument("--num-shards", type=int, default=1,
+                    help="split the selected cases into this many shards "
+                         "(round-robin), for parallel CI jobs")
+    ap.add_argument("--shard", type=int, default=0,
+                    help="0-based index of the shard to run (with --num-shards)")
     args = ap.parse_args()
+    if args.num_shards < 1:
+        ap.error("--num-shards must be >= 1")
+    if not (0 <= args.shard < args.num_shards):
+        ap.error("--shard must be in [0, num_shards)")
 
-    names = ([args.case] if args.case else list(registry.CASES))
-    if not args.with_reference:
-        names = [n for n in names if n not in registry.NEEDS_REFERENCE]
+    base = [args.case] if args.case else list(registry.CASES)
+    names = select_cases(
+        base, registry.NEEDS_REFERENCE, with_reference=args.with_reference,
+        shard=args.shard, num_shards=args.num_shards)
 
     results = [run_one(n) for n in names]
     n_pass = sum(r["status"] == "pass" for r in results)
