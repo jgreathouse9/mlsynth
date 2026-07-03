@@ -75,6 +75,9 @@ class PANGEO:
         self.weight_col = config.weight_col
         self.max_supergeo_size = config.max_supergeo_size
         self.min_pairs: int = config.min_pairs
+        self.q_selection: str = config.q_selection
+        self.q_min_pairs: int = config.q_min_pairs
+        self.compute_q_sweep: bool = config.compute_q_sweep
         self.fast: bool = config.fast
         self.fast_candidates: int = config.fast_candidates
         self.objective: str = config.objective
@@ -134,6 +137,9 @@ class PANGEO:
                 power_post_periods=self.power_post_periods,
                 att_augment=self.att_augment,
                 att_trend=self.att_trend,
+                q_selection=self.q_selection,
+                q_min_pairs=self.q_min_pairs,
+                compute_q_sweep=self.compute_q_sweep,
             )
 
             if post_df is not None and not post_df.empty:

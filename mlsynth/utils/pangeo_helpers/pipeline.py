@@ -113,6 +113,9 @@ def run_pangeo(
     power_post_periods: Optional[Sequence[int]] = None,
     att_augment: bool = True,
     att_trend: bool = True,
+    q_selection: str = "mde_min",
+    q_min_pairs: int = 1,
+    compute_q_sweep: bool = False,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -166,6 +169,7 @@ def run_pangeo(
             compute_power=compute_power, power_target=power_target,
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
+            q_selection=q_selection, q_min_pairs=q_min_pairs,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -275,6 +279,20 @@ def run_pangeo(
             alpha=power_alpha, power_target=power_target,
         )
 
+    if compute_q_sweep:
+        # Diagnostic-only sweep in fixed-Q mode: run the full Q sweep so the
+        # user can audit their chosen Q against the Pareto/1-SE alternatives,
+        # without changing the honoured (fixed) Q. Inner designs never recurse.
+        run_kwargs = dict(
+            min_pairs=min_pairs, fast=fast, fast_candidates=fast_candidates,
+            objective=objective, recency_decay=recency_decay, frac_E=frac_E,
+            covariate_weights=covariate_weights, power_target=power_target,
+            power_alpha=power_alpha, power_post_periods=power_post_periods,
+            att_augment=att_augment, att_trend=att_trend,
+        )
+        metadata["q_sweep"], _ = _sweep_designs(
+            inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
+
     return PangeoResults(
         arm_designs=arm_designs,
         max_supergeo_size=max_supergeo_size,
@@ -296,6 +314,101 @@ def _mean_program_mde(result: PangeoResults) -> float:
     return float(np.mean(vals)) if vals else float("inf")
 
 
+def _select_q(sweep, *, method: str = "mde_min", q_min_pairs: int = 1):
+    """Choose Q from a completed sweep of ``{q, feasible, n_program_pairs,
+    mean_program_mde_pct, mde_se}`` rows. Returns the chosen ``q`` (int) or
+    ``None`` if no feasible Q exists.
+
+    * ``"mde_min"`` -- the feasible Q of smallest program MDE (historical).
+    * ``"pareto_1se"`` -- treat Q as a two-objective choice (minimise MDE,
+      maximise pair count ``K``). Keep the Pareto-efficient rows on
+      ``(MDE down, K up)``, then a 1-SE tie-break: among the frontier (subject
+      to ``K >= q_min_pairs`` when any such row qualifies) take the *largest K*
+      whose MDE is within one SE of the frontier's best MDE. This spends pairs
+      on power only when the power gain exceeds its own sampling noise.
+    """
+    feas = [r for r in sweep
+            if r.get("feasible") and r.get("mean_program_mde_pct") is not None]
+    if not feas:
+        return None
+    if method == "mde_min":
+        return min(feas, key=lambda r: r["mean_program_mde_pct"])["q"]
+    if method != "pareto_1se":
+        from ...exceptions import MlsynthConfigError
+        raise MlsynthConfigError(
+            f"Unknown q_selection {method!r}; use 'mde_min' or 'pareto_1se'."
+        )
+
+    def _dominated(a) -> bool:
+        # a is dominated if some other row is >= on K and <= on MDE (strictly
+        # better on at least one axis).
+        for o in feas:
+            if o is a:
+                continue
+            if (o["n_program_pairs"] >= a["n_program_pairs"]
+                    and o["mean_program_mde_pct"] <= a["mean_program_mde_pct"]
+                    and (o["n_program_pairs"] > a["n_program_pairs"]
+                         or o["mean_program_mde_pct"] < a["mean_program_mde_pct"])):
+                return True
+        return False
+
+    frontier = [r for r in feas if not _dominated(r)]
+    best = min(frontier, key=lambda r: r["mean_program_mde_pct"])
+    se = best.get("mde_se")
+    threshold = best["mean_program_mde_pct"] + (se if se else 0.0)
+    within = [r for r in frontier if r["mean_program_mde_pct"] <= threshold]
+    floored = [r for r in within if r["n_program_pairs"] >= q_min_pairs]
+    eligible = floored or within
+    return max(eligible, key=lambda r: r["n_program_pairs"])["q"]
+
+
+def _q_upper(inputs: PangeoInputs) -> int:
+    """Upper bound on Q for the sweep: the range over which Q meaningfully
+    trades matching granularity against pair count for the smallest arm."""
+    min_arm = min(int(idx.size) for idx in inputs.arm_units.values())
+    return max(1, min((min_arm + 1) // 2, _AUTO_Q_CAP))
+
+
+def _sweep_designs(inputs: PangeoInputs, *, q_upper: int, run_kwargs: dict):
+    """Design every feasible Q in ``1..q_upper``; return ``(sweep, results)``.
+
+    ``sweep`` is the list of per-Q diagnostic rows (feasibility, pair count,
+    mean program MDE, its small-sample SE, and the randomization-inference
+    p-value floor). ``results`` maps each feasible Q to its ``PangeoResults``.
+    Power is always computed here (the sweep needs the MDE); the inner designs
+    never recurse into a sweep of their own.
+    """
+    from ...exceptions import MlsynthEstimationError
+
+    sweep = []
+    results = {}
+    for q in range(1, q_upper + 1):
+        try:
+            cand = run_pangeo(
+                inputs, max_supergeo_size=q, compute_power=True,
+                compute_q_sweep=False, **run_kwargs,
+            )
+        except MlsynthEstimationError:
+            sweep.append({"q": q, "feasible": False, "n_program_pairs": 0,
+                          "mean_program_mde_pct": None, "mde_se": None,
+                          "rand_floor": None})
+            continue
+        results[q] = cand
+        mde = _mean_program_mde(cand)
+        n_pairs = cand.power.program.n_pairs if cand.power else 0
+        b = int(cand.metadata.get("n_holdout", 0) or 0)
+        # SD-of-SD small-sample SE of the MDE: relative SE ~ 1/sqrt(2(B-1)).
+        mde_se = (mde / np.sqrt(2.0 * (b - 1))
+                  if (b > 1 and np.isfinite(mde)) else None)
+        sweep.append({
+            "q": q, "feasible": True, "n_program_pairs": n_pairs,
+            "mean_program_mde_pct": mde,
+            "mde_se": float(mde_se) if mde_se is not None else None,
+            "rand_floor": 2.0 / 2 ** n_pairs if n_pairs else None,
+        })
+    return sweep, results
+
+
 def _auto_select_q(
     inputs: PangeoInputs,
     *,
@@ -312,59 +425,41 @@ def _auto_select_q(
     power_post_periods: Optional[Sequence[int]],
     att_augment: bool = True,
     att_trend: bool = True,
+    q_selection: str = "mde_min",
+    q_min_pairs: int = 1,
 ) -> PangeoResults:
-    """Choose Q by minimising the program-level MDE.
+    """Choose Q automatically from a sweep over feasible sizes.
 
     Designs every feasible ``Q`` in ``1..min(ceil(smallest_arm/2), 6)`` --
     the range over which Q meaningfully trades off matching granularity (and
-    hence absolute residual variance) against pair count -- and returns the
-    design with the smallest mean program MDE. Infeasible Q (no exact cover,
-    e.g. ``Q=1`` for an odd-sized arm) are skipped. The full sweep is stored
-    in ``metadata["q_sweep"]`` (with each Q's program-pair count and the
-    ``2/2**pairs`` randomization-inference p-value floor) so the choice is
-    auditable and a user who prizes design-based inference can override.
+    hence absolute residual variance) against pair count -- and picks one via
+    :func:`_select_q` (``q_selection``: ``"mde_min"`` or ``"pareto_1se"``).
+    Infeasible Q (no exact cover, e.g. ``Q=1`` for an odd-sized arm) are
+    skipped. The full sweep -- each Q's pair count, mean program MDE and its
+    SE, and the ``2/2**pairs`` randomization p-value floor -- is stored in
+    ``metadata["q_sweep"]`` so the choice is auditable.
     """
     from ...exceptions import MlsynthEstimationError
 
-    min_arm = min(int(idx.size) for idx in inputs.arm_units.values())
-    q_upper = max(1, min((min_arm + 1) // 2, _AUTO_Q_CAP))
+    run_kwargs = dict(
+        min_pairs=min_pairs, fast=fast, fast_candidates=fast_candidates,
+        objective=objective, recency_decay=recency_decay, frac_E=frac_E,
+        covariate_weights=covariate_weights, power_target=power_target,
+        power_alpha=power_alpha, power_post_periods=power_post_periods,
+        att_augment=att_augment, att_trend=att_trend,
+    )
+    sweep, results = _sweep_designs(
+        inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
 
-    best: Optional[PangeoResults] = None
-    best_score = float("inf")
-    sweep = []
-    for q in range(1, q_upper + 1):
-        try:
-            cand = run_pangeo(
-                inputs, max_supergeo_size=q, min_pairs=min_pairs,
-                fast=fast, fast_candidates=fast_candidates,
-                objective=objective, recency_decay=recency_decay,
-                frac_E=frac_E,
-                covariate_weights=covariate_weights, compute_power=True,
-                power_target=power_target, power_alpha=power_alpha,
-                power_post_periods=power_post_periods,
-                att_augment=att_augment, att_trend=att_trend,
-            )
-        except MlsynthEstimationError:
-            sweep.append({"q": q, "feasible": False, "n_program_pairs": 0,
-                          "mean_program_mde_pct": None, "rand_floor": None})
-            continue
-        score = _mean_program_mde(cand)
-        n_pairs = cand.power.program.n_pairs if cand.power else 0
-        sweep.append({
-            "q": q, "feasible": True, "n_program_pairs": n_pairs,
-            "mean_program_mde_pct": score,
-            "rand_floor": 2.0 / 2 ** n_pairs if n_pairs else None,
-        })
-        if score < best_score:
-            best, best_score = cand, score
-
-    if best is None:
+    q_selected = _select_q(sweep, method=q_selection, q_min_pairs=q_min_pairs)
+    if q_selected is None:
         raise MlsynthEstimationError(
             "PANGEO: no feasible Q found for automatic selection; pass "
             "max_supergeo_size explicitly."
         )
-
+    best = results[q_selected]
     metadata = {**best.metadata, "q_auto_selected": True,
-                "q_selected": best.max_supergeo_size, "q_sweep": sweep}
+                "q_selected": q_selected, "q_selection": q_selection,
+                "q_sweep": sweep}
     power = best.power if compute_power else None
     return dataclasses.replace(best, metadata=metadata, power=power)
