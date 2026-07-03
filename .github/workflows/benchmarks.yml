@@ -5,13 +5,15 @@ name: Daily benchmark validation
 # cross-checks actually execute instead of self-skipping.
 #
 # The reference dependencies do not all coexist in one environment, so the work
-# is split across four jobs:
+# is split across several jobs:
 #
 #   suite                    -- mlsynth[all] (the design/SCIP + bayes/JAX extras,
 #                               which need numpy>=2 / pandas>=3) plus the R
 #                               reference stack. The R-backed live cross-checks
 #                               (Synth, augsynth, pensynth, MSCMT, orthsc, ...)
 #                               run here; git-based references self-clone on demand.
+#                               Sharded across parallel jobs + R packages cached
+#                               (see the suite job's own note).
 #   python-refs-causaltensor -- causaltensor alone (see note below).
 #   python-refs-relax        -- kneed / toolz / scmrelax.
 #   python-refs-spsydid      -- libpysal only (kept apart from scmrelax/mosek).
@@ -51,10 +53,29 @@ jobs:
   # ---------------------------------------------------------------------------
   # Main suite: mlsynth[all] + the R reference stack. Runs every registered case;
   # the R-backed live cross-checks execute because R is provisioned here.
+  #
+  # SHARDED: the live-reference run is the slow part, so it is split round-robin
+  # across NUM_SHARDS parallel jobs (run_benchmarks.py --shard i --num-shards N).
+  # Each shard runs ~1/N of the cases, keeping every shard well under the
+  # timeout. To change the shard count, edit BOTH the matrix list and NUM_SHARDS.
+  #
+  # R CACHE: the CRAN references (requirements.R -> Synth/synthdid/did + their
+  # dependencies -- the heaviest compiles) install into a user-writable
+  # R_LIBS_USER that is cached across runs. requirements.R self-skips packages
+  # already present, so the cache is a pure speed-up with no risk of silently
+  # skipping a cross-check. The commit-pinned GitHub leaves still compile each
+  # run (best-effort, into the system library).
   # ---------------------------------------------------------------------------
   suite:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      NUM_SHARDS: "4"
+      R_LIBS_USER: ${{ github.workspace }}/.rlibs
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -70,32 +91,43 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e '.[all]'
 
-      # Bring up R and the CRAN references (Synth, synthdid, did), then the
-      # commit-pinned GitHub references. Each provisioner is best-effort: a build
-      # that fails leaves its cross-check skipping, surfaced in the log, without
-      # failing the job. The benchmark run itself is the gate.
-      - name: Provision R reference toolchain
+      - name: Install R
         run: |
-          set -x
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             r-base r-base-dev build-essential cmake gfortran
-          sudo Rscript benchmarks/R/requirements.R || echo "::warning::requirements.R partial"
+
+      - name: Cache CRAN reference packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: rlibs-${{ runner.os }}-R-${{ hashFiles('benchmarks/R/requirements.R') }}
+
+      # The CRAN references install into the cached user library (requirements.R
+      # self-skips those already restored). The commit-pinned GitHub leaves are
+      # best-effort: a build that fails leaves its cross-check skipping, surfaced
+      # in the log, without failing the job. The benchmark run itself is the gate.
+      - name: Provision R reference toolchain
+        run: |
+          set -x
+          mkdir -p "$R_LIBS_USER"
+          Rscript benchmarks/R/requirements.R || echo "::warning::requirements.R partial"
           for s in benchmarks/R/install_*.sh; do
             echo "::group::$s"
             sudo bash "$s" || echo "::warning::provisioner failed: $s (its cross-check will skip)"
             echo "::endgroup::"
           done
 
-      - name: Run benchmark suite (live references)
+      - name: Run benchmark suite shard (live references)
         run: |
-          python -u benchmarks/run_benchmarks.py --all --with-reference --report
+          python -u benchmarks/run_benchmarks.py --all --with-reference --report \
+            --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}"
 
       - name: Upload benchmark report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-report
+          name: benchmark-report-shard-${{ matrix.shard }}
           path: |
             benchmarks/REPORT.md
             benchmarks/report.json
