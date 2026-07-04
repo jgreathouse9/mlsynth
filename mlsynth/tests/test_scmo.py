@@ -241,3 +241,99 @@ def test_ridge_lambda_nonpositive_raises(panel):
     with pytest.raises(MlsynthConfigError):
         SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
                    time="time", augment="ridge", ridge_lambda=0.0)
+
+
+# --- weights='pcr' scheme (mRSC-style denoised PCR) ------------------------
+
+def _prepare(panel, addout="y2"):
+    """Build SCMOInputs the way SCMO.fit does (concatenated, outcome+addout)."""
+    treated_unit, intervention_time, pre_years = derive_treatment(
+        panel, unitid="unit", time="time", treat="treat")
+    spec = build_spec(None, "y1", addout, pre_years)
+    return prepare_scmo_inputs(
+        panel, unitid="unit", time="time", outcome="y1", spec=spec,
+        treated_unit=treated_unit, intervention_time=intervention_time)
+
+
+@pytest.fixture
+def extrapolation_panel() -> pd.DataFrame:
+    """Treated = 1.5*u1 - 0.5*u2 exactly on both outcomes (outside convex hull)."""
+    rng = np.random.default_rng(7)
+    T, T0 = 8, 6
+    donors = {}
+    for u in range(1, 5):
+        donors[u] = {"y1": rng.uniform(5, 15, T), "y2": rng.uniform(5, 15, T)}
+    rows = []
+    for u in range(1, 5):
+        for t in range(T):
+            rows.append(dict(unit=f"u{u}", time=1960 + t, treat=0,
+                             y1=donors[u]["y1"][t], y2=donors[u]["y2"][t]))
+    for t in range(T):
+        y1 = 1.5 * donors[1]["y1"][t] - 0.5 * donors[2]["y1"][t]
+        y2 = 1.5 * donors[1]["y2"][t] - 0.5 * donors[2]["y2"][t]
+        rows.append(dict(unit="u0", time=1960 + t, treat=int(t >= T0), y1=y1, y2=y2))
+    return pd.DataFrame(rows)
+
+
+def test_pcr_config_defaults_and_accept(panel):
+    cfg = SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit", time="time")
+    assert cfg.weights == "simplex"                      # default unchanged
+    cfg2 = SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                      time="time", weights="pcr", pcr_rank=3, pcr_cumvar=0.9)
+    assert cfg2.weights == "pcr" and cfg2.pcr_rank == 3
+
+
+def test_pcr_rank_requires_pcr(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", pcr_rank=3)             # weights defaults to simplex
+
+
+def test_pcr_incompatible_with_ridge(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", weights="pcr", augment="ridge")
+
+
+def test_pcr_rank_positive(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", weights="pcr", pcr_rank=0)
+
+
+def test_scmo_pcr_runs(panel):
+    cfg = SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                     time="time", addout="y2", schemes=["concatenated"],
+                     weights="pcr", display_graphs=False)
+    res = SCMO(cfg).fit()
+    assert np.isfinite(res.att)
+    assert np.all(np.isfinite(res.time_series.counterfactual_outcome))
+
+
+def test_pcr_weights_matches_kernel(panel):
+    """SCMO's pcr scheme == direct pcr_weights on the matching matrix."""
+    from mlsynth.utils.pcr.core import pcr_weights
+    inputs = _prepare(panel)
+    fit = fit_scheme(inputs, CONCATENATED, weights="pcr", pcr_rank=4)
+    design = inputs.Z[inputs.donor_idx].T                # (P, J)
+    target = inputs.Z[inputs.treated_idx]                # (P,)
+    w_ref = pcr_weights(design, target, 4)
+    np.testing.assert_allclose(fit.weights, w_ref, atol=1e-10)
+    cf_ref = w_ref @ inputs.Y[inputs.donor_idx]
+    np.testing.assert_allclose(fit.counterfactual, cf_ref, atol=1e-10)
+
+
+def test_pcr_unconstrained_recovers_extrapolation(extrapolation_panel):
+    """PCR (unconstrained) recovers a negative-weight combo simplex cannot."""
+    inputs = _prepare(extrapolation_panel)
+    pcr = fit_scheme(inputs, CONCATENATED, weights="pcr", pcr_rank=4)
+    simplex = fit_scheme(inputs, CONCATENATED, weights="simplex")
+    # PCR recovers the exact linear combination -> ~zero pre-treatment error
+    assert pcr.pre_rmse < 1e-6
+    # a genuine negative weight is present (outside the simplex)
+    assert pcr.weights.min() < -0.1
+    # the convex solver cannot represent it
+    assert simplex.pre_rmse > 1e-3

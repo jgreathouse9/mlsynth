@@ -54,6 +54,19 @@ class SCMOConfig(BaseEstimatorConfig):
         default=None,
         description="Fixed ridge penalty for augment='ridge'; None selects it by leave-one-period-out cross-validation (augsynth's 1-SE rule).",
     )
+    weights: Literal["simplex", "pcr"] = Field(
+        default="simplex",
+        description="Weight solver on the matching matrix. 'simplex' -> convex SC weights (default). 'pcr' -> denoised unconstrained principal-component-regression weights (mRSC, Amjad-Misra-Shah-Shen 2019; reuses the pcr/core HSVT+PCR kernel). Intended for the concatenated scheme; weights may be negative and need not sum to one.",
+    )
+    pcr_rank: Optional[int] = Field(
+        default=None,
+        description="HSVT truncation rank for weights='pcr'. None selects it by the cumulative-variance rule (pcr_cumvar); an explicit integer forces a fixed rank.",
+    )
+    pcr_cumvar: float = Field(
+        default=0.95,
+        description="Cumulative-variance target for the weights='pcr' rank rule when pcr_rank is None.",
+        gt=0, le=1,
+    )
 
     @model_validator(mode="after")
     def _check_augment(self):
@@ -64,4 +77,15 @@ class SCMOConfig(BaseEstimatorConfig):
             if self.ridge_lambda <= 0:
                 raise MlsynthConfigError(
                     f"ridge_lambda must be > 0; got {self.ridge_lambda}.")
+        if self.weights == "pcr" and self.augment == "ridge":
+            raise MlsynthConfigError(
+                "weights='pcr' is incompatible with augment='ridge' "
+                "(they are alternative weight solvers).")
+        if self.pcr_rank is not None:
+            if self.weights != "pcr":
+                raise MlsynthConfigError(
+                    "pcr_rank is only used with weights='pcr'.")
+            if self.pcr_rank < 1:
+                raise MlsynthConfigError(
+                    f"pcr_rank must be a positive integer; got {self.pcr_rank}.")
         return self

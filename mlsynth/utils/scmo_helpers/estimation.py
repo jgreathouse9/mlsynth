@@ -86,8 +86,25 @@ def _counterfactual(w: np.ndarray, Y_donors: np.ndarray, y: np.ndarray, T0: int,
     return w @ Y_donors
 
 
-def _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda):
-    """Simplex SC weights on the matching matrix, optionally ridge-augmented."""
+def _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar):
+    """Denoised unconstrained PCR weights (mRSC): HSVT-truncate the donor design
+    and apply the pseudo-inverse. Reuses the shared pcr/core + pcr/rank kernel."""
+    from ..pcr.core import pcr_weights
+    from ..pcr.rank import select_rank
+    design = M[donor_idx].T                       # (P, J): weights over J donors
+    target = M[treated_idx]                        # (P,)
+    if pcr_rank is not None:
+        r = select_rank(design, method="fixed", r=pcr_rank)
+    else:
+        r = select_rank(design, method="cumvar", cumvar_threshold=pcr_cumvar)
+    return pcr_weights(design, target, r)
+
+
+def _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda,
+                    weights="simplex", pcr_rank=None, pcr_cumvar=0.95):
+    """Weights on the matching matrix: simplex (optionally ridge-augmented) or PCR."""
+    if weights == "pcr":
+        return _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar)
     if augment == "ridge":
         from ..bilevel.ridge_augment import ridge_augment_weights
         ra = ridge_augment_weights(
@@ -100,10 +117,13 @@ def _fit_core(
     Z: np.ndarray, Y: np.ndarray, treated_idx: int, donor_idx: np.ndarray,
     T0: int, scheme: str, col_period: Optional[np.ndarray], demean: bool,
     augment: Optional[str] = None, ridge_lambda: Optional[float] = None,
+    weights: str = "simplex", pcr_rank: Optional[int] = None,
+    pcr_cumvar: float = 0.95,
 ) -> Tuple[np.ndarray, np.ndarray, float, float, np.ndarray]:
     """Solve weights + counterfactual for any (treated, donors) selection."""
     M = _matching_vectors(Z, Y, T0, scheme, col_period, demean)
-    w = _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda)
+    w = _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda,
+                        weights, pcr_rank, pcr_cumvar)
     cf = _counterfactual(w, Y[donor_idx], Y[treated_idx], T0, demean)
     att, pre_rmse, gap = _effects(Y[treated_idx], cf, T0)
     return w, cf, att, pre_rmse, gap
@@ -111,18 +131,21 @@ def _fit_core(
 
 def fit_scheme(inputs: SCMOInputs, scheme: str, demean: bool = False,
                augment: Optional[str] = None,
-               ridge_lambda: Optional[float] = None) -> SCMOMethodFit:
+               ridge_lambda: Optional[float] = None,
+               weights: str = "simplex", pcr_rank: Optional[int] = None,
+               pcr_cumvar: float = 0.95) -> SCMOMethodFit:
     """Fit one weighting scheme on the real treated unit."""
     w, cf, att, pre_rmse, gap = _fit_core(
         inputs.Z, inputs.Y, inputs.treated_idx, inputs.donor_idx,
         inputs.T0, scheme, inputs.col_period, demean, augment, ridge_lambda,
+        weights, pcr_rank, pcr_cumvar,
     )
     donor_labels = inputs.donor_labels
     donor_weights = {donor_labels[i]: float(round(w[i], 4)) for i in range(len(w))}
     return SCMOMethodFit(
         name=scheme, weights=w, counterfactual=cf, gap=gap, att=att,
         pre_rmse=pre_rmse, donor_weights=donor_weights,
-        metadata={"demean": demean, "augment": augment},
+        metadata={"demean": demean, "augment": augment, "weights": weights},
     )
 
 
