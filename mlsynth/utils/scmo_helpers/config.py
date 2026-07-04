@@ -67,6 +67,22 @@ class SCMOConfig(BaseEstimatorConfig):
         description="Cumulative-variance target for the weights='pcr' rank rule when pcr_rank is None.",
         gt=0, le=1,
     )
+    pcr_metric_weights: Optional[Union[List[float], Literal["cv"]]] = Field(
+        default=None,
+        description="Per-metric weights (delta) for weights='pcr', in outcome order [outcome, *addout]. None -> equal weighting. A list -> those fixed weights. 'cv' -> choose the auxiliary weight by rolling-origin cross-validation minimizing out-of-sample pre-period MSE.",
+    )
+    pcr_cv_grid: Optional[List[float]] = Field(
+        default=None,
+        description="Candidate auxiliary-metric weights searched when pcr_metric_weights='cv' (shared across auxiliary metrics). None -> a default log-spaced grid. 1.0 (equal) is always included.",
+    )
+    pcr_cv_horizon: int = Field(
+        default=1,
+        description="Forecast horizon (number of periods ahead) scored at each rolling origin when pcr_metric_weights='cv'.",
+    )
+    pcr_cv_min_train: Optional[int] = Field(
+        default=None,
+        description="Initial number of pre-treatment periods in the expanding rolling-origin window (pcr_metric_weights='cv'). None -> max(2, T0 // 2).",
+    )
 
     @model_validator(mode="after")
     def _check_augment(self):
@@ -88,4 +104,24 @@ class SCMOConfig(BaseEstimatorConfig):
             if self.pcr_rank < 1:
                 raise MlsynthConfigError(
                     f"pcr_rank must be a positive integer; got {self.pcr_rank}.")
+        if self.pcr_metric_weights is not None and self.weights != "pcr":
+            raise MlsynthConfigError(
+                "pcr_metric_weights is only used with weights='pcr'.")
+        if isinstance(self.pcr_metric_weights, list):
+            if not self.pcr_metric_weights:
+                raise MlsynthConfigError("pcr_metric_weights list is empty.")
+            if any(w < 0 for w in self.pcr_metric_weights):
+                raise MlsynthConfigError(
+                    "pcr_metric_weights must be non-negative.")
+        if self.pcr_cv_grid is not None:
+            if not self.pcr_cv_grid:
+                raise MlsynthConfigError("pcr_cv_grid is empty.")
+            if any(w < 0 for w in self.pcr_cv_grid):
+                raise MlsynthConfigError("pcr_cv_grid values must be non-negative.")
+        if self.pcr_cv_min_train is not None and self.pcr_cv_min_train < 1:
+            raise MlsynthConfigError(
+                f"pcr_cv_min_train must be >= 1; got {self.pcr_cv_min_train}.")
+        if self.pcr_cv_horizon < 1:
+            raise MlsynthConfigError(
+                f"pcr_cv_horizon must be >= 1; got {self.pcr_cv_horizon}.")
         return self

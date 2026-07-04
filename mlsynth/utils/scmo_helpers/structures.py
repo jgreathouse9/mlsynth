@@ -192,7 +192,8 @@ class SCMOResults(BaseEstimatorResults):
         if inf is not None:
             object.__setattr__(self, "inference", inf)
         object.__setattr__(self, "method_details", MethodDetailsResults(
-            method_name=f"SCMO ({self.selected_variant})", is_recommended=True))
+            method_name=f"SCMO ({self.selected_variant})", is_recommended=True,
+            parameters_used={k: v for k, v in fit.metadata.items() if v is not None}))
         return self
 
     @property

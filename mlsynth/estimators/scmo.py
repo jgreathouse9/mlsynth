@@ -114,6 +114,10 @@ class SCMO:
             weights=self.config.weights,
             pcr_rank=self.config.pcr_rank,
             pcr_cumvar=self.config.pcr_cumvar,
+            pcr_metric_weights=self.config.pcr_metric_weights,
+            pcr_cv_grid=self.config.pcr_cv_grid,
+            pcr_cv_horizon=self.config.pcr_cv_horizon,
+            pcr_cv_min_train=self.config.pcr_cv_min_train,
         )
         results = assemble_scmo_results(
             inputs, fits, selected_variant=schemes[0] if schemes else CONCATENATED

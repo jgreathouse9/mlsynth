@@ -242,6 +242,24 @@ misspecification). ``weights="pcr"`` is an alternative to ``augment="ridge"``,
 not a complement -- both relax the simplex, and requesting them together is an
 error.
 
+Choosing the metric weights (``pcr_metric_weights``)
+""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+mRSC weights each metric block by a scalar :math:`\delta_k` before the fit. The
+paper gives no closed form for it -- it is a cross-validation hyperparameter,
+equal across metrics by default (``pcr_metric_weights=None``). You may instead
+pass an explicit vector (in outcome order, primary first), or set
+``pcr_metric_weights="cv"`` to choose the auxiliary weight by *rolling-origin*
+cross-validation that minimizes out-of-sample pre-treatment MSE of the primary
+outcome. The CV uses an expanding window entirely inside the pre-period (fit on
+the earliest periods, score the next ``pcr_cv_horizon`` held-out period(s), roll
+the origin forward), so nothing leaks from the post-treatment window; the
+auxiliary weight is searched over ``pcr_cv_grid`` (equal weighting is always a
+candidate, so CV never does worse than equal in-sample). A metric that only adds
+noise is driven toward zero; one that carries signal is kept. The chosen weights
+and the per-candidate CV MSE are recorded in
+``result.method_details.parameters_used``.
+
 Assumptions
 -----------
 

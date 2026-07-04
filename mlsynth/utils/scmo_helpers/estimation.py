@@ -86,11 +86,17 @@ def _counterfactual(w: np.ndarray, Y_donors: np.ndarray, y: np.ndarray, T0: int,
     return w @ Y_donors
 
 
-def _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar):
+def _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar,
+                        col_scale=None):
     """Denoised unconstrained PCR weights (mRSC): HSVT-truncate the donor design
-    and apply the pseudo-inverse. Reuses the shared pcr/core + pcr/rank kernel."""
+    and apply the pseudo-inverse. Reuses the shared pcr/core + pcr/rank kernel.
+
+    ``col_scale`` (length P) applies per-metric ``sqrt(delta)`` weights to the
+    matching-matrix columns before the HSVT + PCR step."""
     from ..pcr.core import pcr_weights
     from ..pcr.rank import select_rank
+    if col_scale is not None:
+        M = M * np.asarray(col_scale, dtype=float)[None, :]
     design = M[donor_idx].T                       # (P, J): weights over J donors
     target = M[treated_idx]                        # (P,)
     if pcr_rank is not None:
@@ -101,10 +107,12 @@ def _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar):
 
 
 def _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda,
-                    weights="simplex", pcr_rank=None, pcr_cumvar=0.95):
+                    weights="simplex", pcr_rank=None, pcr_cumvar=0.95,
+                    col_scale=None):
     """Weights on the matching matrix: simplex (optionally ridge-augmented) or PCR."""
     if weights == "pcr":
-        return _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar)
+        return _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank,
+                                   pcr_cumvar, col_scale)
     if augment == "ridge":
         from ..bilevel.ridge_augment import ridge_augment_weights
         ra = ridge_augment_weights(
@@ -118,12 +126,12 @@ def _fit_core(
     T0: int, scheme: str, col_period: Optional[np.ndarray], demean: bool,
     augment: Optional[str] = None, ridge_lambda: Optional[float] = None,
     weights: str = "simplex", pcr_rank: Optional[int] = None,
-    pcr_cumvar: float = 0.95,
+    pcr_cumvar: float = 0.95, col_scale: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, float, float, np.ndarray]:
     """Solve weights + counterfactual for any (treated, donors) selection."""
     M = _matching_vectors(Z, Y, T0, scheme, col_period, demean)
     w = _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda,
-                        weights, pcr_rank, pcr_cumvar)
+                        weights, pcr_rank, pcr_cumvar, col_scale)
     cf = _counterfactual(w, Y[donor_idx], Y[treated_idx], T0, demean)
     att, pre_rmse, gap = _effects(Y[treated_idx], cf, T0)
     return w, cf, att, pre_rmse, gap
@@ -133,19 +141,32 @@ def fit_scheme(inputs: SCMOInputs, scheme: str, demean: bool = False,
                augment: Optional[str] = None,
                ridge_lambda: Optional[float] = None,
                weights: str = "simplex", pcr_rank: Optional[int] = None,
-               pcr_cumvar: float = 0.95) -> SCMOMethodFit:
-    """Fit one weighting scheme on the real treated unit."""
+               pcr_cumvar: float = 0.95,
+               metric_weights: Optional[List[float]] = None) -> SCMOMethodFit:
+    """Fit one weighting scheme on the real treated unit.
+
+    ``metric_weights`` (length = number of metrics, primary outcome first)
+    applies per-metric ``delta`` weights to the concatenated PCR fit; it has no
+    effect on the simplex solver or the averaged/separate schemes, whose
+    matching matrices do not carry per-metric columns.
+    """
+    col_scale = None
+    if weights == "pcr" and scheme == CONCATENATED and metric_weights is not None:
+        from .pcr_cv import metric_ids, metric_order, column_scale
+        ids = metric_ids(inputs.predictor_labels)
+        col_scale = column_scale(metric_weights, ids, metric_order(ids))
     w, cf, att, pre_rmse, gap = _fit_core(
         inputs.Z, inputs.Y, inputs.treated_idx, inputs.donor_idx,
         inputs.T0, scheme, inputs.col_period, demean, augment, ridge_lambda,
-        weights, pcr_rank, pcr_cumvar,
+        weights, pcr_rank, pcr_cumvar, col_scale,
     )
     donor_labels = inputs.donor_labels
     donor_weights = {donor_labels[i]: float(round(w[i], 4)) for i in range(len(w))}
     return SCMOMethodFit(
         name=scheme, weights=w, counterfactual=cf, gap=gap, att=att,
         pre_rmse=pre_rmse, donor_weights=donor_weights,
-        metadata={"demean": demean, "augment": augment, "weights": weights},
+        metadata={"demean": demean, "augment": augment, "weights": weights,
+                  "metric_weights": metric_weights},
     )
 
 
