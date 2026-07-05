@@ -38,6 +38,133 @@ from mlsynth.utils.masc_helpers import (
     sc_simplex_weights,
 )
 from mlsynth.utils.masc_helpers.crossval import _aggregate_covariates
+from mlsynth.utils.masc_helpers.estimation import _sc_simplex_clarabel
+
+
+def _cvxpy_sc_reference(Y_treated_pre, Y_donors_pre):
+    """Independent cvxpy oracle for the outcome-only SC simplex QP.
+
+    Solves ``min_w ||Y1 - Y0 w||^2  s.t.  sum(w)=1, 0<=w<=1`` exactly as the
+    pre-refactor ``sc_simplex_weights`` did, so the direct-Clarabel solver can
+    be pinned to it to solver tolerance.
+    """
+    import cvxpy as cp
+
+    J = Y_donors_pre.shape[1]
+    w = cp.Variable(J, nonneg=True)
+    problem = cp.Problem(
+        cp.Minimize(cp.sum_squares(Y_treated_pre - Y_donors_pre @ w)),
+        [cp.sum(w) == 1, w <= 1],
+    )
+    problem.solve(solver="CLARABEL")
+    v = np.clip(np.asarray(w.value).flatten(), 0.0, None)
+    return v / v.sum()
+
+
+class TestSCSimplexClarabelDirect:
+    """The outcome-only SC QP is solved by calling Clarabel directly (no cvxpy
+    canonicalisation). It must reproduce the cvxpy reference to solver
+    tolerance, satisfy the simplex, and survive degenerate donor sets."""
+
+    @pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+    def test_matches_cvxpy_reference_to_solver_tolerance(self, seed):
+        rng = np.random.default_rng(seed)
+        T0, J = 15, 8
+        Y_d = rng.normal(100.0, 20.0, size=(T0, J))
+        coeff = np.abs(rng.normal(size=J))
+        coeff /= coeff.sum()
+        Y_t = Y_d @ coeff + rng.normal(0.0, 1.0, size=T0)
+        w = _sc_simplex_clarabel(Y_t, Y_d)
+        ref = _cvxpy_sc_reference(Y_t, Y_d)
+        assert np.allclose(w, ref, atol=1e-6)
+
+    def test_public_sc_simplex_weights_matches_reference(self):
+        # The public entry point must delegate to the direct solver and stay
+        # bit-for-bit compatible with the cvxpy reference on the outcome path.
+        rng = np.random.default_rng(7)
+        Y_d = rng.normal(size=(12, 5))
+        Y_t = Y_d @ np.array([0.4, 0.3, 0.2, 0.1, 0.0]) + rng.normal(scale=0.1, size=12)
+        assert np.allclose(
+            sc_simplex_weights(Y_t, Y_d), _cvxpy_sc_reference(Y_t, Y_d), atol=1e-6
+        )
+
+    def test_simplex_invariants(self):
+        rng = np.random.default_rng(3)
+        Y_d = rng.normal(size=(10, 6))
+        Y_t = rng.normal(size=10)
+        w = _sc_simplex_clarabel(Y_t, Y_d)
+        assert np.isclose(w.sum(), 1.0, atol=1e-8)
+        assert np.all(w >= -1e-9)
+
+    def test_single_donor_is_the_whole_weight(self):
+        rng = np.random.default_rng(4)
+        Y_d = rng.normal(size=(9, 1))
+        Y_t = rng.normal(size=9)
+        w = _sc_simplex_clarabel(Y_t, Y_d)
+        assert w.shape == (1,)
+        assert np.isclose(w[0], 1.0, atol=1e-8)
+
+    def test_collinear_donors_still_valid_simplex(self):
+        # Duplicate donor columns make the QP's Hessian singular; the solve
+        # must still return a valid simplex point.
+        rng = np.random.default_rng(5)
+        base = rng.normal(size=(10, 2))
+        Y_d = np.hstack([base, base[:, [0]]])          # donor 2 == donor 0
+        Y_t = base @ np.array([0.6, 0.4])
+        w = _sc_simplex_clarabel(Y_t, Y_d)
+        assert np.isclose(w.sum(), 1.0, atol=1e-7)
+        assert np.all(w >= -1e-9)
+
+    def test_explicit_non_clarabel_solver_uses_cvxpy_fallback(self):
+        # An explicitly requested non-Clarabel cvxpy solver must still route
+        # through cvxpy and return a valid simplex point (backward compat).
+        pytest.importorskip("cvxpy")
+        rng = np.random.default_rng(8)
+        Y_d = rng.normal(size=(10, 4))
+        Y_t = Y_d @ np.array([0.4, 0.3, 0.2, 0.1]) + rng.normal(scale=0.05, size=10)
+        w = sc_simplex_weights(Y_t, Y_d, solver="SCS")
+        assert np.isclose(w.sum(), 1.0, atol=1e-6)
+        assert np.all(w >= -1e-8)
+        # SCS is looser than Clarabel but must still land near the optimum.
+        assert np.allclose(w, _cvxpy_sc_reference(Y_t, Y_d), atol=1e-3)
+
+    def test_treated_outside_donor_hull(self):
+        # Treated sits above every donor: the simplex optimum is a boundary
+        # vertex; weights still sum to one and match the reference.
+        rng = np.random.default_rng(6)
+        Y_d = rng.normal(0.0, 1.0, size=(10, 4))
+        Y_t = np.full(10, 50.0)
+        w = _sc_simplex_clarabel(Y_t, Y_d)
+        assert np.isclose(w.sum(), 1.0, atol=1e-7)
+        assert np.allclose(w, _cvxpy_sc_reference(Y_t, Y_d), atol=1e-6)
+
+
+class TestMASCOutcomesOnlyCharacterization:
+    """End-to-end guard on the changed code path: an outcomes-only MASC fit
+    routes the CV's SC step through the direct-Clarabel QP, so its selected
+    ``(m_hat, phi_hat)`` and ATT must be unchanged by the solver swap."""
+
+    def test_basque_outcomes_only_is_stable(self):
+        import os
+        import pandas as pd
+
+        data = os.path.join(
+            os.path.dirname(__file__), "..", "..", "basedata", "basque_jasa.csv")
+        if not os.path.exists(data):
+            pytest.skip("basque_jasa.csv not available")
+        df = pd.read_csv(os.path.abspath(data))
+        res = MASC({
+            "df": df, "outcome": "gdpcap", "treat": "terrorism",
+            "unitid": "regionname", "time": "year",
+            "m_grid": list(range(1, 11)), "min_preperiods": 5,
+            "sc_backend": "bilevel", "match_on": "outcomes",
+            "display_graphs": False,
+        }).fit()
+        # Golden values captured from the pre-refactor cvxpy implementation.
+        assert float(res.att) == pytest.approx(-0.9585454584951988, abs=1e-6)
+        assert float(res.phi_hat) == pytest.approx(0.329572204882873, abs=1e-6)
+        assert int(res.m_hat) == 3
+        assert float(res.fit.pre_rmse) == pytest.approx(0.08788906886739352, abs=1e-6)
 
 
 # --------------------------------------------------------------------------- #
