@@ -53,14 +53,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# SYNDES / MAREX mixed-integer experimental designs (SCIP solver).
-design = ["pyscipopt>=4.4.0"]
+# SYNDES / MAREX mixed-integer experimental designs (SCIP solver), and the
+# PANGEO exact-cover partition MIP solved directly via HiGHS (``highspy``).
+design = ["pyscipopt>=4.4.0", "highspy>=1.7.0"]
 # HCW best-subset exact certification via the SCIP mixed-integer backend.
 scip = ["pyscipopt>=4.4.0"]
 # SPOTSYNTH Bayesian synthetic control (NumPyro / JAX).
 bayes = ["numpyro"]
 # Everything optional, for the full feature set.
-all = ["pyscipopt>=4.4.0", "numpyro"]
+all = ["pyscipopt>=4.4.0", "highspy>=1.7.0", "numpyro"]
 
 [project.urls]
 Homepage = "https://github.com/jgreathouse9/mlsynth"
