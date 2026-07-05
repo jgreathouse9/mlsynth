@@ -39,8 +39,18 @@ def simplex_weights(y: np.ndarray, D: np.ndarray, T0: int) -> Tuple[np.ndarray, 
         raise MlsynthEstimationError("No donors available to build the synthetic control.")
     pre = slice(0, T0)
     n = D.shape[1]
+    # Common rescaling for conditioning: the simplex argmin of
+    # ``||y - D w||^2`` is invariant to a shared positive scaling of ``(y, D)``
+    # (the objective just scales by ``c^2``), so solving on a unit-magnitude
+    # version keeps CLARABEL well-conditioned on large-magnitude outcomes
+    # (e.g. streaming counts ~1e7, which otherwise yield "no solution"). This
+    # realises the paper's Algorithm 1 scale-normalisation for the frequentist
+    # solve; the counterfactual is returned on the raw scale via ``D @ weights``.
+    scale = float(np.sqrt(np.mean(np.square(D[pre]))))
+    if not np.isfinite(scale) or scale <= 0.0:
+        scale = 1.0
     w = cp.Variable(n, nonneg=True)
-    objective = cp.Minimize(cp.sum_squares(y[pre] - D[pre] @ w))
+    objective = cp.Minimize(cp.sum_squares(y[pre] / scale - (D[pre] / scale) @ w))
     problem = cp.Problem(objective, [cp.sum(w) == 1])
     try:
         problem.solve(solver=cp.CLARABEL)
