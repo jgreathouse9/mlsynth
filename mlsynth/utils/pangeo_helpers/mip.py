@@ -122,7 +122,124 @@ def _infeasibility_reason(candidate_pairs: List[dict],
     return "; ".join(reasons)
 
 
+def _highspy_available() -> bool:
+    """True if the standalone ``highspy`` HiGHS interface is importable."""
+    try:
+        import highspy  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def solve_partition(
+    candidate_pairs: List[dict],
+    unit_indices: np.ndarray,
+    min_pairs: int = 1,
+    return_diagnostics: bool = False,
+):
+    """Select the exact-cover set of supergeo pairs of minimum total score.
+
+    Dispatches to the standalone ``highspy`` HiGHS backend when available
+    (dropping the cvxpy middleman for the MIP), otherwise falls back to the
+    cvxpy MIP. Both solve the identical exact-cover program and return the same
+    optimum; see :func:`_solve_partition_highspy` / :func:`_solve_partition_cvxpy`.
+    """
+    if _highspy_available():
+        return _solve_partition_highspy(
+            candidate_pairs, unit_indices, min_pairs, return_diagnostics)
+    return _solve_partition_cvxpy(
+        candidate_pairs, unit_indices, min_pairs, return_diagnostics)
+
+
+def _solve_partition_highspy(
+    candidate_pairs: List[dict],
+    unit_indices: np.ndarray,
+    min_pairs: int = 1,
+    return_diagnostics: bool = False,
+):
+    """Exact-cover partition MIP solved with ``highspy`` (HiGHS) directly.
+
+    Builds the same program as :func:`_solve_partition_cvxpy` -- one boolean
+    variable per candidate pair, an exact-cover equality per unit, an optional
+    ``sum(x) >= min_pairs``, minimise total score -- but hands it to HiGHS via
+    ``highspy`` with no cvxpy canonicalisation. Returns the chosen pairs (or
+    ``(chosen, diagnostics)``), matching the cvxpy backend's contract.
+    """
+    import highspy
+
+    n_units = len(unit_indices)
+    n_cand = len(candidate_pairs)
+    if n_cand == 0:
+        raise MlsynthEstimationError(
+            "PANGEO: no admissible supergeo pairs (need >= 2 units per arm)."
+        )
+
+    pos = {int(u): j for j, u in enumerate(unit_indices)}
+    cost = [float(p["score"]) for p in candidate_pairs]
+    # Candidates covering each unit position (empty => that unit is uncoverable).
+    cover: List[List[int]] = [[] for _ in range(n_units)]
+    for c, pair in enumerate(candidate_pairs):
+        for u in pair["members"]:
+            cover[pos[int(u)]].append(c)
+
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+    x = h.addBinaries(n_cand)
+    for i in range(n_units):
+        cs = cover[i]
+        if cs:
+            h.addConstr(sum(x[c] for c in cs) == 1)      # exact cover
+        else:
+            # Uncoverable unit -> empty row fixed to 1 (0 == 1): infeasible.
+            h.addRow(1.0, 1.0, 0,
+                     np.empty(0, dtype=np.int32), np.empty(0, dtype=np.float64))
+    if min_pairs > 1:
+        h.addConstr(sum(x[c] for c in range(n_cand)) >= min_pairs)
+
+    t0 = time.perf_counter()
+    h.minimize(sum(cost[c] * x[c] for c in range(n_cand)))
+    solve_seconds = time.perf_counter() - t0
+
+    status = h.getModelStatus()
+    if status != highspy.HighsModelStatus.kOptimal:
+        raise MlsynthEstimationError(
+            f"PANGEO partition MIP did not solve "
+            f"(status={h.modelStatusToString(status)}); "
+            f"{_infeasibility_reason(candidate_pairs, unit_indices)}."
+        )
+
+    values = np.asarray(h.getSolution().col_value, dtype=float)
+    chosen = [candidate_pairs[c] for c in range(n_cand) if values[c] > 0.5]
+    if not return_diagnostics:
+        return chosen
+
+    info = h.getInfo()
+
+    def _f(v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return v
+
+    diagnostics = {
+        "path": "exact_mip",
+        "n_candidate_pairs": int(n_cand),
+        "objective_value": float(h.getObjectiveValue()),
+        "status": "optimal",                          # kOptimal -> cvxpy's label
+        "solve_seconds": float(solve_seconds),
+        "n_selected_pairs": len(chosen),
+        "solver_name": "HiGHS",
+        "mip_gap": _f(getattr(info, "mip_gap", None)),
+        "dual_bound": _f(getattr(info, "mip_dual_bound", None)),
+        "node_count": _f(getattr(info, "mip_node_count", None)),
+        "simplex_iterations": _f(getattr(info, "simplex_iteration_count", None)),
+    }
+    return chosen, diagnostics
+
+
+def _solve_partition_cvxpy(
     candidate_pairs: List[dict],
     unit_indices: np.ndarray,
     min_pairs: int = 1,
