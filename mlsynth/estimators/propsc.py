@@ -23,8 +23,10 @@ from __future__ import annotations
 from typing import List, Union
 
 import pandas as pd
+from pydantic import ValidationError
 
 from ..config_models import PROPSCConfig
+from ..exceptions import MlsynthConfigError
 from ..utils.propsc_helpers import (
     PROPSCResults,
     assemble_propsc_results,
@@ -53,7 +55,12 @@ class PROPSC:
 
     def __init__(self, config: Union[PROPSCConfig, dict]) -> None:
         if isinstance(config, dict):
-            config = PROPSCConfig(**config)
+            try:
+                config = PROPSCConfig(**config)
+            except ValidationError as exc:
+                raise MlsynthConfigError(
+                    f"Invalid PROPSC configuration: {exc}"
+                ) from exc
         self.config = config
         self.df: pd.DataFrame = config.df
         self.outcomes: List[str] = list(config.outcomes)
