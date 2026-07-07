@@ -83,6 +83,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/marex
    replications/dsc
    replications/microsynth
+   replications/cfm
 
 .. _replications-canonical:
 
