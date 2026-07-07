@@ -21,8 +21,8 @@ import pytest
 
 from mlsynth import (
     BVSS, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MCNNM,
-    MSQRT, NSC, PDA, RESCM, RMSI, SBC, SCMO, SCUL, SDID, SequentialSDID, SHC, SNN,
-    SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
+    MSQRT, NSC, PDA, PROPSC, RESCM, RMSI, SBC, SCMO, SCUL, SDID, SequentialSDID,
+    SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
@@ -47,6 +47,27 @@ def _make_panel(n_units=6, T=30, T0=20, seed=0, rho=0.6):
         for t in range(T):
             rows.append({"unitid": f"u{i:02d}", "time": t, "y": Y[t, i],
                          "treat": int(i == 0 and t >= T0)})
+    return pd.DataFrame(rows)
+
+
+def _make_compositional_panel(n_units=6, T=8, T0=5, n_treated=2, K=3, seed=1):
+    """Balanced panel with a K-proportion compositional outcome (rows sum to 1)."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for i in range(n_units):
+        load = rng.standard_normal(K)
+        for t in range(T):
+            lat = 0.3 * i + 0.2 * t * np.arange(K) + load * (1 + 0.1 * t)
+            treated = i >= n_units - n_treated
+            if treated and t >= T0:
+                lat[0] += 1.0
+            ex = np.exp(lat - lat.max())
+            p = ex / ex.sum()
+            row = {"unitid": f"u{i:02d}", "time": t,
+                   "treat": int(treated and t >= T0)}
+            for k in range(K):
+                row[f"p{k + 1}"] = float(p[k])
+            rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -78,6 +99,8 @@ OBSERVATIONAL = [
     pytest.param(HSC, {}, id="HSC"),
     pytest.param(FSCM, {}, id="FSCM"),
     pytest.param(SCMO, {}, id="SCMO"),
+    pytest.param(PROPSC, {"df": _make_compositional_panel(), "outcome": "p1",
+                          "outcomes": ["p1", "p2", "p3"]}, id="PROPSC"),
     pytest.param(SCUL, {"inference": False, "number_initial_periods": 4,
                         "training_post_length": 5}, id="SCUL"),
     pytest.param(RESCM, {}, id="RESCM"),

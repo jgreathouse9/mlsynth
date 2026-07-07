@@ -12,6 +12,7 @@ from .estimators.clustersc import CLUSTERSC ## Check
 from .estimators.proximal import PROXIMAL ## Check
 from .estimators.fscm import FSCM ## Check
 from .estimators.scmo import SCMO
+from .estimators.propsc import PROPSC
 from .estimators.scta import SCTA
 from .estimators.scul import SCUL
 from .estimators.si import SI ## Check
@@ -97,6 +98,7 @@ __all__ = [
     "PROXIMAL",
     "FSCM",
     "SCMO",
+    "PROPSC",
     "SCTA",
     "SCUL",
     "SI",
