@@ -580,6 +580,7 @@ _RELOCATED_CONFIGS = {
     "SCULConfig": "mlsynth.utils.scul_helpers.config",
     "SIConfig": "mlsynth.utils.si_helpers.config",
     "FMAConfig": "mlsynth.utils.fma_helpers.config",
+    "CFMConfig": "mlsynth.utils.cfm_helpers.config",
     "PDAConfig": "mlsynth.utils.pda_helpers.config",
     "CLUSTERSCConfig": "mlsynth.utils.clustersc_helpers.config",
     "DSCConfig": "mlsynth.utils.dsc_helpers.config",

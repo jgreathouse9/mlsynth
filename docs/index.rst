@@ -279,6 +279,7 @@ headline numbers.
 
    tasc
    fma
+   cfm
    dscar
 
 .. toctree::
