@@ -89,7 +89,11 @@ jobs:
       - name: Install mlsynth + optional backends (design + bayes)
         run: |
           python -m pip install --upgrade pip
-          pip install -e '.[all]'
+          # Pin the numerically-sensitive stack (numpy/scipy/clarabel) so the
+          # paper-anchored replication cases reproduce identically day to day;
+          # see benchmarks/constraints.txt. Applied to this job only -- the
+          # python-refs jobs deliberately resolve numpy<2 for their references.
+          pip install -e '.[all]' -c benchmarks/constraints.txt
 
       - name: Install R
         run: |

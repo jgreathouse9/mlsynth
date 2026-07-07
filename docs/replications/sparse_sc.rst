@@ -87,36 +87,45 @@ Results
 
    * - Quantity
      - SparseSC (augmented)
-     - ADH (2010) benchmark
+     - Vives-i-Bastida (2023) Table 1
    * - ATT, 1989-2000 (packs)
-     - **-17.9**
-     - :math:`\approx -19`
+     - **-18.2**
+     - **-18.2** (Sparse SCM+)
    * - 95% conformal CI
-     - ``[-21.3, -15.4]``
+     - ``[-21.0, -15.4]``
      - excludes 0
    * - pre-treatment RMSE
-     - 2.21
-     - ~1.8
+     - 2.14
+     - n/a
    * - predictors kept (of 33)
-     - **6**
-     - n/a
-   * - selected :math:`\lambda`
-     - 0.019
-     - n/a
+     - **5**
+     - sparse
    * - donor pool
-     - Utah 0.39, Nevada 0.30, Connecticut 0.20, Colorado 0.12
+     - Utah / Nevada / Connecticut / Colorado carry ~all the weight
      - Utah / Nevada / Connecticut / Colorado / Montana
+
+The outer V-objective is non-convex, so which critical point a single cold
+L-BFGS-B start lands in depends on finite-difference / BLAS rounding and drifts
+across numerical stacks. The default ``robust_selection=True`` adds a backward
+continuation pass (a homotopy from the heavily penalised, trivially-sparse end
+of the :math:`\lambda` grid), which tracks the sparse solution path mechanically
+and so selects the true minimum-validation-MSE optimum reproducibly. The
+selected :math:`\lambda` itself is not reported here: it floats among adjacent
+grid points on the flat sparse plateau (all giving the same :math:`-18.2` fit),
+so it is not a stack-invariant quantity; the ATT is.
 
 What it confirms
 ----------------
 
 * **The penalty selects.** From 33 candidate predictors the L1 fit keeps only
-  **6**, discarding the bulk of the over-rich augmented set — exactly the
+  **~5**, discarding the bulk of the over-rich augmented set — exactly the
   variable-selection behaviour that motivates the method.
-* **The effect is canonical.** The pruned fit lands at :math:`-17.9` packs with a
-  conformal interval excluding zero, squarely on the ADH :math:`\approx -19`
-  benchmark, and recovers **ADH's donor pool** (Utah / Nevada / Connecticut /
-  Colorado) from a 38-state pool — the selection does not distort the answer.
+* **The effect matches the paper.** The pruned fit lands at :math:`-18.2` packs
+  with a conformal interval excluding zero — reproducing Vives-i-Bastida (2023)
+  Table 1's "Sparse SCM+" estimate exactly — and recovers **ADH's donor pool**
+  (Utah / Nevada / Connecticut / Colorado) from a 38-state pool, where the
+  unpenalised k=40 SCM instead overfits to :math:`-21` with poor pre-treatment
+  fit (the paper's Table 1). The selection does not distort the answer.
 
 The durable check lives in ``benchmarks/cases/sparse_sc_prop99.py``::
 

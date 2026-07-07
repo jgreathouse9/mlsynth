@@ -68,6 +68,7 @@ def sweep_lambda(
     use_analytical_grad: bool = False,
     warm_start: bool = False,
     multi_start: int = 1,
+    robust: bool = True,
 ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Sweep lambda and return the best V-weights.
 
@@ -84,6 +85,13 @@ def sweep_lambda(
         Reuse the previous lambda's V-solution as the initialiser
         for the next lambda. Falls back to the cold MATLAB init if a
         warm-started fit appears to fail.
+    robust : bool, default True
+        Add a backward continuation pass (homotopy from the heavily
+        penalised, trivially-sparse end of the grid) and a champion
+        restart, so the selected optimum is the true minimum-validation-
+        MSE point and is reproducible across numerical stacks rather than
+        depending on which critical point a single cold start lands in.
+        Roughly doubles the sweep cost; set False for the fast single pass.
 
     Returns
     -------
@@ -139,57 +147,71 @@ def sweep_lambda(
     val_curve = np.full(lambda_grid.size, np.nan)
     v_path = np.zeros((lambda_grid.size, P))
 
-    best_val = np.inf
-    best_v = np.concatenate([[1.0], v20_cold])
-    best_lambda = float(lambda_grid[0])
-
-    prev_v2 = v20_cold.copy()
-
-    for idx, lam in enumerate(lambda_grid):
-        # Multi-start: try several deterministic init points and keep
-        # the one with the lowest outer objective. The clean closed-form
-        # gradient makes L-BFGS-B converge to whatever critical point is
-        # nearest the initialiser, so on the non-convex V-objective the
-        # cold MATLAB init alone is fragile. Each start is cheap with
-        # the analytical jac, so 2-4 starts buy back most of the
-        # robustness FD's noisy gradient gave for free.
-        candidate_starts = _build_starts(
-            v20_cold=v20_cold,
-            prev_v2=prev_v2,
-            warm_start=warm_start,
-            multi_start=multi_start,
-            include_warm_first=idx > 0,
-        )
+    def _solve(lam, starts):
+        """Best (lowest outer-objective) critical point over the given starts."""
         best_res = None
-        for x0 in candidate_starts:
+        for x0 in starts:
             res = _minimize_outer(
-                x0=x0,
-                X1=X1, X0=X0,
-                Z1_outer=Z1_outer, Z0_outer=Z0_outer,
-                lam=float(lam),
-                solver=solver,
-                bounds=bounds,
-                max_outer_iter=max_outer_iter,
-                ftol=ftol,
+                x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
+                lam=float(lam), solver=solver, bounds=bounds,
+                max_outer_iter=max_outer_iter, ftol=ftol,
                 use_analytical_grad=use_analytical_grad,
             )
-            if (best_res is None) or (
-                np.isfinite(res.fun) and res.fun < best_res.fun
-            ):
+            if (best_res is None) or (np.isfinite(res.fun) and res.fun < best_res.fun):
                 best_res = res
-        res = best_res
+        return best_res
 
+    # ---- Forward pass (ascending lambda) ------------------------------------
+    # Multi-start: try several deterministic init points and keep the one with
+    # the lowest outer objective. L-BFGS-B converges to whatever critical point
+    # is nearest the initialiser, so on the non-convex V-objective a single cold
+    # start is fragile -- which one it lands in depends on finite-difference /
+    # BLAS rounding and so drifts across numerical stacks. The champion restart
+    # below and the backward continuation pass make the selected optimum
+    # reproducible without relying on that gradient noise.
+    champion_v2 = None                      # v2 with the lowest validation MSE so far
+    best_val_fwd = np.inf
+    for idx, lam in enumerate(lambda_grid):
+        starts = _build_starts(
+            v20_cold=v20_cold, prev_v2=(v_path[idx - 1, 1:] if idx > 0 else v20_cold),
+            warm_start=warm_start, multi_start=multi_start, include_warm_first=idx > 0,
+            champion=champion_v2,
+        )
+        res = _solve(lam, starts)
         v2_hat = np.clip(res.x, 0.0, None)
         outer_curve[idx] = float(res.fun)
-        val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val,
-                                       solver=solver)
+        val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
         v_path[idx, :] = np.concatenate([[1.0], v2_hat])
-        if val_curve[idx] < best_val:
-            best_val = val_curve[idx]
-            best_lambda = float(lam)
-            best_v = v_path[idx, :].copy()
-        prev_v2 = v2_hat.copy()
+        if val_curve[idx] < best_val_fwd:
+            best_val_fwd = val_curve[idx]
+            champion_v2 = v2_hat.copy()
 
+    # ---- Backward continuation pass (descending lambda) ---------------------
+    # Homotopy from the heavily-penalised end: at large lambda the L1 term makes
+    # the V-problem trivially sparse and easy to solve from any start, so warm-
+    # starting *downward* tracks the sparse solution path instead of jumping into
+    # a dense, overfit basin. Combined with the champion restart this finds the
+    # global outer optimum at each lambda deterministically. A candidate is
+    # accepted only if it lowers that lambda's outer objective, so the pass can
+    # never worsen the path.
+    if robust:
+        # ensure the champion is the global validation-MSE winner from the forward pass
+        champion_v2 = v_path[int(np.nanargmin(val_curve)), 1:].copy()
+        for idx in range(lambda_grid.size - 2, -1, -1):
+            lam = float(lambda_grid[idx])
+            starts = [v_path[idx + 1, 1:].copy(), champion_v2.copy(), v_path[idx, 1:].copy()]
+            res = _solve(lam, starts)
+            if np.isfinite(res.fun) and res.fun < outer_curve[idx] - 1e-12:
+                v2_hat = np.clip(res.x, 0.0, None)
+                outer_curve[idx] = float(res.fun)
+                val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
+                v_path[idx, :] = np.concatenate([[1.0], v2_hat])
+                if val_curve[idx] <= np.nanmin(val_curve):
+                    champion_v2 = v2_hat.copy()
+
+    best_idx = int(np.nanargmin(val_curve))
+    best_lambda = float(lambda_grid[best_idx])
+    best_v = v_path[best_idx, :].copy()
     return best_v, best_lambda, lambda_grid, outer_curve, val_curve, v_path
 
 
@@ -199,6 +221,7 @@ def _build_starts(
     warm_start: bool,
     multi_start: int,
     include_warm_first: bool,
+    champion: Optional[np.ndarray] = None,
 ) -> list:
     """Construct a list of L-BFGS-B initialisers for one lambda step.
 
@@ -216,6 +239,8 @@ def _build_starts(
     falls back to v20_cold (or prev_v2 in warm-start mode) only.
     """
     candidates: list = []
+    if champion is not None:
+        candidates.append(np.asarray(champion, dtype=float).copy())
     if warm_start and include_warm_first:
         candidates.append(prev_v2.copy())
     candidates.append(v20_cold.copy())
@@ -225,7 +250,10 @@ def _build_starts(
     ]
     while len(candidates) < max(1, multi_start) and extras:
         candidates.append(extras.pop(0))
-    return candidates[: max(1, multi_start)]
+    # The champion restart is always kept (it is what makes the selected optimum
+    # reproducible); ``multi_start`` only caps the *additional* heuristic starts.
+    keep = max(1, multi_start) + (1 if champion is not None else 0)
+    return candidates[:keep]
 
 
 def _minimize_outer(

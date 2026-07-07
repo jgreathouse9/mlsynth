@@ -422,3 +422,54 @@ class TestPublicAPI:
         )
         # First predictor (the anchor) gets v = 1.
         assert res.predictor_weights[res.inputs.predictor_names[0]] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Robust (backward-continuation) sweep: reproducibility invariants
+# ---------------------------------------------------------------------------
+class TestRobustSweep:
+    """The default robust sweep must be deterministic and never worse than the
+    single-pass sweep -- the backward continuation only accepts a candidate that
+    lowers the outer objective, and it makes the selected optimum reproducible
+    across numerical stacks (regression guard for the SparseSC Prop 99 flake)."""
+
+    # A short grid + the exact analytical gradient keeps the test fast; the
+    # invariants (monotone improvement, determinism) hold at any grid size.
+    _GRID = np.concatenate([[0.0], np.logspace(-3.0, 0.0, 7)])
+
+    def _inputs(self):
+        df = _factor_panel(seed=3, N_donors=6, T=20, T0=14, P=5)
+        return prepare_sparse_sc_inputs(
+            df=df, outcome="y", treat="tr", unitid="unit", time="year",
+            covariates=[f"p{p}" for p in range(5)],
+        )
+
+    def _sweep(self, inputs, robust):
+        return sweep_lambda(
+            X1=inputs.X1, X0=inputs.X0, Y1=inputs.Y1, Y0=inputs.Y0,
+            T0_total=inputs.T0_total, T0_train=inputs.T0_train,
+            lambda_grid=self._GRID, use_analytical_grad=True, robust=robust,
+        )
+
+    def test_backward_pass_never_worsens_outer_objective(self):
+        inputs = self._inputs()
+        _, _, _, base_outer, base_val, _ = self._sweep(inputs, robust=False)
+        _, _, _, rob_outer, rob_val, _ = self._sweep(inputs, robust=True)
+        # Every grid point's outer objective is <= the single-pass value.
+        assert np.all(rob_outer <= base_outer + 1e-9)
+        # The selected (minimum-validation-MSE) point is at least as good.
+        assert np.nanmin(rob_val) <= np.nanmin(base_val) + 1e-9
+
+    def test_robust_sweep_is_deterministic(self):
+        inputs = self._inputs()
+        v_a, lam_a, _, _, _, _ = self._sweep(inputs, robust=True)
+        v_b, lam_b, _, _, _, _ = self._sweep(inputs, robust=True)
+        assert lam_a == lam_b
+        np.testing.assert_array_equal(v_a, v_b)
+
+    def test_default_config_enables_robust_selection(self):
+        cfg = SparseSCConfig(
+            df=_factor_panel(), outcome="y", treat="tr", unitid="unit",
+            time="year", covariates=COVS,
+        )
+        assert cfg.robust_selection is True

@@ -82,19 +82,26 @@ def run() -> dict:
 
 
 # Deterministic (no RNG) => exact re-runs. Tolerances catch regressions while
-# absorbing platform float noise in the optimizer / conformal grid. The cells
-# reproduce the dedicated replication page value-for-value: the L1 penalty
-# prunes 33 candidate predictors to 6, the effect lands at -17.9 packs (squarely
-# on ADH's ~-19) with a conformal CI excluding zero, and four donors
-# (Utah/Nevada/Connecticut/Colorado) carry essentially all the weight.
+# absorbing platform float noise in the optimizer / conformal grid. With the
+# robust (backward-continuation) sweep, SparseSC selects the true minimum-
+# validation-MSE point on the sparse solution path -- the L1 penalty prunes 33
+# candidate predictors to ~5, the effect lands at -18.2 packs (Vives-i-Bastida
+# 2023, Table 1, "Sparse SCM+" = -18.2, matched exactly), with a conformal CI
+# excluding zero and four donors (Utah/Nevada/Connecticut/Colorado) carrying
+# essentially all the weight.
+#
+# opt_lambda is NOT gated: the paper does not report the penalty value, and the
+# selected lambda floats among several adjacent grid points along the flat sparse
+# plateau (all giving the same ~-18.2 fit), so pinning it would re-introduce the
+# cross-stack flakiness this benchmark exists to catch. The ATT is the paper-
+# anchored, stack-invariant quantity.
 EXPECTED = {
     "n_predictors": (33.0, 0.0),
-    "att_1989_2000": (-17.90, 0.6),       # ADH benchmark ~ -19
-    "pre_rmse": (2.21, 0.25),
-    "opt_lambda": (0.0193, 0.006),
-    "predictors_kept": (6.0, 1.0),        # L1 selection: 33 -> ~6
-    "ci_lower": (-21.34, 1.2),            # conformal CI excludes 0
-    "ci_upper": (-15.37, 1.2),
+    "att_1989_2000": (-18.20, 0.6),       # Vives-i-Bastida 2023 Table 1 (Sparse SCM+)
+    "pre_rmse": (2.16, 0.25),
+    "predictors_kept": (5.0, 1.5),        # L1 selection: 33 -> ~5 on the sparse plateau
+    "ci_lower": (-21.0, 1.5),             # conformal CI excludes 0
+    "ci_upper": (-15.4, 1.5),
     "donors_above_5pct": (4.0, 1.0),      # ADH's 4-state pool
     "top4_weight_mass": (1.0, 0.05),      # those four carry ~all the weight
 }

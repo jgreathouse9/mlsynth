@@ -1,0 +1,21 @@
+# Pinned numerical stack for the daily benchmark suite.
+#
+# A few replication cases (notably sparse_sc_prop99) drive a non-convex inner
+# optimisation whose selected optimum is sensitive to BLAS / LAPACK / solver
+# rounding. The estimators themselves are made reproducible in code (e.g.
+# SparseSC's robust backward-continuation sweep, on by default), but the daily
+# job also reinstalls the environment from scratch, so an unpinned upgrade of
+# numpy / scipy / clarabel can still shift the numerics under the paper-anchored
+# tolerances. These pins lock the minor version of the libraries that matter so
+# the durable replication numbers are reproduced identically day to day; patch
+# releases are still allowed.
+#
+# Applied only to the `suite` job (pip install -e '.[all]' -c this-file). The
+# python-refs jobs deliberately resolve numpy<2 for their references and must
+# NOT use these constraints.
+#
+# Validated set (reproduces the published replication numbers):
+#   numpy 2.4.6, scipy 1.17.1, clarabel 0.11.1
+numpy>=2.4,<2.5
+scipy>=1.17,<1.18
+clarabel>=0.11,<0.12
