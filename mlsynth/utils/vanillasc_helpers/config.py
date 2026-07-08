@@ -268,5 +268,16 @@ class VanillaSCConfig(BaseEstimatorConfig):
         description="Lambda selector for backend='penalized'. 'holdout'/'loo' "
                     "are Abadie-L'Hour time-split criteria; 'pensynth' is van "
                     "Kesteren's cv_pensynth (fit on covariates, validate on the "
-                    "held-out pre-period outcome path; needs covariates).",
+                    "held-out pre-period outcome path; needs covariates). "
+                    "Ignored when 'penalized_lambda' is set.",
+    )
+    penalized_lambda: Optional[float] = Field(
+        default=None, ge=0.0,
+        description="Fixed Abadie-L'Hour penalty for backend='penalized'. When "
+                    "set (>= 0), it is used directly and cross-validation "
+                    "('penalized_cv') is skipped; larger values approach "
+                    "nearest-neighbour matching, an infinitesimal value gives "
+                    "the lexicographic (fit-preserving) tie-break, and 0 is the "
+                    "unpenalized synthetic control. 'None' (default) selects "
+                    "lambda by cross-validation. Ignored for other backends.",
     )
