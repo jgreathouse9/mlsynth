@@ -255,6 +255,13 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             X1, X0 = Xs[:, 0], Xs[:, 1:]
             pred_names = list(covariates)
 
+        # A fixed penalized penalty (numeric ``lam``) is passed straight to the
+        # penalized solver, which then skips cross-validation; ``None`` keeps
+        # the CV path selected by ``penalized_cv``.
+        penalized_lam_kwargs = (
+            {"lam": float(config.penalized_lambda)}
+            if config.penalized_lambda is not None else {}
+        )
         engine = BilevelSCM(
             config.backend,
             canonical_v=config.canonical_v,
@@ -266,6 +273,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             popsize=config.mscmt_popsize,
             prune_shady=config.mscmt_prune_shady,
             cv=config.penalized_cv,
+            **penalized_lam_kwargs,
         )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -493,6 +501,12 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "covariates": covariates,
                 "canonical_v": config.canonical_v,
                 "v_agreement": res.v_agreement,
+                "penalized_lambda": (
+                    float(res.diagnostics["lambda"])
+                    if res.backend == "penalized"
+                    and res.diagnostics.get("lambda") is not None
+                    else None
+                ),
             },
         ),
         additional_outputs={

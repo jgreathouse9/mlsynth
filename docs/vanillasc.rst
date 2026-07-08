@@ -194,7 +194,13 @@ The covariate path exposes three reliable solvers via ``backend=``:
     leave-one-out :math:`\lambda` selection, giving a unique, sparse
     :math:`\mathbf{w}`. Works with or without covariates. The solver is
     cross-validated against the authors' own ``wsoll1`` (durable case
-    ``pensynth_prop99``); see :doc:`replications/pensynth`.
+    ``pensynth_prop99``); see :doc:`replications/pensynth`. Set
+    ``penalized_lambda`` to supply :math:`\lambda` directly and skip the
+    cross-validation: a large value approaches nearest-neighbour matching, an
+    infinitesimal value gives the lexicographic (fit-preserving) tie-break that
+    resolves non-uniqueness without distorting the fit, and ``0`` recovers the
+    unpenalized synthetic control. ``penalized_cv`` selects the CV criterion
+    only when ``penalized_lambda`` is ``None``.
 
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
