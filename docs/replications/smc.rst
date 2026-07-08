@@ -31,16 +31,24 @@ predictor weights fixed to one, so the oracle is deterministic. The mlsynth
 weight computation :func:`mlsynth.utils.smc_helpers.smc_weights` is fed the
 identical matrix. Every quantity agrees:
 
-  =========================  ==================
-  Quantity                   max \|mlsynth − R\|
-  =========================  ==================
-  :math:`\widehat{\theta}_j` (all donors)   5.3e-15
-  box weights :math:`\mathbf{w}`            1.9e-14
-  combined :math:`\widehat{\theta}_j w_j`   2.0e-14
-  ``bias``                                  6.3e-14
-  :math:`\widehat{\sigma}^2`                2.4e-14
-  counterfactual (43 years)                 1.7e-13
-  =========================  ==================
+.. list-table::
+   :header-rows: 1
+   :widths: 60 40
+
+   * - Quantity
+     - max \|mlsynth − R\|
+   * - :math:`\widehat{\theta}_j` (all donors)
+     - 5.3e-15
+   * - box weights :math:`\mathbf{w}`
+     - 1.9e-14
+   * - combined :math:`\widehat{\theta}_j w_j`
+     - 2.0e-14
+   * - ``bias``
+     - 6.3e-14
+   * - :math:`\widehat{\sigma}^2`
+     - 2.4e-14
+   * - counterfactual (43 years)
+     - 1.7e-13
 
 The synthesis QP is the load-bearing step. mlsynth solves it with an exact
 active-set box solver (:func:`mlsynth.utils.smc_helpers.solver.solve_box_qp`),
