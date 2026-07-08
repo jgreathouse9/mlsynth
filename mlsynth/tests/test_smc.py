@@ -33,11 +33,23 @@ from mlsynth.utils.smc_helpers import (
     SMCInputs,
     SMCResults,
     counterfactual,
+    optimize_v,
     prepare_smc_inputs,
     run_smc,
     smc_weights,
     solve_box_qp,
 )
+
+# The paper's Basque predictor specification (Algorithm 3 / Table 5), as far as
+# basque_data.csv carries it (no separate school.post.high column).
+_BASQUE_COVS = ["school.illit", "school.prim", "school.med", "school.high", "invest",
+                "sec.agriculture", "sec.energy", "sec.industry", "sec.construction",
+                "sec.services.venta", "sec.services.nonventa", "popdens"]
+_BASQUE_WINS = {**{c: (1964, 1969) for c in
+                   ["school.illit", "school.prim", "school.med", "school.high", "invest"]},
+                **{c: (1961, 1969) for c in
+                   ["sec.agriculture", "sec.energy", "sec.industry", "sec.construction",
+                    "sec.services.venta", "sec.services.nonventa", "popdens"]}}
 
 BASQUE = os.path.join(os.path.dirname(__file__), "..", "..", "basedata", "basque_data.csv")
 
@@ -289,6 +301,70 @@ def test_basque_reproduction(basque):
     assert "Madrid (Comunidad De)" in dw and "Murcia (Region de)" in dw
 
 
+def test_fit_window_restricts_outcome_rows(panel):
+    inp = prepare_smc_inputs(panel, outcome="y", treat="treat", unitid="unit", time="t",
+                             fit_window=(2, 6))       # pre-periods 2..6 inclusive
+    assert list(inp.fit_idx) == [2, 3, 4, 5, 6]
+
+
+def test_covariate_window_aggregates_over_window(panel):
+    df = panel.copy()
+    df["x"] = df["t"].astype(float)                    # x == t, so window mean is known
+    inp = prepare_smc_inputs(df, outcome="y", treat="treat", unitid="unit", time="t",
+                             covariates=["x"], covariate_windows={"x": (2, 4)})
+    assert np.isclose(inp.cov_treated[0], 3.0)         # mean of {2,3,4}
+
+
+def test_covariate_window_out_of_range_raises(panel):
+    df = panel.copy(); df["x"] = 1.0
+    with pytest.raises(MlsynthDataError):
+        prepare_smc_inputs(df, outcome="y", treat="treat", unitid="unit", time="t",
+                           covariates=["x"], covariate_windows={"x": (999, 1000)})
+
+
+def test_fit_window_too_narrow_raises(panel):
+    with pytest.raises(MlsynthDataError):
+        prepare_smc_inputs(panel, outcome="y", treat="treat", unitid="unit", time="t",
+                           fit_window=(3, 3))            # a single pre-period
+
+
+def test_paper_reproduction_via_vsearch(basque):
+    # Algorithm 3 config: covariate matching + SSR fit window + seeded V search.
+    res = SMC(SMCConfig(
+        df=basque, outcome="gdpcap", treat="treat", unitid="regionname", time="year",
+        covariates=_BASQUE_COVS, covariate_windows=_BASQUE_WINS, fit_window=(1960, 1969),
+        v_search="de", v_seed=0, v_maxiter=25, v_popsize=6, display_graphs=False,
+    )).fit()
+    # Reproduces the paper's donor structure (Rioja dominant, then Madrid) and the
+    # Fig 1 ATT magnitude (~-1.9 to -2.5), unlike the outcome-only default.
+    assert res.att < -1.0
+    assert res.weights.summary_stats["v_search"] == "de"
+    w = res.donor_weights
+    assert w["Rioja (La)"] > 0.3
+    assert w["Rioja (La)"] >= max(abs(v) for v in w.values()) - 1e-9   # Rioja is top
+
+
+def test_vsearch_deterministic_by_seed(basque):
+    kw = dict(df=basque, outcome="gdpcap", treat="treat", unitid="regionname",
+              time="year", covariates=_BASQUE_COVS, covariate_windows=_BASQUE_WINS,
+              fit_window=(1960, 1969), v_search="de", v_seed=1, v_maxiter=12,
+              v_popsize=5, display_graphs=False)
+    a = SMC(SMCConfig(**kw)).fit()
+    b = SMC(SMCConfig(**kw)).fit()
+    assert np.allclose(a.weights_vector, b.weights_vector)
+
+
+def test_optimize_v_reproducible():
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((14, 8)); y = rng.standard_normal(14)
+    v1 = optimize_v(X, y, n_outcome_rows=6, seed=2, maxiter=8, popsize=4)
+    v2 = optimize_v(X, y, n_outcome_rows=6, seed=2, maxiter=8, popsize=4)
+    assert np.allclose(v1, v2)
+    assert np.isclose(v1.sum(), len(v1))               # normalised to sum n
+    with pytest.raises(ValueError):
+        optimize_v(X, y, n_outcome_rows=0)
+
+
 def test_plotting_smoke(panel, tmp_path):
     import matplotlib
     matplotlib.use("Agg")
@@ -330,6 +406,16 @@ def test_ridge_must_be_positive(panel):
 def test_empty_covariates_list_raises(panel):
     with pytest.raises(MlsynthConfigError):
         _cfg(panel, covariates=[])
+
+
+def test_vsearch_requires_covariates(panel):
+    with pytest.raises(MlsynthConfigError):
+        _cfg(panel, v_search="de")                        # no covariates
+
+
+def test_covariate_windows_requires_covariates(panel):
+    with pytest.raises(MlsynthConfigError):
+        _cfg(panel, covariate_windows={"x": (0, 3)})      # no covariates
 
 
 def test_extra_field_forbidden(panel):

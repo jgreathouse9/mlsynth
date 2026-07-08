@@ -14,6 +14,7 @@ from .plotter import plot_smc
 from .setup import prepare_smc_inputs
 from .solver import solve_box_qp
 from .structures import SMCFit, SMCInputs, SMCResults
+from .vsearch import optimize_v
 
 __all__ = [
     "SMCFit",
@@ -21,6 +22,7 @@ __all__ = [
     "SMCResults",
     "SMCWeights",
     "counterfactual",
+    "optimize_v",
     "plot_smc",
     "prepare_smc_inputs",
     "run_smc",

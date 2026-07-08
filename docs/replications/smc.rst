@@ -79,17 +79,38 @@ capita), with the combined donor coefficients concentrated on Murcia
 divergence traces the familiar economic cost of ETA terrorism. The durable case
 is ``benchmarks/cases/smc_basque.py``.
 
-A note on the covariate / predictor-weight variant
+The covariate / predictor-weight variant (Table 5)
 --------------------------------------------------
 
-The paper's Basque tables (its placebo study, Table 4) use the
-covariate-augmented variant with an Abadie predictor-weight (:math:`V`) search.
-That search is not identified: on the Basque matching matrix a large manifold of
-:math:`V` achieves essentially the same pre-outcome fit while producing post-
-period effects that range over a wide band, so the reported per-region cells are
-not a well-defined function of the data (a global differential-evolution search
-reproduces the paper's *average* placebo MSPE but not its cells, and remains
-seed-dependent). mlsynth therefore ships the deterministic Algorithm 1 as the
-estimator: the :math:`C_p` penalty identifies the weights directly, so no
-:math:`V` search — and no attendant non-reproducibility — is involved. Optional
-``covariates`` enter at equal predictor weight.
+The paper's Basque tables use the covariate-augmented variant (Algorithm 3) with
+an Abadie predictor-weight (:math:`V`) search. mlsynth exposes it as a seeded
+opt-in — ``covariates`` with ``covariate_windows``, the ``fit_window`` for the
+outcome rows, and ``v_search="de"``. Configured this way the estimator rebuilds
+the paper's matching matrix from the raw panel and reproduces its Basque result:
+
+.. code-block:: python
+
+   res = SMC({
+       "df": df, "outcome": "gdpcap", "treat": "treat",
+       "unitid": "regionname", "time": "year",
+       "covariates": [...],                 # the 12 Abadie predictors
+       "covariate_windows": {...},          # 1964-69 schooling/invest, 1961-69 sectors
+       "fit_window": (1960, 1969),          # time.optimize.ssr
+       "v_search": "de", "v_seed": 0,
+   }).fit()
+
+gives Rioja-dominant weights with Madrid second and an ATT reaching
+:math:`\approx -2.4` by 1997 — the Table 5 / Figure 1 donor structure and
+magnitude, in place of the outcome-only default's Murcia / Madrid / Castilla y
+León and :math:`-0.86`.
+
+Why it is opt-in, and what not to over-read. The :math:`V` optimum is *not
+identified*: on the Basque matching matrix a large manifold of :math:`V` achieves
+essentially the same pre-outcome fit while producing post-period effects that
+range over a wide band, so the *exact* split among the top donors is not a
+well-defined function of the data — a global differential-evolution search
+reproduces the paper's *average* placebo MSPE (Table 4) but not its per-region
+cells, and the split shifts with the seed. The search is therefore seeded (a
+given call is reproducible) and opt-in, leaving the :math:`C_p`-identified
+Algorithm 1 as the default. Read the ``v_search`` weights as one draw from the
+paper's non-identified :math:`V` manifold, not as identified quantities.
