@@ -106,6 +106,8 @@ class SMC:
                 outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
                 covariates=self.config.covariates,
+                covariate_windows=self.config.covariate_windows,
+                fit_window=self.config.fit_window,
             )
         except MlsynthDataError:
             raise
@@ -114,7 +116,11 @@ class SMC:
                 f"SMC: failed to prepare inputs: {exc}") from exc
 
         try:
-            fit = run_smc(inputs, ridge=self.config.ridge)
+            fit = run_smc(
+                inputs, ridge=self.config.ridge,
+                v_search=self.config.v_search, v_seed=self.config.v_seed,
+                v_maxiter=self.config.v_maxiter, v_popsize=self.config.v_popsize,
+            )
         except (MlsynthDataError, MlsynthEstimationError):  # pragma: no cover
             raise                                           # already translated
         except Exception as exc:  # pragma: no cover - defensive translation

@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import Field, model_validator
 
@@ -21,7 +21,12 @@ class SMCConfig(BaseEstimatorConfig):
     synthesises the matched controls with box-``[0, 1]`` weights chosen by a
     Mallows/Cp unbiased-risk criterion. The combined donor coefficients may be
     negative (controlled extrapolation), and the Cp penalty -- not a predictor
-    (``V``) search -- identifies the weights, so the estimator is deterministic.
+    (``V``) search -- identifies the weights, so the default estimator is
+    deterministic.
+
+    The covariate + predictor-weight (``V``) variant of the paper's Basque
+    application (Algorithm 3 / Table 5) is available as an explicit, seeded
+    opt-in (``covariates=[...]`` with ``v_search="de"``); see ``v_search``.
 
     References
     ----------
@@ -41,12 +46,54 @@ class SMCConfig(BaseEstimatorConfig):
     covariates: Optional[List[str]] = Field(
         default=None,
         description=(
-            "Optional predictor columns (Algorithm 3). Each covariate's "
-            "pre-treatment mean is standardised to the outcome rows' scale and "
-            "added as one extra matching row. Predictor weights are held equal "
-            "(V = I): the Cp penalty does the identification, so no -- inherently "
-            "non-reproducible -- V search is run."
+            "Optional predictor columns (Algorithm 3). Each covariate is "
+            "aggregated over its window (``covariate_windows``, else the whole "
+            "pre-period), standardised to the outcome rows' scale, and added as "
+            "one extra matching row."
         ),
+    )
+    covariate_windows: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Per-covariate inclusive ``(start, end)`` aggregation window of time "
+            "labels, e.g. {'invest': (1964, 1969)}. Covariates not listed are "
+            "averaged over the full pre-treatment period. Mirrors Abadie's "
+            "predictor specification. Requires ``covariates``."
+        ),
+    )
+    fit_window: Optional[Tuple[Any, Any]] = Field(
+        default=None,
+        description=(
+            "Inclusive ``(start, end)`` window of pre-treatment periods whose "
+            "outcomes form the outcome matching rows (Abadie's "
+            "``time.optimize.ssr``). Default None uses every pre-treatment "
+            "period. Set it to reproduce a paper's fit window."
+        ),
+    )
+    v_search: Literal["none", "de"] = Field(
+        default="none",
+        description=(
+            "Predictor-weight (V) optimisation for the covariate variant. "
+            "'none' (default) holds V = I -- the deterministic, Cp-identified "
+            "estimator. 'de' runs a seeded global differential-evolution search "
+            "over V (the paper's Algorithm 3 / Table 5 spec). WARNING: the V "
+            "optimum is not identified -- a manifold of V fits the pre-period "
+            "equally well but disagrees out of sample -- so the resulting weights "
+            "are seed-dependent and must not be read as identified quantities. "
+            "Requires ``covariates``."
+        ),
+    )
+    v_seed: int = Field(
+        default=0,
+        description="Seed for the ``v_search='de'`` search (makes a call reproducible).",
+    )
+    v_maxiter: int = Field(
+        default=60, ge=1,
+        description="Max generations for the ``v_search='de'`` differential evolution.",
+    )
+    v_popsize: int = Field(
+        default=12, ge=2,
+        description="Population-size multiplier for the ``v_search='de'`` search.",
     )
 
     @model_validator(mode="after")
@@ -54,5 +101,14 @@ class SMCConfig(BaseEstimatorConfig):
         if self.covariates is not None and len(self.covariates) == 0:
             raise MlsynthConfigError(
                 "SMC 'covariates' must be a non-empty list or None."
+            )
+        if self.covariate_windows and not self.covariates:
+            raise MlsynthConfigError(
+                "SMC 'covariate_windows' requires 'covariates'."
+            )
+        if self.v_search == "de" and not self.covariates:
+            raise MlsynthConfigError(
+                "SMC v_search='de' optimises predictor weights and therefore "
+                "requires 'covariates'."
             )
         return self

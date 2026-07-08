@@ -19,9 +19,10 @@ relaxes that restriction in a disciplined way and is a good choice when:
 * You are willing to let the counterfactual extrapolate a little beyond the
   donor hull, but want the amount of extrapolation regularised rather than
   unbounded (as an unconstrained regression would give).
-* You want a deterministic, reproducible estimate. SMC's weights are pinned by
-  a risk criterion, not by an Abadie predictor-weight (``V``) search, so there
-  is no optimiser-seed dependence.
+* You want a deterministic, reproducible estimate. By default SMC's weights are
+  pinned by the risk criterion, not by an Abadie predictor-weight (``V``) search,
+  so there is no optimiser-seed dependence. (The paper's covariate + ``V``-search
+  variant is available as a seeded opt-in; see below.)
 
 Do not use SMC when:
 
@@ -160,6 +161,49 @@ The Basque Country tracks its SMC counterfactual to a pre-period RMSE of about
 Abadie-Gardeazabal shape of the economic cost of ETA terrorism -- recovered
 here by the box-weighted matched controls rather than a simplex.
 
+Note that this deterministic Algorithm 1 is *not* the specification behind the
+paper's Basque table: it selects Murcia / Madrid / Castilla y León and a mean
+ATT of about :math:`-0.86`, whereas the paper (Table 5 / Figure 1) reports
+Rioja / Madrid / Cantabria and an ATT reaching :math:`\approx -1.9`. The
+difference is the predictor-weight layer, covered next.
+
+Reproducing the paper's covariate specification
+-----------------------------------------------
+
+The paper's Basque result uses Algorithm 3: covariate matching with an Abadie
+predictor-weight (:math:`\mathbf{V}`) optimisation over the matching rows. That
+is an explicit, seeded opt-in in mlsynth -- ``covariates`` with per-covariate
+``covariate_windows``, the ``fit_window`` for the outcome rows, and
+``v_search="de"``:
+
+.. code-block:: python
+
+   res = SMC({
+       "df": df, "outcome": "gdpcap", "treat": "treat",
+       "unitid": "regionname", "time": "year",
+       "covariates": ["school.illit", "school.prim", "school.med", "school.high",
+                      "invest", "sec.agriculture", "sec.energy", "sec.industry",
+                      "sec.construction", "sec.services.venta",
+                      "sec.services.nonventa", "popdens"],
+       "covariate_windows": {"invest": (1964, 1969), "sec.industry": (1961, 1969)},  # ...
+       "fit_window": (1960, 1969),          # Abadie's time.optimize.ssr
+       "v_search": "de", "v_seed": 0,       # seeded global V search
+       "display_graphs": False,
+   }).fit()
+
+This recovers the paper's donor structure -- Rioja dominant, then Madrid -- and
+the Figure 1 ATT magnitude (:math:`\approx -1.4` mean, :math:`-2.4` by 1997).
+
+A caveat stated plainly. The :math:`\mathbf{V}` optimum is *not identified*: a
+manifold of :math:`\mathbf{V}` fits the pre-period equally well while disagreeing
+out of sample, so the exact split among the top donors is seed-dependent (a
+global search reproduces the paper's *average* placebo MSPE but not its
+per-region cells). The search is seeded so a given call is reproducible, and it
+is opt-in so the identified Algorithm 1 stays the default. Read the ``v_search``
+weights as "the paper's specification, one draw from its non-identified
+:math:`\mathbf{V}` manifold", not as identified quantities. When you want a
+single reproducible weighting, use the default.
+
 Verification
 ------------
 
@@ -169,9 +213,12 @@ per-donor :math:`\widehat{\theta}_j`, the box weights, the combined
 coefficients, ``bias`` and :math:`\widehat{\sigma}^2` all match the reference
 ``SMCV`` (whose synthesis QP is solved by ``solve.QP``) to ``< 2e-13``. The
 active-set box QP in :mod:`mlsynth.utils.smc_helpers.solver` reproduces
-``solve.QP`` to machine precision while pinning the box bounds exactly. See the
-replication page :doc:`replications/smc` and the durable case
-``benchmarks/cases/smc_basque.py``. The solver, weight computation, setup and
+``solve.QP`` to machine precision while pinning the box bounds exactly. With the
+paper's covariate specification and ``v_search="de"`` the estimator additionally
+reproduces the Table 5 / Figure 1 donor structure and ATT magnitude (subject to
+the :math:`\mathbf{V}` non-identification noted above). See the replication page
+:doc:`replications/smc` and the durable case ``benchmarks/cases/smc_basque.py``.
+The solver, weight computation, the covariate / ``V``-search paths, setup and
 result contract are unit-tested (``mlsynth/tests/test_smc.py``, full coverage).
 
 Core API

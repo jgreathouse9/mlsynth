@@ -39,9 +39,10 @@ class SMCInputs:
     T0: int
     T1: int
     J: int
-    cov_treated: Optional[np.ndarray] = None    # (P,) pre-period covariate means
+    cov_treated: Optional[np.ndarray] = None    # (P,) windowed covariate means
     cov_donors: Optional[np.ndarray] = None     # (P, J)
     covariate_names: Tuple[Any, ...] = ()
+    fit_idx: Optional[np.ndarray] = None        # pre-period indices for outcome rows
 
     @property
     def has_covariates(self) -> bool:
@@ -63,6 +64,8 @@ class SMCFit:
     pre_rmse: float
     n_matching_rows: int
     n_covariates: int
+    v_search: str = "none"
+    v: Optional[np.ndarray] = None          # predictor weights used (None => V = I)
     donor_weights: dict = field(default_factory=dict)
 
 
@@ -100,6 +103,7 @@ class SMCResults(BaseEstimatorResults):
                 "constraint": "box [0,1] on w; combined theta*w may extrapolate",
                 "n_matching_rows": int(f.n_matching_rows),
                 "n_covariates": int(f.n_covariates),
+                "v_search": str(f.v_search),
                 "sigma2": float(f.sigma2)}))
         object.__setattr__(self, "fit_diagnostics",
                            FitDiagnosticsResults(rmse_pre=float(f.pre_rmse)))

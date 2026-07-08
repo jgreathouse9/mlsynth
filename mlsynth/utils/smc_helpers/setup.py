@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -19,13 +19,16 @@ def prepare_smc_inputs(
     unitid: str,
     time: str,
     covariates: Optional[Sequence[str]] = None,
+    covariate_windows: Optional[Dict[str, Tuple[Any, Any]]] = None,
+    fit_window: Optional[Tuple[Any, Any]] = None,
 ) -> SMCInputs:
     """Pivot ``df`` into SMC's ``(Y_treated, Y_donors, T0)`` matrices.
 
     Single treated unit only: the treated unit is the one with any ``treat == 1``
     row, the donor pool is every never-treated unit. Requires a balanced panel
-    with a complete outcome column. Optional ``covariates`` are averaged over the
-    pre-treatment window (one matching row each, standardized later).
+    with a complete outcome column. Optional ``covariates`` are aggregated over
+    their window (``covariate_windows``, else the whole pre-period). ``fit_window``
+    restricts the pre-treatment periods used as outcome matching rows.
     """
     treated_rows = df.loc[df[treat] == 1, [unitid, time]]
     if treated_rows.empty:
@@ -70,11 +73,12 @@ def prepare_smc_inputs(
             f"SMC needs at least 1 post-treatment period; got T1={T1}."
         )
 
+    pre_mask = time_index < intervention_time
+    windows = dict(covariate_windows or {})
     cov_treated: Optional[np.ndarray] = None
     cov_donors: Optional[np.ndarray] = None
     cov_names: List[Any] = list(covariates or [])
     if cov_names:
-        pre_mask = time_index < intervention_time
         treated_vals, donor_vals = [], []
         for c in cov_names:
             cwide = df.pivot(index=time, columns=unitid, values=c).sort_index()
@@ -84,10 +88,33 @@ def prepare_smc_inputs(
                 raise MlsynthDataError(
                     f"Covariate '{c}' is entirely missing for some unit; cannot match."
                 )
-            treated_vals.append(float(cwide.loc[pre_mask, treated_label].mean()))
-            donor_vals.append(cwide.loc[pre_mask, donors].mean().to_numpy(dtype=float))
+            if c in windows:
+                start, end = windows[c]
+                mask = (time_index >= start) & (time_index <= end)
+                if not mask.any():
+                    raise MlsynthDataError(
+                        f"Covariate window {windows[c]!r} for '{c}' selects no periods."
+                    )
+            else:
+                mask = pre_mask
+            treated_vals.append(float(cwide.loc[mask, treated_label].mean()))
+            donor_vals.append(cwide.loc[mask, donors].mean().to_numpy(dtype=float))
         cov_treated = np.asarray(treated_vals, dtype=float)       # (P,)
         cov_donors = np.vstack(donor_vals)                        # (P, J)
+
+    # Outcome matching rows: all pre-periods, or a restricted fit window (SSR).
+    pre_positions = np.where(pre_mask)[0]
+    if fit_window is not None:
+        start, end = fit_window
+        fit_idx = np.array(
+            [i for i in pre_positions if start <= time_index[i] <= end], dtype=int)
+        if fit_idx.size < 2:
+            raise MlsynthDataError(
+                f"SMC fit_window {fit_window!r} selects fewer than 2 pre-treatment "
+                "periods."
+            )
+    else:
+        fit_idx = pre_positions.astype(int)
 
     return SMCInputs(
         Y_treated=Y_treated,
@@ -101,4 +128,5 @@ def prepare_smc_inputs(
         cov_treated=cov_treated,
         cov_donors=cov_donors,
         covariate_names=tuple(cov_names),
+        fit_idx=fit_idx,
     )

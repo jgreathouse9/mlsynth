@@ -2,44 +2,66 @@
 
 from __future__ import annotations
 
+from typing import Optional, Tuple
+
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
 from .estimation import counterfactual, smc_weights
 from .structures import SMCFit, SMCInputs
+from .vsearch import optimize_v
 
 
-def _build_matching_matrix(inputs: SMCInputs):
-    """Stack the pre-outcome rows with standardized covariate rows (Algorithm 3).
+def _build_matching_matrix(inputs: SMCInputs) -> Tuple[np.ndarray, np.ndarray, int]:
+    """Return ``(X, y, n_outcome_rows)`` for the SMC weight computation.
 
-    Pure Algorithm 1 (no covariates) returns the ``(T0, J)`` pre-outcome block.
-    With covariates, each covariate's pre-mean row is scaled to the mean standard
-    deviation of the outcome rows (the reference's equal-variance scaling) and
-    stacked on top, so predictors and outcomes enter on a common scale.
+    The outcome matching rows are the treated/donor outcomes over the fit window
+    (``inputs.fit_idx``; all pre-periods by default). Pure Algorithm 1 (no
+    covariates) returns just those rows. With covariates, each covariate's
+    (windowed) mean is scaled to the mean standard deviation of the outcome rows
+    -- the reference's equal-variance scaling -- and stacked on top, so
+    predictors and outcomes enter on a common scale. Outcome rows sit last so the
+    ``V`` search can address them as the held-out target.
     """
-    T0 = inputs.T0
-    y_out = inputs.Y_treated[:T0]                     # (T0,)
-    X_out = inputs.Y_donors[:T0, :]                   # (T0, J)
+    idx = inputs.fit_idx if inputs.fit_idx is not None else np.arange(inputs.T0)
+    y_out = inputs.Y_treated[idx]                    # (n_out,)
+    X_out = inputs.Y_donors[idx, :]                  # (n_out, J)
     if not inputs.has_covariates:
-        return X_out, y_out
+        return X_out, y_out, X_out.shape[0]
 
-    out_sd = X_out.std(axis=1, ddof=0)               # per pre-period row sd
+    out_sd = X_out.std(axis=1, ddof=0)
     scale = float(np.mean(out_sd[out_sd > 0])) if np.any(out_sd > 0) else 1.0
     cov_all = np.column_stack([inputs.cov_treated, inputs.cov_donors])  # (P, J+1)
     cov_sd = cov_all.std(axis=1, ddof=0)
     cov_sd = np.where(cov_sd > 0, cov_sd, 1.0)
     y_cov = inputs.cov_treated / cov_sd * scale       # (P,)
     X_cov = inputs.cov_donors / cov_sd[:, None] * scale
-    X = np.vstack([X_cov, X_out])                     # (P + T0, J)
+    X = np.vstack([X_cov, X_out])                     # (P + n_out, J)
     y = np.concatenate([y_cov, y_out])
-    return X, y
+    return X, y, X_out.shape[0]
 
 
-def run_smc(inputs: SMCInputs, *, ridge: float = 1e-3) -> SMCFit:
-    """Fit SMC (deterministic Algorithm 1 / 3) and return the point estimate."""
+def run_smc(
+    inputs: SMCInputs,
+    *,
+    ridge: float = 1e-3,
+    v_search: str = "none",
+    v_seed: int = 0,
+    v_maxiter: int = 60,
+    v_popsize: int = 12,
+) -> SMCFit:
+    """Fit SMC (deterministic Algorithm 1 / 3) and return the point estimate.
+
+    With ``v_search="de"`` the predictor weights ``V`` are chosen by a seeded
+    global search (the paper's Algorithm 3); otherwise ``V = I``.
+    """
     try:
-        X, y = _build_matching_matrix(inputs)
-        weights = smc_weights(X, y, ridge=ridge)
+        X, y, n_out = _build_matching_matrix(inputs)
+        V: Optional[np.ndarray] = None
+        if v_search == "de":
+            V = optimize_v(X, y, n_out, ridge=ridge, seed=v_seed,
+                           maxiter=v_maxiter, popsize=v_popsize)
+        weights = smc_weights(X, y, ridge=ridge, V=V)
         cf = counterfactual(inputs.Y_donors, weights)
     except Exception as exc:  # pragma: no cover - defensive; smc_weights is total
         raise MlsynthEstimationError(f"SMC estimation failed: {exc}") from exc
@@ -64,5 +86,7 @@ def run_smc(inputs: SMCInputs, *, ridge: float = 1e-3) -> SMCFit:
         pre_rmse=pre_rmse,
         n_matching_rows=int(X.shape[0]),
         n_covariates=len(inputs.covariate_names),
+        v_search=v_search,
+        v=V,
         donor_weights=donor_weights,
     )
