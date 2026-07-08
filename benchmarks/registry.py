@@ -13,6 +13,7 @@ CASES = {
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
+    "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs causaltensor
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs causaltensor
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo

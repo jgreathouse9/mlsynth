@@ -24,6 +24,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 ## Estimators
 
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
+- **CFM** — Causal Factor Model (Bai & Wang 2026) estimator.  (config: CFMConfig)
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
