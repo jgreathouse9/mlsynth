@@ -174,3 +174,20 @@ class SparseSCConfig(BaseEstimatorConfig):
             "MATLAB-style cold init. Off by default."
         ),
     )
+    robust_selection: bool = Field(
+        default=True,
+        description=(
+            "Add a backward continuation pass (homotopy from the heavily "
+            "penalised, trivially-sparse end of the lambda grid) plus a "
+            "champion restart to the outer sweep. The V-objective is "
+            "non-convex, so a single cold start finds whichever critical "
+            "point the finite-difference/BLAS rounding happens to sit "
+            "nearest -- which makes the selected lambda drift across "
+            "numerical stacks. The continuation tracks the sparse solution "
+            "path mechanically, so the selected optimum is reproducible and "
+            "attains the true minimum-validation-MSE solution. On by "
+            "default; it roughly doubles the sweep cost, so set it False "
+            "(optionally with use_analytical_grad=True) when throughput "
+            "matters more than exact reproducibility."
+        ),
+    )

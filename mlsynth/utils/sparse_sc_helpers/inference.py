@@ -288,12 +288,16 @@ def run_placebo(
             Z0_outer = Y0_loo[:T0_train, :]
 
         if resweep:
+            # Placebo re-sweeps only need the null distribution of effects, not
+            # the exact global optimum, so keep the fast single-pass sweep here
+            # (robust continuation would double the cost of every replication).
             best_v, _, _, _, _, _ = sweep_lambda(
                 X1=X1_placebo, X0=X0_loo,
                 Y1=Y1_placebo, Y0=Y0_loo,
                 T0_total=T0_total, T0_train=T0_train,
                 lambda_grid=lambda_grid, solver=solver,
                 outer_loss_window=outer_loss_window,
+                robust=False,
             )
         else:
             try:

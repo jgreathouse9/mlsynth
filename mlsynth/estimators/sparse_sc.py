@@ -122,6 +122,7 @@ class SparseSC:
         self.max_outer_iter: int = config.max_outer_iter
         self.use_analytical_grad: bool = config.use_analytical_grad
         self.warm_start: bool = config.warm_start
+        self.robust_selection: bool = config.robust_selection
         self.run_inference: bool = config.run_inference
         self.inference_method: str = config.inference_method
         self.conformal_window: str = config.conformal_window
@@ -157,6 +158,7 @@ class SparseSC:
                 outer_loss_window=self.outer_loss_window,
                 use_analytical_grad=self.use_analytical_grad,
                 warm_start=self.warm_start,
+                robust=self.robust_selection,
             )
             optw = recover_w(optv, inputs.X1, inputs.X0, solver=self.solver)
 
