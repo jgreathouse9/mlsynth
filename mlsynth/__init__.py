@@ -21,6 +21,7 @@ from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.musc import MUSC                              # noqa: F401
 from .estimators.masc import MASC                              # noqa: F401
+from .estimators.smc import SMC                                # noqa: F401
 from .estimators.shc import SHC # Check
 from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
@@ -100,6 +101,7 @@ __all__ = [
     "PROXIMAL",
     "FSCM",
     "SCMO",
+    "SMC",
     "PROPSC",
     "SCTA",
     "SCUL",

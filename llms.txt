@@ -65,6 +65,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SHC** — Synthetic Historical Control (SHC) estimator.  (config: SHCConfig)
 - **SI** — Synthetic Interventions (SI) estimator.  (config: SIConfig)
 - **SIV** — Synthetic Instrumental Variables estimator.  (config: SIVConfig)
+- **SMC** — Synthetic Matching Control estimator.  (config: SMCConfig)
 - **SNN** — Synthetic Nearest Neighbors (causal matrix completion) estimator.  (config: SNNConfig)
 - **SPCD** — Synthetic Principal Component Design (SPCD) estimator.  (config: SPCDConfig)
 - **SPILLSYNTH** — Spillover-aware synthetic control estimator.  (config: SPILLSYNTHConfig)
