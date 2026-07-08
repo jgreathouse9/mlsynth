@@ -135,6 +135,31 @@ until they themselves are treated, which the donor-eligibility rule enforces.
 parameter: the estimand (the wATET over the treated cohorts) is the same;
 :math:`\nu` only trades per-cohort fit against stability of the pooled average.
 
+Auxiliary covariates
+--------------------
+
+By default PPSCM matches on the pre-treatment outcome path alone. Passing
+``covariates=[...]`` also balances a set of auxiliary covariates, following
+the paper's Section 5.2. Each covariate is z-scored against the never-treated
+controls and rescaled to the outcome scale, so covariate and outcome imbalance
+share a footing; the covariate imbalance is then stacked into both the pooled
+and the separate terms of the partially-pooled objective. Time-varying
+covariates are aggregated to their mean over the periods before the first
+adoption. Balancing covariates typically improves covariate balance at a small
+cost to the pre-treatment outcome fit -- the usual bias/variance trade of
+matching on more.
+
+.. code-block:: python
+
+   res = PPSCM({"df": df, "outcome": "y", "treat": "d",
+                "unitid": "unit", "time": "period",
+                "covariates": ["income_1959", "student_teacher_ratio_1959"]}).fit()
+
+This reproduces ``augsynth::multisynth``'s covariate mode
+(``y ~ d | income + ratio``); see :doc:`replications/ppscm` and the
+``ppscm_paglayan_covs`` benchmark for the cell-by-cell cross-check against a
+live ``augsynth 0.2.0`` run.
+
 Inference
 ---------
 

@@ -139,13 +139,17 @@ def predict_tau(res, groups, adopt_of, members, donors, W, n1, H, n, bs_weight=N
     return tau_rel, per_time, att
 
 
-def _scale_covariates(Z: np.ndarray, trt: np.ndarray, Xy: np.ndarray, d: int):
-    """augsynth Sec 5.2 scaling: z-score each covariate against the never-treated
-    controls, then rescale by the treated-ever outcome standard deviation
-    ``sdx`` so covariate and outcome imbalance share a scale."""
+def _scale_covariates(Z: np.ndarray, trt: np.ndarray, res_first: np.ndarray, d: int):
+    """augsynth Sec 5.2 scaling (multi_synth_qp.R line 98): z-score each
+    covariate against the never-treated controls, then rescale by ``sdx`` so
+    covariate and outcome imbalance share a scale.
+
+    ``sdx`` is ``sd(X[[1]][is.finite(trt)])`` -- the standard deviation over the
+    treated-ever rows of the *first cohort's* residualized pre-treatment block
+    (``res_first``, shape ``(n, T)``; the first ``d`` columns are used)."""
     ever = np.isfinite(trt)
     ctrl = ~ever
-    sdx = float(np.std(Xy[ever][:, :d], ddof=1))
+    sdx = float(np.std(res_first[ever][:, :d], ddof=1))
     mu = Z[ctrl].mean(axis=0)
     sd = Z[ctrl].std(axis=0, ddof=1)
     sd = np.where(sd > 0, sd, 1.0)
@@ -178,7 +182,9 @@ def run_multisynth(
     # scaled auxiliary-covariate target sums (zt) and donor blocks (Zc) per cohort
     zt = Zc = None
     if Z is not None:
-        Zsc = _scale_covariates(Z, trt, Xy, d)
+        # augsynth scales by the first cohort's residual sd (multi_synth_qp.R:98)
+        res_first = res[adopt_of[groups[0]]]
+        Zsc = _scale_covariates(Z, trt, res_first, d)
         zt = [Zsc[members[g]].sum(axis=0) for g in groups]
         Zc = [Zsc[donors[g]] for g in groups]
 

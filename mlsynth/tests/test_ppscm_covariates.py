@@ -93,6 +93,13 @@ class TestSetupAndConfig:
                                  unitid="unit", time="time",
                                  covariates=["nope"])
 
+    def test_covariate_with_missing_values_rejected(self):
+        df = _toy_panel()
+        df.loc[df.unit == 3, "x1"] = np.nan          # one unit missing a covariate
+        with pytest.raises(MlsynthDataError):
+            prepare_ppscm_inputs(df, outcome="y", treat="D",
+                                 unitid="unit", time="time", covariates=["x1"])
+
     def test_config_accepts_covariates(self):
         cfg = PPSCMConfig(df=_toy_panel(), outcome="y", treat="D",
                           unitid="unit", time="time", covariates=["x1", "x2"],
@@ -127,22 +134,19 @@ class TestToyIntegration:
 # Layer 3b: differential cross-validation vs live augsynth 0.2.0
 # ======================================================================
 
-@pytest.mark.skipif(not PAGLAYAN.exists(), reason="Paglayan data absent")
-@pytest.mark.xfail(
-    reason="WIP: covariate scaling seam pinned to Z_scale = control-z-score * sdx "
-    "(z-score bit-exact vs augsynth); exact augsynth sdx (=0.07030654 here) not yet "
-    "derived from data, so magnitudes are ~15% off pending that constant.",
-    strict=False,
-)
-class TestAugsynthReference:
-    COVS = ["perinc_1959", "studteachratio_1959"]
+_COVS = ["perinc_1959", "studteachratio_1959"]
 
-    @pytest.fixture(scope="class")
-    def fit(self):
-        return PPSCM({"df": _paglayan_covs(), "outcome": "lnppexpend",
-                      "treat": "cbr", "unitid": "State", "time": "year",
-                      "covariates": self.COVS, "run_inference": False,
-                      "display_graphs": False}).fit()
+
+@pytest.fixture(scope="module")
+def fit():
+    return PPSCM({"df": _paglayan_covs(), "outcome": "lnppexpend",
+                  "treat": "cbr", "unitid": "State", "time": "year",
+                  "covariates": _COVS, "run_inference": False,
+                  "display_graphs": False}).fit()
+
+
+@pytest.mark.skipif(not PAGLAYAN.exists(), reason="Paglayan data absent")
+class TestAugsynthReference:
 
     def test_nu_matches(self, fit):
         assert fit.nu == pytest.approx(0.2244314, abs=2e-3)
