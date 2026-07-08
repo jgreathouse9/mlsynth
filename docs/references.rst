@@ -462,6 +462,11 @@ References
     *Journal of the American Statistical Association*, 116(536): 1804-1816, 2021.
     DOI: https://doi.org/10.1080/01621459.2021.1979562
 
+.. [SMC2023]
+    Zhu, Rong J. B.
+    *"Synthetic Matching Control Method."*
+    arXiv:2306.02584, 2023. https://arxiv.org/abs/2306.02584
+
 .. [BomzeSparseQP] Bomze, Immanuel M., Peng, Bo, Qiu, Yuzhou, and Yıldırım, E. Alper.
     *"On Tractable Convex Relaxations of Standard Quadratic Optimization Problems under Sparsity Constraints."*
     arXiv:2310.04340, 2023. https://arxiv.org/abs/2310.04340

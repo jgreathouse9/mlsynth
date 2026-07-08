@@ -51,6 +51,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/fdid
+   replications/smc
    replications/tssc
    replications/vanillasc
    replications/vanillasc_staggered

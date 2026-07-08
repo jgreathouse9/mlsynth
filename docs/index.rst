@@ -268,6 +268,7 @@ headline numbers.
    mlsc
    fscm
    masc
+   smc
    msqrt
    sparse_sc
    pda
