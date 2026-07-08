@@ -238,6 +238,7 @@ headline numbers.
    :caption: Observational: generalised estimand / treatment / unit
 
    scmo
+   propsc
    scta
    ctsc
    dsc

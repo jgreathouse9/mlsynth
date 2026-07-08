@@ -65,6 +65,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/clustersc
    replications/lexscm
    replications/scmo
+   replications/propsc
    replications/scta
    replications/sbc
    replications/rescm

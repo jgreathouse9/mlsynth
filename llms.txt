@@ -52,6 +52,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **PANGEO** — Parallel-trends supergeo experimental design.  (config: PANGEOConfig)
 - **PDA** — Panel Data Approach estimator (l2 / LASSO / fs).  (config: PDAConfig)
 - **PPSCM** — Partially Pooled SCM estimator (augsynth::multisynth port).  (config: PPSCMConfig)
+- **PROPSC** — Compositional common-weights SC/SDID estimator.  (config: PROPSCConfig)
 - **PROXIMAL** — Proximal Inference (PROXIMAL) estimator.  (config: PROXIMALConfig)
 - **RESCM** — Relaxed/penalized synthetic-control estimator.  (config: RESCMConfig)
 - **RMSI** — Robust Matrix estimation with Side Information.  (config: RMSIConfig)

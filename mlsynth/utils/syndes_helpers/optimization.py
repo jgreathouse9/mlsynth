@@ -480,7 +480,12 @@ def solve_synthetic_design_pool(
                 gap_limit=gap_limit, time_limit=time_limit,
                 forbidden_sets=forbidden, restrictions=restrictions,
             )
-        except MlsynthEstimationError:
+        except MlsynthEstimationError as exc:
+            # A missing optional solver (e.g. SCIP not installed) is an
+            # environment error, not an exhausted feasible region -- propagate
+            # it so callers see the real cause instead of an empty pool.
+            if "not installed" in str(exc):
+                raise
             break  # feasible region exhausted (no further distinct design)
         designs.append(d)
         forbidden.append(np.asarray(d.selected_unit_indices, dtype=int))
