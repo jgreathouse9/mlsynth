@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
@@ -101,6 +101,19 @@ class PPSCMConfig(BaseEstimatorConfig):
         gt=0.0,
         lt=1.0,
         description="Significance level for the Wald confidence band.",
+    )
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Auxiliary covariates to balance alongside the pre-treatment "
+            "outcomes (augsynth::multisynth Sec 5.2). Each covariate is "
+            "z-scored against the never-treated controls and rescaled to the "
+            "control-outcome standard deviation, so covariate and outcome "
+            "imbalance share a scale; the covariate imbalance is then stacked "
+            "into the pooled and separate QP terms. Time-varying covariates "
+            "are aggregated to their mean over periods before the first "
+            "adoption. None (default) balances outcomes only."
+        ),
     )
 
     @model_validator(mode="after")

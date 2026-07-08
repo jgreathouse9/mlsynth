@@ -51,6 +51,11 @@ class PPSCMInputs:
         Outcome column name.
     intervention_time : Any
         The last adoption time (pre/post split point).
+    Z : np.ndarray or None
+        Per-unit auxiliary-covariate matrix, shape ``(n, d_cov)``, aggregated
+        to the pre-first-adoption mean. ``None`` when no covariates are given.
+    cov_names : tuple of str or None
+        Names of the covariate columns, length ``d_cov``.
     """
 
     Xy: np.ndarray
@@ -60,6 +65,8 @@ class PPSCMInputs:
     units: np.ndarray
     outcome: str
     intervention_time: Any
+    Z: Optional[np.ndarray] = None
+    cov_names: Optional[tuple] = None
 
     @property
     def n(self) -> int:
