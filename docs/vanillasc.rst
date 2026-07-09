@@ -389,6 +389,44 @@ Five inference modes are available via ``inference=``:
     paper's Table 5 carbon-tax estimate (durable case
     ``benchmarks/cases/cwz_ttest.py``).
 
+``"eiv"`` -- error-in-variables prediction intervals (Hirshberg 2021)
+    Normal/:math:`t` prediction intervals from the error-in-variables view of
+    synthetic control (Hirshberg 2021, arXiv 2104.08931). The donor pre-outcomes
+    you regress on are themselves noisy -- a low-rank signal plus idiosyncratic
+    noise, :math:`\mathbf{X} = \mathbf{A} + \boldsymbol{\varepsilon}` -- so SC is
+    a least-squares fit with error *in the variables*. Hirshberg's Corollary 3
+    gives conditions (a low-rank panel, mild Tikhonov regularisation, and
+    :math:`T_0 \to \infty`) under which :math:`\widehat{\tau} = y_e -
+    \mathbf{x}_e'\widehat{\boldsymbol{\theta}}` is asymptotically normal with an
+    estimable variance :math:`\sigma_\tau = \sigma_e\, p_{\text{eff}}^{-1/2}`,
+    where :math:`p_{\text{eff}} = 1/\|\widehat{\boldsymbol{\theta}}\|^2` is the
+    weights' participation ratio -- and crucially *without* assuming
+    time-stationarity, unit-exchangeability, or the absence of weak factors, the
+    invariants the placebo test and earlier theory rely on.
+
+    The estimator (Hirshberg eq. 1) is Tikhonov-regularised least squares; for the
+    factor-model case its penalty reduces to ridge with scale :math:`\eta`, and
+    :math:`\eta = 1` -- which the paper shows suffices in the ideal case -- is
+    ordinary SC, so this mode reads the fitted simplex weights and forms the
+    interval. mlsynth estimates :math:`\sigma_\tau` as the (degrees-of-freedom
+    corrected) standard deviation of the pre-treatment residuals
+    :math:`u_t = y_t - \mathbf{x}_t'\widehat{\boldsymbol{\theta}}`, which are
+    distributed like the post-period error :math:`\nu_e -
+    \boldsymbol{\varepsilon}_e'\widehat{\boldsymbol{\theta}}`; this consistently
+    estimates the *full* per-period error scale
+    :math:`\sqrt{\sigma_\nu^2 + \sigma_e^2\|\widehat{\boldsymbol{\theta}}\|^2}`,
+    whereas Hirshberg's donor-only :math:`\sigma_e\|\widehat{\boldsymbol{\theta}}\|`
+    drops the treated unit's own shock :math:`\nu_e` and under-covers a single
+    treated unit with :math:`O(1)` noise (it is valid only in his scaling where
+    the treated noise is :math:`p^{-1/2}`-negligible). Intervals use a
+    :math:`t(T_0 - \mathrm{df})` reference. The per-period effect intervals,
+    counterfactual band, ``sigma_tau`` and ``p_eff`` land in
+    ``res.inference.details``, with the ATT interval in
+    ``res.inference.ci_lower``/``ci_upper``. Reference:
+    :func:`mlsynth.utils.vanillasc_helpers.eiv.eiv_intervals`; the coverage
+    behaviour (near-nominal, converging as :math:`T_0` grows) is pinned by the
+    Path-B ``eiv_coverage_mc`` benchmark.
+
 The debiased t-test: assumptions and econometric theory
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

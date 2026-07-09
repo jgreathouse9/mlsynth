@@ -356,6 +356,32 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Error-in-variables normal/t prediction intervals (Hirshberg 2021).
+    if mode == "eiv" and gap[pre:].size:
+        from .eiv import eiv_intervals
+        ev = eiv_intervals(y, Y0, pre, res.W, alpha=config.alpha)
+        cf_lower = np.full_like(y, np.nan, dtype=float)
+        cf_upper = np.full_like(y, np.nan, dtype=float)
+        cf_lower[pre:] = ev.cf_lower
+        cf_upper[pre:] = ev.cf_upper
+        inference = InferenceResults(
+            ci_lower=float(ev.att_lower),
+            ci_upper=float(ev.att_upper),
+            confidence_level=1.0 - config.alpha,
+            method="error-in-variables prediction intervals (Hirshberg 2021)",
+            details={
+                "periods": list(time_labels[pre:]),
+                "tau": ev.tau, "pi_lower": ev.lower, "pi_upper": ev.upper,
+                "counterfactual_lower": cf_lower,
+                "counterfactual_upper": cf_upper,
+                "att": ev.att, "att_lower": ev.att_lower, "att_upper": ev.att_upper,
+                "sigma_tau": ev.metadata["sigma_tau"],
+                "p_eff": ev.metadata["p_eff"],
+                "theta_l2": ev.metadata["theta_l2"],
+                "dof": ev.metadata["dof"],
+            },
+        )
+
     # Leave-Two-Out refined placebo test (Lei & Sudijono 2025).
     if mode == "lto" and J >= 3 and gap[pre:].size:
         from .lto import lto_placebo_test

@@ -177,6 +177,8 @@ Path B — Monte Carlo / simulation
      - ORTHSC carbon-tax ATT/p/K/CI (Fry; Andersson 2019 data, vs live R)
    * - ``vanillasc_carbontax``
      - VanillaSC malo + mscmt reproduce Andersson (2019) carbon-tax ATT/2005-gap (paper predictor spec)
+   * - ``eiv_coverage_mc``
+     - Hirshberg (2021) error-in-variables SC prediction-interval coverage on a low-rank DGP
    * - ``orthsc_size_power``
      - ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
    * - ``spillsynth_sar_mc``
