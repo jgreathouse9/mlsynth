@@ -198,7 +198,8 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "(Chernozhukov-Wuthrich-Zhu test-inversion intervals, the "
                     "augsynth default for ASCM), 'lto' (Lei-Sudijono leave-two-"
                     "out refined placebo), 'ttest' (Chernozhukov-Wuthrich-Zhu "
-                    "2025 debiased SC t-test for the ATT), or False.",
+                    "2025 debiased SC t-test for the ATT), 'eiv' (Hirshberg 2021 "
+                    "error-in-variables normal/t prediction intervals), or False.",
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
