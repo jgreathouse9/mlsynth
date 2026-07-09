@@ -308,6 +308,18 @@ Five inference modes are available via ``inference=``:
     implements the canonical simplex / outcome-only case; for covariate
     backends it uses the same outcome design and is approximate.
 
+    When the outcome and donors are cointegrated -- their levels share a
+    common stochastic trend, as with the GDP-per-capita series in the German
+    reunification study -- set ``scpi_cointegrated=True`` (scpi's
+    ``cointegrated_data``). The in-sample :math:`\mathbb{E}[u]` and
+    out-of-sample :math:`\mathbb{E}[e]` models are then fit on first
+    differences of the donor design (dropping the first pre-period the
+    differencing consumes), with the pre-to-post bridge
+    :math:`\Delta \mathbf{p}_1 = \mathbf{p}_1 - \mathbf{b}_{T_0}`. The point
+    counterfactual is unchanged; only the prediction bands move (tighter in
+    the near-post years, where the differenced predictors carry less
+    extrapolation risk). The default is the levels model.
+
     .. note::
 
        This is a self-contained, MIT-licensed re-derivation of the
@@ -324,6 +336,14 @@ Five inference modes are available via ``inference=``:
        event-time band to solver tolerance; ``scpi_compat`` selects the
        statistically correct (default) vs. ``scpi``-matching in-sample scaling.
        See :doc:`replications/vanillasc_staggered`.
+
+       For the single-treated-unit case, the ``scpi_germany_pi`` benchmark
+       cross-checks both bands against a live ``scpi_pkg`` run on German
+       reunification: the levels (``scpi_cointegrated=False``) and cointegrated
+       (``=True``) ``CI_all_gaussian`` bands each reproduce to Monte-Carlo error
+       (width mean difference :math:`\approx 0.04` cointegrated, :math:`\approx
+       0.10` levels, at 2000 draws), and the simplex weights match to four
+       decimals.
 
 ``"lto"`` -- leave-two-out refined placebo (Lei & Sudijono 2025)
     A design-based randomization test that fixes the two structural weaknesses

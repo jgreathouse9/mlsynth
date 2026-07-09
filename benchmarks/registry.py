@@ -113,6 +113,7 @@ CASES = {
     "scpi_staggered": "benchmarks.cases.scpi_staggered",  # cross-val vs scpi: staggered point estimates (Germany)
     "scpi_staggered_pi": "benchmarks.cases.scpi_staggered_pi",  # cross-val vs scpi: staggered TSUA prediction intervals (Germany)
     "scpi_staggered_covariate": "benchmarks.cases.scpi_staggered_covariate",  # cross-val vs scpi: covariate (multi-feature) staggered illustration (Germany)
+    "scpi_germany_pi": "benchmarks.cases.scpi_germany_pi",  # cross-val vs scpi: single-unit CFT-2021 prediction intervals, levels + cointegrated (German reunification)
     "synth_prop99": "benchmarks.cases.synth_prop99",   # cross-val vs original R Synth solver (Prop 99 outcome-only); skips if R/Synth absent
     "cmbsts_vignette": "benchmarks.cases.cmbsts_vignette",  # cross-val vs R CausalMBSTS: multivariate BSTS vignette (trend+cycle)
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)

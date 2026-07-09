@@ -191,6 +191,7 @@ def scpi_intervals(
     e_alpha: float = 0.05,
     u_missp: bool = True,
     e_method: str = "gaussian",
+    cointegrated: bool = False,
     seed: int = 0,
 ) -> SCPIResult:
     """Compute SCPI prediction intervals for a simplex synthetic control.
@@ -214,6 +215,11 @@ def scpi_intervals(
         pre-period residuals on the active-donor design); else assume 0.
     e_method : {"gaussian", "ls", "empirical"}
         Tabulation for the out-of-sample shock.
+    cointegrated : bool
+        If True, fit the in-sample ``E[u]`` and out-of-sample ``E[e]`` models on
+        first differences of the donor design (scpi's ``cointegrated_data=True``),
+        appropriate when the outcome and donors are cointegrated (I(1) levels).
+        The point counterfactual is unchanged; only the prediction bands move.
     seed : int
         RNG seed for the simulation.
     """
@@ -232,13 +238,28 @@ def scpi_intervals(
         raise ValueError("SCPI needs at least one post-treatment period.")
     u = A - B @ W                                    # pre-period residuals
 
+    # --- cointegration (scpi's ``cointegrated_data=True``): when the outcome
+    #     and donors are cointegrated the levels are I(1), so the uncertainty
+    #     models are fit on first differences. Difference the donor design
+    #     ``B -> Delta B`` for the ``E[u]`` / ``E[e]`` regressions and drop the
+    #     first pre-period (the NaN differencing introduces, which scpi removes
+    #     via complete_cases); the level design still drives ``Q``/``Sigma`` with
+    #     that row removed. Off (the default) leaves the levels path untouched. ---
+    if cointegrated:
+        B_mean = B[1:] - B[:-1]        # differenced donor design for E[u]/E[e]
+        B_q = B[1:]                    # level design for Q/Sigma (row 0 dropped)
+        u_w = u[1:]                    # residuals aligned to the kept rows
+        T0e = T0 - 1
+    else:
+        B_mean, B_q, u_w, T0e = B, B, u, T0
+
     # --- degrees of freedom (simplex): #nonzero - 1 (+ KM = 0) ---
     d0 = int(np.sum(np.abs(W) >= _NZ))
     df = max(d0 - 1, 0)
-    vc = T0 / (T0 - df) if df < T0 else 1.0
+    vc = T0e / (T0e - df) if df < T0e else 1.0
 
     # --- regularisation parameter and localised lower bounds ---
-    rho = _regularization_rho(u, B, d0)
+    rho = _regularization_rho(u_w, B_q, d0)
     idxw = W > rho
     if not idxw.any():  # pragma: no cover - degenerate: every weight below rho
         idxw = np.zeros(J, dtype=bool)
@@ -246,18 +267,18 @@ def scpi_intervals(
     lb = np.where(W < rho, W, 0.0)
 
     # --- conditional mean of the residuals (u_missp) ---
-    Xd = np.column_stack([B[:, idxw], np.ones(T0)])
+    Xd = np.column_stack([B_mean[:, idxw], np.ones(T0e)])
     if u_missp:
-        coef, *_ = np.linalg.lstsq(Xd, u, rcond=None)
+        coef, *_ = np.linalg.lstsq(Xd, u_w, rcond=None)
         u_mean = Xd @ coef
     else:
-        u_mean = np.zeros(T0)
-    omega = vc * (u - u_mean) ** 2                   # HC1 diagonal
+        u_mean = np.zeros(T0e)
+    omega = vc * (u_w - u_mean) ** 2                 # HC1 diagonal
 
     # --- Q = Z'Z / T0,  Sigma = Z' diag(omega) Z / T0**2 ---
-    Q = (B.T @ B) / T0
+    Q = (B_q.T @ B_q) / T0e
     Q = 0.5 * (Q + Q.T)
-    Sigma = (B.T * omega) @ B / (T0 ** 2)
+    Sigma = (B_q.T * omega) @ B_q / (T0e ** 2)
     Sigma = 0.5 * (Sigma + Sigma.T)
     S_root = sqrtm(Sigma).real
     scale, Qreg = _mat_regularize(Q)
@@ -308,11 +329,20 @@ def scpi_intervals(
     w_lb = np.nan_to_num(w_lb, nan=0.0)
     w_ub = np.nan_to_num(w_ub, nan=0.0)
 
-    # --- out-of-sample band (per post period plus the averaged row) ---
-    Xe0 = np.column_stack([B[:, idxw], np.ones(T0)])
-    Xe1 = np.column_stack([P[:, idxw], np.ones(T_post)])
+    # --- out-of-sample band (per post period plus the averaged row). Under
+    #     cointegration the design is the differenced donors and the predictand
+    #     is the differenced post outcomes, bridged from the pre-period by
+    #     ``dP[0] = P[0] - B[T0-1]`` (scpi's e_des_prep). ---
+    if cointegrated:
+        P_oos = np.empty_like(P)
+        P_oos[0] = P[0] - B[T0 - 1]
+        P_oos[1:] = P[1:] - P[:-1]
+    else:
+        P_oos = P
+    Xe0 = np.column_stack([B_mean[:, idxw], np.ones(T0e)])
+    Xe1 = np.column_stack([P_oos[:, idxw], np.ones(T_post)])
     Xe1_aug = np.vstack([Xe1, Xe1.mean(axis=0, keepdims=True)])
-    e_lb_aug, e_ub_aug = _out_of_sample(u, Xe0, Xe1_aug, e_alpha, e_method)
+    e_lb_aug, e_ub_aug = _out_of_sample(u_w, Xe0, Xe1_aug, e_alpha, e_method)
 
     # split per-period from the appended average (ATT) row
     w_lb_avg, w_ub_avg = float(w_lb[-1]), float(w_ub[-1])
@@ -341,6 +371,7 @@ def scpi_intervals(
         M1_lower=w_lb, M1_upper=w_ub, M2_lower=e_lb, M2_upper=e_ub,
         metadata={"sims": sims, "u_alpha": u_alpha, "e_alpha": e_alpha,
                   "df": df, "rho": rho, "e_method": e_method,
-                  "u_missp": bool(u_missp), "n_active": int(idxw.sum()),
+                  "u_missp": bool(u_missp), "cointegrated": bool(cointegrated),
+                  "n_active": int(idxw.sum()),
                   "att": att, "att_lower": att_lower, "att_upper": att_upper},
     )

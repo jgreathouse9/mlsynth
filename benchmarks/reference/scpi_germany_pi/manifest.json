@@ -1,0 +1,11 @@
+{
+  "case": "scpi_germany_pi",
+  "title": "Single-unit SCPI prediction intervals vs scpi_pkg (German reunification, levels + cointegrated)",
+  "paper": "Cattaneo, Feng & Titiunik (2021), Prediction Intervals for Synthetic Control Methods, JASA",
+  "reference_impl": "scpi_pkg scdata + scest + scpi (CI_all_gaussian); https://nppackages.github.io/scpi/",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/scpi_germany_pi/reference.py",
+  "data": [
+    "basedata/scpi_germany.csv"
+  ]
+}
