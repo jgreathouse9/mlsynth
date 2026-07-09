@@ -457,7 +457,10 @@ the pre-period and predict the post-period worse.
   Hsiao--Ching--Wan best-subset regression -- ``method="hcw"``, the classic
   unconstrained PDA), :doc:`rescm` (one program from simplex SC to
   :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
-  :doc:`bvss` (Bayesian spike-and-slab with a soft simplex).
+  :doc:`bvss` (Bayesian spike-and-slab with a soft simplex), or -- when the
+  high dimension is in the *covariates* rather than the donors, and only a few
+  matter -- :doc:`beast` (covariate-balancing weights under sparsity, with a
+  doubly-robust, analytically-inferred ATT).
 
 *Dense versus sparse weights -- when to relax SCM.* Standard synthetic control
 constrains the weights to the simplex, which (as Doudchenko and Imbens (2016)

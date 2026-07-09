@@ -566,6 +566,7 @@ _RELOCATED_CONFIGS = {
     "SYNDESConfig": "mlsynth.utils.syndes_helpers.config",
     "SIVConfig": "mlsynth.utils.siv_helpers.config",
     "OrthSCConfig": "mlsynth.utils.orthsc_helpers.config",
+    "BEASTConfig": "mlsynth.utils.beast_helpers.config",
     "MAREXConfig": "mlsynth.utils.marex_helpers.config",
     "RMSIConfig": "mlsynth.utils.rmsi_helpers.config",
     "SPOTSYNTHConfig": "mlsynth.utils.spotsynth_helpers.config",
