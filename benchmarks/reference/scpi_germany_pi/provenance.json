@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-07-09T01:40:00Z",
+  "git_sha": "d20d304421f7bb21c04aef0e454fb18eda3614fb",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/scpi_germany_pi/reference.py",
+  "reference_impl": "scpi_pkg scdata + scest + scpi (Cattaneo-Feng-Palomba-Titiunik)",
+  "reference_version": "scpi_pkg 4.0.0 (PyPI)",
+  "data": [
+    {
+      "path": "basedata/scpi_germany.csv",
+      "sha256": "10b150fbcc2ced4860b50ab226c6dda1784dc070cb442d916cf452c2462c51c3"
+    }
+  ],
+  "config": {
+    "unit_tr": "West Germany",
+    "period_pre": "1960-1990",
+    "period_post": "1991-2003",
+    "features": null,
+    "constant": false,
+    "w_constr": "simplex",
+    "e_method": "gaussian",
+    "u_order": 1, "u_lags": 0, "e_order": 1, "e_lags": 0,
+    "u_missp": true, "u_sigma": "HC1",
+    "sims": 2000, "seed": 8894, "alpha": 0.05
+  },
+  "notes": "Single-treated-unit CFT-2021 prediction intervals (scdata, not scdataMulti). Two specs captured: cointegrated_data=False (levels) and =True (first differences, the tutorial's setting). mlsynth's VanillaSC(inference='scpi', scpi_cointegrated=...) reproduces both CI_all_gaussian bands to Monte-Carlo error (width mean diff ~0.04 coint / ~0.10 levels at 2000 sims) and the simplex weights to 4 dp. scpi is GPL, mlsynth MIT: numbers recorded once, no run-time scpi dependency in the benchmark."
+}

@@ -298,7 +298,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             sc = scpi_intervals(
                 y, Y0, pre, res.W, sims=config.scpi_sims,
                 u_alpha=config.alpha, e_alpha=config.alpha,
-                e_method=config.scpi_e_method, seed=config.seed,
+                e_method=config.scpi_e_method,
+                cointegrated=config.scpi_cointegrated, seed=config.seed,
             )
         post_labels = list(time_labels[pre:])
         inference = InferenceResults(

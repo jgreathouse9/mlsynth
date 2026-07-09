@@ -202,6 +202,18 @@ The covariate path exposes three reliable solvers via ``backend=``:
     unpenalized synthetic control. ``penalized_cv`` selects the CV criterion
     only when ``penalized_lambda`` is ``None``.
 
+.. note::
+
+   Both covariate backends are pinned on a paper specification by the
+   ``vanillasc_carbontax`` benchmark: under Andersson (2019)'s own
+   synthetic-control spec for the Swedish carbon tax -- GDP per capita, motor
+   vehicles, gasoline consumption and urban population averaged over 1980-1989,
+   plus lagged CO2 for 1970/1980/1989 -- ``malo`` and ``mscmt`` both reproduce
+   his reported average ATT of :math:`-0.29` metric tons per capita and the
+   :math:`-0.35` gap in 2005, with a pre-treatment RMSE of :math:`\approx
+   0.034`. The lagged-outcome predictors anchor the pre-period fit and bring the
+   two ``V`` searches into agreement.
+
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -308,6 +320,18 @@ Five inference modes are available via ``inference=``:
     implements the canonical simplex / outcome-only case; for covariate
     backends it uses the same outcome design and is approximate.
 
+    When the outcome and donors are cointegrated -- their levels share a
+    common stochastic trend, as with the GDP-per-capita series in the German
+    reunification study -- set ``scpi_cointegrated=True`` (scpi's
+    ``cointegrated_data``). The in-sample :math:`\mathbb{E}[u]` and
+    out-of-sample :math:`\mathbb{E}[e]` models are then fit on first
+    differences of the donor design (dropping the first pre-period the
+    differencing consumes), with the pre-to-post bridge
+    :math:`\Delta \mathbf{p}_1 = \mathbf{p}_1 - \mathbf{b}_{T_0}`. The point
+    counterfactual is unchanged; only the prediction bands move (tighter in
+    the near-post years, where the differenced predictors carry less
+    extrapolation risk). The default is the levels model.
+
     .. note::
 
        This is a self-contained, MIT-licensed re-derivation of the
@@ -324,6 +348,14 @@ Five inference modes are available via ``inference=``:
        event-time band to solver tolerance; ``scpi_compat`` selects the
        statistically correct (default) vs. ``scpi``-matching in-sample scaling.
        See :doc:`replications/vanillasc_staggered`.
+
+       For the single-treated-unit case, the ``scpi_germany_pi`` benchmark
+       cross-checks both bands against a live ``scpi_pkg`` run on German
+       reunification: the levels (``scpi_cointegrated=False``) and cointegrated
+       (``=True``) ``CI_all_gaussian`` bands each reproduce to Monte-Carlo error
+       (width mean difference :math:`\approx 0.04` cointegrated, :math:`\approx
+       0.10` levels, at 2000 draws), and the simplex weights match to four
+       decimals.
 
 ``"lto"`` -- leave-two-out refined placebo (Lei & Sudijono 2025)
     A design-based randomization test that fixes the two structural weaknesses
@@ -541,6 +573,40 @@ interval), ``confidence_level`` :math:`= 1-2\alpha`, and a ``details`` dict
 holding the per-period ``periods``, ``tau``, ``pi_lower``/``pi_upper``,
 ``counterfactual_lower``/``upper``, the ``in_sample_*`` (:math:`w_L,w_U`) and
 ``out_of_sample_*`` (:math:`e_L,e_U`) components, ``sims`` and ``e_method``.
+
+Cointegration (``scpi_cointegrated=True``). When the treated and donor series
+are cointegrated, their levels share a common stochastic trend and are
+individually :math:`I(1)`; regressing residuals on the level donor design then
+extrapolates a non-stationary predictor into the post period. The cointegrated
+model instead fits the uncertainty on first differences: in step 3 the
+conditional-mean design becomes :math:`\Delta\mathbf{B}_t = \mathbf{B}_t -
+\mathbf{B}_{t-1}` (and in step 6 the out-of-sample design and predictand are
+differenced, with the pre-to-post bridge :math:`\Delta\mathbf{p}_1 =
+\mathbf{p}_1 - \mathbf{b}_{T_0}`). The first pre-period, which differencing
+consumes, is dropped from these designs; the level design :math:`\mathbf{B}`
+still drives :math:`\mathbf{Q}`/:math:`\boldsymbol{\Sigma}` and the QP in steps
+3-5, and :math:`Y_{\text{fit}} = \mathbf{P}\widehat{\mathbf{w}}` is unchanged.
+Only the bands move. This mirrors ``scpi``'s ``cointegrated_data`` exactly (the
+``scpi_germany_pi`` benchmark reproduces both bands to Monte-Carlo error).
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import VanillaSC
+
+   df = pd.read_csv("basedata/scpi_germany.csv")[["country", "year", "gdp"]].dropna()
+   df["treated"] = ((df.country == "West Germany") & (df.year >= 1991)).astype(int)
+
+   res = VanillaSC({
+       "df": df, "outcome": "gdp", "treat": "treated",
+       "unitid": "country", "time": "year",
+       "inference": "scpi", "scpi_cointegrated": True,   # GDP levels are I(1)
+       "scpi_sims": 2000, "seed": 8894, "display_graphs": False,
+   }).fit()
+
+   det = res.inference.details          # per-period bands
+   print(res.inference.ci_lower, res.inference.ci_upper)   # ATT prediction interval
+   # det["counterfactual_lower"] / ["counterfactual_upper"] is scpi's CI_all_gaussian
 
 Composing SCPI with the backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

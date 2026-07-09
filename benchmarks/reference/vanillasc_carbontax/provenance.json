@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-07-09T02:20:00Z",
+  "git_sha": "e55f2fa",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python -m benchmarks.run_benchmarks --only vanillasc_carbontax",
+  "reference_impl": "Andersson (2019) AEJ:EP 11(4), Section III -- reported values (not a code run)",
+  "reference_source": "Andersson, J. (2019). Carbon Taxes and CO2 Emissions: Sweden as a Case Study. American Economic Journal: Economic Policy 11(4):1-30.",
+  "data": [
+    {
+      "path": "basedata/carbontax_data.dta",
+      "sha256": "815787c1e448f536d11472155ae0f7d52cd7c5c934abd19fadc9e52df6faf9f6"
+    }
+  ],
+  "spec": {
+    "outcome": "CO2_transport_capita",
+    "treated": "Sweden",
+    "treat_year": 1990,
+    "donors": 14,
+    "predictors": ["GDP_per_capita", "vehicles_capita", "gas_cons_capita", "urban_pop"],
+    "predictor_window": "1980-1989",
+    "lagged_outcomes": [1970, 1980, 1989]
+  },
+  "notes": "Path A: mlsynth VanillaSC reproduces Andersson's reported ATT (-0.29) and 2005 gap (-0.35) under his own predictor specification with both the malo (deterministic corner search) and mscmt (seeded differential-evolution V search) backends. The three lagged-CO2 predictors anchor the pre-treatment fit and bring the two V searches into agreement; pop_density (shipped in the data but not one of Andersson's predictors) is excluded. mscmt uses seed=1, mscmt_maxiter=300, mscmt_popsize=15 (stable across seeds)."
+}

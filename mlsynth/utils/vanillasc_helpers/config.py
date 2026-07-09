@@ -212,6 +212,14 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default="gaussian",
         description="SCPI out-of-sample location-scale tabulation.",
     )
+    scpi_cointegrated: bool = Field(
+        default=False,
+        description="Single-unit SCPI only. When True, fit the in-sample and "
+                    "out-of-sample uncertainty models on first differences of "
+                    "the donor design (scpi's 'cointegrated_data=True'), for "
+                    "cointegrated (I(1)) outcome/donor levels. The point "
+                    "counterfactual is unchanged; only the prediction bands move.",
+    )
     staggered_spec: Optional[StaggeredSCMSpec] = Field(
         default=None,
         description="Staggered adoption only. Covariate (multi-feature) matching "

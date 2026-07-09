@@ -2132,6 +2132,27 @@ Verification
    at a standard seed. Treat California's ``rho`` magnitude as weakly identified,
    not as a precise quantity.
 
+   This is pinned durably by the ``spillsynth_prop99_sar`` benchmark, which
+   cross-checks a live run of the Sakaguchi-Tagawa / Mendez California tutorial
+   (`carlos-mendez.org/post/r_sc_bayes_spatial
+   <https://carlos-mendez.org/post/r_sc_bayes_spatial/>`_, its own ``sc_spillover``
+   Rcpp kernels, captured in
+   :file:`benchmarks/reference/spillsynth_prop99_sar/`). It separates what is
+   identified from what is not. Strip the model to the spatial core
+   (``p_factors=0``, no covariate) and the two codebases are *exact* -- ``rho``
+   agrees to four decimals (0.849 vs 0.8492). Restore the tutorial's headline
+   configuration (``p_factors=1``, ``retprice``) and the ATT still reproduces
+   (:math:`\approx -17` packs per capita vs the tutorial's :math:`-16.44`), the
+   spatial correction stays more negative than the SUTVA-imposed SCM, and Nevada
+   dominates the spillover ranking by an order of magnitude -- but the ``rho``
+   posterior collapses onto a near-flat ridge shared by the AR(1) latent factor
+   and the spatial autoregression, and the two codes settle in different regions
+   of it (the tutorial helper near 0.24, mlsynth near 0.41). Every full
+   conditional in the tutorial's C++ kernel is algebraically identical to
+   mlsynth's NumPy sampler; the divergence is the ridge, not a bug. The benchmark
+   therefore asserts the identified quantities and only bounds full-model ``rho``
+   to the weak-identification band.
+
 References
 ----------
 

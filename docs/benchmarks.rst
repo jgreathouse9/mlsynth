@@ -93,6 +93,8 @@ Path A — empirical replications
      - scpi staggered TSUA prediction intervals, Germany (Cattaneo et al. 2025)
    * - ``scpi_staggered_covariate``
      - scpi covariate (multi-feature) staggered illustration, Germany (Cattaneo et al. 2025)
+   * - ``scpi_germany_pi``
+     - scpi single-unit CFT-2021 prediction intervals, German reunification: levels + cointegrated bands + weights
    * - ``sparse_sc_prop99``
      - L1 predictor selection (Prop 99)
    * - ``spcd_prop99``
@@ -173,10 +175,14 @@ Path B — Monte Carlo / simulation
      - SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
    * - ``orthsc_carbontax``
      - ORTHSC carbon-tax ATT/p/K/CI (Fry; Andersson 2019 data, vs live R)
+   * - ``vanillasc_carbontax``
+     - VanillaSC malo + mscmt reproduce Andersson (2019) carbon-tax ATT/2005-gap (paper predictor spec)
    * - ``orthsc_size_power``
      - ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
    * - ``spillsynth_sar_mc``
      - SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
+   * - ``spillsynth_prop99_sar``
+     - SAR Bayesian spatial SC vs Mendez California Prop 99 tutorial (bare rho 4dp + ATT + Nevada spillover; full rho weakly identified)
    * - ``spsc_ifem_mc``
      - SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
    * - ``syndes_bls``

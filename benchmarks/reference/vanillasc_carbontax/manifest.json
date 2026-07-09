@@ -1,0 +1,11 @@
+{
+  "case": "vanillasc_carbontax",
+  "title": "VanillaSC (malo + mscmt) vs Andersson (2019) Swedish carbon tax",
+  "paper": "Andersson (2019), Carbon Taxes and CO2 Emissions: Sweden as a Case Study, AEJ: Economic Policy 11(4):1-30",
+  "reference_impl": "paper's reported values (Section III): ATT -0.29, 2005 gap -0.35 tCO2/capita",
+  "path_type": "empirical (Path A)",
+  "command": "python -m benchmarks.run_benchmarks --only vanillasc_carbontax",
+  "data": [
+    "basedata/carbontax_data.dta"
+  ]
+}
