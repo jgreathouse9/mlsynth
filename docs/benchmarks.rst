@@ -177,6 +177,8 @@ Path B — Monte Carlo / simulation
      - ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
    * - ``spillsynth_sar_mc``
      - SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
+   * - ``spillsynth_prop99_sar``
+     - SAR Bayesian spatial SC vs Mendez California Prop 99 tutorial (bare rho 4dp + ATT + Nevada spillover; full rho weakly identified)
    * - ``spsc_ifem_mc``
      - SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
    * - ``syndes_bls``

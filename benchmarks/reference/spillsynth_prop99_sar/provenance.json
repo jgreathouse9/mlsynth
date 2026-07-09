@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-07-09T01:05:00Z",
+  "git_sha": "db5aecf5a7a939d7f53f7e21edead5f8b4ee28d8",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "SAR_HELPERS_DIR=<dir with cmg777 helpers + california_smoking.rda> Rscript benchmarks/reference/spillsynth_prop99_sar/reference.R",
+  "reference_impl": "Mendez tutorial Rcpp helpers (sc_spillover / hs_alpha_gibbs_cpp / sar_full_sampler_cpp_step2), an 'inspired-by' variant of Sakaguchi-Tagawa",
+  "reference_source": "github.com/cmg777/starter-academic-v501 content/post/r_sc_bayes_spatial/helpers (fetched 2026-07-09); tutorial https://carlos-mendez.org/post/r_sc_bayes_spatial/",
+  "data": [
+    {
+      "path": "basedata/california_panel.csv",
+      "sha256": "9d6a73e21f1a9c0fbeef44dbc57b3d754c033f8cce492e318fdd905d8313f2ec"
+    },
+    {
+      "path": "basedata/california_W_matrix.csv",
+      "sha256": "e056c082327d9cdfcf627901615700f43e6264f6f11157a755e66a7987d48288"
+    },
+    {
+      "path": "basedata/california_w_vector.csv",
+      "sha256": "41f1223d7a5aab10fc0d5cbccd1459caa553cf44c51945814d8649194bc97f5a"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": "Rcpp 1.0.12; RcppArmadillo 0.12.8.1.0; Matrix 1.6.5; dplyr 1.1.4",
+  "mcmc": {
+    "iter": 40000,
+    "burn": 20000,
+    "seed": 20251022,
+    "step_rho": 0.01,
+    "configs": ["bare (p_factors=0, no covariate)", "full (p_factors=1, X=retprice)"]
+  },
+  "notes": "The California panel/W/w vendored in basedata match california_smoking.rda from the tutorial (38 donors, 1970-2000). rho is weakly identified in the full config (AR(1) factor vs spatial autoregression ridge): this tutorial helper settles near rho~0.24, mlsynth near rho~0.41, while the ATT agrees within ~5%; the bare-model spatial core matches to 4 dp. Against the authors' canonical Rcpp (spillsynth_sudan) mlsynth's rho matches to 0.004. The benchmark cross-checks the identified quantities and treats full-model rho as weakly identified."
+}

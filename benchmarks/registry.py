@@ -84,6 +84,7 @@ CASES = {
     "spillsynth_grossi_germany": "benchmarks.cases.spillsynth_grossi_germany",  # Path A: grossi direct+spillover German reunification (Grossi et al.)
     "spillsynth_iterative_germany": "benchmarks.cases.spillsynth_iterative_germany",  # Path A: iterative waterfall SCM German reunification (Melnychuk)
     "spillsynth_sar_mc": "benchmarks.cases.spillsynth_sar_mc",  # Path B: SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
+    "spillsynth_prop99_sar": "benchmarks.cases.spillsynth_prop99_sar",  # cross-val vs Mendez/Sakaguchi-Tagawa California Prop 99 SAR tutorial (bare rho 4dp + ATT + Nevada spillover; full rho weakly identified)
     "spillsynth_sudan": "benchmarks.cases.spillsynth_sudan",  # cross-val vs Sakaguchi-Tagawa Rcpp SAR (2011 Sudan secession, empirical)
     "spotsynth_real_data": "benchmarks.cases.spotsynth_real_data",  # SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
     "spotsynth_panic1907": "benchmarks.cases.spotsynth_panic1907",  # cross-method: SPOTSYNTH debias vs PROXIMAL PI on Panic 1907 + TCA screen + systemic-shock limit

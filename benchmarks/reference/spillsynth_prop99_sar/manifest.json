@@ -1,0 +1,13 @@
+{
+  "case": "spillsynth_prop99_sar",
+  "title": "Bayesian Spatial SAR SC vs the Mendez / Sakaguchi-Tagawa California Prop 99 tutorial",
+  "paper": "Sakaguchi & Tagawa (2026), The Econometrics Journal, doi:10.1093/ectj/utag006",
+  "reference_impl": "Mendez tutorial Rcpp helpers (cmg777/starter-academic-v501), an 'inspired-by' variant; https://carlos-mendez.org/post/r_sc_bayes_spatial/",
+  "path_type": "cross-validation",
+  "command": "SAR_HELPERS_DIR=<dir with cmg777 helpers + california_smoking.rda> Rscript benchmarks/reference/spillsynth_prop99_sar/reference.R",
+  "data": [
+    "basedata/california_panel.csv",
+    "basedata/california_W_matrix.csv",
+    "basedata/california_w_vector.csv"
+  ]
+}

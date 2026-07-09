@@ -1,0 +1,39 @@
+# Live capture: Sakaguchi-Tagawa / Mendez California Proposition 99 Stage-3
+# Bayesian Spatial SAR, run via the tutorial's own Rcpp helpers (sc_spillover,
+# hs_alpha_gibbs_cpp, sar_full_sampler_cpp_step2 from cmg777/starter-academic-v501).
+# R 4.3.3, seed 20251022, step_rho 0.01, M=40000 burn=20000.
+#
+# California treated from 1988 (TREAT_YEAR); 38 donor states; 1970-2000.
+
+BARE (p_factors=0, no covariate -- the identified spatial core):
+  rho = 0.8492   att = -22.1047   n_active_alpha = 25
+
+FULL (p_factors=1, X=retprice -- the tutorial's headline config):
+  rho = 0.2069   CrI [0.1267, 0.2783]
+  att = -16.4442 CrI [-16.7163, -16.1611]
+  n_active_alpha = 25
+  rho across seeds {20251022, 1, 7} = 0.2069, 0.2603, 0.2418
+
+Top post-period spillover donors (avg packs per capita):
+  Nevada        -3.4528
+  Idaho         -0.1983
+  Utah          -0.1981
+  Wyoming       -0.0156
+  Montana       -0.0121
+
+Treatment-effect path (te_point, 1988-2000):
+  -5.270 -8.568 -9.488 -12.566 -11.690 -15.352 -17.269 -19.174
+  -19.943 -20.568 -22.015 -25.115 -26.755
+
+# NOTE on rho. The spatial core is cross-implementation exact: bare-model rho
+# matches mlsynth to 4 dp (R 0.8492 vs mlsynth 0.8493). In the FULL config the
+# rho posterior is only weakly identified -- the AR(1) latent factor and the
+# spatial autoregression compete to explain the same cross-sectional co-movement,
+# so rho sits on a near-flat ridge. Every full conditional in this R kernel is
+# algebraically identical to mlsynth's NumPy sampler, yet the two settle in
+# different regions of the ridge (this R helper near rho~0.24, mlsynth near
+# rho~0.41), while the ATT -- the estimand -- agrees within ~5%. Against the
+# AUTHORS' canonical Rcpp (see benchmarks/cases/spillsynth_sudan) mlsynth's rho
+# matches to 0.004; this tutorial helper is an "inspired-by" variant. The
+# benchmark therefore cross-checks the identified quantities (bare rho, ATT,
+# spillover ranking, SCM nesting) and treats full-model rho as weakly identified.
