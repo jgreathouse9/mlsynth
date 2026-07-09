@@ -11,8 +11,8 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-five of the
-thirty-six estimators are currently fully verified; ISCM carries a
+This page catalogues those replications. Thirty-six of the
+thirty-seven estimators are currently fully verified; ISCM carries a
 one-draw illustration only (its paper relies on a non-public panel
 and provides no Monte Carlo to reproduce).
 
@@ -73,6 +73,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/linf
    replications/geolift
    replications/orthsc
+   replications/beast
    replications/rolldid
    replications/ppscm
    replications/snn
@@ -380,6 +381,16 @@ High-dimensional donor pools
   :math:`[-21.3, -15.4]`) on the ADH donor pool (durable:
   ``sparse_sc_prop99``). See the
   :doc:`dedicated page <replications/sparse_sc>`.
+* :doc:`beast` -- Bléhaut, D'Haultfœuille, L'Hour & Tsybakov (2021)
+  immunized doubly-robust SC (covariate balancing under sparsity).
+  Cross-validation: on California Proposition 99 with the paper's
+  informative covariate regime, mlsynth's Calibration-Lasso /
+  immunizing-regression / immunized-ATT port reproduces a live run of
+  the authors' R to five decimals on the balancing coefficients and to
+  :math:`\sim 0.02` packs on the immunized ATT path (mean :math:`-22.44`,
+  :math:`-31.51` by 2000), with a valid balancing (:math:`\sum W = 1`)
+  and sparse selection (durable: ``beast_prop99``). See the
+  :doc:`dedicated page <replications/beast>`.
 * :doc:`msqrt` -- Shen, Song & Abadie (2025) multivariate
   square-root-Lasso SC for high-dimensional disaggregated data.
   Path B: the Section-6 simulation (true ATT = 0) -- the

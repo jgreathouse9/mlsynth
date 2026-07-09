@@ -1,0 +1,8 @@
+{
+  "generated_at": "2026-07-09T05:30:00Z",
+  "git_sha": "78517db",
+  "reference_impl": "jeremylhour/alternative-synthetic-control-sparsity R, run live on mlsynth's exact design matrix (raw pre-means of loginc/p_cig/pct15-24/pc_beer + cigsale lags 1975/1980/1988), c_cal=0.03, c_ort=0.3",
+  "r_version": "R version 4.3.3 (2024-02-29); lbfgs 1.2.1.2",
+  "data": [{"path": "basedata/augmented_cali_long.csv", "sha256": "974ae6ad6ab741d29e3ca85c57f9da33ff1baf151e3dbb4b24f53c9cba607903"}],
+  "notes": "California treated 1989. R run on mlsynth's exported X/d/Y so the only difference is the calibration optimizer (R OWL-QN vs mlsynth proximal-gradient); ATT path matches to ~0.02 packs, SEs to ~0.002. BEAST targets the sparse informative covariate regime; on the over-rich augmented set the balancing degenerates (sum(W) != 1) and both R and Python fail -- guarded by balance_tol."
+}

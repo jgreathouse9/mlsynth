@@ -54,6 +54,7 @@ from .estimators.sparse_sc import SparseSC
 from .estimators.microsynth import MicroSynth
 from .estimators.siv import SIV
 from .estimators.orthsc import ORTHSC
+from .estimators.beast import BEAST
 from .estimators.dsc import DSC
 from .estimators.dscar import DSCAR
 from .estimators.spsydid import SpSyDiD
@@ -129,6 +130,7 @@ __all__ = [
     "MicroSynth",
     "SIV",
     "ORTHSC",
+    "BEAST",
     "SYNDES",
     "SYNDESPower",
     "power_analysis",

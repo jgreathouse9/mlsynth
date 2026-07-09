@@ -1,0 +1,9 @@
+{
+  "case": "beast_prop99",
+  "title": "BEAST immunized doubly-robust SC vs authors' R (California Prop 99)",
+  "paper": "Blehaut, D'Haultfoeuille, L'Hour & Tsybakov (2021), arXiv:2005.12225",
+  "reference_impl": "jeremylhour/alternative-synthetic-control-sparsity R (CalibrationLasso/OrthogonalityReg/ImmunizedATT)",
+  "path_type": "cross-validation",
+  "command": "Rscript on mlsynth's exported design matrix (see reference.json)",
+  "data": ["basedata/augmented_cali_long.csv"]
+}
