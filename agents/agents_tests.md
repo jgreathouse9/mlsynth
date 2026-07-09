@@ -167,6 +167,24 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
   Read the source to confirm *which* binding feeds the scalar; when in doubt,
   trace the tracer's own value against the reference's reported number (the
   reported `sdx` matched `sd(X[[1]][...])`, not `sd(X)`).
+- **When the reference has an *option*, run the reference under *both* settings
+  before you conclude anything.** A close-but-off band is ambiguous: our impl
+  might have a bug, or it might be faithfully implementing a *different* option
+  than the one the reference run used. Generate the reference under each setting
+  of the suspect flag and see which our output matches. mlsynth's SCPI band was
+  ~15% off the `scpi` tutorial — but running `scpi` under both
+  `cointegrated_data=False` and `True` showed we matched `False` to
+  Monte-Carlo error and the tutorial had used `True`. That reframed the task
+  from "debug a discrepancy" to "implement a missing option", and told us
+  exactly which component moved (out-of-sample `e`, the levels-vs-differences
+  seam) — no bug hunt required.
+- **Read the reference's source to find the seam — it need not be R.** The
+  differencing that `cointegrated_data=True` applies is not in the paper; it is
+  in `scpi_pkg`'s `funs.py` (`u_des_prep` / `e_des_prep`): difference the donor
+  design `B -> ΔB`, drop the first (now-NaN) pre-period via `complete_cases`,
+  and bridge the predictand with `ΔP[0] = P[0] - B[T0-1]`. Porting *that*
+  expression — not a plausible equivalent — reproduced both bands. A pip
+  package is as readable as an R kernel; open it.
 
 ## Worked example — the SPSC conformal bands
 
@@ -246,6 +264,37 @@ Pinned by `test_ppscm_covariates.py` (differential vs a captured live run) and
 the `ppscm_paglayan_covs` durable benchmark. The lesson compounds the recipe:
 isolate to a scalar → dump-and-diff to prove where it is → read the exact source
 line → replicate that expression, not a plausible equivalent.
+
+## Worked example — SCPI cointegration vs `scpi_pkg` (which spec are we?)
+
+mlsynth's `VanillaSC(inference="scpi")` reproduced the `scpi` prediction bands on
+one panel but sat ~15% wide on the Mendez German-reunification tutorial. The
+temptation is to debug our sampler. The disciplined path was shorter:
+
+1. **Split point from interval first.** The simplex weights matched `scpi` to
+   4 dp (Austria 0.2911, USA 0.2728, …). So the synthetic control was identical;
+   only the *bands* differed. That localised the gap to the uncertainty model,
+   not the fit.
+2. **Run the reference under both settings of the suspect option.** The tutorial
+   set `cointegrated_data=True`. Regenerating `scpi`'s band under *both* `True`
+   and `False` showed mlsynth matched `False` to Monte-Carlo error (mean width
+   diff 0.10) and was far from `True` (0.87). Verdict: not a bug — a missing
+   option. mlsynth only implemented the levels model.
+3. **Split the band into its components to see what moves.** Comparing the
+   in-sample (`w`) and out-of-sample (`e`) pieces separately showed cointegration
+   shifts the in-sample term a little (~0.1) and the out-of-sample term a lot in
+   the far-post years — the levels-vs-differences extrapolation.
+4. **Read the reference's source for the exact transform.** `scpi_pkg`'s
+   `funs.py` (`u_des_prep`/`e_des_prep`): difference the donor design `B -> ΔB`,
+   drop the first (NaN) pre-period via `complete_cases`, predictand bridge
+   `ΔP[0] = P[0] - B[T0-1]`. Ported verbatim; a standalone prototype hit the
+   `scpi` `True` band (mean diff 0.04) before touching the library.
+
+Pinned by `test_scpi_cointegration.py` (matches both specs; the levels default is
+a byte-identical regression guard) and the `scpi_germany_pi` durable benchmark.
+Lesson: a close-but-off *interval* against a configurable reference is usually a
+spec question ("which option are we?"), not a numerics bug — answer it by running
+the reference under each option before you open a debugger.
 
 ---
 

@@ -562,6 +562,40 @@ holding the per-period ``periods``, ``tau``, ``pi_lower``/``pi_upper``,
 ``counterfactual_lower``/``upper``, the ``in_sample_*`` (:math:`w_L,w_U`) and
 ``out_of_sample_*`` (:math:`e_L,e_U`) components, ``sims`` and ``e_method``.
 
+Cointegration (``scpi_cointegrated=True``). When the treated and donor series
+are cointegrated, their levels share a common stochastic trend and are
+individually :math:`I(1)`; regressing residuals on the level donor design then
+extrapolates a non-stationary predictor into the post period. The cointegrated
+model instead fits the uncertainty on first differences: in step 3 the
+conditional-mean design becomes :math:`\Delta\mathbf{B}_t = \mathbf{B}_t -
+\mathbf{B}_{t-1}` (and in step 6 the out-of-sample design and predictand are
+differenced, with the pre-to-post bridge :math:`\Delta\mathbf{p}_1 =
+\mathbf{p}_1 - \mathbf{b}_{T_0}`). The first pre-period, which differencing
+consumes, is dropped from these designs; the level design :math:`\mathbf{B}`
+still drives :math:`\mathbf{Q}`/:math:`\boldsymbol{\Sigma}` and the QP in steps
+3-5, and :math:`Y_{\text{fit}} = \mathbf{P}\widehat{\mathbf{w}}` is unchanged.
+Only the bands move. This mirrors ``scpi``'s ``cointegrated_data`` exactly (the
+``scpi_germany_pi`` benchmark reproduces both bands to Monte-Carlo error).
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import VanillaSC
+
+   df = pd.read_csv("basedata/scpi_germany.csv")[["country", "year", "gdp"]].dropna()
+   df["treated"] = ((df.country == "West Germany") & (df.year >= 1991)).astype(int)
+
+   res = VanillaSC({
+       "df": df, "outcome": "gdp", "treat": "treated",
+       "unitid": "country", "time": "year",
+       "inference": "scpi", "scpi_cointegrated": True,   # GDP levels are I(1)
+       "scpi_sims": 2000, "seed": 8894, "display_graphs": False,
+   }).fit()
+
+   det = res.inference.details          # per-period bands
+   print(res.inference.ci_lower, res.inference.ci_upper)   # ATT prediction interval
+   # det["counterfactual_lower"] / ["counterfactual_upper"] is scpi's CI_all_gaussian
+
 Composing SCPI with the backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
