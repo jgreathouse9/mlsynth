@@ -202,6 +202,18 @@ The covariate path exposes three reliable solvers via ``backend=``:
     unpenalized synthetic control. ``penalized_cv`` selects the CV criterion
     only when ``penalized_lambda`` is ``None``.
 
+.. note::
+
+   Both covariate backends are pinned on a paper specification by the
+   ``vanillasc_carbontax`` benchmark: under Andersson (2019)'s own
+   synthetic-control spec for the Swedish carbon tax -- GDP per capita, motor
+   vehicles, gasoline consumption and urban population averaged over 1980-1989,
+   plus lagged CO2 for 1970/1980/1989 -- ``malo`` and ``mscmt`` both reproduce
+   his reported average ATT of :math:`-0.29` metric tons per capita and the
+   :math:`-0.35` gap in 2005, with a pre-treatment RMSE of :math:`\approx
+   0.034`. The lagged-outcome predictors anchor the pre-period fit and bring the
+   two ``V`` searches into agreement.
+
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

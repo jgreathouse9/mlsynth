@@ -175,6 +175,8 @@ Path B — Monte Carlo / simulation
      - SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
    * - ``orthsc_carbontax``
      - ORTHSC carbon-tax ATT/p/K/CI (Fry; Andersson 2019 data, vs live R)
+   * - ``vanillasc_carbontax``
+     - VanillaSC malo + mscmt reproduce Andersson (2019) carbon-tax ATT/2005-gap (paper predictor spec)
    * - ``orthsc_size_power``
      - ORTHSC fixed-smoothing t-test size control + power (Fry Tables 1-2)
    * - ``spillsynth_sar_mc``
