@@ -137,6 +137,36 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
 - **Mind the achievable discrete level.** A short pre-period caps the conformal
   level (the finest is `2/(T0+1)`); the reference errors or coarsens there, and
   the comparison must use the same achievable α rather than a nominal 0.05.
+- **Isolate the disagreement to a *scalar*, then find the line that computes
+  it.** When end-to-end numbers are close-but-off, do not sweep hyper-parameters
+  hoping to land the match — that is guessing, and it can "fix" the wrong thing.
+  Instead collapse the gap onto one constant (force a candidate value and watch
+  the whole answer snap into place: if forcing `sdx = 0.07030654` makes every
+  downstream number match to <1%, the *entire* discrepancy is that one scalar),
+  then go read the reference's source for where that scalar is born. The PPSCM
+  covariate `sdx` was a raw pooled-outcome sd in mlsynth vs
+  `sd(X[[1]][is.finite(trt)])` in augsynth (multi_synth_qp.R:98) — the sd over
+  the treated rows of the *first cohort's residual* block. No amount of formula
+  guessing found it; reading the one line did, in seconds, once the scalar was
+  isolated.
+- **Dump the reference's intermediate, do not re-derive it.** You have R and
+  Python side by side — use R to emit the exact object the reference feeds into
+  the next step, load it in Python, and diff element-by-element. `trace(pkg:::fn,
+  exit = quote({ ... }), print = FALSE)` injects a dumper at function exit with
+  every local in scope; `saveRDS(list(X = as.matrix(X), trt = trt, sdx = sdx),
+  path)` round-trips a clean object (prefer RDS over CSV — a `dgeMatrix`/`Matrix`
+  or a *list* of matrices silently mangles through `write.csv`, and
+  `as.matrix(a_list)` yields a 30×1 array-of-lists that looks like data but
+  isn't). Diffing augsynth's scaled covariate matrix against ours showed the
+  ratio was a *constant* (`aug / ours ≡ 0.07031`), which proved our z-scoring
+  was already bit-exact and localised the whole gap to that one multiplier.
+- **`X` may be reassigned before the line you care about.** The value a variable
+  holds at function *exit* (what a naive trace dumps) is not necessarily its
+  value at the interior line that computed your quantity — `multisynth_qp`
+  rebinds `X` from a per-cohort list to donor sub-blocks between entry and exit.
+  Read the source to confirm *which* binding feeds the scalar; when in doubt,
+  trace the tracer's own value against the reference's reported number (the
+  reported `sdx` matched `sd(X[[1]][...])`, not `sd(X)`).
 
 ## Worked example — the SPSC conformal bands
 
@@ -188,6 +218,34 @@ The two-step estimates agree to ~1%, both recovering the truth, with the residua
 gap explained by per-unit-average vs jointly-shared — not a bug in either. The
 lesson: the pre-flight version check (recipe step 0) is not optional; here it was
 the entire finding.
+
+## Worked example — PPSCM auxiliary covariates vs `augsynth` (trace the seam)
+
+`PPSCM`'s new covariate mode (augsynth::multisynth Sec 5.2) fit *directionally*
+right but landed ~15% off the live reference (`nu` 0.2415 vs 0.2244, ATT −0.011
+vs −0.019). The seam walk, and the order that made it tractable:
+
+1. **Prove the untouched path is bit-exact first.** With no covariates, PPSCM
+   already matched augsynth to the digit (`nu` 0.2733, both L2s identical). That
+   localised the entire bug to the *new* covariate term — the outcome machinery
+   was not suspect.
+2. **Dump the reference intermediate, diff element-wise.** Traced
+   `multisynth_qp` to `saveRDS` the scaled covariate matrix `Z_scale`. `aug /
+   ours` was a *constant* `0.07031` across all 47×2 entries → our control
+   z-scoring was already bit-identical; the whole gap was one scalar multiplier.
+3. **Confirm the scalar is the *entire* gap.** Monkeypatched our scaler to force
+   `sdx = 0.07030654`; every downstream number snapped to the reference (<1%).
+   Now it was a one-line hunt, not a model debug.
+4. **Read the source for where the scalar is born.** `sdx <-
+   sd(X[[1]][is.finite(trt)])` (multi_synth_qp.R:98) — sd over the treated rows
+   of the *first cohort's residual* block, not the raw pooled outcome sd we used.
+   Replicating that on mlsynth's `res[first_cohort]` reproduced `0.07030654`
+   bit-for-bit.
+
+Pinned by `test_ppscm_covariates.py` (differential vs a captured live run) and
+the `ppscm_paglayan_covs` durable benchmark. The lesson compounds the recipe:
+isolate to a scalar → dump-and-diff to prove where it is → read the exact source
+line → replicate that expression, not a plausible equivalent.
 
 ---
 
