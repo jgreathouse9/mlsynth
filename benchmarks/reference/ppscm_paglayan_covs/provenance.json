@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-07-08T00:00:00Z",
+  "command": "Rscript benchmarks/reference/ppscm_paglayan_covs/reference.R",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "augsynth": "0.2.0"
+  },
+  "data": [
+    {
+      "path": "basedata/Teachingaugsynth.scv",
+      "sha256": "59573a2dd46f02738eb741ca347cce284e959369aebe904d0eca071452cfee36"
+    }
+  ],
+  "note": "multisynth with auxiliary covariates (perinc_1959 + studteachratio_1959); contiguous US (drops DC,WI,AK,HI)."
+}

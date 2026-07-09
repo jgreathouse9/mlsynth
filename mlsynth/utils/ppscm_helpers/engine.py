@@ -68,8 +68,15 @@ def _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n) -> np
 
 
 def solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                    nu, norm_pool, norm_sep, lam, solver) -> Dict[Any, np.ndarray]:
-    """Partially-pooled QP: per-cohort simplex weights (summing to cohort size)."""
+                    nu, norm_pool, norm_sep, lam, solver,
+                    zt=None, Zc=None) -> Dict[Any, np.ndarray]:
+    """Partially-pooled QP: per-cohort simplex weights (summing to cohort size).
+
+    When ``zt``/``Zc`` (per-cohort scaled auxiliary-covariate target sums and
+    donor blocks) are supplied, the covariate imbalance is stacked into the
+    pooled and separate terms (normalized by the number of covariates),
+    following augsynth::multisynth Sec 5.2.
+    """
     J = len(groups)
     w = [cp.Variable(len(donors[g]), nonneg=True) for g in groups]
     imb = []
@@ -81,6 +88,12 @@ def solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
     sep = sum(cp.sum_squares(imb[k]) / max(adopt_of[g], 1) for k, g in enumerate(groups))
     pooled = cp.sum_squares(sum(imb)) / n_lags
     obj = nu / (norm_pool * J ** 2) * pooled + (1 - nu) / (norm_sep * J) * sep
+    if zt is not None:
+        dz = zt[0].shape[0]
+        imbz = [zt[k] - Zc[k].T @ w[k] for k in range(J)]
+        sepz = sum(cp.sum_squares(imbz[k]) / dz for k in range(J))
+        pooledz = cp.sum_squares(sum(imbz)) / dz
+        obj = obj + nu / (norm_pool * J ** 2) * pooledz + (1 - nu) / (norm_sep * J) * sepz
     if lam:
         obj = obj + lam * sum(cp.sum_squares(wj) for wj in w)
     cons = [cp.sum(w[k]) == n1[k] for k in range(J)]
@@ -126,10 +139,28 @@ def predict_tau(res, groups, adopt_of, members, donors, W, n1, H, n, bs_weight=N
     return tau_rel, per_time, att
 
 
+def _scale_covariates(Z: np.ndarray, trt: np.ndarray, res_first: np.ndarray, d: int):
+    """augsynth Sec 5.2 scaling (multi_synth_qp.R line 98): z-score each
+    covariate against the never-treated controls, then rescale by ``sdx`` so
+    covariate and outcome imbalance share a scale.
+
+    ``sdx`` is ``sd(X[[1]][is.finite(trt)])`` -- the standard deviation over the
+    treated-ever rows of the *first cohort's* residualized pre-treatment block
+    (``res_first``, shape ``(n, T)``; the first ``d`` columns are used)."""
+    ever = np.isfinite(trt)
+    ctrl = ~ever
+    sdx = float(np.std(res_first[ever][:, :d], ddof=1))
+    mu = Z[ctrl].mean(axis=0)
+    sd = Z[ctrl].std(axis=0, ddof=1)
+    sd = np.where(sd > 0, sd, 1.0)
+    return sdx * (Z - mu) / sd
+
+
 def run_multisynth(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool = True, time_cohort: bool = False,
     nu: Optional[float] = None, lam: float = 0.0, solver: Any = None,
+    Z: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """Run one multisynth fit; returns weights, event study, ATT, diagnostics."""
     n = Xy.shape[0]
@@ -148,9 +179,18 @@ def run_multisynth(
     donors = {g: np.where(trt > adopt_of[g] + n_leads)[0] for g in groups}
     res = fit_feff(Xy, trt, set(adopt_of.values()), fixedeff)
 
+    # scaled auxiliary-covariate target sums (zt) and donor blocks (Zc) per cohort
+    zt = Zc = None
+    if Z is not None:
+        # augsynth scales by the first cohort's residual sd (multi_synth_qp.R:98)
+        res_first = res[adopt_of[groups[0]]]
+        Zsc = _scale_covariates(Z, trt, res_first, d)
+        zt = [Zsc[members[g]].sum(axis=0) for g in groups]
+        Zc = [Zsc[donors[g]] for g in groups]
+
     # separate fit (nu = 0) -> scaling norms + auto-nu
     W0 = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                         0.0, 1.0, 1.0, lam, solver)
+                         0.0, 1.0, 1.0, lam, solver, zt=zt, Zc=Zc)
     M0 = _imbalance_matrix(res, groups, adopt_of, members, donors, W0, n1, d, n)
     avg_imbal = M0.mean(axis=1)
     global_l2 = float(np.sqrt((avg_imbal ** 2).sum()) / np.sqrt(d))
@@ -160,7 +200,7 @@ def run_multisynth(
     nu_used = float(global_l2 * np.sqrt(d) / avg_l2) if nu is None else float(nu)
 
     W = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                        nu_used, global_l2 ** 2, ind_l2 ** 2, lam, solver)
+                        nu_used, global_l2 ** 2, ind_l2 ** 2, lam, solver, zt=zt, Zc=Zc)
     M = _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n)
 
     # uniform-weight baseline for scaled imbalance

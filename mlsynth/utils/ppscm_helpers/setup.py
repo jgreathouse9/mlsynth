@@ -7,6 +7,8 @@ and index adoption by position in the sorted time vector (Inf for never-treated)
 
 from __future__ import annotations
 
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
 
@@ -26,9 +28,17 @@ def _adopted(a) -> bool:
 
 
 def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
-                         unitid: str, time: str) -> PPSCMInputs:
+                         unitid: str, time: str,
+                         covariates: Optional[List[str]] = None) -> PPSCMInputs:
     t_vec = np.sort(pd.unique(df[time]))
     units = np.sort(pd.unique(df[unitid]))
+
+    if covariates:
+        missing = [c for c in covariates if c not in df.columns]
+        if missing:
+            raise MlsynthDataError(
+                f"Covariate column(s) not in DataFrame: {missing}."
+            )
 
     adopt = {}
     for u, g in df.groupby(unitid):
@@ -58,8 +68,25 @@ def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
             "restrict to years with measurements for every unit."
         )
 
+    Z = None
+    cov_names = None
+    if covariates:
+        # augsynth cov_agg default: mean over periods before the FIRST adoption.
+        first_adopt = min(finite)
+        pre_first = df[df[time] < first_adopt]
+        agg = (pre_first.groupby(unitid)[list(covariates)].mean()
+               .reindex(index=units))
+        if agg.isna().any().any():
+            bad = agg.index[agg.isna().any(axis=1)].tolist()
+            raise MlsynthDataError(
+                "PPSCM covariates have missing values for unit(s) "
+                f"{bad}; drop them or supply complete covariates."
+            )
+        Z = agg.to_numpy(dtype=float)
+        cov_names = tuple(covariates)
+
     return PPSCMInputs(
         Xy=Xy, trt=trt, n_pre=int(len(pre_times)),
         time_labels=t_vec, units=units, outcome=outcome,
-        intervention_time=t_int,
+        intervention_time=t_int, Z=Z, cov_names=cov_names,
     )

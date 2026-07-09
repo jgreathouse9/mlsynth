@@ -89,6 +89,7 @@ class PPSCM:
         self.n_boot: int = config.n_boot
         self.seed: int = config.seed
         self.alpha: float = config.alpha
+        self.covariates = config.covariates
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -101,6 +102,7 @@ class PPSCM:
             inputs = prepare_ppscm_inputs(
                 self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
+                covariates=self.covariates,
             )
             Xy, trt, d = inputs.Xy, inputs.trt, inputs.n_pre
             T = Xy.shape[1]
@@ -118,6 +120,7 @@ class PPSCM:
                 Xy, trt, d, n_leads, n_lags,
                 fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                 nu=nu_arg, lam=self.lam, solver=self.solver,
+                Z=inputs.Z,
             )
 
             design = PPSCMDesign(
