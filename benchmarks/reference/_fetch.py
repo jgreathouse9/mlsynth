@@ -34,19 +34,25 @@ def _codeload(repo_url: str, commit: str, dest: Path) -> bool:
     if not m:
         return False
     url = f"https://codeload.github.com/{m.group(1)}/{m.group(2)}/tar.gz/{commit}"
-    with tempfile.TemporaryDirectory() as tmp:
-        tar = Path(tmp) / "repo.tar.gz"
-        probe = subprocess.run(["curl", "-sL", "--max-time", "120", "-o", str(tar),
-                                "-w", "%{http_code}", url], capture_output=True, text=True)
-        if probe.stdout.strip() != "200" or not tar.exists() or tar.stat().st_size == 0:
-            return False
-        subprocess.run(["tar", "xzf", str(tar), "-C", tmp], check=True, capture_output=True)
-        tops = [p for p in Path(tmp).iterdir() if p.is_dir()]
-        if len(tops) != 1:                        # codeload extracts a single <repo>-<commit>/ dir
-            return False
-        dest.mkdir(parents=True, exist_ok=True)
-        for item in tops[0].iterdir():
-            shutil.move(str(item), str(dest / item.name))
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            tar = Path(tmp) / "repo.tar.gz"
+            probe = subprocess.run(["curl", "-sL", "--max-time", "120", "-o", str(tar),
+                                    "-w", "%{http_code}", url], capture_output=True, text=True)
+            if probe.stdout.strip() != "200" or not tar.exists() or tar.stat().st_size == 0:
+                return False
+            subprocess.run(["tar", "xzf", str(tar), "-C", tmp], check=True, capture_output=True)
+            tops = [p for p in Path(tmp).iterdir() if p.is_dir()]
+            if len(tops) != 1:                    # codeload extracts a single <repo>-<commit>/ dir
+                return False
+            dest.mkdir(parents=True, exist_ok=True)
+            for item in tops[0].iterdir():
+                shutil.move(str(item), str(dest / item.name))
+    except (OSError, subprocess.CalledProcessError):
+        # A non-writable cache dir or a failed extraction skips gracefully, matching
+        # _git_clone and the workflow contract (an unfetchable reference skips, not reds).
+        shutil.rmtree(dest, ignore_errors=True)
+        return False
     return True
 
 

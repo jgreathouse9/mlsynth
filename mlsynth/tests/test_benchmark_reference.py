@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from benchmarks.reference import load_reference, reference_value
+from benchmarks.reference import _fetch
 from benchmarks.reference.generate import _parse_values
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -61,6 +62,29 @@ def test_provenance_records_reference_versions():
     prov = json.loads((_BUNDLE / "provenance.json").read_text())
     assert "Synth" in prov.get("packages", {})
     assert re.match(r"R version", prov.get("r_version", ""))
+
+
+def test_codeload_skips_on_unwritable_cache(tmp_path, monkeypatch):
+    # A filesystem error at the cache-dir creation (e.g. the .cache dir left
+    # root-owned by the sudo R provisioners) must degrade to a graceful skip --
+    # _codeload returns False so fetch_pinned_repo raises BenchmarkSkipped rather
+    # than the raw OSError crashing the whole benchmark shard.
+    def fake_run(cmd, **kw):
+        proc = type("P", (), {"stdout": "", "returncode": 0})()
+        if cmd[0] == "curl":                                  # fake a 200 + non-empty tarball
+            Path(cmd[cmd.index("-o") + 1]).write_bytes(b"tar-bytes")
+            proc.stdout = "200"
+        elif cmd[0] == "tar":                                 # extract a single <repo>-<sha>/ dir
+            (Path(cmd[cmd.index("-C") + 1]) / "repo-deadbee").mkdir()
+        return proc
+
+    monkeypatch.setattr(_fetch.subprocess, "run", fake_run)
+    # dest's parent is a regular file, so dest.mkdir(parents=True) raises
+    # NotADirectoryError (an OSError even root cannot bypass) at the exact line
+    # that failed in CI.
+    (tmp_path / "cache").write_text("not a directory")
+    dest = tmp_path / "cache" / "ClusterSC"
+    assert _fetch._codeload("https://github.com/owner/repo.git", "deadbeef", dest) is False
 
 
 def test_comparison_csv_is_self_consistent():

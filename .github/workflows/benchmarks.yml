@@ -115,12 +115,18 @@ jobs:
         run: |
           set -x
           mkdir -p "$R_LIBS_USER"
+          # The install_*.sh provisioners run under sudo and some (orthsc, propsdid)
+          # create benchmarks/reference/.cache/... as root. Create the shared cache
+          # dir as the runner up front and hand it back afterwards, so the non-root
+          # benchmark run can clone the remaining references into it.
+          mkdir -p benchmarks/reference/.cache
           Rscript benchmarks/R/requirements.R || echo "::warning::requirements.R partial"
           for s in benchmarks/R/install_*.sh; do
             echo "::group::$s"
             sudo bash "$s" || echo "::warning::provisioner failed: $s (its cross-check will skip)"
             echo "::endgroup::"
           done
+          sudo chown -R "$(id -u):$(id -g)" benchmarks/reference/.cache
 
       - name: Run benchmark suite shard (live references)
         run: |
