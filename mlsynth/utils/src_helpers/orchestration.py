@@ -8,6 +8,7 @@ import numpy as np
 
 from ...exceptions import MlsynthEstimationError
 from .estimation import counterfactual, src_weights
+from .screening import screen_donors, screen_inputs
 from .structures import SRCFit, SRCInputs
 from .vsearch import optimize_v
 
@@ -45,6 +46,8 @@ def run_src(
     inputs: SRCInputs,
     *,
     ridge: float = 1e-3,
+    screen: str = "none",
+    n_screen: Optional[int] = None,
     v_search: str = "none",
     v_seed: int = 0,
     v_maxiter: int = 60,
@@ -52,9 +55,20 @@ def run_src(
 ) -> SRCFit:
     """Fit SRC (deterministic Algorithm 1 / 3) and return the point estimate.
 
-    With ``v_search="de"`` the predictor weights ``V`` are chosen by a seeded
-    global search (the paper's Algorithm 3); otherwise ``V = I``.
+    With ``screen="sirs"`` the donor pool is first reduced by SIRS screening
+    (Algorithm 2) to ``n_screen`` donors (default the paper's count). With
+    ``v_search="de"`` the predictor weights ``V`` are chosen by a seeded global
+    search (the paper's Algorithm 3); otherwise ``V = I``.
     """
+    n_screened_out = 0
+    if screen == "sirs":
+        keep = screen_donors(
+            inputs.Y_donors[:inputs.T0], inputs.Y_treated[:inputs.T0],
+            n_screen=n_screen,
+        )
+        if keep.size < inputs.J:
+            n_screened_out = int(inputs.J - keep.size)
+            inputs = screen_inputs(inputs, keep)
     try:
         X, y, n_out = _build_matching_matrix(inputs)
         V: Optional[np.ndarray] = None
@@ -89,4 +103,5 @@ def run_src(
         v_search=v_search,
         v=V,
         donor_weights=donor_weights,
+        n_screened_out=n_screened_out,
     )

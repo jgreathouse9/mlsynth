@@ -67,6 +67,7 @@ class SRCFit:
     v_search: str = "none"
     v: Optional[np.ndarray] = None          # predictor weights used (None => V = I)
     donor_weights: dict = field(default_factory=dict)
+    n_screened_out: int = 0                 # donors dropped by SIRS screening (0 => none)
 
 
 class SRCResults(BaseEstimatorResults):

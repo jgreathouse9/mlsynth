@@ -70,6 +70,26 @@ class SRCConfig(BaseEstimatorConfig):
             "period. Set it to reproduce a paper's fit window."
         ),
     )
+    screen: Literal["none", "sirs"] = Field(
+        default="none",
+        description=(
+            "Donor screening before the fit (Algorithm 2). 'none' (default) "
+            "keeps every donor. 'sirs' ranks donors by the SIRS marginal utility "
+            "(Zhu et al. 2011) on the pre-period outcomes and keeps the top "
+            "``min(floor(T0/log(T0/2)), T0-1)`` (override with ``n_screen``). "
+            "Use it when donors are not few relative to pre-periods "
+            "(``J >= 4*T0/5``): screening restores a well-posed, non-degenerate "
+            "Cp fit. It does not recover the paper's exact Basque weight cells "
+            "(those are on the non-identified V manifold)."
+        ),
+    )
+    n_screen: Optional[int] = Field(
+        default=None, ge=1,
+        description=(
+            "Override the number of donors kept by ``screen='sirs'``. None "
+            "(default) uses the paper's ``min(floor(T0/log(T0/2)), T0-1)``."
+        ),
+    )
     v_search: Literal["none", "de"] = Field(
         default="none",
         description=(

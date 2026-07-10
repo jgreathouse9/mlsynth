@@ -203,8 +203,8 @@ Assumptions
    residual degrees of freedom :math:`\max(T_0 - N_0, 1)` are floored at one and
    :math:`\widehat{\boldsymbol{\beta}}` is the minimum-norm (pseudoinverse) fit;
    a small ``ridge`` keeps the synthesis QP strictly convex. For a
-   high-dimensional donor pool, screen first (see the paper's SIRS extension)
-   or use :doc:`clustersc`.
+   high-dimensional donor pool, screen first (``screen="sirs"``, below) or use
+   :doc:`clustersc`.
 
 #. Regularised extrapolation is acceptable. The combined coefficients can leave
    the simplex, so the counterfactual can extrapolate; the :math:`C_p` penalty
@@ -212,6 +212,50 @@ Assumptions
 
    Remark. If extrapolation is unacceptable for the application (you need a
    convex, interpretable weighting), SRC is the wrong tool -- use a simplex SCM.
+
+Screening a wide donor pool
+---------------------------
+
+When the pool is not small relative to the pre-period (:math:`N_0 \ge T_0`, and
+the paper recommends screening already at :math:`N_0 \ge 4T_0/5`), the unit
+regression is ill-posed: the centered pre-period system :math:`\mathbf{Q}
+\mathbf{y}_1 \approx \mathbf{Q}\mathbf{Y}_0\boldsymbol{\beta}` has more donor
+coefficients than periods, so the full-model residual collapses,
+:math:`\widehat{\sigma}^2 \to 0`, and the :math:`C_p` penalty switches off --
+the box fit then interpolates the pre-period with no complexity charge. The
+paper's Algorithm 2 handles this by screening the pool *before* Algorithm 1.
+Set ``screen="sirs"``:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SRC
+
+   df = pd.read_csv("basedata/basque_data.csv")
+   df["treat"] = ((df["regionname"] == "Basque Country (Pais Vasco)")
+                  & (df["year"] >= 1975)).astype(int)
+   res = SRC({"df": df, "outcome": "gdpcap", "treat": "treat",
+              "unitid": "regionname", "time": "year",
+              "screen": "sirs", "display_graphs": False}).fit()
+
+Donors are ranked by the sure-independent-ranking-and-screening (SIRS) marginal
+utility of Zhu, Fan, Li & Zhu (2011) on the pre-period outcomes -- a model-free
+measure of dependence between each donor and the treated path -- and the top
+:math:`k \coloneqq \min\bigl(\lfloor T_0/\log(T_0/2)\rfloor,\, T_0 - 1\bigr)` are
+kept (override with ``n_screen``). The :math:`T_0 - 1` cap guarantees the
+screened pool is smaller than the pre-period, so the fit is well posed and
+:math:`\widehat{\sigma}^2 > 0`. On the 1975-treated Basque panel
+(:math:`T_0 = 20`, :math:`N_0 = 16`) screening keeps :math:`k = 8` donors and
+lifts :math:`\widehat{\sigma}^2` by roughly two orders of magnitude, so the
+penalty is active rather than switched off.
+
+Two cautions. Screening is a well-posedness and reproducibility device, not a
+route to the paper's Basque weight cells: even a screened pool that contains
+Cantabria still lands on the same Rioja/Madrid decomposition, because the
+remaining freedom lives on the non-identified :math:`\mathbf{V}` manifold (see
+below), not in the pool. And the SIRS statistic is scale-free by construction
+(donor paths are standardised); the paper's printed Eq. 22 carries the inner
+term as :math:`Y_{jt}`, which we read as the cited-form :math:`Y_{j\ell}`.
 
 Inference and diagnostics
 -------------------------

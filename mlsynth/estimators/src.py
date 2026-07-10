@@ -118,6 +118,7 @@ class SRC:
         try:
             fit = run_src(
                 inputs, ridge=self.config.ridge,
+                screen=self.config.screen, n_screen=self.config.n_screen,
                 v_search=self.config.v_search, v_seed=self.config.v_seed,
                 v_maxiter=self.config.v_maxiter, v_popsize=self.config.v_popsize,
             )
