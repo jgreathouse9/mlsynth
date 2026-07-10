@@ -107,6 +107,49 @@ def screen_donors(
     return np.sort(keep)
 
 
+def fpca_donors(
+    donors: np.ndarray,
+    treated: np.ndarray,
+    *,
+    cumvar_threshold: float = 0.95,
+    k_clusters: Optional[int] = None,
+    k_max: int = 8,
+    random_state: int = 0,
+) -> np.ndarray:
+    """Select donors by FPCA + clustering, reusing ClusterSC's routines.
+
+    A shape-based alternative to :func:`screen_donors`: instead of ranking by
+    marginal dependence, it clusters the pre-period trajectories and keeps the
+    donors in the treated unit's cluster. It reuses ClusterSC's
+    :func:`~mlsynth.utils.clustersc_helpers.rpca.fpca.compute_fpca_features`
+    (cubic-B-spline smoothing then PCA truncated at ``cumvar_threshold``) and
+    :func:`~mlsynth.utils.clustersc_helpers.rpca.clustering.assign_clusters`
+    (silhouette-chosen k-means; Bayani 2021), so the selected pool is an
+    economically coherent peer group rather than a dependence ranking.
+
+    Deterministic (seeded k-means). If the treated unit's cluster contains no
+    donors, the whole pool is kept (a no-op).
+    """
+    from ..clustersc_helpers.rpca.clustering import assign_clusters
+    from ..clustersc_helpers.rpca.fpca import compute_fpca_features
+
+    D = np.asarray(donors, dtype=float)
+    y = np.asarray(treated, dtype=float).ravel()
+    J = D.shape[1]
+    # rows are units (treated first), columns are pre-period time points
+    pre_units = np.vstack([y[None, :], D.T])
+    feat = compute_fpca_features(pre_units, cumvar_threshold=cumvar_threshold)
+    clust = assign_clusters(
+        feat.scores, treated_row=0,
+        k_clusters=k_clusters, k_max=k_max, random_state=random_state,
+    )
+    keep = np.asarray(clust.donor_indices, dtype=int) - 1   # unit rows -> donor cols
+    keep = keep[keep >= 0]
+    if keep.size == 0:
+        return np.arange(J)
+    return np.sort(keep)
+
+
 def screen_inputs(inputs, keep: np.ndarray):
     """Return a copy of ``SRCInputs`` restricted to the kept donor columns."""
     keep = np.asarray(keep, dtype=int)

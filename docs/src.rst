@@ -249,6 +249,22 @@ screened pool is smaller than the pre-period, so the fit is well posed and
 lifts :math:`\widehat{\sigma}^2` by roughly two orders of magnitude, so the
 penalty is active rather than switched off.
 
+A shape-based alternative: ``screen="fpca"``. SIRS ranks donors by marginal
+dependence; ``screen="fpca"`` instead selects an economically coherent peer
+group by *clustering* the pre-period trajectories and keeping the donors in the
+treated unit's cluster. It reuses :doc:`clustersc`'s own donor-clustering
+routines -- functional PCA (cubic-B-spline smoothing then a PCA truncated at
+95% variance) followed by silhouette-chosen k-means (Bayani 2021,
+:func:`~mlsynth.utils.clustersc_helpers.rpca.fpca.compute_fpca_features` and
+:func:`~mlsynth.utils.clustersc_helpers.rpca.clustering.assign_clusters`) -- so
+the two estimators screen donors by the same principle. The cluster size is
+data-driven (no ``n_screen``), and the selection is deterministic. On the
+1975-treated Basque panel it keeps the developed / service regions
+(Baleares, Cataluña, Madrid) in the Basque Country's cluster, where SIRS instead
+ranks in Aragón; the two rules give genuinely different pools, and hence
+different counterfactuals -- a reminder that donor selection is a modelling
+choice, not an objective one.
+
 Two cautions. Screening is a well-posedness and reproducibility device, not a
 route to the paper's Basque weight cells: even a screened pool that contains
 Cantabria still lands on the same Rioja/Madrid decomposition, because the

@@ -8,7 +8,7 @@ import numpy as np
 
 from ...exceptions import MlsynthEstimationError
 from .estimation import counterfactual, src_weights
-from .screening import screen_donors, screen_inputs
+from .screening import fpca_donors, screen_donors, screen_inputs
 from .structures import SRCFit, SRCInputs
 from .vsearch import optimize_v
 
@@ -56,16 +56,18 @@ def run_src(
     """Fit SRC (deterministic Algorithm 1 / 3) and return the point estimate.
 
     With ``screen="sirs"`` the donor pool is first reduced by SIRS screening
-    (Algorithm 2) to ``n_screen`` donors (default the paper's count). With
-    ``v_search="de"`` the predictor weights ``V`` are chosen by a seeded global
-    search (the paper's Algorithm 3); otherwise ``V = I``.
+    (Algorithm 2) to ``n_screen`` donors (default the paper's count); with
+    ``screen="fpca"`` it is reduced to the treated unit's FPCA cluster (reusing
+    ClusterSC's routines). With ``v_search="de"`` the predictor weights ``V`` are
+    chosen by a seeded global search (the paper's Algorithm 3); otherwise
+    ``V = I``.
     """
     n_screened_out = 0
-    if screen == "sirs":
-        keep = screen_donors(
-            inputs.Y_donors[:inputs.T0], inputs.Y_treated[:inputs.T0],
-            n_screen=n_screen,
-        )
+    if screen in ("sirs", "fpca"):
+        Dpre = inputs.Y_donors[:inputs.T0]
+        ypre = inputs.Y_treated[:inputs.T0]
+        keep = (screen_donors(Dpre, ypre, n_screen=n_screen) if screen == "sirs"
+                else fpca_donors(Dpre, ypre))
         if keep.size < inputs.J:
             n_screened_out = int(inputs.J - keep.size)
             inputs = screen_inputs(inputs, keep)

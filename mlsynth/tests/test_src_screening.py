@@ -201,3 +201,90 @@ def test_fit_screen_none_matches_default():
     explicit = SRC({**base, "screen": "none"}).fit()
     assert default.att == pytest.approx(explicit.att)
     assert default.weights.donor_weights == explicit.weights.donor_weights
+
+
+# --------------------------------------------------------------------------- #
+# FPCA + clustering donor selection (reuses ClusterSC's helpers)
+# --------------------------------------------------------------------------- #
+def _fpca_cluster_arrays(seed=0):
+    """Two clean shape-clusters: treated + group A ~ sine; group B ~ parabola."""
+    rng = np.random.default_rng(seed)
+    T0 = 12
+    t = np.linspace(0.0, 1.0, T0)
+    f1 = np.sin(2 * np.pi * t)          # cols 0..3 shape (with treated)
+    f2 = (t - 0.5) ** 2                 # cols 4..8 shape
+    treated = f1 + 0.02 * rng.normal(size=T0)
+    A = np.column_stack([f1 + 0.02 * rng.normal(size=T0) for _ in range(4)])
+    B = np.column_stack([f2 + 0.02 * rng.normal(size=T0) for _ in range(5)])
+    donors = np.column_stack([A, B])
+    return donors, treated, [0, 1, 2, 3], [4, 5, 6, 7, 8]
+
+
+def test_fpca_donors_selects_treated_shape_cluster():
+    scr = _import_screening()
+    donors, treated, groupA, groupB = _fpca_cluster_arrays()
+    keep = scr.fpca_donors(donors, treated)
+    assert keep.size >= 1
+    assert set(keep.tolist()).issubset(set(groupA))      # only the similar-shape donors
+    assert set(keep.tolist()).isdisjoint(set(groupB))    # none of the dissimilar ones
+    assert keep.size < donors.shape[1]                   # genuinely reduced the pool
+
+
+def test_fpca_donors_deterministic_and_valid_indices():
+    scr = _import_screening()
+    donors, treated, _, _ = _fpca_cluster_arrays()
+    k1 = scr.fpca_donors(donors, treated)
+    k2 = scr.fpca_donors(donors, treated)
+    assert np.array_equal(k1, k2)                        # seeded k-means -> deterministic
+    assert np.array_equal(k1, np.sort(k1))               # ascending
+    assert len(set(k1.tolist())) == k1.size              # unique
+    assert np.all((k1 >= 0) & (k1 < donors.shape[1]))
+
+
+def test_fpca_donors_keeps_all_when_no_shape_structure():
+    """With no cross-sectional shape variation (identical paths -> FPC rank 0),
+    clustering is degenerate and the whole pool is kept (a no-op)."""
+    scr = _import_screening()
+    T0, J = 12, 6
+    t = np.linspace(0.0, 1.0, T0)
+    shape = np.sin(2 * np.pi * t)
+    treated = shape.copy()
+    donors = np.column_stack([shape.copy() for _ in range(J)])   # identical -> rank 0
+    keep = scr.fpca_donors(donors, treated)
+    assert np.array_equal(keep, np.arange(J))            # no-op: all donors kept
+
+
+def test_config_accepts_screen_fpca():
+    cfg = SRCConfig(df=_df(), outcome="y", treat="treat", unitid="unit",
+                    time="t", screen="fpca")
+    assert cfg.screen == "fpca"
+
+
+def test_fit_screen_fpca_reduces_pool_and_is_deterministic():
+    """End-to-end: FPCA selects the treated unit's cluster, deterministically."""
+    rng = np.random.default_rng(2)
+    T, T0 = 16, 12
+    t = np.linspace(0.0, 1.0, T)
+    f1 = np.sin(2 * np.pi * t)
+    f2 = (t - 0.5) ** 2
+    cols = {"u0": f1 + 0.02 * rng.normal(size=T)}        # treated
+    for j in range(4):
+        cols[f"a{j}"] = f1 + 0.02 * rng.normal(size=T)   # similar
+    for j in range(5):
+        cols[f"b{j}"] = f2 + 0.02 * rng.normal(size=T)   # dissimilar
+    rows = []
+    for u, series in cols.items():
+        for ti in range(T):
+            rows.append({"unit": u, "t": ti, "y": float(series[ti]),
+                         "treat": int(u == "u0" and ti >= T0)})
+    df = pd.DataFrame(rows)
+    base = dict(df=df, outcome="y", treat="treat", unitid="unit", time="t",
+                display_graphs=False)
+    full = SRC({**base, "screen": "none"}).fit()
+    fpca = SRC({**base, "screen": "fpca"}).fit()
+    assert len(full.weights.donor_weights) == 9
+    assert len(fpca.weights.donor_weights) < 9           # pool reduced to the cluster
+    assert all(lbl.startswith("a") for lbl in fpca.weights.donor_weights)  # only 'a' donors
+    again = SRC({**base, "screen": "fpca"}).fit()
+    assert fpca.att == pytest.approx(again.att)
+    assert fpca.weights.donor_weights == again.weights.donor_weights
