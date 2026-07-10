@@ -467,6 +467,13 @@ References
     *"Synthetic Matching Control Method."*
     arXiv:2306.02584, 2023. https://arxiv.org/abs/2306.02584
 
+.. [BSCM2020]
+    Kim, Sungjin, Lee, Clarence, and Gupta, Sachin.
+    *"Bayesian Synthetic Control Methods."*
+    Journal of Marketing Research 57(5):831-852, 2020.
+    DOI: https://doi.org/10.1177/0022243720936230
+    Reference code: https://github.com/clarencejlee/bscm
+
 .. [BomzeSparseQP] Bomze, Immanuel M., Peng, Bo, Qiu, Yuzhou, and Yıldırım, E. Alper.
     *"On Tractable Convex Relaxations of Standard Quadratic Optimization Problems under Sparsity Constraints."*
     arXiv:2310.04340, 2023. https://arxiv.org/abs/2310.04340

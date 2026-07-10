@@ -264,6 +264,7 @@ headline numbers.
    :caption: Observational: high-dimensional donors
 
    bvss
+   bscm
    clustersc
    mlsc
    fscm

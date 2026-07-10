@@ -553,6 +553,7 @@ _RELOCATED_CONFIGS = {
     "SBCConfig": "mlsynth.utils.sbc_helpers.config",
     "HSCConfig": "mlsynth.utils.hsc_helpers.config",
     "BVSSConfig": "mlsynth.utils.bvss_helpers.config",
+    "BSCMConfig": "mlsynth.utils.bscm_helpers.config",
     "SPCDConfig": "mlsynth.utils.spcd_helpers.config",
     "NSCConfig": "mlsynth.utils.nsc_helpers.config",
     "SDIDConfig": "mlsynth.utils.sdid_helpers.config",

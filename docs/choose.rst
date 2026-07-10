@@ -295,7 +295,9 @@ spillovers (a true outlier)?
 * Yes -- relax the simplex: :doc:`nsc` (affine weights), :doc:`rescm`
   (penalised / :math:`L_\infty`), :doc:`smc` (per-donor matching plus a
   Mallows-:math:`C_p` box synthesis that regularises the extrapolation and
-  stays deterministic), or the unconstrained :doc:`pda` (the
+  stays deterministic), :doc:`bscm` (Bayesian shrinkage -- horseshoe or
+  spike-and-slab -- on unconstrained weights, with a credible interval on the
+  effect), or the unconstrained :doc:`pda` (the
   Hsiao--Ching--Wan panel-data regression and its modern penalised cousins).
 
 *PDA versus SCM.* This convex-hull gate is exactly where the panel data approach
