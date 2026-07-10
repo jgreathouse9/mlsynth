@@ -116,16 +116,33 @@ def gibbs_bscm(
     sigma2 = np.full(C, float(np.var(y)) or 1.0)
 
     if prior == "horseshoe":
-        lam2 = np.ones((C, p)); nu = np.ones((C, p)); tau2 = np.ones(C); xi = np.ones(C)
+        # The paper's hierarchy -- beta_j ~ N(0, lam_j^2), lam_j ~ C+(0, tau),
+        # tau ~ C+(0, sigma), sigma ~ C+(0, 10) -- folds to the canonical
+        # sigma^2-scaled horseshoe regression beta_j ~ N(0, sigma^2 tau^2 lam_j^2)
+        # with tau, lam ~ C+(0, 1). That sigma^2 scaling *is* the tau ~ C+(0, sigma)
+        # coupling, so the global shrinkage tracks the residual scale. Sampled
+        # via the Makalic & Schmidt (2016) auxiliary variables (all full
+        # conditionals inverse-gamma / normal). Since the prior precision on the
+        # donors is 1/(sigma^2 tau^2 lam^2), _draw_beta's A = X'X/sigma^2 + diag(.)
+        # equals A0/sigma^2 with A0 = X'X + diag(1/(tau^2 lam^2)), so the draw has
+        # covariance sigma^2 A0^{-1} as required, with no extra machinery.
+        lam2 = np.ones((C, p)); nu = np.ones((C, p))
+        tau2 = np.ones(C); xi = np.ones(C); zeta = np.ones(C)
         for it in range(n_iter):
             pp = np.empty((C, q)); pp[:, 0] = _INTERCEPT_PREC
-            pp[:, 1:] = 1.0 / (tau2[:, None] * lam2)
+            pp[:, 1:] = 1.0 / (sigma2[:, None] * tau2[:, None] * lam2)
             beta = _draw_beta(XtX, Xty, di, pp, sigma2, rng, C, q)
             b = beta[:, 1:]; resid = y[None] - beta @ Xa.T
-            sigma2 = _ig(n / 2 + 1e-3, 0.5 * np.einsum("cn,cn->c", resid, resid) + 1e-3, rng)
-            lam2 = np.clip(_ig(1.0, 1.0 / nu + b * b / (2 * tau2[:, None]), rng), _FLOOR, _CEIL)
+            rss = np.einsum("cn,cn->c", resid, resid)
+            bpen = np.sum(b * b / (tau2[:, None] * lam2), 1)   # sum beta^2 / (tau^2 lam^2)
+            # sigma ~ C+(0, 10) via the auxiliary zeta; sigma^2 also regularises
+            # beta (the shrinkage penalty enters its scale).
+            sigma2 = _ig((n + p + 1) / 2, 0.5 * (rss + bpen) + 1.0 / zeta, rng)
+            zeta = _ig(1.0, 1.0 / sigma2 + 1.0 / 100.0, rng)
+            s2 = sigma2[:, None]
+            lam2 = np.clip(_ig(1.0, 1.0 / nu + b * b / (2 * tau2[:, None] * s2), rng), _FLOOR, _CEIL)
             nu = np.clip(_ig(1.0, 1.0 + 1.0 / lam2, rng), _FLOOR, _CEIL)
-            tau2 = np.clip(_ig((p + 1) / 2, 1.0 / xi + np.sum(b * b / lam2, 1) / 2, rng),
+            tau2 = np.clip(_ig((p + 1) / 2, 1.0 / xi + np.sum(b * b / lam2, 1) / (2 * sigma2), rng),
                            _FLOOR, _CEIL)
             xi = np.clip(_ig(1.0, 1.0 + 1.0 / tau2, rng), _FLOOR, _CEIL)
             if it >= burn_in:

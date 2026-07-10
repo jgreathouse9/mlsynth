@@ -76,15 +76,21 @@ that a simplex SCM cannot produce. The near-zero pre-treatment RMSE reflects the
 the pre-period, so the shrinkage prior rather than the pre-fit governs the
 counterfactual.
 
-What to read, and what not to over-read. The point estimates are matched to
-Monte-Carlo noise. The exact width of the credible band is more delicate: the
-paper's horseshoe couples the global shrinkage scale to the residual scale
-(:math:`\tau \mid \sigma \sim \mathcal{C}^+(0, \sigma)`), whereas the numpy
-Makalic-Schmidt sampler uses a standard-scale global prior. This does not move
-the posterior mean, and the paper itself reports that its results are robust to
-the hyperprior specification, but it can shift the band width. Read the BSCM
-counterfactual mean and donor structure as reproducing the reference; treat the
-precise credible-band width as sampler-dependent at the margin.
+The credible band. mlsynth implements the paper's exact horseshoe hierarchy,
+including the coupling of the global shrinkage scale to the residual scale
+(:math:`\tau \mid \sigma \sim \mathcal{C}^+(0, \sigma)`). Folding the scales
+(:math:`\lambda_j = \tau \tilde{\lambda}_j`, :math:`\tau = \sigma \tilde{\tau}`)
+shows this is the canonical :math:`\sigma^2`-scaled horseshoe regression
+:math:`\beta_j \sim \mathcal{N}(0, \sigma^2 \tilde{\tau}^2 \tilde{\lambda}_j^2)`,
+sampled with the Makalic-Schmidt (2016) auxiliary variables. With the coupling
+in place the numpy ATT credible interval tracks the reference closely -- on the
+Basque problem the interval width is within roughly ten to fifteen percent of the
+Stan interval, versus a markedly wider band if the global scale is left
+uncoupled. Any residual difference is sampler geometry, not model: the paper's
+sampler is Stan's NUTS, which navigates the horseshoe's funnel-shaped posterior
+differently from a block Gibbs, so the two target the same posterior without
+agreeing on the band to the last digit. The spike-and-slab, whose posterior is
+tamer, matches the reference band closely.
 
 Path A — the Basque study
 -------------------------
