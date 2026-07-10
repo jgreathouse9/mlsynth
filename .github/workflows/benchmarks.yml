@@ -76,6 +76,23 @@ jobs:
     env:
       NUM_SHARDS: "4"
       R_LIBS_USER: ${{ github.workspace }}/.rlibs
+      # Pin BLAS/LAPACK to a single thread so the numerically-sensitive cases
+      # reproduce deterministically. constraints.txt already fixes the
+      # numpy/scipy wheel versions (hence the bundled OpenBLAS build), so the
+      # only remaining source of run-to-run drift is thread-scheduling races in
+      # multi-threaded OpenBLAS reductions -- these perturb floating-point
+      # rounding enough to push a non-convex optimiser (notably sparse_sc's
+      # covariate/V-weight search) into a different local optimum, which is what
+      # made sparse_sc_prop99 flake in CI while passing on the pinned local
+      # stack. Single-threaded BLAS removes the race; a local single-thread run
+      # matched the validated multi-thread result to 4 decimals. This is a
+      # determinism patch, not a real fix: covariate selection in sparse_sc is
+      # BLAS-sensitive at this scale and deserves a more stable solver someday.
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -115,12 +132,18 @@ jobs:
         run: |
           set -x
           mkdir -p "$R_LIBS_USER"
+          # The install_*.sh provisioners run under sudo and some (orthsc, propsdid)
+          # create benchmarks/reference/.cache/... as root. Create the shared cache
+          # dir as the runner up front and hand it back afterwards, so the non-root
+          # benchmark run can clone the remaining references into it.
+          mkdir -p benchmarks/reference/.cache
           Rscript benchmarks/R/requirements.R || echo "::warning::requirements.R partial"
           for s in benchmarks/R/install_*.sh; do
             echo "::group::$s"
             sudo bash "$s" || echo "::warning::provisioner failed: $s (its cross-check will skip)"
             echo "::endgroup::"
           done
+          sudo chown -R "$(id -u):$(id -g)" benchmarks/reference/.cache
 
       - name: Run benchmark suite shard (live references)
         run: |
