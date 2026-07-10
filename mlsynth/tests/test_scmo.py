@@ -241,3 +241,251 @@ def test_ridge_lambda_nonpositive_raises(panel):
     with pytest.raises(MlsynthConfigError):
         SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
                    time="time", augment="ridge", ridge_lambda=0.0)
+
+
+# --- weights='pcr' scheme (mRSC-style denoised PCR) ------------------------
+
+def _prepare(panel, addout="y2"):
+    """Build SCMOInputs the way SCMO.fit does (concatenated, outcome+addout)."""
+    treated_unit, intervention_time, pre_years = derive_treatment(
+        panel, unitid="unit", time="time", treat="treat")
+    spec = build_spec(None, "y1", addout, pre_years)
+    return prepare_scmo_inputs(
+        panel, unitid="unit", time="time", outcome="y1", spec=spec,
+        treated_unit=treated_unit, intervention_time=intervention_time)
+
+
+@pytest.fixture
+def extrapolation_panel() -> pd.DataFrame:
+    """Treated = 1.5*u1 - 0.5*u2 exactly on both outcomes (outside convex hull)."""
+    rng = np.random.default_rng(7)
+    T, T0 = 8, 6
+    donors = {}
+    for u in range(1, 5):
+        donors[u] = {"y1": rng.uniform(5, 15, T), "y2": rng.uniform(5, 15, T)}
+    rows = []
+    for u in range(1, 5):
+        for t in range(T):
+            rows.append(dict(unit=f"u{u}", time=1960 + t, treat=0,
+                             y1=donors[u]["y1"][t], y2=donors[u]["y2"][t]))
+    for t in range(T):
+        y1 = 1.5 * donors[1]["y1"][t] - 0.5 * donors[2]["y1"][t]
+        y2 = 1.5 * donors[1]["y2"][t] - 0.5 * donors[2]["y2"][t]
+        rows.append(dict(unit="u0", time=1960 + t, treat=int(t >= T0), y1=y1, y2=y2))
+    return pd.DataFrame(rows)
+
+
+def test_pcr_config_defaults_and_accept(panel):
+    cfg = SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit", time="time")
+    assert cfg.weights == "simplex"                      # default unchanged
+    cfg2 = SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                      time="time", weights="pcr", pcr_rank=3, pcr_cumvar=0.9)
+    assert cfg2.weights == "pcr" and cfg2.pcr_rank == 3
+
+
+def test_pcr_rank_requires_pcr(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", pcr_rank=3)             # weights defaults to simplex
+
+
+def test_pcr_incompatible_with_ridge(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", weights="pcr", augment="ridge")
+
+
+def test_pcr_rank_positive(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", weights="pcr", pcr_rank=0)
+
+
+def test_scmo_pcr_runs(panel):
+    cfg = SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                     time="time", addout="y2", schemes=["concatenated"],
+                     weights="pcr", display_graphs=False)
+    res = SCMO(cfg).fit()
+    assert np.isfinite(res.att)
+    assert np.all(np.isfinite(res.time_series.counterfactual_outcome))
+
+
+def test_pcr_weights_matches_kernel(panel):
+    """SCMO's pcr scheme == direct pcr_weights on the matching matrix."""
+    from mlsynth.utils.pcr.core import pcr_weights
+    inputs = _prepare(panel)
+    fit = fit_scheme(inputs, CONCATENATED, weights="pcr", pcr_rank=4)
+    design = inputs.Z[inputs.donor_idx].T                # (P, J)
+    target = inputs.Z[inputs.treated_idx]                # (P,)
+    w_ref = pcr_weights(design, target, 4)
+    np.testing.assert_allclose(fit.weights, w_ref, atol=1e-10)
+    cf_ref = w_ref @ inputs.Y[inputs.donor_idx]
+    np.testing.assert_allclose(fit.counterfactual, cf_ref, atol=1e-10)
+
+
+def test_pcr_unconstrained_recovers_extrapolation(extrapolation_panel):
+    """PCR (unconstrained) recovers a negative-weight combo simplex cannot."""
+    inputs = _prepare(extrapolation_panel)
+    pcr = fit_scheme(inputs, CONCATENATED, weights="pcr", pcr_rank=4)
+    simplex = fit_scheme(inputs, CONCATENATED, weights="simplex")
+    # PCR recovers the exact linear combination -> ~zero pre-treatment error
+    assert pcr.pre_rmse < 1e-6
+    # a genuine negative weight is present (outside the simplex)
+    assert pcr.weights.min() < -0.1
+    # the convex solver cannot represent it
+    assert simplex.pre_rmse > 1e-3
+
+
+# --- rolling-origin CV for the PCR metric weights (delta) ------------------
+
+@pytest.fixture
+def aux_noise_panel() -> pd.DataFrame:
+    """Primary is an exact donor combo; the auxiliary outcome is pure noise.
+
+    Rolling-origin CV should down-weight the uninformative auxiliary metric.
+    """
+    rng = np.random.default_rng(3)
+    T, T0 = 12, 10
+    J = 5
+    dy1 = {u: rng.uniform(5, 15, T) for u in range(1, J + 1)}
+    coef = np.array([1.3, -0.3, 0.0, 0.0, 0.0])
+    rows = []
+    for u in range(1, J + 1):
+        for t in range(T):
+            rows.append(dict(unit=f"u{u}", time=1960 + t, treat=0,
+                             y1=dy1[u][t], y2=rng.uniform(5, 15)))   # aux = noise
+    ty1 = sum(coef[u - 1] * dy1[u] for u in range(1, J + 1))
+    for t in range(T):
+        rows.append(dict(unit="u0", time=1960 + t, treat=int(t >= T0),
+                         y1=ty1[t], y2=rng.uniform(5, 15)))          # aux = noise
+    return pd.DataFrame(rows)
+
+
+def test_pcr_metric_weights_requires_pcr(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", pcr_metric_weights="cv")     # weights=simplex
+
+
+def test_pcr_cv_horizon_positive(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", weights="pcr", pcr_metric_weights="cv",
+                   pcr_cv_horizon=0)
+
+
+def test_rolling_origin_cv_rejects_noise(aux_noise_panel):
+    """Primary is an exact donor combo; the noisy aux only hurts OOS, so CV
+    drives its weight to zero and OOS MSE rises monotonically with it."""
+    from mlsynth.utils.scmo_helpers import rolling_origin_pcr_cv
+    inputs = _prepare(aux_noise_panel)
+    grid = [0.0, 0.25, 0.5, 1.0, 2.0]
+    best, metric_order, mse_table = rolling_origin_pcr_cv(
+        inputs, grid=grid, pcr_rank=5)                   # full rank -> exact recovery
+    assert metric_order[0] == "y1"                       # primary anchored first
+    assert best[1] == 0.0                                # noise aux fully rejected
+    # more weight on the noisy metric strictly worsens out-of-sample MSE
+    mses = [mse_table[g] for g in grid]
+    assert all(mses[i] < mses[i + 1] for i in range(len(grid) - 1))
+    # CV is never worse than equal weighting (1.0 is in the grid)
+    assert min(mse_table.values()) <= mse_table[1.0] + 1e-12
+
+
+def test_rolling_origin_cv_deterministic(aux_noise_panel):
+    from mlsynth.utils.scmo_helpers import rolling_origin_pcr_cv
+    inputs = _prepare(aux_noise_panel)
+    a = rolling_origin_pcr_cv(inputs, grid=[0.0, 0.5, 1.0, 2.0])
+    b = rolling_origin_pcr_cv(inputs, grid=[0.0, 0.5, 1.0, 2.0])
+    assert a[0] == b[0] and a[2] == b[2]
+
+
+def test_cv_noop_without_auxiliary(aux_noise_panel):
+    """With a single metric there is nothing to tune -> equal weighting."""
+    from mlsynth.utils.scmo_helpers import rolling_origin_pcr_cv
+    inputs = _prepare(aux_noise_panel, addout=None)      # y1 only
+    best, order, mse_table = rolling_origin_pcr_cv(inputs, grid=[0.5, 2.0])  # no 1.0
+    assert order == ["y1"] and best == [1.0]
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"pcr_metric_weights": [1.0, -0.5]},                 # negative metric weight
+    {"pcr_metric_weights": []},                          # empty metric list
+    {"pcr_metric_weights": "cv", "pcr_cv_grid": [-1.0, 1.0]},   # negative grid
+    {"pcr_metric_weights": "cv", "pcr_cv_grid": []},     # empty grid
+    {"pcr_metric_weights": "cv", "pcr_cv_min_train": 0},  # bad min_train
+])
+def test_pcr_cv_config_validation(panel, kwargs):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError):
+        SCMOConfig(df=panel, outcome="y1", treat="treat", unitid="unit",
+                   time="time", weights="pcr", **kwargs)
+
+
+def test_pcr_metric_weights_wrong_length_raises(aux_noise_panel):
+    """An explicit weight vector must have one entry per metric."""
+    from mlsynth.exceptions import MlsynthDataError
+    cfg = SCMOConfig(df=aux_noise_panel, outcome="y1", treat="treat",
+                     unitid="unit", time="time", addout="y2",
+                     schemes=["concatenated"], weights="pcr",
+                     pcr_metric_weights=[1.0, 1.0, 1.0], display_graphs=False)
+    with pytest.raises(MlsynthDataError):
+        SCMO(cfg).fit()
+
+
+def test_cv_insufficient_preperiods_raises():
+    """Too few pre-periods for the requested window -> clear estimation error."""
+    from mlsynth.utils.scmo_helpers import rolling_origin_pcr_cv
+    from mlsynth.exceptions import MlsynthEstimationError
+    rng = np.random.default_rng(5)
+    rows = []
+    for u in range(4):
+        for t in range(3):                               # T=3, treat at t>=2 -> T0=2
+            rows.append(dict(unit=f"u{u}", time=t, treat=int(u == 0 and t >= 2),
+                             y1=rng.normal(), y2=rng.normal()))
+    inputs = _prepare(pd.DataFrame(rows))
+    with pytest.raises(MlsynthEstimationError):
+        rolling_origin_pcr_cv(inputs, grid=[0.0, 1.0], min_train=2, horizon=1)
+
+
+def test_scmo_pcr_cv_end_to_end(aux_noise_panel):
+    cfg = SCMOConfig(df=aux_noise_panel, outcome="y1", treat="treat",
+                     unitid="unit", time="time", addout="y2",
+                     schemes=["concatenated"], weights="pcr",
+                     pcr_metric_weights="cv", display_graphs=False)
+    res = SCMO(cfg).fit()
+    assert np.isfinite(res.att)
+    # the chosen weights are recorded for inspection
+    md = res.method_details.parameters_used
+    assert "pcr_metric_weights" in md and "pcr_cv_mse" in md
+
+
+def test_scmo_explicit_metric_weights_recorded(aux_noise_panel):
+    """Explicit per-metric weights run end-to-end and are recorded."""
+    cfg = SCMOConfig(df=aux_noise_panel, outcome="y1", treat="treat",
+                     unitid="unit", time="time", addout="y2",
+                     schemes=["concatenated"], weights="pcr",
+                     pcr_metric_weights=[1.0, 0.25], display_graphs=False)
+    res = SCMO(cfg).fit()
+    assert np.isfinite(res.att)
+    recorded = res.method_details.parameters_used["pcr_metric_weights"]
+    assert recorded == {"y1": 1.0, "y2": 0.25}
+
+
+def test_pcr_explicit_zero_aux_matches_primary_only(aux_noise_panel):
+    """pcr_metric_weights=[1, 0] drops the aux metric -> primary-only PCR."""
+    from mlsynth.utils.pcr.core import pcr_weights
+    inputs = _prepare(aux_noise_panel)
+    fit = fit_scheme(inputs, CONCATENATED, weights="pcr", pcr_rank=5,
+                     metric_weights=[1.0, 0.0])
+    # primary-only design: Z columns belonging to y1
+    labels = [str(l).split("@")[0] for l in inputs.predictor_labels]
+    y1_cols = np.array([i for i, l in enumerate(labels) if l == "y1"])
+    design = inputs.Z[np.ix_(inputs.donor_idx, y1_cols)].T
+    target = inputs.Z[inputs.treated_idx][y1_cols]
+    w_ref = pcr_weights(design, target, 5)
+    np.testing.assert_allclose(fit.weights, w_ref, atol=1e-9)

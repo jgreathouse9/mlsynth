@@ -221,6 +221,45 @@ fixed effects); on a single outcome this reproduces ``VanillaSC(augment="ridge")
 up to SCMO's standardized matching design, and the disaggregated single-outcome
 fit reproduces ``augsynth``'s ridge baseline to the decimal.
 
+Denoised PCR weights (``weights="pcr"``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default the weights are convex (on the simplex). Setting ``weights="pcr"``
+instead solves them by denoised principal-component regression on the
+concatenated matching matrix: hard-truncate the donor design to its leading
+singular components, then take the pseudo-inverse. This is the weight rule of
+multi-dimensional Robust Synthetic Control (mRSC; [Amjad2019]_), and it reuses
+the same hard-singular-value-thresholding kernel as ``CLUSTERSC`` and ``SI``.
+Unlike the simplex fit, the resulting weights are unconstrained -- they may be
+negative and need not sum to one -- so a treated unit that lies *outside* the
+convex hull of the donors (an extrapolation the simplex must clip) can be
+matched exactly. The truncation rank is chosen by the cumulative-variance rule
+(``pcr_cumvar``, default 0.95) or fixed with ``pcr_rank``. The trade-off is the
+usual one: the unconstrained fit extracts more signal on data that genuinely
+follow the low-rank factor model, at the cost of the interpretability and
+built-in guardrails of convex weights (it can extrapolate badly under
+misspecification). ``weights="pcr"`` is an alternative to ``augment="ridge"``,
+not a complement -- both relax the simplex, and requesting them together is an
+error.
+
+Choosing the metric weights (``pcr_metric_weights``)
+""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+mRSC weights each metric block by a scalar :math:`\delta_k` before the fit. The
+paper gives no closed form for it -- it is a cross-validation hyperparameter,
+equal across metrics by default (``pcr_metric_weights=None``). You may instead
+pass an explicit vector (in outcome order, primary first), or set
+``pcr_metric_weights="cv"`` to choose the auxiliary weight by *rolling-origin*
+cross-validation that minimizes out-of-sample pre-treatment MSE of the primary
+outcome. The CV uses an expanding window entirely inside the pre-period (fit on
+the earliest periods, score the next ``pcr_cv_horizon`` held-out period(s), roll
+the origin forward), so nothing leaks from the post-treatment window; the
+auxiliary weight is searched over ``pcr_cv_grid`` (equal weighting is always a
+candidate, so CV never does worse than equal in-sample). A metric that only adds
+noise is driven toward zero; one that carries signal is kept. The chosen weights
+and the per-candidate CV MSE are recorded in
+``result.method_details.parameters_used``.
+
 Assumptions
 -----------
 

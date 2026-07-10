@@ -50,8 +50,10 @@ class SCMO:
         Validated configuration. Beyond the common fields (``df``, ``outcome``,
         ``treat``, ``unitid``, ``time``, ``display_graphs``, ``save``, colors),
         SCMO reads ``spec`` (matching specification), ``schemes`` /
-        ``method``, ``demean``, ``inference``, ``addout`` and
-        ``conformal_alpha``.
+        ``method``, ``demean``, ``inference``, ``addout``,
+        ``conformal_alpha``, and ``weights`` (``"simplex"`` convex SC weights,
+        the default, or ``"pcr"`` for denoised principal-component-regression
+        weights with rank set by ``pcr_rank`` / ``pcr_cumvar``).
 
     References
     ----------
@@ -60,6 +62,9 @@ class SCMO:
 
     Sun, L., Ben-Michael, E., & Feller, A. (2025). Using Multiple Outcomes to
     Improve the Synthetic Control Method. Review of Economics and Statistics.
+
+    Amjad, M., Misra, V., Shah, D., & Shen, D. (2019). mRSC: Multi-dimensional
+    Robust Synthetic Control. Proc. ACM Meas. Anal. Comput. Syst., 3(2), Art. 37.
     """
 
     def __init__(self, config: Union[SCMOConfig, dict]) -> None:
@@ -106,6 +111,13 @@ class SCMO:
             conformal_q=self.config.conformal_q,
             augment=self.config.augment,
             ridge_lambda=self.config.ridge_lambda,
+            weights=self.config.weights,
+            pcr_rank=self.config.pcr_rank,
+            pcr_cumvar=self.config.pcr_cumvar,
+            pcr_metric_weights=self.config.pcr_metric_weights,
+            pcr_cv_grid=self.config.pcr_cv_grid,
+            pcr_cv_horizon=self.config.pcr_cv_horizon,
+            pcr_cv_min_train=self.config.pcr_cv_min_train,
         )
         results = assemble_scmo_results(
             inputs, fits, selected_variant=schemes[0] if schemes else CONCATENATED
