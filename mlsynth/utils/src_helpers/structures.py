@@ -1,7 +1,7 @@
-"""Typed result containers for the SMC estimator (Zhu 2023).
+"""Typed result containers for the SRC estimator (Zhu 2023).
 
-``SMCInputs`` holds the pivoted panel; ``SMCFit`` the single deterministic
-point estimate; ``SMCResults`` lifts the fit into the standardized
+``SRCInputs`` holds the pivoted panel; ``SRCFit`` the single deterministic
+point estimate; ``SRCResults`` lifts the fit into the standardized
 ``BaseEstimatorResults`` sub-models so the flat accessors resolve through the
 shared contract.
 """
@@ -25,8 +25,8 @@ from ...config_models import (
 
 
 @dataclass(frozen=True)
-class SMCInputs:
-    """Pre-pivoted inputs for a single-treated-unit SMC fit."""
+class SRCInputs:
+    """Pre-pivoted inputs for a single-treated-unit SRC fit."""
 
     Y_treated: np.ndarray             # (T,)
     Y_donors: np.ndarray              # (T, J)
@@ -50,8 +50,8 @@ class SMCInputs:
 
 
 @dataclass(frozen=True)
-class SMCFit:
-    """Single deterministic SMC point estimate."""
+class SRCFit:
+    """Single deterministic SRC point estimate."""
 
     att: float
     weights: np.ndarray               # (J,) combined coefficients theta * w
@@ -69,22 +69,22 @@ class SMCFit:
     donor_weights: dict = field(default_factory=dict)
 
 
-class SMCResults(BaseEstimatorResults):
-    """Top-level container returned by ``SMC.fit`` (an ``EffectResult``).
+class SRCResults(BaseEstimatorResults):
+    """Top-level container returned by ``SRC.fit`` (an ``EffectResult``).
 
     Lifts the single ``fit`` into the standardized sub-models so the flat
     accessors (``att`` / ``counterfactual`` / ``gap`` / ``donor_weights`` /
-    ``pre_rmse``) resolve through the base contract. SMC-specific detail
+    ``pre_rmse``) resolve through the base contract. SRC-specific detail
     (the ``theta`` rescalings, the box weights, ``sigma^2``) stays on ``fit``.
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    inputs: SMCInputs
-    fit: SMCFit
+    inputs: SRCInputs
+    fit: SRCFit
 
     @model_validator(mode="after")
-    def _populate_standard_submodels(self) -> "SMCResults":
+    def _populate_standard_submodels(self) -> "SRCResults":
         if self.effects is not None:  # pragma: no cover - idempotency guard
             return self
         f = self.fit
@@ -108,7 +108,7 @@ class SMCResults(BaseEstimatorResults):
         object.__setattr__(self, "fit_diagnostics",
                            FitDiagnosticsResults(rmse_pre=float(f.pre_rmse)))
         object.__setattr__(self, "method_details", MethodDetailsResults(
-            method_name="SMC", is_recommended=True))
+            method_name="SRC", is_recommended=True))
         return self
 
     @property
@@ -123,4 +123,4 @@ class SMCResults(BaseEstimatorResults):
 
 
 # Resolve forward references (module uses ``from __future__ import annotations``).
-SMCResults.model_rebuild()
+SRCResults.model_rebuild()

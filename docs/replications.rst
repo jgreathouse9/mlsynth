@@ -51,7 +51,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/fdid
-   replications/smc
+   replications/src
    replications/bscm
    replications/tssc
    replications/vanillasc

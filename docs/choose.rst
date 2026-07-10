@@ -293,7 +293,7 @@ spillovers (a true outlier)?
 
 * No -- next question.
 * Yes -- relax the simplex: :doc:`nsc` (affine weights), :doc:`rescm`
-  (penalised / :math:`L_\infty`), :doc:`smc` (per-donor matching plus a
+  (penalised / :math:`L_\infty`), :doc:`src` (per-donor matching plus a
   Mallows-:math:`C_p` box synthesis that regularises the extrapolation and
   stays deterministic), :doc:`bscm` (Bayesian shrinkage -- horseshoe or
   spike-and-slab -- on unconstrained weights, with a credible interval on the

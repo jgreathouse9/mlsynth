@@ -1,17 +1,17 @@
-Synthetic Matching Control (SMC)
-================================
+Synthetic Regressing Control (SRC)
+==================================
 
 .. currentmodule:: mlsynth
 
-When to use SMC -- and when not to
+When to use SRC -- and when not to
 ----------------------------------
 
-Synthetic Matching Control (Zhu 2023) is for the case where the ordinary
+Synthetic Regressing Control (Zhu 2023) is for the case where the ordinary
 synthetic control fits the treated unit's pre-treatment path poorly. The
 canonical synthetic control restricts the donor weights to the unit simplex
 (non-negative, summing to one), which keeps the counterfactual inside the
 convex hull of the donors but cannot track a treated unit that sits near or
-outside that hull -- the interpolation-bias / imperfect-pre-fit problem. SMC
+outside that hull -- the interpolation-bias / imperfect-pre-fit problem. SRC
 relaxes that restriction in a disciplined way and is a good choice when:
 
 * You have a single treated unit and a donor pool with real heterogeneity, and
@@ -19,22 +19,22 @@ relaxes that restriction in a disciplined way and is a good choice when:
 * You are willing to let the counterfactual extrapolate a little beyond the
   donor hull, but want the amount of extrapolation regularised rather than
   unbounded (as an unconstrained regression would give).
-* You want a deterministic, reproducible estimate. By default SMC's weights are
+* You want a deterministic, reproducible estimate. By default SRC's weights are
   pinned by the risk criterion, not by an Abadie predictor-weight (``V``) search,
   so there is no optimiser-seed dependence. (The paper's covariate + ``V``-search
   variant is available as a seeded opt-in; see below.)
 
-Do not use SMC when:
+Do not use SRC when:
 
 * A simplex synthetic control already fits well and you want an interpretable
-  convex weighting. Use canonical SCM (:doc:`vanillasc`) or :doc:`tssc`; SMC's
+  convex weighting. Use canonical SCM (:doc:`vanillasc`) or :doc:`tssc`; SRC's
   combined coefficients can be negative and do not sum to one.
 * You want an explicit bias--variance trade-off between matching and synthetic
   control chosen by cross-validation. That is :doc:`masc`.
 * You want denoising of a low-rank donor matrix before weighting. Use
   :doc:`clustersc` (robust PCA / PCR) or :doc:`snn`.
 * You need posterior uncertainty on the weights. Use :doc:`bvss`.
-* There are multiple treated units, spillovers, or a continuous dose -- SMC
+* There are multiple treated units, spillovers, or a continuous dose -- SRC
   encodes a single binary intervention on one unit.
 
 Notation
@@ -54,7 +54,7 @@ Notation bridge. Zhu (2023) indexes the treated unit as one of :math:`j = 1,
 \ldots, J + 1` with :math:`J` controls, and writes the pre-period as
 :math:`\mathcal{T}_0`; his :math:`J` is our :math:`N_0`, and his
 :math:`\mathcal{T}_0` is our :math:`\mathcal{T}_1`. He names the method
-Synthetic Regressing Control (SRC); mlsynth ships it as SMC.
+Synthetic Regressing Control (SRC); mlsynth ships it as SRC.
 
 Panel objects. Write the treated unit's pre-period outcome path as
 :math:`\mathbf{y}_1 \coloneqq (y_{1t})_{t \in \mathcal{T}_1} \in
@@ -73,7 +73,7 @@ by that row count :math:`n`. Centering (demeaning) uses the projector
 :math:`\mathbf{Q}\mathbf{y}_j = \mathbf{y}_j - \bar{y}_j \mathbf{1}` is the
 centered column.
 
-Unit regression. SMC first rescales each donor to the treated unit by a
+Unit regression. SRC first rescales each donor to the treated unit by a
 *separate* demeaned univariate least-squares fit -- Zhu's "unit regression":
 
 .. math::
@@ -103,11 +103,11 @@ previous version of this page wrote :math:`\mathbf{E}`).
 Synthesis. The matched controls are combined by box weights :math:`\mathbf{w}
 \in \mathcal{C}_{\mathrm{box}} \coloneqq [0, 1]^{N_0} = \{\mathbf{w} \in
 \mathbb{R}^{N_0} : 0 \le w_j \le 1\}` -- note there is *no* sum-to-one
-constraint, which is what separates SMC from a simplex synthetic control (Zhu
+constraint, which is what separates SRC from a simplex synthetic control (Zhu
 writes this set :math:`\mathcal{H}_J`). With the level
 :math:`\widehat{b}_0 \coloneqq \bar{y}_1 - \sum_{j \in \mathcal{N}_0}
 \widehat{w}_j \widehat{\theta}_j \bar{y}_j` that restores the mean removed by
-centering, the SMC counterfactual is
+centering, the SRC counterfactual is
 
 .. math::
 
@@ -190,7 +190,7 @@ Assumptions
 #. Single treated unit, balanced panel. One unit is treated after
    :math:`T_0`; every unit is observed at every period.
 
-   Remark. The setup boundary (:mod:`mlsynth.utils.smc_helpers.setup`) enforces
+   Remark. The setup boundary (:mod:`mlsynth.utils.src_helpers.setup`) enforces
    both, translating a violation to :class:`~mlsynth.exceptions.MlsynthDataError`.
 
 #. At least two pre-treatment periods. The univariate matches and the risk
@@ -211,13 +211,13 @@ Assumptions
    bounds how much.
 
    Remark. If extrapolation is unacceptable for the application (you need a
-   convex, interpretable weighting), SMC is the wrong tool -- use a simplex SCM.
+   convex, interpretable weighting), SRC is the wrong tool -- use a simplex SCM.
 
 Inference and diagnostics
 -------------------------
 
-SMC returns a point estimate. The primary diagnostic is the pre-treatment fit
-(``res.fit_diagnostics.rmse_pre``): SMC's reason for being is a tighter
+SRC returns a point estimate. The primary diagnostic is the pre-treatment fit
+(``res.fit_diagnostics.rmse_pre``): SRC's reason for being is a tighter
 pre-fit than a simplex SCM, so compare the two. The combined coefficients
 ``res.weights_vector`` (which may be negative) and the box weights
 ``res.box_weights`` are both exposed; a donor with a hard zero box weight is
@@ -231,13 +231,13 @@ Example
 .. code-block:: python
 
    import pandas as pd
-   from mlsynth import SMC
+   from mlsynth import SRC
 
    df = pd.read_csv("basedata/basque_data.csv")
    df["treat"] = ((df["regionname"] == "Basque Country (Pais Vasco)")
                   & (df["year"] >= 1970)).astype(int)
 
-   res = SMC({
+   res = SRC({
        "df": df, "outcome": "gdpcap", "treat": "treat",
        "unitid": "regionname", "time": "year",
        "display_graphs": False,
@@ -256,7 +256,7 @@ This prints::
      Madrid (Comunidad De)        +0.370
      Castilla Y Leon              +0.242
 
-The Basque Country tracks its SMC counterfactual to a pre-period RMSE of about
+The Basque Country tracks its SRC counterfactual to a pre-period RMSE of about
 0.048 (thousand-1986-USD per capita), then diverges steadily -- the familiar
 Abadie-Gardeazabal shape of the economic cost of ETA terrorism -- recovered
 here by the box-weighted matched controls rather than a simplex.
@@ -286,7 +286,7 @@ is an explicit, seeded opt-in in mlsynth -- ``covariates`` with per-covariate
 
 .. code-block:: python
 
-   res = SMC({
+   res = SRC({
        "df": df, "outcome": "gdpcap", "treat": "treat",
        "unitid": "regionname", "time": "year",
        "covariates": ["school.illit", "school.prim", "school.med", "school.high",
@@ -315,25 +315,25 @@ single reproducible weighting, use the default.
 Verification
 ------------
 
-The SMC weight computation is cross-validated against the author's reference R
+The SRC weight computation is cross-validated against the author's reference R
 implementation (``Code_SMC.R``): on the identical Basque matching matrix, the
 per-donor :math:`\widehat{\theta}_j`, the box weights, the combined
 coefficients, the intercept :math:`\widehat{b}_0` (``bias``) and
 :math:`\widehat{\sigma}^2` all match the reference
 ``SMCV`` (whose synthesis QP is solved by ``solve.QP``) to ``< 2e-13``. The
-active-set box QP in :mod:`mlsynth.utils.smc_helpers.solver` reproduces
+active-set box QP in :mod:`mlsynth.utils.src_helpers.solver` reproduces
 ``solve.QP`` to machine precision while pinning the box bounds exactly. With the
 paper's covariate specification and ``v_search="de"`` the estimator additionally
 reproduces the Table 5 / Figure 1 donor structure and ATT magnitude (subject to
 the :math:`\mathbf{V}` non-identification noted above). See the replication page
-:doc:`replications/smc` and the durable case ``benchmarks/cases/smc_basque.py``.
+:doc:`replications/src` and the durable case ``benchmarks/cases/src_basque.py``.
 The solver, weight computation, the covariate / ``V``-search paths, setup and
-result contract are unit-tested (``mlsynth/tests/test_smc.py``, full coverage).
+result contract are unit-tested (``mlsynth/tests/test_src.py``, full coverage).
 
 Core API
 --------
 
-.. automodule:: mlsynth.estimators.smc
+.. automodule:: mlsynth.estimators.src
    :members:
    :undoc-members:
    :show-inheritance:
@@ -341,16 +341,16 @@ Core API
 Configuration
 -------------
 
-.. autoclass:: mlsynth.config_models.SMCConfig
+.. autoclass:: mlsynth.config_models.SRCConfig
    :members:
    :undoc-members:
 
 Result Containers
 -----------------
 
-``SMC.fit()`` returns a
-:class:`~mlsynth.utils.smc_helpers.structures.SMCResults` -- an
+``SRC.fit()`` returns a
+:class:`~mlsynth.utils.src_helpers.structures.SRCResults` -- an
 ``EffectResult`` whose standardized sub-models carry the ATT, counterfactual,
-gap and pre-RMSE, with the SMC-specific ``theta`` rescalings, box weights and
+gap and pre-RMSE, with the SRC-specific ``theta`` rescalings, box weights and
 :math:`\widehat{\sigma}^2` on ``res.fit``. The prepared NumPy panel is exposed
-as a :class:`~mlsynth.utils.smc_helpers.structures.SMCInputs`.
+as a :class:`~mlsynth.utils.src_helpers.structures.SRCInputs`.

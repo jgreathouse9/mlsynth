@@ -1,4 +1,4 @@
-"""Configuration for the SMC estimator.
+"""Configuration for the SRC estimator.
 
 Co-located with the helper package; re-exported from
 :mod:`mlsynth.config_models` for backward compatibility.
@@ -14,10 +14,10 @@ from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
 
 
-class SMCConfig(BaseEstimatorConfig):
-    """Configuration for the Synthetic Matching Control estimator (Zhu 2023).
+class SRCConfig(BaseEstimatorConfig):
+    """Configuration for the Synthetic Regressing Control estimator (Zhu 2023).
 
-    SMC matches each donor to the treated unit by a univariate regression, then
+    SRC matches each donor to the treated unit by a univariate regression, then
     synthesises the matched controls with box-``[0, 1]`` weights chosen by a
     Mallows/Cp unbiased-risk criterion. The combined donor coefficients may be
     negative (controlled extrapolation), and the Cp penalty -- not a predictor
@@ -30,7 +30,7 @@ class SMCConfig(BaseEstimatorConfig):
 
     References
     ----------
-    Zhu, Rong J. B. (2023). *Synthetic Matching Control Method.*
+    Zhu, Rong J. B. (2023). *Synthetic Regressing Control.*
     arXiv:2306.02584.
     """
 
@@ -97,18 +97,18 @@ class SMCConfig(BaseEstimatorConfig):
     )
 
     @model_validator(mode="after")
-    def _check(self) -> "SMCConfig":
+    def _check(self) -> "SRCConfig":
         if self.covariates is not None and len(self.covariates) == 0:
             raise MlsynthConfigError(
-                "SMC 'covariates' must be a non-empty list or None."
+                "SRC 'covariates' must be a non-empty list or None."
             )
         if self.covariate_windows and not self.covariates:
             raise MlsynthConfigError(
-                "SMC 'covariate_windows' requires 'covariates'."
+                "SRC 'covariate_windows' requires 'covariates'."
             )
         if self.v_search == "de" and not self.covariates:
             raise MlsynthConfigError(
-                "SMC v_search='de' optimises predictor weights and therefore "
+                "SRC v_search='de' optimises predictor weights and therefore "
                 "requires 'covariates'."
             )
         return self

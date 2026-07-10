@@ -47,7 +47,7 @@ Do not use BSCM when:
 * You want a soft simplex kept, with Bayesian inference on top. That is
   :doc:`bvss` (Xu-Zhou), which layers a spike-and-slab on a soft simplex prior.
 * You need a deterministic, seed-free point estimate with a risk-criterion
-  weighting. That is :doc:`smc` (Zhu), the frequentist per-donor matching
+  weighting. That is :doc:`src` (Zhu), the frequentist per-donor matching
   cousin.
 * There are multiple treated units, spillovers, or a continuous dose -- BSCM
   encodes a single binary intervention on one unit.

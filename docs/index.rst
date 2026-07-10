@@ -269,7 +269,7 @@ headline numbers.
    mlsc
    fscm
    masc
-   smc
+   src
    msqrt
    sparse_sc
    beast
