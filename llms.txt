@@ -24,6 +24,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 ## Estimators
 
 - **BEAST** — Immunized doubly-robust synthetic control estimator.  (config: BEASTConfig)
+- **BSCM** — Bayesian Synthetic Control Methods (Kim, Lee & Gupta 2020).  (config: BSCMConfig)
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
 - **CFM** — Causal Factor Model (Bai & Wang 2026) estimator.  (config: CFMConfig)
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)

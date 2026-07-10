@@ -52,6 +52,7 @@ below; the catalogue entries link to a dedicated page where one exists.
 
    replications/fdid
    replications/smc
+   replications/bscm
    replications/tssc
    replications/vanillasc
    replications/vanillasc_staggered
