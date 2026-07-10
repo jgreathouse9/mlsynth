@@ -161,11 +161,28 @@ freedom floored at one when :math:`N_0 \ge T_0` (a minimum-norm fit; a small
 :math:`\sigma^2` and enters the penalty as the per-donor complexity charge
 :math:`2\widehat{\sigma}^2`, which shrinks weight toward zero unless a matched
 control earns its place. That charge -- not a sum-to-one constraint -- is what
-identifies :math:`\widehat{\mathbf{w}}`. (Zhu's display form, his eq. 19, uses
-the diagonal of :math:`\mathbf{Y}_0^{\top}\mathbf{Q}\mathbf{Y}_0`; mlsynth
-follows the author's reference ``Code_SMC.R``, the full-regression residual
-variance above, cross-validated to :math:`< 2\text{e-}13` in the Verification
-section.)
+identifies :math:`\widehat{\mathbf{w}}`.
+
+   A note on the paper's display formula. Zhu's eq. 19 writes
+   :math:`\widehat{\sigma}^2 = \lVert \mathbf{Q}\mathbf{y}_1 -
+   \mathbf{Q}\mathbf{Y}_0[\operatorname{diag}(\mathbf{Y}_0^{\top}
+   \mathbf{Q}\mathbf{Y}_0)]^{-1}\mathbf{Y}_0^{\top}\mathbf{Q}\mathbf{y}_1
+   \rVert_2^2`, which reduces to the residual of the *equal-weight* sum of all
+   :math:`N_0` univariate fits, :math:`\lVert \mathbf{Q}\mathbf{y}_1 -
+   \widetilde{\mathbf{Y}}_0\mathbf{1} \rVert_2^2`. Because that sum stacks
+   :math:`N_0` controls that each already track the treated unit, it overshoots
+   by roughly a factor of :math:`N_0`, so the quantity scales with
+   :math:`N_0^2`, not with the noise level: in simulations with a known
+   :math:`\sigma^2` it over-estimates by two orders of magnitude, and the
+   resulting penalty is large enough to drive *every* weight to zero (a
+   degenerate flat-at-the-pre-mean counterfactual) in both the paper's
+   donors-fewer-than-periods regime and out of it. The author's reference
+   ``Code_SMC.R`` does not use eq. 19; it uses the full-regression residual
+   variance given above, which recovers the true :math:`\sigma^2` to within a
+   few percent. mlsynth follows the reference implementation (cross-validated to
+   :math:`< 2\text{e-}13`; see Verification), and reads the printed eq. 19 as an
+   uncorrected typo rather than the estimator the paper's own non-degenerate
+   Basque results were produced with.
 
 Assumptions
 -----------
