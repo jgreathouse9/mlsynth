@@ -381,24 +381,60 @@ number of treated units contributing to each offset. This is
 confidence interval at :py:attr:`SDIDInference.se` /
 :py:attr:`SDIDInference.ci`.
 
-Placebo Inference
-^^^^^^^^^^^^^^^^^
+Inference
+^^^^^^^^^
 
-Variance estimation follows the placebo procedure of Arkhangelsky
-et al. (2021), generalized to cohort and event-time effects by Clarke
-et al. (2023). For each of :math:`B` iterations
-(:py:attr:`SDIDConfig.B`), the donor pool is sampled to replace the
-true treated units with pseudo-treated controls, the full SDID
-pipeline is rerun, and the sample variance of the resulting effects
-is taken as the variance of the actual estimator. The implementation
-lives in
-:func:`mlsynth.utils.sdid_helpers.inference.estimate_placebo_variance`.
+Arkhangelsky et al. (2021) give three procedures for the variance of the ATT,
+generalized to cohort and event-time effects by Clarke et al. (2023). The
+:py:attr:`SDIDConfig.vce` option selects among them; the label used is recorded
+on :py:attr:`SDIDInference.method`.
 
-The two-sided placebo p-value reported on
-:py:attr:`SDIDInference.p_value` uses the canonical
-:math:`((k + 1) / (B + 1))` correction, where :math:`k` is the count
-of placebo iterations whose :math:`|\widehat\tau^{\,*}_{att}|` is at least
-as large as the observed :math:`|\widehat{ATT}|`.
+``placebo`` (the default, Algorithm 4)
+  For each of :math:`B` iterations (:py:attr:`SDIDConfig.B`), a control unit is
+  reassigned as a pseudo-treated unit and *removed from the donor pool*, the
+  full SDID pipeline is rerun on the remaining controls, and the variance of the
+  resulting placebo effects estimates the variance of the actual estimator.
+  This is the only procedure defined for a single treated unit, and it is what
+  the canonical Proposition 99 example uses. The implementation lives in
+  :func:`mlsynth.utils.sdid_helpers.inference.estimate_placebo_variance`. The
+  two-sided placebo p-value on :py:attr:`SDIDInference.p_value` uses the
+  canonical :math:`((k + 1) / (B + 1))` correction, where :math:`k` counts the
+  placebo iterations whose :math:`|\widehat\tau^{\,*}_{att}|` is at least as
+  large as the observed :math:`|\widehat{ATT}|`.
+
+``jackknife`` (Algorithm 3)
+  The fitted unit weights :math:`\widehat\omega` and time weights
+  :math:`\widehat\lambda` are held fixed and each unit is left out in turn; the
+  variance is the standard fixed-weights jackknife
+  :math:`\tfrac{N-1}{N}\sum_i (\widehat{ATT}_{(-i)} - \overline{ATT})^2`. It is
+  deterministic and fast (no re-solve of the weight problems), but is undefined
+  when a cohort has a single treated unit -- leaving out the sole treated unit
+  is undefined -- and returns ``NaN`` there, matching the ``synthdid`` R
+  package.
+
+``bootstrap`` (Algorithm 2)
+  Units are resampled with replacement, degenerate all-treated or all-control
+  resamples are discarded, and the full SDID estimate (weights re-fit) is
+  recomputed on each resample; the variance is that of the resampled estimates.
+  Like the jackknife it needs more than one treated unit and returns ``NaN``
+  otherwise.
+
+``noinference``
+  Skips variance estimation; :py:attr:`SDIDInference.se`, the interval, and the
+  p-value are ``NaN``.
+
+The jackknife and bootstrap are implemented for the block (single adoption
+period) design, matching ``synthdid``'s ``vcov.R``; a staggered-adoption panel
+raises, directing you to the placebo procedure. For the jackknife and bootstrap
+the p-value on :py:attr:`SDIDInference.p_value` is the asymptotic-normal
+:math:`2\,(1 - \Phi(|\widehat{ATT}| / \widehat{se}))`, matching the confidence
+intervals those methods construct.
+
+The three methods are cross-validated against ``synthdid``: on a three-treated
+block panel the deterministic jackknife reproduces the authors' R
+value-for-value (:math:`10.557`), and the placebo and bootstrap match in
+magnitude (they are stochastic, with independent RNG streams across the two
+languages).
 
 .. seealso::
 
@@ -502,7 +538,8 @@ Example
        "treat":    "Proposition 99",
        "unitid":   "state",
        "time":     "year",
-       "B":        500,        # placebo iterations
+       "B":        500,        # placebo / bootstrap resamples
+       "vce":      "placebo",  # or "jackknife" / "bootstrap" / "noinference"
        "display_graphs": True,
    }).fit()
 

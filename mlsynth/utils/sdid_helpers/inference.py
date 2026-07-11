@@ -1,13 +1,26 @@
-"""Placebo-based variance estimator for SDID.
+"""Variance estimators for SDID.
 
-Implements the placebo procedure used by Arkhangelsky et al. (2021) and
-extended to cohort and event-time effects by Clarke et al. (2023): control
-units are repeatedly reassigned as pseudo-treated units, the full SDID
-pipeline is rerun, and the sample variance of the resulting effects is
-taken as the variance of the actual estimator.
+Arkhangelsky et al. (2021) propose three procedures for the variance of the
+SDID ATT, extended to the staggered / event-study setting by Clarke et al.
+(2023). All three are provided here and selected through the ``vce`` config
+option:
 
-Function body is verbatim from the previous
-``sdidutils.estimate_placebo_variance``.
+* ``placebo`` (Algorithm 4) -- control units are repeatedly reassigned as
+  pseudo-treated units, the full SDID pipeline is rerun, and the variance of
+  the resulting effects estimates the variance of the actual estimator. This is
+  the only procedure defined for a single treated unit and is the default.
+* ``jackknife`` (Algorithm 3) -- the fitted unit/time weights are held fixed
+  and each unit is left out in turn; the variance follows the standard
+  fixed-weights jackknife. Undefined (NaN) when a cohort has a single treated
+  unit, matching the ``synthdid`` R package.
+* ``bootstrap`` (Algorithm 2) -- units are resampled with replacement and the
+  full SDID estimate (weights re-fit) is recomputed on each resample; the
+  variance is the variance of the resampled estimates. Undefined (NaN) for a
+  single treated unit, matching ``synthdid``.
+
+The jackknife and bootstrap are implemented for the block (single adoption
+period) design, matching ``synthdid``'s ``vcov.R``; staggered adoption uses the
+placebo procedure.
 """
 
 import warnings
@@ -281,5 +294,226 @@ def estimate_placebo_variance(
         "cohort_variances": final_cohort_att_variances,
         "event_variances": final_cohort_event_time_variances,
         "pooled_event_variances": final_pooled_event_time_variances,
-        "placebo_att_values": placebo_overall_att_list 
+        "placebo_att_values": placebo_overall_att_list
+    }
+
+
+def _sum_normalize(weights: np.ndarray) -> np.ndarray:
+    """Renormalize a weight vector to sum to one.
+
+    Mirrors ``synthdid``'s ``sum_normalize``: a zero vector maps to uniform
+    weights (used only as a benign fixed-weights fallback).
+    """
+
+    total = float(np.sum(weights))
+    if total != 0.0:
+        return weights / total
+    return np.full(weights.shape[0], 1.0 / weights.shape[0]) if weights.size else weights
+
+
+def _fixed_weight_cohort_att(
+    treated_matrix: np.ndarray,
+    donor_matrix: np.ndarray,
+    unit_weights_vector: np.ndarray,
+    time_weights_vector: np.ndarray,
+    num_pre_treatment_periods: int,
+) -> float:
+    """SDID cohort ATT for *fixed* unit and time weights (no QP re-solve).
+
+    Reproduces the ATT that :func:`estimate_cohort_sdid_effects` computes, but
+    given the weights rather than re-fitting them -- the closed-form weighted
+    DID underlying Algorithm 3 (jackknife). With the mean treated series
+    ``ybar``, the synthetic series ``s = donor @ omega``, time weights
+    ``lambda`` over the pre-period and the post-period average taken over event
+    times ``>= 0`` (indices ``>= pre``), the estimate is
+
+    ``att = [mean_post(ybar) - lambda . ybar_pre] - [mean_post(s) - lambda . s_pre]``,
+
+    which is algebraically identical to
+    ``mean_post( ybar - (s + bias_correction) )`` in the cohort estimator.
+    """
+
+    ybar = np.asarray(treated_matrix, dtype=float).mean(axis=1)
+    synthetic = np.asarray(donor_matrix, dtype=float) @ np.asarray(unit_weights_vector, dtype=float)
+    lam = np.asarray(time_weights_vector, dtype=float)
+    pre = int(num_pre_treatment_periods)
+
+    treated_bias = lam @ ybar[:pre] - lam @ synthetic[:pre]
+    tau_series = ybar - (synthetic + treated_bias)
+    return float(np.mean(tau_series[pre:]))
+
+
+def _single_cohort(prepped_event_study_data: Dict[str, Any], method_name: str):
+    """Validate and unpack the single-cohort (block-design) payload.
+
+    The jackknife and bootstrap are implemented for the block design (one
+    adoption period), matching ``synthdid``'s ``vcov.R``. Staggered adoption
+    (multiple cohorts) raises so the caller can fall back to the placebo
+    procedure rather than return a silently wrong number.
+    """
+
+    if not isinstance(prepped_event_study_data, dict) or "cohorts" not in prepped_event_study_data:
+        raise MlsynthDataError("prepped_event_study_data must be a dict with a 'cohorts' key.")
+    cohorts = prepped_event_study_data["cohorts"]
+    if not isinstance(cohorts, dict):
+        raise MlsynthDataError("'cohorts' in prepped_event_study_data must be a dictionary.")
+    if len(cohorts) != 1:
+        raise MlsynthEstimationError(
+            f"The {method_name} variance is implemented for the block (single "
+            "adoption period) design only; the panel has "
+            f"{len(cohorts)} adoption cohorts. Use vce='placebo' for staggered "
+            "adoption."
+        )
+    (period, cohort_data), = cohorts.items()
+    return int(period), cohort_data
+
+
+def _nan_variance_result(period: int) -> Dict[str, Any]:
+    """A variance result whose ATT variance is undefined (NaN)."""
+
+    return {
+        "att_variance": np.nan,
+        "cohort_variances": {period: np.nan},
+        "event_variances": {},
+        "pooled_event_variances": {},
+        "placebo_att_values": [],
+    }
+
+
+def estimate_jackknife_variance(
+    prepped_event_study_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Fixed-weights jackknife variance of the SDID ATT (Algorithm 3).
+
+    Holds the fitted unit weights ``omega`` and time weights ``lambda`` fixed,
+    leaves out each unit (treated or control) in turn, and recomputes the ATT
+    from the closed-form weighted DID. When a control is dropped, ``omega`` is
+    renormalized over the retained controls (``synthdid``'s ``sum_normalize``);
+    when a treated unit is dropped, ``omega`` is unchanged. The variance is the
+    standard jackknife form ``((N - 1) / N) * sum_i (att_(-i) - mean)^2``,
+    matching ``synthdid``'s ``jackknife()``.
+
+    Returns NaN when the cohort has a single treated unit (leaving out the sole
+    treated unit is undefined) or when the fitted weights are not available.
+    """
+
+    period, cohort_data = _single_cohort(prepped_event_study_data, "jackknife")
+    treated_matrix = np.asarray(cohort_data["y"], dtype=float)
+    donor_matrix = np.asarray(cohort_data["donor_matrix"], dtype=float)
+    num_pre = int(cohort_data["pre_periods"])
+    num_treated = treated_matrix.shape[1]
+    num_donors = donor_matrix.shape[1]
+    num_units = num_treated + num_donors
+
+    # A single treated unit leaves the jackknife undefined (Algorithm 3;
+    # synthdid returns NA). Need at least two units overall to form a variance.
+    if num_treated < 2 or num_units < 2:
+        return _nan_variance_result(period)
+
+    fitted = estimate_cohort_sdid_effects(period, cohort_data, defaultdict(list))
+    omega = np.asarray(fitted["unit_weights"], dtype=float)
+    lam = np.asarray(fitted["time_weights"], dtype=float)
+    if omega.size == 0 or lam.size == 0 or np.any(np.isnan(omega)) or np.any(np.isnan(lam)):
+        return _nan_variance_result(period)  # pragma: no cover - weights only NaN on a degenerate cohort the guards above already exclude
+
+    leave_one_out: List[float] = []
+    # Leave out each control unit: drop its donor column and renormalize omega.
+    for donor_index in range(num_donors):
+        reduced_donors = np.delete(donor_matrix, donor_index, axis=1)
+        reduced_omega = _sum_normalize(np.delete(omega, donor_index))
+        leave_one_out.append(
+            _fixed_weight_cohort_att(treated_matrix, reduced_donors, reduced_omega, lam, num_pre)
+        )
+    # Leave out each treated unit: drop its column; omega is unchanged.
+    for treated_index in range(num_treated):
+        reduced_treated = np.delete(treated_matrix, treated_index, axis=1)
+        leave_one_out.append(
+            _fixed_weight_cohort_att(reduced_treated, donor_matrix, omega, lam, num_pre)
+        )
+
+    loo = np.asarray(leave_one_out, dtype=float)
+    if np.any(np.isnan(loo)):
+        return _nan_variance_result(period)  # pragma: no cover - fixed-weight ATT is finite whenever the fitted weights are
+    # synthdid centers on the mean of the leave-one-out estimates, not att_hat.
+    variance = ((num_units - 1) / num_units) * float(np.sum((loo - loo.mean()) ** 2))
+    return {
+        "att_variance": variance,
+        "cohort_variances": {period: variance},
+        "event_variances": {},
+        "pooled_event_variances": {},
+        "placebo_att_values": [],
+    }
+
+
+def estimate_bootstrap_variance(
+    prepped_event_study_data: Dict[str, Any],
+    num_bootstrap_iterations: int,
+    seed: int,
+) -> Dict[str, Any]:
+    """Clustered (block) bootstrap variance of the SDID ATT (Algorithm 2).
+
+    Resamples the ``N`` units with replacement, discards a resample that is all
+    treated or all control, and recomputes the full SDID estimate -- weights
+    re-fit -- on each resample. The variance is the population variance of the
+    resampled ATTs (matching ``synthdid``'s ``sqrt((B-1)/B) * sd(...)``).
+
+    Returns NaN when the cohort has a single treated unit, matching
+    ``synthdid``, whose bootstrap is undefined unless more than one unit is
+    treated.
+    """
+
+    if not isinstance(num_bootstrap_iterations, int) or num_bootstrap_iterations < 0:
+        raise MlsynthConfigError("num_bootstrap_iterations must be a non-negative integer.")
+    if not isinstance(seed, int):
+        raise MlsynthConfigError("seed must be an integer.")
+
+    period, cohort_data = _single_cohort(prepped_event_study_data, "bootstrap")
+    treated_matrix = np.asarray(cohort_data["y"], dtype=float)
+    donor_matrix = np.asarray(cohort_data["donor_matrix"], dtype=float)
+    num_treated = treated_matrix.shape[1]
+    num_donors = donor_matrix.shape[1]
+    num_units = num_treated + num_donors
+
+    # synthdid returns NA unless more than one unit is treated.
+    if num_treated < 2 or num_bootstrap_iterations < 2:
+        return _nan_variance_result(period)
+
+    # Pool all units as columns: controls first, treated last, with a label.
+    pooled_columns = np.concatenate([donor_matrix, treated_matrix], axis=1)
+    is_treated = np.concatenate([np.zeros(num_donors, dtype=bool), np.ones(num_treated, dtype=bool)])
+
+    np.random.seed(seed)
+    bootstrap_atts: List[float] = []
+    attempts = 0
+    max_attempts = max(num_bootstrap_iterations * 100, 1000)
+    while len(bootstrap_atts) < num_bootstrap_iterations and attempts < max_attempts:
+        attempts += 1
+        sampled = np.random.choice(num_units, size=num_units, replace=True)
+        treated_mask = is_treated[sampled]
+        num_treated_boot = int(treated_mask.sum())
+        num_donors_boot = num_units - num_treated_boot
+        # Discard degenerate resamples (no treated or no control units).
+        if num_treated_boot == 0 or num_donors_boot == 0:
+            continue
+        boot_cohort = dict(cohort_data)
+        boot_cohort["donor_matrix"] = pooled_columns[:, sampled[~treated_mask]]
+        boot_cohort["y"] = pooled_columns[:, sampled[treated_mask]]
+        boot_cohort["treated_indices"] = list(range(num_treated_boot))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = estimate_cohort_sdid_effects(period, boot_cohort, defaultdict(list))
+        att = result["att"]
+        if not np.isnan(att):
+            bootstrap_atts.append(float(att))
+
+    if len(bootstrap_atts) < 2:  # pragma: no cover - only when nearly every resample is degenerate, impossible with >1 treated and >1 control
+        return _nan_variance_result(period)
+    # Population variance, matching synthdid's sqrt((B-1)/B) * sd(.).
+    variance = float(np.var(bootstrap_atts, ddof=0))
+    return {
+        "att_variance": variance,
+        "cohort_variances": {period: variance},
+        "event_variances": {},
+        "pooled_event_variances": {},
+        "placebo_att_values": [],
     }

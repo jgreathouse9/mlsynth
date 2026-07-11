@@ -6,6 +6,8 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 from ...config_models import BaseEstimatorConfig
 
@@ -19,18 +21,32 @@ class SDIDConfig(BaseEstimatorConfig):
     ``time`` panel-data interface from :class:`BaseEstimatorConfig`.
     """
 
+    vce: Literal["placebo", "jackknife", "bootstrap", "noinference"] = Field(
+        default="placebo",
+        description=(
+            "Variance estimator for the ATT, following Arkhangelsky et al. "
+            "(2021): 'placebo' (Algorithm 4, the default and the only method "
+            "defined for a single treated unit), 'jackknife' (Algorithm 3, "
+            "fixed-weights leave-one-out), 'bootstrap' (Algorithm 2, clustered "
+            "resampling with weights re-fit), or 'noinference' to skip variance "
+            "estimation. 'jackknife' and 'bootstrap' are implemented for the "
+            "block (single adoption period) design and return NaN for a single "
+            "treated unit, matching the synthdid R package."
+        ),
+    )
     B: int = Field(
         default=500,
         ge=0,
         description=(
-            "Number of placebo iterations for the variance estimator. "
-            "Set to 0 to skip placebo inference (att_se / p_value will be NaN). "
-            "The paper uses B = 500."
+            "Number of resamples for the variance estimator (placebo iterations "
+            "or bootstrap replications; ignored by 'jackknife' and "
+            "'noinference'). Set to 0 to skip resample-based inference. The "
+            "paper uses B = 500."
         ),
     )
     seed: int = Field(
         default=1400,
-        description="Random seed used for the placebo resampling.",
+        description="Random seed used for the placebo / bootstrap resampling.",
     )
     intercept_adjust: bool = Field(
         default=False,

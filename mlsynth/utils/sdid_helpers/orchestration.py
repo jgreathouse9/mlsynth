@@ -35,13 +35,24 @@ from .structures import (
 )
 
 
-def _placebo_p_value(att: float, placebo: np.ndarray) -> float:
-    """Two-sided placebo p-value with the standard ``(k + 1) / (B + 1)`` form."""
+def _att_p_value(att: float, se: float, placebo: np.ndarray) -> float:
+    """Two-sided p-value for the ATT.
 
-    if att is None or np.isnan(att) or placebo is None or len(placebo) == 0:
+    Uses the permutation form ``(k + 1) / (B + 1)`` when a placebo distribution
+    is available (the placebo vce), and otherwise the asymptotic-normal
+    ``2 * (1 - Phi(|att| / se))`` from the estimated variance (jackknife /
+    bootstrap), matching the confidence intervals those methods construct.
+    """
+
+    if att is None or np.isnan(att):
         return float("nan")
-    placebo_arr = np.asarray(placebo, dtype=float)
-    return float((np.sum(np.abs(placebo_arr) >= abs(att)) + 1) / (len(placebo_arr) + 1))
+    if placebo is not None and len(placebo) > 0:
+        placebo_arr = np.asarray(placebo, dtype=float)
+        return float((np.sum(np.abs(placebo_arr) >= abs(att)) + 1) / (len(placebo_arr) + 1))
+    if se is not None and np.isfinite(se) and se > 0:
+        from scipy.stats import norm
+        return float(2.0 * (1.0 - norm.cdf(abs(att) / se)))
+    return float("nan")
 
 
 def _assemble_cohort(period: int, raw_cohort_summary: Dict[str, Any],
@@ -151,13 +162,14 @@ def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any],
     att = float(raw.get("att", float("nan")))
     se = float(raw.get("att_se", float("nan")))
     ci_pair = raw.get("att_ci", [float("nan"), float("nan")])
+    vce_method = raw.get("vce", "placebo")
     inference = SDIDInference(
         att=att,
         se=se,
         ci=(float(ci_pair[0]), float(ci_pair[1])),
-        p_value=_placebo_p_value(att, placebo),
+        p_value=_att_p_value(att, se, placebo),
         placebo_att=placebo,
-        method="placebo",
+        method=vce_method,
         n_placebo=int(len(placebo)),
     )
 
@@ -219,6 +231,7 @@ def run_sdid(
     time: str,
     B: int = 500,
     seed: int = 1400,
+    vce: str = "placebo",
     intercept_adjust: bool = False,
 ) -> SDIDResults:
     """End-to-end SDID pipeline producing a typed ``SDIDResults`` object."""
@@ -230,6 +243,7 @@ def run_sdid(
         prepped_event_study_data={"cohorts": inputs.cohorts_dict},
         placebo_iterations=int(B),
         seed=int(seed),
+        vce=vce,
     )
     return assemble_results(inputs=inputs, raw=raw,
                             intercept_adjust=intercept_adjust)

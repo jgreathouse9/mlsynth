@@ -140,12 +140,16 @@ class SDIDInference:
     ci : Tuple[float, float]
         95 percent confidence interval.
     p_value : float
-        Two-sided p-value from the placebo distribution
-        ``(|placebo| >= |att|) + 1) / (B + 1)``.
+        Two-sided p-value. For the placebo method this is the permutation
+        ``(|placebo| >= |att|) + 1) / (B + 1)``; for the jackknife and bootstrap
+        it is the asymptotic-normal ``2 * (1 - Phi(|att| / se))``.
     placebo_att : np.ndarray
-        Vector of placebo ATT estimates, useful for diagnostics.
+        Vector of placebo ATT estimates, useful for diagnostics. Empty for the
+        jackknife and bootstrap methods (which do not form a placebo
+        distribution over the null).
     method : str
-        Inference method label; currently always ``"placebo"``.
+        Inference method label: ``"placebo"``, ``"jackknife"``, ``"bootstrap"``,
+        or ``"noinference"``.
     n_placebo : int
         Number of placebo iterations actually completed (may be smaller
         than the configured ``B`` when some iterations yield NaN).
