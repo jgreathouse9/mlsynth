@@ -69,7 +69,11 @@ def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
     pure_post = Y[pure][:, T0:].T           # shape (T_post, N_pure)
     treated_pre_mean = Y[direct][:, :T0].mean(axis=0)  # shape (T0,)
 
-    zeta = compute_regularization(pure_pre, num_post_periods=T_post)
+    # zeta = (N_tr * T_post)^(1/4) * sd(diff): the directly-treated count enters
+    # the ridge, matching the authors' functions_ssdid.calculate_regularization
+    # (n_treated_post = treated-and-post rows = N_tr * T_post).
+    zeta = compute_regularization(pure_pre, num_post_periods=T_post,
+                                  num_treated_units=int(N_tr))
 
     intercept_omega, omega_pure = fit_unit_weights(
         donor_outcomes_pre=pure_pre,

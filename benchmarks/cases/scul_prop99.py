@@ -66,7 +66,7 @@ def comparison() -> dict:
 
     Pairs the interpretable headline quantities -- the rolling-CV penalty, the
     post-period ATT, and the unit-free pre-fit -- live from both implementations,
-    for the committed ``comparison.csv`` / ``comparisons.xlsx`` workbook.
+    for the committed ``comparison.csv`` and the public Validation dashboard.
     Propagates ``BenchmarkSkipped`` when Rscript/glmnet/the clone is absent.
     """
     res, ref = _fit_both()

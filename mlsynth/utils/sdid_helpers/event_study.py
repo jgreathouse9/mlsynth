@@ -28,9 +28,54 @@ from mlsynth.exceptions import (
 )
 
 from .cohort import estimate_cohort_sdid_effects
-from .inference import estimate_placebo_variance
+from .inference import (
+    estimate_bootstrap_variance,
+    estimate_jackknife_variance,
+    estimate_placebo_variance,
+)
+
+
+def _empty_variance_result() -> Dict[str, Any]:
+    """A variance result that carries no inference (``vce='noinference'``)."""
+
+    return {
+        "att_variance": np.nan,
+        "cohort_variances": {},
+        "event_variances": {},
+        "pooled_event_variances": {},
+        "placebo_att_values": [],
+    }
+
+
+def _dispatch_variance(
+    prepped_event_study_data: Dict[str, Any],
+    vce: str,
+    resample_iterations: int,
+    seed: int,
+) -> Dict[str, Any]:
+    """Select the ATT variance estimator by ``vce``.
+
+    'placebo' (default) and 'bootstrap' use ``resample_iterations`` resamples;
+    'jackknife' is deterministic; 'noinference' skips variance estimation.
+    """
+
+    if vce == "noinference" or (resample_iterations == 0 and vce in ("placebo", "bootstrap")):
+        return _empty_variance_result()
+    if vce == "placebo":
+        return estimate_placebo_variance(prepped_event_study_data, resample_iterations, seed)
+    if vce == "jackknife":
+        return estimate_jackknife_variance(prepped_event_study_data)
+    if vce == "bootstrap":
+        return estimate_bootstrap_variance(prepped_event_study_data, resample_iterations, seed)
+    raise MlsynthConfigError(
+        f"Unknown vce '{vce}'. Expected one of 'placebo', 'jackknife', "
+        "'bootstrap', 'noinference'."
+    )
+
+
 def estimate_event_study_sdid(
-    prepped_event_study_data: Dict[str, Any], placebo_iterations: int = 1000, seed: int = 1400
+    prepped_event_study_data: Dict[str, Any], placebo_iterations: int = 1000, seed: int = 1400,
+    vce: str = "placebo",
 ) -> Dict[str, Any]:
     """
     Estimate event-study SDID effects with placebo inference for variance, SE, and 95% CI.
@@ -130,6 +175,11 @@ def estimate_event_study_sdid(
         raise MlsynthConfigError("placebo_iterations must be a non-negative integer.")
     if not isinstance(seed, int): # seed can be any int for np.random.seed
         raise MlsynthConfigError("seed must be an integer.")
+    if vce not in ("placebo", "jackknife", "bootstrap", "noinference"):
+        raise MlsynthConfigError(
+            f"Unknown vce '{vce}'. Expected one of 'placebo', 'jackknife', "
+            "'bootstrap', 'noinference'."
+        )
 
     # Extract the dictionary of all cohorts' data.
     all_cohorts_data_dict: Dict[int, Dict[str, Any]] = prepped_event_study_data["cohorts"]
@@ -175,9 +225,10 @@ def estimate_event_study_sdid(
     # Calculate overall ATT; NaN if no valid contributions.
     overall_average_treatment_effect: float = total_weighted_att_sum / total_post_exposure_units_times_periods if total_post_exposure_units_times_periods > 0 else np.nan
 
-    # Estimate variances for ATTs and event-time effects using placebo inference.
-    placebo_variances_results: Dict[str, Any] = estimate_placebo_variance(
-        prepped_event_study_data, placebo_iterations, seed
+    # Estimate variances for ATTs and event-time effects using the selected
+    # variance estimator (placebo / jackknife / bootstrap / noinference).
+    placebo_variances_results: Dict[str, Any] = _dispatch_variance(
+        prepped_event_study_data, vce, placebo_iterations, seed
     )
 
     # Combine actual estimates with placebo-based standard errors and confidence intervals for each cohort.
@@ -239,6 +290,7 @@ def estimate_event_study_sdid(
         "att_ci": [overall_average_treatment_effect - stats.norm.ppf(0.975) * overall_att_standard_error, overall_average_treatment_effect + stats.norm.ppf(0.975) * overall_att_standard_error] if not np.isnan(overall_att_standard_error) else [np.nan, np.nan],
         "cohort_estimates": final_cohort_estimates_with_ci,
         "pooled_estimates": final_pooled_estimates_with_ci,
-        "placebo_att_values": placebo_att_values_raw_list
+        "placebo_att_values": placebo_att_values_raw_list,
+        "vce": vce,
     }
 

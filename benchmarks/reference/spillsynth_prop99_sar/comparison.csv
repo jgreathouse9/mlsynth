@@ -1,0 +1,12 @@
+# case: spillsynth_prop99_sar
+# generated_at: 2026-07-11T18:11:54Z
+# mlsynth_version: 1.0.0
+# estimator: SPILLSYNTH
+# config: {"covariates": ["retprice"], "method": "sar", "outcome": "cigsale", "p_factors": 1, "time": "year", "treat": "treatment", "unitid": "state"}
+# reference_impl: Mendez tutorial Rcpp sc_spillover (cmg777)
+# reference_version: carlos-mendez.org/post/r_sc_bayes_spatial (fetched 2026-07-09)
+quantity,mlsynth,reference,abs_diff
+bare_rho,0.8491,0.8492,0.0001
+full_att,-17.0067,-16.4442,0.5625
+nevada_spillover,-6.8841,-3.4528,3.4313
+full_rho (weakly identified),0.3863,0.2069,0.1794

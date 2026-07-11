@@ -117,12 +117,12 @@ def _reference_live() -> dict:
     """Run the authors' R analysis live; parse the converged DR/h values."""
     rscript = shutil.which("Rscript")
     if rscript is None:
-        raise BenchmarkSkipped("Rscript not on PATH (install R + gmm, Synth, tidyverse)")
+        raise BenchmarkSkipped("Rscript not on PATH (install R + gmm, dplyr, tidyr)")
     probe = subprocess.run(
-        [rscript, "-e", "suppressMessages({library(gmm);library(tidyverse)})"],
+        [rscript, "-e", "suppressMessages({library(gmm);library(dplyr);library(tidyr)})"],
         capture_output=True, text=True)
     if probe.returncode != 0:
-        raise BenchmarkSkipped("R packages 'gmm'/'tidyverse' not installed")
+        raise BenchmarkSkipped("R packages 'gmm'/'dplyr'/'tidyr' not installed")
     out = subprocess.run([rscript, str(_RSCRIPT), str(_DATA)],
                          capture_output=True, text=True, timeout=1800)
     if out.returncode != 0:

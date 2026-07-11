@@ -29,6 +29,9 @@ Reference papers:
 
 from __future__ import annotations
 
+import warnings
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,7 +44,12 @@ from mlsynth.exceptions import (
     MlsynthEstimationError,
 )
 from mlsynth.utils.sdid_helpers.cohort import estimate_cohort_sdid_effects
-from mlsynth.utils.sdid_helpers.inference import estimate_placebo_variance
+from mlsynth.utils.sdid_helpers.inference import (
+    _fixed_weight_cohort_att,
+    estimate_bootstrap_variance,
+    estimate_jackknife_variance,
+    estimate_placebo_variance,
+)
 from mlsynth.utils.sdid_helpers.setup import prepare_sdid_inputs
 from mlsynth.utils.sdid_helpers.structures import (
     SDIDCohort,
@@ -105,6 +113,37 @@ def _make_staggered_panel(seed: int = 0) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+_LOCAL_SMOKING = (
+    Path(__file__).resolve().parents[2] / "basedata" / "smoking_data.csv"
+)
+
+
+@pytest.fixture(scope="module")
+def block_multitreated_panel() -> pd.DataFrame:
+    """A block panel with three treated states (California, Nevada, Utah).
+
+    Built from the local Prop 99 outcomes with a *synthetic* block treatment
+    (the three states treated from 1989) so the jackknife and bootstrap
+    variances -- which require more than one treated unit -- are defined and can
+    be cross-validated against the ``synthdid`` R package on the identical
+    matrix (synthdid jackknife_se = 10.557038, point = -8.804942).
+    """
+    df = pd.read_csv(_LOCAL_SMOKING)
+    treated = {"California", "Nevada", "Utah"}
+    df["treat"] = ((df["state"].isin(treated)) & (df["year"] >= 1989)).astype(int)
+    return df[["state", "year", "cigsale", "treat"]]
+
+
+def _block_prepped(df: pd.DataFrame) -> dict:
+    """``{'cohorts': ...}`` payload for a block panel, for the variance helpers."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        inputs = prepare_sdid_inputs(
+            df=df, outcome="cigsale", treat="treat", unitid="state", time="year"
+        )
+    return {"cohorts": inputs.cohorts_dict}
+
+
 def _base_config(df: pd.DataFrame, **overrides) -> dict:
     cfg = dict(
         df=df,
@@ -154,6 +193,30 @@ class TestWeightSolvers:
         zeta = compute_regularization(Y_donors_pre, num_post_treatment_periods=10)
         assert np.isfinite(zeta)
         assert zeta > 0
+
+    def test_regularization_scales_with_treated_count(self):
+        """zeta_omega = (N_tr * T_post)^(1/4) * sigma (Arkhangelsky et al. 2021).
+
+        synthdid's ``eta.omega = ((N - N0)*(T - T0))^(1/4)`` folds the treated
+        count into the unit-weight ridge. A single treated unit (the default)
+        must leave zeta unchanged; more treated units must scale it by
+        ``N_tr^(1/4)``.
+        """
+        rng = np.random.default_rng(3)
+        Y_donors_pre = rng.standard_normal((20, 6)) * 4
+        sigma = np.std(np.diff(Y_donors_pre, axis=0).flatten(), ddof=1)
+        # Default (single treated) reproduces the (T_post)^(1/4) form.
+        z1 = compute_regularization(Y_donors_pre, num_post_treatment_periods=8)
+        assert z1 == pytest.approx((8 ** 0.25) * sigma, rel=1e-9)
+        # Three treated units scale zeta by 3^(1/4).
+        z3 = compute_regularization(Y_donors_pre, num_post_treatment_periods=8,
+                                    num_treated_units=3)
+        assert z3 == pytest.approx(((3 * 8) ** 0.25) * sigma, rel=1e-9)
+        assert z3 == pytest.approx(z1 * (3 ** 0.25), rel=1e-9)
+        # A non-positive treated count is rejected.
+        with pytest.raises(MlsynthConfigError):
+            compute_regularization(Y_donors_pre, num_post_treatment_periods=8,
+                                   num_treated_units=0)
 
 
 class TestCohortEstimator:
@@ -208,6 +271,220 @@ class TestPlaceboVariance:
                   *out["cohort_variances"].values(),
                   *out["pooled_event_variances"].values()):
             assert np.isnan(v) or v >= 0
+
+    def test_pseudo_treated_unit_is_dropped_from_its_own_donor_pool(self, monkeypatch):
+        """A control reassigned as pseudo-treated must leave the donor pool.
+
+        Arkhangelsky et al. (2021), Algorithm 4 (and the ``synthdid`` R
+        package's ``vcov.R`` ``placebo_se``) assign a control unit as the
+        pseudo-treated unit and re-fit SDID on the *remaining* controls. If the
+        pseudo-treated column is left in the donor matrix, the synthetic control
+        reconstructs it from itself, the placebo effect collapses toward zero,
+        and the placebo variance is deflated -- the root of mlsynth's SDID SE
+        (7.6) undershooting synthdid's (~9.2) on Prop 99.
+
+        White-box invariant: for every cohort handed to the per-cohort
+        estimator during the placebo loop, the pseudo-treated outcome column
+        (its ``y``) must not appear among the columns of its ``donor_matrix``.
+        """
+        import mlsynth.utils.sdid_helpers.inference as inference_mod
+
+        rng = np.random.default_rng(0)
+        T, n_donor, T0 = 12, 8, 7
+        cohorts = {
+            T0 + 1: {
+                "y": rng.standard_normal((T, 1)),
+                "donor_matrix": rng.standard_normal((T, n_donor)),
+                "total_periods": T,
+                "pre_periods": T0,
+                "post_periods": T - T0,
+                "treated_indices": [0],
+            }
+        }
+
+        real = inference_mod.estimate_cohort_sdid_effects
+        seen: list[bool] = []
+
+        def spy(period, cohort_data, accumulator):
+            y_col = np.asarray(cohort_data["y"])[:, 0]
+            donor = np.asarray(cohort_data["donor_matrix"])
+            # No donor column may equal the pseudo-treated outcome column.
+            clash = any(np.allclose(y_col, donor[:, j]) for j in range(donor.shape[1]))
+            seen.append(clash)
+            return real(period, cohort_data, accumulator)
+
+        monkeypatch.setattr(inference_mod, "estimate_cohort_sdid_effects", spy)
+        estimate_placebo_variance(
+            {"cohorts": cohorts}, num_placebo_iterations=15, seed=7
+        )
+        assert seen, "placebo loop never called the per-cohort estimator"
+        assert not any(seen), (
+            "a pseudo-treated unit remained in its own donor pool during "
+            "placebo inference (deflates the SDID variance)"
+        )
+
+
+class TestJackknifeAndBootstrapVariance:
+    """The two other Arkhangelsky et al. (2021) variance estimators.
+
+    Cross-validated against the ``synthdid`` R package's ``vcov.R``:
+      * jackknife (Algorithm 3) is deterministic and matches value-for-value;
+      * bootstrap (Algorithm 2) is stochastic and matches in magnitude;
+      * both are NaN for a single treated unit, matching synthdid.
+    """
+
+    # synthdid reference on the identical CA+NV+UT block matrix (see
+    # scratch/sdid_vce_ref.R): point = -8.804942, jackknife_se = 10.557038.
+    _SYNTHDID_JACKKNIFE_SE = 10.557038
+
+    def test_fixed_weight_att_reproduces_cohort_att(self, block_multitreated_panel):
+        """The closed-form fixed-weight ATT equals the cohort estimator's ATT.
+
+        The jackknife holds the fitted weights fixed and recomputes the ATT from
+        the closed form; that closed form must reproduce the estimator's own ATT
+        when handed the estimator's own weights, or the leave-one-out estimates
+        are not on the same footing as the point estimate.
+        """
+        from collections import defaultdict
+
+        prepped = _block_prepped(block_multitreated_panel)
+        (period, cohort), = prepped["cohorts"].items()
+        fitted = estimate_cohort_sdid_effects(period, cohort, defaultdict(list))
+        fw = _fixed_weight_cohort_att(
+            cohort["y"], cohort["donor_matrix"],
+            np.asarray(fitted["unit_weights"]), np.asarray(fitted["time_weights"]),
+            cohort["pre_periods"],
+        )
+        assert fw == pytest.approx(fitted["att"], abs=1e-9)
+
+    def test_jackknife_matches_synthdid_on_block_panel(self, block_multitreated_panel):
+        """Value-for-value jackknife SE against the authors' synthdid R."""
+        prepped = _block_prepped(block_multitreated_panel)
+        out = estimate_jackknife_variance(prepped)
+        se = float(np.sqrt(out["att_variance"]))
+        # Matches synthdid to ~1e-3; the residual is the Frank-Wolfe vs
+        # active-set QP solver, not a method difference.
+        assert se == pytest.approx(self._SYNTHDID_JACKKNIFE_SE, abs=0.05)
+
+    def test_jackknife_is_deterministic(self, block_multitreated_panel):
+        """The jackknife has no RNG: repeated calls give the identical SE."""
+        prepped = _block_prepped(block_multitreated_panel)
+        a = estimate_jackknife_variance(prepped)["att_variance"]
+        b = estimate_jackknife_variance(prepped)["att_variance"]
+        assert a == b
+
+    def test_bootstrap_is_positive_and_seed_reproducible(self, block_multitreated_panel):
+        """Bootstrap SE is finite/positive and reproducible under a fixed seed."""
+        prepped = _block_prepped(block_multitreated_panel)
+        a = estimate_bootstrap_variance(prepped, 200, seed=2020)["att_variance"]
+        b = estimate_bootstrap_variance(prepped, 200, seed=2020)["att_variance"]
+        assert np.isfinite(a) and a > 0
+        assert a == b  # same seed -> same resamples -> same variance
+
+    def test_jackknife_single_treated_is_nan(self, smoking_panel):
+        """A single treated unit leaves the jackknife undefined (synthdid: NA)."""
+        prepped = {"cohorts": prepare_sdid_inputs(
+            df=smoking_panel, outcome="cigsale", treat="Proposition 99",
+            unitid="state", time="year").cohorts_dict}
+        out = estimate_jackknife_variance(prepped)
+        assert np.isnan(out["att_variance"])
+
+    def test_bootstrap_single_treated_is_nan(self, smoking_panel):
+        """Bootstrap is undefined for a single treated unit (synthdid: NA)."""
+        prepped = {"cohorts": prepare_sdid_inputs(
+            df=smoking_panel, outcome="cigsale", treat="Proposition 99",
+            unitid="state", time="year").cohorts_dict}
+        out = estimate_bootstrap_variance(prepped, 200, seed=1)
+        assert np.isnan(out["att_variance"])
+
+    def test_jackknife_rejects_staggered_design(self):
+        """Jackknife is block-design only; staggered adoption must raise."""
+        df = _make_staggered_panel()
+        prepped = {"cohorts": prepare_sdid_inputs(
+            df=df, outcome="y", treat="treated", unitid="state",
+            time="year").cohorts_dict}
+        assert len(prepped["cohorts"]) >= 2
+        with pytest.raises(MlsynthEstimationError):
+            estimate_jackknife_variance(prepped)
+
+    def test_bootstrap_rejects_staggered_design(self):
+        """Bootstrap is block-design only; staggered adoption must raise."""
+        df = _make_staggered_panel()
+        prepped = {"cohorts": prepare_sdid_inputs(
+            df=df, outcome="y", treat="treated", unitid="state",
+            time="year").cohorts_dict}
+        with pytest.raises(MlsynthEstimationError):
+            estimate_bootstrap_variance(prepped, 50, seed=1)
+
+    def test_sum_normalize_zero_vector_is_uniform(self):
+        """A zero weight vector renormalizes to uniform (synthdid fallback)."""
+        from mlsynth.utils.sdid_helpers.inference import _sum_normalize
+
+        out = _sum_normalize(np.zeros(4))
+        assert out == pytest.approx(np.full(4, 0.25))
+
+    def test_variance_helpers_reject_malformed_payload(self):
+        """The block-design guard rejects a payload without a 'cohorts' dict."""
+        with pytest.raises(MlsynthDataError):
+            estimate_jackknife_variance({"not_cohorts": {}})
+        with pytest.raises(MlsynthDataError):
+            estimate_jackknife_variance({"cohorts": "nope"})
+
+    def test_bootstrap_rejects_invalid_arguments(self, block_multitreated_panel):
+        prepped = _block_prepped(block_multitreated_panel)
+        with pytest.raises(MlsynthConfigError):
+            estimate_bootstrap_variance(prepped, -1, seed=1)
+        with pytest.raises(MlsynthConfigError):
+            estimate_bootstrap_variance(prepped, 10, seed="not-an-int")
+
+    def test_dispatch_rejects_unknown_vce(self, block_multitreated_panel):
+        """The internal dispatcher rejects an unknown method name."""
+        from mlsynth.utils.sdid_helpers.event_study import _dispatch_variance
+
+        prepped = _block_prepped(block_multitreated_panel)
+        with pytest.raises(MlsynthConfigError):
+            _dispatch_variance(prepped, "mystery", 10, 1)
+
+
+class TestVceIntegration:
+    """``vce`` threads from the config through ``SDID.fit()`` to the results."""
+
+    def test_default_vce_is_placebo(self, block_multitreated_panel):
+        res = SDID(_base_config(block_multitreated_panel, treat="treat")).fit()
+        assert res.inference_detail.method == "placebo"
+
+    def test_point_estimate_invariant_to_vce(self, block_multitreated_panel):
+        """Choosing a variance estimator must not move the point estimate."""
+        atts = {}
+        for vce in ("placebo", "jackknife", "bootstrap", "noinference"):
+            res = SDID(_base_config(block_multitreated_panel, treat="treat",
+                                    vce=vce)).fit()
+            atts[vce] = res.att
+        assert atts["jackknife"] == pytest.approx(atts["placebo"], abs=1e-9)
+        assert atts["bootstrap"] == pytest.approx(atts["placebo"], abs=1e-9)
+        assert atts["noinference"] == pytest.approx(atts["placebo"], abs=1e-9)
+
+    def test_jackknife_method_and_se_recorded(self, block_multitreated_panel):
+        res = SDID(_base_config(block_multitreated_panel, treat="treat",
+                                vce="jackknife")).fit()
+        assert res.inference_detail.method == "jackknife"
+        assert np.isfinite(res.inference_detail.se)
+        assert len(res.inference_detail.placebo_att) == 0  # no placebo distribution
+
+    def test_noinference_yields_nan_se(self, block_multitreated_panel):
+        res = SDID(_base_config(block_multitreated_panel, treat="treat",
+                                vce="noinference")).fit()
+        assert np.isnan(res.inference_detail.se)
+        assert res.inference_detail.method == "noinference"
+
+    def test_jackknife_nan_se_on_single_treated(self, smoking_panel):
+        """SDID.fit with jackknife on Prop 99 (one treated) -> NaN SE, no crash."""
+        res = SDID(_base_config(smoking_panel, vce="jackknife")).fit()
+        assert np.isnan(res.inference_detail.se)
+
+    def test_invalid_vce_rejected_by_config(self, smoking_panel):
+        with pytest.raises(MlsynthConfigError):
+            SDID(_base_config(smoking_panel, vce="not-a-method"))
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +542,19 @@ class TestProp99Replication:
         # the regularization parameter; only inference fields move with
         # the placebo seed.
         assert res.inference_detail.att == pytest.approx(-15.6054, abs=5e-3)
+
+    def test_multitreated_block_att_matches_synthdid(self, block_multitreated_panel):
+        """A multi-treated block ATT must match synthdid's point estimate.
+
+        With three treated units the unit-weight ridge picks up the
+        ``N_tr^(1/4)`` factor (Arkhangelsky et al. 2021); omitting it
+        under-regularized omega and pulled the ATT off the authors' R. synthdid
+        on the identical CA+NV+UT block matrix gives -8.804942; the residual is
+        the Frank-Wolfe vs active-set QP solver, the same ~1e-3 seen on Prop 99.
+        """
+        res = SDID(_base_config(block_multitreated_panel, treat="treat",
+                                B=20, seed=1400)).fit()
+        assert res.inference_detail.att == pytest.approx(-8.804942, abs=0.02)
 
     def test_inference_is_well_formed(self, smoking_panel):
         res = SDID(_base_config(smoking_panel, B=50, seed=1400)).fit()

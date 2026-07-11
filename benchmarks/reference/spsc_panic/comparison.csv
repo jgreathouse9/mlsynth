@@ -1,0 +1,12 @@
+# case: spsc_panic
+# generated_at: 2026-07-11T19:51:34Z
+# mlsynth_version: 1.0.0
+# estimator: SPSC
+# config: {"att_degree": 0, "averaged_treated": true, "ridge_lambda": -2.0}
+# reference_impl: qkrcks0218/SPSC R (single-proxy synthetic control)
+# reference_version: @054f1fbb
+quantity,mlsynth,reference,abs_diff
+ATT (NoDT),-0.8129,-0.8129,0.0
+SE (NoDT),0.0778,0.0778,0.0
+ATT (DT),-0.8035,-0.8035,0.0
+SE (DT),0.0839,0.0839,0.0

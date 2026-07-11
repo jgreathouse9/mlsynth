@@ -341,14 +341,14 @@ Comparison tables
 Every bundle with a ``comparison()`` writes a ``comparison.csv``: a metadata
 header (the case title, the reference implementation, the generation timestamp
 and versions) followed by one row per quantity with columns ``quantity``,
-``mlsynth``, ``reference`` and ``abs_diff``. A combined workbook,
-``benchmarks/reference/comparisons.xlsx``, collects a summary sheet (one row per
-case, with its largest absolute difference) plus a metadata-stamped sheet per
-case, so the whole corpus can be scanned at a glance. Both are rebuilt by
+``mlsynth``, ``reference`` and ``abs_diff``. The public, web-native rollup of
+the whole corpus is the :doc:`validation` dashboard, generated from these CSVs.
+Regenerate both with
 
 .. code-block:: bash
 
    python benchmarks/reference/export_comparison.py --all
+   python benchmarks/reference/build_validation.py
 
 What running the authors' code surfaced
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

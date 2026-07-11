@@ -9,19 +9,16 @@ metadata-stamped artifact::
 
     benchmarks/reference/<case>/comparison.csv   # metadata header + quantity, mlsynth, reference, abs_diff
 
-and a combined workbook -- the headline a reviewer opens -- with a summary sheet
-plus one detail sheet per case::
-
-    benchmarks/reference/comparisons.xlsx
-
-Each artifact carries provenance: when it was written, the mlsynth version and
-the exact call (estimator + config), and the reference implementation and its
-version.
+Each carries provenance: when it was written, the mlsynth version and the exact
+call (estimator + config), and the reference implementation and its version.
+The public, web-native rollup of these CSVs is the Validation dashboard
+(``docs/validation.rst``), built by ``build_validation.py``.
 
 Usage::
 
     python benchmarks/reference/export_comparison.py synth_prop99
     python benchmarks/reference/export_comparison.py --all
+    python benchmarks/reference/export_comparison.py --missing
 """
 from __future__ import annotations
 
@@ -40,8 +37,6 @@ import mlsynth                                  # noqa: E402
 from benchmarks import registry                # noqa: E402
 
 _FIELDS = ["quantity", "mlsynth", "reference", "abs_diff"]
-# Fixed workbook doc-properties timestamp -> byte-deterministic .xlsx output.
-_EPOCH = _dt.datetime(2020, 1, 1, tzinfo=_dt.timezone.utc)
 
 
 def _cases_with_comparison() -> list:
@@ -88,20 +83,6 @@ def _read_comparison_csv(path: Path) -> dict:
                      "reference": float(r["reference"]),
                      "abs_diff": float(r["abs_diff"])})
     return {"rows": rows, "meta": meta}
-
-
-def assemble_workbook_from_csv(ref_dir: Path = REF_DIR) -> dict:
-    """Rebuild comparisons.xlsx from every committed comparison.csv under ref_dir.
-
-    Assembling from the committed CSVs (rather than re-running each case) lets one
-    job produce the complete workbook even though the cases live in incompatible
-    reference environments, and keeps entries stable day to day.
-    """
-    per_case = {}
-    for csv_path in sorted(ref_dir.glob("*/comparison.csv")):
-        per_case[csv_path.parent.name] = _read_comparison_csv(csv_path)
-    _write_workbook(per_case, out_dir=ref_dir)
-    return per_case
 
 
 def _metadata(name: str, result: dict) -> dict:
@@ -157,82 +138,6 @@ def export_case(name: str) -> dict:
     return {"rows": rows, "meta": meta}
 
 
-def _write_workbook(per_case: dict, out_dir: Path = REF_DIR) -> None:
-    """Combined workbook: a summary sheet plus a metadata-stamped sheet per case."""
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-    except ImportError:                          # pragma: no cover - openpyxl present here
-        print("[note] openpyxl not installed; skipping comparisons.xlsx (CSVs written)")
-        return
-    wb = Workbook()
-    # Pin the workbook's own doc-properties timestamps so identical content yields
-    # byte-identical output -- otherwise openpyxl stamps the current time and the
-    # daily "commit only if changed" gate would churn the binary every run.
-    wb.properties.created = _EPOCH
-    wb.properties.modified = _EPOCH
-    summ = wb.active
-    summ.title = "summary"
-    summ.append(["case", "quantities", "max_abs_diff", "generated_at",
-                 "mlsynth_version", "reference_impl"])
-    for c in summ[1]:
-        c.font = Font(bold=True)
-    for name, payload in per_case.items():
-        rows, meta = payload["rows"], payload["meta"]
-        summ.append([name, len(rows), max(r["abs_diff"] for r in rows),
-                     meta["generated_at"], meta["mlsynth_version"],
-                     meta.get("reference_impl", "")])
-        ws = wb.create_sheet(name[:31])
-        for k, v in meta.items():                # metadata block atop the sheet
-            ws.append([k, v])
-            ws.cell(ws.max_row, 1).font = Font(bold=True)
-        ws.append([])
-        ws.append(_FIELDS)
-        for c in ws[ws.max_row]:
-            c.font = Font(bold=True)
-        for r in rows:
-            ws.append([r[f] for f in _FIELDS])
-    out = out_dir / "comparisons.xlsx"
-    wb.save(out)
-    _normalize_xlsx_bytes(out)
-    print(f"[ok] wrote {out} (summary + {len(per_case)} case sheet(s))")
-
-
-def _normalize_xlsx_bytes(path: Path) -> None:
-    """Rewrite an .xlsx so identical content is byte-identical.
-
-    openpyxl stamps every zip member with the wall-clock time (2-second DOS
-    granularity), so two saves of the same workbook differ. Repackage the members
-    in sorted order under a fixed timestamp -- with the pinned doc-properties this
-    makes the file a pure function of its content, so the daily commit-if-changed
-    gate stays quiet unless an entry actually changed.
-    """
-    import re
-    import zipfile
-
-    fixed = (1980, 1, 1, 0, 0, 0)                 # earliest DOS zip epoch
-    stamp = "2020-01-01T00:00:00Z"
-    with zipfile.ZipFile(path) as src:
-        members = sorted(src.namelist())
-        data = {m: src.read(m) for m in members}
-    # openpyxl rewrites dcterms:modified to now() at save regardless of the set
-    # property, so pin created/modified in core.xml to a constant here.
-    core = data.get("docProps/core.xml")
-    if core is not None:
-        text = core.decode("utf-8")
-        for tag in ("created", "modified"):
-            text = re.sub(rf"(<dcterms:{tag}[^>]*>)[^<]*(</dcterms:{tag}>)",
-                          rf"\g<1>{stamp}\g<2>", text)
-        data["docProps/core.xml"] = text.encode("utf-8")
-    tmp = path.with_name(path.name + ".tmp")
-    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as dst:
-        for m in members:
-            zi = zipfile.ZipInfo(m, date_time=fixed)
-            zi.compress_type = zipfile.ZIP_DEFLATED
-            dst.writestr(zi, data[m])
-    tmp.replace(path)
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("case", nargs="?")
@@ -240,14 +145,7 @@ def main() -> int:
                     help="(re)run every case that defines comparison()")
     ap.add_argument("--missing", action="store_true",
                     help="run only cases that have no committed comparison.csv yet")
-    ap.add_argument("--assemble", action="store_true",
-                    help="rebuild comparisons.xlsx from committed CSVs; no live runs")
     args = ap.parse_args()
-
-    if args.assemble:                             # pure assembly, no reference runs
-        per_case = assemble_workbook_from_csv()
-        print(f"[ok] assembled comparisons.xlsx from {len(per_case)} committed CSV(s)")
-        return 0
 
     if args.missing:
         cases = _missing_cases()
@@ -259,20 +157,18 @@ def main() -> int:
         if args.missing:                          # nothing to do is success, not an error
             print("[ok] no missing comparison entries")
             return 0
-        ap.error("give a case name, --all, --missing, or --assemble "
+        ap.error("give a case name, --all, or --missing "
                  "(a case must define comparison())")
     from benchmarks.compare import BenchmarkSkipped
-    per_case = {}
     for name in cases:
         try:
-            per_case[name] = export_case(name)
+            export_case(name)
         except BenchmarkSkipped as exc:
             print(f"[skip] {name}: {exc}")
         except Exception as exc:                  # reference toolchain absent / draft error
             print(f"[skip] {name}: {type(exc).__name__}: {str(exc)[:160]}")
-    # Rebuild the workbook from ALL committed CSVs (the ones just written plus the
-    # pre-existing ones), so a partial run never drops another case's entry.
-    assemble_workbook_from_csv()
+    print("[note] rebuild the public dashboard with: "
+          "python benchmarks/reference/build_validation.py")
     return 0
 
 
