@@ -8,7 +8,8 @@ SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)
    Wager, S. (2021), *"Synthetic Difference-in-Differences,"* American
    Economic Review 111(12):4088-4118.
 :Replication type: **Path A** — the paper's Proposition 99 empirical, with a
-   **cross-validation** against the ``causaltensor`` reference implementation.
+   **cross-validation** against both the authors' own ``synthdid`` R package and
+   the independent ``causaltensor`` reference implementation.
 :Status: **Fully verified** — empirical headline reproduced and matched
    cell-for-cell to an independent implementation.
 
@@ -92,6 +93,22 @@ default suite (skipping gracefully if ``causaltensor`` is absent)::
 
 It asserts the ATT lands on the published -15.604 (tol 0.05) and matches
 ``causaltensor`` to within :math:`5 \times 10^{-3}`.
+
+Cross-validation against the authors' ``synthdid`` R
+----------------------------------------------------
+
+We additionally cross-validate against the method's own authors' code -- the
+``synth-inference/synthdid`` R package -- run live on the identical outcome
+matrix. On Proposition 99 ``synthdid_estimate`` returns :math:`-15.6038`, and
+mlsynth reproduces it to :math:`1.6 \times 10^{-3}` packs; the residual is the
+unit-weight ridge (:math:`\zeta`) optimiser, not a methodological difference.
+The same package's DiD (:math:`-27.349`) and pure-SC (:math:`-19.620`)
+estimates on the same matrix are recorded for context. The reference is pinned
+under ``benchmarks/reference/sdid_prop99_synthdid/`` (R 4.3.3, ``synthdid``
+commit 70c1ce3, data checksum) and the durable case is
+``benchmarks/cases/sdid_prop99_synthdid.py``::
+
+   python benchmarks/run_benchmarks.py --case sdid_prop99_synthdid
 
 References
 ----------

@@ -16,7 +16,9 @@ CASES = {
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs causaltensor
+    "sdid_prop99_synthdid": "benchmarks.cases.sdid_prop99_synthdid",  # cross-val vs authors' synthdid R (Prop 99)
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs causaltensor
+    "mcnnm_prop99_mcpanel": "benchmarks.cases.mcnnm_prop99_mcpanel",  # cross-val vs authors' MCPanel R (Prop 99)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",            # Path B: SSDiD vs DiD coverage/RMSE
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC

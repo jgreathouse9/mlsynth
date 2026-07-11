@@ -223,6 +223,8 @@ Cross-validation against reference implementations
      - LINF vs LinfinitySC (skips if absent)
    * - ``mcnnm_prop99``
      - vs causaltensor
+   * - ``mcnnm_prop99_mcpanel``
+     - vs authors' MCPanel R (mcnnm_cv; ATT + California counterfactual path)
    * - ``microsynth_seattle``
      - vs R microsynth panel method (Seattle DMI)
    * - ``mlsc_bottmer``
@@ -241,6 +243,8 @@ Cross-validation against reference implementations
      - Shen CIs + coverage
    * - ``sdid_prop99``
      - vs causaltensor
+   * - ``sdid_prop99_synthdid``
+     - vs authors' synthdid R (synthdid_estimate; SDID/DiD/SC on Prop 99)
    * - ``si_prop99``
      - vs Agarwal-Shah-Shen 2026 authors' code (Prop 99)
    * - ``snn_prop99``

@@ -8,7 +8,8 @@ MCNNM — Matrix Completion with Nuclear-Norm Minimization (Athey et al. 2021)
    (2021), *"Matrix Completion Methods for Causal Panel Data Models,"* Journal
    of the American Statistical Association 116(536):1716-1730.
 :Replication type: **Path A** — Proposition 99 empirical, with a
-   **cross-validation** against the ``causaltensor`` reference implementation.
+   **cross-validation** against both the authors' own ``MCPanel`` R package and
+   the independent ``causaltensor`` reference implementation.
 :Status: **Fully verified** — estimand reproduced and matched against an
    independent MC-NNM implementation.
 
@@ -95,6 +96,37 @@ default suite (skipping gracefully if ``causaltensor`` is absent)::
 
 It asserts the ATT lands near the published -20 (tol 1.5) and matches
 ``causaltensor`` to within 1.0 pack.
+
+Cross-validation against the authors' ``MCPanel`` R
+---------------------------------------------------
+
+We additionally cross-validate against the method's own authors' code -- the
+``susanathey/MCPanel`` R package -- run live on the identical outcome matrix.
+This exercise also pins down *where* two faithful MC-NNM implementations can and
+cannot agree, which is instructive for the estimator generally.
+
+At a *matched* singular-value threshold the two engines are effectively
+identical: they reconstruct the observed cells to RMSE :math:`\approx 3\times
+10^{-3}` with the same singular spectrum. The entire disagreement lives in the
+imputed treated block -- the counterfactual -- because that is the extrapolated
+quantity, and nuclear-norm completion of the held-out cells is threshold
+sensitive. On top of that, each library selects its own regulariser: mlsynth by
+K-fold partition on a grand-mean-demeaned spectrum grid, MCPanel by Bernoulli
+80/20 folds on a :math:`2\sigma_{\max}(P_\Omega M)/|\Omega|`-scaled grid with an
+explicit :math:`\lambda = 0` rung. The two therefore land on different
+penalties.
+
+Under each side's own default cross-validation, ``mcnnm_cv`` returns
+:math:`-19.98` and mlsynth :math:`-19.83` -- the ATT agrees to :math:`0.15`
+packs and the California post-treatment counterfactual path to RMSE
+:math:`0.47` (under one pack). This is the honest end-to-end agreement for an
+estimator whose target is an extrapolated block; the tight cell match is a
+property of the shared-threshold engine, not the CV-selected fit. The reference
+is pinned under ``benchmarks/reference/mcnnm_prop99_mcpanel/`` (R 4.3.3,
+``MCPanel`` commit 6b2706f, ``set.seed(1)``, data checksum) and the durable case
+is ``benchmarks/cases/mcnnm_prop99_mcpanel.py``::
+
+   python benchmarks/run_benchmarks.py --case mcnnm_prop99_mcpanel
 
 References
 ----------

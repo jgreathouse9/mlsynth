@@ -1,0 +1,9 @@
+{
+  "case": "mcnnm_prop99_mcpanel",
+  "title": "MC-NNM vs the authors' MCPanel R (California Proposition 99)",
+  "paper": "Athey, Bayati, Doudchenko, Imbens & Khosravi (2021), \"Matrix Completion Methods for Causal Panel Data Models,\" JASA 116(536):1716-1730",
+  "reference_impl": "susanathey/MCPanel R package (mcnnm_cv, package defaults, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/mcnnm_prop99_mcpanel/reference.R",
+  "data": ["basedata/smoking_data.csv"]
+}

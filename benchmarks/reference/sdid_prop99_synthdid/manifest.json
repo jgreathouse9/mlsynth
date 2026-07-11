@@ -1,0 +1,9 @@
+{
+  "case": "sdid_prop99_synthdid",
+  "title": "Synthetic DiD vs the authors' synthdid R (California Proposition 99)",
+  "paper": "Arkhangelsky, Athey, Hirshberg, Imbens & Wager (2021), \"Synthetic Difference-in-Differences,\" American Economic Review 111(12):4088-4118",
+  "reference_impl": "synth-inference/synthdid R package (synthdid_estimate / did_estimate / sc_estimate, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/sdid_prop99_synthdid/reference.R",
+  "data": ["basedata/smoking_data.csv"]
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-07-09T00:00:00Z",
+  "git_sha": "a57d63aaf685eb979a4132a097565c2e5f41ae4a",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/sdid_prop99_synthdid/reference.R",
+  "data": [
+    {
+      "path": "basedata/smoking_data.csv",
+      "sha256": "a13dd4d5d6e411839c1617c6b7df773129eac0559f064b848a235651fb330b40"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "synthdid": "0.0.9",
+    "synthdid_git_sha": "70c1ce3eac58e28c30b67435ca377bb48baa9b8a"
+  }
+}
