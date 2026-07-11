@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import (
-    BSCM, BVSS, CFM, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
+    BFSC, BSCM, BVSS, CFM, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
     MCNNM, MSQRT, NSC, PDA, PROPSC, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
@@ -115,6 +115,8 @@ OBSERVATIONAL = [
     pytest.param(SSC, {}, id="SSC"),
     pytest.param(BVSS, {"n_iter": 30, "burn_in": 10, "seed": 0}, id="BVSS"),
     pytest.param(BSCM, {"n_iter": 60, "burn_in": 30, "chains": 2, "seed": 0}, id="BSCM"),
+    pytest.param(BFSC, {"n_factors": 2, "n_warmup": 50, "n_samples": 50,
+                        "n_chains": 1, "seed": 0}, id="BFSC"),
     pytest.param(DSCAR, {}, id="DSCAR"),
     pytest.param(ISCM, {}, id="ISCM"),
     pytest.param(SHC, {}, id="SHC"),

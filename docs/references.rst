@@ -473,6 +473,11 @@ References
     Kim, Sungjin, Lee, Clarence, and Gupta, Sachin.
     *"Bayesian Synthetic Control Methods."*
     Journal of Marketing Research 57(5):831-852, 2020.
+
+.. [BFSC2021]
+    Pinkney, Sean.
+    *"An Improved and Extended Bayesian Synthetic Control."*
+    arXiv:2103.16244, 2021.
     DOI: https://doi.org/10.1177/0022243720936230
     Reference code: https://github.com/clarencejlee/bscm
 

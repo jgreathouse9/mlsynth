@@ -24,6 +24,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 ## Estimators
 
 - **BEAST** — Immunized doubly-robust synthetic control estimator.  (config: BEASTConfig)
+- **BFSC** — Bayesian Factor Synthetic Control (Pinkney 2021).  (config: BFSCConfig)
 - **BSCM** — Bayesian Synthetic Control Methods (Kim, Lee & Gupta 2020).  (config: BSCMConfig)
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
 - **CFM** — Causal Factor Model (Bai & Wang 2026) estimator.  (config: CFMConfig)
@@ -67,11 +68,11 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SHC** — Synthetic Historical Control (SHC) estimator.  (config: SHCConfig)
 - **SI** — Synthetic Interventions (SI) estimator.  (config: SIConfig)
 - **SIV** — Synthetic Instrumental Variables estimator.  (config: SIVConfig)
-- **SMC** — Synthetic Matching Control estimator.  (config: SMCConfig)
 - **SNN** — Synthetic Nearest Neighbors (causal matrix completion) estimator.  (config: SNNConfig)
 - **SPCD** — Synthetic Principal Component Design (SPCD) estimator.  (config: SPCDConfig)
 - **SPILLSYNTH** — Spillover-aware synthetic control estimator.  (config: SPILLSYNTHConfig)
 - **SPOTSYNTH** — Spillover-detecting synthetic control.  (config: SPOTSYNTHConfig)
+- **SRC** — Synthetic Regressing Control estimator.  (config: SRCConfig)
 - **SSC** — Staggered Synthetic Control estimator.  (config: SSCConfig)
 - **SYNDES** — Synthetic Design (Doudchenko et al. 2021) estimator.  (config: SYNDESConfig)
 - **SYNDESPower** — Per-horizon MDE table for a fitted SYNDES design.
