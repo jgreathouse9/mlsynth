@@ -9,10 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **44 cross-validation checks** against original
-implementations across **26 estimators** -- 18 reproduce the reference to display precision, 18 to
-within two percent. Per-estimator paper replications (Path A / Path B) are
-catalogued in :doc:`replications`.
+Coverage: **48 cross-validation checks** against original
+implementations across **27 estimators** -- 18 reproduce the reference to display precision, 19 to
+within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -30,6 +29,10 @@ Summary
      - Checks
      - Agreement
      - Worst max \|Δ\|
+   * - :ref:`BEAST <val-beast>`
+     - 1
+     - 1 tight
+     - 0.15
    * - :ref:`BFSC <val-bfsc>`
      - 1
      - 1 close
@@ -115,8 +118,8 @@ Summary
      - 1 exact
      - 0
    * - :ref:`SPILLSYNTH <val-spillsynth>`
-     - 3
-     - 1 exact · 1 tight · 1 close
+     - 4
+     - 1 exact · 1 tight · 1 close · 1 documented
      - 7.6
    * - :ref:`SSC <val-ssc>`
      - 1
@@ -131,9 +134,31 @@ Summary
      - 1 documented
      - 25
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 8
-     - 4 exact · 4 tight
-     - 0.02
+     - 10
+     - 4 exact · 4 tight · 2 close
+     - 0.11
+
+.. _val-beast:
+
+BEAST
+-----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - jeremylhour/alternative-synthetic-control-sparsity R (CalibrationLasso/OrthogonalityReg/ImmunizedATT)
+     - ``augmented_cali_long.csv`` (974ae6ad6ab7…)
+     - 13
+     - 0.15
+     - tight
+     - `beast_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/beast_prop99.py>`__
 
 .. _val-bfsc:
 
@@ -678,6 +703,12 @@ SPILLSYNTH
      - 5.7e-05
      - exact — matches to display precision
      - `spillsynth_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spillsynth_prop99.py>`__
+   * - Mendez tutorial Rcpp sc_spillover (cmg777)
+     - ``california_panel.csv`` (9d6a73e21f1a…)
+     - 4
+     - 3.4
+     - documented — see notes
+     - `spillsynth_prop99_sar <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spillsynth_prop99_sar.py>`__
    * - Sakaguchi-Tagawa RcppArmadillo sc_spillover (method=sar, live run on the nonproprietary panel, captured)
      - ``sudan_panel.csv`` (722471a42b6c…)
      - 5
@@ -802,6 +833,12 @@ VanillaSC
      - 0.00098
      - exact — matches to display precision
      - `pensynth_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pensynth_prop99.py>`__
+   * - scpi_pkg scdata(cointegrated_data=True)+scpi CI_all_gaussian
+     - ``scpi_germany.csv`` (10b150fbcc2c…)
+     - 13
+     - 0.11
+     - close
+     - `scpi_germany_pi <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scpi_germany_pi.py>`__
    * - `Python package scpi_pkg <https://pypi.org/project/scpi-pkg/>`__
      - —
      - 15
@@ -814,4 +851,28 @@ VanillaSC
      - 0.02
      - tight
      - `synth_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/synth_prop99.py>`__
+   * - Andersson (2019) AEJ:EP 11(4), Section III reported values
+     - ``carbontax_data.dta`` (815787c1e448…)
+     - 4
+     - 0.028
+     - close
+     - `vanillasc_carbontax <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_carbontax.py>`__
+
+Pending capture
+---------------
+
+These cross-validation cases are wired up but their reference had
+not been captured when this page was last generated; the daily
+action records them once its toolchain provisions.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 50
+
+   * - Case
+     - Reference
+   * - `dr_proximal_brazil <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`__
+     - —
+   * - `propsc_spain <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/propsc_spain.py>`__
+     - —
 

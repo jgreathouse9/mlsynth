@@ -32,7 +32,10 @@ ROOT = Path(__file__).resolve().parents[2]
 REF_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from benchmarks.reference.export_comparison import _read_comparison_csv  # noqa: E402
+from benchmarks.reference.export_comparison import (  # noqa: E402
+    _read_comparison_csv,
+    _missing_cases,
+)
 
 GH = "https://github.com/jgreathouse9/mlsynth/blob/main"
 
@@ -151,6 +154,20 @@ def _is_num(x) -> bool:
         return False
 
 
+def pending() -> list:
+    """Cross-validation cases that define ``comparison()`` but have no committed
+    ``comparison.csv`` yet -- captured by the daily action once their reference
+    toolchain provisions. Listed so coverage is never silently understated."""
+    out = []
+    for case in sorted(_missing_cases()):
+        man = REF_DIR / case / "manifest.json"
+        impl = ""
+        if man.exists():
+            impl = json.loads(man.read_text()).get("reference_impl", "")
+        out.append({"case": case, "reference_impl": impl})
+    return out
+
+
 _VERDICT_LABEL = {
     "exact": "exact — matches to display precision",
     "tight": "tight",
@@ -175,9 +192,10 @@ def _verdict_mix(recs: list) -> str:
                       sorted(counts, key=lambda v: _ORDER[v]))
 
 
-def to_rst(by_est: dict, only: str | None = None) -> str:
+def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> str:
     ests = [only] if only else sorted(by_est)
     ests = [e for e in ests if by_est.get(e)]
+    pend = pend or []
     n_checks = sum(len(by_est[e]) for e in ests)
     n_exact = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "exact")
     n_tight = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "tight")
@@ -197,8 +215,11 @@ def to_rst(by_est: dict, only: str | None = None) -> str:
         f"Coverage: **{n_checks} cross-validation checks** against original",
         f"implementations across **{len(ests)} estimators** -- "
         f"{n_exact} reproduce the reference to display precision, {n_tight} to",
-        "within two percent. Per-estimator paper replications (Path A / Path B) are",
-        "catalogued in :doc:`replications`.",
+        "within two percent."
+        + (f" A further {len(pend)} are captured on the next daily run"
+           " (see `Pending capture`_)." if (pend and not only) else "")
+        + " Per-estimator paper replications (Path A / Path B) are catalogued in"
+        " :doc:`replications`.",
         "",
         "Legend: **exact** (agreement to display precision), **tight** (worst",
         "relative deviation :math:`\\le 2\\%`), **close** (:math:`\\le 10\\%`), and",
@@ -250,13 +271,26 @@ def to_rst(by_est: dict, only: str | None = None) -> str:
                 f"     - `{r['case']} <{GH}/benchmarks/cases/{r['case']}.py>`__",
             ]
         L.append("")
+
+    # Honesty: cross-validation cases whose comparison.csv is not captured yet.
+    if pend and not only:
+        L += ["Pending capture", "---------------", "",
+              "These cross-validation cases are wired up but their reference had",
+              "not been captured when this page was last generated; the daily",
+              "action records them once its toolchain provisions.", "",
+              ".. list-table::", "   :header-rows: 1", "   :widths: 30 50", ""]
+        L += ["   * - Case", "     - Reference"]
+        for p in pend:
+            L += [f"   * - `{p['case']} <{GH}/benchmarks/cases/{p['case']}.py>`__",
+                  f"     - {p['reference_impl'] or '—'}"]
+        L.append("")
     return "\n".join(L) + "\n"
 
 
 def main() -> None:
     only = sys.argv[1] if len(sys.argv) > 1 else None
     by_est = collect()
-    rst = to_rst(by_est, only=only)
+    rst = to_rst(by_est, only=only, pend=pending())
     out = ROOT / "docs" / "validation.rst"
     out.write_text(rst)
     n = len(by_est.get(only, [])) if only else sum(len(v) for v in by_est.values())

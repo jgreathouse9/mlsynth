@@ -1,0 +1,12 @@
+# case: vanillasc_carbontax
+# generated_at: 2026-07-11T18:28:19Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "malo | mscmt", "covariate_windows": "1980-1989", "covariates": ["GDP_per_capita", "vehicles_capita", "gas_cons_capita", "urban_pop", "co2_1970", "co2_1980", "co2_1989"], "outcome": "CO2_transport_capita", "time": "year", "treat": "treat", "unitid": "country"}
+# reference_impl: Andersson (2019) AEJ:EP 11(4), Section III reported values
+# reference_version: paper
+quantity,mlsynth,reference,abs_diff
+ATT (malo),-0.2793,-0.29,0.0107
+ATT (mscmt),-0.2966,-0.29,0.0066
+gap 2005 (malo),-0.3492,-0.35,0.0008
+gap 2005 (mscmt),-0.3784,-0.35,0.0284
