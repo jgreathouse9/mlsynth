@@ -1,10 +1,10 @@
 # case: clustersc_rpca_germany
-# generated_at: 2026-07-11T23:11:57Z
+# generated_at: 2026-07-11T23:19:35Z
 # mlsynth_version: 1.0.0
 # estimator: CLUSTERSC
 # config: {"method": "rpca", "rpca_method": "PCP"}
-# reference_impl: Bayani RPCA-SC (dissertation FPCA.R + RPCA_2.py, reproduced in benchmarks.reference.rpca_sc_reference)
-# reference_version: Bayani 2021, Robust PCA Synthetic Control
+# reference_impl: Bayani RPCA-SC -- the author's own code, vendored verbatim (vendor/bayani_rpca_synth: FPCA.R + RPCA_2.py)
+# reference_version: Bayani, Robust PCA Synthetic Control (dissertation)
 quantity,mlsynth,reference,abs_diff
 weight[Norway],0.4854,0.4854,0.0
 weight[France],0.354,0.354,0.0

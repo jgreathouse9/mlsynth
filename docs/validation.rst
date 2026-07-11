@@ -205,7 +205,7 @@ CLUSTERSC
      - max \|Δ\|
      - Verdict
      - Case
-   * - Bayani RPCA-SC (dissertation FPCA.R + RPCA_2.py, reproduced in benchmarks.reference.rpca_sc_reference)
+   * - Bayani RPCA-SC -- the author's own code, vendored verbatim (vendor/bayani_rpca_synth: FPCA.R + RPCA_2.py)
      - —
      - 9
      - 0

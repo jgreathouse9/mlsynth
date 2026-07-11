@@ -2,9 +2,11 @@
 
 Cross-validates mlsynth's ``CLUSTERSC`` RPCA-SC family -- robust low-rank donor
 denoising via Principal Component Pursuit plus a non-negative fit (Bayani 2021,
-*Robust PCA Synthetic Control*) -- against a standalone, faithful reproduction of
-the author's own dissertation code (his ``FPCA.R`` cluster selection and
-``RPCA_2.py`` PCP + NNLS), driven by :mod:`benchmarks.reference.rpca_sc_reference`.
+*Robust PCA Synthetic Control*) -- against the author's *own* dissertation
+code, vendored verbatim under ``benchmarks/reference/vendor/bayani_rpca_synth/``
+(his ``FPCA.R`` cluster selection and ``RPCA_2.py`` PCP + NNLS; see the
+``NOTICE.md`` there) and driven by :mod:`benchmarks.reference.rpca_sc_reference`,
+which loads his verbatim ``RPCA`` routine and runs it on his own panel.
 
 The canonical German-reunification panel (``basedata/german_reunification.csv``:
 annual GDP per capita for 17 countries, 1960-2003; West Germany treated from
@@ -39,7 +41,7 @@ def _mlsynth_and_reference():
             "unitid": "country", "time": "year",
             "method": "rpca", "rpca_method": "PCP", "display_graphs": False,
         }).fit()
-    ref = rpca_sc_west_germany(df)
+    ref = rpca_sc_west_germany()               # runs the author's vendored RPCA
     return res, ref
 
 
@@ -83,9 +85,9 @@ def comparison() -> dict:
         "rows": rows,
         "mlsynth_call": {"estimator": "CLUSTERSC",
                          "config": {"method": "rpca", "rpca_method": "PCP"}},
-        "reference": {"impl": "Bayani RPCA-SC (dissertation FPCA.R + RPCA_2.py, "
-                              "reproduced in benchmarks.reference.rpca_sc_reference)",
-                      "version": "Bayani 2021, Robust PCA Synthetic Control"},
+        "reference": {"impl": "Bayani RPCA-SC -- the author's own code, vendored "
+                              "verbatim (vendor/bayani_rpca_synth: FPCA.R + RPCA_2.py)",
+                      "version": "Bayani, Robust PCA Synthetic Control (dissertation)"},
     }
 
 

@@ -1,93 +1,70 @@
-"""Standalone RPCA-SC reference (Bayani 2021), for cross-validating CLUSTERSC.
+"""RPCA-SC reference (Bayani), driving the author's own vendored code.
 
-A faithful, self-contained reproduction of Mani Bayani's dissertation code
-(*Robust PCA Synthetic Control*): the donor pool is denoised by Robust PCA via
-Principal Component Pursuit (Candes, Li, Ma & Wright 2011) into a low-rank ``L``
-plus a sparse ``S``, and the treated unit's pre-period path is regressed onto the
-low-rank donor components with non-negative weights; the counterfactual is the
-weighted combination of the denoised donor trajectories.
+Cross-validation reference for mlsynth's ``CLUSTERSC`` RPCA-SC family. Rather
+than reimplement the method, this module runs Mani Bayani's *own* Robust PCA
+routine -- loaded verbatim from the vendored dissertation source at
+``vendor/bayani_rpca_synth/RPCA_2.py`` (see the ``NOTICE.md`` there for
+attribution) -- and wraps it in the same non-negative fit and West-Germany
+cluster his code uses.
 
-This mirrors the author's ``RPCA_2.py`` (the PCP ADMM and the non-negative
-least-squares fit) run on the West-Germany donor cluster his ``FPCA.R`` selects
-(functional-PCA + k-means over the pre-1990 GDP curves). The cluster membership
-is recorded here so the reference needs neither R nor the functional-PCA step;
-mlsynth's CLUSTERSC reaches the same cluster through its own SVD-based clustering.
-
-Deterministic (PCP is a fixed-point ADMM; the NNLS is convex), so the reference
-is recomputed live rather than pinned to a captured constant.
+The Robust PCA decomposition (Principal Component Pursuit; Candès, Li, Ma &
+Wright 2011) is deterministic, and the NNLS is convex, so the reference is
+recomputed live rather than pinned to a captured constant.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from pathlib import Path
+from typing import Callable, Dict, List
 
 import cvxpy as cp
 import numpy as np
 import pandas as pd
 
-# West-Germany cluster from Bayani's FPCA.R (RPCA_2.py's own ``countries`` list),
-# West Germany plus the eleven donors the functional-PCA k-means groups with it.
+_VENDOR = Path(__file__).resolve().parent / "vendor" / "bayani_rpca_synth"
+_TREATMENT_YEAR = 1990
+
+# West-Germany cluster from the author's FPCA.R (recorded in his RPCA_2.py's own
+# ``countries`` list): West Germany plus the eleven donors his functional-PCA
+# k-means groups with it. mlsynth reaches the same cluster via its own SVD-based
+# clustering; hardcoding it here avoids re-running the R functional-PCA step.
 WEST_GERMANY_CLUSTER: List[str] = [
     "UK", "Austria", "Belgium", "Denmark", "France", "West Germany",
     "Italy", "Netherlands", "Norway", "Japan", "Australia", "New Zealand",
 ]
-_TREATMENT_YEAR = 1990
 
 
-def _shrink(matrix: np.ndarray, tau: float) -> np.ndarray:
-    return np.sign(matrix) * np.maximum(np.abs(matrix) - tau, 0.0)
+def _load_authors_rpca() -> Callable[[np.ndarray], tuple]:
+    """Return the author's verbatim ``RPCA`` function from the vendored source.
 
-
-def _singular_value_threshold(matrix: np.ndarray, tau: float) -> np.ndarray:
-    u, s, vt = np.linalg.svd(matrix, full_matrices=False)
-    return u @ np.diag(_shrink(s, tau)) @ vt
-
-
-def robust_pca(matrix: np.ndarray, max_iter: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
-    """PCP robust-PCA: split ``matrix`` into low-rank ``L`` and sparse ``S``.
-
-    Uses the author's self-tuned penalties (``mu`` from the mean absolute entry,
-    ``lambda = 1/sqrt(max(n1, n2))``) and stopping rule.
+    Executes only the function-definition block of ``RPCA_2.py`` (up to the
+    first top-level side effect), in a NumPy namespace, so the reference runs the
+    author's exact code without importing the script's plotting side effects.
     """
-    n1, n2 = matrix.shape
-    mu = n1 * n2 / (4.0 * np.sum(np.abs(matrix.reshape(-1))))
-    lambd = 1.0 / np.sqrt(max(n1, n2))
-    thresh = 1e-7 * np.linalg.norm(matrix)
-    low_rank = np.zeros_like(matrix)
-    sparse = np.zeros_like(matrix)
-    dual = np.zeros_like(matrix)
-    count = 0
-    while np.linalg.norm(matrix - low_rank - sparse) > thresh and count < max_iter:
-        low_rank = _singular_value_threshold(matrix - sparse + dual / mu, 1.0 / mu)
-        sparse = _shrink(matrix - low_rank + dual / mu, lambd / mu)
-        dual = dual + mu * (matrix - low_rank - sparse)
-        count += 1
-    return low_rank, sparse
+    source = (_VENDOR / "RPCA_2.py").read_text()
+    start = source.index("def shrink")
+    end = source.index("\nabadie = np.array")     # first top-level side effect
+    namespace: Dict[str, object] = {"np": np}
+    exec(compile(source[start:end], str(_VENDOR / "RPCA_2.py"), "exec"), namespace)
+    return namespace["RPCA"]                       # type: ignore[return-value]
 
 
-def rpca_sc_west_germany(df: pd.DataFrame) -> Dict[str, object]:
-    """Run Bayani's RPCA-SC for West Germany on a long GDP panel.
+def rpca_sc_west_germany() -> Dict[str, object]:
+    """Run Bayani's RPCA-SC for West Germany on the author's vendored panel.
 
-    Parameters
-    ----------
-    df : DataFrame
-        Long panel with columns ``country``, ``year``, ``gdp`` covering the
-        West-Germany cluster (the reference restricts to it).
-
-    Returns
-    -------
-    dict with ``weights`` (donor -> weight), ``counterfactual`` (per-year path),
-    ``years``, ``pre_rmse`` and ``att`` (mean post-treatment gap).
+    Returns a dict with ``weights`` (donor -> weight), the per-year
+    ``counterfactual``, ``years``, ``pre_rmse`` and ``att`` (mean post-treatment
+    gap), using the author's own ``RPCA`` routine.
     """
-    years = np.sort(df["year"].unique())
-    wide = (df[df["country"].isin(WEST_GERMANY_CLUSTER)]
-            .pivot(index="country", columns="year", values="gdp")
-            .loc[WEST_GERMANY_CLUSTER])                       # fixed cluster order
-    outcomes = wide.to_numpy(float)                           # 12 x T, WG at row 5
+    robust_pca = _load_authors_rpca()
+
+    wide = pd.read_csv(_VENDOR / "Data_Germany.csv", index_col=0)
+    years = np.array([int(c) for c in wide.columns])
+    outcomes = wide.loc[WEST_GERMANY_CLUSTER].to_numpy(float)   # 12 x T, WG row 5
     treated_row = WEST_GERMANY_CLUSTER.index("West Germany")
     n_pre = int(np.sum(years < _TREATMENT_YEAR))
 
-    donor_matrix = np.delete(outcomes, treated_row, axis=0)   # 11 donors x T
-    low_rank, _ = robust_pca(donor_matrix)
+    donor_matrix = np.delete(outcomes, treated_row, axis=0)     # 11 donors x T
+    low_rank, _sparse = robust_pca(donor_matrix)                # author's PCP
     low_rank_pre = low_rank[:, :n_pre]
     treated_pre = outcomes[treated_row, :n_pre]
 
@@ -95,7 +72,7 @@ def rpca_sc_west_germany(df: pd.DataFrame) -> Dict[str, object]:
     cp.Problem(cp.Minimize(cp.sum_squares(treated_pre - weights @ low_rank_pre)),
                [weights >= 0]).solve()
     w = np.asarray(weights.value, dtype=float).flatten()
-    counterfactual = low_rank.T @ w                           # denoised donors @ weights
+    counterfactual = low_rank.T @ w
 
     donors = [c for c in WEST_GERMANY_CLUSTER if c != "West Germany"]
     treated = outcomes[treated_row]
