@@ -56,6 +56,33 @@ def run() -> dict:
     return out
 
 
+def comparison() -> dict:
+    """mlsynth SPSC vs the authors' ``qkrcks0218/SPSC`` R on the Panic of 1907
+    (paper Sec. 5): the averaged-treated ATT *and its sandwich-GMM standard
+    error* for both the detrended (DT) and un-detrended (NoDT) variants."""
+    from benchmarks.reference.clone_spsc import run_reference
+    from mlsynth.utils.proximal_helpers.spsc.estimation import estimate_spsc
+
+    y, W, donors = _panel()
+    rows = []
+    for detrend, tag in ((False, "NoDT"), (True, "DT")):
+        ref = run_reference(y, W, _T0, detrend=detrend, att_degree=0,
+                            ridge_lambda=_LAMBDA)                # skips if no R
+        mls = estimate_spsc(y, W, _T0, detrend=detrend, ridge_lambda=_LAMBDA)
+        rows.append({"quantity": f"ATT ({tag})", "mlsynth": round(float(mls[2]), 4),
+                     "reference": round(float(ref["effect_path"][0]), 4)})
+        rows.append({"quantity": f"SE ({tag})", "mlsynth": round(float(mls[3]), 4),
+                     "reference": round(float(ref["path_se"][0]), 4)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SPSC",
+                         "config": {"averaged_treated": True, "att_degree": 0,
+                                    "ridge_lambda": _LAMBDA}},
+        "reference": {"impl": "qkrcks0218/SPSC R (single-proxy synthetic control)",
+                      "version": "@054f1fbb"},
+    }
+
+
 # Averaged-treated (Knickerbocker + Trust Co. of America) vs the normal-trust
 # donor pool, ridge lambda = 10**-2. Validated value-for-value against
 # qkrcks0218/SPSC @ 054f1fbb: SPSC-NoDT ATT -0.8129, SPSC-DT ATT -0.8035 --

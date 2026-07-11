@@ -50,7 +50,19 @@ EXPECTED = {
 A case may also define `comparison() -> list[dict]` returning rows
 `{quantity, mlsynth, reference}` that pair the library's own number against the
 captured reference value, quantity by quantity (donor weights, the fit loss, the
-ATT, ...). Export them to committed, inspectable tables:
+ATT, ...).
+
+Compare uncertainty, not just point estimates. When both the estimator and the
+reference report the *same* inferential quantity — standard errors, confidence
+or prediction interval bounds, a p-value — pair those too, so the dashboard
+proves the uncertainty is reproduced, not only the point estimate (e.g.
+`spsc_prop99` pairs the sandwich-GMM SEs and the conformal prediction-interval
+bounds; `spsc_panic` the ATT and its SE). Only compare a statistic both sides
+compute the *same way*: where the two implementations use different variance
+estimators (e.g. a resampling placebo vs an analytic placebo), a raw SE diff
+would mislabel a method difference as an error — record it as context or skip it.
+
+Export them to committed, inspectable tables:
 
 ```bash
 python benchmarks/reference/export_comparison.py synth_prop99   # one case

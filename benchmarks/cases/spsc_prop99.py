@@ -75,23 +75,44 @@ def run() -> dict:
 
 
 def comparison() -> dict:
-    """mlsynth SPSC vs the authors' ``qkrcks0218/SPSC`` R: the California
-    (Proposition 99) linear effect path, side by side."""
+    """mlsynth SPSC vs the authors' ``qkrcks0218/SPSC`` R on California (Prop 99).
+
+    Pairs the whole inferential output, not just the point estimate: the linear
+    effect path, the per-period sandwich-GMM standard errors, and the conformal
+    (Chernozhukov et al. 2021) prediction-interval bounds -- the uncertainty
+    statistics SPSC reports (paper Sec. 5).
+    """
     from benchmarks.reference.clone_spsc import run_reference
     from mlsynth.utils.proximal_helpers.spsc.estimation import estimate_spsc
+    from mlsynth.utils.proximal_helpers.spsc.conformal import conformal_intervals
 
     y, W, donors = _panel()
+    T1 = len(y) - _T0
     ref = run_reference(y, W, _T0, detrend=True, att_degree=1,
-                        detrend_linear=True, ridge_lambda=_LAMBDA)     # skips if no R
+                        detrend_linear=True, ridge_lambda=_LAMBDA,
+                        conformal_periods=list(range(1, T1 + 1)),
+                        conformal_alpha=_CONFORMAL_ALPHA)               # skips if no R
     out = estimate_spsc(y, W, _T0, detrend=True, ridge_lambda=_LAMBDA,
                         att_degree=1, detrend_basis="poly", detrend_degree=1)
-    path, r_path = out[6], ref["effect_path"]
+    path, path_se = out[6], out[7]
+    band = conformal_intervals(
+        y, W, _T0, gamma=out[1], ridge_lambda=_LAMBDA, detrend=True,
+        spline_df=5, att_se=out[3], period_se=path_se, alpha=_CONFORMAL_ALPHA,
+        att_degree=1, detrend_basis="poly", detrend_degree=1)
+    r_path, r_se = ref["effect_path"], ref["path_se"]
+    r_lb, r_ub = ref["conformal_lb"], ref["conformal_ub"]
     yrs = list(range(1989, 1989 + len(path)))
-    rows = [{"quantity": "ATT (mean path)", "mlsynth": round(float(out[2]), 4),
-             "reference": round(float(np.mean(r_path)), 4)}]
-    for yr, m, r in zip(yrs, path, r_path):
-        rows.append({"quantity": f"effect[{yr}]", "mlsynth": round(float(m), 4),
-                     "reference": round(float(r), 4)})
+
+    def q(name, m, r):
+        return {"quantity": name, "mlsynth": round(float(m), 4),
+                "reference": round(float(r), 4)}
+
+    rows = [q("ATT (mean path)", out[2], np.mean(r_path))]
+    rows += [q(f"effect[{yr}]", m, r) for yr, m, r in zip(yrs, path, r_path)]
+    rows += [q(f"SE[{yr}]", m, r) for yr, m, r in zip(yrs, path_se, r_se)]
+    for lbl in (0, -1):                                    # conformal PI endpoints
+        rows += [q(f"conformal_lower[{yrs[lbl]}]", band["lower"][lbl], r_lb[lbl]),
+                 q(f"conformal_upper[{yrs[lbl]}]", band["upper"][lbl], r_ub[lbl])]
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "SPSC",
