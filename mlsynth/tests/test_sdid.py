@@ -194,6 +194,30 @@ class TestWeightSolvers:
         assert np.isfinite(zeta)
         assert zeta > 0
 
+    def test_regularization_scales_with_treated_count(self):
+        """zeta_omega = (N_tr * T_post)^(1/4) * sigma (Arkhangelsky et al. 2021).
+
+        synthdid's ``eta.omega = ((N - N0)*(T - T0))^(1/4)`` folds the treated
+        count into the unit-weight ridge. A single treated unit (the default)
+        must leave zeta unchanged; more treated units must scale it by
+        ``N_tr^(1/4)``.
+        """
+        rng = np.random.default_rng(3)
+        Y_donors_pre = rng.standard_normal((20, 6)) * 4
+        sigma = np.std(np.diff(Y_donors_pre, axis=0).flatten(), ddof=1)
+        # Default (single treated) reproduces the (T_post)^(1/4) form.
+        z1 = compute_regularization(Y_donors_pre, num_post_treatment_periods=8)
+        assert z1 == pytest.approx((8 ** 0.25) * sigma, rel=1e-9)
+        # Three treated units scale zeta by 3^(1/4).
+        z3 = compute_regularization(Y_donors_pre, num_post_treatment_periods=8,
+                                    num_treated_units=3)
+        assert z3 == pytest.approx(((3 * 8) ** 0.25) * sigma, rel=1e-9)
+        assert z3 == pytest.approx(z1 * (3 ** 0.25), rel=1e-9)
+        # A non-positive treated count is rejected.
+        with pytest.raises(MlsynthConfigError):
+            compute_regularization(Y_donors_pre, num_post_treatment_periods=8,
+                                   num_treated_units=0)
+
 
 class TestCohortEstimator:
     """The single-cohort estimator returns the documented schema."""
@@ -338,9 +362,8 @@ class TestJackknifeAndBootstrapVariance:
         prepped = _block_prepped(block_multitreated_panel)
         out = estimate_jackknife_variance(prepped)
         se = float(np.sqrt(out["att_variance"]))
-        # The tiny residual is the unit-weight ridge optimiser, not a method
-        # difference: the jackknife SE is location-invariant, so it agrees even
-        # though the multi-treated-block point estimates differ slightly.
+        # Matches synthdid to ~1e-3; the residual is the Frank-Wolfe vs
+        # active-set QP solver, not a method difference.
         assert se == pytest.approx(self._SYNTHDID_JACKKNIFE_SE, abs=0.05)
 
     def test_jackknife_is_deterministic(self, block_multitreated_panel):
@@ -519,6 +542,19 @@ class TestProp99Replication:
         # the regularization parameter; only inference fields move with
         # the placebo seed.
         assert res.inference_detail.att == pytest.approx(-15.6054, abs=5e-3)
+
+    def test_multitreated_block_att_matches_synthdid(self, block_multitreated_panel):
+        """A multi-treated block ATT must match synthdid's point estimate.
+
+        With three treated units the unit-weight ridge picks up the
+        ``N_tr^(1/4)`` factor (Arkhangelsky et al. 2021); omitting it
+        under-regularized omega and pulled the ATT off the authors' R. synthdid
+        on the identical CA+NV+UT block matrix gives -8.804942; the residual is
+        the Frank-Wolfe vs active-set QP solver, the same ~1e-3 seen on Prop 99.
+        """
+        res = SDID(_base_config(block_multitreated_panel, treat="treat",
+                                B=20, seed=1400)).fit()
+        assert res.inference_detail.att == pytest.approx(-8.804942, abs=0.02)
 
     def test_inference_is_well_formed(self, smoking_panel):
         res = SDID(_base_config(smoking_panel, B=50, seed=1400)).fit()

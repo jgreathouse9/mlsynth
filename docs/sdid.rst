@@ -127,8 +127,15 @@ controls and lie on the simplex
 \|\mathbf{w}\|_1 = 1\}`; the time weights :math:`\boldsymbol{\lambda} =
 (\lambda_1, \dots)^\top` are supported on the pre-period (Arkhangelsky et
 al.'s :math:`\lambda`, kept distinct from the regularization symbols below).
-:math:`\zeta` is the unit-weight regularization parameter. The optimisers
-are written :math:`\mathbf{w}^\ast` and :math:`\boldsymbol{\lambda}^\ast`.
+:math:`\zeta` is the unit-weight regularization parameter,
+:math:`\zeta = (N_{tr} T_{post})^{1/4}\,\widehat\sigma` with
+:math:`\widehat\sigma` the standard deviation of the first-differenced control
+outcomes (Arkhangelsky et al. 2021; the ``synthdid`` ``zeta.omega``). The
+treated count :math:`N_{tr}` enters per cohort, so a block with several treated
+units is regularized more strongly than a single-treated design on the same
+panel; for one treated unit it reduces to :math:`(T_{post})^{1/4}\widehat\sigma`.
+The optimisers are written :math:`\mathbf{w}^\ast` and
+:math:`\boldsymbol{\lambda}^\ast`.
 The estimand is the average treatment effect on the treated, :math:`\tau`
 (denoted :math:`\widehat{ATT}` in aggregate).
 

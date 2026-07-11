@@ -237,8 +237,16 @@ def estimate_cohort_sdid_effects(
         # Not enough pre-periods to estimate weights, regularization parameter is not applicable.
         regularization_parameter_zeta = np.nan
     else:
-        # Compute regularization parameter zeta based on donor outcomes and post-treatment period length.
-        regularization_parameter_zeta = compute_regularization(donor_outcomes_pre_treatment_cohort, num_post_treatment_periods_cohort)
+        # Compute regularization parameter zeta from the donor outcomes, the
+        # post-treatment horizon, and the cohort's treated-unit count (N_tr):
+        # synthdid's zeta.omega = (N_tr * T_post)^(1/4) * sigma. A single treated
+        # unit leaves zeta unchanged; multiple treated units regularize omega
+        # more strongly.
+        regularization_parameter_zeta = compute_regularization(
+            donor_outcomes_pre_treatment_cohort,
+            num_post_treatment_periods_cohort,
+            num_treated_units=cohort_treated_outcomes_matrix.shape[1],
+        )
         # Estimate unit weights (omega) and intercept.
         optimal_unit_weight_intercept, optimal_unit_weights_vector = unit_weights(
             donor_outcomes_pre_treatment_cohort, mean_treated_outcome_pre_treatment_cohort, regularization_parameter_zeta

@@ -172,7 +172,9 @@ def fit_time_weights(
 
 
 def compute_regularization(
-    donor_outcomes_pre_treatment: np.ndarray, num_post_treatment_periods: int
+    donor_outcomes_pre_treatment: np.ndarray,
+    num_post_treatment_periods: int,
+    num_treated_units: int = 1,
 ) -> float:
     """
     Compute regularization parameter zeta for unit weights.
@@ -182,7 +184,14 @@ def compute_regularization(
     donor_outcomes_pre_treatment : np.ndarray
         Donor outcomes in pre-treatment period, shape (T0, N_donors).
     num_post_treatment_periods : int
-        Number of post-treatment periods (used as a proxy for N_tr_post in original papers).
+        Number of post-treatment periods (``T_post``).
+    num_treated_units : int, optional
+        Number of treated units in the cohort (``N_tr``), by default ``1``.
+        Arkhangelsky et al. (2021) fold the treated count into the unit-weight
+        ridge; the ``synthdid`` R package uses
+        ``eta.omega = ((N - N0) * (T - T0))^(1/4) = (N_tr * T_post)^(1/4)``.
+        A single treated unit (the default) leaves ``zeta`` at the
+        ``(T_post)^(1/4)`` form, so single-treated designs are unchanged.
 
     Returns
     -------
@@ -195,11 +204,10 @@ def compute_regularization(
     Notes
     -----
     The regularization parameter `zeta` is calculated as:
-    `zeta = (num_post_treatment_periods ** 0.25) * std_dev_of_first_differenced_donor_outcomes`
+    `zeta = ((num_treated_units * num_post_treatment_periods) ** 0.25) * std_dev_of_first_differenced_donor_outcomes`
     where `std_dev_of_first_differenced_donor_outcomes` is the standard deviation of the first-differenced
-    outcomes of donor units in the pre-treatment period. This aims to adapt
-    the regularization strength based on the variability of donor outcomes and
-    the length of the post-treatment period.
+    outcomes of donor units in the pre-treatment period. This matches the
+    ``synthdid`` unit-weight tuning parameter ``zeta.omega``.
 
     Examples
     --------
@@ -227,6 +235,8 @@ def compute_regularization(
         raise MlsynthDataError("donor_outcomes_pre_treatment must be a 2D array (T0, N_donors).")
     if not isinstance(num_post_treatment_periods, int) or num_post_treatment_periods < 0:
         raise MlsynthConfigError("num_post_treatment_periods must be a non-negative integer.")
+    if not isinstance(num_treated_units, int) or num_treated_units < 1:
+        raise MlsynthConfigError("num_treated_units must be a positive integer.")
 
     # Calculate the standard deviation of the first-differenced donor outcomes in the pre-treatment period.
     # This term captures the volatility of donor outcomes.
@@ -247,10 +257,14 @@ def compute_regularization(
              if np.isnan(std_dev_of_first_differenced_donor_outcomes): # If all diffs were NaN, leading to NaN std.
                  std_dev_of_first_differenced_donor_outcomes = 1.0 # Fallback if std dev is NaN.
 
-    # Calculate zeta: (num_post_treatment_periods ^ 0.25) * std_dev_of_first_differenced_donor_outcomes.
-    # The term (num_post_treatment_periods ^ 0.25) scales regularization by the length of the post-treatment period.
-    # A longer post-treatment period might suggest a need for stronger regularization.
-    regularization_parameter_zeta: float = (num_post_treatment_periods**0.25) * std_dev_of_first_differenced_donor_outcomes
+    # Calculate zeta: ((N_tr * T_post) ^ 0.25) * std_dev_of_first_differenced_donor_outcomes.
+    # The (N_tr * T_post) ^ 0.25 term is synthdid's eta.omega: it scales the
+    # ridge by both the post-treatment horizon and the number of treated units,
+    # so a block with several treated units is regularized more strongly than a
+    # single-treated design on the same panel.
+    regularization_parameter_zeta: float = (
+        (num_treated_units * num_post_treatment_periods) ** 0.25
+    ) * std_dev_of_first_differenced_donor_outcomes
     return regularization_parameter_zeta
 
 
