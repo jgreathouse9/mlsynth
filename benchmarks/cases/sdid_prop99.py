@@ -1,38 +1,29 @@
-"""Cross-validation benchmark: SDID vs ``causaltensor`` on Proposition 99.
+"""Cross-validation benchmark: SDID vs the authors' ``synthdid`` R (Prop 99).
 
-Path A (empirical, scenario 3 -- runnable Python reference). Reproduces the
-canonical Synthetic DiD estimate of California's Proposition 99 tobacco-control
-effect on the Abadie-Diamond-Hainmueller smoking panel, and cross-validates the
-mlsynth implementation cell-for-cell against the ``causaltensor`` reference
-implementation.
+Cross-validates mlsynth's ``SDID`` against the reference implementation of the
+method's own authors -- the ``synth-inference/synthdid`` R package (Arkhangelsky,
+Athey, Hirshberg, Imbens & Wager 2021) -- on the Abadie-Diamond-Hainmueller
+Proposition 99 smoking panel (``basedata/smoking_data.csv``: 39 states x 31
+years, 1970-2000, California treated from 1989).
 
-Provenance
-----------
-* Data: ``mlsynth/basedata/smoking_data.csv`` -- the canonical Abadie et al.
-  (2010) sample: **39 states x 31 years (1970-2000)**, California treated from
-  1989. The ``Proposition 99`` column flags the treated unit/period cells.
-* Headline: Arkhangelsky, Athey, Hirshberg, Imbens & Wager (2021), "Synthetic
-  Difference-in-Differences," *AER* 111(12), report an SDID ATT of about
-  **-15.6** packs per capita (matched by the R ``synthdid`` package, -15.604).
-* Reference: ``causaltensor.SDID`` (PyPI ``causaltensor`` >= 0.1.12), the
-  ``SDIDPanelSolver`` implementation. Installed via ``pip install causaltensor``.
-
-The two implementations agree on the ATT to ~3e-3 packs; the residual is the
-unit-weight ridge (zeta) optimiser, not a methodological difference.
+The reference is a captured live run of ``synthdid_estimate`` on the identical
+outcome matrix, pinned under ``benchmarks/reference/sdid_prop99/`` with
+its provenance (R 4.3.3, ``synthdid`` commit 70c1ce3, data checksum). mlsynth
+reproduces the authors' Synthetic DiD point estimate to ~2e-3 packs -- the
+residual is the unit-weight ridge (zeta) optimiser, not a methodological
+difference.
 """
 from __future__ import annotations
 
 import warnings
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference import load_reference
 
 _BASE = Path(__file__).resolve().parents[2] / "basedata"
-TREAT_UNIT = "California"
-TREAT_YEAR = 1989
+_REF = load_reference("sdid_prop99")["values"]
 
 
 def _load_panel() -> pd.DataFrame:
@@ -41,81 +32,55 @@ def _load_panel() -> pd.DataFrame:
     return df[["state", "year", "cigsale", "treat"]]
 
 
-def run() -> dict:
-    try:
-        import causaltensor as ct  # noqa: F401
-    except ImportError as exc:  # pragma: no cover - optional reference dep
-        raise BenchmarkSkipped("causaltensor not installed "
-                               "(`pip install causaltensor`)") from exc
-
+def _mlsynth_att() -> float:
     from mlsynth import SDID
 
-    df = _load_panel()
-
-    # --- mlsynth ---
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = SDID({"df": df, "outcome": "cigsale", "treat": "treat",
+        res = SDID({"df": _load_panel(), "outcome": "cigsale", "treat": "treat",
                     "unitid": "state", "time": "year",
                     "display_graphs": False}).fit()
-    ml_att = float(res.att)
+    return float(res.att)
 
-    # --- causaltensor reference: O (N x T) outcome matrix + Z treatment mask ---
-    wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
-    states, years = wide.index.tolist(), wide.columns.tolist()
-    O = wide.values.astype(float)
-    ti, sc = states.index(TREAT_UNIT), years.index(TREAT_YEAR)
-    Z = np.zeros_like(O)
-    Z[ti, sc:] = 1
-    ct_att = float(ct.SDID(O, Z, treat_units=[ti], starting_time=sc))
 
+def run() -> dict:
+    ml_att = _mlsynth_att()
     return {
         "sdid_att": ml_att,
-        "sdid_vs_causaltensor_abs_diff": abs(ml_att - ct_att),
+        "sdid_att_vs_synthdid_R": abs(ml_att - _REF["sdid_att"]),
     }
 
 
 def comparison() -> dict:
-    """mlsynth SDID vs ``causaltensor.SDID``, the Prop 99 ATT side by side."""
-    try:
-        import causaltensor as ct
-    except ImportError as exc:  # pragma: no cover - optional reference dep
-        raise BenchmarkSkipped("causaltensor not installed "
-                               "(`pip install causaltensor`)") from exc
+    """mlsynth SDID vs the authors' ``synthdid`` R, the Prop 99 ATT side by side.
 
-    from mlsynth import SDID
-
-    df = _load_panel()
-    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state", "time": "year"}
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        res = SDID({**cfg, "df": df, "display_graphs": False}).fit()
-    ml_att = float(res.att)
-
-    # causaltensor reference: O (N x T) outcome matrix + Z treatment mask.
-    wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
-    states, years = wide.index.tolist(), wide.columns.tolist()
-    O = wide.values.astype(float)
-    ti, sc = states.index(TREAT_UNIT), years.index(TREAT_YEAR)
-    Z = np.zeros_like(O)
-    Z[ti, sc:] = 1
-    ct_att = float(ct.SDID(O, Z, treat_units=[ti], starting_time=sc))
-
-    rows = [{"quantity": "SDID ATT", "mlsynth": round(ml_att, 6),
-             "reference": round(ct_att, 6)}]
-    version = getattr(ct, "__version__", None) or "causaltensor (pip)"
+    Also lists the DiD and pure-SC estimates the same R package produces on the
+    identical matrix, for context (mlsynth's SDID targets the SDID column).
+    """
+    ml_att = _mlsynth_att()
+    rows = [
+        {"quantity": "SDID ATT", "mlsynth": round(ml_att, 6),
+         "reference": round(float(_REF["sdid_att"]), 6)},
+        {"quantity": "DID ATT (context)", "mlsynth": None,
+         "reference": round(float(_REF["did_att"]), 6)},
+        {"quantity": "SC ATT (context)", "mlsynth": None,
+         "reference": round(float(_REF["sc_att"]), 6)},
+    ]
     return {
         "rows": rows,
-        "mlsynth_call": {"estimator": "SDID", "config": cfg},
-        "reference": {"impl": "Python package causaltensor", "version": version},
+        "mlsynth_call": {"estimator": "SDID",
+                         "config": {"outcome": "cigsale", "treat": "treat",
+                                    "unitid": "state", "time": "year"}},
+        "reference": {"impl": "synth-inference/synthdid R (synthdid_estimate)",
+                      "version": "0.0.9 (commit 70c1ce3), R 4.3.3"},
     }
 
 
-# mlsynth's ATT must land on the published SDID value, and match the reference
-# implementation tightly. Tolerances: 0.05 brackets display rounding of the
-# AER/synthdid -15.6 headline; 5e-3 is the optimiser-level agreement with
-# causaltensor (different ridge solver, same estimand).
+# mlsynth's SDID must land on the published -15.6 headline and match the authors'
+# synthdid R tightly. 0.05 brackets display rounding of the AER headline; 0.02 is
+# the unit-weight ridge (zeta) optimiser agreement (same estimand, different
+# solver) -- observed 1.6e-3.
 EXPECTED = {
     "sdid_att": (-15.604, 0.05),
-    "sdid_vs_causaltensor_abs_diff": (0.0, 5e-3),
+    "sdid_att_vs_synthdid_R": (0.0, 0.02),
 }

@@ -435,8 +435,8 @@ Staggered adoption
   paper's :math:`-15.6` (and the ``synthdid`` R-package's
   :math:`-15.604`) to three significant figures; placebo SE
   :math:`7.58` against the paper's :math:`8.4`.
-  Cross-validation: matched to ``causaltensor.SDID`` on the same
-  matrix to :math:`|\Delta| = 3.1\times 10^{-3}`.
+  Cross-validation: matched to the authors' own ``synthdid`` R
+  (live run) on the same matrix to :math:`|\Delta| = 1.6\times 10^{-3}`.
   → dedicated page: :doc:`replications/sdid`.
 * :doc:`spsydid` -- Spatial Synthetic-DiD. Path B
   (cross-validation): the authors' State-Level Monte Carlo
@@ -529,9 +529,9 @@ Missing data
   (2021) matrix-completion SC. Path A: Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} \approx -20` packs per capita,
   consistent with classical SC, FSCM and SNN estimates on the
-  same panel. Cross-validation: matched to
-  ``causaltensor``'s MC-NNM ATT (-19.83 vs -20.27, :math:`\approx`
-  2%; estimand-level, given the differing FE sub-solvers).
+  same panel. Cross-validation: matched to the authors' own
+  ``MCPanel`` R (``mcnnm_cv``) ATT (-19.83 vs -19.98, :math:`0.15`
+  packs; estimand-level, given each side's own CV penalty).
   → dedicated page: :doc:`replications/mcnnm`.
 * :doc:`snn` -- Synthetic Nearest Neighbours.
   Cross-validation: Proposition 99 --

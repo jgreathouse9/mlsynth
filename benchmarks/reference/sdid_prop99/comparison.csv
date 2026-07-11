@@ -1,9 +1,0 @@
-# case: sdid_prop99
-# generated_at: 2026-06-24T20:08:21Z
-# mlsynth_version: 1.0.0
-# estimator: SDID
-# config: {"outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}
-# reference_impl: Python package causaltensor
-# reference_version: causaltensor (pip)
-quantity,mlsynth,reference,abs_diff
-SDID ATT,-15.605399,-15.602327,0.003072

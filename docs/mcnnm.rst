@@ -227,9 +227,10 @@ Verification
    square panels and on staggered adoption, where the unconfoundedness / SC /
    DiD special cases (paper Theorem 1) individually break down.
 
-   Cross-validation. The Prop-99 ATT is matched to ``causaltensor``'s MC-NNM
-   to ~2% and pinned in ``benchmarks/cases/mcnnm_prop99.py``; see the dedicated
-   page :doc:`replications/mcnnm`.
+   Cross-validation. The Prop-99 ATT is matched to the authors' own ``MCPanel``
+   R package (``mcnnm_cv``) to :math:`0.15` packs and pinned in
+   ``benchmarks/cases/mcnnm_prop99.py``; see the dedicated page
+   :doc:`replications/mcnnm`.
 
 Core API
 --------

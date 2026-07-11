@@ -8,9 +8,9 @@ SDID — Synthetic Difference-in-Differences (Arkhangelsky et al. 2021)
    Wager, S. (2021), *"Synthetic Difference-in-Differences,"* American
    Economic Review 111(12):4088-4118.
 :Replication type: **Path A** — the paper's Proposition 99 empirical, with a
-   **cross-validation** against the ``causaltensor`` reference implementation.
-:Status: **Fully verified** — empirical headline reproduced and matched
-   cell-for-cell to an independent implementation.
+   **cross-validation** against the authors' own ``synthdid`` R package.
+:Status: **Fully verified** — empirical headline reproduced and matched to the
+   authors' reference implementation.
 
 Validation strategy
 -------------------
@@ -20,9 +20,8 @@ tobacco-control program, estimated on the canonical Abadie-Diamond-Hainmueller
 smoking panel (39 states, 1970-2000; California treated from 1989). The paper
 reports an SDID ATT of about **-15.6** packs per capita, matched by the
 authors' R ``synthdid`` package (-15.604). mlsynth reproduces that number to
-three significant figures, *and* we cross-validate the implementation against
-``causaltensor.SDID`` — a fully independent Python port of the
-:math:`\widehat\tau^{\text{sdid}}` estimator — on the same matrix.
+three significant figures, and we cross-validate the implementation against a
+live run of ``synthdid`` on the same matrix.
 
 Path A — Proposition 99
 -----------------------
@@ -46,52 +45,47 @@ The panel ships as ``basedata/smoking_data.csv`` with a ready-made
 mlsynth returns :math:`\widehat{\mathrm{ATT}} = -15.605`, matching the
 AER headline (-15.6) and the ``synthdid`` value (-15.604).
 
-Cross-validation against ``causaltensor``
------------------------------------------
+Cross-validation against the authors' ``synthdid`` R
+----------------------------------------------------
 
-The same outcome matrix :math:`O` (39 × 31) and treatment mask :math:`Z`
-are handed to ``causaltensor.SDID``:
-
-.. code-block:: python
-
-   import numpy as np, causaltensor as ct
-
-   wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
-   states, years = wide.index.tolist(), wide.columns.tolist()
-   O = wide.values.astype(float)
-   ti, sc = states.index("California"), years.index(1989)
-   Z = np.zeros_like(O); Z[ti, sc:] = 1
-   ct.SDID(O, Z, treat_units=[ti], starting_time=sc)   # -15.602
-
-The two implementations agree to :math:`|\Delta| = 3.1 \times 10^{-3}` packs.
-The residual is the unit-weight ridge (:math:`\zeta`) optimiser, not a
-methodological difference — the SDID weight QPs and the final regression are
-identical.
+We cross-validate against the method's own authors' code -- the
+``synth-inference/synthdid`` R package -- run live on the identical outcome
+matrix. On Proposition 99 ``synthdid_estimate`` returns :math:`-15.6038`, and
+mlsynth reproduces it to :math:`1.6 \times 10^{-3}` packs. The residual is the
+unit-weight ridge (:math:`\zeta`) optimiser, not a methodological difference --
+the SDID weight QPs and the final regression are identical. The same package's
+DiD (:math:`-27.349`) and pure-SC (:math:`-19.620`) estimates on the same matrix
+are recorded for context (mlsynth's SDID targets the SDID column).
 
 .. list-table::
    :header-rows: 1
-   :widths: 34 22 22 22
+   :widths: 40 28 28
 
    * - Quantity
      - mlsynth
-     - causaltensor
-     - AER / synthdid
-   * - Overall ATT
+     - synthdid R / AER
+   * - SDID ATT
      - -15.605
-     - -15.602
-     - -15.6 / -15.604
+     - -15.604 / -15.6
+   * - DiD ATT (context)
+     - —
+     - -27.349
+   * - SC ATT (context)
+     - —
+     - -19.620
 
 Durable check
 -------------
 
-The benchmark lives in ``benchmarks/cases/sdid_prop99.py`` and runs in the
-default suite (skipping gracefully if ``causaltensor`` is absent)::
+The reference is pinned under ``benchmarks/reference/sdid_prop99/`` (R 4.3.3,
+``synthdid`` commit 70c1ce3, data checksum), captured by its ``reference.R``.
+The benchmark reads the frozen values (no R needed at test time)::
 
-   pip install causaltensor
    python benchmarks/run_benchmarks.py --case sdid_prop99
 
-It asserts the ATT lands on the published -15.604 (tol 0.05) and matches
-``causaltensor`` to within :math:`5 \times 10^{-3}`.
+It asserts the ATT lands on the published -15.604 (tol 0.05) and matches the
+authors' ``synthdid`` to within :math:`0.02` (observed :math:`1.6 \times
+10^{-3}`).
 
 References
 ----------
