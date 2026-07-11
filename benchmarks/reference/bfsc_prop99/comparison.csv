@@ -1,0 +1,11 @@
+# case: bfsc_prop99
+# generated_at: 2026-07-11T15:38:09Z
+# mlsynth_version: 1.0.0
+# estimator: BFSC
+# config: {"n_chains": 4, "n_factors": 8, "n_samples": 1000, "n_warmup": 1000, "seed": 0}
+# reference_impl: author appendix Stan (via Rscript + rstan)
+# reference_version: Pinkney 2021 arXiv:2103.16244 appendix (live)
+quantity,mlsynth,reference,abs_diff
+ATT (post-1989 mean),-15.716,-16.718,1.002
+sigma (posterior mean),0.2673,0.2667,0.0006
+pre-period RMSE,1.124,1.101,0.023
