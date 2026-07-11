@@ -28,7 +28,7 @@ import pytest
 _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
-    BFSC, BSCM, BVSS, CFM, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
+    BFSC, BSCM, BVSS, CFM, CLUSTERSC, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
     MCNNM, MSQRT, NSC, PDA, PROPSC, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
@@ -128,6 +128,8 @@ OBSERVATIONAL = [
     pytest.param(SHC, {}, id="SHC"),
     pytest.param(SPILLSYNTH, {"method": "cd", "affected_units": ["u01"]},
                  id="SPILLSYNTH"),
+    pytest.param(DPSC, {"epsilon1": 50.0, "epsilon2": 50.0, "n_draws": 20, "seed": 0},
+                 id="DPSC"),
 ]
 
 if _HAS_NUMPYRO:  # BFSC needs the ``[bayes]`` extra; skip the whole param without it

@@ -31,6 +31,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
+- **DPSC** — Differentially private synthetic control estimator.  (config: DPSCConfig)
 - **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
 - **DesignComparison** — Result of :func:`compare_methods`.
