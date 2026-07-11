@@ -209,6 +209,57 @@ class TestPlaceboVariance:
                   *out["pooled_event_variances"].values()):
             assert np.isnan(v) or v >= 0
 
+    def test_pseudo_treated_unit_is_dropped_from_its_own_donor_pool(self, monkeypatch):
+        """A control reassigned as pseudo-treated must leave the donor pool.
+
+        Arkhangelsky et al. (2021), Algorithm 4 (and the ``synthdid`` R
+        package's ``vcov.R`` ``placebo_se``) assign a control unit as the
+        pseudo-treated unit and re-fit SDID on the *remaining* controls. If the
+        pseudo-treated column is left in the donor matrix, the synthetic control
+        reconstructs it from itself, the placebo effect collapses toward zero,
+        and the placebo variance is deflated -- the root of mlsynth's SDID SE
+        (7.6) undershooting synthdid's (~9.2) on Prop 99.
+
+        White-box invariant: for every cohort handed to the per-cohort
+        estimator during the placebo loop, the pseudo-treated outcome column
+        (its ``y``) must not appear among the columns of its ``donor_matrix``.
+        """
+        import mlsynth.utils.sdid_helpers.inference as inference_mod
+
+        rng = np.random.default_rng(0)
+        T, n_donor, T0 = 12, 8, 7
+        cohorts = {
+            T0 + 1: {
+                "y": rng.standard_normal((T, 1)),
+                "donor_matrix": rng.standard_normal((T, n_donor)),
+                "total_periods": T,
+                "pre_periods": T0,
+                "post_periods": T - T0,
+                "treated_indices": [0],
+            }
+        }
+
+        real = inference_mod.estimate_cohort_sdid_effects
+        seen: list[bool] = []
+
+        def spy(period, cohort_data, accumulator):
+            y_col = np.asarray(cohort_data["y"])[:, 0]
+            donor = np.asarray(cohort_data["donor_matrix"])
+            # No donor column may equal the pseudo-treated outcome column.
+            clash = any(np.allclose(y_col, donor[:, j]) for j in range(donor.shape[1]))
+            seen.append(clash)
+            return real(period, cohort_data, accumulator)
+
+        monkeypatch.setattr(inference_mod, "estimate_cohort_sdid_effects", spy)
+        estimate_placebo_variance(
+            {"cohorts": cohorts}, num_placebo_iterations=15, seed=7
+        )
+        assert seen, "placebo loop never called the per-cohort estimator"
+        assert not any(seen), (
+            "a pseudo-treated unit remained in its own donor pool during "
+            "placebo inference (deflates the SDID variance)"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Layer 2: data-utility tests

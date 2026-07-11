@@ -192,6 +192,20 @@ def estimate_placebo_variance(
             current_placebo_cohort_data["treated_indices"] = list(current_placebo_treated_indices)
             # The outcomes 'y' for these pseudo-treated units are taken from the original donor_matrix.
             current_placebo_cohort_data["y"] = current_placebo_cohort_data["donor_matrix"][:, current_placebo_treated_indices]
+            # Drop the pseudo-treated columns from the donor pool: a control unit
+            # reassigned as pseudo-treated must be re-fit on the *remaining*
+            # donors, exactly as the real estimate excludes the treated unit
+            # from its own donor pool (Arkhangelsky et al. 2021, Algorithm 4;
+            # synthdid ``vcov.R`` ``placebo_se``). Leaving it in lets the
+            # synthetic control reconstruct the pseudo-treated unit from itself,
+            # collapsing the placebo effect toward zero and deflating the
+            # variance. ``np.unique`` guards the with-replacement fallback so a
+            # duplicated draw does not misalign the deletion.
+            current_placebo_cohort_data["donor_matrix"] = np.delete(
+                current_placebo_cohort_data["donor_matrix"],
+                np.unique(current_placebo_treated_indices),
+                axis=1,
+            )
 
         # Estimate effects for this placebo iteration.
         current_placebo_iteration_pooled_effects_accumulator: DefaultDict[float, List[Tuple[int, float]]] = defaultdict(list)
