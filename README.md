@@ -8,7 +8,8 @@ under a single typed `Config` / `.fit()` / typed-results interface, so swapping
 between, say, Forward DiD, TASC, and SPCD is a one-line change.
 
 [Documentation](https://mlsynth.readthedocs.io/) ·
-[Which estimator should I use? (decision tree)](https://mlsynth.readthedocs.io/en/latest/choose.html)
+[Which estimator should I use? (decision tree)](https://mlsynth.readthedocs.io/en/latest/choose.html) ·
+[Validation — proven against the original code](https://mlsynth.readthedocs.io/en/latest/validation.html)
 
 ---
 

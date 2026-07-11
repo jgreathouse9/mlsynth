@@ -94,6 +94,23 @@ def _bundle_meta(case: str) -> dict:
     return out
 
 
+# A few cases record an internal function in their comparison() estimator field;
+# map those to the estimator a reader recognises.
+_ESTIMATOR_REMAP = {
+    "ridge_augment_weights": "VanillaSC",   # ascm_kansas -- ridge-augmented VanillaSC
+    "fit_en_scm": "LINF",                   # linf_* -- L-infinity SC
+    "run_pda_multitreat": "PDA",            # pda_brexit -- Panel Data Approach
+}
+
+
+def _canon(est: str) -> str:
+    """Canonical estimator label: strip the descriptive backend/config suffix the
+    case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``) and map
+    the handful of function-name fields to the estimator a reader recognises."""
+    base = (est or "?").split("(")[0].split("/")[0].strip() or "?"
+    return _ESTIMATOR_REMAP.get(base, base)
+
+
 def collect() -> dict:
     """Return {estimator: [case_record, ...]} from every committed comparison.csv."""
     by_est: dict = {}
@@ -107,7 +124,7 @@ def collect() -> dict:
         bundle = _bundle_meta(case)
         rec = {
             "case": case,
-            "estimator": meta.get("estimator", "?"),
+            "estimator": _canon(meta.get("estimator", "?")),
             "reference_impl": meta.get("reference_impl", "?"),
             "reference_version": meta.get("reference_version", ""),
             "paper": bundle.get("paper", ""),
@@ -142,19 +159,46 @@ _VERDICT_LABEL = {
 }
 
 
+_ORDER = {"exact": 0, "tight": 1, "close": 2, "documented": 3}
+
+
+def _slug(est: str) -> str:
+    return "val-" + "".join(c.lower() if c.isalnum() else "-" for c in est)
+
+
+def _verdict_mix(recs: list) -> str:
+    """A compact honest summary like ``4 exact · 3 tight``."""
+    counts = {}
+    for r in recs:
+        counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
+    return " · ".join(f"{counts[v]} {v}" for v in
+                      sorted(counts, key=lambda v: _ORDER[v]))
+
+
 def to_rst(by_est: dict, only: str | None = None) -> str:
+    ests = [only] if only else sorted(by_est)
+    ests = [e for e in ests if by_est.get(e)]
+    n_checks = sum(len(by_est[e]) for e in ests)
+    n_exact = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "exact")
+    n_tight = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "tight")
+
     L = [
         ".. _validation:",
         "",
         "Validation dashboard",
         "====================",
         "",
-        "Every estimator in mlsynth is checked against the original authors' code,",
-        "or the paper's reported numbers, on real data. This page is generated from",
-        "the pinned reference bundles the test suite asserts against, so the numbers",
-        "here cannot drift from what CI enforces. Each row links to the reference",
-        "implementation, the dataset (with checksum), and the mlsynth case that runs",
-        "the check. Verdicts are honest about tightness -- see the legend.",
+        "Every estimator in mlsynth is checked against the original authors' code",
+        "on real data. This page is generated from the pinned reference bundles the",
+        "test suite asserts against, so the numbers here cannot drift from what CI",
+        "enforces. Each row links to the reference implementation, the dataset (with",
+        "checksum), and the mlsynth case that runs the check.",
+        "",
+        f"Coverage: **{n_checks} cross-validation checks** against original",
+        f"implementations across **{len(ests)} estimators** -- "
+        f"{n_exact} reproduce the reference to display precision, {n_tight} to",
+        "within two percent. Per-estimator paper replications (Path A / Path B) are",
+        "catalogued in :doc:`replications`.",
         "",
         "Legend: **exact** (agreement to display precision), **tight** (worst",
         "relative deviation :math:`\\le 2\\%`), **close** (:math:`\\le 10\\%`), and",
@@ -163,15 +207,34 @@ def to_rst(by_est: dict, only: str | None = None) -> str:
         " quantity).",
         "",
     ]
-    ests = [only] if only else sorted(by_est)
+
+    # Tier 1 -- one row per estimator.
+    if not only:
+        L += ["Summary", "-------", "",
+              ".. list-table::", "   :header-rows: 1",
+              "   :widths: 26 14 44 16", ""]
+        L += ["   * - Estimator", "     - Checks", "     - Agreement",
+              "     - Worst max \\|Δ\\|"]
+        for est in ests:
+            recs = by_est[est]
+            worst = max((r["max_abs_diff"] for r in recs
+                         if r["max_abs_diff"] == r["max_abs_diff"]), default=float("nan"))
+            mad = "—" if worst != worst else f"{worst:.2g}"
+            L += [
+                f"   * - :ref:`{est} <{_slug(est)}>`",
+                f"     - {len(recs)}",
+                f"     - {_verdict_mix(recs)}",
+                f"     - {mad}",
+            ]
+        L.append("")
+
+    # Tier 2 -- per estimator, one row per reference.
     for est in ests:
-        recs = by_est.get(est, [])
-        if not recs:
-            continue
-        L += [est, "-" * max(len(est), 4), ""]
+        recs = by_est[est]
+        L += [f".. _{_slug(est)}:", "", est, "-" * max(len(est), 4), ""]
         L += [".. list-table::", "   :header-rows: 1",
-              "   :widths: 22 30 16 12 10 10", ""]
-        L += ["   * - Reference", "     - Dataset", "     - Quantities",
+              "   :widths: 22 28 8 12 14 16", ""]
+        L += ["   * - Reference", "     - Dataset", "     - #",
               "     - max \\|Δ\\|", "     - Verdict", "     - Case"]
         for r in recs:
             ds = f"``{r['dataset']}``" if r["dataset"] else "—"

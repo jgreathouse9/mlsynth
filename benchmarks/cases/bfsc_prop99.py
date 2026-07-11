@@ -102,7 +102,7 @@ def comparison() -> dict:
 
     Pairs the identified headline quantities -- the mean post-1989 ATT, the
     idiosyncratic scale, and the pre-period fit -- live from both implementations,
-    for the committed ``comparison.csv`` / ``comparisons.xlsx`` workbook.
+    for the committed ``comparison.csv`` and the public Validation dashboard.
     Propagates ``BenchmarkSkipped`` when NumPyro/rstan is absent.
     """
     ml, ref = _fit_both()

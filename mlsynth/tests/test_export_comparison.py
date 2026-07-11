@@ -1,9 +1,10 @@
-"""Tests for the comparison-workbook exporter's new-entry + assemble modes.
+"""Tests for the comparison exporter and the Validation-dashboard generator.
 
-The daily benchmark action creates comparison-workbook entries for cases that do
-not yet have one (``--missing``) and rebuilds ``comparisons.xlsx`` from the
-committed per-case CSVs (``--assemble``) -- rather than re-running every
-(stochastic) case daily. These pin that behaviour without a live reference run.
+The daily benchmark action creates a per-case ``comparison.csv`` for any
+cross-validation case that lacks one (``--missing``), then rebuilds the public
+web-native dashboard ``docs/validation.rst`` from the committed CSVs -- rather
+than re-running every (stochastic) case daily. These pin that behaviour without
+a live reference run.
 """
 from __future__ import annotations
 
@@ -58,45 +59,41 @@ def test_missing_cases_flags_uncaptured_only():
             assert name not in missing
 
 
-def test_assemble_from_csv_builds_workbook(tmp_path):
-    openpyxl = pytest.importorskip("openpyxl")
-    for name, att in (("case_a", -16.0), ("case_b", -3.2)):
-        _write_csv(tmp_path / name,
-                   {"case": name, "generated_at": "2026-07-11T00:00:00Z",
-                    "mlsynth_version": "9.9.9", "estimator": "X", "config": "{}",
-                    "reference_impl": "ref", "reference_version": "v"},
-                   [{"quantity": "ATT", "mlsynth": att, "reference": att + 0.1,
-                     "abs_diff": 0.1}])
-    per_case = ec.assemble_workbook_from_csv(ref_dir=tmp_path)
-    assert set(per_case) == {"case_a", "case_b"}
-    out = tmp_path / "comparisons.xlsx"
-    assert out.exists()
-    wb = openpyxl.load_workbook(out)
-    assert "summary" in wb.sheetnames
-    assert "case_a" in wb.sheetnames and "case_b" in wb.sheetnames
+def test_no_workbook_machinery_remains():
+    # The binary .xlsx workbook was retired in favour of the generated docs page;
+    # its openpyxl assembly must be gone so it cannot silently come back.
+    assert not hasattr(ec, "assemble_workbook_from_csv")
+    assert not hasattr(ec, "_write_workbook")
+    assert not (ec.REF_DIR / "comparisons.xlsx").exists()
 
 
-def test_assemble_is_byte_deterministic(tmp_path):
-    # Identical committed CSVs must yield a byte-identical workbook, so the daily
-    # "commit only if changed" gate stays quiet when nothing new was added.
-    pytest.importorskip("openpyxl")
-    _write_csv(tmp_path / "case_a",
-               {"case": "case_a", "generated_at": "2026-07-11T00:00:00Z",
-                "mlsynth_version": "9.9.9", "estimator": "X", "config": "{}"},
-               [{"quantity": "ATT", "mlsynth": -1.0, "reference": -1.1, "abs_diff": 0.1}])
-    ec.assemble_workbook_from_csv(ref_dir=tmp_path)
-    first = (tmp_path / "comparisons.xlsx").read_bytes()
-    ec.assemble_workbook_from_csv(ref_dir=tmp_path)
-    second = (tmp_path / "comparisons.xlsx").read_bytes()
-    assert first == second
+def _bv():
+    from benchmarks.reference import build_validation as bv
+    return bv
 
 
-def test_assemble_ignores_bundles_without_comparison_csv(tmp_path):
-    pytest.importorskip("openpyxl")
-    (tmp_path / "no_csv").mkdir()                       # a bundle dir with no CSV
-    _write_csv(tmp_path / "has_csv",
-               {"case": "has_csv", "generated_at": "t", "mlsynth_version": "9",
-                "estimator": "X", "config": "{}"},
-               [{"quantity": "ATT", "mlsynth": 1.0, "reference": 1.0, "abs_diff": 0.0}])
-    per_case = ec.assemble_workbook_from_csv(ref_dir=tmp_path)
-    assert set(per_case) == {"has_csv"}
+def test_validation_verdict_bands():
+    bv = _bv()
+    # exact: display-precision match; tight: <=2% worst relative; documented: loose.
+    assert bv._verdict([{"reference": -15.6, "abs_diff": 1e-6}])[0] == "exact"
+    assert bv._verdict([{"reference": -19.5, "abs_diff": 0.02}])[0] == "tight"
+    assert bv._verdict([{"reference": -20.0, "abs_diff": 5.0}])[0] == "documented"
+
+
+def test_validation_canonicalises_estimator_labels():
+    bv = _bv()
+    assert bv._canon("ClusterSC/PCR (run_pcr OLS, fixed rank)") == "ClusterSC"
+    assert bv._canon("ridge_augment_weights") == "VanillaSC"   # remapped
+    assert bv._canon("VanillaSC") == "VanillaSC"
+
+
+def test_validation_page_builds_from_real_corpus():
+    bv = _bv()
+    by_est = bv.collect()
+    assert by_est, "no committed comparison.csv found"
+    rst = bv.to_rst(by_est)
+    assert rst.startswith(".. _validation:")
+    assert "Validation dashboard" in rst and "Coverage:" in rst
+    # every estimator with a committed cross-validation gets a linkable section
+    assert "VanillaSC" in by_est
+    assert f".. _{bv._slug('VanillaSC')}:" in rst

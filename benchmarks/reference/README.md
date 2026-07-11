@@ -60,14 +60,12 @@ python benchmarks/reference/export_comparison.py --all          # every case
 Both `comparison()`'s `mlsynth_call` (estimator + config) and the export carry
 provenance: each `comparison.csv` opens with a metadata header — when it was
 written, the mlsynth version, the exact call, and the reference implementation
-and version — and the workbook stamps the same on every sheet plus a summary
-sheet across cases.
+and version.
 
 This writes `benchmarks/reference/<case>/comparison.csv` (GitHub renders it as a
-table) and, when `openpyxl` is installed, a combined
-`benchmarks/reference/comparisons.xlsx` — the headline a reviewer opens, with a
-summary sheet and one metadata-stamped detail sheet per case — to read mlsynth
-next to the reference, with the absolute difference:
+table) reading mlsynth next to the reference, with the absolute difference. The
+public, web-native rollup a reviewer opens is the Validation dashboard
+(`docs/validation.rst`), generated from these CSVs by `build_validation.py`:
 
 | quantity | mlsynth | reference | abs_diff |
 |----------|--------:|----------:|---------:|
