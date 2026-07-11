@@ -19,8 +19,12 @@
 #
 # Prints parseable lines: "<cell>: <phi.hat * Y.scale>" in hospitalization units.
 
+#   3. Packages. The Rmd loads the full `tidyverse` metapackage but uses only
+#      dplyr / tidyr verbs (and the magrittr pipe); we load just those, so the
+#      reference provisions without tidyverse's ~50-package dependency tree. No
+#      numeric effect -- the GMM functions below are untouched.
 suppressMessages({
-  library(magrittr); library(tidyverse); library(gmm); library(splines)
+  library(magrittr); library(dplyr); library(tidyr); library(gmm); library(splines)
 })
 
 args <- commandArgs(trailingOnly = TRUE)

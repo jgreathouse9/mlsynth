@@ -1,0 +1,12 @@
+# case: dr_proximal_brazil
+# generated_at: 2026-07-11T19:37:38Z
+# mlsynth_version: 1.0.0
+# estimator: PROXIMAL
+# config: {}
+# reference_impl: R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13)
+# reference_version: 
+quantity,mlsynth,reference,abs_diff
+outcome_bridge_h,-3645.798,-3645.796,0.002
+DR[A10_B99_nopneumo],-2753.524,-2752.527,0.997
+DR[A10_B99_nopneumo+D50_89],-3613.466,-3572.22,41.246
+DR[A10_B99_nopneumo+P05_07+D50_89],-3611.804,-3602.931,8.873

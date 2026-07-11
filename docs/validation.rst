@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **49 cross-validation checks** against original
-implementations across **28 estimators** -- 19 reproduce the reference to display precision, 19 to
-within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **50 cross-validation checks** against original
+implementations across **28 estimators** -- 19 reproduce the reference to display precision, 20 to
+within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -86,9 +86,9 @@ Summary
      - 1 tight
      - 0.0022
    * - :ref:`PROXIMAL <val-proximal>`
-     - 1
-     - 1 tight
-     - 0.014
+     - 2
+     - 2 tight
+     - 41
    * - :ref:`RESCM <val-rescm>`
      - 2
      - 2 tight
@@ -513,6 +513,12 @@ PROXIMAL
      - max \|Δ\|
      - Verdict
      - Case
+   * - R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13)
+     - —
+     - 4
+     - 41
+     - tight
+     - `dr_proximal_brazil <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`__
    * - authors' proximal code (freshtaste/proximal, cloned)
      - —
      - 3
@@ -897,8 +903,6 @@ action records them once its toolchain provisions.
 
    * - Case
      - Reference
-   * - `dr_proximal_brazil <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`__
-     - —
    * - `propsc_spain <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/propsc_spain.py>`__
      - —
 
