@@ -17,6 +17,10 @@ name: Daily benchmark validation
 #   python-refs-causaltensor -- causaltensor alone (see note below).
 #   python-refs-relax        -- kneed / toolz / scmrelax.
 #   python-refs-spsydid      -- libpysal only (kept apart from scmrelax/mosek).
+#   comparison-workbook      -- generate side-by-side entries for any new
+#                               comparison() case and commit the rebuilt,
+#                               byte-deterministic comparisons.xlsx back to main
+#                               (guarded; commits only when an entry changed).
 #
 # The three python-refs jobs use Python references that pull numpy<2 (incompatible
 # with the JAX backend in `suite`), so they run WITHOUT the bayes extra, against
@@ -270,3 +274,117 @@ jobs:
       - name: Run spsydid spatial cross-check
         run: |
           python -u benchmarks/run_benchmarks.py --case spsydid_state_mc
+
+  # ---------------------------------------------------------------------------
+  # Comparison workbook: create a side-by-side entry for every comparison() case
+  # that does not yet have one, rebuild the (byte-deterministic) comparisons.xlsx
+  # from all committed per-case CSVs, and commit the result back to main -- the
+  # out-of-band commit-back pattern of the coverage badge. Only NEW entries are
+  # generated (re-running a stochastic case daily would churn Monte-Carlo jitter);
+  # existing entries are preserved via their committed CSVs. Guarded so the heavy
+  # [all]+R provisioning only runs when a benchmark case/reference actually
+  # changed, and commits only when the workbook changed.
+  # ---------------------------------------------------------------------------
+  comparison-workbook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      R_LIBS_USER: ${{ github.workspace }}/.rlibs
+      # Single-thread BLAS for reproducible comparison numbers (see suite note).
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Decide whether to run
+        id: guard
+        run: |
+          # Run on manual dispatch, or when a benchmark case/reference changed in
+          # the last ~26h (ignoring the bot's own workbook commits). Otherwise the
+          # heavy provisioning below is skipped and the job is a fast no-op.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "manual dispatch -> run"; exit 0
+          fi
+          CHANGED=$(git log --since="26 hours ago" --pretty=format:%s \
+                    -- benchmarks/cases/ benchmarks/reference/ \
+                    | grep -vc "comparison-workbook entries" || true)
+          if [ "${CHANGED:-0}" -eq 0 ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No benchmark case/reference changes in the last day -- skipping."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "$CHANGED benchmark change(s) since yesterday -- refreshing the workbook."
+          fi
+
+      - name: Set up Python
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth[all] + openpyxl (for the workbook)
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[all]' -c benchmarks/constraints.txt
+          pip install openpyxl
+
+      - name: Install R
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            r-base r-base-dev build-essential cmake gfortran
+
+      - name: Cache CRAN reference packages
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: rlibs-${{ runner.os }}-R-${{ hashFiles('benchmarks/R/requirements.R') }}
+
+      - name: Provision R reference toolchain
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          set -x
+          mkdir -p "$R_LIBS_USER" benchmarks/reference/.cache
+          Rscript benchmarks/R/requirements.R || echo "::warning::requirements.R partial"
+          for s in benchmarks/R/install_*.sh; do
+            echo "::group::$s"
+            sudo bash "$s" || echo "::warning::provisioner failed: $s (its entry will skip)"
+            echo "::endgroup::"
+          done
+          sudo chown -R "$(id -u):$(id -g)" benchmarks/reference/.cache
+
+      - name: Create missing comparison entries + rebuild workbook
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          # Generate a CSV for each comparison() case lacking one (references that
+          # fail to provision self-skip), then rebuild the workbook from ALL
+          # committed CSVs so no existing entry is dropped.
+          python -u benchmarks/reference/export_comparison.py --missing
+          python -u benchmarks/reference/export_comparison.py --assemble
+
+      - name: Commit workbook if it changed
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/reference/*/comparison.csv benchmarks/reference/comparisons.xlsx
+          if git diff --cached --quiet; then
+            echo "Comparison workbook unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "benchmarks: add comparison-workbook entries [skip ci]"
+          git pull --rebase --autostash origin main
+          git push
