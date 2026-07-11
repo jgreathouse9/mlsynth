@@ -1,4 +1,4 @@
-"""Assemble the SMC point estimate from pivoted inputs (``run_smc``)."""
+"""Assemble the SRC point estimate from pivoted inputs (``run_src``)."""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from .estimation import counterfactual, smc_weights
-from .structures import SMCFit, SMCInputs
+from .estimation import counterfactual, src_weights
+from .screening import fpca_donors, screen_donors, screen_inputs
+from .structures import SRCFit, SRCInputs
 from .vsearch import optimize_v
 
 
-def _build_matching_matrix(inputs: SMCInputs) -> Tuple[np.ndarray, np.ndarray, int]:
-    """Return ``(X, y, n_outcome_rows)`` for the SMC weight computation.
+def _build_matching_matrix(inputs: SRCInputs) -> Tuple[np.ndarray, np.ndarray, int]:
+    """Return ``(X, y, n_outcome_rows)`` for the SRC weight computation.
 
     The outcome matching rows are the treated/donor outcomes over the fit window
     (``inputs.fit_idx``; all pre-periods by default). Pure Algorithm 1 (no
@@ -41,30 +42,45 @@ def _build_matching_matrix(inputs: SMCInputs) -> Tuple[np.ndarray, np.ndarray, i
     return X, y, X_out.shape[0]
 
 
-def run_smc(
-    inputs: SMCInputs,
+def run_src(
+    inputs: SRCInputs,
     *,
     ridge: float = 1e-3,
+    screen: str = "none",
+    n_screen: Optional[int] = None,
     v_search: str = "none",
     v_seed: int = 0,
     v_maxiter: int = 60,
     v_popsize: int = 12,
-) -> SMCFit:
-    """Fit SMC (deterministic Algorithm 1 / 3) and return the point estimate.
+) -> SRCFit:
+    """Fit SRC (deterministic Algorithm 1 / 3) and return the point estimate.
 
-    With ``v_search="de"`` the predictor weights ``V`` are chosen by a seeded
-    global search (the paper's Algorithm 3); otherwise ``V = I``.
+    With ``screen="sirs"`` the donor pool is first reduced by SIRS screening
+    (Algorithm 2) to ``n_screen`` donors (default the paper's count); with
+    ``screen="fpca"`` it is reduced to the treated unit's FPCA cluster (reusing
+    ClusterSC's routines). With ``v_search="de"`` the predictor weights ``V`` are
+    chosen by a seeded global search (the paper's Algorithm 3); otherwise
+    ``V = I``.
     """
+    n_screened_out = 0
+    if screen in ("sirs", "fpca"):
+        Dpre = inputs.Y_donors[:inputs.T0]
+        ypre = inputs.Y_treated[:inputs.T0]
+        keep = (screen_donors(Dpre, ypre, n_screen=n_screen) if screen == "sirs"
+                else fpca_donors(Dpre, ypre))
+        if keep.size < inputs.J:
+            n_screened_out = int(inputs.J - keep.size)
+            inputs = screen_inputs(inputs, keep)
     try:
         X, y, n_out = _build_matching_matrix(inputs)
         V: Optional[np.ndarray] = None
         if v_search == "de":
             V = optimize_v(X, y, n_out, ridge=ridge, seed=v_seed,
                            maxiter=v_maxiter, popsize=v_popsize)
-        weights = smc_weights(X, y, ridge=ridge, V=V)
+        weights = src_weights(X, y, ridge=ridge, V=V)
         cf = counterfactual(inputs.Y_donors, weights)
-    except Exception as exc:  # pragma: no cover - defensive; smc_weights is total
-        raise MlsynthEstimationError(f"SMC estimation failed: {exc}") from exc
+    except Exception as exc:  # pragma: no cover - defensive; src_weights is total
+        raise MlsynthEstimationError(f"SRC estimation failed: {exc}") from exc
 
     obs = inputs.Y_treated
     gap = obs - cf
@@ -74,7 +90,7 @@ def run_smc(
     donor_weights = {
         lbl: float(c) for lbl, c in zip(inputs.donor_labels, weights.combined)
     }
-    return SMCFit(
+    return SRCFit(
         att=att,
         weights=weights.combined,
         theta=weights.theta,
@@ -89,4 +105,5 @@ def run_smc(
         v_search=v_search,
         v=V,
         donor_weights=donor_weights,
+        n_screened_out=n_screened_out,
     )

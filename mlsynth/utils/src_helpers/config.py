@@ -1,4 +1,4 @@
-"""Configuration for the SMC estimator.
+"""Configuration for the SRC estimator.
 
 Co-located with the helper package; re-exported from
 :mod:`mlsynth.config_models` for backward compatibility.
@@ -14,10 +14,10 @@ from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
 
 
-class SMCConfig(BaseEstimatorConfig):
-    """Configuration for the Synthetic Matching Control estimator (Zhu 2023).
+class SRCConfig(BaseEstimatorConfig):
+    """Configuration for the Synthetic Regressing Control estimator (Zhu 2023).
 
-    SMC matches each donor to the treated unit by a univariate regression, then
+    SRC matches each donor to the treated unit by a univariate regression, then
     synthesises the matched controls with box-``[0, 1]`` weights chosen by a
     Mallows/Cp unbiased-risk criterion. The combined donor coefficients may be
     negative (controlled extrapolation), and the Cp penalty -- not a predictor
@@ -30,7 +30,7 @@ class SMCConfig(BaseEstimatorConfig):
 
     References
     ----------
-    Zhu, Rong J. B. (2023). *Synthetic Matching Control Method.*
+    Zhu, Rong J. B. (2023). *Synthetic Regressing Control.*
     arXiv:2306.02584.
     """
 
@@ -70,6 +70,30 @@ class SMCConfig(BaseEstimatorConfig):
             "period. Set it to reproduce a paper's fit window."
         ),
     )
+    screen: Literal["none", "sirs", "fpca"] = Field(
+        default="none",
+        description=(
+            "Donor screening before the fit. 'none' (default) keeps every donor. "
+            "'sirs' ranks donors by the SIRS marginal utility (Zhu et al. 2011) "
+            "on the pre-period outcomes and keeps the top "
+            "``min(floor(T0/log(T0/2)), T0-1)`` (override with ``n_screen``) -- "
+            "the paper's Algorithm 2. 'fpca' instead clusters the pre-period "
+            "trajectories and keeps the treated unit's cluster, reusing "
+            "ClusterSC's FPCA + silhouette k-means (Bayani 2021); it selects an "
+            "economically coherent peer group and is fully deterministic. Use "
+            "screening when donors are not few relative to pre-periods "
+            "(``J >= 4*T0/5``): it restores a well-posed, non-degenerate Cp fit. "
+            "Neither recovers the paper's exact Basque weight cells (those are on "
+            "the non-identified V manifold)."
+        ),
+    )
+    n_screen: Optional[int] = Field(
+        default=None, ge=1,
+        description=(
+            "Override the number of donors kept by ``screen='sirs'``. None "
+            "(default) uses the paper's ``min(floor(T0/log(T0/2)), T0-1)``."
+        ),
+    )
     v_search: Literal["none", "de"] = Field(
         default="none",
         description=(
@@ -97,18 +121,18 @@ class SMCConfig(BaseEstimatorConfig):
     )
 
     @model_validator(mode="after")
-    def _check(self) -> "SMCConfig":
+    def _check(self) -> "SRCConfig":
         if self.covariates is not None and len(self.covariates) == 0:
             raise MlsynthConfigError(
-                "SMC 'covariates' must be a non-empty list or None."
+                "SRC 'covariates' must be a non-empty list or None."
             )
         if self.covariate_windows and not self.covariates:
             raise MlsynthConfigError(
-                "SMC 'covariate_windows' requires 'covariates'."
+                "SRC 'covariate_windows' requires 'covariates'."
             )
         if self.v_search == "de" and not self.covariates:
             raise MlsynthConfigError(
-                "SMC v_search='de' optimises predictor weights and therefore "
+                "SRC v_search='de' optimises predictor weights and therefore "
                 "requires 'covariates'."
             )
         return self

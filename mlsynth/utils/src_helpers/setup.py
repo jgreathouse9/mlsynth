@@ -1,4 +1,4 @@
-"""Long-DataFrame -> NumPy boundary for SMC (the only pandas touchpoint)."""
+"""Long-DataFrame -> NumPy boundary for SRC (the only pandas touchpoint)."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
-from .structures import SMCInputs
+from .structures import SRCInputs
 
 
-def prepare_smc_inputs(
+def prepare_src_inputs(
     df: pd.DataFrame,
     *,
     outcome: str,
@@ -21,8 +21,8 @@ def prepare_smc_inputs(
     covariates: Optional[Sequence[str]] = None,
     covariate_windows: Optional[Dict[str, Tuple[Any, Any]]] = None,
     fit_window: Optional[Tuple[Any, Any]] = None,
-) -> SMCInputs:
-    """Pivot ``df`` into SMC's ``(Y_treated, Y_donors, T0)`` matrices.
+) -> SRCInputs:
+    """Pivot ``df`` into SRC's ``(Y_treated, Y_donors, T0)`` matrices.
 
     Single treated unit only: the treated unit is the one with any ``treat == 1``
     row, the donor pool is every never-treated unit. Requires a balanced panel
@@ -33,12 +33,12 @@ def prepare_smc_inputs(
     treated_rows = df.loc[df[treat] == 1, [unitid, time]]
     if treated_rows.empty:
         raise MlsynthDataError(
-            f"SMC requires at least one row with {treat}=1; none found."
+            f"SRC requires at least one row with {treat}=1; none found."
         )
     treated_units = treated_rows[unitid].unique()
     if treated_units.size != 1:
         raise MlsynthDataError(
-            f"SMC supports a single treated unit; found {treated_units.size}."
+            f"SRC supports a single treated unit; found {treated_units.size}."
         )
     treated_label = treated_units[0]
     intervention_time = treated_rows[time].min()
@@ -49,7 +49,7 @@ def prepare_smc_inputs(
         if u != treated_label and df.loc[df[unitid] == u, treat].sum() == 0
     ]
     if len(donors) == 0:
-        raise MlsynthDataError("SMC: donor pool is empty.")
+        raise MlsynthDataError("SRC: donor pool is empty.")
 
     Y_wide = df.pivot(index=time, columns=unitid, values=outcome).sort_index()
     time_index = Y_wide.index.to_numpy()
@@ -57,7 +57,7 @@ def prepare_smc_inputs(
     Y_donors = Y_wide[donors].to_numpy(dtype=float)
     if not (np.isfinite(Y_treated).all() and np.isfinite(Y_donors).all()):
         raise MlsynthDataError(
-            "SMC requires a balanced panel with no missing outcomes."
+            "SRC requires a balanced panel with no missing outcomes."
         )
 
     treatment_period = int(np.argmax(time_index >= intervention_time)) + 1
@@ -66,11 +66,11 @@ def prepare_smc_inputs(
     T1 = T - T0
     if T0 < 2:
         raise MlsynthDataError(
-            f"SMC needs at least 2 pre-treatment periods; got T0={T0}."
+            f"SRC needs at least 2 pre-treatment periods; got T0={T0}."
         )
     if T1 < 1:  # pragma: no cover - unreachable: a treated period forces T1 >= 1
         raise MlsynthDataError(
-            f"SMC needs at least 1 post-treatment period; got T1={T1}."
+            f"SRC needs at least 1 post-treatment period; got T1={T1}."
         )
 
     pre_mask = time_index < intervention_time
@@ -110,13 +110,13 @@ def prepare_smc_inputs(
             [i for i in pre_positions if start <= time_index[i] <= end], dtype=int)
         if fit_idx.size < 2:
             raise MlsynthDataError(
-                f"SMC fit_window {fit_window!r} selects fewer than 2 pre-treatment "
+                f"SRC fit_window {fit_window!r} selects fewer than 2 pre-treatment "
                 "periods."
             )
     else:
         fit_idx = pre_positions.astype(int)
 
-    return SMCInputs(
+    return SRCInputs(
         Y_treated=Y_treated,
         Y_donors=Y_donors,
         treated_label=treated_label,

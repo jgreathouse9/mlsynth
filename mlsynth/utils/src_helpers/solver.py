@@ -1,11 +1,11 @@
-"""Exact box-constrained QP for the SMC Cp criterion.
+"""Exact box-constrained QP for the SRC Cp criterion.
 
 Minimise ``f(w) = 1/2 w' D w - d' w`` subject to ``lo <= w <= hi`` via a primal
 active-set method with a ratio test. For a strictly-convex ``D`` (any
 ``ridge > 0``) this terminates in finitely many pivots at the exact KKT point --
 the box analogue of :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`.
 
-Why not a first-order / interior-point QP: SMC re-solves this problem in the hot
+Why not a first-order / interior-point QP: SRC re-solves this problem in the hot
 placebo and bootstrap loops, and the reported weights must pin the box bounds
 *exactly* (a donor at zero is exactly zero -- that is the sparsity the estimator
 reports). An active-set method delivers both: it matches the reference R

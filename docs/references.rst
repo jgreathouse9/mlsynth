@@ -464,9 +464,9 @@ References
     *Journal of the American Statistical Association*, 116(536): 1804-1816, 2021.
     DOI: https://doi.org/10.1080/01621459.2021.1979562
 
-.. [SMC2023]
+.. [SRC2023]
     Zhu, Rong J. B.
-    *"Synthetic Matching Control Method."*
+    *"Synthetic Regressing Control."*
     arXiv:2306.02584, 2023. https://arxiv.org/abs/2306.02584
 
 .. [BSCM2020]

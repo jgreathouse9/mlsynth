@@ -1,4 +1,4 @@
-"""The SMC weight computation (Zhu 2023, Algorithm 1).
+"""The SRC weight computation (Zhu 2023, Algorithm 1).
 
 Two steps, both cheap and deterministic:
 
@@ -12,8 +12,8 @@ Two steps, both cheap and deterministic:
    full-model residual variance. The combined donor coefficient is
    ``theta_j * w_j`` (which may be negative -> controlled extrapolation).
 
-The QP is solved exactly by :func:`~mlsynth.utils.smc_helpers.solver.solve_box_qp`.
-The Cp penalty on ``sum(w)`` is what identifies ``w`` -- SMC needs no predictor
+The QP is solved exactly by :func:`~mlsynth.utils.src_helpers.solver.solve_box_qp`.
+The Cp penalty on ``sum(w)`` is what identifies ``w`` -- SRC needs no predictor
 (``V``) search to pin down the weights, which is why the estimator is
 deterministic. An optional ``V`` (diagonal predictor weighting) is threaded
 through for the covariate-augmented variant.
@@ -28,8 +28,8 @@ import numpy as np
 from .solver import solve_box_qp
 
 
-class SMCWeights(NamedTuple):
-    """Output of the SMC weight computation on a matching matrix."""
+class SRCWeights(NamedTuple):
+    """Output of the SRC weight computation on a matching matrix."""
 
     theta: np.ndarray      # (J,) per-donor univariate OLS coefficients
     w: np.ndarray          # (J,) box-[0, 1] synthesis weights
@@ -38,14 +38,14 @@ class SMCWeights(NamedTuple):
     sigma2: float          # plug-in full-model residual variance
 
 
-def smc_weights(
+def src_weights(
     X: np.ndarray,
     y: np.ndarray,
     *,
     ridge: float = 1e-3,
     V: Optional[np.ndarray] = None,
-) -> SMCWeights:
-    """Compute SMC donor coefficients on a matching matrix.
+) -> SRCWeights:
+    """Compute SRC donor coefficients on a matching matrix.
 
     Parameters
     ----------
@@ -64,7 +64,7 @@ def smc_weights(
 
     Returns
     -------
-    SMCWeights
+    SRCWeights
     """
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float).ravel()
@@ -96,11 +96,11 @@ def smc_weights(
 
     combined = theta * w
     bias = float(y0.mean() - (X0 @ combined).mean())
-    return SMCWeights(theta=theta, w=w, combined=combined, bias=bias, sigma2=sigma2)
+    return SRCWeights(theta=theta, w=w, combined=combined, bias=bias, sigma2=sigma2)
 
 
-def counterfactual(Y_full: np.ndarray, weights: SMCWeights) -> np.ndarray:
-    """Full-path SMC counterfactual ``Y_hat = bias + Y_full @ (theta * w)``.
+def counterfactual(Y_full: np.ndarray, weights: SRCWeights) -> np.ndarray:
+    """Full-path SRC counterfactual ``Y_hat = bias + Y_full @ (theta * w)``.
 
     ``Y_full`` is the donor outcomes over every period (``(T, J)``); the combined
     coefficients are applied to the raw (unweighted) donor outcomes.

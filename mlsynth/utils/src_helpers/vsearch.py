@@ -1,4 +1,4 @@
-"""Optional predictor-weight (V) optimisation for the covariate SMC variant.
+"""Optional predictor-weight (V) optimisation for the covariate SRC variant.
 
 Zhu (2023)'s Basque application (Algorithm 3 / Table 5) does not stop at equal
 predictor weights: it optimises a diagonal ``V`` over the matching rows to best
@@ -17,7 +17,7 @@ Cp-identified Algorithm 1 stays the default. Use it to reproduce the paper's
 covariate specification; do not read the exact weights as identified quantities.
 
 Mirrors the outer-search philosophy of the repository's MSCMT bilevel backend
-(Becker & Kloessner 2018): a log-scaled global search over ``V`` with the SMC
+(Becker & Kloessner 2018): a log-scaled global search over ``V`` with the SRC
 inner solve, differing only in the (box, Cp) inner problem.
 """
 
@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .estimation import smc_weights
+from .estimation import src_weights
 
 
 def optimize_v(
@@ -63,7 +63,7 @@ def optimize_v(
     def upper(xlog: np.ndarray) -> float:
         V = 10.0 ** xlog
         V = n * V / V.sum()
-        r = smc_weights(X, y, ridge=ridge, V=V)
+        r = src_weights(X, y, ridge=ridge, V=V)
         return float(np.sum((z - r.bias - Z @ r.combined) ** 2))
 
     res = differential_evolution(

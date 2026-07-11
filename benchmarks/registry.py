@@ -52,7 +52,7 @@ CASES = {
     "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2025 Table 5 carbon-tax debiased t-test
     "cwz_mc": "benchmarks.cases.cwz_mc",                      # Path B: CWZ 2025 Table 3 application-based Monte Carlo
     "masc_basque": "benchmarks.cases.masc_basque",            # Path A: MASC Basque/ETA (KMPT Sec 5)
-    "smc_basque": "benchmarks.cases.smc_basque",              # cross-val vs R Code_SMC + Path A: SMC Basque/ETA (Zhu 2023)
+    "src_basque": "benchmarks.cases.src_basque",              # cross-val vs R Code_SMC + Path A: SRC Basque/ETA (Zhu 2023)
     "bscm_china_watches": "benchmarks.cases.bscm_china_watches",  # cross-val vs reference Stan horseshoe + FSPDA (Shi-Huang) on China anti-corruption watches, p>n (Kim-Lee-Gupta 2020)
     "mscmt_basque": "benchmarks.cases.mscmt_basque",          # cross-val vs R MSCMT: AG Basque, fit_window=(1960,1969)
     "malo_prop99": "benchmarks.cases.malo_prop99",            # Path A: Malo et al. 2024 Table 1 bilevel optimum (Prop 99)
