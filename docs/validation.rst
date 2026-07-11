@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **51 cross-validation checks** against original
-implementations across **28 estimators** -- 20 reproduce the reference to display precision, 20 to
+Coverage: **52 cross-validation checks** against original
+implementations across **29 estimators** -- 21 reproduce the reference to display precision, 20 to
 within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -37,6 +37,10 @@ Summary
      - 1
      - 1 close
      - 1
+   * - :ref:`CLUSTERSC <val-clustersc>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`ClusterSC <val-clustersc>`
      - 2
      - 1 exact · 1 tight
@@ -185,6 +189,28 @@ BFSC
      - 1
      - close
      - `bfsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/bfsc_prop99.py>`__
+
+.. _val-clustersc:
+
+CLUSTERSC
+---------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - Bayani RPCA-SC (dissertation FPCA.R + RPCA_2.py, reproduced in benchmarks.reference.rpca_sc_reference)
+     - —
+     - 9
+     - 0
+     - exact — matches to display precision
+     - `clustersc_rpca_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/clustersc_rpca_germany.py>`__
 
 .. _val-clustersc:
 
