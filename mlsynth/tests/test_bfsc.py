@@ -63,6 +63,7 @@ def test_config_rejects_bad(bad):
 # smoke + contract
 # --------------------------------------------------------------------------- #
 def test_smoke_returns_effect_result():
+    pytest.importorskip("numpyro")
     res = BFSC({"df": _factor_panel(), "outcome": "y", "treat": "treat",
                 "unitid": "unit", "time": "t", **_FAST}).fit()
     assert isinstance(res, EffectResult)
@@ -77,6 +78,7 @@ def test_smoke_returns_effect_result():
 
 
 def test_recovers_effect_sign_and_covers_truth():
+    pytest.importorskip("numpyro")
     res = BFSC({"df": _factor_panel(effect=-4.0), "outcome": "y",
                 "treat": "treat", "unitid": "unit", "time": "t",
                 **{**_FAST, "n_warmup": 150, "n_samples": 200}}).fit()
@@ -89,6 +91,7 @@ def test_recovers_effect_sign_and_covers_truth():
 
 
 def test_pre_period_fit_is_reasonable():
+    pytest.importorskip("numpyro")
     res = BFSC({"df": _factor_panel(), "outcome": "y", "treat": "treat",
                 "unitid": "unit", "time": "t", **_FAST}).fit()
     gap = res.time_series.estimated_gap
@@ -102,6 +105,7 @@ def test_pre_period_fit_is_reasonable():
 # plotting + failure paths
 # --------------------------------------------------------------------------- #
 def test_plotting_smoke(monkeypatch):
+    pytest.importorskip("numpyro")
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
