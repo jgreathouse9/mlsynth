@@ -27,8 +27,8 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
       cases/                # one module per benchmark (pure-Python where possible)
         fdid_table5.py      # Path B: Li (2024) Table 5 PMSE grid (no R needed)
         fdid_hongkong.py    # Path A: Li (2024) Hong Kong GDP empirical (no R needed)
-        sdid_prop99.py      # cross-val: SDID vs causaltensor on Prop 99
-        mcnnm_prop99.py     # cross-val: MC-NNM vs causaltensor on Prop 99
+        sdid_prop99.py      # cross-val: SDID vs the authors' synthdid R (pinned)
+        mcnnm_prop99.py     # cross-val: MC-NNM vs the authors' MCPanel R (pinned)
         spsydid_state_mc.py # cross-val: SpSyDiD vs the authors' repo (per-rep)
         clustersc_subgroups.py      # Path B: ClusterSC vs whole-pool RSC (subgroup regime)
         clustersc_subgroups_ref.py  # cross-val: authors' ClusterSC code vs its own paper
@@ -93,7 +93,6 @@ dependency is absent. Install them **one at a time** (a batched `pip install`
 aborts wholesale on the first failure):
 
 ```bash
-pip install causaltensor       # sdid_prop99, mcnnm_prop99 (pins numpy<2 but runs fine under 2.x)
 pip install cvxopt             # linf_crossval_ref
 pip install cvxpy              # rescm_relax_ref
 pip install kneed scikit-learn # clustersc_subgroups_ref (the authors' syclib deps)

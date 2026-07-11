@@ -564,8 +564,8 @@ Replication: Proposition 99
    published empirical ATT is reproduced on the same data to machine
    precision in the point estimate.
 
-   Cross-validation. The same estimate is matched cell-for-cell to
-   ``causaltensor.SDID`` (:math:`|\Delta| = 3.1\times 10^{-3}`) and pinned in
+   Cross-validation. The same estimate is matched to the authors' own
+   ``synthdid`` R package (:math:`|\Delta| = 1.6\times 10^{-3}`) and pinned in
    ``benchmarks/cases/sdid_prop99.py``; see the dedicated page
    :doc:`replications/sdid`.
 

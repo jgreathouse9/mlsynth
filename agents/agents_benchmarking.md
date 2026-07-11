@@ -177,10 +177,13 @@ encode the pinned commits/tags that keep the cross-check byte-stable.
      ~15–25 min single C++ compile** — it dominates the whole provisioning time.
      The chain is frozen to the last R-4.3-compatible release set (newer `Boom`
      needs R ≥ 4.5).
-   - `Synth`/`synthdid`/`did` in `requirements.R` go via CRAN, which is blocked
-     — pull `Synth` from the mirror (above); `synthdid`/`did` are not actually
-     `library()`-d by any current case (the `sdid`/`did` cross-checks use the
-     Python `causaltensor` reference), so skip them unless a new case needs them.
+   - `Synth`/`synthdid`/`MCPanel` go via CRAN or install_github, both blocked —
+     pull `Synth` from the mirror (above); `synthdid` (`synth-inference/synthdid`)
+     and `MCPanel` (`susanathey/MCPanel`) are used only to *regenerate* the
+     pinned `sdid_prop99` / `mcnnm_prop99` references, cloned with `git clone`
+     then `R CMD INSTALL` (their CRAN deps `mvtnorm`/`latex2exp` come from the
+     `cran/<pkg>` mirror). The cases read the frozen `reference.json` at run
+     time, so no R is needed to *run* them — only to refresh the capture.
 
    **Do not run two apt-using scripts concurrently** — they collide on the dpkg
    lock. Serialize them (each `install_*.sh` calls `apt-get`).
@@ -193,7 +196,6 @@ first failure and leaves none installed:
 
 | Package | Source | Cases |
 |---|---|---|
-| `causaltensor` | PyPI | `sdid_prop99`, `mcnnm_prop99` |
 | `cvxopt` | PyPI | `linf_crossval_ref` |
 | `cvxpy` | PyPI | `rescm_relax_ref` |
 | `libpysal` | PyPI | `spsydid_state_mc` (reads `.gal` weights) |
@@ -211,9 +213,6 @@ Two environment traps that masquerade as install failures:
   `Skipping …numpy-…dist-info due to invalid metadata` warnings. Harmless on its
   own, but combined with a batched install it can confuse the resolver — another
   reason to install one package per `pip` call.
-- **`causaltensor` pins `numpy<2.0`** but imports and runs fine under the
-  installed `numpy 2.4.x`. Do **not** downgrade numpy globally to satisfy it —
-  that would break mlsynth itself. The pin is advisory; the cases pass.
 
 Reference *repos* (not packages) clone lazily on first case run into
 `benchmarks/reference/.cache/` (git-ignored) via the `clone_*.py` pins. GitHub
@@ -236,8 +235,8 @@ needs the repo root on `PYTHONPATH`, e.g. `python -m benchmarks.reference.clone_
   Monte-Carlo case (e.g. `msqrt_sim`) then looks hung when it is merely waiting.
   Kill any sweep you started before provisioning finished and re-run clean.
 - **The clean end state:** with the stack up, all reference cases flip
-  `[SKIP] → [PASS]`. In the reference run this means the 7 external-Python cases
-  (causaltensor ×2, libpysal, kneed, toolz, scmrelax/cvxopt, cvxpy), the 9 R
+  `[SKIP] → [PASS]`. In the reference run this means the 5 external-Python cases
+  (libpysal, kneed, toolz, scmrelax/cvxopt, cvxpy), the 9 R
   cross-checks (`masc_basque`, `microsynth_seattle`, `nsc_prop99`,
   `pensynth_prop99`, `pda_luxurywatch`, `scmo_concatenated_mc`, `siv_syria_mc`,
   `cwz_ttest`, `cwz_mc`), and the GeoLift cases (`geolift_augsynth_ref`,

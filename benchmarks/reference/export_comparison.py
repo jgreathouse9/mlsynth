@@ -129,7 +129,7 @@ def _metadata(name: str, result: dict) -> dict:
         prov = json.loads((bundle / "provenance.json").read_text())
         ver = prov.get("r_version") or prov.get("python_version") or ""
         pkgs = prov.get("packages", {})
-        key = next((p for p in ("Synth", "augsynth", "scpi", "causaltensor") if p in pkgs), None)
+        key = next((p for p in ("Synth", "augsynth", "scpi", "synthdid", "MCPanel") if p in pkgs), None)
         if key:
             ver = f"{ver}; {key} {pkgs[key]}".strip("; ")
         meta["reference_version"] = ver

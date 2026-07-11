@@ -1,32 +1,28 @@
-"""Cross-validation benchmark: MC-NNM vs ``causaltensor`` on Proposition 99.
+"""Cross-validation benchmark: MC-NNM vs the authors' ``MCPanel`` R (Prop 99).
 
-Path A (empirical, scenario 3 -- runnable Python reference). Reproduces the
-Matrix-Completion (MC-NNM) estimate of California's Proposition 99 effect on the
-canonical smoking panel and cross-validates mlsynth against ``causaltensor``.
+Cross-validates mlsynth's ``MCNNM`` against the reference implementation of the
+method's own authors -- the ``susanathey/MCPanel`` R package (Athey, Bayati,
+Doudchenko, Imbens & Khosravi 2021) -- on the Abadie-Diamond-Hainmueller
+Proposition 99 smoking panel (``basedata/smoking_data.csv``: 39 states x 31
+years, 1970-2000, California treated from 1989).
 
-Why this is an estimand-level (not cell-exact) cross-check
----------------------------------------------------------
-Both implementations solve the same SOFT-IMPUTE objective (Athey et al. 2021,
-eq. 4.3) but differ in the two-way fixed-effect sub-solver: mlsynth fits the
-unit/time effects on the **observed cells only** (the Athey et al. observed-set
-:math:`\\mathcal{O}` convention), whereas ``causaltensor`` fits them on the full
-``O - M`` matrix. With each implementation choosing its own regulariser by
-cross-validation, the two completed matrices are therefore close but not
-identical -- so we cross-validate the **ATT** (the public estimand), not the raw
-low-rank fit.
+The reference is a captured live run of ``mcnnm_cv`` at the package defaults,
+pinned under ``benchmarks/reference/mcnnm_prop99/`` (R 4.3.3, ``MCPanel``
+commit 6b2706f, ``set.seed(1)``, data checksum).
 
-Provenance
-----------
-* Data: ``mlsynth/basedata/smoking_data.csv`` -- the canonical Abadie et al.
-  (2010) sample: 39 states x 31 years (1970-2000), California treated 1989.
-* Headline: Athey, Bayati, Doudchenko, Imbens & Khosravi (2021), "Matrix
-  Completion Methods for Causal Panel Data Models," *JASA* 116(536), report an
-  MC-NNM Prop 99 effect of roughly **-20** packs per capita.
-* Reference: ``causaltensor.MC_NNM_with_cross_validation`` (PyPI
-  ``causaltensor`` >= 0.1.12). Installed via ``pip install causaltensor``.
-
-mlsynth's CV ATT (-19.83) and causaltensor's (-20.27) agree to ~0.44 packs
-(~2% of the estimand) -- the residual is the documented FE-solver difference.
+Why the tolerances are loose. The two implementations are the same algorithm --
+soft-impute with unregularised two-way fixed effects -- and at a *matched*
+singular-value threshold they agree on the fit to observed cells to RMSE ~3e-3
+with identical singular spectra. But each selects its own regulariser by
+cross-validation (mlsynth: K-fold partition on a demeaned-spectrum grid;
+MCPanel: Bernoulli 80/20 folds on a ``2*sigma_max(P_Omega)/|Omega|``-scaled grid
+plus an explicit lambda=0 rung), so they land on different penalties, and the
+estimand -- the treated-unit counterfactual -- is the *extrapolated* block, which
+is intrinsically threshold-sensitive in nuclear-norm completion. Under each
+side's own CV the ATT agrees to ~0.15 packs and the California post-treatment
+counterfactual path to under one pack. That is the honest agreement for this
+estimator; a tight cell match is available only at a shared threshold (see
+``docs/replications/mcnnm.rst``).
 """
 from __future__ import annotations
 
@@ -36,11 +32,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference import load_reference
 
 _BASE = Path(__file__).resolve().parents[2] / "basedata"
-TREAT_UNIT = "California"
-TREAT_YEAR = 1989
+_REF = load_reference("mcnnm_prop99")["values"]
+_R_ATT = float(_REF["mcnnm_att"])
+_R_CF = np.asarray(_REF["ca_counterfactual_post"], float)
+_YEARS_POST = np.asarray(_REF["years_post"], int)
 
 
 def _load_panel() -> pd.DataFrame:
@@ -49,88 +47,54 @@ def _load_panel() -> pd.DataFrame:
     return df[["state", "year", "cigsale", "treat"]]
 
 
-def run() -> dict:
-    try:
-        import causaltensor as ct  # noqa: F401
-    except ImportError as exc:  # pragma: no cover - optional reference dep
-        raise BenchmarkSkipped("causaltensor not installed "
-                               "(`pip install causaltensor`)") from exc
-
+def _mlsynth_fit():
     from mlsynth import MCNNM
 
-    df = _load_panel()
-
-    # --- mlsynth (selects lambda by its own cross-validation) ---
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = MCNNM({"df": df, "outcome": "cigsale", "treat": "treat",
+        res = MCNNM({"df": _load_panel(), "outcome": "cigsale", "treat": "treat",
                      "unitid": "state", "time": "year",
                      "display_graphs": False}).fit()
-    ml_att = float(res.att)
+    tp = np.asarray(res.time_series.time_periods).astype(int)
+    cf = np.asarray(res.time_series.counterfactual_outcome, float)
+    post = np.isin(tp, _YEARS_POST)
+    return float(res.att), cf[post]
 
-    # --- causaltensor reference: O outcome matrix, Omega observed mask ---
-    wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
-    states, years = wide.index.tolist(), wide.columns.tolist()
-    O = wide.values.astype(float)
-    ti, sc = states.index(TREAT_UNIT), years.index(TREAT_YEAR)
-    Omega = np.ones_like(O)
-    Omega[ti, sc:] = 0  # 1 = observed, 0 = treated/missing
-    _, _, _, ct_tau = ct.MC_NNM_with_cross_validation(O, Omega)
-    ct_att = float(ct_tau)
 
+def run() -> dict:
+    ml_att, ml_cf = _mlsynth_fit()
     return {
-        "mcnnm_att": ml_att,
-        "mcnnm_vs_causaltensor_abs_diff": abs(ml_att - ct_att),
+        "mcnnm_att_vs_mcpanel_R": abs(ml_att - _R_ATT),
+        "ca_counterfactual_rmse_vs_mcpanel_R":
+            float(np.sqrt(np.mean((ml_cf - _R_CF) ** 2))),
     }
 
 
 def comparison() -> dict:
-    """mlsynth MC-NNM vs ``causaltensor``, the Prop 99 ATT side by side.
-
-    Re-runs both solvers (each picking its own regulariser by cross-validation)
-    and pairs the ATT estimands. Propagates ``BenchmarkSkipped`` when
-    ``causaltensor`` is not installed, so the comparison export mirrors ``run``.
-    """
-    try:
-        import causaltensor as ct
-    except ImportError as exc:  # pragma: no cover - optional reference dep
-        raise BenchmarkSkipped("causaltensor not installed "
-                               "(`pip install causaltensor`)") from exc
-
-    from mlsynth import MCNNM
-
-    df = _load_panel()
-    cfg = {"outcome": "cigsale", "treat": "treat", "unitid": "state",
-           "time": "year"}
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        res = MCNNM({**cfg, "df": df, "display_graphs": False}).fit()
-    ml_att = float(res.att)
-
-    wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()
-    states, years = wide.index.tolist(), wide.columns.tolist()
-    O = wide.values.astype(float)
-    ti, sc = states.index(TREAT_UNIT), years.index(TREAT_YEAR)
-    Omega = np.ones_like(O)
-    Omega[ti, sc:] = 0  # 1 = observed, 0 = treated/missing
-    _, _, _, ct_tau = ct.MC_NNM_with_cross_validation(O, Omega)
-    ct_att = float(ct_tau)
-
+    """mlsynth MC-NNM vs the authors' ``MCPanel`` R: ATT and the California
+    post-treatment counterfactual path, side by side."""
+    ml_att, ml_cf = _mlsynth_fit()
     rows = [{"quantity": "ATT", "mlsynth": round(ml_att, 6),
-             "reference": round(ct_att, 6)}]
+             "reference": round(_R_ATT, 6)}]
+    for yr, m, r in zip(_YEARS_POST, ml_cf, _R_CF):
+        rows.append({"quantity": f"counterfactual[{int(yr)}]",
+                     "mlsynth": round(float(m), 4), "reference": round(float(r), 4)})
     return {
         "rows": rows,
-        "mlsynth_call": {"estimator": "MCNNM", "config": cfg},
-        "reference": {"impl": "Python package causaltensor",
-                      "version": getattr(ct, "__version__", "causaltensor (pip)")},
+        "mlsynth_call": {"estimator": "MCNNM",
+                         "config": {"outcome": "cigsale", "treat": "treat",
+                                    "unitid": "state", "time": "year"}},
+        "reference": {"impl": "susanathey/MCPanel R (mcnnm_cv, defaults)",
+                      "version": "0.0 (commit 6b2706f), R 4.3.3, seed 1"},
     }
 
 
-# mlsynth's ATT must land on the published MC-NNM value (~-20, generous 1.5 to
-# absorb the implementation's CV choice) and agree with causaltensor to within
-# 1.0 pack -- the tolerance brackets the documented FE-solver difference plus the
-# two independent cross-validation grids.
+# Loose by construction (see module docstring): the ATT and counterfactual are
+# the extrapolated block, and the two implementations select different CV
+# penalties. Observed under each side's own default CV: ATT diff 0.15, path RMSE
+# 0.47. Tolerances leave head-room for that CV-selection gap without admitting a
+# genuine port regression (the engines agree to ~3e-3 at a shared threshold).
 EXPECTED = {
-    "mcnnm_att": (-20.0, 1.5),
-    "mcnnm_vs_causaltensor_abs_diff": (0.0, 1.0),
+    "mcnnm_att_vs_mcpanel_R": (0.0, 0.4),
+    "ca_counterfactual_rmse_vs_mcpanel_R": (0.0, 0.9),
 }

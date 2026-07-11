@@ -8,7 +8,7 @@
 # the DiD and pure-SC estimates the same package produces) so the mlsynth case
 # can cross-validate against the authors' own R.
 #
-# Reproduce:  Rscript benchmarks/reference/sdid_prop99_synthdid/reference.R
+# Reproduce:  Rscript benchmarks/reference/sdid_prop99/reference.R
 suppressMessages(library(synthdid))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -50,6 +50,6 @@ json <- sprintf(
          '    "n0": %d,\n    "t0": %d\n  }\n}\n'),
   sdid, did, sc, setup$N0, setup$T0)
 out <- if (length(args) >= 2) args[[2]] else
-  "benchmarks/reference/sdid_prop99_synthdid/reference.json"
+  "benchmarks/reference/sdid_prop99/reference.json"
 writeLines(json, out)
 cat("wrote", out, "\n")

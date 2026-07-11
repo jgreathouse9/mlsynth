@@ -11,7 +11,7 @@
 # against the authors' own R.
 #
 # The cross-validation fold assignment is randomised; set.seed(1) fixes it.
-# Reproduce:  Rscript benchmarks/reference/mcnnm_prop99_mcpanel/reference.R
+# Reproduce:  Rscript benchmarks/reference/mcnnm_prop99/reference.R
 suppressMessages(library(MCPanel))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -49,6 +49,6 @@ json <- sprintf(
   paste(sprintf("%.6f", ca_cf_post), collapse = ", "),
   paste(years_post, collapse = ", "))
 out <- if (length(args) >= 2) args[[2]] else
-  "benchmarks/reference/mcnnm_prop99_mcpanel/reference.json"
+  "benchmarks/reference/mcnnm_prop99/reference.json"
 writeLines(json, out)
 cat("wrote", out, "\n")

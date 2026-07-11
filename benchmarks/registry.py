@@ -15,10 +15,8 @@ CASES = {
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
-    "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs causaltensor
-    "sdid_prop99_synthdid": "benchmarks.cases.sdid_prop99_synthdid",  # cross-val vs authors' synthdid R (Prop 99)
-    "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs causaltensor
-    "mcnnm_prop99_mcpanel": "benchmarks.cases.mcnnm_prop99_mcpanel",  # cross-val vs authors' MCPanel R (Prop 99)
+    "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs authors' synthdid R (Prop 99)
+    "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",            # Path B: SSDiD vs DiD coverage/RMSE
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
@@ -128,10 +126,10 @@ CASES = {
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)
 }
 
-# Names whose case reads an external R/MATLAB reference *dump*. The cross-checks
-# against the pip-installable ``causaltensor`` and the on-demand SpSyDiD clone are
-# NOT listed here: they run under the default ``--all`` and skip themselves
-# (BenchmarkSkipped) when their optional dependency is absent.
+# Names whose case reads an external R/MATLAB reference *dump*. Cross-checks that
+# clone a reference on demand (e.g. the SpSyDiD clone) are NOT listed here: they
+# run under the default ``--all`` and skip themselves (BenchmarkSkipped) when
+# their optional dependency is absent.
 NEEDS_REFERENCE = set()
 
 
