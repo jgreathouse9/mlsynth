@@ -477,6 +477,19 @@ Verification
    (0.85 + 0.15). The residual gap is the V-optimiser non-uniqueness
    documented above.
 
+   Cross-validation (authors' own code). ``benchmarks/cases/masc_crossval.py``
+   pins mlsynth's MASC against Kellogg, Mogstad, Pouliot & Torgovitsky's own R
+   implementation (`maxkllgg/masc <https://github.com/maxkllgg/masc>`_, MIT,
+   vendored under ``benchmarks/reference/masc_basque/``) on the Basque
+   outcome-path panel. Run through the authors' ``masc(..., nogurobi = TRUE)``
+   rolling-origin cross-validation, the two implementations agree value for
+   value -- :math:`\widehat{\varphi}`, the selected :math:`m`, the pre-period
+   RMSE and every donor weight to solver tolerance, the ATT to
+   :math:`\sim 2\times 10^{-5}`. The synthetic-control step is a convex
+   simplex-constrained least squares, so its optimum is solver-invariant: the
+   ``nogurobi`` (LowRankQP) reference and mlsynth's CLARABEL solve reach the same
+   point.
+
    Helpers. The nearest-neighbour selector, the simplex SC primitive,
    the analytic :math:`\widehat{\varphi}` formula and the per-fold covariate
    aggregation are unit-tested (``mlsynth/tests/test_masc.py``).

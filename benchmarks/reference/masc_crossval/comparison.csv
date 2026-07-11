@@ -1,0 +1,16 @@
+# case: masc_crossval
+# generated_at: 2026-07-11T23:56:34Z
+# mlsynth_version: 1.0.0
+# estimator: MASC (outcome-path, rolling-origin CV)
+# config: {"estimator": "MASC", "m_grid": "1..10", "match_on": "outcomes", "min_preperiods": 5, "outcome": "gdpcap", "time": "year", "treat": "terrorism", "unitid": "regionname"}
+# reference_impl: maxkllgg/masc masc(..., nogurobi=TRUE) (LowRankQP), live run, captured
+# reference_version: vendored MIT sources @ benchmarks/reference/masc_basque/
+quantity,mlsynth,reference,abs_diff
+phi_hat,0.329572,0.329618,4.6e-05
+m_hat,3.0,3.0,0.0
+ATT,-0.958545,-0.958534,1.1e-05
+pre_RMSE,0.087889,0.087892,3e-06
+weight[Madrid (Comunidad De)],0.43376,0.433749,1.1e-05
+weight[Baleares (Islas)],0.318411,0.318413,2e-06
+weight[Rioja (La)],0.137972,0.137931,4.1e-05
+weight[Cataluna],0.109857,0.109881,2.4e-05

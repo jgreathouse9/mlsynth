@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-07-11T23:53:28Z",
+  "git_sha": "586617f18271d42a8d056675dd02244e2c0f7701",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/masc_crossval/reference.R",
+  "data": [
+    {
+      "path": "basedata/basque_jasa.csv",
+      "sha256": "b3f957771c8e0b7dbcb14dacb05ef91c55471fe38c2acbcac2e639bcb65a766a"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "LowRankQP": "1.0.6",
+    "data.table": "1.18.4",
+    "compiler": "4.3.3"
+  }
+}
