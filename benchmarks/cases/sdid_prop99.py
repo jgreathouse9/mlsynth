@@ -54,17 +54,14 @@ def run() -> dict:
 def comparison() -> dict:
     """mlsynth SDID vs the authors' ``synthdid`` R, the Prop 99 ATT side by side.
 
-    Also lists the DiD and pure-SC estimates the same R package produces on the
-    identical matrix, for context (mlsynth's SDID targets the SDID column).
+    Only the SDID estimand is paired (mlsynth's SDID targets it); the same R
+    package's DiD and pure-SC estimates are recorded in the reference bundle for
+    context but are not mlsynth-vs-reference comparison rows.
     """
     ml_att = _mlsynth_att()
     rows = [
         {"quantity": "SDID ATT", "mlsynth": round(ml_att, 6),
          "reference": round(float(_REF["sdid_att"]), 6)},
-        {"quantity": "DID ATT (context)", "mlsynth": None,
-         "reference": round(float(_REF["did_att"]), 6)},
-        {"quantity": "SC ATT (context)", "mlsynth": None,
-         "reference": round(float(_REF["sc_att"]), 6)},
     ]
     return {
         "rows": rows,
