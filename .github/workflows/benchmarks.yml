@@ -14,7 +14,6 @@ name: Daily benchmark validation
 #                               run here; git-based references self-clone on demand.
 #                               Sharded across parallel jobs + R packages cached
 #                               (see the suite job's own note).
-#   python-refs-causaltensor -- causaltensor alone (see note below).
 #   python-refs-relax        -- kneed / toolz / scmrelax.
 #   python-refs-spsydid      -- libpysal only (kept apart from scmrelax/mosek).
 #   comparison-workbook      -- generate side-by-side entries for any new
@@ -22,9 +21,9 @@ name: Daily benchmark validation
 #                               byte-deterministic comparisons.xlsx back to main
 #                               (guarded; commits only when an entry changed).
 #
-# The three python-refs jobs use Python references that pull numpy<2 (incompatible
+# The two python-refs jobs use Python references that pull numpy<2 (incompatible
 # with the JAX backend in `suite`), so they run WITHOUT the bayes extra, against
-# only the cases that call them live. Why three and not one: see the note above
+# only the cases that call them live. Why two and not one: see the note above
 # those jobs.
 #
 # A numerical FAIL fails the job (run_benchmarks.py exits non-zero); a graceful
@@ -167,54 +166,18 @@ jobs:
   # ---------------------------------------------------------------------------
   # Python reference cross-checks. These packages pull numpy<2 (incompatible with
   # the JAX backend in `suite`), so they get clean environments WITHOUT the bayes
-  # extra and run only the cases that call them live. They are split into three
-  # jobs by two dependency conflicts:
-  #
-  # causaltensor must be installed ALONE -- co-installing it with the relaxation
-  # stack makes pip backtrack it to an old release whose top-level SDID / MC_NNM
-  # entry points are gone (AttributeError at runtime). On its own it resolves to a
-  # version with the expected API (validated: SDID agrees to 3e-3, MC-NNM to 0.44
-  # packs on Prop 99).
+  # extra and run only the cases that call them live. They are split into two jobs
+  # by one dependency conflict:
   #
   # spsydid_state_mc must be kept AWAY from scmrelax: scmrelax drags in the mosek
   # Python package, and the spsydid reference calls cvxpy's `problem.solve()` with
   # no solver, so cvxpy auto-selects MOSEK and dies on its missing license. With no
   # mosek in the env, cvxpy falls back to CLARABEL and the case passes -- so it
   # gets its own libpysal-only job (validated: passes in ~9s).
+  #
+  # (The Prop-99 sdid_prop99 / mcnnm_prop99 cases now read pinned synthdid / MCPanel
+  # references, so they need no Python reference package and run in the main suite.)
   # ---------------------------------------------------------------------------
-  python-refs-causaltensor:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install mlsynth + causaltensor (isolated, pinned)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          # Pinned so the cross-check runs the same reference API every day; if it
-          # cannot install, the cases skip on ImportError rather than red the job.
-          pip install "causaltensor==0.1.12" \
-            || echo "::warning::causaltensor failed to install (its cross-checks will skip)"
-
-      - name: Run causaltensor cross-checks
-        run: |
-          set -o pipefail
-          rc=0
-          for c in mcnnm_prop99 sdid_prop99; do
-            echo "::group::$c"
-            python -u benchmarks/run_benchmarks.py --case "$c" || rc=1
-            echo "::endgroup::"
-          done
-          exit $rc
-
   python-refs-relax:
     runs-on: ubuntu-latest
     timeout-minutes: 30

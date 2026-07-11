@@ -1,0 +1,21 @@
+# case: mcnnm_prop99
+# generated_at: 2026-07-11T17:33:27Z
+# mlsynth_version: 1.0.0
+# estimator: MCNNM
+# config: {"outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}
+# reference_impl: susanathey/MCPanel R (mcnnm_cv, defaults)
+# reference_version: 0.0 (commit 6b2706f), R 4.3.3, seed 1
+quantity,mlsynth,reference,abs_diff
+ATT,-19.83201,-19.980463,0.148453
+counterfactual[1989],88.2321,88.9662,0.7341
+counterfactual[1990],85.9918,85.2355,0.7563
+counterfactual[1991],81.7036,81.7869,0.0833
+counterfactual[1992],80.3901,80.308,0.0821
+counterfactual[1993],81.6084,81.297,0.3114
+counterfactual[1994],78.506,79.1843,0.6783
+counterfactual[1995],79.6679,80.0584,0.3905
+counterfactual[1996],80.0352,80.0075,0.0277
+counterfactual[1997],79.4532,79.277,0.1762
+counterfactual[1998],78.7101,78.9232,0.2131
+counterfactual[1999],76.7667,77.5742,0.8075
+counterfactual[2000],71.1189,71.3474,0.2285

@@ -1,0 +1,9 @@
+# case: sdid_prop99
+# generated_at: 2026-07-11T17:33:08Z
+# mlsynth_version: 1.0.0
+# estimator: SDID
+# config: {"outcome": "cigsale", "time": "year", "treat": "treat", "unitid": "state"}
+# reference_impl: synth-inference/synthdid R (synthdid_estimate)
+# reference_version: 0.0.9 (commit 70c1ce3), R 4.3.3
+quantity,mlsynth,reference,abs_diff
+SDID ATT,-15.605399,-15.603829,0.00157
