@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **48 cross-validation checks** against original
-implementations across **27 estimators** -- 18 reproduce the reference to display precision, 19 to
+Coverage: **49 cross-validation checks** against original
+implementations across **28 estimators** -- 19 reproduce the reference to display precision, 19 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -121,6 +121,10 @@ Summary
      - 4
      - 1 exact · 1 tight · 1 close · 1 documented
      - 7.6
+   * - :ref:`SPSC <val-spsc>`
+     - 1
+     - 1 exact
+     - 0.0001
    * - :ref:`SSC <val-ssc>`
      - 1
      - 1 tight
@@ -715,6 +719,28 @@ SPILLSYNTH
      - 0.41
      - close
      - `spillsynth_sudan <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spillsynth_sudan.py>`__
+
+.. _val-spsc:
+
+SPSC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - `qkrcks0218/SPSC R (single-proxy synthetic control) <https://github.com/qkrcks0218/SPSC>`__
+     - —
+     - 14
+     - 0.0001
+     - exact — matches to display precision
+     - `spsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spsc_prop99.py>`__
 
 .. _val-ssc:
 

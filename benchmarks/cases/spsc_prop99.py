@@ -74,6 +74,34 @@ def run() -> dict:
     }
 
 
+def comparison() -> dict:
+    """mlsynth SPSC vs the authors' ``qkrcks0218/SPSC`` R: the California
+    (Proposition 99) linear effect path, side by side."""
+    from benchmarks.reference.clone_spsc import run_reference
+    from mlsynth.utils.proximal_helpers.spsc.estimation import estimate_spsc
+
+    y, W, donors = _panel()
+    ref = run_reference(y, W, _T0, detrend=True, att_degree=1,
+                        detrend_linear=True, ridge_lambda=_LAMBDA)     # skips if no R
+    out = estimate_spsc(y, W, _T0, detrend=True, ridge_lambda=_LAMBDA,
+                        att_degree=1, detrend_basis="poly", detrend_degree=1)
+    path, r_path = out[6], ref["effect_path"]
+    yrs = list(range(1989, 1989 + len(path)))
+    rows = [{"quantity": "ATT (mean path)", "mlsynth": round(float(out[2]), 4),
+             "reference": round(float(np.mean(r_path)), 4)}]
+    for yr, m, r in zip(yrs, path, r_path):
+        rows.append({"quantity": f"effect[{yr}]", "mlsynth": round(float(m), 4),
+                     "reference": round(float(r), 4)})
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "SPSC",
+                         "config": {"detrend": True, "att_degree": 1,
+                                    "ridge_lambda": _LAMBDA}},
+        "reference": {"impl": "qkrcks0218/SPSC R (single-proxy synthetic control)",
+                      "version": "@054f1fbb"},
+    }
+
+
 # Validated value-for-value against qkrcks0218/SPSC @ 054f1fbb (lambda = 10**0):
 # the linear effect path runs -4.845 ... -35.284 (mean -20.06), per-period SE
 # 0.0020 ... 0.0235; mlsynth reproduces both to solver tolerance. The pointwise

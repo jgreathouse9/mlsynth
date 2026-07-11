@@ -1,0 +1,22 @@
+# case: spsc_prop99
+# generated_at: 2026-07-11T18:39:22Z
+# mlsynth_version: 1.0.0
+# estimator: SPSC
+# config: {"att_degree": 1, "detrend": true, "ridge_lambda": 0.0}
+# reference_impl: qkrcks0218/SPSC R (single-proxy synthetic control)
+# reference_version: @054f1fbb
+quantity,mlsynth,reference,abs_diff
+ATT (mean path),-20.0645,-20.0645,0.0
+effect[1989],-4.8454,-4.8454,0.0
+effect[1990],-7.3819,-7.3819,0.0
+effect[1991],-9.9184,-9.9184,0.0
+effect[1992],-12.4549,-12.4549,0.0
+effect[1993],-14.9914,-14.9914,0.0
+effect[1994],-17.528,-17.5279,0.0001
+effect[1995],-20.0645,-20.0645,0.0
+effect[1996],-22.601,-22.601,0.0
+effect[1997],-25.1375,-25.1375,0.0
+effect[1998],-27.674,-27.674,0.0
+effect[1999],-30.2106,-30.2105,0.0001
+effect[2000],-32.7471,-32.7471,0.0
+effect[2001],-35.2836,-35.2836,0.0

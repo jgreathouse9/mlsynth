@@ -49,6 +49,8 @@ KNOWN_REFS = {
         "https://github.com/synth-inference/synthdid",
     "susanathey/MCPanel R (mcnnm_cv, defaults)":
         "https://github.com/susanathey/MCPanel",
+    "qkrcks0218/SPSC R (single-proxy synthetic control)":
+        "https://github.com/qkrcks0218/SPSC",
     "R package scinference (sc.cf t-test, live run, captured)":
         "https://github.com/kwuthrich/scinference",
 }
