@@ -1,0 +1,17 @@
+# case: clustersc_rpca_germany
+# generated_at: 2026-07-11T23:19:35Z
+# mlsynth_version: 1.0.0
+# estimator: CLUSTERSC
+# config: {"method": "rpca", "rpca_method": "PCP"}
+# reference_impl: Bayani RPCA-SC -- the author's own code, vendored verbatim (vendor/bayani_rpca_synth: FPCA.R + RPCA_2.py)
+# reference_version: Bayani, Robust PCA Synthetic Control (dissertation)
+quantity,mlsynth,reference,abs_diff
+weight[Norway],0.4854,0.4854,0.0
+weight[France],0.354,0.354,0.0
+weight[New Zealand],0.2964,0.2964,0.0
+weight[Austria],0.023,0.023,0.0
+pre-period RMSE,88.6031,88.6031,0.0
+ATT (1990-2003),-1500.9332,-1500.9332,0.0
+counterfactual[1990],19960.1847,19960.1847,0.0
+counterfactual[1997],26189.8856,26189.8856,0.0
+counterfactual[2003],32583.299,32583.299,0.0
