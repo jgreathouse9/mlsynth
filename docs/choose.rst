@@ -80,7 +80,7 @@ At a glance
      ↓ then escalate ONLY if one of these is true:
    Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · SPOTSYNTH (unknown which) · ISCM (outside hull)
    Nonstationary / spurious trend?      ─► SBC · HSC
-   Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA
+   Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA · BFSC (Bayesian, credible band)
    Nonlinear outcome surface?           ─► NSC
    Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
@@ -381,10 +381,37 @@ Q1.4 · Are there persistent latent factors / time-varying dynamics / heavy
 observation noise?
 
 * No -- next question.
-* Yes -- :doc:`tasc` (time-aware state-space model) or :doc:`fma` (PC factors
-  with a residual-bootstrap test). (For micro panels with observed time-varying
-  *confounders* and autoregressive outcomes, :doc:`dscar` is a different
-  paradigm -- see the remark below.)
+* Yes -- :doc:`tasc` (time-aware state-space model), :doc:`fma` (PC factors
+  with a residual-bootstrap test), or :doc:`bfsc` (a Bayesian latent-factor
+  model that returns a full posterior credible band on the counterfactual and
+  prunes surplus factors with a horseshoe+ prior; needs the ``[bayes]`` extra).
+  (For micro panels with observed time-varying *confounders* and autoregressive
+  outcomes, :doc:`dscar` is a different paradigm -- see the remark below.)
+
+*FMA versus BFSC -- frequentist or Bayesian factor SC.* Both fit the untreated
+outcome with a latent-factor model rather than a donor weighting, so both handle
+a treated unit outside the donors' convex hull. :doc:`fma` (Li and Sonnier,
+2023) estimates the factors by principal components, regresses the treated unit
+on the estimated loadings, and contributes a formal inference theory (a
+residual bootstrap giving valid intervals without the equal-variance
+assumption). :doc:`bfsc` (Pinkney, 2021) instead estimates the factors and
+loadings jointly in one Bayesian model, masks the treated post-period as missing
+data, and reads the counterfactual off the posterior -- so the credible band
+propagates the uncertainty in the factors themselves, and a horseshoe+ prior on
+the loadings makes the factor count a soft upper bound rather than a choice you
+must commit to. Prefer :doc:`fma` when you want a fast, dependency-free point
+estimate with bootstrap intervals; prefer :doc:`bfsc` when you want a full
+posterior band and would rather not fix the number of factors, and you can take
+on the ``[bayes]`` (NumPyro) dependency.
+
+*Which Bayesian synthetic control?* Three estimators are Bayesian, and they
+split on what carries the prior. :doc:`bscm` and :doc:`bvss` put a shrinkage /
+selection prior on the *donor weights* (both pure-numpy, both report donor
+weights) -- reach for them, at Q1.2 or Q1.6, when you want interpretable weights
+with a credible interval. :doc:`bfsc` puts the prior on a *latent-factor model*
+of the outcome and reports a counterfactual band with no donor weights -- reach
+for it, here, when a shared factor structure rather than a weighted average of
+donors is the right model.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
@@ -796,7 +823,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Nonstationary / spurious-trend matching
      - :doc:`sbc`, :doc:`hsc`
    * - Time-varying dynamics / persistent factors / noise
-     - :doc:`tasc`, :doc:`fma`, :doc:`dscar`
+     - :doc:`tasc`, :doc:`fma`, :doc:`bfsc`, :doc:`dscar`
    * - Nonlinear outcome surface
      - :doc:`nsc`
    * - Donor pool large vs pre-period (N ≳ T0)
