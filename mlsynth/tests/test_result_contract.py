@@ -15,12 +15,20 @@ migration rolls out, every estimator should be added to ``OBSERVATIONAL``.
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pandas as pd
 import pytest
 
+# BFSC draws its posterior with NUTS (NumPyro), behind the ``[bayes]`` optional
+# dependency. The module-scoped ``fitted`` fixture fits every OBSERVATIONAL
+# estimator eagerly, so a skip-marked param would still be fit (and crash) in
+# the fixture loop -- include BFSC only when the backend is importable.
+_HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
+
 from mlsynth import (
-    BSCM, BVSS, CFM, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
+    BFSC, BSCM, BVSS, CFM, CLUSTERSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
     MCNNM, MSQRT, NSC, PDA, PROPSC, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
@@ -121,6 +129,12 @@ OBSERVATIONAL = [
     pytest.param(SPILLSYNTH, {"method": "cd", "affected_units": ["u01"]},
                  id="SPILLSYNTH"),
 ]
+
+if _HAS_NUMPYRO:  # BFSC needs the ``[bayes]`` extra; skip the whole param without it
+    OBSERVATIONAL.append(
+        pytest.param(BFSC, {"n_factors": 2, "n_warmup": 50, "n_samples": 50,
+                            "n_chains": 1, "seed": 0}, id="BFSC")
+    )
 
 
 @pytest.fixture(scope="module")

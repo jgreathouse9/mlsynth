@@ -54,6 +54,7 @@ CASES = {
     "masc_basque": "benchmarks.cases.masc_basque",            # Path A: MASC Basque/ETA (KMPT Sec 5)
     "src_basque": "benchmarks.cases.src_basque",              # cross-val vs R Code_SMC + Path A: SRC Basque/ETA (Zhu 2023)
     "bscm_china_watches": "benchmarks.cases.bscm_china_watches",  # cross-val vs reference Stan horseshoe + FSPDA (Shi-Huang) on China anti-corruption watches, p>n (Kim-Lee-Gupta 2020)
+    "bfsc_germany": "benchmarks.cases.bfsc_germany",                # cross-val vs author appendix Stan (corr 0.999999) + Path A: West Germany reunification (Pinkney 2021)
     "mscmt_basque": "benchmarks.cases.mscmt_basque",          # cross-val vs R MSCMT: AG Basque, fit_window=(1960,1969)
     "malo_prop99": "benchmarks.cases.malo_prop99",            # Path A: Malo et al. 2024 Table 1 bilevel optimum (Prop 99)
     "malo_basque": "benchmarks.cases.malo_basque",            # cross-val vs scm.corner: AG Basque bilevel optimum, beats MSCMT

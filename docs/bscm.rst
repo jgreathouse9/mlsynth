@@ -52,6 +52,26 @@ Do not use BSCM when:
 * There are multiple treated units, spillovers, or a continuous dose -- BSCM
   encodes a single binary intervention on one unit.
 
+The Bayesian SC family
+----------------------
+
+mlsynth carries three Bayesian synthetic-control estimators; they differ in
+what they place a prior on, and BSCM is the shrinkage-on-donor-weights member.
+
+* :doc:`bscm` (Kim, Lee and Gupta) -- shrinkage (horseshoe or spike-and-slab)
+  on unconstrained donor weights; a pure-numpy Gibbs sampler, and it reports
+  donor weights.
+* :doc:`bvss` (Xu and Zhou) -- spike-and-slab donor selection on a soft
+  simplex whose tightness is learned; a pure-numpy Metropolis-within-Gibbs
+  sampler, and it reports donor weights and inclusion probabilities.
+* :doc:`bfsc` (Pinkney) -- a Bayesian latent-factor model, not a donor
+  weighting; NUTS through the ``[bayes]`` optional dependency, and it reports a
+  counterfactual credible band and no donor weights.
+
+Reach for a weighting prior (BSCM, :doc:`bvss`) when you want interpretable
+donor weights; reach for :doc:`bfsc` when a shared factor structure -- not a
+weighted average of donors -- is the right model for the untreated outcome.
+
 Notation and the causal estimand
 ---------------------------------
 
