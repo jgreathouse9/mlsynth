@@ -491,6 +491,17 @@ the pre-period and predict the post-period worse.
   matter -- :doc:`beast` (covariate-balancing weights under sparsity, with a
   doubly-robust, analytically-inferred ATT).
 
+*A privacy constraint on the donors.* If the donor pool is sensitive -- patient
+records in a clinical external-control arm, proprietary firm-level series in a
+data cooperative -- and the counterfactual must be released externally,
+:doc:`dpsc` (Rho, Cummings and Misra, 2023) is the only estimator here with a
+formal privacy guarantee: a ridge synthetic control fitted with differentially
+private empirical risk minimisation, so publishing the effect leaks a provably
+bounded amount about any single donor. It buys a privacy certificate, not a
+better point estimate, and it is worth its accuracy cost only when the donor
+pool is large and the pre-period long; on the usual small donor pool, and for
+public aggregates, prefer :doc:`vanillasc`.
+
 *Dense versus sparse weights -- when to relax SCM.* Standard synthetic control
 constrains the weights to the simplex, which (as Doudchenko and Imbens (2016)
 observe) tends to produce *sparse* solutions loading on a handful of donors. Two

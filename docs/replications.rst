@@ -76,6 +76,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/geolift
    replications/orthsc
    replications/beast
+   replications/dpsc
    replications/rolldid
    replications/ppscm
    replications/snn
@@ -393,6 +394,14 @@ High-dimensional donor pools
   :math:`-31.51` by 2000), with a valid balancing (:math:`\sum W = 1`)
   and sparse selection (durable: ``beast_prop99``). See the
   :doc:`dedicated page <replications/beast>`.
+* :doc:`dpsc` -- Rho, Cummings & Misra (2023) differentially private
+  synthetic control. Cross-validation: on California Proposition 99, under
+  a shared Mersenne-Twister seed, mlsynth reproduces the authors' own
+  ``PrivateSC`` private coefficients and private counterfactual
+  value-for-value for both mechanisms -- output perturbation and objective
+  perturbation (the latter solved in closed form against their cvxpy) -- to
+  :math:`\sim 10^{-11}` (durable: ``dpsc_prop99``). See the
+  :doc:`dedicated page <replications/dpsc>`.
 * :doc:`msqrt` -- Shen, Song & Abadie (2025) multivariate
   square-root-Lasso SC for high-dimensional disaggregated data.
   Path B: the Section-6 simulation (true ATT = 0) -- the

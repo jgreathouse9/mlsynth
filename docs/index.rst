@@ -275,6 +275,7 @@ headline numbers.
    msqrt
    sparse_sc
    beast
+   dpsc
    pda
    scul
    rescm
