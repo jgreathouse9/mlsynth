@@ -7,8 +7,9 @@ so silent behavioural drift cannot occur. If the upstream SDID
 formulas change, this module should be updated deliberately.
 
 Wraps the Arkhangelsky-Athey-Hirshberg-Imbens-Wager (2021) unit-weight
-QP, time-weight QP, and the :math:`\\zeta = T_{\\text{post}}^{1/4}
-\\cdot \\mathrm{std}(\\Delta Y)` regularisation rule.
+QP, time-weight QP, and the :math:`\\zeta = (N_{\\text{tr}}
+T_{\\text{post}})^{1/4} \\cdot \\mathrm{std}(\\Delta Y)` regularisation rule
+(matching the authors' ``functions_ssdid.calculate_regularization``).
 """
 
 from __future__ import annotations
@@ -65,16 +66,26 @@ def fit_time_weights(
 def compute_regularization(
     donor_outcomes_pre: np.ndarray,
     num_post_periods: int,
+    num_treated_units: int = 1,
 ) -> float:
-    """SDID :math:`\\zeta = T_{\\text{post}}^{1/4} \\cdot \\mathrm{sd}(\\Delta Y)`.
+    """SDID :math:`\\zeta = (N_{\\text{tr}} T_{\\text{post}})^{1/4}
+    \\cdot \\mathrm{sd}(\\Delta Y)`.
 
     The standard deviation is of the first-differenced pre-period donor
-    outcomes (Arkhangelsky et al. 2021 Section 3).
+    outcomes (Arkhangelsky et al. 2021 Section 3). The tuning count is the
+    number of directly-treated-unit post-period observations
+    :math:`N_{\\text{tr}} T_{\\text{post}}`, matching the authors' reference
+    ``functions_ssdid.calculate_regularization`` (serenini/spatial_SDID), whose
+    ``n_treated_post`` counts the treated-and-post rows. ``num_treated_units``
+    defaults to ``1``, so a single directly-treated unit reduces to the
+    :math:`T_{\\text{post}}^{1/4}` form and leaves such designs unchanged.
     """
     if donor_outcomes_pre.ndim != 2:
         raise MlsynthDataError("donor_outcomes_pre must be 2-D.")
     if num_post_periods < 0:
         raise MlsynthDataError("num_post_periods must be non-negative.")
+    if num_treated_units < 1:
+        raise MlsynthDataError("num_treated_units must be a positive integer.")
     if donor_outcomes_pre.shape[0] < 2 or donor_outcomes_pre.shape[1] == 0:
         sd_diff = 1.0
     else:
@@ -82,7 +93,7 @@ def compute_regularization(
         sd_diff = float(np.std(diffs, ddof=1)) if diffs.size > 1 else 1.0
         if not np.isfinite(sd_diff) or sd_diff <= 0:
             sd_diff = 1.0
-    return float((num_post_periods ** 0.25) * sd_diff)
+    return float(((num_treated_units * num_post_periods) ** 0.25) * sd_diff)
 
 
 def fit_unit_weights(

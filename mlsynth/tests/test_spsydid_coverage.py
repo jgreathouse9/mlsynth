@@ -141,6 +141,29 @@ class TestComputeRegularization:
         z = compute_regularization(pre, num_post_periods=16)
         assert z == pytest.approx(16 ** 0.25)
 
+    def test_zeta_scales_with_directly_treated_count(self):
+        """zeta = (N_tr * T_post)^(1/4) * sigma, matching the authors' code.
+
+        serenini/spatial_SDID ``functions_ssdid.calculate_regularization`` uses
+        ``n_treated_post = (treated & post rows) = N_tr * T_post``, so the
+        SpSyDiD unit-weight ridge carries the directly-treated count. A single
+        directly-treated unit (the default) reduces to ``(T_post)^(1/4)`` and
+        every existing single-treated result is unchanged.
+        """
+        rng = np.random.default_rng(1)
+        pre = rng.standard_normal((7, 4)) * 3
+        sigma = np.std(np.diff(pre, axis=0).flatten(), ddof=1)
+        z1 = compute_regularization(pre, num_post_periods=6)
+        assert z1 == pytest.approx((6 ** 0.25) * sigma, rel=1e-9)
+        z3 = compute_regularization(pre, num_post_periods=6, num_treated_units=3)
+        assert z3 == pytest.approx(((3 * 6) ** 0.25) * sigma, rel=1e-9)
+        assert z3 == pytest.approx(z1 * (3 ** 0.25), rel=1e-9)
+
+    def test_rejects_nonpositive_treated_count(self):
+        with pytest.raises(MlsynthDataError, match="num_treated_units"):
+            compute_regularization(np.zeros((5, 3)), num_post_periods=4,
+                                   num_treated_units=0)
+
 
 class TestFitUnitWeights:
     def test_happy_path(self):
