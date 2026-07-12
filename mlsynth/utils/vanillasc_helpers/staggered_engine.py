@@ -341,22 +341,145 @@ def _mat2dict_rows(mat, treated_units):
     return out
 
 
-def b_est_simplex(A, Z, J, KM):
-    """Solve the simplex synthetic-control QP for one treated unit."""
+def _shrinkage_est(method, A, Z, J, KM):
+    """scpi ``shrinkage_EST`` rule-of-thumb for one feature block (V = identity).
+
+    Returns ``(Q, lambda)``. For ridge, ``lambda = sigma^2 (J + KM) / ||b||**2``
+    and ``Q = ||b|| / (1 + lambda)`` from an unweighted OLS of ``A`` on ``Z``;
+    when observations are scarce (``len(Z) <= #cols + 10``) scpi lasso-screens
+    the columns first. Lasso returns ``Q = 1``.
+    """
+    Aarr = np.asarray(A, float).ravel()
+    Zarr = np.asarray(Z, float)
+    if method == "lasso":
+        return 1.0, None
+
+    def _rule(Zsub):
+        n, k = Zsub.shape
+        b, *_ = np.linalg.lstsq(Zsub, Aarr, rcond=None)
+        resid = Aarr - Zsub @ b
+        sig = float(resid @ resid) / max(n - k, 1)
+        L2 = float(b @ b)
+        lam = sig * (J + KM) / max(L2, 1e-12)
+        return sqrt(L2) / (1.0 + lam), lam
+
+    n, k = Zarr.shape
+    if n > k + 10:
+        return _rule(Zarr)
+    # scarce-obs lasso screen (scpi), then refit on the kept columns
+    z = cp.Variable(Zarr.shape[1])
+    try:
+        cp.Problem(cp.Minimize(cp.sum_squares(Aarr - Zarr @ z)),
+                   [cp.norm1(z) <= 1.0]).solve(solver=cp.CLARABEL)
+        coefs = np.abs(np.asarray(z.value).ravel())
+    except Exception:  # pragma: no cover - solver fallback
+        coefs = np.abs(np.linalg.lstsq(Zarr, Aarr, rcond=None)[0])
+    keep = max(min(n - 10, k), 2)
+    active = np.sort(np.argsort(coefs)[::-1][:keep])
+    return _rule(Zarr[:, active])
+
+
+def _w_constr_prep_unit(w_constr, A_df, B_df, J, KM):
+    """Normalise a weight-constraint spec for one treated unit (scpi
+    ``w_constr_prep``): fills ``p``/``dir``/``lb``/``Q``/``lambda`` and, for
+    ridge / L1-L2, estimates the data-driven budget per feature (``max`` of the
+    per-feature ``min`` Q, floored at 0.5)."""
+    name = (w_constr if isinstance(w_constr, str)
+            else dict(w_constr).get("name", "simplex"))
+    spec = {} if isinstance(w_constr, str) else dict(w_constr)
+    if name == "simplex":
+        return {"name": "simplex", "p": "L1", "dir": "==", "lb": 0.0,
+                "Q": float(spec.get("Q", 1.0)), "Q2": None, "lambda": None}
+    if name == "ols":
+        return {"name": "ols", "p": "no norm", "dir": None, "lb": -np.inf,
+                "Q": None, "Q2": None, "lambda": None}
+    if name == "lasso":
+        return {"name": "lasso", "p": "L1", "dir": "<=", "lb": -np.inf,
+                "Q": float(spec.get("Q", 1.0)), "Q2": None, "lambda": None}
+
+    # ridge / L1-L2: data-driven Q per feature block on the donor design. A_df
+    # and B_df are the treated pre-outcome and donor design, feature-indexed.
+    has_feature = (isinstance(A_df, pd.DataFrame)
+                   and "feature" in (A_df.index.names or []))
+    feats = (A_df.index.get_level_values("feature").unique().tolist()
+             if has_feature else [None])
+    Qfeat, lam = [], None
+    for f in feats:
+        if f is not None:
+            Af = np.asarray(A_df.xs(f, level="feature"), float).ravel()
+            Bf = np.asarray(B_df.xs(f, level="feature"), float)
+        else:
+            Af = np.asarray(A_df, float).ravel()
+            Bf = np.asarray(B_df, float)
+        if Bf.shape[0] >= 5:
+            try:
+                Qe, lam = _shrinkage_est("ridge", Af, Bf, J, KM)
+                Qfeat.append(Qe)
+            except Exception:  # pragma: no cover
+                pass
+    if not Qfeat:
+        Qe, lam = _shrinkage_est("ridge", np.asarray(A_df, float).ravel(),
+                                 np.asarray(B_df, float), J, KM)
+        Qfeat.append(Qe)
+    Qest = max(float(np.nanmin(Qfeat)), 0.5)
+    if name == "ridge":
+        return {"name": "ridge", "p": "L2", "dir": "<=", "lb": -np.inf,
+                "Q": float(spec.get("Q", Qest)), "Q2": None, "lambda": float(lam)}
+    return {"name": "L1-L2", "p": "L1-L2", "dir": "==/<=", "lb": 0.0,
+            "Q": 1.0, "Q2": float(spec.get("Q2", Qest)), "lambda": float(lam)}
+
+
+def b_est(A, Z, J, KM, w_constr="simplex", B_donor=None):
+    """Solve the synthetic-control weight problem for one treated unit under
+    the scpi weight-constraint family. The constraint binds the donor block
+    ``x[:J]``; covariate/constant coefficients ``x[J:]`` are unconstrained.
+
+    Returns ``(x_value, wc)`` where ``wc`` is the normalised constraint dict
+    (with the estimated ridge / lasso budget ``Q`` and penalty ``lambda``).
+    """
     Zarr = np.asarray(Z, dtype=float)
     Aarr = np.asarray(A, dtype=float).reshape(-1, 1)
+    Bd = B_donor if B_donor is not None else pd.DataFrame(Zarr[:, :J])
+    wc = _w_constr_prep_unit(w_constr, A, Bd, J, KM)
     x = cp.Variable((J + KM, 1))
     obj = cp.Minimize(cp.sum_squares(Aarr - Zarr @ x))
-    cons = [cp.sum(x[0:J]) == 1, x[0:J] >= 0]
+    xd = x[0:J]
+    name = wc["name"]
+    if name == "simplex":
+        cons = [cp.sum(xd) == wc["Q"], xd >= 0]
+    elif name == "ols":
+        cons = []
+    elif name == "lasso":
+        cons = [cp.norm1(xd) <= wc["Q"]]
+    elif name == "ridge":
+        cons = [cp.sum_squares(xd) <= wc["Q"] ** 2]
+    else:  # L1-L2
+        cons = [cp.sum(xd) == wc["Q"], xd >= 0,
+                cp.sum_squares(xd) <= wc["Q2"] ** 2]
     prob = cp.Problem(obj, cons)
-    prob.solve(solver=cp.CLARABEL)
-    if prob.status != 'optimal':
-        raise RuntimeError(f"estimation not converged: {prob.status}")
-    return x.value
+    for solver in (cp.CLARABEL, cp.ECOS, cp.SCS):
+        try:
+            prob.solve(solver=solver)
+            if prob.status in ("optimal", "optimal_inaccurate"):
+                return x.value, wc
+        except Exception:
+            continue
+    raise RuntimeError(f"estimation not converged: {prob.status}")
 
 
-def scest(md):
-    """Estimate weights per treated unit and assemble point predictions."""
+def b_est_simplex(A, Z, J, KM):
+    """Solve the simplex synthetic-control QP for one treated unit (back-compat
+    wrapper over :func:`b_est`)."""
+    return b_est(A, Z, J, KM, "simplex")[0]
+
+
+def scest(md, w_constr="simplex"):
+    """Estimate weights per treated unit and assemble point predictions.
+
+    ``w_constr`` is the scpi weight-constraint family (``"simplex"`` default, or
+    ``"ols"`` / ``"lasso"`` / ``"ridge"`` / ``"L1-L2"``, or an explicit dict),
+    applied per treated unit; the binding is on the donor block only.
+    """
     treated_units = md['treated_units']
     A, B, C, P = md['A'], md['B'], md['C'], md['P']
     Z = pd.concat([B, C], axis=1)
@@ -373,11 +496,12 @@ def scest(md):
 
     w_store = []
     r_store = []
+    w_constr_inf = {}
     for tr in treated_units:
         J = blocks[tr]['J']
         KM = blocks[tr]['KM']
         Zi = pd.concat([B_d[tr], C_d[tr]], axis=1)
-        res = b_est_simplex(A_d[tr], Zi, J, KM)
+        res, w_constr_inf[tr] = b_est(A_d[tr], Zi, J, KM, w_constr, B_donor=B_d[tr])
         idx = pd.MultiIndex.from_product([[tr], blocks[tr]['donors']])
         w_store.append(pd.DataFrame(res[0:J], index=idx))
         if KM > 0:
@@ -400,7 +524,7 @@ def scest(md):
     fit_pre.columns = A.columns
     fit_post.columns = A.columns
 
-    return dict(b=b, w=w, r=r, A_hat=A_hat, res=res,
+    return dict(b=b, w=w, r=r, A_hat=A_hat, res=res, w_constr_inf=w_constr_inf,
                 Y_pre_fit=fit_pre, Y_post_fit=fit_post, Z=Z, **md)
 
 
@@ -1128,6 +1252,7 @@ def staggered_pi_bands(
     cov_adj=None,
     feature_constant=False,
     cointegrated=False,
+    w_constr="simplex",
 ):
     """Staggered synthetic-control prediction intervals for one predictand.
 
@@ -1185,7 +1310,7 @@ def staggered_pi_bands(
 
     md = scdata_multi(data, outcome, feats, cadj,
                       constant=const, cointegrated_data=coint, effect=effect)
-    est = scest(md)
+    est = scest(md, w_constr)
     out = scpi(est, sims=sims, u_alpha=u_alpha, e_alpha=e_alpha, seed=seed,
                tsua_double_divide=scpi_compat)
 
