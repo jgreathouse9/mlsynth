@@ -223,6 +223,7 @@ def _run_covariate_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResul
         e_alpha=config.alpha, seed=config.seed, scpi_compat=config.scpi_compat,
         features=spec.features, cov_adj=spec.cov_adj,
         feature_constant=spec.constant, cointegrated=spec.cointegrated,
+        w_constr=spec.w_constr,
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

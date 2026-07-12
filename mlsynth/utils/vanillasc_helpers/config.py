@@ -49,6 +49,14 @@ class StaggeredSCMSpec(BaseModel):
         description="Difference the data for cointegration (scpi's "
                     "'cointegrated_data').",
     )
+    w_constr: Literal["simplex", "ols", "lasso", "ridge", "L1-L2"] = Field(
+        default="simplex",
+        description="Donor weight constraint (scpi's weight-constraint family), "
+                    "applied uniformly to every treated unit. 'simplex' (convex "
+                    "Abadie SC, default), 'ols' (unconstrained), 'lasso' "
+                    "(L1 <= 1, Chernozhukov et al.), 'ridge' (L2 shrinkage, "
+                    "Amjad et al.), 'L1-L2' (Arkhangelsky et al.).",
+    )
 
     @field_validator("features")
     @classmethod

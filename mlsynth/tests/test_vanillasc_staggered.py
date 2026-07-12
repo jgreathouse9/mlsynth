@@ -265,3 +265,36 @@ def test_covariate_staggered_matches_scpi_per_unit():
     assert res.inference is not None
     assert np.isfinite(res.effects.att)
     assert len(res.additional_outputs["per_cell_effects"]) == 25
+
+
+# ---------------------------------------------------------------------------
+# Weight-constraint family exposed on the staggered spec (scpi's w_constr)
+# ---------------------------------------------------------------------------
+def _fit_family(df, w_constr):
+    return VanillaSC({
+        "df": df, "outcome": "gdp", "treat": "status",
+        "unitid": "country", "time": "year", "display_graphs": False,
+        "inference": "scpi", "scpi_sims": 60, "seed": 8894,
+        "staggered_spec": {"features": ["gdp"], "w_constr": w_constr},
+    }).fit()
+
+
+@pytest.mark.parametrize("w_constr", ["ridge", "lasso", "ols"])
+def test_staggered_spec_family_bands_are_coherent(germany_staggered, w_constr):
+    """A non-simplex w_constr on the staggered spec produces finite prediction
+    intervals that bracket the point ATT (the fit routes the whole staggered
+    engine through scpi's weight-constraint family)."""
+    res = _fit_family(germany_staggered, w_constr)
+    assert res.inference is not None
+    assert np.isfinite(res.effects.att)
+    assert res.inference.ci_lower <= res.effects.att <= res.inference.ci_upper
+
+
+def test_staggered_spec_rejects_unknown_w_constr():
+    from mlsynth.config_models import VanillaSCConfig
+    from pydantic import ValidationError
+    df = pd.DataFrame({"country": ["A"], "year": [1], "gdp": [1.0], "status": [0]})
+    with pytest.raises(ValidationError):
+        VanillaSCConfig(df=df, outcome="gdp", treat="status", unitid="country",
+                        time="year",
+                        staggered_spec={"features": ["gdp"], "w_constr": "bogus"})
