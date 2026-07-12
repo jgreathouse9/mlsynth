@@ -37,6 +37,18 @@ in the spirit of Chernozhukov, Wuethrich and Zhu (2021), calibrated
 on the validation-block residuals. Vives's Abadie-style placebo
 permutation is still available via ``inference_method="placebo"``.
 
+Because the donor weights :math:`\mathbf{w}` solve the standard simplex QP
+(:math:`\mathbf{w} \ge 0`, :math:`\sum_j w_j = 1`) -- the L1 penalty acts on
+the predictor-importance vector :math:`\mathbf{v}`, not on the donors -- the
+synthetic control is an Abadie convex combination. Setting
+``compute_scpi_pi=True`` therefore adds model-based prediction intervals from
+VanillaSC's generalized scpi engine (Cattaneo, Feng, Palomba and Titiunik 2025)
+under scpi's simplex weight constraint -- the Abadie (2010) setting of scpi's
+Table 3 -- giving a per-period band and an ATT interval (surfaced on
+``res.scpi`` and, when no other CI is produced, in ``res.att_ci``) alongside the
+conformal or placebo inference. ``scpi_sims`` / ``scpi_alpha`` /
+``scpi_e_method`` control the simulation.
+
 When to use this estimator
 --------------------------
 
