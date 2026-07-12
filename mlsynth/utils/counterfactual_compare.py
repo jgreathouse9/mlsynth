@@ -158,11 +158,18 @@ def _normalize(
         att = getattr(effects, "att", None) if effects is not None else None
         pre_rmse = getattr(spec, "pre_rmse", None)
         weights = getattr(spec, "donor_weights", None)
-        inference = getattr(spec, "inference", None)
-        if inference is not None:
-            lower, upper, periods = _band_from_details(
-                getattr(inference, "details", None)
-            )
+        # Canonical per-period band (already aligned to the counterfactual's
+        # axis) is the source of truth; fall back to the legacy details mapping
+        # for results that predate it.
+        if getattr(ts, "counterfactual_lower", None) is not None:
+            lower = ts.counterfactual_lower
+            upper = ts.counterfactual_upper
+        else:
+            inference = getattr(spec, "inference", None)
+            if inference is not None:
+                lower, upper, periods = _band_from_details(
+                    getattr(inference, "details", None)
+                )
     elif isinstance(spec, ABCMapping):
         if "counterfactual" not in spec:
             raise MlsynthConfigError(
@@ -347,6 +354,93 @@ def compare_counterfactuals(
     )
 
 
+def compare_estimators(
+    estimators: Any,
+    *,
+    show_bands: bool,
+    observed: Any = None,
+    time: Any = None,
+    fit_window: Optional[Tuple[Any, Any]] = None,
+) -> CounterfactualComparison:
+    """Fit several observational estimators on one panel and compare them.
+
+    The observational twin of :func:`mlsynth.utils.design_compare.compare_methods`.
+    Hand it fully-configured estimator instances (so every option is yours); it
+    fits each, reads its counterfactual and canonical per-period band off the
+    standardized contract, and returns a :class:`CounterfactualComparison`
+    (summary table + ``.plot()`` overlay).
+
+    Parameters
+    ----------
+    estimators : sequence or mapping
+        Estimator instances (each with a ``.fit()``), or already-fitted
+        :class:`~mlsynth.config_models.BaseEstimatorResults`. A bare sequence is
+        labelled by class name (a numeric suffix disambiguates collisions); pass
+        a ``{label: estimator}`` mapping to name them yourself.
+    show_bands : bool
+        Required. When True, each method's canonical prediction interval (where
+        it carries one) is included so ``.plot()`` shades it; when False, only
+        the counterfactual lines are compared. There is no default -- the choice
+        is explicit.
+    observed, time, fit_window
+        Forwarded to :func:`compare_counterfactuals`.
+
+    Returns
+    -------
+    CounterfactualComparison
+    """
+    if isinstance(estimators, ABCMapping):
+        items = list(estimators.items())
+    else:
+        items = []
+        seen: Dict[str, int] = {}
+        for est in estimators:
+            name = type(est).__name__
+            seen[name] = seen.get(name, 0) + 1
+            label = name if seen[name] == 1 else f"{name} ({seen[name]})"
+            items.append((label, est))
+    if not items:
+        raise MlsynthConfigError("Pass at least one estimator to compare.")
+
+    methods: "Dict[str, Any]" = {}
+    observed_ref: Optional[np.ndarray] = None
+    for label, est in items:
+        res = est.fit() if hasattr(est, "fit") else est
+        ts = getattr(res, "time_series", None)
+        cf = None if ts is None else getattr(ts, "counterfactual_outcome", None)
+        if cf is None:
+            raise MlsynthConfigError(
+                f"Method {label!r}: estimator produced no counterfactual to "
+                "compare (design results and estimators without a counterfactual "
+                "series are not supported here)."
+            )
+        obs = getattr(ts, "observed_outcome", None)
+        if obs is not None:
+            obs_arr = np.asarray(obs, dtype=float).reshape(-1)
+            if observed_ref is None:
+                observed_ref = obs_arr
+            elif (obs_arr.shape == observed_ref.shape
+                  and not np.allclose(obs_arr, observed_ref, equal_nan=True)):
+                raise MlsynthConfigError(
+                    "compare_estimators expects all estimators fit on the same "
+                    f"panel; {label!r} has a different observed series."
+                )
+        spec: Dict[str, Any] = {
+            "counterfactual": cf,
+            "time": getattr(ts, "time_periods", None),
+            "att": getattr(res, "att", None),
+            "pre_rmse": getattr(res, "pre_rmse", None),
+            "observed": obs,
+        }
+        if show_bands and getattr(ts, "has_prediction_interval", False):
+            spec["lower"] = ts.counterfactual_lower
+            spec["upper"] = ts.counterfactual_upper
+        methods[label] = spec
+
+    return compare_counterfactuals(
+        methods, observed=observed, time=time, fit_window=fit_window)
+
+
 def _window_rmse(
     curves: List[_Curve],
     observed: Optional[pd.Series],
@@ -485,9 +579,15 @@ def plot_counterfactual_comparison(
                     )
                 else:
                     offset = (k - (n - 1) / 2.0) * dodge
+                    # The band is an absolute [lower, upper] region; a method's
+                    # band need not centre on the plotted point (e.g. scpi's band
+                    # sits on its own reconstruction, not Y0.W), so clamp the
+                    # error distances to be non-negative rather than let a
+                    # non-bracketing band raise in errorbar.
                     ax.errorbar(
                         t[band_mask] + offset, cf[band_mask],
-                        yerr=[cf[band_mask] - lo[band_mask], hi[band_mask] - cf[band_mask]],
+                        yerr=[np.maximum(cf[band_mask] - lo[band_mask], 0.0),
+                              np.maximum(hi[band_mask] - cf[band_mask], 0.0)],
                         fmt="none", ecolor=color, elinewidth=elinewidth,
                         capsize=capsize, alpha=0.8, zorder=4,
                     )
