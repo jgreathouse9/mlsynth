@@ -38,6 +38,27 @@ def run_scul(inputs: SCULInputs, config) -> SCULResults:
             cohensd_threshold=config.cohensd_threshold,
         )
 
+    # scpi lasso prediction intervals on the fitted signed coefficients plus the
+    # intercept (Chernozhukov et al. 2021 / scpi Table 3). The compatible set is
+    # the L1 ball at the realised budget ||w||_1; the intercept is the (free)
+    # constant/KM block.
+    scpi_obj = None
+    if getattr(config, "compute_scpi_pi", False) and T0 < inputs.T:
+        from ..clustersc_helpers.scpi_pi import scpi_pi_inference
+        from ...exceptions import MlsynthEstimationError
+        l1 = float(np.sum(np.abs(weights)))
+        try:
+            scpi_obj = scpi_pi_inference(
+                inputs.y, inputs.donor_matrix, T0,
+                np.concatenate([weights, [float(fit["intercept"])]]),
+                constraint={"name": "lasso", "Q": l1}, constant=True,
+                sims=config.scpi_sims, alpha=config.scpi_alpha,
+                e_method=config.scpi_e_method, seed=0,
+                periods=list(inputs.time_labels[T0:]),
+            )
+        except (MlsynthEstimationError, ValueError, ImportError):
+            scpi_obj = None
+
     scul_fit = SCULFit(
         counterfactual=counterfactual,
         gap=gap,
@@ -49,6 +70,7 @@ def run_scul(inputs: SCULInputs, config) -> SCULResults:
         donor_weights=donor_weights,
         p_value=p_value,
         n_placebo=n_placebo,
+        scpi=scpi_obj,
         metadata={"cv_option": config.cv_option},
     )
     return SCULResults(inputs=inputs, fit=scul_fit)

@@ -72,14 +72,15 @@ def scpi_pi_inference(
     T0: int,
     weights: np.ndarray,
     *,
-    constraint: str = "ridge",
+    constraint: Any = "ridge",
+    constant: bool = False,
     sims: int = 200,
     alpha: float = 0.05,
     e_method: str = "gaussian",
     seed: int = 0,
     periods: Any = None,
 ) -> ScpiPIInference:
-    """Run scpi prediction intervals on a CLUSTERSC fit under ``constraint``.
+    """Run scpi prediction intervals on a fit under ``constraint``.
 
     Parameters
     ----------
@@ -87,15 +88,19 @@ def scpi_pi_inference(
         Treated outcome over all periods, shape ``(T,)``.
     donor_full : np.ndarray
         Donor design the counterfactual projects through (the denoised donor
-        matrix for PCR / RPCA), shape ``(T, J)``, columns aligned with
-        ``weights``.
+        matrix for PCR / RPCA, or the donor pool for SCUL), shape ``(T, J)``,
+        columns aligned with the donor block of ``weights``.
     T0 : int
         Number of pre-treatment periods.
     weights : np.ndarray
-        Fitted donor weights, shape ``(J,)``.
-    constraint : str
+        Fitted weights: the donor weights ``(J,)``, or ``(J + 1,)`` with a
+        trailing intercept coefficient when ``constant=True``.
+    constraint : str or dict
         scpi weight-constraint family (default ``"ridge"``, scpi's Table-3
-        setting for Robust SC).
+        setting for Robust SC), or an explicit ``{"name": ..., "Q": ...}`` dict.
+    constant : bool
+        If True, the design gains an unconstrained intercept (scpi's ``KM``
+        block) and ``weights`` carries its coefficient last.
     sims, alpha, e_method, seed
         Passed through to ``scpi_intervals`` (``u_alpha = e_alpha = alpha``).
     periods : sequence, optional
@@ -108,9 +113,9 @@ def scpi_pi_inference(
     W = np.asarray(weights, float).ravel()
 
     sc = scpi_intervals(
-        y, Y0, int(T0), W, w_constr=constraint, sims=int(sims),
-        u_alpha=float(alpha), e_alpha=float(alpha), e_method=e_method,
-        cointegrated=False, seed=int(seed),
+        y, Y0, int(T0), W, w_constr=constraint, constant=bool(constant),
+        sims=int(sims), u_alpha=float(alpha), e_alpha=float(alpha),
+        e_method=e_method, cointegrated=False, seed=int(seed),
     )
     post = list(periods) if periods is not None else list(range(len(sc.tau)))
     return ScpiPIInference(

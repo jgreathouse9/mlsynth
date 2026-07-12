@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field, model_validator
 
@@ -58,6 +58,27 @@ class SCULConfig(BaseEstimatorConfig):
     inference: bool = Field(
         default=True,
         description="Compute the placebo-distribution p-value for the ATT.",
+    )
+    compute_scpi_pi: bool = Field(
+        default=False,
+        description="Route the fit's prediction intervals through VanillaSC's "
+                    "generalized scpi engine (Cattaneo-Feng-Palomba-Titiunik 2025) "
+                    "under the lasso constraint with a constant (the intercept). "
+                    "scpi's Table 3 pairs the lasso constraint with Chernozhukov "
+                    "et al. (2021), the family SCUL implements. When set, the ATT "
+                    "prediction interval is surfaced alongside the placebo p-value.",
+    )
+    scpi_sims: int = Field(
+        default=200, ge=10,
+        description="Gaussian draws for the scpi in-sample QCQP simulation.",
+    )
+    scpi_alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the scpi prediction intervals.",
+    )
+    scpi_e_method: Literal["gaussian", "ls", "empirical"] = Field(
+        default="gaussian",
+        description="Out-of-sample tabulation for the scpi prediction intervals.",
     )
 
     @model_validator(mode="after")
