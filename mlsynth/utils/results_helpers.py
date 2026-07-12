@@ -8,6 +8,7 @@ identically across every estimator.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -22,6 +23,66 @@ from ..config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
+from ..exceptions import MlsynthConfigError
+
+
+def normalize_counterfactual_band(
+    lower: Any,
+    upper: Any,
+    *,
+    time_periods: Any,
+    periods: Any = None,
+):
+    """Spread a (possibly post-only) counterfactual band onto the full time axis.
+
+    Returns full-length ``(lower, upper)`` arrays aligned to ``time_periods``,
+    NaN where the band does not reach, or ``(None, None)`` when no band is given.
+    Bounds come in pairs; a one-sided band or a length mismatch is a malformed
+    band (:class:`~mlsynth.exceptions.MlsynthConfigError`). When ``periods`` is
+    given the band aligns by matching those labels into ``time_periods``;
+    otherwise a full-length band is used as-is. This is the single aligner behind
+    the canonical ``TimeSeriesResults`` band fields.
+    """
+    have_lo = lower is not None
+    have_hi = upper is not None
+    if have_lo != have_hi:
+        raise MlsynthConfigError(
+            "A prediction interval needs both 'lower' and 'upper'; got one side.")
+    if not have_lo:
+        return None, None
+
+    lo = np.asarray(lower, dtype=float).reshape(-1)
+    hi = np.asarray(upper, dtype=float).reshape(-1)
+    if lo.size != hi.size:
+        raise MlsynthConfigError(
+            f"Prediction-interval 'lower' and 'upper' differ in length "
+            f"({lo.size} vs {hi.size}).")
+
+    axis = np.asarray(time_periods).reshape(-1)
+    n = axis.size
+    full_lo = np.full(n, np.nan)
+    full_hi = np.full(n, np.nan)
+    if periods is not None:
+        band_p = np.asarray(periods).reshape(-1)
+        if band_p.size != lo.size:
+            raise MlsynthConfigError(
+                f"Band 'periods' length ({band_p.size}) does not match the "
+                f"bounds ({lo.size}).")
+        index = {p: i for i, p in enumerate(axis.tolist())}
+        for p, l, u in zip(band_p.tolist(), lo, hi):
+            if p not in index:
+                raise MlsynthConfigError(
+                    f"Band period {p!r} is not in the counterfactual time axis.")
+            full_lo[index[p]] = l
+            full_hi[index[p]] = u
+    elif lo.size == n:
+        full_lo[:] = lo
+        full_hi[:] = hi
+    else:
+        raise MlsynthConfigError(
+            f"Prediction interval has length {lo.size} but the counterfactual "
+            f"has length {n}; pass 'periods' to align a post-only band.")
+    return full_lo, full_hi
 
 
 def make_weights_results(
@@ -105,6 +166,41 @@ def effect_metrics(
     }
 
 
+def _prediction_interval_from_inference(inference: Any) -> Optional[Dict[str, Any]]:
+    """Derive the canonical band spec from an ``inference.details`` mapping.
+
+    Estimators that already stash per-period bands in ``inference.details`` as a
+    mapping (VanillaSC's scpi / conformal modes) carry ``counterfactual_lower`` /
+    ``counterfactual_upper`` (+ ``*_simultaneous`` and ``periods``); this lifts
+    them into the normalized spec so the canonical field is populated without
+    per-estimator wiring. Returns ``None`` when no such band is present.
+    """
+    if inference is None:
+        return None
+    details = getattr(inference, "details", None)
+    if not isinstance(details, Mapping):
+        return None
+    if details.get("counterfactual_lower") is None:
+        return None
+    wc = details.get("w_constr")
+    method = getattr(inference, "method", None) or ""
+    if wc is not None:
+        kind = f"scpi:{wc}"
+    elif "conformal" in str(method).lower():
+        kind = "conformal"
+    else:
+        kind = str(method) or None
+    return {
+        "lower": details.get("counterfactual_lower"),
+        "upper": details.get("counterfactual_upper"),
+        "lower_simultaneous": details.get("counterfactual_lower_simultaneous"),
+        "upper_simultaneous": details.get("counterfactual_upper_simultaneous"),
+        "periods": details.get("periods"),
+        "level": getattr(inference, "confidence_level", None),
+        "kind": kind,
+    }
+
+
 def build_effect_submodels(
     observed_outcome: np.ndarray,
     counterfactual_outcome: np.ndarray,
@@ -122,6 +218,7 @@ def build_effect_submodels(
     additional_effects: Optional[Dict[str, Any]] = None,
     additional_metrics: Optional[Dict[str, Any]] = None,
     intervention_time: Optional[Any] = None,
+    prediction_interval: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the standardized EffectResult sub-models from two outcome paths.
 
@@ -155,15 +252,35 @@ def build_effect_submodels(
         fit_kwargs.update(fit_overrides)
 
     obs = np.asarray(observed_outcome, dtype=float).ravel()
+    ts_kwargs: Dict[str, Any] = dict(
+        observed_outcome=obs,
+        counterfactual_outcome=np.asarray(counterfactual_outcome, dtype=float).ravel(),
+        estimated_gap=m["gap"],
+        time_periods=None if time_periods is None else np.asarray(time_periods),
+        intervention_time=intervention_time,
+    )
+    if prediction_interval is None:
+        prediction_interval = _prediction_interval_from_inference(inference)
+    if prediction_interval:
+        axis = (np.asarray(time_periods) if time_periods is not None
+                else np.arange(obs.size))
+        pi = dict(prediction_interval)
+        lo, hi = normalize_counterfactual_band(
+            pi.get("lower"), pi.get("upper"), time_periods=axis,
+            periods=pi.get("periods"))
+        lo_s, hi_s = normalize_counterfactual_band(
+            pi.get("lower_simultaneous"), pi.get("upper_simultaneous"),
+            time_periods=axis, periods=pi.get("periods"))
+        ts_kwargs.update(
+            counterfactual_lower=lo, counterfactual_upper=hi,
+            counterfactual_lower_simultaneous=lo_s,
+            counterfactual_upper_simultaneous=hi_s,
+            prediction_interval_level=pi.get("level"),
+            prediction_interval_kind=pi.get("kind"),
+        )
     submodels: Dict[str, Any] = {
         "effects": EffectsResults(**effects_kwargs),
-        "time_series": TimeSeriesResults(
-            observed_outcome=obs,
-            counterfactual_outcome=np.asarray(counterfactual_outcome, dtype=float).ravel(),
-            estimated_gap=m["gap"],
-            time_periods=None if time_periods is None else np.asarray(time_periods),
-            intervention_time=intervention_time,
-        ),
+        "time_series": TimeSeriesResults(**ts_kwargs),
         "fit_diagnostics": FitDiagnosticsResults(**fit_kwargs),
     }
     if weights is not None:

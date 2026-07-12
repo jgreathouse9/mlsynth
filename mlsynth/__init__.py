@@ -43,6 +43,12 @@ from .utils.design_compare import (
     from_syndes,
     plot_compare_pareto,
 )
+from .utils.counterfactual_compare import (
+    CounterfactualComparison,
+    compare_counterfactuals,
+    compare_estimators,
+    plot_counterfactual_comparison,
+)
 from .estimators.spcd import SPCD
 from .estimators.tasc import TASC
 from .estimators.cmbsts import CMBSTS
@@ -145,6 +151,10 @@ __all__ = [
     "DesignSpec",
     "DesignComparison",
     "compare_methods",
+    "CounterfactualComparison",
+    "compare_counterfactuals",
+    "compare_estimators",
+    "plot_counterfactual_comparison",
     "compare_pareto",
     "from_syndes",
     "from_geolift",

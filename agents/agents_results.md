@@ -71,6 +71,18 @@ pins this.
   The `inference` slot is **reserved** for this — if the estimator already ships
   a rich `inference`-named object (jackknife/SCPI/placebo/posterior bands),
   rename it to `inference_<kind>` and mirror it into `.details` (see §4.1).
+- **Per-period prediction bands** land on the canonical `TimeSeriesResults`
+  fields, not in a per-estimator object: `counterfactual_lower` /
+  `counterfactual_upper` (pointwise) and `counterfactual_lower_simultaneous` /
+  `counterfactual_upper_simultaneous`, aligned to `time_periods` (NaN where the
+  method has no band), tagged with `prediction_interval_level` and
+  `prediction_interval_kind`. This is the *per-period band on the counterfactual*;
+  the scalar ATT interval stays on `InferenceResults`. Populate it through
+  `build_effect_submodels(..., prediction_interval=...)` (which also auto-derives
+  it from an `inference.details` mapping carrying `counterfactual_lower/upper`),
+  or, for a scpi fit, from `ScpiPIInference.to_prediction_interval_spec()`.
+  `compare_estimators` / `compare_counterfactuals` read this one field, so any
+  estimator that populates it lines up in a cross-method overlay for free.
 
 ### Forbidden
 

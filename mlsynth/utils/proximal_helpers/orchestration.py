@@ -9,6 +9,7 @@ inputs each method needs are present.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Dict
 
 import numpy as np
@@ -82,7 +83,23 @@ def _run_pioid(inputs: PROXIMALInputs) -> ProximalMethodFit:
         inputs.T0, inputs.n_post, inputs.T, inputs.pioid_hac_lag,
         simplex=inputs.pioid_simplex,
     )
-    return _build_fit(PIOID, inputs, cf, inputs.y - cf, se, alpha)
+    fit = _build_fit(PIOID, inputs, cf, inputs.y - cf, se, alpha)
+    # Optional per-period counterfactual band (Shi et al. 2026 Section 3.2), for
+    # the unconstrained GMM fit only (the simplex/cPI fit is inference-by-
+    # permutation, no GMM band). Pre-period entries are left NaN.
+    if inputs.pioid_band and not inputs.pioid_simplex:
+        from .pi.overid import overid_counterfactual_band
+        lo, hi = overid_counterfactual_band(
+            inputs.y, inputs.donor_outcomes, inputs.outcome_instruments, alpha,
+            inputs.T0, inputs.n_post, inputs.T, inputs.pioid_hac_lag,
+            level=inputs.pioid_band_level, method=inputs.pioid_band_method)
+        if lo is not None:
+            lo = lo.copy(); hi = hi.copy()
+            lo[: inputs.T0] = np.nan; hi[: inputs.T0] = np.nan
+            fit = replace(fit, counterfactual_lower=lo, counterfactual_upper=hi,
+                          band_level=float(inputs.pioid_band_level),
+                          band_kind=str(inputs.pioid_band_method))
+    return fit
 
 
 def _run_pis(inputs: PROXIMALInputs) -> ProximalMethodFit:

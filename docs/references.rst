@@ -187,6 +187,7 @@ References
     Shi, Xu, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen.
     "Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework."
     2023. https://doi.org/10.48550/arXiv.2108.13935
+    Authors' replication code: https://github.com/KenLi93/proximal_sc_manuscript
 
 
 .. [ShiNegControl]
@@ -203,6 +204,7 @@ References
     "Single Proxy Synthetic Control."
     *Journal of Causal Inference* 13, no. 1 (2025): 20230079.
     DOI: https://doi.org/10.1515/jci-2023-0079
+    Authors' code: https://github.com/qkrcks0218/SPSC
 
 
 .. [DRProx]
@@ -211,6 +213,15 @@ References
     "Doubly Robust Proximal Synthetic Controls."
     *Biometrics* 80, no. 2 (2024): ujae055.
     DOI: https://doi.org/10.1093/biomtc/ujae055
+    Authors' code: https://github.com/QIU-Hongxiang-David/DR_Proximal_SC
+
+
+.. [CWZ2021P]
+
+    Chernozhukov, Victor, Kaspar Wüthrich, and Yinchu Zhu.
+    "An Exact and Robust Conformal Inference Method for Counterfactual and Synthetic Controls."
+    *Journal of the American Statistical Association* 116, no. 536 (2021): 1849-1864.
+    DOI: https://doi.org/10.1080/01621459.2021.1920957
 
 
 

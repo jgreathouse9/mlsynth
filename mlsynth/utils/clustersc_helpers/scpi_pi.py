@@ -65,6 +65,23 @@ class ScpiPIInference:
     periods: List[Any] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    def to_prediction_interval_spec(self) -> Dict[str, Any]:
+        """Normalized spec for the canonical ``TimeSeriesResults`` band.
+
+        Maps this scpi object's per-post-period counterfactual bands (pointwise
+        and simultaneous) onto the spec ``build_effect_submodels`` consumes, so
+        every scpi-based estimator populates the one contract field the same way.
+        """
+        u_alpha = float(self.metadata.get("u_alpha", 0.05))
+        return {
+            "lower": self.cf_lower, "upper": self.cf_upper,
+            "lower_simultaneous": self.cf_lower_simul,
+            "upper_simultaneous": self.cf_upper_simul,
+            "periods": list(self.periods),
+            "level": 1.0 - 2.0 * u_alpha,
+            "kind": f"scpi:{self.constraint}",
+        }
+
 
 def scpi_pi_inference(
     treated_outcome: np.ndarray,
