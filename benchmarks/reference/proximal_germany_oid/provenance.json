@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-07-12T02:03:05Z",
+  "git_sha": "8ff7d8b1e0ca6078c136674f09da3f020f76a2f6",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/proximal_germany_oid/reference.R",
+  "data": [
+    {
+      "path": "basedata/scpi_germany.csv",
+      "sha256": "10b150fbcc2ced4860b50ab226c6dda1784dc070cb442d916cf452c2462c51c3"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "compiler": "4.3.3"
+  }
+}

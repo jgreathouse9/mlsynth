@@ -1,0 +1,18 @@
+# case: proximal_germany_oid
+# generated_at: 2026-07-12T02:04:29Z
+# mlsynth_version: 1.0.0
+# estimator: PROXIMAL/PIOID (over-identified outcome bridge)
+# config: {"estimator": "PROXIMAL", "methods": ["PIOID"], "outcome": "gdp", "pioid_hac_lag": 10, "time": "year", "treat": "treat", "unitid": "country"}
+# reference_impl: KenLi93/proximal_sc_manuscript NC_nocov + NC_nocov_gmm (over-identified, Newey-West q=10), live run, captured
+# reference_version: Shi et al. (2026) JASA, on in-repo scpi_germany.csv
+quantity,mlsynth,reference,abs_diff
+ATT,-1.709137,-1.709137,0.0
+ATT SE,0.665479,0.665478,1e-06
+90% CI lower,-2.803752,-2.803752,0.0
+90% CI upper,-0.614522,-0.614522,0.0
+weight[Austria],0.450003,0.450003,0.0
+weight[USA],0.306724,0.306724,0.0
+weight[Netherlands],0.099789,0.099789,0.0
+weight[Switzerland],0.082596,0.082596,0.0
+weight[Italy],0.037713,0.037713,0.0
+weight[Japan],0.004339,0.004339,0.0

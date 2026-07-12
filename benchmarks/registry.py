@@ -76,6 +76,7 @@ CASES = {
     "pda_pi_coverage": "benchmarks.cases.pda_pi_coverage",    # Path B: Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
     "mlsc_bottmer": "benchmarks.cases.mlsc_bottmer",          # cross-val vs Bottmer's mlSC_estimator (skips if absent)
     "proximal_panic1907": "benchmarks.cases.proximal_panic1907",  # cross-val vs freshtaste/proximal (Panic 1907 Table 3)
+    "proximal_germany_oid": "benchmarks.cases.proximal_germany_oid",  # cross-val vs authors' manuscript code (Shi et al. 2026 JASA): over-identified PI (PIOID) on German reunification, ATT + GMM CI value-for-value
     "spsc_ifem_mc": "benchmarks.cases.spsc_ifem_mc",          # Path B: SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
     "spsc_prop99": "benchmarks.cases.spsc_prop99",            # Path A/X: SPSC California (Prop 99) linear effect path vs qkrcks0218/SPSC
     "spsc_panic": "benchmarks.cases.spsc_panic",              # Path A/X: SPSC averaged-treated Panic of 1907 vs qkrcks0218/SPSC

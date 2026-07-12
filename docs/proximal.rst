@@ -239,6 +239,14 @@ estimator runs *exactly* those (validating that your inputs support them):
        small selected subset drives the weighting bridge
        (``#instruments != #donors``).
      - Qiu et al. [DRProx]_
+   * - PIOID
+     - Over-identified proximal inference: the outcome bridge alone (no
+       weighting bridge), with the donor pool ``W`` instrumented by a
+       *distinct set of donor units* ``Z`` on a single outcome
+       (``#instruments >= #donors``). The pure-PI counterpart of DR-OID,
+       and the configuration the JASA paper's German-reunification
+       application uses.
+     - Shi et al. [ProxSCM]_
 
 .. code-block:: python
 
@@ -246,6 +254,7 @@ estimator runs *exactly* those (validating that your inputs support them):
    PROXIMAL({..., "methods": ["PI"]})                # classic proximal inference
    PROXIMAL({..., "methods": ["DR", "PIPW"]})        # doubly robust + weighting
    PROXIMAL({..., "methods": ["DR-OID"]})            # over-identified empirical DR
+   PROXIMAL({..., "methods": ["PIOID"]})             # over-identified proximal inference (unit instruments)
    PROXIMAL({..., "methods": ["PI", "PIS", "PIPost", "SPSC", "DR", "PIPW"]})  # the six bridge methods
 
 ``methods`` is required -- there is no implicit default -- so a run
@@ -256,7 +265,10 @@ proxies), whereas ``"SPSC"`` needs only the donor pool. ``"DR-OID"`` is
 the odd one out: instead of donor proxies it takes two lists of *control
 units* -- ``outcome_instruments`` (the pool instrumenting the outcome
 bridge) and ``treatment_instruments`` (the selected subset driving the
-weighting bridge). Results are
+weighting bridge). ``"PIOID"`` likewise takes ``outcome_instruments`` --
+the distinct set of donor units instrumenting the outcome bridge -- but no
+``treatment_instruments`` (it fits the outcome bridge only) and no donor
+proxies. Results are
 returned on a
 :class:`~mlsynth.utils.proximal_helpers.structures.PROXIMALResults`, with
 ``results.methods`` mapping each requested method to its fit.
@@ -1136,6 +1148,21 @@ Replication Status
    seasonality/reporting confounders, so its weighting block is
    well-conditioned and reproducible; see the *over-identified empirical form*
    section above and ``docs/replications.rst``.
+
+   PIOID (Path A, German reunification) -- live cross-validation. The
+   over-identified proximal inference method is checked against the authors'
+   own manuscript replication of the JASA paper (`KenLi93/proximal_sc_manuscript
+   <https://github.com/KenLi93/proximal_sc_manuscript>`_: ``NC_nocov`` for the
+   point estimate, ``NC_nocov_gmm`` for the GMM/Newey-West interval) on the 1990
+   German reunification. The durable benchmark ``proximal_germany_oid`` runs the
+   authors' method live on the in-repo ``scpi_germany`` panel and compares it
+   against ``PROXIMAL(methods=["PIOID"]).fit()``: because the one-step-GMM
+   identity-weight optimum is unique, mlsynth reproduces the paper's PI headline
+   ATT of -1709 USD exactly, and -- with the manuscript's Newey-West lag
+   ``q = 10`` (``pioid_hac_lag``) -- the GMM PI 90% confidence interval
+   (-2806, -616) USD to the dollar. This complements the just-identified PI
+   cross-validation (``freshtaste/proximal``, Panic 1907) on a second dataset
+   with the paper's own distinct-instrument-set configuration.
 
    Per the project's replication contract
    (``agents/agents_estimators.md``), PROXIMAL is considered validated on

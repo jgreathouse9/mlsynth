@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **55 cross-validation checks** against original
-implementations across **32 estimators** -- 22 reproduce the reference to display precision, 21 to
+Coverage: **56 cross-validation checks** against original
+implementations across **32 estimators** -- 23 reproduce the reference to display precision, 21 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -98,8 +98,8 @@ Summary
      - 1 tight
      - 0.0022
    * - :ref:`PROXIMAL <val-proximal>`
-     - 2
-     - 2 tight
+     - 3
+     - 1 exact · 2 tight
      - 41
    * - :ref:`RESCM <val-rescm>`
      - 2
@@ -601,6 +601,12 @@ PROXIMAL
      - 41
      - tight
      - `dr_proximal_brazil <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`__
+   * - KenLi93/proximal_sc_manuscript NC_nocov + NC_nocov_gmm (over-identified, Newey-West q=10), live run, captured
+     - ``scpi_germany.csv`` (10b150fbcc2c…)
+     - 10
+     - 1e-06
+     - exact — matches to display precision
+     - `proximal_germany_oid <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/proximal_germany_oid.py>`__
    * - authors' proximal code (freshtaste/proximal, cloned)
      - —
      - 3
