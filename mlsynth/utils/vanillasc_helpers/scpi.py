@@ -156,6 +156,17 @@ def _mat_regularize(Q: np.ndarray):
 _W_CONSTR_NAMES = ("ols", "simplex", "lasso", "ridge", "L1-L2")
 
 
+def _floors_at_zero(w_constr) -> bool:
+    """True if the constraint lower-bounds the donor weights at zero.
+
+    Simplex and L1-L2 impose ``w >= 0``; ols / lasso / ridge allow signed
+    weights (``lb = -inf``), so their fitted weights must not be clipped.
+    """
+    name = (w_constr if isinstance(w_constr, str)
+            else w_constr.get("name") if isinstance(w_constr, dict) else None)
+    return name in ("simplex", "L1-L2")
+
+
 def _shrinkage_ridge(A: np.ndarray, B: np.ndarray):
     """scpi's ridge ``shrinkage_EST`` rule-of-thumb, returning ``(Q, lambda)``.
 
@@ -414,6 +425,7 @@ def scpi_intervals(
     W: np.ndarray,
     *,
     w_constr: Any = "simplex",
+    constant: bool = False,
     sims: int = 200,
     u_alpha: float = 0.05,
     e_alpha: float = 0.05,
@@ -433,13 +445,27 @@ def scpi_intervals(
     pre : int
         Number of pre-treatment periods ``T0``.
     W : np.ndarray
-        Fitted donor weights, shape ``(J,)`` (columns match ``Y0``).
+        Fitted weights (columns match ``Y0``): shape ``(J,)`` when
+        ``constant=False``, or ``(J + 1,)`` when ``constant=True`` with the
+        trailing entry the intercept coefficient.
     w_constr : str or dict
         Weight-constraint family the fit obeys, controlling the in-sample
         compatible set and the degrees of freedom. One of ``"ols"``,
         ``"simplex"`` (default), ``"lasso"``, ``"ridge"``, ``"L1-L2"``, or an
         explicit dict ``{"name": ..., "Q": ..., "lambda": ..., "Q2": ...}``.
         Ridge is scpi's Table-3 setting for Amjad et al. (2018) Robust SC.
+        The donor weights are floored at zero only for lower-bounded
+        constraints (simplex / L1-L2); signed families (ols / lasso / ridge)
+        keep their weights as given.
+    constant : bool
+        If True, append an unconstrained constant (intercept) to the donor
+        design (scpi's ``constant=True``): the weight constraint binds only the
+        donor block while the intercept is free, and the degrees of freedom gain
+        ``KM = 1``. ``W`` must then be length ``J + 1`` (donors + intercept).
+        The constraint machinery (budget ``Q``, penalty ``lambda`` and degrees
+        of freedom) reproduces scpi exactly with the constant; the in-sample
+        prediction band is currently conservative for the covariate/constant
+        case (wider than scpi's, not yet Monte-Carlo-matched).
     sims : int
         Number of Gaussian draws for the in-sample simulation.
     u_alpha, e_alpha : float
@@ -462,47 +488,69 @@ def scpi_intervals(
     y = np.asarray(y, float).ravel()
     Y0 = np.asarray(Y0, float)
     W = np.asarray(W, float).ravel()
-    W = np.where(W < 0, 0.0, W)
     T0, J = pre, Y0.shape[1]
+    KM = 1 if constant else 0
+    if W.shape[0] != J + KM:
+        raise ValueError(
+            f"W must have length J{'+1' if constant else ''} = {J + KM}; "
+            f"got {W.shape[0]}.")
+    # Donor weights are floored at zero only for lower-bounded constraints
+    # (simplex / L1-L2); signed families keep their weights as given.
+    if _floors_at_zero(w_constr):
+        W = W.copy()
+        W[:J] = np.where(W[:J] < 0, 0.0, W[:J])
+
     A = y[:T0]
-    B = Y0[:T0]
-    P = Y0[T0:]                                       # (T_post, J)
-    T_post = P.shape[0]
+    Bdon = Y0[:T0]                                   # donor design (constrained block)
+    Pdon = Y0[T0:]                                   # (T_post, J)
+    T_post = Pdon.shape[0]
     if T_post < 1:  # pragma: no cover - VanillaSC guarantees a post period
         raise ValueError("SCPI needs at least one post-treatment period.")
-    u = A - B @ W                                    # pre-period residuals
+    # Augmented design: donors plus the optional unconstrained constant column
+    # (scpi's ``constant=True`` / the ``KM`` covariate block). Q / Sigma / the
+    # compatible-set QCQP run on the augmented design; the constraint binds only
+    # the donor block.
+    if constant:
+        Bdes = np.column_stack([Bdon, np.ones(T0)])
+        Pdes = np.column_stack([Pdon, np.ones(T_post)])
+    else:
+        Bdes, Pdes = Bdon, Pdon
+    u = A - Bdes @ W                                 # pre-period residuals (full model)
 
     # --- cointegration (scpi's ``cointegrated_data=True``): when the outcome
     #     and donors are cointegrated the levels are I(1), so the uncertainty
-    #     models are fit on first differences. Difference the donor design
-    #     ``B -> Delta B`` for the ``E[u]`` / ``E[e]`` regressions and drop the
-    #     first pre-period (the NaN differencing introduces, which scpi removes
-    #     via complete_cases); the level design still drives ``Q``/``Sigma`` with
-    #     that row removed. Off (the default) leaves the levels path untouched. ---
+    #     models are fit on first differences. Difference the donor design for
+    #     the ``E[u]`` / ``E[e]`` regressions and drop the first pre-period (the
+    #     NaN differencing introduces, which scpi removes via complete_cases);
+    #     the (augmented) level design still drives ``Q``/``Sigma`` with that row
+    #     removed. Off (the default) leaves the levels path untouched. ---
     if cointegrated:
-        B_mean = B[1:] - B[:-1]        # differenced donor design for E[u]/E[e]
-        B_q = B[1:]                    # level design for Q/Sigma (row 0 dropped)
+        B_mean = Bdon[1:] - Bdon[:-1]  # differenced DONOR design for E[u]/E[e]
+        B_q = Bdes[1:]                 # augmented level design for Q/Sigma
+        Bdon_q = Bdon[1:]              # donor level design for df/rho/localisation
         u_w = u[1:]                    # residuals aligned to the kept rows
         T0e = T0 - 1
     else:
-        B_mean, B_q, u_w, T0e = B, B, u, T0
+        B_mean, B_q, Bdon_q, u_w, T0e = Bdon, Bdes, Bdon, u, T0
 
-    # --- weight-constraint spec (scpi w_constr_prep): fills Q / lambda. Align
-    #     the treated pre-outcome to the design rows kept for Q/Sigma (under
-    #     cointegration the first pre-period is dropped from B_q). ---
+    # --- weight-constraint spec (scpi w_constr_prep): fills Q / lambda from the
+    #     augmented design (shrinkage uses J + KM columns). Align the treated
+    #     pre-outcome to the rows kept for Q/Sigma. ---
     A_q = A[1:] if cointegrated else A
     wc = _prep_w_constr(w_constr, A_q, B_q, W)
+    Wd = W[:J]                                        # donor (constrained) block
 
-    # --- degrees of freedom per constraint (scpi df_EST, KM = 0) ---
-    d0 = int(np.sum(np.abs(W) >= _NZ))
-    df = _df_est(wc, W, B_q)
+    # --- degrees of freedom per constraint (scpi df_EST) plus KM ---
+    d0 = int(np.sum(np.abs(Wd) >= _NZ))
+    df = _df_est(wc, Wd, Bdon_q) + KM
     if df >= T0e:  # scpi guard: never spend more dof than observations
         df = T0e - 1
     vc = T0e / (T0e - df) if df < T0e else 1.0
 
-    # --- regularisation parameter and localised compatible set (scpi local_geom) ---
-    rho = _regularization_rho(u_w, B_q, d0)
-    lg = _local_geom(wc, W, rho, B_q)
+    # --- regularisation parameter and localised compatible set (scpi local_geom),
+    #     computed on the donor block ---
+    rho = _regularization_rho(u_w, Bdon_q, d0)
+    lg = _local_geom(wc, Wd, rho, Bdon_q)
     idxw = lg.idxw
 
     # --- conditional mean of the residuals (u_missp) ---
@@ -522,22 +570,25 @@ def scpi_intervals(
     S_root = sqrtm(Sigma).real
     scale, Qreg = _mat_regularize(Q)
 
-    # --- compiled QCQP over the localised, simulated simplex set ---
-    x = cp.Variable(J)
-    c = cp.Parameter(J)
-    Gstar = cp.Parameter(J)
+    # --- compiled QCQP over the localised, simulated compatible set. The
+    #     variable spans donors + covariates; the weight-set constraints bind
+    #     only the donor block (``x[:J]``), the constant/covariates stay free. ---
+    nfull = J + KM
+    x = cp.Variable(nfull)
+    c = cp.Parameter(nfull)
+    Gstar = cp.Parameter(nfull)
     if Qreg is None:  # pragma: no cover - degenerate Q (no donor variation)
         quad = cp.Constant(0.0)
     else:
         quad = scale * cp.sum_squares(Qreg @ (x - W))
     constraints = [quad - 2.0 * Gstar @ (x - W) <= 0.0]
-    constraints += _qcqp_weight_constraints(x, lg)
+    constraints += _qcqp_weight_constraints(x[:J] if KM else x, lg)
     prob_min = cp.Problem(cp.Minimize(c @ x), constraints)
     prob_max = cp.Problem(cp.Maximize(c @ x), constraints)
 
     rng = np.random.default_rng(seed)
     # Predictor rows: each post period plus the post-period mean (for the ATT).
-    P_aug = np.vstack([P, P.mean(axis=0, keepdims=True)])     # (T_post + 1, J)
+    P_aug = np.vstack([Pdes, Pdes.mean(axis=0, keepdims=True)])   # (T_post + 1, nfull)
     n_rows = T_post + 1
     lo = np.full((sims, n_rows), np.nan)   # min-branch  p'(w - x)
     hi = np.full((sims, n_rows), np.nan)   # max-branch  p'(w - x)
@@ -553,7 +604,7 @@ def scpi_intervals(
         return None
 
     for s in range(sims):
-        Gstar.value = S_root @ rng.standard_normal(J)
+        Gstar.value = S_root @ rng.standard_normal(nfull)
         for t in range(n_rows):
             c.value = P_aug[t]
             xs = _solve(prob_max)                    # maximise p'x -> min p'(w-x)
@@ -574,11 +625,11 @@ def scpi_intervals(
     #     is the differenced post outcomes, bridged from the pre-period by
     #     ``dP[0] = P[0] - B[T0-1]`` (scpi's e_des_prep). ---
     if cointegrated:
-        P_oos = np.empty_like(P)
-        P_oos[0] = P[0] - B[T0 - 1]
-        P_oos[1:] = P[1:] - P[:-1]
+        P_oos = np.empty_like(Pdon)
+        P_oos[0] = Pdon[0] - Bdon[T0 - 1]
+        P_oos[1:] = Pdon[1:] - Pdon[:-1]
     else:
-        P_oos = P
+        P_oos = Pdon
     Xe0 = np.column_stack([B_mean[:, idxw], np.ones(T0e)])
     Xe1 = np.column_stack([P_oos[:, idxw], np.ones(T_post)])
     Xe1_aug = np.vstack([Xe1, Xe1.mean(axis=0, keepdims=True)])
@@ -603,7 +654,7 @@ def scpi_intervals(
     eps_joint = sqrt(log(T_post + 1.0))              # out-of-sample inflation
 
     # --- assemble intervals ---
-    cf = P @ W                                       # synthetic counterfactual (Y_fit)
+    cf = Pdes @ W                                    # synthetic counterfactual (Y_fit)
     obs = y[T0:]
     tau = obs - cf
     cf_lower = cf + w_lb + e_lb
@@ -633,6 +684,7 @@ def scpi_intervals(
                   "u_missp": bool(u_missp), "cointegrated": bool(cointegrated),
                   "n_active": int(idxw.sum()),
                   "w_constr": wc["name"], "Q": wc["Q"], "lambda": wc["lambda"],
+                  "constant": bool(constant), "KM": KM,
                   "eps_joint": eps_joint,
                   "att": att, "att_lower": att_lower, "att_upper": att_upper},
     )
