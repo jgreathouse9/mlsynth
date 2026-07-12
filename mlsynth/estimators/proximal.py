@@ -108,6 +108,9 @@ class PROXIMAL:
         self.dr_oid_n_starts: int = config.dr_oid_n_starts
         self.pioid_hac_lag: int = config.pioid_hac_lag
         self.pioid_simplex: bool = config.pioid_simplex
+        self.pioid_band: bool = config.pioid_band
+        self.pioid_band_method: str = config.pioid_band_method
+        self.pioid_band_level: float = config.pioid_band_level
 
     def fit(self) -> PROXIMALResults:
         """Run the proximal pipeline and return a :class:`PROXIMALResults`."""
@@ -140,6 +143,9 @@ class PROXIMAL:
                 dr_oid_n_starts=self.dr_oid_n_starts,
                 pioid_hac_lag=self.pioid_hac_lag,
                 pioid_simplex=self.pioid_simplex,
+                pioid_band=self.pioid_band,
+                pioid_band_method=self.pioid_band_method,
+                pioid_band_level=self.pioid_band_level,
             )
 
             fits = run_proximal(inputs)

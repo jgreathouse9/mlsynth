@@ -52,6 +52,9 @@ def prepare_proximal_inputs(
     dr_oid_n_starts: int = 8,
     pioid_hac_lag: int = 10,
     pioid_simplex: bool = False,
+    pioid_band: bool = False,
+    pioid_band_method: str = "gmm",
+    pioid_band_level: float = 0.90,
 ) -> PROXIMALInputs:
     """Pivot a long panel into the typed inputs the PROXIMAL pipeline expects.
 
@@ -168,4 +171,7 @@ def prepare_proximal_inputs(
         dr_oid_n_starts=dr_oid_n_starts,
         pioid_hac_lag=pioid_hac_lag,
         pioid_simplex=pioid_simplex,
+        pioid_band=pioid_band,
+        pioid_band_method=pioid_band_method,
+        pioid_band_level=pioid_band_level,
     )

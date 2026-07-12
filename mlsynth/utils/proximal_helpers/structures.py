@@ -125,6 +125,9 @@ class PROXIMALInputs:
     dr_oid_n_starts: int = 8
     pioid_hac_lag: int = 10
     pioid_simplex: bool = False
+    pioid_band: bool = False
+    pioid_band_method: str = "gmm"
+    pioid_band_level: float = 0.90
 
     @property
     def has_surrogates(self) -> bool:
@@ -184,6 +187,10 @@ class ProximalMethodFit:
     post_rmse: float
     alpha_weights: np.ndarray
     donor_weights: Dict[Any, float]
+    counterfactual_lower: Optional[np.ndarray] = None   # per-period band (T,)
+    counterfactual_upper: Optional[np.ndarray] = None
+    band_level: Optional[float] = None
+    band_kind: Optional[str] = None                     # e.g. "gmm" / "conformal"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -300,6 +307,17 @@ class PROXIMALResults:
         """Pre-treatment RMSE of the primary variant."""
         fit = self._primary
         return float("nan") if fit is None else fit.pre_rmse
+
+    @property
+    def counterfactual_band(self):
+        """``(lower, upper)`` per-period counterfactual band of the primary
+        variant, or ``None`` when the variant carries no per-period band. Read by
+        the cross-method comparison (this dispatcher has no standardized
+        ``time_series`` to hold the canonical band)."""
+        fit = self._primary
+        if fit is None or fit.counterfactual_lower is None:
+            return None
+        return fit.counterfactual_lower, fit.counterfactual_upper
 
     def att_by_method(self) -> Dict[str, float]:
         """``{method: ATT}`` across the methods that were run."""

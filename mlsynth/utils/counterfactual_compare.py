@@ -407,14 +407,30 @@ def compare_estimators(
     for label, est in items:
         res = est.fit() if hasattr(est, "fit") else est
         ts = getattr(res, "time_series", None)
-        cf = None if ts is None else getattr(ts, "counterfactual_outcome", None)
-        if cf is None:
+        # Standard EffectResult path (canonical band on time_series) with a
+        # fallback to the flat accessors dispatcher results expose
+        # (PROXIMAL / SPILLSYNTH have no standardized time_series).
+        if ts is not None and getattr(ts, "counterfactual_outcome", None) is not None:
+            cf = ts.counterfactual_outcome
+            time = getattr(ts, "time_periods", None)
+            obs = getattr(ts, "observed_outcome", None)
+            band = None
+            if getattr(ts, "has_prediction_interval", False):
+                band = (ts.counterfactual_lower, ts.counterfactual_upper)
+        else:
+            cf = getattr(res, "counterfactual", None)
+            time = None
+            obs = None
+            gap = getattr(res, "gap", None)
+            if cf is not None and gap is not None:
+                obs = np.asarray(cf, float).reshape(-1) + np.asarray(gap, float).reshape(-1)
+            band = getattr(res, "counterfactual_band", None)
+        if cf is None or np.all(~np.isfinite(np.asarray(cf, float).reshape(-1))):
             raise MlsynthConfigError(
                 f"Method {label!r}: estimator produced no counterfactual to "
                 "compare (design results and estimators without a counterfactual "
                 "series are not supported here)."
             )
-        obs = getattr(ts, "observed_outcome", None)
         if obs is not None:
             obs_arr = np.asarray(obs, dtype=float).reshape(-1)
             if observed_ref is None:
@@ -427,14 +443,14 @@ def compare_estimators(
                 )
         spec: Dict[str, Any] = {
             "counterfactual": cf,
-            "time": getattr(ts, "time_periods", None),
+            "time": time,
             "att": getattr(res, "att", None),
             "pre_rmse": getattr(res, "pre_rmse", None),
             "observed": obs,
         }
-        if show_bands and getattr(ts, "has_prediction_interval", False):
-            spec["lower"] = ts.counterfactual_lower
-            spec["upper"] = ts.counterfactual_upper
+        if show_bands and band is not None and band[0] is not None:
+            spec["lower"] = band[0]
+            spec["upper"] = band[1]
         methods[label] = spec
 
     return compare_counterfactuals(

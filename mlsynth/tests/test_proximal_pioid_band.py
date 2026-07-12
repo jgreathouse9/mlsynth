@@ -118,3 +118,91 @@ def test_unknown_band_method_rejected():
     _, alpha, _ = estimate_pi_overid(y, W, Z, T0, T1, T, hac_truncation_lag=10)
     with pytest.raises(Exception):
         overid_counterfactual_band(y, W, Z, alpha, T0, T1, T, 10, method="bogus")
+
+
+# ----------------------------------------------------------------------
+# wired through PROXIMAL.fit() on the German-reunification panel (Ex2)
+# ----------------------------------------------------------------------
+import warnings
+from pathlib import Path
+
+import pandas as pd
+
+from mlsynth import PROXIMAL, VanillaSC, compare_estimators
+
+_BASE = Path(__file__).resolve().parents[2] / "basedata"
+_TREATED = "West Germany"
+_W = ["Austria", "Italy", "Japan", "Netherlands", "Switzerland", "USA"]
+_HAS_GERMANY = (_BASE / "scpi_germany.csv").exists()
+_germany_skip = pytest.mark.skipif(not _HAS_GERMANY, reason="Germany data absent")
+
+
+def _germany_df():
+    df = pd.read_csv(_BASE / "scpi_germany.csv")[["country", "year", "gdp"]].dropna()
+    df["treat"] = ((df["country"] == _TREATED) & (df["year"] > 1990)).astype(int)
+    return df
+
+
+def _pioid_cfg(df, **kw):
+    Z = [c for c in df["country"].unique() if c not in _W + [_TREATED]]
+    base = {"df": df, "outcome": "gdp", "treat": "treat", "unitid": "country",
+            "time": "year", "donors": _W, "outcome_instruments": Z,
+            "methods": ["PIOID"], "display_graphs": False}
+    base.update(kw)
+    return base
+
+
+@_germany_skip
+def test_pioid_band_wired_through_fit_gmm():
+    df = _germany_df()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = PROXIMAL(_pioid_cfg(df, pioid_band=True)).fit()
+    band = res.counterfactual_band
+    assert band is not None
+    lo, hi = band
+    fit = res.methods["PIOID"]
+    assert fit.band_kind == "gmm"
+    assert len(lo) == res.inputs.T
+    T0 = res.inputs.T0
+    assert np.isnan(lo[:T0]).all() and np.all(np.isfinite(lo[T0:]))
+    assert np.all(hi[T0:] >= lo[T0:])
+
+
+@_germany_skip
+def test_pioid_band_conformal_wired():
+    df = _germany_df()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = PROXIMAL(_pioid_cfg(df, pioid_band=True,
+                                  pioid_band_method="conformal")).fit()
+    assert res.methods["PIOID"].band_kind == "conformal"
+    assert res.counterfactual_band is not None
+
+
+@_germany_skip
+def test_pioid_band_off_by_default():
+    df = _germany_df()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = PROXIMAL(_pioid_cfg(df)).fit()
+    assert res.counterfactual_band is None
+
+
+@_germany_skip
+def test_compare_estimators_ingests_proximal_dispatcher():
+    """compare_estimators accepts PROXIMAL (a flat-accessor dispatcher, no
+    standardized time_series) alongside a standard estimator, and surfaces its
+    per-period band."""
+    df = _germany_df()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        cmp = compare_estimators(
+            {"PIOID": PROXIMAL(_pioid_cfg(df, pioid_band=True)),
+             "VanillaSC": VanillaSC({"df": df, "outcome": "gdp", "treat": "treat",
+                                     "unitid": "country", "time": "year",
+                                     "display_graphs": False})},
+            show_bands=True)
+    assert set(cmp.summary.index) == {"PIOID", "VanillaSC"}
+    pioid_curve = cmp.curves[cmp.curves["method"] == "PIOID"]
+    assert np.isfinite(pioid_curve["lower"].to_numpy(float)).any()
