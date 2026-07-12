@@ -56,6 +56,7 @@ CASES = {
     "masc_crossval": "benchmarks.cases.masc_crossval",        # cross-val vs authors' own R MASC (maxkllgg/masc, nogurobi) on Basque, value-for-value
     "src_basque": "benchmarks.cases.src_basque",              # cross-val vs R Code_SMC + Path A: SRC Basque/ETA (Zhu 2023)
     "bscm_china_watches": "benchmarks.cases.bscm_china_watches",  # cross-val vs reference Stan horseshoe + FSPDA (Shi-Huang) on China anti-corruption watches, p>n (Kim-Lee-Gupta 2020)
+    "bvss_watches": "benchmarks.cases.bvss_watches",              # cross-val vs authors' own two-coordinate Gibbs (Xu-Zhou 2025) on China anti-corruption watches, p>n: engine exact + posterior ATT within MC error
     "bfsc_germany": "benchmarks.cases.bfsc_germany",                # cross-val vs author appendix Stan (corr 0.999999) + Path A: West Germany reunification (Pinkney 2021)
     "bfsc_prop99": "benchmarks.cases.bfsc_prop99",                  # cross-val vs author appendix Stan run LIVE via rstan (Prop 99, California 1989) -- needs [bayes] + rstan
     "mscmt_basque": "benchmarks.cases.mscmt_basque",          # cross-val vs R MSCMT: AG Basque, fit_window=(1960,1969)

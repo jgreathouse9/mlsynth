@@ -1,0 +1,38 @@
+== REFERENCE VALUES ==
+det_vm_logdet	7.101913578
+det_rss	1.276042639
+det_rss2	0.633031499
+det_am	-30.894304705
+det_loglike	1.943858076
+post_att	-0.020821
+post_att_lo	-0.031126
+post_att_hi	-0.005180
+post_tau_mean	0.053596
+post_phi_mean	20.468640
+post_modelsize_mean	5.630000
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] truncnorm_1.0-9
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3
