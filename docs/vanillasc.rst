@@ -375,6 +375,16 @@ Five inference modes are available via ``inference=``:
        statistically correct (default) vs. ``scpi``-matching in-sample scaling.
        See :doc:`replications/vanillasc_staggered`.
 
+       The staggered engine also carries the full weight-constraint family:
+       ``staggered_spec={"features": [...], "w_constr": "ridge"}`` fits every
+       treated unit's synthetic control (and its prediction-interval compatible
+       set) under ``ols`` / ``simplex`` (default) / ``lasso`` / ``ridge`` /
+       ``L1-L2``, matching ``scpi``'s ``scdataMulti`` weights value-for-value and
+       its deterministic inference budgets (``Q_star``, ``lb``, ``df``)
+       cell-for-cell on the two-treated Germany panel. This is the only setting
+       -- multiple treated units, covariate-adjusted, non-convex weights -- that
+       combines all three of ``scpi``'s dimensions at once.
+
        For the single-treated-unit case, the ``scpi_germany_pi`` benchmark
        cross-checks both bands against a live ``scpi_pkg`` run on German
        reunification: the levels (``scpi_cointegrated=False``) and cointegrated
