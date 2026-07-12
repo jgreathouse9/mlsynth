@@ -84,6 +84,10 @@ class TSSC:
         self.ci: float = config.ci
         self.seed = config.seed
         self.display_graphs: bool = config.display_graphs
+        self.compute_scpi_pi: bool = config.compute_scpi_pi
+        self.scpi_sims: int = config.scpi_sims
+        self.scpi_alpha: float = config.scpi_alpha
+        self.scpi_e_method: str = config.scpi_e_method
 
     def fit(self) -> TSSCResults:
         """Run the two-step pipeline and return the design."""
@@ -100,6 +104,10 @@ class TSSC:
                 method: fit_variant(
                     inputs, method, n_bootstrap=self.draws,
                     confidence_level=self.ci, rng=ci_rng,
+                    compute_scpi_pi=self.compute_scpi_pi,
+                    scpi_sims=self.scpi_sims, scpi_alpha=self.scpi_alpha,
+                    scpi_e_method=self.scpi_e_method,
+                    scpi_seed=int(self.seed) if self.seed is not None else 0,
                 )
                 for method in METHODS
             }

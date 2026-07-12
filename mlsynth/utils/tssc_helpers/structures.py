@@ -184,6 +184,7 @@ class TSSCVariantFit:
     rmse_pre: float
     rmse_post: float
     r2_pre: float
+    scpi: Optional[object] = None     # ScpiPIInference band, when computed
 
 
 class TSSCResults(BaseEstimatorResults):
@@ -263,6 +264,12 @@ class TSSCResults(BaseEstimatorResults):
     def donor_weights(self) -> dict:
         """Donor weights of the recommended method."""
         return self.recommended.donor_weights
+
+    @property
+    def scpi(self):
+        """scpi prediction-interval band of the recommended method (``None``
+        unless ``compute_scpi_pi`` was set)."""
+        return self.recommended.scpi
 
     def att_by_method(self) -> Dict[str, float]:
         """``{method: ATT}`` across all four SC-class variants."""

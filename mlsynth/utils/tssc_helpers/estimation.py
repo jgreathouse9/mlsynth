@@ -32,6 +32,11 @@ from .structures import MSCA, MSCB, MSCC, SC, TSSCInputs, TSSCVariantFit
 _SCOPT_MODEL = {SC: "SIMPLEX", MSCA: "MSCa", MSCB: "MSCb", MSCC: "MSCc"}
 # Which variants carry a free intercept (beta_1).
 _HAS_INTERCEPT = {SC: False, MSCA: True, MSCB: False, MSCC: True}
+# scpi weight-constraint family per variant. SC / MSCa map exactly (simplex, with
+# a free constant for MSCa); MSCb / MSCc carry bare non-negativity, which scpi's
+# family has no member for, so they use scpi's ols set -- the band does not
+# re-impose w >= 0 and is therefore slightly conservative.
+_SCPI_CONSTRAINT = {SC: "simplex", MSCA: "simplex", MSCB: "ols", MSCC: "ols"}
 
 # Pre-treatment subsample is T1 minus this when forming ATT-CI subsamples.
 _ATT_CI_SUBSAMPLE_ADJUSTMENT = 5
@@ -166,12 +171,42 @@ def bootstrap_att_ci(
     return (att - upper_q, att - lower_q)
 
 
+def _scpi_for_variant(inputs, method, donor_coefs, intercept, *, sims, alpha,
+                      e_method, seed):
+    """scpi prediction-interval band for one variant, under its mapped
+    constraint (see ``_SCPI_CONSTRAINT``). Returns ``None`` on failure or when
+    there are no post-treatment periods."""
+    if inputs.T <= inputs.T0:
+        return None
+    from ..clustersc_helpers.scpi_pi import scpi_pi_inference
+    from ...exceptions import MlsynthEstimationError
+    constraint = _SCPI_CONSTRAINT[method]
+    has_const = _HAS_INTERCEPT[method]
+    # scpi expects the constant coefficient last; TSSC stores it first.
+    W = (np.concatenate([np.asarray(donor_coefs, float), [float(intercept)]])
+         if has_const else np.asarray(donor_coefs, float))
+    try:
+        return scpi_pi_inference(
+            np.asarray(inputs.y, float), np.asarray(inputs.donor_matrix, float),
+            int(inputs.T0), W, constraint=constraint, constant=has_const,
+            sims=int(sims), alpha=float(alpha), e_method=e_method,
+            seed=int(seed), periods=list(inputs.time_labels[inputs.T0:]),
+        )
+    except (MlsynthEstimationError, ValueError, ImportError):
+        return None
+
+
 def fit_variant(
     inputs: TSSCInputs,
     method: str,
     n_bootstrap: int,
     confidence_level: float = 0.95,
     rng: Optional[np.random.Generator] = None,
+    compute_scpi_pi: bool = False,
+    scpi_sims: int = 200,
+    scpi_alpha: float = 0.05,
+    scpi_e_method: str = "gaussian",
+    scpi_seed: int = 0,
 ) -> TSSCVariantFit:
     """Fit one SC-class variant and assemble its :class:`TSSCVariantFit`."""
 
@@ -219,6 +254,13 @@ def fit_variant(
         if abs(coef) > 1e-3
     }
 
+    scpi_band = None
+    if compute_scpi_pi:
+        scpi_band = _scpi_for_variant(
+            inputs, method, donor_coefs, intercept,
+            sims=scpi_sims, alpha=scpi_alpha, e_method=scpi_e_method,
+            seed=scpi_seed)
+
     return TSSCVariantFit(
         method=method,
         weights=weights,
@@ -231,4 +273,5 @@ def fit_variant(
         rmse_pre=float(fit_diag["T0 RMSE"]),
         rmse_post=float(fit_diag["T1 RMSE"]),
         r2_pre=float(fit_diag["R-Squared"]),
+        scpi=scpi_band,
     )
