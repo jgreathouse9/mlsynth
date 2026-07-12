@@ -85,6 +85,7 @@ At a glance
    Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
    Interpolation across dissimilar donors? ─► MASC
+   Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution)
    Different ESTIMAND / treatment type? ─► DSC (dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
 
    PART 2 — MANY treated units   (easy ─────────────────────► hard)

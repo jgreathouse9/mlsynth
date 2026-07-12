@@ -1,0 +1,13 @@
+# case: scd_cps
+# generated_at: 2026-07-12T10:47:08Z
+# mlsynth_version: 1.0.0
+# estimator: SCD
+# config: {"compute_inference": true, "differencing": ["did", "uniform", "sc"]}
+# reference_impl: base-R SCD (point estimator + corrected RC variance + in_C projection QP), reproduced on public CPS microdata
+# reference_version: Rincon & Song (2026) arXiv:2510.26106; Canen & Song (2025) inference
+quantity,mlsynth,reference,abs_diff
+did: post-period ATT,0.11595,0.11595,0.0
+uniform: post-period ATT,0.11732,0.11732,0.0
+sc: post-period ATT,0.11579,0.11579,0.0
+DID: se(theta) at first post-period,0.3441,0.3441,0.0
+DID: Ohio donor weight,0.22355,0.22355,0.0

@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-07-12T10:46:05Z",
+  "git_sha": "5b9580702317d1b45018964d6282b7630bac83f6",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/scd_cps/reference.R",
+  "data": [
+    {
+      "path": "basedata/cps_lawa_arizona.parquet",
+      "sha256": "87a228da0307ab1a0fddbe1eedb1055ab661a5ca736e09f950897898c9d24d1a"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "nanoparquet": "0.5.1",
+    "Matrix": "1.6-5",
+    "osqp": "1.0.0",
+    "nloptr": "2.2.1",
+    "compiler": "4.3.3",
+    "cli": "3.6.2",
+    "Rcpp": "1.0.12",
+    "grid": "4.3.3",
+    "lattice": "0.22-5"
+  }
+}

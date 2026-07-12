@@ -590,6 +590,7 @@ _RELOCATED_CONFIGS = {
     "PDAConfig": "mlsynth.utils.pda_helpers.config",
     "CLUSTERSCConfig": "mlsynth.utils.clustersc_helpers.config",
     "DSCConfig": "mlsynth.utils.dsc_helpers.config",
+    "SCDConfig": "mlsynth.utils.scd_helpers.config",
     "MUSCConfig": "mlsynth.utils.musc_helpers.config",
     "MASCConfig": "mlsynth.utils.masc_helpers.config",
     "SpSyDiDConfig": "mlsynth.utils.spsydid_helpers.config",

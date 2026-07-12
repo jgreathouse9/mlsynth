@@ -1,0 +1,9 @@
+{
+  "case": "scd_cps",
+  "title": "Synthetic Control with Differencing (Rincon & Song 2026) vs mlsynth SCD (Arizona LAWA, CPS microdata)",
+  "paper": "Rincon & Song (2026), 'Synthetic Control with Differencing' (arXiv:2510.26106); repeated-cross-section inference from Canen & Song (2025)",
+  "reference_impl": "the SCD point estimator, corrected RC pointwise variance, and in_C confidence-set membership, reproduced from scratch (upstream ratzanyelrincon/scd is GPL) on public-domain CPS microdata",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/scd_cps/reference.R",
+  "data": ["basedata/cps_lawa_arizona.parquet"]
+}

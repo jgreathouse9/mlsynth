@@ -62,6 +62,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **RMSI** — Robust Matrix estimation with Side Information.  (config: RMSIConfig)
 - **ROLLDID** — Rolling-transformation difference-in-differences.  (config: ROLLDIDConfig)
 - **SBC** — Synthetic Business Cycle (SBC) estimator.  (config: SBCConfig)
+- **SCD** — Synthetic Control with Differencing estimator.  (config: SCDConfig)
 - **SCMO** — Synthetic Control with Multiple Outcomes estimator.  (config: SCMOConfig)
 - **SCTA** — Synthetic Control with Temporal Aggregation estimator.  (config: SCTAConfig)
 - **SCUL** — Synthetic Control Using Lasso estimator.  (config: SCULConfig)

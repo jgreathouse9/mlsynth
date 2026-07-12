@@ -243,6 +243,7 @@ headline numbers.
    scta
    ctsc
    dsc
+   scd
    si
    microsynth
 
