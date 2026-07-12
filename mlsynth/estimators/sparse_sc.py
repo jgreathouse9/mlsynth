@@ -308,6 +308,8 @@ class SparseSC:
                 intervention_time=(inputs.time_labels[inputs.T0_total]
                                    if inputs.T0_total < inputs.T
                                    else inputs.time_labels[-1]),
+                prediction_interval=(scpi_obj.to_prediction_interval_spec()
+                                     if scpi_obj is not None else None),
             )
             results = SparseSCResults(
                 **submodels,

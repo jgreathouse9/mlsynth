@@ -132,3 +132,54 @@ def test_build_effect_submodels_no_band_leaves_fields_none():
     sub = build_effect_submodels(obs, cf, n_pre_periods=2, n_post_periods=2)
     assert sub["time_series"].has_prediction_interval is False
     assert sub["time_series"].counterfactual_lower is None
+
+
+def test_band_auto_derived_from_inference_details_mapping():
+    """Estimators that already stash the band in ``inference.details`` as a
+    mapping (VanillaSC scpi/conformal) get the canonical field for free."""
+    from mlsynth.config_models import InferenceResults
+    obs = np.zeros(5); cf = np.zeros(5)
+    inf = InferenceResults(
+        ci_lower=-1.0, ci_upper=1.0, confidence_level=0.9,
+        method="scpi prediction intervals",
+        details={"periods": [2003, 2004],
+                 "counterfactual_lower": [-1.0, -1.5],
+                 "counterfactual_upper": [1.0, 1.5],
+                 "w_constr": "simplex"})
+    sub = build_effect_submodels(
+        obs, cf, n_pre_periods=3, n_post_periods=2,
+        time_periods=np.array([2000, 2001, 2002, 2003, 2004]), inference=inf)
+    ts = sub["time_series"]
+    assert ts.has_prediction_interval is True
+    assert np.allclose(ts.counterfactual_lower[3:], [-1.0, -1.5])
+    assert ts.prediction_interval_kind == "scpi:simplex"
+
+
+# --------------------------------------------------------------------------
+# integration: a real estimator populates the canonical band
+# --------------------------------------------------------------------------
+def test_vanillasc_scpi_populates_canonical_band():
+    import warnings
+    import pandas as pd
+    from mlsynth import VanillaSC
+
+    rng = np.random.default_rng(0)
+    T, T0, n = 20, 14, 6
+    F = rng.standard_normal((T, 3)); L = rng.standard_normal((n + 1, 3))
+    Y = F @ L.T + 0.2 * rng.standard_normal((T, n + 1)); Y[T0:, 0] -= 3.0
+    rows = [{"unit": f"u{u}", "year": 2000 + t, "y": float(Y[t, u]),
+             "tr": int(u == 0 and t >= T0)}
+            for u in range(n + 1) for t in range(T)]
+    df = pd.DataFrame(rows)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = VanillaSC({"df": df, "outcome": "y", "treat": "tr",
+                         "unitid": "unit", "time": "year",
+                         "display_graphs": False, "inference": "scpi",
+                         "scpi_sims": 60}).fit()
+    ts = res.time_series
+    assert ts.has_prediction_interval is True
+    assert len(ts.counterfactual_lower) == T
+    post = np.isfinite(ts.counterfactual_lower)
+    assert post.any() and not post.all()
+    assert str(ts.prediction_interval_kind).startswith("scpi:")

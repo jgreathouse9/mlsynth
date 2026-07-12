@@ -8,6 +8,7 @@ identically across every estimator.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -165,6 +166,41 @@ def effect_metrics(
     }
 
 
+def _prediction_interval_from_inference(inference: Any) -> Optional[Dict[str, Any]]:
+    """Derive the canonical band spec from an ``inference.details`` mapping.
+
+    Estimators that already stash per-period bands in ``inference.details`` as a
+    mapping (VanillaSC's scpi / conformal modes) carry ``counterfactual_lower`` /
+    ``counterfactual_upper`` (+ ``*_simultaneous`` and ``periods``); this lifts
+    them into the normalized spec so the canonical field is populated without
+    per-estimator wiring. Returns ``None`` when no such band is present.
+    """
+    if inference is None:
+        return None
+    details = getattr(inference, "details", None)
+    if not isinstance(details, Mapping):
+        return None
+    if details.get("counterfactual_lower") is None:
+        return None
+    wc = details.get("w_constr")
+    method = getattr(inference, "method", None) or ""
+    if wc is not None:
+        kind = f"scpi:{wc}"
+    elif "conformal" in str(method).lower():
+        kind = "conformal"
+    else:
+        kind = str(method) or None
+    return {
+        "lower": details.get("counterfactual_lower"),
+        "upper": details.get("counterfactual_upper"),
+        "lower_simultaneous": details.get("counterfactual_lower_simultaneous"),
+        "upper_simultaneous": details.get("counterfactual_upper_simultaneous"),
+        "periods": details.get("periods"),
+        "level": getattr(inference, "confidence_level", None),
+        "kind": kind,
+    }
+
+
 def build_effect_submodels(
     observed_outcome: np.ndarray,
     counterfactual_outcome: np.ndarray,
@@ -223,6 +259,8 @@ def build_effect_submodels(
         time_periods=None if time_periods is None else np.asarray(time_periods),
         intervention_time=intervention_time,
     )
+    if prediction_interval is None:
+        prediction_interval = _prediction_interval_from_inference(inference)
     if prediction_interval:
         axis = (np.asarray(time_periods) if time_periods is not None
                 else np.arange(obs.size))

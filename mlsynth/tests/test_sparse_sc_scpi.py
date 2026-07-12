@@ -91,6 +91,19 @@ def test_sparsesc_scpi_bands_ordered(scpi_fit):
     assert np.mean(ws) >= np.mean(wp) - 1e-6
 
 
+def test_sparsesc_scpi_populates_canonical_band(scpi_fit):
+    ts = scpi_fit.time_series
+    assert ts.has_prediction_interval is True
+    T = len(ts.observed_outcome)
+    assert len(ts.counterfactual_lower) == T
+    # post-only band: pre-period entries are NaN, post entries finite and ordered
+    post = np.isfinite(ts.counterfactual_lower)
+    assert post.any() and not post.all()
+    assert np.all(ts.counterfactual_upper[post] >= ts.counterfactual_lower[post])
+    assert ts.prediction_interval_kind == "scpi:simplex"
+    assert ts.prediction_interval_level == pytest.approx(0.90, abs=1e-9)
+
+
 def test_conformal_still_available_without_scpi():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
