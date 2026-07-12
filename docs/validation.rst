@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **52 cross-validation checks** against original
-implementations across **29 estimators** -- 21 reproduce the reference to display precision, 20 to
-within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **53 cross-validation checks** against original
+implementations across **30 estimators** -- 22 reproduce the reference to display precision, 20 to
+within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -61,6 +61,10 @@ Summary
      - 1
      - 1 tight
      - 0.016
+   * - :ref:`MASC <val-masc>`
+     - 1
+     - 1 exact
+     - 4.6e-05
    * - :ref:`MCNNM <val-mcnnm>`
      - 1
      - 1 tight
@@ -339,6 +343,28 @@ MAREX
      - 0.016
      - tight
      - `marex_walmart <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_walmart.py>`__
+
+.. _val-masc:
+
+MASC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - maxkllgg/masc masc(..., nogurobi=TRUE) (LowRankQP), live run, captured
+     - ``basque_jasa.csv`` (b3f957771c8e…)
+     - 8
+     - 4.6e-05
+     - exact — matches to display precision
+     - `masc_crossval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/masc_crossval.py>`__
 
 .. _val-mcnnm:
 
@@ -935,6 +961,8 @@ action records them once its toolchain provisions.
 
    * - Case
      - Reference
+   * - `dpsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dpsc_prop99.py>`__
+     - —
    * - `propsc_spain <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/propsc_spain.py>`__
      - —
 

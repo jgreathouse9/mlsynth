@@ -1,0 +1,26 @@
+{
+  "values": {
+    "masc_phi_hat": 0.329618,
+    "masc_m_hat": 3.0,
+    "masc_pre_rmse": 0.087892,
+    "masc_att": -0.958534
+  },
+  "weights": {
+    "Madrid (Comunidad De)": 0.433749,
+    "Baleares (Islas)": 0.318413,
+    "Rioja (La)": 0.137931,
+    "Cataluna": 0.109881,
+    "Principado De Asturias": 2e-05,
+    "Navarra (Comunidad Foral De)": 2e-06,
+    "Extremadura": 1e-06,
+    "Cantabria": 1e-06,
+    "Castilla-La Mancha": 1e-06,
+    "Aragon": 1e-06,
+    "Canarias": 0.0,
+    "Comunidad Valenciana": 0.0,
+    "Galicia": 0.0,
+    "Murcia (Region de)": 0.0,
+    "Castilla Y Leon": 0.0,
+    "Andalucia": 0.0
+  }
+}

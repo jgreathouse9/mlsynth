@@ -1,0 +1,47 @@
+== REFERENCE VALUES ==
+masc_phi_hat	0.329618
+masc_m_hat	3
+masc_pre_rmse	0.087892
+masc_att	-0.958534
+weight	Madrid (Comunidad De)	0.433749
+weight	Baleares (Islas)	0.318413
+weight	Rioja (La)	0.137931
+weight	Cataluna	0.109881
+weight	Principado De Asturias	0.000020
+weight	Navarra (Comunidad Foral De)	0.000002
+weight	Extremadura	0.000001
+weight	Cantabria	0.000001
+weight	Castilla-La Mancha	0.000001
+weight	Aragon	0.000001
+weight	Canarias	0.000000
+weight	Comunidad Valenciana	0.000000
+weight	Galicia	0.000000
+weight	Murcia (Region de)	0.000000
+weight	Castilla Y Leon	0.000000
+weight	Andalucia	0.000000
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] LowRankQP_1.0.6   data.table_1.18.4
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

@@ -1,0 +1,9 @@
+{
+  "case": "masc_crossval",
+  "title": "Kellogg et al. MASC (authors' R, nogurobi) vs mlsynth MASC (Basque, outcome-path)",
+  "paper": "Kellogg, Mogstad, Pouliot & Torgovitsky (2020), 'Combining Matching and Synthetic Control to Trade off Biases from Extrapolation and Interpolation'",
+  "reference_impl": "maxkllgg/masc (vendored MIT sources under benchmarks/reference/masc_basque/), nogurobi=TRUE / LowRankQP path",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/masc_crossval/reference.R",
+  "data": ["basedata/basque_jasa.csv"]
+}
