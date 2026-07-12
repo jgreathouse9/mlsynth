@@ -605,6 +605,127 @@ def localgeom2step_lb(w, rho_dict, treated_units, J_dict):
     return lb
 
 
+# ---------------------------------------------------------------------------
+# Generalized weight-constraint family: local_geom / localgeom2step / df_EST
+# (faithful port of scpi's funs.local_geom / localgeom2step / df_EST, covering
+#  ols / simplex / lasso / ridge / L1-L2). The simplex-only helpers above are
+#  kept so the validated simplex conic path is untouched.
+# ---------------------------------------------------------------------------
+def local_geom(w_constr, rho, rho_max, res, B, T0_tot, J, KM, w):
+    """Regularise one treated unit's weights and localise the compatible set.
+
+    Mirrors scpi's ``local_geom``: computes (or accepts) ``rho``, the active-donor
+    set ``index_w`` (for the u/e design), and a preliminary norm budget
+    ``Q_star`` / ``Q2_star``; mutates ``w_constr['Q']`` (and ``['Q2']`` for
+    L1-L2) in place, as scpi does on its per-unit working copy. Returns
+    ``(w_constr, index_w, rho, Q_star, Q2_star)``.
+    """
+    Q = w_constr["Q"]
+    Q2_star = None
+    name = w_constr["name"]
+    p = w_constr.get("p")
+    dire = w_constr.get("dir")
+    d0 = int(np.sum(np.abs(w.iloc[:, 0].values) >= 1e-6)) + KM
+    if isinstance(rho, str):
+        rho = regularize_w(rho, rho_max, res, B, T0_tot, J, KM, d0)
+        rho = regularize_check_lb(w, rho, rho_max, res, B, T0_tot, J, KM, d0)
+
+    if name == "simplex" or (p == "L1" and dire == "=="):
+        index_w = w[0] > rho
+        index_w = regularize_check(w, index_w, rho, B)
+        w_star = w.copy()
+        w_star.loc[index_w.values] = 0
+        Q_star = float(np.asarray(w_star).sum())
+    elif name == "lasso" or (p == "L1" and dire == "<="):
+        l1 = float(np.sum(np.abs(w)))
+        Q_star = l1 if (Q - rho * sqrt(J) <= l1 <= Q) else Q
+        index_w = np.abs(w[0]) > rho
+        index_w = regularize_check(w, index_w, rho, B)
+    elif name == "ridge" or p == "L2":
+        l2 = float(sqrt(np.sum(np.asarray(w) ** 2)))
+        Q_star = l2 if (Q - rho <= l2 <= Q) else Q
+        index_w = pd.Series([True] * len(B.columns), index=w.index)
+    elif name == "L1-L2":
+        index_w = w[0] > rho
+        index_w = regularize_check(w, index_w, rho, B)
+        w_star = w.copy()
+        w_star.loc[index_w.values] = 0
+        Q_star = float(np.asarray(w_star).sum())
+        l2 = float(sqrt(np.sum(np.asarray(w) ** 2)))
+        Q2_star = l2 if (Q - rho <= l2 <= Q) else float(w_constr["Q2"])
+        w_constr["Q2"] = Q2_star
+    else:  # ols / no norm
+        Q_star = Q
+        index_w = pd.Series([True] * len(B.columns), index=w.index)
+
+    w_constr["Q"] = Q_star
+    return w_constr, np.asarray(index_w).astype(bool), rho, Q_star, Q2_star
+
+
+def localgeom2step(w, rho_dict, w_constr, Q, treated_units, J_dict, rho_max=0.2):
+    """Two-step refinement of the norm budget and per-donor lower bounds.
+
+    Mirrors scpi's ``localgeom2step`` over all treated units: for inequality
+    constraints (lasso / L1-L2) the norm budget is relaxed by ``rho`` when the
+    realised norm binds; the lower bounds pin the small (regularised-away) donors
+    for the lower-bounded constraints (simplex / L1-L2) and are ``-inf`` for the
+    signed constraints (ols / lasso / ridge). Returns ``(Q_star_dict, lb_list)``.
+    """
+    from copy import deepcopy
+    Q_star = deepcopy(dict(Q))
+    lb = []
+    warr = w.iloc[:, 0].values
+    jmin = 0
+    for tr in treated_units:
+        jmax = jmin + J_dict[tr]
+        wj = warr[jmin:jmax]
+        p = w_constr[tr]["p"]
+        dire = w_constr[tr]["dir"]
+        lbc = w_constr[tr]["lb"]
+        w_norm = None
+        if p == "no norm":
+            rhoj = rho_dict[tr]
+        elif p == "L1":
+            rhoj = rho_dict[tr]
+            w_norm = float(np.sum(np.abs(wj)))
+        else:  # "L1-L2" / "L2"
+            w_norm = float(np.sum(wj ** 2))
+            rhoj = min(2 * np.sqrt(w_norm) * rho_dict[tr], rho_max)
+        if dire in ("<=", "==/<="):
+            active = 1 * ((w_norm - Q[tr]) > -rhoj)
+            Q_star[tr] = active * (w_norm + rho_dict[tr] - Q[tr]) + Q[tr]
+        if lbc == 0:
+            active = 1 * (wj < rho_dict[tr])
+            lb.extend((active * wj).tolist())
+        else:
+            lb.extend([-np.inf] * len(wj))
+        jmin = jmax
+    return Q_star, lb
+
+
+def df_EST(w_constr, w, B, J, KM):
+    """Effective degrees of freedom per constraint (scpi ``df_EST``).
+
+    ols: ``J``; lasso: ``#nonzero``; simplex: ``#nonzero - 1``; ridge / L1-L2:
+    ``sum_k d_k^2 / (d_k^2 + lambda)`` over the positive singular values of the
+    (full, stacked) donor design ``B``. ``KM`` covariate columns are added.
+    """
+    name = w_constr["name"]
+    p = w_constr.get("p")
+    dire = w_constr.get("dir")
+    if name == "ols" or p == "no norm":
+        df = float(J)
+    elif name == "lasso" or (p == "L1" and dire == "<="):
+        df = float(np.sum(np.abs(w.iloc[:, 0].values) >= 1e-6))
+    elif name == "simplex" or (p == "L1" and dire == "=="):
+        df = float(np.sum(np.abs(w.iloc[:, 0].values) >= 1e-6) - 1)
+    else:  # ridge / L1-L2 / L2
+        d = np.linalg.svd(np.asarray(B, float), compute_uv=False)
+        d = d[d > 0]
+        df = float(np.sum(d ** 2 / (d ** 2 + w_constr["lambda"])))
+    return df + KM
+
+
 def u_des_prep_one(B, C, coig_data, constant, index, index_w):
     """u_order=1, u_lags=0."""
     if coig_data:
@@ -808,6 +929,74 @@ def conic_bounds_unit(beta, Q, P_rows, lb, Qsum, zeta_unit, sims):
     return res_lb, res_ub
 
 
+def conic_bounds_unit_family(beta, Q, P_rows, name, Q_star, Q2_star, lb,
+                             zeta_unit, sims):
+    """cvxpy in-sample conic bounds for one treated unit under the non-simplex
+    weight-constraint family (ols / lasso / ridge / L1-L2).
+
+    Solves, for every simulation draw and post-treatment horizon, the min/max of
+    ``p.(beta - x)`` over the localised compatible set
+    ``{ (x-beta)'Q(x-beta) - 2 G'(x-beta) <= 0 } intersect W``, where ``W`` is the
+    constraint's donor weight-set (``x[:J]``): lasso ``||.||1 <= Q_star``; ridge
+    ``||.||2 <= Q_star``; L1-L2 ``x>=lb, sum==Q_star, ||.||2<=Q2_star``; ols free.
+    This mirrors scpi's ``scpi_in_diag`` construction and the (cross-validated)
+    single-unit ``scpi_intervals`` QCQP; the simplex case stays on the exact ECOS
+    path (:func:`conic_bounds_unit`).
+    """
+    beta = np.asarray(beta, dtype=float)
+    n = len(beta)
+    J = len(lb)
+    Qa = np.asarray(Q, dtype=float)
+    lb = np.asarray(lb, dtype=float)
+
+    scale, Qreg = mat_regularize(Qa)          # Qreg (k, n); scale * ||Qreg z||^2 = z'Q z
+    x = cp.Variable(n)
+    c = cp.Parameter(n)
+    Gstar = cp.Parameter(n)
+    if Qreg.shape[0] == 0:  # pragma: no cover - degenerate Q (no donor variation)
+        quad = cp.Constant(0.0)
+    else:
+        quad = scale * cp.sum_squares(Qreg @ (x - beta))
+    cons = [quad - 2.0 * Gstar @ (x - beta) <= 0.0]
+    xd = x[:J]
+    if name == "lasso":
+        cons.append(cp.norm1(xd) <= Q_star)
+    elif name == "ridge":
+        cons.append(cp.sum_squares(xd) <= Q_star ** 2)
+    elif name == "L1-L2":
+        cons += [xd >= lb, cp.sum(xd) == Q_star,
+                 cp.sum_squares(xd) <= Q2_star ** 2]
+    # ols: no weight-set constraint
+
+    prob_min = cp.Problem(cp.Minimize(c @ x), cons)
+    prob_max = cp.Problem(cp.Maximize(c @ x), cons)
+
+    def _solve(prob):
+        for solver in (cp.CLARABEL, cp.ECOS, cp.SCS):
+            try:
+                prob.solve(solver=solver, warm_start=True)
+                if prob.status in ("optimal", "optimal_inaccurate") \
+                        and x.value is not None:
+                    return np.asarray(x.value).ravel()
+            except Exception:
+                continue
+        return None
+
+    res_lb = np.full((sims, len(P_rows)), np.nan)
+    res_ub = np.full((sims, len(P_rows)), np.nan)
+    for s in range(sims):
+        Gstar.value = zeta_unit[:, s]
+        for hor, p in enumerate(P_rows):
+            c.value = np.asarray(p, dtype=float)
+            xs = _solve(prob_max)                 # maximise p.x  -> min p.(beta-x)
+            if xs is not None:
+                res_lb[s, hor] = float(np.asarray(p).dot(beta - xs))
+            xs = _solve(prob_min)                 # minimise p.x  -> max p.(beta-x)
+            if xs is not None:
+                res_ub[s, hor] = float(np.asarray(p).dot(beta - xs))
+    return res_lb, res_ub
+
+
 # ---------------------------------------------------------------------------
 # Out-of-sample uncertainty (mirrors scpi_out)
 # ---------------------------------------------------------------------------
@@ -971,12 +1160,27 @@ def scpi(est, sims=200, u_alpha=0.05, e_alpha=0.05, rho='type-2', rho_max=0.2,
 
     col_order = Z.columns.tolist()
 
+    # weight-constraint family: scest records the per-unit normalised spec. The
+    # constraint name is uniform across treated units (scpi applies one spec);
+    # ``constr_name == "simplex"`` keeps the validated ECOS conic path, everything
+    # else routes through the cvxpy family conic.
+    from copy import deepcopy
+    w_constr_inf = est.get('w_constr_inf') or {
+        tr: {"name": "simplex", "p": "L1", "dir": "==", "lb": 0.0, "Q": 1.0,
+             "Q2": None, "lambda": None} for tr in treated_units}
+    constr_name = w_constr_inf[treated_units[0]]["name"]
+    wc_orig = {tr: deepcopy(w_constr_inf[tr]) for tr in treated_units}
+
     rho_dict = {}
     iw_dict = {}
+    Qstar_pre = {}
+    Q2star_pre = {}
     store = {}
     for tr in treated_units:
-        rho_tr, index_w = local_geom_simplex(rho, rho_max, res_d[tr], B_d[tr],
-                                             T0_M[tr], J[tr], KM[tr], w_d[tr])
+        wc_aux = deepcopy(w_constr_inf[tr])
+        _wc, index_w, rho_tr, Qstar_pre[tr], Q2star_pre[tr] = local_geom(
+            wc_aux, rho, rho_max, res_d[tr], B_d[tr],
+            T0_M[tr], J[tr], KM[tr], w_d[tr])
         rho_dict[tr] = rho_tr
         iw_dict[tr] = index_w
         index_i = index_w.tolist() + [True] * KM[tr]
@@ -1044,9 +1248,20 @@ def scpi(est, sims=200, u_alpha=0.05, e_alpha=0.05, rho='type-2', rho_max=0.2,
     TT = len(Z_na)
     V_na = np.identity(TT)
 
-    # localgeom2step -> Q_star (=1 simplex) and lb
-    Q_star = {tr: 1 for tr in treated_units}
-    lb = localgeom2step_lb(w, rho_dict, treated_units, J)
+    # two-step localisation -> per-unit norm budget Q_star (=1 for simplex) and
+    # per-donor lower bounds lb (pinned for simplex/L1-L2, -inf for signed
+    # constraints). scpi feeds localgeom2step the pre-mutation constraint Q.
+    Q_for_2step = {}
+    for tr in treated_units:
+        Q_for_2step[tr] = (wc_orig[tr]["Q2"] if wc_orig[tr].get("p") == "L1-L2"
+                           else wc_orig[tr]["Q"])
+    Q_star, lb = localgeom2step(w, rho_dict, w_constr_inf, Q_for_2step,
+                                treated_units, J, rho_max=rho_max)
+    if constr_name == "L1-L2":
+        Q2_star = deepcopy(Q_star)
+        Q_star = {tr: wc_orig[tr]["Q"] for tr in treated_units}
+    else:
+        Q2_star = {tr: Q2star_pre[tr] for tr in treated_units}
 
     # ----- u_mean -----
     u_des_dict = mat2dict(u_des_0_na, treated_units, cols=False)
@@ -1078,7 +1293,11 @@ def scpi(est, sims=200, u_alpha=0.05, e_alpha=0.05, rho='type-2', rho_max=0.2,
                                         np.asarray(u_des_use, dtype=float))
 
     # ----- Sigma -----
-    df = df_EST_simplex(w, KMI)
+    # scpi computes df once, on the full stacked weights/donor design, with the
+    # (uniform) constraint spec; for ridge/L1-L2 it uses the last unit's lambda.
+    Jtot = sum(J.values())
+    df = df_EST(w_constr_inf[treated_units[-1]], w, np.asarray(B, dtype=float),
+                Jtot, KMI)
     if df >= TT:
         df = TT - 1
     Sigma = u_sigma_est_HC1(u_mean, res_na, Z_na, V_na, TT, df)
@@ -1119,8 +1338,13 @@ def scpi(est, sims=200, u_alpha=0.05, e_alpha=0.05, rho='type-2', rho_max=0.2,
         else:
             P_na_tr = P_na
         P_rows = [np.asarray(P_na_tr.iloc[h, :], dtype=float) for h in range(len(P_na_tr))]
-        rlb, rub = conic_bounds_unit(beta_i, Qi, P_rows, lb_d[tr],
-                                     Q_star[tr], zeta_i, sims)
+        if constr_name == "simplex":
+            rlb, rub = conic_bounds_unit(beta_i, Qi, P_rows, lb_d[tr],
+                                         Q_star[tr], zeta_i, sims)
+        else:
+            rlb, rub = conic_bounds_unit_family(
+                beta_i, Qi, P_rows, constr_name, Q_star[tr],
+                Q2_star.get(tr), lb_d[tr], zeta_i, sims)
         vsig_lb_list.append(rlb)
         vsig_ub_list.append(rub)
 
