@@ -131,6 +131,41 @@ def estimate_pi_overid(
     return counterfactual, alpha, se_tau
 
 
+def _overid_joint_cov(
+    Y: np.ndarray,
+    W: np.ndarray,
+    Z: np.ndarray,
+    alpha: np.ndarray,
+    tau: float,
+    T0: int,
+    total_periods: int,
+    hac_truncation_lag: int,
+):
+    """Joint one-step-GMM sandwich covariance of ``theta = (tau, omega)``.
+
+    Builds the moment matrix ``bg = (Y - S1 theta) * S2`` with ``S1 = [X, W]``,
+    ``S2 = [X, Z(1-X)]``; the over-identified sandwich is
+    ``(G'G)^{-1} G' Omega G (G'G)^{-1}`` with a Bartlett-HAC ``Omega``. Returns
+    the full ``(1 + n_donors, 1 + n_donors)`` matrix (still to be divided by
+    ``T`` for the variance), or ``None`` if the projection is singular. The ATT
+    SE and the per-period counterfactual band both read off this one object.
+    """
+    T = total_periods
+    X = np.concatenate([np.zeros(T0), np.ones(T - T0)])
+    theta = np.concatenate([[tau], alpha])
+    S1 = np.column_stack([X, W])                 # (T, 1 + n_donors)
+    S2 = np.column_stack([X, Z * (1.0 - X)[:, None]])  # (T, 1 + n_instruments)
+
+    bg = (Y - S1 @ theta)[:, None] * S2          # (T, 1 + n_instruments) moments
+    G = S2.T @ S1 / T                            # (1 + n_instr, 1 + n_donors) Jacobian
+    omega = hac(bg, hac_truncation_lag)
+    try:
+        proj = np.linalg.inv(G.T @ G) @ G.T      # (1 + n_donors, 1 + n_instr)
+        return proj @ omega @ proj.T             # (1 + n_donors, 1 + n_donors)
+    except np.linalg.LinAlgError:
+        return None
+
+
 def _overid_att_se(
     Y: np.ndarray,
     W: np.ndarray,
@@ -143,26 +178,56 @@ def _overid_att_se(
 ) -> float:
     """Over-identified one-step-GMM sandwich SE of the ATT (authors' NC_nocov_gmm).
 
-    Builds the joint moment matrix ``bg = (Y - S1 theta) * S2`` with
-    ``S1 = [X, W]``, ``S2 = [X, Z(1-X)]`` and ``theta = (tau, omega)``; the ATT
-    variance is the top-left entry of the over-identified sandwich
-    ``(G'G)^{-1} G' Omega G (G'G)^{-1} / T`` with a Bartlett-HAC ``Omega``.
-    Returns ``np.nan`` if the projection is singular.
+    The ATT variance is the top-left entry of the joint sandwich
+    (:func:`_overid_joint_cov`) divided by ``T``. Returns ``np.nan`` if the
+    projection is singular.
     """
-
-    T = total_periods
-    X = np.concatenate([np.zeros(T0), np.ones(T - T0)])
-    theta = np.concatenate([[tau], alpha])
-    S1 = np.column_stack([X, W])                 # (T, 1 + n_donors)
-    S2 = np.column_stack([X, Z * (1.0 - X)[:, None]])  # (T, 1 + n_instruments)
-
-    bg = (Y - S1 @ theta)[:, None] * S2          # (T, 1 + n_instruments) moments
-    G = S2.T @ S1 / T                            # (1 + n_instr, 1 + n_donors) Jacobian
-    omega = hac(bg, hac_truncation_lag)
-    try:
-        proj = np.linalg.inv(G.T @ G) @ G.T      # (1 + n_donors, 1 + n_instr)
-        hac_sigma = proj @ omega @ proj.T
-        var_tau = hac_sigma[0, 0] / T
-        return float(np.sqrt(var_tau)) if var_tau >= 0 else np.nan
-    except np.linalg.LinAlgError:
+    cov = _overid_joint_cov(
+        Y, W, Z, alpha, tau, T0, total_periods, hac_truncation_lag)
+    if cov is None:
         return np.nan
+    var_tau = cov[0, 0] / total_periods
+    return float(np.sqrt(var_tau)) if var_tau >= 0 else np.nan
+
+
+def overid_counterfactual_band(
+    outcome_vector: np.ndarray,
+    design_matrix: np.ndarray,
+    instrument_matrix: np.ndarray,
+    alpha: np.ndarray,
+    num_pre_treatment_periods: int,
+    num_post_periods_for_effect_eval: int,
+    total_periods: int,
+    hac_truncation_lag: int,
+    level: float = 0.90,
+):
+    """Per-period GMM (delta-method) confidence band on the PIOID counterfactual.
+
+    The outcome bridge is ``h(W_t) = W_t' omega``; from the joint ``(tau, omega)``
+    sandwich (:func:`_overid_joint_cov`) the counterfactual's per-period variance
+    is ``W_t' Var(omega_hat) W_t`` with ``Var(omega_hat)`` the ``omega`` block
+    ``cov[1:, 1:] / T``. Returns full-length ``(lower, upper)`` arrays
+    ``W omega +/- z_{level} * sqrt(var_t)`` (Shi et al. 2026, Section 3.2.3);
+    this is the per-period companion to the ATT SE the estimator already reports,
+    read off the same sandwich. Returns ``(None, None)`` if the sandwich is
+    singular.
+    """
+    from scipy.stats import norm
+
+    W = np.asarray(design_matrix, dtype=float)
+    Z = np.asarray(instrument_matrix, dtype=float)
+    Y = np.asarray(outcome_vector, dtype=float).ravel()
+    alpha = np.asarray(alpha, dtype=float).ravel()
+    T = int(total_periods)
+    T0 = int(num_pre_treatment_periods)
+
+    cf = W @ alpha
+    tau = float(np.mean((Y - cf)[T0 : T0 + num_post_periods_for_effect_eval]))
+    cov = _overid_joint_cov(Y, W, Z, alpha, tau, T0, T, hac_truncation_lag)
+    if cov is None:
+        return None, None
+    var_alpha = cov[1:, 1:] / T                  # Var(omega_hat)
+    var_t = np.einsum("tj,jk,tk->t", W, var_alpha, W)
+    se_t = np.sqrt(np.clip(var_t, 0.0, None))
+    z = float(norm.ppf(0.5 + float(level) / 2.0))
+    return cf - z * se_t, cf + z * se_t
