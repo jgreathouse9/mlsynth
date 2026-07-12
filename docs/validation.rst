@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **58 cross-validation checks** against original
-implementations across **34 estimators** -- 25 reproduce the reference to display precision, 21 to
+Coverage: **59 cross-validation checks** against original
+implementations across **35 estimators** -- 26 reproduce the reference to display precision, 21 to
 within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -121,6 +121,10 @@ Summary
      - 1
      - 1 close
      - 1e+06
+   * - :ref:`SCD <val-scd>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`SCMO <val-scmo>`
      - 1
      - 1 tight
@@ -737,6 +741,28 @@ SBC
      - 1e+06
      - close
      - `sbc_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sbc_hongkong.py>`__
+
+.. _val-scd:
+
+SCD
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - base-R SCD (point estimator + corrected RC variance + in_C projection QP), reproduced on public CPS microdata
+     - ``cps_lawa_arizona.parquet`` (87a228da0307…)
+     - 5
+     - 0
+     - exact — matches to display precision
+     - `scd_cps <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scd_cps.py>`__
 
 .. _val-scmo:
 

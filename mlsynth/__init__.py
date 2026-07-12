@@ -16,6 +16,7 @@ from .estimators.scmo import SCMO
 from .estimators.propsc import PROPSC
 from .estimators.scta import SCTA
 from .estimators.scul import SCUL
+from .estimators.scd import SCD                                # noqa: F401
 from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
@@ -109,6 +110,7 @@ __all__ = [
     "PROPSC",
     "SCTA",
     "SCUL",
+    "SCD",
     "SI",
     "NSC",
     "MUSC",

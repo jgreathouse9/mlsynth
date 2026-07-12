@@ -1,0 +1,58 @@
+== REFERENCE VALUES ==
+did_att	0.11595237
+did_theta_post1	-0.34194560
+did_wsum	1.00000000
+did_wmax	0.22354973
+uniform_att	0.11731726
+uniform_theta_post1	-0.34071806
+uniform_wsum	1.00000000
+uniform_wmax	0.21718172
+sc_att	0.11578539
+sc_theta_post1	-0.34417590
+sc_wsum	1.00000000
+sc_wmax	0.22052367
+did_w[Ohio]	0.22354973
+did_w[Missouri]	0.16933487
+did_w[Connecticut]	0.14574060
+did_w[Arkansas]	0.13733702
+did_w[Wyoming]	0.11938760
+did_w[Colorado]	0.08144540
+did_w[West Virginia]	0.08096842
+did_w[Oregon]	0.02272855
+did_w[Alaska]	0.01236877
+did_w[District of Columbia]	0.00713904
+sigma2_post1	6950.01398794
+se_post1	0.34410017
+se_post2	0.25853633
+hatV_trace	9235.07531620
+inC_hatw	1.00000000
+inC_uniform	1.00000000
+inC_vertex1	0.00000000
+inC_edge1_5	0.00000000
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] nanoparquet_0.5.1 Matrix_1.6-5      osqp_1.0.0        nloptr_2.2.1     
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3 cli_3.6.2      Rcpp_1.0.12    grid_4.3.3     S7_0.2.2      
+[6] lattice_0.22-5

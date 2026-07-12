@@ -77,6 +77,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/orthsc
    replications/beast
    replications/dpsc
+   replications/scd
    replications/rolldid
    replications/ppscm
    replications/snn
@@ -402,6 +403,13 @@ High-dimensional donor pools
   perturbation (the latter solved in closed form against their cvxpy) -- to
   :math:`\sim 10^{-11}` (durable: ``dpsc_prop99``). See the
   :doc:`dedicated page <replications/dpsc>`.
+* :doc:`scd` -- Rincon & Song (2026) synthetic control with differencing for
+  grouped microdata / repeated cross-sections. Cross-validation: on the Arizona
+  LAWA CPS extract, mlsynth reproduces a from-scratch base-R reference (donor
+  weights, effect path, ATT, corrected repeated-cross-section standard error,
+  weight-variance trace, and confidence-set decisions) value-for-value for all
+  three differencing schemes, to :math:`\sim 10^{-9}` (durable: ``scd_cps``).
+  See the :doc:`dedicated page <replications/scd>`.
 * :doc:`msqrt` -- Shen, Song & Abadie (2025) multivariate
   square-root-Lasso SC for high-dimensional disaggregated data.
   Path B: the Section-6 simulation (true ATT = 0) -- the
