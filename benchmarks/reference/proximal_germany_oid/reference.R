@@ -26,7 +26,8 @@
 # Z'Z metric -- the authors' NC_constrained_nocov, i.e. the convex program
 # scpi::scest(w.constr="simplex", V.mat = Z'Z / T0) solves. It is reproduced here
 # with an independent QP solver (quadprog::solve.QP), which lands on the paper's
-# cPI headline (-1719 USD); mlsynth solves the identical program with CLARABEL.
+# cPI headline (-1719 USD); mlsynth solves the identical program with its
+# pure-NumPy active-set simplex solver.
 #
 # Run from the repository root:
 #   Rscript benchmarks/reference/proximal_germany_oid/reference.R

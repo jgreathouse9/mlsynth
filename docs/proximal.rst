@@ -1165,9 +1165,10 @@ Replication Status
    (-2806, -616) USD to the dollar. The constrained variant
    (``pioid_simplex=True``, the authors' cPI / ``NC_constrained_nocov``) is a
    convex simplex-constrained program under the ``Z'Z`` metric; solved with
-   CLARABEL it reproduces the paper's cPI ATT of -1719 USD (the benchmark checks
-   it against an independent ``quadprog`` solve of the identical objective, the
-   ``scpi::scest`` optimum being solver-invariant). This complements the
+   mlsynth's pure-NumPy active-set simplex solver it reproduces the paper's cPI
+   ATT of -1719 USD (the benchmark checks it against an independent ``quadprog``
+   solve of the identical objective, the ``scpi::scest`` optimum being
+   solver-invariant). This complements the
    just-identified PI cross-validation (``freshtaste/proximal``, Panic 1907) on a
    second dataset with the paper's own distinct-instrument-set configuration.
 

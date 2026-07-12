@@ -34,19 +34,17 @@ def _solve_simplex_bridge(Wp: np.ndarray, Zp: np.ndarray, Yp: np.ndarray) -> np.
     """Simplex-constrained proximal outcome bridge (the authors' cPI / NC_constrained_nocov).
 
     Solves ``min_omega (Y - W omega)' Z Z' (Y - W omega)`` subject to
-    ``omega >= 0, sum(omega) = 1`` on the pre-period -- equivalently
-    ``min ||Z'(Y - W omega)||^2`` -- with the CLARABEL conic solver, exactly the
-    convex program ``scpi::scest(w.constr="simplex", V.mat = Z'Z / T0)`` solves.
+    ``omega >= 0, sum(omega) = 1`` on the pre-period. Writing ``Z'(Y - W omega)``
+    as a residual makes this the simplex least-squares
+    ``min ||(Z'Y) - (Z'W) omega||^2``, solved exactly by the pure-NumPy,
+    PSD-safe active-set method :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`
+    -- the ``lstsq`` free-set solve handles the rank-deficient/ill-conditioned
+    ``Z'W`` Gram without an epsilon-I fudge, reaching the same optimum the
+    convex program ``scpi::scest(w.constr="simplex", V.mat = Z'Z / T0)`` does.
     """
-    import cvxpy as cp
+    from ...bilevel.active_set import solve_simplex_qp
 
-    n = Wp.shape[1]
-    omega = cp.Variable(n)
-    objective = cp.Minimize(cp.sum_squares(Zp.T @ (Yp - Wp @ omega)))
-    cp.Problem(objective, [omega >= 0, cp.sum(omega) == 1]).solve(solver=cp.CLARABEL)
-    if omega.value is None:  # pragma: no cover - CLARABEL failure fallback
-        raise np.linalg.LinAlgError("simplex proximal bridge did not solve")
-    return np.asarray(omega.value, dtype=float).ravel()
+    return solve_simplex_qp(Zp.T @ Wp, Zp.T @ Yp)
 
 
 def estimate_pi_overid(
