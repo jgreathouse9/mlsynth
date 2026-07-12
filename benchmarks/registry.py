@@ -124,6 +124,7 @@ CASES = {
     "scpi_staggered_pi": "benchmarks.cases.scpi_staggered_pi",  # cross-val vs scpi: staggered TSUA prediction intervals (Germany)
     "scpi_staggered_covariate": "benchmarks.cases.scpi_staggered_covariate",  # cross-val vs scpi: covariate (multi-feature) staggered illustration (Germany)
     "scpi_germany_pi": "benchmarks.cases.scpi_germany_pi",  # cross-val vs scpi: single-unit CFT-2021 prediction intervals, levels + cointegrated (German reunification)
+    "scpi_ridge_germany": "benchmarks.cases.scpi_ridge_germany",  # cross-val vs scpi: ridge-constraint Q/lambda/df via CLUSTERSC RSC (.fit()), Amjad et al. 2018 (German reunification)
     "vanillasc_carbontax": "benchmarks.cases.vanillasc_carbontax",
     "beast_prop99": "benchmarks.cases.beast_prop99",  # cross-val vs authors R (jeremylhour): BEAST immunized ATT path on Prop 99 (basic covariate regime)
     "eiv_coverage_mc": "benchmarks.cases.eiv_coverage_mc",  # Path B: Hirshberg 2021 error-in-variables SC interval coverage (low-rank DGP)  # Path A: Andersson 2019 Swedish carbon tax ATT/2005-gap, malo + mscmt backends (paper predictor spec)

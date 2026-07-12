@@ -804,7 +804,7 @@ estimator-specific inference object lives on ``res.cluster_inference`` (its
 scalar ATT interval is mirrored into the standardized ``res.inference``), and the
 two family fits remain available side by side on ``res.pcr`` / ``res.rpca``.
 
-Three inference families are wired into :py:class:`CLUSTERSCInference`
+Four inference families are wired into :py:class:`CLUSTERSCInference`
 (accessed via ``res.cluster_inference``):
 
 * Frequentist PCR -- Shen-Ding-Sekhon-Yu (2023) closed-form CIs.
@@ -817,6 +817,12 @@ Three inference families are wired into :py:class:`CLUSTERSCInference`
 * RPCA-SC -- Cattaneo-Feng-Titiunik (2021) prediction
   intervals. Opt-in via ``CLUSTERSCConfig.compute_cft_pi``. See
   the dedicated subsection below.
+* scpi prediction intervals -- the generalized
+  Cattaneo-Feng-Palomba-Titiunik (2025) engine, opt-in via
+  ``CLUSTERSCConfig.compute_scpi_pi``. See the dedicated subsection below.
+
+When ``compute_scpi_pi`` is set it takes precedence, surfacing on
+``res.cluster_inference.scpi`` and in ``res.att_ci``.
 
 Shen-Ding-Sekhon-Yu (2023) frequentist CIs for OLS PCR
 """"""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -1013,6 +1019,41 @@ roughly 0.3-0.5 s each on a moderate panel),
 :py:class:`CLUSTERSCInference.cft` carries the per-period gaps,
 per-period PIs, in-sample bootstrap bands, the Hoeffding constant,
 and the aggregated ATT PI.
+
+scpi prediction intervals (ridge constraint = Robust SC)
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+scpi (Cattaneo, Feng, Palomba & Titiunik 2025) Table 3 pairs each
+weight-constraint family with a synthetic-control method, and assigns the
+ridge constraint :math:`\{\mathbf{w} : \lVert\mathbf{w}\rVert_2 \le Q\}` to
+the Robust Synthetic Control of Amjad, Shah & Shen (2018) [Amjad2018]_ --
+exactly the family the PCR / RSC path fits. Opt in via
+:py:attr:`CLUSTERSCConfig.compute_scpi_pi` to route the fit's prediction
+intervals through VanillaSC's generalized
+:func:`~mlsynth.utils.vanillasc_helpers.scpi.scpi_intervals` under
+:py:attr:`CLUSTERSCConfig.scpi_constraint` (default ``"ridge"``). The engine
+runs on the fitted weights and the denoised donor design the counterfactual
+projects through, so its synthetic-prediction model is exactly the CLUSTERSC
+fit. It shares the in-sample QCQP simulation and the out-of-sample
+location-scale model of the ``VanillaSC`` scpi path (see
+:doc:`vanillasc`), swapping the compatible weight set and the effective
+degrees of freedom for the chosen constraint: for ridge,
+:math:`\mathrm{df} = \sum_k d_k^2/(d_k^2 + \lambda)` over the pre-period donor
+singular values :math:`d_k`, with the budget :math:`Q` and penalty
+:math:`\lambda` from scpi's shrinkage rule-of-thumb. Both pointwise and
+simultaneous (joint-coverage) bands are returned.
+
+Config knobs: :py:attr:`CLUSTERSCConfig.compute_scpi_pi` (default False),
+:py:attr:`CLUSTERSCConfig.scpi_constraint`
+(``ols`` / ``simplex`` / ``lasso`` / ``ridge`` / ``L1-L2`` -- match it to the
+fit: ``ridge`` for RSC / PCR-OLS, ``simplex`` for the RPCA / SIMPLEX weights),
+:py:attr:`CLUSTERSCConfig.scpi_sims` (default 200), and
+:py:attr:`CLUSTERSCConfig.scpi_e_method`. When set it takes precedence over
+the Shen / CFT / Bayesian paths, surfacing on
+:py:class:`CLUSTERSCInference.scpi` and in ``res.att_ci``. The
+``scpi_ridge_germany`` benchmark cross-checks the ridge constraint machinery
+(:math:`Q`, :math:`\lambda`, degrees of freedom) against ``scpi_pkg`` to
+:math:`10^{-6}` through ``.fit()``.
 
 Verification
 ------------

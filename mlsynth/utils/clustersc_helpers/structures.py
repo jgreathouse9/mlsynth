@@ -162,6 +162,12 @@ class CLUSTERSCInference:
         intervals were computed (RPCA-SC only, opt-in via
         ``CLUSTERSCConfig.compute_cft_pi``). Carries per-period and
         ATT prediction intervals.
+    scpi : object, optional
+        Full :class:`mlsynth.utils.clustersc_helpers.scpi_pi.ScpiPIInference`
+        object when the generalized scpi (Cattaneo-Feng-Palomba-Titiunik 2025)
+        prediction intervals were computed (opt-in via
+        ``CLUSTERSCConfig.compute_scpi_pi``, under ``scpi_constraint``). Carries
+        per-period and ATT pointwise and simultaneous prediction intervals.
     """
 
     method: str
@@ -170,6 +176,7 @@ class CLUSTERSCInference:
     credible_interval: Tuple[float, float] = (float("nan"), float("nan"))
     shen: Optional[Any] = None
     cft: Optional[Any] = None
+    scpi: Optional[Any] = None
 
 
 class CLUSTERSCResults(BaseEstimatorResults):

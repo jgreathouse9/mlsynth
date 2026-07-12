@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-07-12T00:00:00Z",
+  "git_sha": "1e5fcbfe2c344ecc665c717c57e0ed0179311f0e",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/scpi_ridge_germany/reference.py",
+  "reference_impl": "scpi_pkg scest(w_constr={'name':'ridge'}) + funs.df_EST (Cattaneo-Feng-Palomba-Titiunik)",
+  "reference_version": "scpi_pkg 4.0.0 (PyPI)",
+  "data": [
+    {
+      "path": "basedata/scpi_germany.csv",
+      "sha256": "10b150fbcc2ced4860b50ab226c6dda1784dc070cb442d916cf452c2462c51c3"
+    }
+  ],
+  "config": {
+    "unit_tr": "West Germany",
+    "period_pre": "1960-1990",
+    "period_post": "1991-2003",
+    "features": null,
+    "constant": false,
+    "w_constr": "ridge"
+  },
+  "notes": "The ridge budget Q, penalty lambda and effective degrees of freedom df are functions of the panel only (OLS shrinkage rule-of-thumb for Q/lambda; sum d_k^2/(d_k^2+lambda) over the pre-period donor singular values for df), so they are weight-independent. mlsynth's generalized scpi_intervals(w_constr='ridge') reproduces them to 1e-6, and CLUSTERSC full-rank PCR surfaces them via .fit() (res.cluster_inference.scpi.{Q,lambda_,df}). scpi's own ECOS band-simulation is numpy-2.x-incompatible, so only the (weight-independent) constraint machinery is captured here; the band itself is validated to Monte-Carlo error through the shared, simplex-validated engine (see scpi_germany_pi)."
+}

@@ -315,6 +315,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "att": sc.metadata["att"],
                 "in_sample_lower": sc.M1_lower, "in_sample_upper": sc.M1_upper,
                 "out_of_sample_lower": sc.M2_lower, "out_of_sample_upper": sc.M2_upper,
+                "pi_lower_simultaneous": sc.lower_simul,
+                "pi_upper_simultaneous": sc.upper_simul,
+                "counterfactual_lower_simultaneous": sc.cf_lower_simul,
+                "counterfactual_upper_simultaneous": sc.cf_upper_simul,
+                "w_constr": sc.metadata["w_constr"], "df": sc.metadata["df"],
                 "sims": sc.metadata["sims"], "e_method": sc.metadata["e_method"],
             },
         )
