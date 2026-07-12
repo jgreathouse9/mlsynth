@@ -247,6 +247,27 @@ class TimeSeriesResults(BaseModel):
     estimated_gap: Optional[np.ndarray] = Field(default=None, description="Estimated treatment effect vector (observed - counterfactual).")
     time_periods: Optional[np.ndarray] = Field(default=None, description="Array of time periods corresponding to the series.") # Retaining np.ndarray, TSSC will convert
     intervention_time: Optional[Any] = Field(default=None, description="Time label at the pre/post boundary, for the plot's intervention reference line.")
+    # Canonical per-period prediction interval on the counterfactual. One
+    # representation for every method that emits a band: aligned to
+    # ``time_periods``, NaN where the method has no band there. Pointwise plus the
+    # optional joint-coverage (simultaneous) siblings; the scalar ATT interval
+    # stays on ``InferenceResults``. Populate via
+    # :func:`mlsynth.utils.results_helpers.build_effect_submodels`'s
+    # ``prediction_interval`` argument, not by hand.
+    counterfactual_lower: Optional[np.ndarray] = Field(default=None, description="Per-period pointwise lower bound on the counterfactual (NaN where absent).")
+    counterfactual_upper: Optional[np.ndarray] = Field(default=None, description="Per-period pointwise upper bound on the counterfactual (NaN where absent).")
+    counterfactual_lower_simultaneous: Optional[np.ndarray] = Field(default=None, description="Per-period simultaneous (joint-coverage) lower bound on the counterfactual.")
+    counterfactual_upper_simultaneous: Optional[np.ndarray] = Field(default=None, description="Per-period simultaneous (joint-coverage) upper bound on the counterfactual.")
+    prediction_interval_level: Optional[float] = Field(default=None, description="Nominal coverage of the band (e.g. 0.90 for a 90% interval).")
+    prediction_interval_kind: Optional[str] = Field(default=None, description="Provenance/type tag for the band, e.g. 'scpi:simplex', 'conformal', 'bayesian'.")
+
+    @property
+    def has_prediction_interval(self) -> bool:
+        """True when a per-period pointwise band is present and not all-NaN."""
+        lo = self.counterfactual_lower
+        if lo is None:
+            return False
+        return bool(np.any(np.isfinite(np.asarray(lo, dtype=float))))
 
     class Config:
         arbitrary_types_allowed = True
