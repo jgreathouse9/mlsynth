@@ -127,7 +127,11 @@ Identifying assumptions
 Mathematical formulation
 ------------------------
 
-The weights are fit by simplex least squares on the differenced pre-period,
+Write the pre-period differencing as a linear operator. For a series
+:math:`x = (x_1, \dots, x_T)` and pre-period weights :math:`\boldsymbol\lambda`,
+let :math:`(\mathcal D_\lambda x)_t \coloneqq x_t - \sum_{s \le T_0} \lambda_s
+x_s`, so that :math:`\mu_{j,t} = (\mathcal D_\lambda \widehat m_{j,\cdot})_t`.
+The weights are fit by simplex least squares on the transformed pre-period,
 
 .. math::
 
@@ -140,43 +144,198 @@ and the effect path :math:`\widehat\theta_t = \mu_{0,t} - \sum_j \mu_{j,t}
 near zero by construction, the pre-period :math:`\widehat\theta_t` trace the fit
 quality and the post-period :math:`\widehat\theta_t` are the dynamic effects.
 
+Differencing as an intercept. Because :math:`\mathcal D_\lambda` subtracts a
+constant in :math:`t` from each series, the fitted gap can be written on the raw
+means with an additive offset,
+
+.. math::
+
+   \widehat\theta_t = \Bigl( \widehat m_{0,t} - \sum_j \widehat w_j
+   \widehat m_{j,t} \Bigr) - \alpha, \qquad
+   \alpha = \bar m_0 - \sum_j \widehat w_j\, \bar m_j ,
+
+so SCD is a synthetic control with an intercept :math:`\alpha`: it matches the
+donors to the treated group's movement, not its level. The scheme sets how the
+intercept is chosen. Under ``uniform`` (:math:`\lambda_t = 1/T_0`) both sides
+are demeaned by their pre-period averages, and by the Frisch-Waugh-Lovell
+theorem the resulting :math:`\widehat{\mathbf w}` is exactly that of a synthetic
+control with a freely estimated (least-squares) intercept -- profiling
+:math:`\alpha` out of :math:`\min_{\mathbf w \in \Delta,\,\alpha} \sum_{t \le
+T_0}(\widehat m_{0,t} - \alpha - \sum_j w_j \widehat m_{j,t})^2` returns the
+demeaned objective. Under ``did`` (:math:`\boldsymbol\lambda = (0, \dots, 0,
+1)`) the intercept is instead pinned so the counterfactual meets the treated
+group exactly at :math:`t = T_0` (the difference-in-differences normalisation),
+which is not the pre-period error-minimising :math:`\alpha`. Under ``sc``
+(:math:`\boldsymbol\lambda = \mathbf 0`) the intercept is :math:`\alpha = 0`:
+classical synthetic control on levels.
+
+Generalized matching condition
+------------------------------
+
+Differencing is what lets SCD tolerate a persistent level gap between the
+treated group and the donors, and it does so by weakening the matching
+requirement. Suppose the group means follow a linear factor (interactive
+fixed-effects) model
+
+.. math::
+
+   \widehat m_{j,t} = a_j + \mathbf F_t^\top \boldsymbol\Gamma_j + \varepsilon_{j,t},
+
+with a group fixed effect :math:`a_j`, common factors :math:`\mathbf F_t`, group
+loadings :math:`\boldsymbol\Gamma_j`, and mean-zero sampling noise
+:math:`\varepsilon_{j,t}`. Applying :math:`\mathcal D_\lambda` with
+:math:`\sum_{s \le T_0} \lambda_s = 1` cancels the fixed effect,
+
+.. math::
+
+   \mu_{j,t} = (\mathbf F_t - \bar{\mathbf F}_\lambda)^\top \boldsymbol\Gamma_j
+   + \widetilde\varepsilon_{j,t}, \qquad
+   \bar{\mathbf F}_\lambda = \sum_{s \le T_0} \lambda_s \mathbf F_s ,
+
+so the pre-period matching :math:`\mu_{0,t} = \sum_j w_j \mu_{j,t}` reduces to a
+condition on loadings alone. The generalized matching condition is that the
+treated group's loading lies in the convex hull of the donors',
+
+.. math::
+
+   \boldsymbol\Gamma_0 = \sum_{j=1}^K w_j\, \boldsymbol\Gamma_j, \qquad
+   \mathbf w \in \Delta^{K-1} .
+
+Under it the no-treatment gap :math:`\mu_{0,t} - \sum_j w_j \mu_{j,t}` is mean
+zero for every :math:`\boldsymbol\lambda` with :math:`\sum_s \lambda_s = 1`, so
+:math:`\widehat\theta_t` is consistent for the post-period treatment effect and
+the choice between ``did`` and ``uniform`` is a finite-sample efficiency choice,
+not an identification one. The three schemes are the two ends and the middle of
+a single dial:
+
+* ``did`` and ``uniform`` (:math:`\sum_s \lambda_s = 1`) need only loading
+  matching :math:`\boldsymbol\Gamma_0 = \sum_j w_j \boldsymbol\Gamma_j`; the
+  fixed effect :math:`a_j` is differenced away and may differ freely across
+  groups;
+* ``sc`` (:math:`\boldsymbol\lambda = \mathbf 0`) does not remove the fixed
+  effect, so classical synthetic control additionally requires level matching
+  :math:`a_0 = \sum_j w_j a_j` -- the stronger demand that the donors reproduce
+  the treated group's level, not only its factor structure.
+
+Differencing therefore generalises the matching requirement: it buys
+identification under the weaker loadings-only condition, at the price of leaving
+the level unidentified -- which is immaterial, because the reported object is
+itself a difference.
+
 Inference
 ---------
 
-Each individual contributes an influence function to its group mean's sampling
-error,
+Pointwise variance. Each individual enters its group mean through the influence
+function
 
 .. math::
 
    \psi^\star_{i,t} = \pi_{i}\, \frac{n}{\widehat n_{G_i,t}}\,
    \bigl( Y_{i} - \widehat m_{G_i,t} \bigr),
 
-and the repeated-cross-section pointwise variance of :math:`\widehat\theta_t`
-accumulates these over individuals, giving a standard error
-:math:`\widehat{\mathrm{se}}_t = \sqrt{\widehat\sigma^2_t / n}`. Because the
-group means are :math:`\sqrt{n}`-consistent with :math:`T` fixed, this is a
-genuine standard-error band, not a permutation p-value on a coarse donor grid.
+and its contribution to :math:`\widehat\theta_t = \mu_{0,t} - \sum_j \mu_{j,t}
+w_j` carries the sign and weight of its group,
+:math:`\psi^\theta_{i,t} = c_{G_i}\, \psi^\star_{i,t}` with :math:`c_0 = 1`
+(treated) and :math:`c_j = -\widehat w_j` (donor :math:`j`). Writing
+:math:`S_t \coloneqq \sum_{i:\,t_i = t} (\psi^\theta_{i,t})^2` for the
+per-period sum and :math:`\delta_t = \lambda_t` for :math:`t \le T_0` (and
+:math:`0` after), the repeated-cross-section pointwise variance is
 
-The donor weights are themselves uncertain, so SCD adds a weight confidence set:
-the collection of simplex weights the data cannot reject at level
-:math:`1 - \kappa`, via a chi-squared test on the projected pre-period moment
-:math:`\widehat H \mathbf{w} - \widehat h`. The band at period :math:`t` then
-runs from the smallest to the largest counterfactual over weights in that set,
-widened by :math:`\pm z_{1 - (\alpha - \kappa)/2}\, \widehat{\mathrm{se}}_t` --
-a Bonferroni split that gives the weight set share :math:`\kappa` and the
-pointwise term the remaining :math:`\alpha - \kappa`. mlsynth sweeps the weight
-set with a vectorised construction: the membership quadratic program collapses
-to a small non-negative least squares on the zero-set of :math:`\mathbf{w}`, so
-dense candidates are tested in one batched form and only sparse candidates need a
-solve.
+.. math::
+
+   \widehat\sigma^2_t = \frac{1}{n}\Bigl[ \sum_{s \le T_0} \delta_s^2\, S_s
+   + (1 - 2\delta_t)\, S_t \Bigr], \qquad
+   \widehat{\mathrm{se}}_t = \sqrt{\widehat\sigma^2_t / n} .
+
+The first term is the sampling noise of the differencing baseline
+:math:`\bar m_j`; the second is the period's own noise (at a post-period,
+:math:`\delta_t = 0` and only :math:`S_t` remains). Because the group means are
+:math:`\sqrt{n}`-consistent with :math:`T` fixed, this is a genuine
+standard-error band, not a permutation p-value on a coarse donor grid.
+
+Weight confidence set. Let :math:`\mathbf G \in \mathbb R^{T_0 \times K}` hold
+the differenced donor means :math:`\mu_{j,t}` and :math:`\mathbf g` the treated
+column, and form the pre-period moment operators
+
+.. math::
+
+   \widehat H = \tfrac{1}{T_0}\, \mathbf G^\top \mathbf G, \qquad
+   \widehat h = \tfrac{1}{T_0}\, \mathbf G^\top \mathbf g, \qquad
+   \varphi(\mathbf w) = \widehat H \mathbf w - \widehat h ,
+
+so :math:`\varphi(\widehat{\mathbf w}) = \mathbf 0` at the interior optimum. The
+weights carry a :math:`(K-1)`-dimensional asymptotic variance
+
+.. math::
+
+   \widehat V = \frac{1}{T_0} \sum_{t \le T_0} \widehat v_t\, B_2^\top M_t B_2,
+   \qquad \widehat v_t = S_t / n ,
+
+with :math:`\mu_t` the :math:`t`-th row of :math:`\mathbf G`, :math:`\bar\mu`
+its pre-period mean,
+
+.. math::
+
+   M_t = \tfrac{1}{T_0}\, \mu_t \mu_t^\top
+   - \lambda_t\bigl( \bar\mu\, \mu_t^\top + \mu_t\, \bar\mu^\top \bigr)
+   + T_0\, \lambda_t^2\, \bar\mu\, \bar\mu^\top ,
+
+and :math:`B_2 \in \mathbb R^{K \times (K-1)}` an orthonormal basis of the
+sum-zero subspace :math:`\{\mathbf v : \mathbf 1^\top \mathbf v = 0\}` (the
+non-null eigenvectors of the centring matrix :math:`I_K - \tfrac1K \mathbf 1
+\mathbf 1^\top`), which absorbs the degree of freedom the simplex constraint
+removes. Set :math:`P = B_2 \widehat V^{-1} B_2^\top`.
+
+A candidate :math:`\mathbf w` is in the level-:math:`(1 - \kappa)` set when its
+projected moment is small. Project :math:`\varphi(\mathbf w)` onto the cone the
+active simplex constraints allow,
+
+.. math::
+
+   \widehat r = \operatorname*{argmin}_{r \ge 0,\; \mathbf w^\top r = 0}
+   \; (\varphi - r)^\top P\, (\varphi - r) ,
+
+form the statistic and its data-dependent degrees of freedom
+
+.. math::
+
+   T(\mathbf w) = n\, (\varphi - \widehat r)^\top P\, (\varphi - \widehat r),
+   \qquad
+   d(\mathbf w) = \bigl\lvert \{ j : w_j = 0,\; \lvert [P(\varphi - \widehat
+   r)]_j \rvert < \text{tol} \} \bigr\rvert ,
+
+and accept :math:`\mathbf w \in \mathcal C_{1-\kappa}` iff :math:`T(\mathbf w)
+\le \chi^2_{1-\kappa}(K - 1 - d(\mathbf w))`. For an interior :math:`\mathbf w`
+(all :math:`w_j > 0`) the constraints are slack, :math:`\widehat r = 0`, and the
+test is the plain quadratic form on :math:`K - 1` degrees of freedom -- the
+reason a dense grid is swept in one batched form and only the sparse candidates
+need the projection.
+
+Band. With :math:`z = \Phi^{-1}\!\bigl(1 - (\alpha - \kappa)/2\bigr)` the
+period-:math:`t` band runs over the accepted set,
+
+.. math::
+
+   \Bigl[ \min_{\mathbf w \in \mathcal C_{1-\kappa}}
+   \bigl( \mu_{0,t} - \textstyle\sum_j w_j \mu_{j,t} \bigr)
+   - z\, \widehat{\mathrm{se}}_t,\;\;
+   \max_{\mathbf w \in \mathcal C_{1-\kappa}}
+   \bigl( \mu_{0,t} - \textstyle\sum_j w_j \mu_{j,t} \bigr)
+   + z\, \widehat{\mathrm{se}}_t \Bigr] ,
+
+so the width combines weight uncertainty (the spread of counterfactuals the data
+cannot reject) with sampling noise (:math:`z\, \widehat{\mathrm{se}}_t`), and the
+two shares :math:`\kappa` and :math:`\alpha - \kappa` add to :math:`\alpha` by
+Bonferroni.
 
 A note on the RC standard error. The published reference code builds the
-treated/donor multiplier with an indexing expression that, in R, silently drops
-the treated rows and misaligns the donor weights; mlsynth uses the corrected
-length-:math:`(K+1)` lookup (matching the reference's own weight-variance
-routine). The point estimator, the weight variance, and the confidence set are
-unaffected; only the pointwise standard error differs, and mlsynth's value is
-cross-validated against a corrected base-R reference.
+treated/donor multiplier :math:`c_{G_i}` with an indexing expression that, in R,
+silently drops the treated rows and misaligns the donor weights; mlsynth uses
+the corrected length-:math:`(K+1)` lookup (matching the reference's own
+weight-variance routine :math:`\widehat V`). The point estimator, the weight
+variance, and the confidence set are unaffected; only the pointwise standard
+error differs, and mlsynth's value is cross-validated against a corrected base-R
+reference.
 
 Example
 -------
