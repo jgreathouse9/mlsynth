@@ -49,7 +49,7 @@ _SIMPLEX_CF_UPPER = np.array(
     [22.2359, 22.9433, 23.5098, 24.5582, 25.7911, 27.0189, 27.7183, 28.9706,
      30.2508, 32.0892, 33.3491, 34.0511, 34.6439])
 _SIMPLEX_DF = 5
-_SIMPLEX_RHO = 0.033198
+_SIMPLEX_RHO = 0.07164          # scpi's default type-2 regularisation
 
 # --- scpi_pkg ridge reference (scest w_constr={"name":"ridge"}, Germany) ---
 _RIDGE_Q = 0.66876212

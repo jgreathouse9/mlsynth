@@ -92,11 +92,10 @@ def test_constant_ridge_metadata_via_intervals():
 # ----------------------------------------------------------------------
 # simplex + constant band reproduces scpi_pkg to Monte-Carlo error
 # ----------------------------------------------------------------------
-def test_constant_simplex_band_is_ordered_and_conservative():
-    # The constraint machinery (Q / lambda / df) matches scpi exactly (tested
-    # above); the in-sample band for the covariate/constant case is currently
-    # conservative -- wider than scpi's, not yet MC-matched -- so we assert it is
-    # finite, ordered, positive, and in the right ballpark rather than exact.
+def test_constant_simplex_band_matches_scpi():
+    # With scpi's default type-2 regularisation the active-donor set matches
+    # scpi, so the covariate/constant band reproduces CI_all_gaussian to
+    # Monte-Carlo error.
     y, Y0, T0 = _germany_sorted()
     W = np.concatenate([_SIMPLEX_C_W, [_SIMPLEX_C_R]])
     with warnings.catch_warnings():
@@ -105,11 +104,8 @@ def test_constant_simplex_band_is_ordered_and_conservative():
                             sims=600, e_method="gaussian", seed=8894)
     width = sc.cf_upper - sc.cf_lower
     assert width.shape == _SIMPLEX_C_WIDTH.shape
-    assert np.all(width > 0)
+    assert np.max(np.abs(width - _SIMPLEX_C_WIDTH)) < 0.6      # MC error
     assert sc.metadata["df"] == 6                              # 5 donors - 1 + KM
-    # same order of magnitude as scpi, and conservative (never much tighter)
-    assert np.all(width > _SIMPLEX_C_WIDTH - 0.3)
-    assert np.mean(width) < 2.0 * np.mean(_SIMPLEX_C_WIDTH)
 
 
 def test_constant_shifts_counterfactual():

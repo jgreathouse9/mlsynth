@@ -108,26 +108,34 @@ class SCPIResult:
     metadata: Dict[str, Any]
 
 
-def _regularization_rho(u: np.ndarray, B: np.ndarray, d0: int) -> float:
-    """Data-driven ``rho`` (scpi ``type-1``), capped at ``rho_max = 0.2``.
+def _regularization_rho(u: np.ndarray, B: np.ndarray, d0: int, KM: int = 0) -> float:
+    """Data-driven ``rho`` (scpi's default ``type-2``), capped at ``rho_max``.
 
-    Mirrors ``regularize_w`` / ``regularize_check_lb``: a too-small ``rho`` is
-    bumped up (via the ``type-2`` rule, then to ``rho_max``) to favour shrinkage
-    and avoid overfitting the out-of-sample variance.
+    Mirrors ``regularize_w`` and the ``regularize_check_lb`` bump. scpi defaults
+    to the ``type-2`` rule
+
+        rho = (sigma_u * max_j sd(B_j) / min_j var(B_j))
+                 * sqrt(log(J + KM) * (d0 + KM) * log(T0)) / sqrt(T0),
+
+    (standard deviations / variances with ``ddof = 1``, as in pandas); a
+    too-small ``rho`` is raised (to the larger of the type-1 / type-2 rules,
+    then to ``rho_max``) to favour shrinkage and avoid overfitting the
+    out-of-sample variance. ``KM`` is the covariate/constant block size.
     """
     T0, J = B.shape
-    d = J
+    d = J + KM
+    d0e = max(d0 + KM, 1)
     sig_u = sqrt(float(np.mean((u - u.mean()) ** 2)))
-    std_b = B.std(axis=0, ddof=0)
-    fac = sqrt(log(max(d, 2)) * max(d0, 1) * log(max(T0, 2))) / sqrt(T0)
+    std_b = B.std(axis=0, ddof=1)                     # pandas-style, as scpi
+    var_b = B.var(axis=0, ddof=1)
+    fac = sqrt(log(max(d, 2)) * d0e * log(max(T0, 2))) / sqrt(T0)
 
-    rho = (sig_u / max(std_b.min(), _EPS)) * fac
-    rho = min(rho, _RHO_MAX)
+    type1 = (sig_u / max(std_b.min(), _EPS)) * fac
+    type2 = (sig_u * std_b.max() / max(var_b.min(), _EPS)) * fac
 
+    rho = min(type2, _RHO_MAX)                        # scpi's default rho type
     if rho < 0.001:  # regularize_check_lb
-        rho1 = min((sig_u / max(std_b.min(), _EPS)) * fac, _RHO_MAX)
-        rho2 = min((sig_u * std_b.max() / max(B.var(axis=0, ddof=0).min(), _EPS)) * fac, _RHO_MAX)
-        rho = max(rho1, rho2)
+        rho = min(max(type1, type2), _RHO_MAX)
         if rho < 0.05:
             rho = _RHO_MAX
     return float(rho)
@@ -462,10 +470,9 @@ def scpi_intervals(
         design (scpi's ``constant=True``): the weight constraint binds only the
         donor block while the intercept is free, and the degrees of freedom gain
         ``KM = 1``. ``W`` must then be length ``J + 1`` (donors + intercept).
-        The constraint machinery (budget ``Q``, penalty ``lambda`` and degrees
-        of freedom) reproduces scpi exactly with the constant; the in-sample
-        prediction band is currently conservative for the covariate/constant
-        case (wider than scpi's, not yet Monte-Carlo-matched).
+        The budget ``Q``, penalty ``lambda`` and degrees of freedom reproduce
+        scpi exactly with the constant, and the prediction band reproduces
+        scpi's ``CI_all_gaussian`` to Monte-Carlo error.
     sims : int
         Number of Gaussian draws for the in-sample simulation.
     u_alpha, e_alpha : float
@@ -549,7 +556,7 @@ def scpi_intervals(
 
     # --- regularisation parameter and localised compatible set (scpi local_geom),
     #     computed on the donor block ---
-    rho = _regularization_rho(u_w, Bdon_q, d0)
+    rho = _regularization_rho(u_w, Bdon_q, d0, KM)
     lg = _local_geom(wc, Wd, rho, Bdon_q)
     idxw = lg.idxw
 
