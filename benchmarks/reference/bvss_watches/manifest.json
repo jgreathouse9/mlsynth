@@ -1,0 +1,9 @@
+{
+  "case": "bvss_watches",
+  "title": "BVSS two-coordinate Gibbs (authors' R) vs mlsynth BVSS (China anti-corruption, p>n)",
+  "paper": "Xu & Zhou (2025), 'Bayesian Synthetic Control with a Soft Simplex Constraint', arXiv:2503.06454",
+  "reference_impl": "authors' own Gibbs sampler (example2_fspda_2.R, verbatim primitives)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/bvss_watches/reference.R",
+  "data": ["basedata/china_watches_long.csv"]
+}

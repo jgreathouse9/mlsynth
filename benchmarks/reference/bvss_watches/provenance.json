@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-07-12T00:28:44Z",
+  "git_sha": "cda1bacea3a6e841f7bf1b4c4097b52eb135522b",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/bvss_watches/reference.R",
+  "data": [
+    {
+      "path": "basedata/china_watches_long.csv",
+      "sha256": "1ce8146af9a9f2ed9da803b8f96fa8e2f1f46359b0e30426b34ba127c7a75e06"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "truncnorm": "1.0-9",
+    "compiler": "4.3.3"
+  }
+}

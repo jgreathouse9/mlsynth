@@ -1,0 +1,16 @@
+{
+  "values": {
+    "det_vm_logdet": 7.101913578,
+    "det_rss": 1.276042639,
+    "det_rss2": 0.633031499,
+    "det_am": -30.894304705,
+    "det_loglike": 1.943858076,
+    "post_att": -0.020821,
+    "post_att_lo": -0.031126,
+    "post_att_hi": -0.00518,
+    "post_tau_mean": 0.053596,
+    "post_phi_mean": 20.46864,
+    "post_modelsize_mean": 5.63
+  },
+  "weights": {}
+}

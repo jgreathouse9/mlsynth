@@ -1,0 +1,14 @@
+# case: bvss_watches
+# generated_at: 2026-07-12T00:32:50Z
+# mlsynth_version: 1.0.0
+# estimator: BVSS (two-coordinate Gibbs, soft simplex)
+# config: {"n_iter": 50, "outcome": "y", "seed": 1, "theta": 0.25, "time": "time", "treat": "treat", "unitid": "unit"}
+# reference_impl: authors' two-coordinate Gibbs (example2_fspda_2.R primitives), live run, captured
+# reference_version: Xu & Zhou (2025) arXiv:2503.06454, on in-repo china_watches_long.csv
+quantity,mlsynth,reference,abs_diff
+det_vm_logdet,7.101913578,7.101913578,0.0
+det_rss,1.276042639,1.276042639,0.0
+det_rss2,0.633031499,0.633031499,0.0
+det_am,-30.894304705,-30.894304705,0.0
+det_loglike,1.943858076,1.943858076,0.0
+posterior-mean ATT,-0.021234,-0.020821,0.000413

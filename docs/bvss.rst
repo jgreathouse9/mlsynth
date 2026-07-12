@@ -862,6 +862,21 @@ conclusion the paper reports: a statistically meaningful negative ATT
 on luxury-watch imports after the anti-corruption announcement, with
 posterior credibility that excludes zero.
 
+Cross-validation against the authors' own sampler. Beyond matching the
+published table, ``benchmarks/cases/bvss_watches.py`` checks mlsynth's BVSS
+directly against Xu & Zhou's own two-coordinate Gibbs code (taken verbatim from
+their fsPDA replication script) on the same anti-corruption panel. Because the
+sampler is stochastic, the check has two layers. The deterministic engine --
+the posterior covariance log-determinant, the ``RSS`` / ``RSS2`` quadratic and
+bilinear forms, the model-complexity term and the marginal log-likelihood -- is
+reproduced value for value on a fixed :math:`(\gamma, \tau, \mu, \phi)` to about
+:math:`10^{-9}`, so both implementations draw from the identical target. The
+seeded posterior-mean ATT then agrees within Monte-Carlo error
+(:math:`-0.021` here vs. :math:`-0.021` from the R sampler, independent RNG
+streams), with a negative credible set and a sparse selected model on both
+sides. The live-captured reference is under
+``benchmarks/reference/bvss_watches/``.
+
 Dependencies
 ------------
 
