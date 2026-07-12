@@ -11,7 +11,7 @@ checksum), and the mlsynth case that runs the check.
 
 Coverage: **56 cross-validation checks** against original
 implementations across **32 estimators** -- 23 reproduce the reference to display precision, 21 to
-within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -1021,6 +1021,8 @@ action records them once its toolchain provisions.
      - Reference
    * - `dpsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dpsc_prop99.py>`__
      - —
+   * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
+     - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
    * - `propsc_spain <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/propsc_spain.py>`__
      - —
 

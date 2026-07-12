@@ -718,6 +718,18 @@ decision rule tied to one :math:`\alpha` -- reject when it is
 :math:`\le \alpha` (``reject_at_alpha``) -- not a general-purpose p-value, so do
 not compare it across levels or report it as "the" p-value.
 
+Verification (authors' own code). ``benchmarks/cases/lto_refined_placebo.py``
+cross-validates mlsynth's LTO against the authors' own replication code
+(`tsudijon/LeaveTwoOutSCI <https://github.com/tsudijon/LeaveTwoOutSCI>`_,
+MIT-licensed) on all three of the paper's empirical applications -- California
+Proposition 99, West German reunification, and the Basque Country. On a shared
+outcome-only synthetic control (so the check isolates the pair-loop inference
+machinery from the SC solver, which is validated separately), mlsynth reproduces
+the authors' naive LTO p-value to the digit on every panel: :math:`0.10384`
+(Prop 99), :math:`0.00833` (West Germany) and :math:`0.69167` (Basque), with the
+loss and pair counts identical and the treated unit's post/pre RMSPE ratio
+matching to solver tolerance.
+
 LTO: design-based assumptions and econometric theory
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

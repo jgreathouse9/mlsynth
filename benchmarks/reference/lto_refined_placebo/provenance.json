@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-07-12T03:15:50Z",
+  "git_sha": "5312d0eee9cd4b1ec9f9cf8441b564402fc3e2de",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/lto_refined_placebo/reference.R",
+  "data": [
+    {
+      "path": "basedata/smoking_data.csv",
+      "sha256": "a13dd4d5d6e411839c1617c6b7df773129eac0559f064b848a235651fb330b40"
+    },
+    {
+      "path": "basedata/german_reunification.csv",
+      "sha256": "f431666efbf3048a092a1ac326038daa7bd482f6b2c277ae8bbb287189916ad6"
+    },
+    {
+      "path": "basedata/basque_jasa.csv",
+      "sha256": "b3f957771c8e0b7dbcb14dacb05ef91c55471fe38c2acbcac2e639bcb65a766a"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "LowRankQP": "1.0.6",
+    "compiler": "4.3.3"
+  }
+}

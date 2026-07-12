@@ -1,0 +1,9 @@
+{
+  "case": "lto_refined_placebo",
+  "title": "Leave-Two-Out refined placebo test (Sudijono-Lei) vs mlsynth VanillaSC inference='lto' (Prop 99, West Germany, Basque)",
+  "paper": "Sudijono & Lei (2023/2025), 'Inference for Synthetic Controls via Refined Placebo Tests', arXiv:2401.07152",
+  "reference_impl": "independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/lto_refined_placebo/reference.R",
+  "data": ["basedata/smoking_data.csv", "basedata/german_reunification.csv", "basedata/basque_jasa.csv"]
+}
