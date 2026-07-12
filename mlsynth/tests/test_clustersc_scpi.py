@@ -122,6 +122,16 @@ def test_pcr_scpi_reports_ridge(pcr_scpi):
     assert ci.scpi.df > 0
 
 
+def test_pcr_scpi_populates_canonical_band(pcr_scpi):
+    ts = pcr_scpi.time_series
+    assert ts.has_prediction_interval is True
+    assert len(ts.counterfactual_lower) == len(ts.observed_outcome)
+    post = np.isfinite(ts.counterfactual_lower)
+    assert post.any() and not post.all()
+    assert np.all(ts.counterfactual_upper[post] >= ts.counterfactual_lower[post])
+    assert ts.prediction_interval_kind == "scpi:ridge"
+
+
 def test_rpca_scpi_runs(panel):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

@@ -164,6 +164,24 @@ class CLUSTERSC:
                 "rpca_att": float(rpca_fit.att) if rpca_fit is not None else None,
             },
         )
+        ts_band: dict = {}
+        if cluster_inference.scpi is not None:
+            from ..utils.results_helpers import normalize_counterfactual_band
+            spec = cluster_inference.scpi.to_prediction_interval_spec()
+            axis = np.asarray(inputs.time_labels)
+            lo, hi = normalize_counterfactual_band(
+                spec["lower"], spec["upper"], time_periods=axis,
+                periods=spec["periods"])
+            lo_s, hi_s = normalize_counterfactual_band(
+                spec["lower_simultaneous"], spec["upper_simultaneous"],
+                time_periods=axis, periods=spec["periods"])
+            ts_band = dict(
+                counterfactual_lower=lo, counterfactual_upper=hi,
+                counterfactual_lower_simultaneous=lo_s,
+                counterfactual_upper_simultaneous=hi_s,
+                prediction_interval_level=spec["level"],
+                prediction_interval_kind=spec["kind"],
+            )
         time_series = TimeSeriesResults(
             observed_outcome=np.asarray(inputs.treated_outcome, dtype=float),
             counterfactual_outcome=(
@@ -175,6 +193,7 @@ class CLUSTERSC:
             time_periods=np.asarray(inputs.time_labels),
             intervention_time=(
                 inputs.time_labels[inputs.T0] if inputs.T0 < inputs.T else None),
+            **ts_band,
         )
         donor_weights = (
             {str(k): float(v) for k, v in primary_fit.donor_weights.items()}
