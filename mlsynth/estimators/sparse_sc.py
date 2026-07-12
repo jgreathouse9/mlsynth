@@ -130,6 +130,10 @@ class SparseSC:
         self.n_placebo = config.n_placebo
         self.placebo_resweep: bool = config.placebo_resweep
         self.seed: int = config.seed
+        self.compute_scpi_pi: bool = config.compute_scpi_pi
+        self.scpi_sims: int = config.scpi_sims
+        self.scpi_alpha: float = config.scpi_alpha
+        self.scpi_e_method: str = config.scpi_e_method
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -232,6 +236,24 @@ class SparseSC:
                     "expected 'conformal', 'placebo', or 'none'."
                 )
 
+            # Optional scpi model-based prediction intervals. SparseSC's donor
+            # weights are simplex (w >= 0, sum w = 1), so the intervals run under
+            # scpi's simplex constraint on the donor-outcome design.
+            scpi_obj = None
+            if self.compute_scpi_pi and inputs.T > T0:
+                from ..utils.clustersc_helpers.scpi_pi import scpi_pi_inference
+                try:
+                    scpi_obj = scpi_pi_inference(
+                        np.asarray(inputs.Y1, float), np.asarray(inputs.Y0, float),
+                        int(T0), np.asarray(optw, float),
+                        constraint="simplex", constant=False,
+                        sims=self.scpi_sims, alpha=self.scpi_alpha,
+                        e_method=self.scpi_e_method, seed=int(self.seed),
+                        periods=list(inputs.time_labels[T0:]),
+                    )
+                except (MlsynthEstimationError, ValueError, ImportError):
+                    scpi_obj = None
+
             donor_weights: Dict[Any, float] = {
                 str(n): float(w) for n, w in zip(inputs.donor_names, optw)
             }
@@ -253,6 +275,19 @@ class SparseSC:
                     ci_upper=_f(inference.ci_upper),
                     confidence_level=(None if np.isnan(inference.alpha)
                                       else float(1.0 - inference.alpha)),
+                    details=inference,
+                )
+            # Surface the scpi ATT interval in the standardized slot when no
+            # other CI is produced (method none / a p-value-only placebo), so
+            # ``res.att_ci`` resolves; otherwise keep it on ``res.scpi`` only.
+            if scpi_obj is not None and (
+                    std_inference is None or std_inference.ci_lower is None):
+                lo, hi = scpi_obj.att_pi
+                std_inference = InferenceResults(
+                    method=scpi_obj.method,
+                    p_value=_f(inference.p_value),
+                    ci_lower=float(lo), ci_upper=float(hi),
+                    confidence_level=1.0 - float(self.scpi_alpha),
                     details=inference,
                 )
             weights = WeightsResults(
@@ -277,7 +312,7 @@ class SparseSC:
             results = SparseSCResults(
                 **submodels,
                 inputs=inputs, design=design, inference_detail=inference,
-                predictor_weights=predictor_weights,
+                predictor_weights=predictor_weights, scpi=scpi_obj,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

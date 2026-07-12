@@ -202,3 +202,4 @@ class SparseSCResults(BaseEstimatorResults):
     design: SparseSCDesign
     inference_detail: SparseSCInference
     predictor_weights: Dict[Any, float]
+    scpi: Optional[Any] = None        # ScpiPIInference (simplex PI), when computed
