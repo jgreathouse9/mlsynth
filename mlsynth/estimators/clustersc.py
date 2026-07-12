@@ -120,6 +120,10 @@ class CLUSTERSC:
         self.cft_sims: int = config.cft_sims
         self.cft_alpha: float = config.cft_alpha
         self.cft_e_method: str = config.cft_e_method
+        self.compute_scpi_pi: bool = config.compute_scpi_pi
+        self.scpi_constraint: str = config.scpi_constraint
+        self.scpi_sims: int = config.scpi_sims
+        self.scpi_e_method: str = config.scpi_e_method
         self.display_graphs: bool = config.display_graphs
 
     def _standardize_results(
@@ -129,7 +133,10 @@ class CLUSTERSC:
         """Assemble the standardized EffectResult from the primary variant."""
         # Scalar inference summary mirrored into the standardized slot.
         ci_lower = ci_upper = std_err = None
-        if cluster_inference.method == "bayesian_credible":
+        if cluster_inference.scpi is not None:
+            lo, hi = cluster_inference.scpi.att_pi
+            ci_lower, ci_upper = float(lo), float(hi)
+        elif cluster_inference.method == "bayesian_credible":
             lo, hi = cluster_inference.credible_interval
             if np.isfinite(lo) and np.isfinite(hi):
                 ci_lower, ci_upper = float(lo), float(hi)
@@ -253,6 +260,10 @@ class CLUSTERSC:
                     q=self.q,
                     compute_shen_ci=self.compute_shen_ci,
                     shen_variance=self.shen_variance,
+                    compute_scpi_pi=self.compute_scpi_pi,
+                    scpi_constraint=self.scpi_constraint,
+                    scpi_sims=self.scpi_sims,
+                    scpi_e_method=self.scpi_e_method,
                     random_state=self.random_state,
                 )
                 # Convert per-period credible band to an ATT-level interval:
@@ -292,6 +303,11 @@ class CLUSTERSC:
                     cft_alpha=self.cft_alpha,
                     cft_sims=self.cft_sims,
                     cft_e_method=self.cft_e_method,
+                    compute_scpi_pi=self.compute_scpi_pi,
+                    scpi_constraint=self.scpi_constraint,
+                    scpi_sims=self.scpi_sims,
+                    scpi_e_method=self.scpi_e_method,
+                    scpi_alpha=self.alpha,
                     random_state=self.random_state,
                 )
 
@@ -310,7 +326,22 @@ class CLUSTERSC:
                 else float("nan")
             )
 
-            if credible is not None and self.estimator == "bayesian":
+            # scpi prediction intervals (opt-in) surface as the primary inference
+            # when computed for the selected fit -- the user asked for them.
+            scpi_obj = None
+            if selected == "pcr" and pcr_fit is not None:
+                scpi_obj = pcr_fit.metadata.get("scpi_inference")
+            elif selected == "rpca" and rpca_fit is not None:
+                scpi_obj = rpca_fit.metadata.get("scpi_inference")
+
+            if scpi_obj is not None:
+                cluster_inference = CLUSTERSCInference(
+                    method=scpi_obj.method,
+                    alpha=float(self.alpha),
+                    att=primary_att,
+                    scpi=scpi_obj,
+                )
+            elif credible is not None and self.estimator == "bayesian":
                 cluster_inference = CLUSTERSCInference(
                     method="bayesian_credible",
                     alpha=float(self.alpha),
@@ -366,7 +397,7 @@ class CLUSTERSC:
 
             if self.display_graphs:
                 try:
-                    plot_clustersc(results)
+                    plot_clustersc(results, plot_bands=self.config.plot_bands)
                 except Exception as exc:
                     raise MlsynthPlottingError(
                         f"CLUSTERSC plotting failed: {exc}"

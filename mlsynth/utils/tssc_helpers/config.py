@@ -8,7 +8,7 @@ per-estimator config lives here. Re-exported from
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -54,3 +54,30 @@ class TSSCConfig(BaseEstimatorConfig):
     draws: int = Field(default=500, ge=1, description="Subsampling/bootstrap replications.")
     ci: float = Field(default=0.95, gt=0.0, lt=1.0, description="ATT confidence level.")
     seed: Optional[int] = Field(default=None, description="RNG seed for subsampling.")
+    compute_scpi_pi: bool = Field(
+        default=False,
+        description=(
+            "Also compute model-based prediction intervals through VanillaSC's "
+            "generalized scpi engine (Cattaneo-Feng-Palomba-Titiunik 2025) for "
+            "each SC-class variant, mapped to scpi's weight-constraint family by "
+            "the variant's restrictions: SC -> simplex, MSCa -> simplex + "
+            "constant, MSCb -> ols, MSCc -> ols + constant. The sum-constrained "
+            "variants map exactly; the no-adding-up variants (MSCb / MSCc) carry "
+            "bare non-negativity, which scpi does not have, so they use scpi's "
+            "ols set (the band does not re-impose w >= 0, so it is slightly "
+            "conservative). Each variant fit gains a ``scpi`` band and the "
+            "recommended variant's band is surfaced on ``res.scpi``."
+        ),
+    )
+    scpi_sims: int = Field(
+        default=200, ge=10,
+        description="Gaussian draws for the scpi in-sample QCQP simulation.",
+    )
+    scpi_alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the scpi prediction intervals.",
+    )
+    scpi_e_method: Literal["gaussian", "ls", "empirical"] = Field(
+        default="gaussian",
+        description="Out-of-sample tabulation for the scpi prediction intervals.",
+    )

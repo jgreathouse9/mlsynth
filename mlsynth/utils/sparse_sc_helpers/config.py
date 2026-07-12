@@ -191,3 +191,28 @@ class SparseSCConfig(BaseEstimatorConfig):
             "matters more than exact reproducibility."
         ),
     )
+    compute_scpi_pi: bool = Field(
+        default=False,
+        description=(
+            "Also compute model-based prediction intervals through VanillaSC's "
+            "generalized scpi engine (Cattaneo-Feng-Palomba-Titiunik 2025). "
+            "SparseSC's donor weights are simplex (w >= 0, sum w = 1), so the "
+            "intervals run under scpi's simplex constraint -- the Abadie "
+            "(2010) setting of scpi's Table 3 -- giving a per-period band and "
+            "an ATT interval (surfaced on ``res.scpi`` and, when no other CI "
+            "is produced, in ``res.att_ci``) alongside the placebo / conformal "
+            "inference."
+        ),
+    )
+    scpi_sims: int = Field(
+        default=200, ge=10,
+        description="Gaussian draws for the scpi in-sample QCQP simulation.",
+    )
+    scpi_alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the scpi prediction intervals.",
+    )
+    scpi_e_method: Literal["gaussian", "ls", "empirical"] = Field(
+        default="gaussian",
+        description="Out-of-sample tabulation for the scpi prediction intervals.",
+    )

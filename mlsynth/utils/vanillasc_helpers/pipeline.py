@@ -315,6 +315,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "att": sc.metadata["att"],
                 "in_sample_lower": sc.M1_lower, "in_sample_upper": sc.M1_upper,
                 "out_of_sample_lower": sc.M2_lower, "out_of_sample_upper": sc.M2_upper,
+                "pi_lower_simultaneous": sc.lower_simul,
+                "pi_upper_simultaneous": sc.upper_simul,
+                "counterfactual_lower_simultaneous": sc.cf_lower_simul,
+                "counterfactual_upper_simultaneous": sc.cf_upper_simul,
+                "w_constr": sc.metadata["w_constr"], "df": sc.metadata["df"],
                 "sims": sc.metadata["sims"], "e_method": sc.metadata["e_method"],
             },
         )
@@ -583,12 +588,23 @@ def _plot_vanillasc(config, y, counterfactual, time_labels, pre,
     from ..plotting import Plotter, mlsynth_style
 
     T = len(time_labels)
-    interval = None
+    # Pointwise and (SCPI-only) simultaneous prediction-interval bands.
+    pointwise = simultaneous = None
     if inference is not None and getattr(inference, "details", None):
-        lo = inference.details.get("counterfactual_lower")
-        hi = inference.details.get("counterfactual_upper")
+        det = inference.details
+        lo, hi = det.get("counterfactual_lower"), det.get("counterfactual_upper")
         if lo is not None and hi is not None:
-            interval = (_full_band(lo, T, pre), _full_band(hi, T, pre))
+            pointwise = (_full_band(lo, T, pre), _full_band(hi, T, pre))
+        slo = det.get("counterfactual_lower_simultaneous")
+        shi = det.get("counterfactual_upper_simultaneous")
+        if slo is not None and shi is not None:
+            simultaneous = (_full_band(slo, T, pre), _full_band(shi, T, pre))
+
+    # Resolve which band(s) to shade (the simultaneous band is SCPI-only; other
+    # inference modes fall back to the pointwise band).
+    from ..plotting import select_pi_bands
+    interval, interval2, interval_label = select_pi_bands(
+        pointwise, simultaneous, getattr(config, "plot_bands", "pointwise"))
 
     intervention = time_labels[pre] if 0 <= pre < T else None
     with mlsynth_style():
@@ -597,6 +613,7 @@ def _plot_vanillasc(config, y, counterfactual, time_labels, pre,
             times=time_labels, observed=y, counterfactuals=[counterfactual],
             labels=[f"Synthetic {treated_name}"], treated_label=treated_name,
             intervention=intervention, interval=interval,
+            interval_label=interval_label, interval2=interval2,
             outcome=config.outcome, time=config.time,
             title=f"{_variant_label(config)}: {treated_name}",
         )

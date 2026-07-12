@@ -49,6 +49,14 @@ class StaggeredSCMSpec(BaseModel):
         description="Difference the data for cointegration (scpi's "
                     "'cointegrated_data').",
     )
+    w_constr: Literal["simplex", "ols", "lasso", "ridge", "L1-L2"] = Field(
+        default="simplex",
+        description="Donor weight constraint (scpi's weight-constraint family), "
+                    "applied uniformly to every treated unit. 'simplex' (convex "
+                    "Abadie SC, default), 'ols' (unconstrained), 'lasso' "
+                    "(L1 <= 1, Chernozhukov et al.), 'ridge' (L2 shrinkage, "
+                    "Amjad et al.), 'L1-L2' (Arkhangelsky et al.).",
+    )
 
     @field_validator("features")
     @classmethod
@@ -220,6 +228,15 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "the donor design (scpi's 'cointegrated_data=True'), for "
                     "cointegrated (I(1)) outcome/donor levels. The point "
                     "counterfactual is unchanged; only the prediction bands move.",
+    )
+    plot_bands: Literal["pointwise", "simultaneous", "both"] = Field(
+        default="pointwise",
+        description="Which SCPI prediction-interval band(s) to shade on the "
+                    "observed-vs-counterfactual plot: 'pointwise' (default, the "
+                    "per-period band), 'simultaneous' (the joint-coverage band), "
+                    "or 'both'. The simultaneous band is only available for "
+                    "inference='scpi'; other inference modes always show the "
+                    "pointwise band.",
     )
     staggered_spec: Optional[StaggeredSCMSpec] = Field(
         default=None,

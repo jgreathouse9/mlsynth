@@ -70,6 +70,12 @@ def run_rpca(
     cft_alpha: float = 0.05,
     cft_sims: int = 200,
     cft_e_method: str = "gaussian",
+    # scpi prediction-interval knobs (Cattaneo-Feng-Palomba-Titiunik 2025)
+    compute_scpi_pi: bool = False,
+    scpi_constraint: str = "ridge",
+    scpi_sims: int = 200,
+    scpi_e_method: str = "gaussian",
+    scpi_alpha: float = 0.05,
     random_state: int = 0,
 ) -> MethodFit:
     """Run the five-step RPCA-SC pipeline and assemble a :class:`MethodFit`.
@@ -286,6 +292,7 @@ def run_rpca(
                 cv_lambda=False,
                 cv_hqf_rank=False,
                 compute_cft_pi=False,
+                compute_scpi_pi=False,
                 random_state=random_state,
             )
             return star_fit.counterfactual
@@ -301,6 +308,21 @@ def run_rpca(
             random_state=random_state,
         )
         metadata["cft_inference"] = cft_obj
+
+    # scpi prediction intervals: run on the denoised donor design and the NNLS
+    # weights (counterfactual = L_full @ beta). Constraint chosen by the caller
+    # (simplex matches the RPCA non-negative weights).
+    if compute_scpi_pi and T > T0:
+        from ..scpi_pi import scpi_pi_inference
+        try:
+            metadata["scpi_inference"] = scpi_pi_inference(
+                treated_outcome, L_full, T0, beta,
+                constraint=scpi_constraint, sims=scpi_sims, alpha=scpi_alpha,
+                e_method=scpi_e_method, seed=random_state,
+                periods=list(range(T0, T)),
+            )
+        except (MlsynthEstimationError, ValueError, ImportError):
+            metadata["scpi_inference"] = None
 
     return MethodFit(
         name=f"rpca_{rpca_method.lower()}",

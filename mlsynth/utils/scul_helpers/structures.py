@@ -87,6 +87,7 @@ class SCULFit:
     donor_weights: Dict[Any, float]  # nonzero pool columns -> weight
     p_value: Optional[float] = None
     n_placebo: Optional[int] = None
+    scpi: Optional[Any] = None        # ScpiPIInference (lasso PI), when computed
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -120,7 +121,15 @@ class SCULResults(BaseEstimatorResults):
             donor_weights={str(k): float(v) for k, v in fit.donor_weights.items()}))
         object.__setattr__(self, "fit_diagnostics",
                            FitDiagnosticsResults(rmse_pre=float(fit.cohens_d)))
-        if fit.p_value is not None:
+        if fit.scpi is not None:
+            lo, hi = fit.scpi.att_pi
+            object.__setattr__(self, "inference", InferenceResults(
+                ci_lower=float(lo), ci_upper=float(hi),
+                confidence_level=1.0 - 2.0 * float(fit.scpi.metadata.get(
+                    "u_alpha", 0.05)),
+                method=fit.scpi.method,
+                p_value=fit.p_value))
+        elif fit.p_value is not None:
             object.__setattr__(self, "inference", InferenceResults(
                 p_value=fit.p_value, method="placebo"))
         object.__setattr__(self, "method_details", MethodDetailsResults(

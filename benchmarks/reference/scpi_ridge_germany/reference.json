@@ -1,0 +1,26 @@
+{
+ "values": {
+  "Q": 0.66876212,
+  "lambda": 0.09607606,
+  "df": 11.4626727,
+  "J": 16,
+  "ridge_weights": {
+   "Australia": -0.168281,
+   "Austria": 0.160248,
+   "Belgium": 0.208924,
+   "Denmark": 0.036267,
+   "France": 0.165715,
+   "Greece": -0.026614,
+   "Italy": 0.216985,
+   "Japan": -0.088419,
+   "Netherlands": 0.288913,
+   "New Zealand": -0.134117,
+   "Norway": 0.007298,
+   "Portugal": -0.067484,
+   "Spain": -0.236856,
+   "Switzerland": 0.12814,
+   "UK": 0.091045,
+   "USA": 0.279884
+  }
+ }
+}

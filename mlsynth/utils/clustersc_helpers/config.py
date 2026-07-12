@@ -229,6 +229,38 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         description="Out-of-sample method for the CFT component. Currently "
                     "only 'gaussian' (Hoeffding sub-Gaussian bound) is supported.",
     )
+    compute_scpi_pi: bool = Field(
+        default=False,
+        description="Route the primary fit's prediction intervals through "
+                    "VanillaSC's generalized scpi engine (Cattaneo-Feng-Palomba-"
+                    "Titiunik 2025). Applied to the fitted weights and the denoised "
+                    "donor matrix under `scpi_constraint`. scpi's Table 3 pairs the "
+                    "ridge constraint with Amjad et al. (2018) Robust SC (the PCR "
+                    "path). Default False (requires `scpi_sims` QCQP simulations).",
+    )
+    scpi_constraint: Literal["ols", "simplex", "lasso", "ridge", "L1-L2"] = Field(
+        default="ridge",
+        description="scpi weight-constraint family for `compute_scpi_pi`. Match it "
+                    "to the fit: 'ridge' for RSC/PCR-OLS (Table 3, default), "
+                    "'simplex' for the RPCA / SIMPLEX weights, 'ols' / 'lasso' / "
+                    "'L1-L2' otherwise.",
+    )
+    scpi_sims: int = Field(
+        default=200, ge=10,
+        description="Gaussian draws for the scpi in-sample QCQP simulation.",
+    )
+    scpi_e_method: Literal["gaussian", "ls", "empirical"] = Field(
+        default="gaussian",
+        description="Out-of-sample tabulation for the scpi prediction intervals.",
+    )
+    plot_bands: Literal["pointwise", "simultaneous", "both"] = Field(
+        default="pointwise",
+        description="Which scpi prediction-interval band(s) to shade on the "
+                    "observed-vs-counterfactual plot when `compute_scpi_pi` is "
+                    "set: 'pointwise' (default, the per-period band), "
+                    "'simultaneous' (the joint-coverage band), or 'both'. No "
+                    "band is drawn when scpi intervals were not computed.",
+    )
 
     @model_validator(mode="before")
     @classmethod

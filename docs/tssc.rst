@@ -437,6 +437,37 @@ fully flexible MSC(c) -- the efficiency half of TSSC's dual goal made
 visible. ``mlsynth`` reports the CI for all four variants
 (``att_ci_by_method()``) so this trade-off is inspectable.
 
+Model-based prediction intervals (scpi). Each variant's weight constraint maps
+onto a member of the scpi weight-constraint family (Cattaneo, Feng, Palomba and
+Titiunik 2025), so setting ``compute_scpi_pi=True`` adds a scpi prediction-
+interval band to every variant fit (and surfaces the recommended variant's band
+on ``res.scpi``) alongside the subsampling ATT CI. The mapping follows the
+restrictions:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Variant
+     - Restrictions
+     - scpi constraint
+   * - SC
+     - :math:`\mathbf{w}\ge 0`, :math:`\sum_j w_j = 1`
+     - simplex
+   * - MSCa
+     - intercept, :math:`\mathbf{w}\ge 0`, :math:`\sum_j w_j = 1`
+     - simplex + constant
+   * - MSCb
+     - :math:`\mathbf{w}\ge 0`
+     - ols
+   * - MSCc
+     - intercept, :math:`\mathbf{w}\ge 0`
+     - ols + constant
+
+The sum-constrained variants (SC, MSCa) map exactly. The no-adding-up variants
+(MSCb, MSCc) carry bare non-negativity, which the scpi family does not include,
+so they use scpi's ols compatible set: the band does not re-impose
+:math:`\mathbf{w}\ge 0` and is therefore slightly conservative there.
+
 
 Verification
 ------------

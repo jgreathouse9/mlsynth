@@ -115,6 +115,17 @@ the placebo distribution. Placebo units whose pre-fit exceeds
 ``cohensd_threshold`` are trimmed, per the paper's quality-control
 recommendation. Set ``inference=False`` to skip the (re-fitting) placebo loop.
 
+Set ``compute_scpi_pi=True`` for model-based prediction intervals on the ATT via
+VanillaSC's generalized scpi engine (Cattaneo, Feng, Palomba & Titiunik 2025).
+scpi's Table 3 pairs the lasso weight constraint with Chernozhukov, Wüthrich &
+Zhu (2021) -- exactly the family SCUL fits -- so the intervals run under the
+lasso constraint :math:`\lVert w \rVert_1 \le \lVert \widehat w \rVert_1` with
+the SCUL intercept as the (unconstrained) constant, giving a per-period band and
+an ATT interval (surfaced in ``res.att_ci``) alongside the pointwise and
+simultaneous bands on ``res.fit.scpi``. The effective degrees of freedom are the
+number of selected donors plus one for the intercept. ``scpi_sims`` /
+``scpi_alpha`` / ``scpi_e_method`` control the simulation.
+
 Example
 -------
 

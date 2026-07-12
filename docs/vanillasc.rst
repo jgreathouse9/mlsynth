@@ -332,6 +332,32 @@ Five inference modes are available via ``inference=``:
     the near-post years, where the differenced predictors carry less
     extrapolation risk). The default is the levels model.
 
+    Alongside the pointwise band, the engine returns a *simultaneous*
+    (joint-coverage) band that holds over the whole post-treatment horizon at
+    once (scpi's ``simultaneousPredGet``): a uniform in-sample bound -- the
+    :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantile, across post periods, of
+    the per-period extreme deviation over draws -- plus the out-of-sample
+    component inflated by :math:`\sqrt{\log(T_1+1)}`. It is never tighter than
+    the pointwise band. Both appear in ``res.inference.details`` (keys
+    ``pi_lower``/``pi_upper`` and ``pi_lower_simultaneous``/
+    ``pi_upper_simultaneous``, and the matching ``counterfactual_*`` keys). The
+    ``plot_bands`` config field selects which band(s) the observed-vs-synthetic
+    plot shades -- ``"pointwise"`` (default), ``"simultaneous"``, or ``"both"``
+    (the wider simultaneous band drawn underneath the pointwise one).
+
+    The underlying engine :func:`~mlsynth.utils.vanillasc_helpers.scpi.scpi_intervals`
+    also supports scpi's full Table-2 weight-constraint family via
+    ``w_constr`` -- ``ols`` / ``simplex`` (the default here) / ``lasso`` /
+    ``ridge`` / ``L1-L2`` -- which changes the in-sample compatible set and the
+    effective degrees of freedom (:math:`\mathrm{df} = J` for ols, ``#nonzero``
+    for lasso, ``#nonzero`` :math:`-1` for simplex, and
+    :math:`\sum_k d_k^2/(d_k^2+\lambda)` over the pre-period donor singular
+    values :math:`d_k` for ridge / L1-L2). ``VanillaSC`` itself fits a simplex
+    control, so it uses the simplex constraint; the ridge constraint is scpi's
+    Table-3 inference setting for Amjad, Kim, Shah & Shen (2018) Robust
+    Synthetic Control, which :doc:`CLUSTERSC <clustersc>` routes its PCR / RSC
+    fit through (``compute_scpi_pi=True, scpi_constraint="ridge"``).
+
     .. note::
 
        This is a self-contained, MIT-licensed re-derivation of the
@@ -349,13 +375,26 @@ Five inference modes are available via ``inference=``:
        statistically correct (default) vs. ``scpi``-matching in-sample scaling.
        See :doc:`replications/vanillasc_staggered`.
 
+       The staggered engine also carries the full weight-constraint family:
+       ``staggered_spec={"features": [...], "w_constr": "ridge"}`` fits every
+       treated unit's synthetic control (and its prediction-interval compatible
+       set) under ``ols`` / ``simplex`` (default) / ``lasso`` / ``ridge`` /
+       ``L1-L2``, matching ``scpi``'s ``scdataMulti`` weights value-for-value and
+       its deterministic inference budgets (``Q_star``, ``lb``, ``df``)
+       cell-for-cell on the two-treated Germany panel. This is the only setting
+       -- multiple treated units, covariate-adjusted, non-convex weights -- that
+       combines all three of ``scpi``'s dimensions at once.
+
        For the single-treated-unit case, the ``scpi_germany_pi`` benchmark
        cross-checks both bands against a live ``scpi_pkg`` run on German
        reunification: the levels (``scpi_cointegrated=False``) and cointegrated
        (``=True``) ``CI_all_gaussian`` bands each reproduce to Monte-Carlo error
        (width mean difference :math:`\approx 0.04` cointegrated, :math:`\approx
        0.10` levels, at 2000 draws), and the simplex weights match to four
-       decimals.
+       decimals. The ``scpi_ridge_germany`` benchmark separately cross-checks the
+       ridge-constraint machinery (budget :math:`Q`, penalty :math:`\lambda`,
+       degrees of freedom) against ``scpi_pkg``'s ``scest`` / ``df_EST`` to
+       :math:`10^{-6}`, routed through CLUSTERSC's ``.fit()``.
 
 ``"lto"`` -- leave-two-out refined placebo (Lei & Sudijono 2025)
     A design-based randomization test that fixes the two structural weaknesses

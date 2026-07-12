@@ -67,6 +67,11 @@ def run_pcr(
     # frequentist OLS inference (Shen et al. 2023)
     shen_variance: str = "homoskedastic",
     compute_shen_ci: bool = True,
+    # scpi prediction intervals (Cattaneo-Feng-Palomba-Titiunik 2025)
+    compute_scpi_pi: bool = False,
+    scpi_constraint: str = "ridge",
+    scpi_sims: int = 200,
+    scpi_e_method: str = "gaussian",
     random_state: int = 0,
 ) -> Tuple[MethodFit, Optional[Tuple[np.ndarray, np.ndarray]]]:
     """Run the paper-aligned PCR-SC pipeline.
@@ -294,6 +299,23 @@ def run_pcr(
     }
     if shen_obj is not None:
         metadata["shen_inference"] = shen_obj
+
+    # scpi prediction intervals under the chosen constraint (ridge = Amjad et al.
+    # 2018 Robust SC per scpi Table 3). Runs on the fitted weights and the donor
+    # design the counterfactual projects through (counterfactual = projection_full
+    # @ f_hat), so scpi's synthetic-prediction model is exactly the PCR fit.
+    if compute_scpi_pi and T > T0 and estimator == "frequentist":
+        from ..scpi_pi import scpi_pi_inference
+        try:
+            metadata["scpi_inference"] = scpi_pi_inference(
+                treated_outcome, projection_full, T0, f_hat,
+                constraint=scpi_constraint, sims=scpi_sims, alpha=alpha,
+                e_method=scpi_e_method, seed=random_state,
+                periods=list(range(T0, T)),
+            )
+        except (MlsynthEstimationError, ValueError, ImportError):
+            metadata["scpi_inference"] = None
+
     if cluster_info is not None:
         metadata.update({
             "k_clusters": int(cluster_info.k),
