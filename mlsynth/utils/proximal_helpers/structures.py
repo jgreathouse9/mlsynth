@@ -40,6 +40,7 @@ SPSC = "SPSC"
 DR = "DR"
 PIPW = "PIPW"
 DR_OID = "DR-OID"
+PIOID = "PIOID"
 
 
 @dataclass(frozen=True)
@@ -224,6 +225,7 @@ class PROXIMALResults:
     dr: Optional[ProximalMethodFit] = None
     pipw: Optional[ProximalMethodFit] = None
     dr_oid: Optional[ProximalMethodFit] = None
+    pioid: Optional[ProximalMethodFit] = None
     selected_variant: str = PI
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -248,6 +250,10 @@ class PROXIMALResults:
             out[DR] = self.dr
         if self.pipw is not None:
             out[PIPW] = self.pipw
+        if self.dr_oid is not None:
+            out[DR_OID] = self.dr_oid
+        if self.pioid is not None:
+            out[PIOID] = self.pioid
         return out
 
     @property

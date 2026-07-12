@@ -51,6 +51,7 @@ from ..utils.proximal_helpers.structures import (
     SPSC,
     DR,
     DR_OID,
+    PIOID,
     PROXIMALResults,
 )
 
@@ -148,6 +149,7 @@ class PROXIMAL:
                 dr=fits.get(DR),
                 pipw=fits.get(PIPW),
                 dr_oid=fits.get(DR_OID),
+                pioid=fits.get(PIOID),
                 selected_variant=self.methods[0],
                 metadata={
                     "methods": list(self.methods),

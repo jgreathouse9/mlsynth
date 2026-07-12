@@ -38,18 +38,23 @@ class PROXIMALConfig(BaseEstimatorConfig):
 
     @model_validator(mode='after')
     def check_methods_and_vars(cls, values: Any) -> Any:
-        valid_methods = {"PI", "PIS", "PIPost", "SPSC", "DR", "PIPW", "DR-OID"}
+        valid_methods = {"PI", "PIS", "PIPost", "SPSC", "DR", "PIPW", "DR-OID", "PIOID"}
         methods = list(values.methods)
         unknown = [m for m in methods if m not in valid_methods]
         if unknown:
             raise MlsynthConfigError(
-                f"Unknown PROXIMAL method(s) {unknown}. Valid choices: 'PI', 'PIS', 'PIPost', 'SPSC', 'DR', 'PIPW', 'DR-OID'."
+                f"Unknown PROXIMAL method(s) {unknown}. Valid choices: 'PI', 'PIS', 'PIPost', 'SPSC', 'DR', 'PIPW', 'DR-OID', 'PIOID'."
             )
         if "DR-OID" in methods:
             if not values.outcome_instruments:
                 raise MlsynthConfigError("DR-OID requires a non-empty 'outcome_instruments' list (the proxy pool for the outcome bridge).")
             if not values.treatment_instruments:
                 raise MlsynthConfigError("DR-OID requires a non-empty 'treatment_instruments' list (the subset for the treatment bridge).")
+        if "PIOID" in methods and not values.outcome_instruments:
+            raise MlsynthConfigError(
+                "PIOID requires a non-empty 'outcome_instruments' list (the distinct set of "
+                "donor units instrumenting the outcome bridge)."
+            )
 
         vars_dict = values.vars
         needs_donorproxies = any(m in methods for m in ("PI", "PIS", "PIPost", "DR", "PIPW"))
