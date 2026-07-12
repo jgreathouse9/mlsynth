@@ -1,0 +1,14 @@
+# case: propsc_spain
+# generated_at: 2026-07-12T09:23:47Z
+# mlsynth_version: 1.0.0
+# estimator: PROPSC
+# config: {"method": "sdid", "outcomes": ["psoe", "pp", "podem", "cs", "vox", "others"]}
+# reference_impl: R package propsdid (via Rscript)
+# reference_version: propsdid @ 9ec3f65
+quantity,mlsynth,reference,abs_diff
+ATT[psoe],1.3010397406313832,1.3010397406,0.0
+ATT[pp],0.9835746264217295,0.9835746264,0.0
+ATT[podem],0.29981127359354387,0.2998112736,0.0
+ATT[cs],0.9365427483077274,0.9365427483,0.0
+ATT[vox],-3.434020594292481,-3.4340205943,0.0
+ATT[others],-0.08694779466188218,-0.0869477947,0.0

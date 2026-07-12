@@ -1,0 +1,12 @@
+# case: dpsc_prop99
+# generated_at: 2026-07-12T09:23:46Z
+# mlsynth_version: 1.0.0
+# estimator: DPSC
+# config: {"epsilon1": 50.0, "epsilon2": 50.0, "mechanism": "output|objective", "ridge_lambda": 10.0, "seed": 0}
+# reference_impl: srho1/dpsc PrivateSC (differentially private SC)
+# reference_version: @0be4eba
+quantity,mlsynth,reference,abs_diff
+OutputPerturb: ||private weights||,0.493275,0.493275,0.0
+OutputPerturb: private counterfactual mean (post),92.637595,92.637595,0.0
+ObjectivePerturb: ||private weights||,0.486266,0.486266,0.0
+ObjectivePerturb: private counterfactual mean (post),76.748938,76.748938,0.0

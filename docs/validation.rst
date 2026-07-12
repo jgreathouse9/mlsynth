@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **56 cross-validation checks** against original
-implementations across **32 estimators** -- 23 reproduce the reference to display precision, 21 to
-within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **58 cross-validation checks** against original
+implementations across **34 estimators** -- 25 reproduce the reference to display precision, 21 to
+within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -49,6 +49,10 @@ Summary
      - 2
      - 1 exact · 1 tight
      - 0.036
+   * - :ref:`DPSC <val-dpsc>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`FDID <val-fdid>`
      - 1
      - 1 exact
@@ -97,6 +101,10 @@ Summary
      - 1
      - 1 tight
      - 0.0022
+   * - :ref:`PROPSC <val-propsc>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`PROXIMAL <val-proximal>`
      - 3
      - 1 exact · 2 tight
@@ -273,6 +281,28 @@ ClusterSC
      - 0
      - exact — matches to display precision
      - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
+
+.. _val-dpsc:
+
+DPSC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - srho1/dpsc PrivateSC (differentially private SC)
+     - —
+     - 4
+     - 0
+     - exact — matches to display precision
+     - `dpsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dpsc_prop99.py>`__
 
 .. _val-fdid:
 
@@ -579,6 +609,28 @@ PPSCM
      - 0.0022
      - tight
      - `ppscm_paglayan <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_paglayan.py>`__
+
+.. _val-propsc:
+
+PROPSC
+------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - R package propsdid (via Rscript)
+     - —
+     - 6
+     - 0
+     - exact — matches to display precision
+     - `propsc_spain <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/propsc_spain.py>`__
 
 .. _val-proximal:
 
@@ -1019,10 +1071,6 @@ action records them once its toolchain provisions.
 
    * - Case
      - Reference
-   * - `dpsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dpsc_prop99.py>`__
-     - —
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
-   * - `propsc_spain <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/propsc_spain.py>`__
-     - —
 
