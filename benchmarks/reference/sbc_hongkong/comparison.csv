@@ -1,0 +1,14 @@
+# case: sbc_hongkong
+# generated_at: 2026-07-12T00:13:35Z
+# mlsynth_version: 1.0.0
+# estimator: SBC (Hamilton detrend + simplex SC on cycle)
+# config: {"estimator": "SBC", "h": 4, "outcome": "gdp", "p": 2, "time": "year", "treat": "Handover", "unitid": "country", "weights_mode": "simplex"}
+# reference_impl: authors' SBC_HK.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
+# reference_version: jinxi-atlas/Synthetic-business-cycle-code (arXiv:2505.22388), reproduced on in-repo FRED data
+quantity,mlsynth,reference,abs_diff
+ATT (post-handover),-5110.776,-4993.382,117.394
+cyclical pre-SSE (lower=better),16484515.7,17492666.8,1008151.1
+weight[Italy],0.407867,0.439286,0.031419
+weight[Germany],0.362181,0.428783,0.066602
+weight[US],0.081546,0.126686,0.04514
+weight[Korea],0.0,0.005237,0.005237

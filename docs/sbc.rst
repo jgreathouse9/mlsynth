@@ -927,6 +927,16 @@ global optimum of the cycle-matching program — where the reference's
 :doc:`replications/sbc` for the full design, the four-solver optimum check, and
 the donor-label finding.
 
+The same cross-check holds on a second application. ``benchmarks/cases/sbc_hongkong.py``
+runs the authors' ``SBC_HK.R`` (their Hong Kong handover study) live against
+mlsynth on the in-repo FRED per-capita-GDP panel (``hong_kong_handover.csv``,
+1961-2010, Hong Kong treated in 1997). The detrending again matches to about
+:math:`10^{-11}`, and mlsynth's cyclical synthetic control attains a lower
+pre-period sum of squared residuals than the reference's ``Synth::synth`` ipop
+solver (about :math:`6\%` better), so it reaches the verified optimum on a
+distinct dataset. Both recover an Italy/Germany-dominant cyclical synthetic Hong
+Kong and a negative post-handover effect.
+
 Core API
 --------
 

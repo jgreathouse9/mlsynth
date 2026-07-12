@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-07-12T00:11:49Z",
+  "git_sha": "586617f18271d42a8d056675dd02244e2c0f7701",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/sbc_hongkong/reference.R",
+  "data": [
+    {
+      "path": "basedata/hong_kong_handover.csv",
+      "sha256": "4f3fea9b93baeec95cb5525b5b57066955782221bca44e197776dc73382c1b5c"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "kernlab": "0.9-33",
+    "Synth": "1.1-10",
+    "compiler": "4.3.3",
+    "rgenoud": "5.9-0.11",
+    "nloptr": "2.2.1",
+    "optimx": "2025-4.9",
+    "numDeriv": "2016.8-1.1",
+    "pracma": "2.4.6"
+  }
+}

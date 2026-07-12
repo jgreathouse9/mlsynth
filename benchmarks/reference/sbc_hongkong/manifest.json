@@ -1,0 +1,9 @@
+{
+  "case": "sbc_hongkong",
+  "title": "SBC Hong Kong handover (authors' R: lsq detrend + Synth::synth) vs mlsynth SBC",
+  "paper": "Shi, Xi & Xie (2025), 'A Synthetic Business Cycle Approach...', arXiv:2505.22388 (SBC_HK/SBC_HK.R)",
+  "reference_impl": "Independent R reproduction of the authors' SBC_HK.R (Hamilton lsq detrending + trend_predict + Synth::synth ipop)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/sbc_hongkong/reference.R",
+  "data": ["basedata/hong_kong_handover.csv"]
+}
