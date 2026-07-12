@@ -440,6 +440,28 @@ runs both ``SpSyDiD`` and the authors' own algorithm on each panel and
 asserts per-rep agreement; see the dedicated page
 :doc:`replications/spsydid`.
 
+A real-data differential cross-check complements the two simulations.
+The paper's Section-4 outcome (the noncitizen-Hispanic share) is not
+reconstructible from public in-repo data, but the SpSyDiD machinery can still be
+exercised on the genuine LAWA setting: ``benchmarks/cases/spsydid_lawa_diff.py``
+aggregates the Arizona LAWA CPS extract (``basedata/cps_lawa_arizona.parquet``,
+shared with :doc:`scd`) to state-mean log weekly earnings, treats Arizona from
+period 55 with the queen-contiguity ``W`` restricted to the 45 common states, and
+compares ``SpSyDiD(config).fit()`` against the authors' own ``fit_unit_weights``
+/ ``fit_time_weights``. The SDID quadratic programs are shared exactly -- the
+unit weights agree to :math:`\sim 10^{-9}` -- so once the reference is placed on
+mlsynth's canonical row-weight convention the direct ATT and the spillover
+coefficient agree to :math:`\sim 10^{-8}`.
+
+The only substantive difference between the two codebases is a convention the
+paper leaves underspecified. The authors' ``join_weights`` fills the post-period
+time weight with :math:`T_{post}/T` and the affected-unit weight with the mean
+treated weight, whereas mlsynth uses the canonical synthetic-DiD choices
+(:math:`1/T_{post}` for the post-period time weights, :math:`1/N_{sp}` for the
+affected units). With the large injected effect of the simulation the two are
+indistinguishable; on a small real effect they can differ at the third decimal,
+so mlsynth follows the canonical convention.
+
 The reference panels and adjacency matrices ship with mlsynth in
 ``basedata/``:
 

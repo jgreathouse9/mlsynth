@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **59 cross-validation checks** against original
-implementations across **35 estimators** -- 26 reproduce the reference to display precision, 21 to
+Coverage: **60 cross-validation checks** against original
+implementations across **35 estimators** -- 27 reproduce the reference to display precision, 21 to
 within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -158,8 +158,8 @@ Summary
      - 1 tight
      - 0.001
    * - :ref:`SpSyDiD <val-spsydid>`
-     - 1
-     - 1 close
+     - 2
+     - 1 exact · 1 close
      - 0.094
    * - :ref:`TASC <val-tasc>`
      - 1
@@ -979,6 +979,12 @@ SpSyDiD
      - max \|Δ\|
      - Verdict
      - Case
+   * - authors' functions_ssdid fit_unit_weights / fit_time_weights under the canonical SDID convention (1/T_post post weights, 1/N_sp affected weights)
+     - —
+     - 2
+     - 0
+     - exact — matches to display precision
+     - `spsydid_lawa_diff <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spsydid_lawa_diff.py>`__
    * - authors' SDID weight functions (serenini/spatial_SDID functions_ssdid) + the notebook's spatial WLS, via benchmarks.reference.spsydid_ref
      - —
      - 20

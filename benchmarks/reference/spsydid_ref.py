@@ -72,7 +72,7 @@ def reference_ssdid(panel: pd.DataFrame, WD: float):
 
     # Weighted LSDV: unit + time dummies, plus interaction and spillover.
     n = len(did2["ID"].unique())
-    t = 36
+    t = int(did2["month"].nunique())   # window length from the data (was hardcoded 36)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         new = pd.concat([pd.get_dummies(did2["ID"], prefix="ID"),

@@ -1,0 +1,10 @@
+# case: spsydid_lawa_diff
+# generated_at: 2026-07-12T12:00:11Z
+# mlsynth_version: 1.0.0
+# estimator: SpSyDiD (.fit)
+# config: {"outcome": "mean log weekly earnings", "spatial_matrix": "<queen contiguity, 45 states>", "treated": "Arizona"}
+# reference_impl: authors' functions_ssdid fit_unit_weights / fit_time_weights under the canonical SDID convention (1/T_post post weights, 1/N_sp affected weights)
+# reference_version: serenini/spatial_SDID (cloned on demand, pinned)
+quantity,mlsynth,reference,abs_diff
+direct ATT (LAWA on log weekly earnings),0.04818796,0.04818788,0.0
+spillover coefficient tau_s,0.06152929,0.0615293,0.0
