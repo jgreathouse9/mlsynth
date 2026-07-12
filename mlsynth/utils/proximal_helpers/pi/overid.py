@@ -200,19 +200,29 @@ def overid_counterfactual_band(
     total_periods: int,
     hac_truncation_lag: int,
     level: float = 0.90,
+    method: str = "gmm",
 ):
-    """Per-period GMM (delta-method) confidence band on the PIOID counterfactual.
+    """Per-period confidence band on the PIOID counterfactual (Shi et al. 2026).
 
-    The outcome bridge is ``h(W_t) = W_t' omega``; from the joint ``(tau, omega)``
-    sandwich (:func:`_overid_joint_cov`) the counterfactual's per-period variance
-    is ``W_t' Var(omega_hat) W_t`` with ``Var(omega_hat)`` the ``omega`` block
-    ``cov[1:, 1:] / T``. Returns full-length ``(lower, upper)`` arrays
-    ``W omega +/- z_{level} * sqrt(var_t)`` (Shi et al. 2026, Section 3.2.3);
-    this is the per-period companion to the ATT SE the estimator already reports,
-    read off the same sandwich. Returns ``(None, None)`` if the sandwich is
-    singular.
+    Two routes, both on the outcome bridge ``h(W_t) = W_t' omega``:
+
+    ``method="gmm"`` (Section 3.2.3, default) -- the delta-method band
+    ``W omega +/- z_{level} * sqrt(W_t' Var(omega_hat) W_t)`` with
+    ``Var(omega_hat)`` the ``omega`` block of the joint ``(tau, omega)`` sandwich
+    (:func:`_overid_joint_cov`), the per-period companion to the ATT SE the
+    estimator already reports.
+
+    ``method="conformal"`` (Section 3.2.1; Chernozhukov, Wuthrich & Zhu 2021) --
+    the split-conformal prediction band ``W omega +/- q`` with ``q`` the
+    ``level`` quantile of the absolute pre-period residuals. The bridge is fit on
+    the pre-period only, so the counterfactual never sees the post outcomes and
+    the interval needs no refitting; its half-width is a single residual quantile
+    shared across post periods.
+
+    Returns full-length ``(lower, upper)`` arrays, or ``(None, None)`` if the GMM
+    sandwich is singular.
     """
-    from scipy.stats import norm
+    from ....exceptions import MlsynthConfigError
 
     W = np.asarray(design_matrix, dtype=float)
     Z = np.asarray(instrument_matrix, dtype=float)
@@ -220,8 +230,17 @@ def overid_counterfactual_band(
     alpha = np.asarray(alpha, dtype=float).ravel()
     T = int(total_periods)
     T0 = int(num_pre_treatment_periods)
-
     cf = W @ alpha
+
+    if method == "conformal":
+        resid_pre = np.abs((Y - cf)[:T0])
+        q = float(np.quantile(resid_pre, float(level)))
+        return cf - q, cf + q
+    if method != "gmm":
+        raise MlsynthConfigError(
+            f"Unknown PIOID band method {method!r}; expected 'gmm' or 'conformal'.")
+
+    from scipy.stats import norm
     tau = float(np.mean((Y - cf)[T0 : T0 + num_post_periods_for_effect_eval]))
     cov = _overid_joint_cov(Y, W, Z, alpha, tau, T0, T, hac_truncation_lag)
     if cov is None:

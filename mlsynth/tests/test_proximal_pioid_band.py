@@ -80,3 +80,41 @@ def test_gmm_band_shares_the_att_sandwich():
     lo, hi = overid_counterfactual_band(y, W, Z, alpha, T0, T1, T, 10, level=0.90)
     half = (hi - lo)[T0:] / 2.0
     assert np.all(half >= 0) and np.any(half > 0)
+
+
+# ----------------------------------------------------------------------
+# conformal route (Shi et al. 2026 Section 3.2.1; Chernozhukov-Wuthrich-Zhu 2021)
+# ----------------------------------------------------------------------
+def test_conformal_band_is_centred_and_uniform_width():
+    y, W, Z, T0, T1, T = _proximal_panel()
+    cf, alpha, se = estimate_pi_overid(y, W, Z, T0, T1, T, hac_truncation_lag=10)
+    lo, hi = overid_counterfactual_band(y, W, Z, alpha, T0, T1, T, 10,
+                                        level=0.90, method="conformal")
+    post = slice(T0, T)
+    assert np.all(hi[post] >= lo[post])
+    assert np.allclose((lo[post] + hi[post]) / 2.0, cf[post], atol=1e-8)
+    # PIOID's bridge is pre-fit only, so the split-conformal half-width is the
+    # residual quantile: a single value shared across post periods.
+    half = (hi[post] - lo[post]) / 2.0
+    assert np.allclose(half, half[0])
+    # and it equals the coverage quantile of |pre-period residuals|
+    resid_pre = np.abs((y - cf)[:T0])
+    assert half[0] == pytest.approx(np.quantile(resid_pre, 0.90), abs=1e-8)
+
+
+def test_conformal_band_widens_with_level():
+    y, W, Z, T0, T1, T = _proximal_panel()
+    _, alpha, _ = estimate_pi_overid(y, W, Z, T0, T1, T, hac_truncation_lag=10)
+    lo90, hi90 = overid_counterfactual_band(y, W, Z, alpha, T0, T1, T, 10,
+                                            level=0.90, method="conformal")
+    lo99, hi99 = overid_counterfactual_band(y, W, Z, alpha, T0, T1, T, 10,
+                                            level=0.99, method="conformal")
+    post = slice(T0, T)
+    assert np.mean((hi99 - lo99)[post]) >= np.mean((hi90 - lo90)[post])
+
+
+def test_unknown_band_method_rejected():
+    y, W, Z, T0, T1, T = _proximal_panel()
+    _, alpha, _ = estimate_pi_overid(y, W, Z, T0, T1, T, hac_truncation_lag=10)
+    with pytest.raises(Exception):
+        overid_counterfactual_band(y, W, Z, alpha, T0, T1, T, 10, method="bogus")
