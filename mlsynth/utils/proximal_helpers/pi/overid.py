@@ -30,6 +30,25 @@ import numpy as np
 from ..inference import hac
 
 
+def _solve_simplex_bridge(Wp: np.ndarray, Zp: np.ndarray, Yp: np.ndarray) -> np.ndarray:
+    """Simplex-constrained proximal outcome bridge (the authors' cPI / NC_constrained_nocov).
+
+    Solves ``min_omega (Y - W omega)' Z Z' (Y - W omega)`` subject to
+    ``omega >= 0, sum(omega) = 1`` on the pre-period -- equivalently
+    ``min ||Z'(Y - W omega)||^2`` -- with the CLARABEL conic solver, exactly the
+    convex program ``scpi::scest(w.constr="simplex", V.mat = Z'Z / T0)`` solves.
+    """
+    import cvxpy as cp
+
+    n = Wp.shape[1]
+    omega = cp.Variable(n)
+    objective = cp.Minimize(cp.sum_squares(Zp.T @ (Yp - Wp @ omega)))
+    cp.Problem(objective, [omega >= 0, cp.sum(omega) == 1]).solve(solver=cp.CLARABEL)
+    if omega.value is None:  # pragma: no cover - CLARABEL failure fallback
+        raise np.linalg.LinAlgError("simplex proximal bridge did not solve")
+    return np.asarray(omega.value, dtype=float).ravel()
+
+
 def estimate_pi_overid(
     outcome_vector: np.ndarray,
     design_matrix: np.ndarray,
@@ -38,13 +57,18 @@ def estimate_pi_overid(
     num_post_periods_for_effect_eval: int,
     total_periods: int,
     hac_truncation_lag: int,
+    simplex: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, float]:
     """Over-identified PI counterfactual, donor weights, and ATT SE.
 
     The point estimate is the one-step GMM (identity-weight) outcome bridge
     ``omega = (W'Z Z'W)^{-1} W'Z Z'Y`` on the pre-period, i.e. 2SLS of the
     treated series on ``W`` using ``Z`` as instruments; ``W omega`` is the
-    counterfactual and its post-period gap the ATT.
+    counterfactual and its post-period gap the ATT. With ``simplex=True`` the
+    coefficients are instead constrained to the simplex (``omega >= 0``,
+    ``sum(omega) = 1``) under the same ``Z'Z`` metric -- the authors' cPI
+    (constrained proximal inference) -- and no GMM standard error is reported
+    (the paper's constrained inference is by permutation).
 
     The ATT standard error follows the authors' ``NC_nocov_gmm`` exactly: a
     single one-step GMM over all periods with parameters ``theta = (tau, omega)``,
@@ -88,6 +112,13 @@ def estimate_pi_overid(
     T0 = int(num_pre_treatment_periods)
 
     Wp, Zp, Yp = W[:T0], Z[:T0], Y[:T0]
+    if simplex:
+        # Constrained proximal inference (cPI): simplex-constrained bridge, no
+        # GMM SE (the paper's constrained inference is by permutation).
+        alpha = _solve_simplex_bridge(Wp, Zp, Yp)
+        counterfactual = W @ alpha
+        return counterfactual, alpha, np.nan
+
     # One-step GMM under the identity weight (2SLS): omega = (W'Z Z'W)^{-1} W'Z Z'Y.
     WZ = Wp.T @ Zp                       # (n_donors, n_instruments)
     A = WZ @ WZ.T                        # (n_donors, n_donors)

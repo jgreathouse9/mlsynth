@@ -603,7 +603,7 @@ PROXIMAL
      - `dr_proximal_brazil <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`__
    * - KenLi93/proximal_sc_manuscript NC_nocov + NC_nocov_gmm (over-identified, Newey-West q=10), live run, captured
      - ``scpi_germany.csv`` (10b150fbcc2c…)
-     - 10
+     - 11
      - 1e-06
      - exact — matches to display precision
      - `proximal_germany_oid <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/proximal_germany_oid.py>`__

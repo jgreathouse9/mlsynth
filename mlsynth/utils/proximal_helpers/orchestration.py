@@ -80,6 +80,7 @@ def _run_pioid(inputs: PROXIMALInputs) -> ProximalMethodFit:
     cf, alpha, se = estimate_pi_overid(
         inputs.y, inputs.donor_outcomes, inputs.outcome_instruments,
         inputs.T0, inputs.n_post, inputs.T, inputs.pioid_hac_lag,
+        simplex=inputs.pioid_simplex,
     )
     return _build_fit(PIOID, inputs, cf, inputs.y - cf, se, alpha)
 

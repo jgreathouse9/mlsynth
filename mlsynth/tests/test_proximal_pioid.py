@@ -96,6 +96,20 @@ def test_pioid_counterfactual_uses_only_donors() -> None:
     assert np.isfinite(fit.counterfactual).all()
 
 
+def test_pioid_simplex_reproduces_manuscript_cpi_att() -> None:
+    """PIOID with pioid_simplex=True (the authors' cPI) matches the paper's cPI ATT
+    (-1719 USD) to the dollar, with simplex donor weights and no GMM SE."""
+    df = _germany()
+    cfg = dict(_pioid_cfg(df), pioid_simplex=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = PROXIMAL(cfg).fit().methods["PIOID"]
+    assert fit.att == pytest.approx(-1.718900, abs=1e-3)   # -1719 USD (thousands)
+    w = np.array(list(fit.donor_weights.values()))
+    assert (w >= -1e-8).all() and abs(w.sum() - 1.0) < 1e-6  # on the simplex
+    assert fit.att_se is None                               # constrained: no GMM SE
+
+
 def test_pioid_requires_outcome_instruments() -> None:
     """PIOID without outcome_instruments raises a translated config error."""
     df = _germany()

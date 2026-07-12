@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-12T02:03:05Z",
-  "git_sha": "8ff7d8b1e0ca6078c136674f09da3f020f76a2f6",
+  "generated_at": "2026-07-12T02:21:39Z",
+  "git_sha": "f4e3b14e2c483c02d8afec71c4de128e2580ebc0",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
   "command": "Rscript benchmarks/reference/proximal_germany_oid/reference.R",
   "data": [
@@ -11,6 +11,7 @@
   ],
   "r_version": "R version 4.3.3 (2024-02-29)",
   "packages": {
+    "quadprog": "1.5-8",
     "compiler": "4.3.3"
   }
 }

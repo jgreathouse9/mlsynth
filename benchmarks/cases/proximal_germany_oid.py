@@ -69,11 +69,12 @@ REF_ATT = reference_value("proximal_germany_oid", "att")
 REF_SE = reference_value("proximal_germany_oid", "att_se")
 REF_CI_LB = reference_value("proximal_germany_oid", "ci90_lb")
 REF_CI_UB = reference_value("proximal_germany_oid", "ci90_ub")
+REF_ATT_CPI = reference_value("proximal_germany_oid", "att_cpi")
 
 _Z90 = 1.6448536269514722
 
 
-def _mlsynth_pioid():
+def _mlsynth_pioid(simplex: bool = False):
     from mlsynth import PROXIMAL
 
     df = pd.read_csv(_BASE / "scpi_germany.csv")[["country", "year", "gdp"]].dropna()
@@ -85,16 +86,22 @@ def _mlsynth_pioid():
             "df": df, "outcome": "gdp", "treat": "treat",
             "unitid": "country", "time": "year",
             "donors": _W, "outcome_instruments": Z,
-            "methods": ["PIOID"], "display_graphs": False,
+            "methods": ["PIOID"], "pioid_simplex": simplex,
+            "display_graphs": False,
         }).fit().methods["PIOID"]
     weights = {str(k): float(v) for k, v in fit.donor_weights.items()}
-    return weights, float(fit.att), float(fit.att_se)
+    se = float(fit.att_se) if fit.att_se is not None else float("nan")
+    return weights, float(fit.att), se
 
 
 def run() -> dict:
     w_ml, att_ml, se_ml = _mlsynth_pioid()
     lo, hi = att_ml - _Z90 * se_ml, att_ml + _Z90 * se_ml
     w_diff = max(abs(w_ml.get(d, 0.0) - wr) for d, wr in _REF_WEIGHTS.items())
+
+    # Constrained proximal inference (cPI): simplex-constrained bridge.
+    wc_ml, att_cpi_ml, _ = _mlsynth_pioid(simplex=True)
+    wc = np.array(list(wc_ml.values()))
 
     return {
         "mls_att": att_ml,
@@ -106,6 +113,10 @@ def run() -> dict:
         "ci90_ub_abs_diff": float(abs(hi - REF_CI_UB)),
         "weight_max_abs_diff_vs_manuscript": float(w_diff),
         "att_negative": 1.0 if att_ml < 0 else 0.0,
+        # cPI (simplex): matches the paper's -1719 USD; weights on the simplex.
+        "mls_att_cpi": att_cpi_ml,
+        "att_cpi_abs_diff_vs_manuscript": float(abs(att_cpi_ml - REF_ATT_CPI)),
+        "cpi_weights_on_simplex": 1.0 if (wc >= -1e-8).all() and abs(wc.sum() - 1.0) < 1e-6 else 0.0,
     }
 
 
@@ -121,11 +132,14 @@ def comparison() -> dict:
     w_ml, att_ml, se_ml = _mlsynth_pioid()
     lo, hi = att_ml - _Z90 * se_ml, att_ml + _Z90 * se_ml
 
+    _wc, att_cpi_ml, _ = _mlsynth_pioid(simplex=True)
     rows = [
-        {"quantity": "ATT", "mlsynth": round(att_ml, 6), "reference": round(REF_ATT, 6)},
+        {"quantity": "ATT (PI)", "mlsynth": round(att_ml, 6), "reference": round(REF_ATT, 6)},
         {"quantity": "ATT SE", "mlsynth": round(se_ml, 6), "reference": round(REF_SE, 6)},
         {"quantity": "90% CI lower", "mlsynth": round(lo, 6), "reference": round(REF_CI_LB, 6)},
         {"quantity": "90% CI upper", "mlsynth": round(hi, 6), "reference": round(REF_CI_UB, 6)},
+        {"quantity": "ATT (cPI, simplex)", "mlsynth": round(att_cpi_ml, 6),
+         "reference": round(REF_ATT_CPI, 6)},
     ]
     for donor, w_ref in sorted(_REF_WEIGHTS.items(), key=lambda kv: -abs(kv[1])):
         rows.append({"quantity": f"weight[{donor}]",
@@ -160,4 +174,8 @@ EXPECTED = {
     "ci90_ub_abs_diff": (0.0, 1e-4),
     "weight_max_abs_diff_vs_manuscript": (0.0, 1e-3),
     "att_negative": (1.0, 0.0),
+    # cPI: the simplex-constrained bridge reproduces the paper's -1719 USD.
+    "mls_att_cpi": (REF_ATT_CPI, 1e-3),                # -1.7189 (thousand USD)
+    "att_cpi_abs_diff_vs_manuscript": (0.0, 1e-3),
+    "cpi_weights_on_simplex": (1.0, 0.0),
 }

@@ -107,6 +107,7 @@ class PROXIMAL:
         self.dr_oid_ridge: float = config.dr_oid_ridge
         self.dr_oid_n_starts: int = config.dr_oid_n_starts
         self.pioid_hac_lag: int = config.pioid_hac_lag
+        self.pioid_simplex: bool = config.pioid_simplex
 
     def fit(self) -> PROXIMALResults:
         """Run the proximal pipeline and return a :class:`PROXIMALResults`."""
@@ -138,6 +139,7 @@ class PROXIMAL:
                 dr_oid_ridge=self.dr_oid_ridge,
                 dr_oid_n_starts=self.dr_oid_n_starts,
                 pioid_hac_lag=self.pioid_hac_lag,
+                pioid_simplex=self.pioid_simplex,
             )
 
             fits = run_proximal(inputs)

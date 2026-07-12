@@ -245,7 +245,9 @@ estimator runs *exactly* those (validating that your inputs support them):
        *distinct set of donor units* ``Z`` on a single outcome
        (``#instruments >= #donors``). The pure-PI counterpart of DR-OID,
        and the configuration the JASA paper's German-reunification
-       application uses.
+       application uses. Set ``pioid_simplex=True`` for the constrained
+       variant (cPI): the donor weights are restricted to the simplex under
+       the same ``Z'Z`` metric.
      - Shi et al. [ProxSCM]_
 
 .. code-block:: python
@@ -1160,9 +1162,14 @@ Replication Status
    identity-weight optimum is unique, mlsynth reproduces the paper's PI headline
    ATT of -1709 USD exactly, and -- with the manuscript's Newey-West lag
    ``q = 10`` (``pioid_hac_lag``) -- the GMM PI 90% confidence interval
-   (-2806, -616) USD to the dollar. This complements the just-identified PI
-   cross-validation (``freshtaste/proximal``, Panic 1907) on a second dataset
-   with the paper's own distinct-instrument-set configuration.
+   (-2806, -616) USD to the dollar. The constrained variant
+   (``pioid_simplex=True``, the authors' cPI / ``NC_constrained_nocov``) is a
+   convex simplex-constrained program under the ``Z'Z`` metric; solved with
+   CLARABEL it reproduces the paper's cPI ATT of -1719 USD (the benchmark checks
+   it against an independent ``quadprog`` solve of the identical objective, the
+   ``scpi::scest`` optimum being solver-invariant). This complements the
+   just-identified PI cross-validation (``freshtaste/proximal``, Panic 1907) on a
+   second dataset with the paper's own distinct-instrument-set configuration.
 
    Per the project's replication contract
    (``agents/agents_estimators.md``), PROXIMAL is considered validated on
