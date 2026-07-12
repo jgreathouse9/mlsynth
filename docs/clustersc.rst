@@ -1050,10 +1050,12 @@ fit: ``ridge`` for RSC / PCR-OLS, ``simplex`` for the RPCA / SIMPLEX weights),
 :py:attr:`CLUSTERSCConfig.scpi_sims` (default 200), and
 :py:attr:`CLUSTERSCConfig.scpi_e_method`. When set it takes precedence over
 the Shen / CFT / Bayesian paths, surfacing on
-:py:class:`CLUSTERSCInference.scpi` and in ``res.att_ci``. The
-``scpi_ridge_germany`` benchmark cross-checks the ridge constraint machinery
-(:math:`Q`, :math:`\lambda`, degrees of freedom) against ``scpi_pkg`` to
-:math:`10^{-6}` through ``.fit()``.
+:py:class:`CLUSTERSCInference.scpi` and in ``res.att_ci``. Both pointwise and
+simultaneous bands are carried; :py:attr:`CLUSTERSCConfig.plot_bands`
+(``"pointwise"`` / ``"simultaneous"`` / ``"both"``) selects which the
+observed-vs-counterfactual plot shades. The ``scpi_ridge_germany`` benchmark
+cross-checks the ridge constraint machinery (:math:`Q`, :math:`\lambda`, degrees
+of freedom) against ``scpi_pkg`` to :math:`10^{-6}` through ``.fit()``.
 
 Verification
 ------------

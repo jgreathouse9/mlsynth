@@ -253,6 +253,14 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         default="gaussian",
         description="Out-of-sample tabulation for the scpi prediction intervals.",
     )
+    plot_bands: Literal["pointwise", "simultaneous", "both"] = Field(
+        default="pointwise",
+        description="Which scpi prediction-interval band(s) to shade on the "
+                    "observed-vs-counterfactual plot when `compute_scpi_pi` is "
+                    "set: 'pointwise' (default, the per-period band), "
+                    "'simultaneous' (the joint-coverage band), or 'both'. No "
+                    "band is drawn when scpi intervals were not computed.",
+    )
 
     @model_validator(mode="before")
     @classmethod

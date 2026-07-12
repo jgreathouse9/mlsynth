@@ -340,7 +340,10 @@ Five inference modes are available via ``inference=``:
     component inflated by :math:`\sqrt{\log(T_1+1)}`. It is never tighter than
     the pointwise band. Both appear in ``res.inference.details`` (keys
     ``pi_lower``/``pi_upper`` and ``pi_lower_simultaneous``/
-    ``pi_upper_simultaneous``, and the matching ``counterfactual_*`` keys).
+    ``pi_upper_simultaneous``, and the matching ``counterfactual_*`` keys). The
+    ``plot_bands`` config field selects which band(s) the observed-vs-synthetic
+    plot shades -- ``"pointwise"`` (default), ``"simultaneous"``, or ``"both"``
+    (the wider simultaneous band drawn underneath the pointwise one).
 
     The underlying engine :func:`~mlsynth.utils.vanillasc_helpers.scpi.scpi_intervals`
     also supports scpi's full Table-2 weight-constraint family via

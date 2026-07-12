@@ -221,6 +221,15 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "cointegrated (I(1)) outcome/donor levels. The point "
                     "counterfactual is unchanged; only the prediction bands move.",
     )
+    plot_bands: Literal["pointwise", "simultaneous", "both"] = Field(
+        default="pointwise",
+        description="Which SCPI prediction-interval band(s) to shade on the "
+                    "observed-vs-counterfactual plot: 'pointwise' (default, the "
+                    "per-period band), 'simultaneous' (the joint-coverage band), "
+                    "or 'both'. The simultaneous band is only available for "
+                    "inference='scpi'; other inference modes always show the "
+                    "pointwise band.",
+    )
     staggered_spec: Optional[StaggeredSCMSpec] = Field(
         default=None,
         description="Staggered adoption only. Covariate (multi-feature) matching "

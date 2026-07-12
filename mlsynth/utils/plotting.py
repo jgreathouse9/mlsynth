@@ -25,6 +25,28 @@ _DEFAULT_CF_COLORS = ("red", "blue", "green", "purple", "orange", "brown")
 
 CounterfactualLike = Union[np.ndarray, Sequence[np.ndarray]]
 
+
+def select_pi_bands(pointwise, simultaneous, choice):
+    """Resolve the (interval, interval2, label) to shade from the two bands.
+
+    ``pointwise`` and ``simultaneous`` are ``(lower, upper)`` band pairs (or
+    ``None`` when unavailable). ``choice`` is ``"pointwise"`` / ``"simultaneous"``
+    / ``"both"``. The simultaneous band is optional (only SCPI produces one), so
+    any choice gracefully falls back to the pointwise band when it is absent.
+
+    Returns
+    -------
+    (interval, interval2, interval_label)
+        ``interval`` is the primary band (drawn on top), ``interval2`` the
+        second band drawn underneath (or ``None``), and ``interval_label`` the
+        legend label for the primary band.
+    """
+    if choice == "simultaneous" and simultaneous is not None:
+        return simultaneous, None, "Simultaneous interval"
+    if choice == "both" and simultaneous is not None:
+        return pointwise, simultaneous, "Prediction interval"
+    return pointwise, None, "Prediction interval"
+
 #: Preferred display font; falls back through the ``font.sans-serif`` chain
 #: below if it is not installed. Override by reassigning before plotting.
 MLSYNTH_FONT = "Inter"
@@ -184,6 +206,8 @@ class Plotter:
         intervention: Optional[Any] = None,
         interval: Optional[Sequence[np.ndarray]] = None,
         interval_label: str = "Prediction interval",
+        interval2: Optional[Sequence[np.ndarray]] = None,
+        interval2_label: str = "Simultaneous interval",
         outcome: str = "",
         time: str = "",
         title: str = "Observed vs. counterfactual",
@@ -214,10 +238,17 @@ class Plotter:
             X position of the intervention marker; omitted if None.
         interval : sequence of np.ndarray, optional
             ``(lower, upper)`` band (each shape ``(T,)``) shaded around the
-            **first** counterfactual -- e.g. conformal / SCPI prediction
-            intervals. ``NaN`` entries (e.g. the pre-period) are not shaded.
+            **first** counterfactual -- e.g. the pointwise SCPI prediction
+            interval. ``NaN`` entries (e.g. the pre-period) are not shaded.
         interval_label : str, default "Prediction interval"
             Legend label for the shaded band.
+        interval2 : sequence of np.ndarray, optional
+            A second ``(lower, upper)`` band drawn underneath ``interval`` with a
+            lighter shade -- e.g. the SCPI *simultaneous* (joint-coverage) band,
+            which is wider than the pointwise one. Either band may be given on
+            its own.
+        interval2_label : str, default "Simultaneous interval"
+            Legend label for the second shaded band.
         outcome, time : str
             Axis labels.
         title : str
@@ -250,10 +281,18 @@ class Plotter:
                     linewidth=self.counterfactual_linewidth,
                     linestyle=self.counterfactual_linestyle,
                     color=color, label=labels[i])
+        band = self.counterfactual_colors[0]
+        # Draw the (wider) simultaneous band underneath, then the pointwise band
+        # on top, so both remain visible when overlaid.
+        if interval2 is not None:
+            lo2 = np.asarray(interval2[0], dtype=float).reshape(-1)
+            hi2 = np.asarray(interval2[1], dtype=float).reshape(-1)
+            ax.fill_between(times, lo2, hi2, where=~np.isnan(lo2),
+                            color=band, alpha=0.10, linewidth=0,
+                            label=interval2_label)
         if interval is not None:
             lower = np.asarray(interval[0], dtype=float).reshape(-1)
             upper = np.asarray(interval[1], dtype=float).reshape(-1)
-            band = self.counterfactual_colors[0]
             ax.fill_between(times, lower, upper, where=~np.isnan(lower),
                             color=band, alpha=0.18, linewidth=0,
                             label=interval_label)

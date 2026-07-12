@@ -397,7 +397,7 @@ class CLUSTERSC:
 
             if self.display_graphs:
                 try:
-                    plot_clustersc(results)
+                    plot_clustersc(results, plot_bands=self.config.plot_bands)
                 except Exception as exc:
                     raise MlsynthPlottingError(
                         f"CLUSTERSC plotting failed: {exc}"
