@@ -1,0 +1,38 @@
+== REFERENCE VALUES ==
+att	-1.709137
+att_se	0.665478
+ci90_lb	-2.803752
+ci90_ub	-0.614522
+att_cpi	-1.718922
+weight	Austria	0.450003
+weight	USA	0.306724
+weight	Netherlands	0.099789
+weight	Switzerland	0.082596
+weight	Italy	0.037713
+weight	Japan	0.004339
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] quadprog_1.5-8
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

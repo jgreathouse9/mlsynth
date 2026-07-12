@@ -51,6 +51,7 @@ from ..utils.proximal_helpers.structures import (
     SPSC,
     DR,
     DR_OID,
+    PIOID,
     PROXIMALResults,
 )
 
@@ -105,6 +106,8 @@ class PROXIMAL:
         self.treatment_instruments: List[Union[str, int]] = config.treatment_instruments
         self.dr_oid_ridge: float = config.dr_oid_ridge
         self.dr_oid_n_starts: int = config.dr_oid_n_starts
+        self.pioid_hac_lag: int = config.pioid_hac_lag
+        self.pioid_simplex: bool = config.pioid_simplex
 
     def fit(self) -> PROXIMALResults:
         """Run the proximal pipeline and return a :class:`PROXIMALResults`."""
@@ -135,6 +138,8 @@ class PROXIMAL:
                 treatment_instruments=self.treatment_instruments,
                 dr_oid_ridge=self.dr_oid_ridge,
                 dr_oid_n_starts=self.dr_oid_n_starts,
+                pioid_hac_lag=self.pioid_hac_lag,
+                pioid_simplex=self.pioid_simplex,
             )
 
             fits = run_proximal(inputs)
@@ -148,6 +153,7 @@ class PROXIMAL:
                 dr=fits.get(DR),
                 pipw=fits.get(PIPW),
                 dr_oid=fits.get(DR_OID),
+                pioid=fits.get(PIOID),
                 selected_variant=self.methods[0],
                 metadata={
                     "methods": list(self.methods),

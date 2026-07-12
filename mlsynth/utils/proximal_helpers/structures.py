@@ -40,6 +40,7 @@ SPSC = "SPSC"
 DR = "DR"
 PIPW = "PIPW"
 DR_OID = "DR-OID"
+PIOID = "PIOID"
 
 
 @dataclass(frozen=True)
@@ -122,6 +123,8 @@ class PROXIMALInputs:
     treatment_instruments: Optional[np.ndarray] = None
     dr_oid_ridge: float = 0.0
     dr_oid_n_starts: int = 8
+    pioid_hac_lag: int = 10
+    pioid_simplex: bool = False
 
     @property
     def has_surrogates(self) -> bool:
@@ -224,6 +227,7 @@ class PROXIMALResults:
     dr: Optional[ProximalMethodFit] = None
     pipw: Optional[ProximalMethodFit] = None
     dr_oid: Optional[ProximalMethodFit] = None
+    pioid: Optional[ProximalMethodFit] = None
     selected_variant: str = PI
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -248,6 +252,10 @@ class PROXIMALResults:
             out[DR] = self.dr
         if self.pipw is not None:
             out[PIPW] = self.pipw
+        if self.dr_oid is not None:
+            out[DR_OID] = self.dr_oid
+        if self.pioid is not None:
+            out[PIOID] = self.pioid
         return out
 
     @property

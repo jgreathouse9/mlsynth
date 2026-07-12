@@ -14,7 +14,7 @@ from typing import Dict
 import numpy as np
 
 from .dr import estimate_dr, estimate_dr_overid
-from .pi import estimate_pi
+from .pi import estimate_pi, estimate_pi_overid
 from .pipw import estimate_pipw
 from .pis import estimate_pi_surrogate
 from .pipost import estimate_pi_surrogate_post
@@ -27,6 +27,7 @@ from .structures import (
     SPSC,
     DR,
     DR_OID,
+    PIOID,
     PROXIMALInputs,
     ProximalMethodFit,
 )
@@ -71,6 +72,17 @@ def _run_pi(inputs: PROXIMALInputs) -> ProximalMethodFit:
         inputs.T0, inputs.n_post, inputs.T, inputs.bandwidth,
     )
     return _build_fit(PI, inputs, cf, inputs.y - cf, se, alpha)
+
+
+def _run_pioid(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    # PIOID uses its own Newey-West lag (default 10, the manuscript's), not the
+    # shared PROXIMAL Bartlett bandwidth -- other methods keep theirs.
+    cf, alpha, se = estimate_pi_overid(
+        inputs.y, inputs.donor_outcomes, inputs.outcome_instruments,
+        inputs.T0, inputs.n_post, inputs.T, inputs.pioid_hac_lag,
+        simplex=inputs.pioid_simplex,
+    )
+    return _build_fit(PIOID, inputs, cf, inputs.y - cf, se, alpha)
 
 
 def _run_pis(inputs: PROXIMALInputs) -> ProximalMethodFit:
@@ -218,7 +230,7 @@ def _run_dr_overid(inputs: PROXIMALInputs) -> ProximalMethodFit:
 
 _RUNNERS = {
     PI: _run_pi, PIS: _run_pis, PIPOST: _run_pipost, SPSC: _run_spsc,
-    DR: _run_dr, PIPW: _run_pipw, DR_OID: _run_dr_overid,
+    DR: _run_dr, PIPW: _run_pipw, DR_OID: _run_dr_overid, PIOID: _run_pioid,
 }
 
 

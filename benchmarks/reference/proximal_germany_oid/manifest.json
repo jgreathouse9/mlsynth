@@ -1,0 +1,9 @@
+{
+  "case": "proximal_germany_oid",
+  "title": "Over-identified Proximal Inference (Shi et al. 2026 JASA) vs mlsynth PROXIMAL PIOID (German reunification)",
+  "paper": "Shi, Li, Yu, Miao, Kuchibhotla, Hu & Tchetgen Tchetgen (2026), 'Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework', JASA",
+  "reference_impl": "authors' manuscript replication (KenLi93/proximal_sc_manuscript: NC_nocov + NC_nocov_gmm), reproduced on in-repo scpi_germany",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/proximal_germany_oid/reference.R",
+  "data": ["basedata/scpi_germany.csv"]
+}
