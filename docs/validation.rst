@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **53 cross-validation checks** against original
-implementations across **30 estimators** -- 22 reproduce the reference to display precision, 20 to
+Coverage: **54 cross-validation checks** against original
+implementations across **31 estimators** -- 22 reproduce the reference to display precision, 20 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -105,6 +105,10 @@ Summary
      - 1
      - 1 exact
      - 0
+   * - :ref:`SBC <val-sbc>`
+     - 1
+     - 1 close
+     - 1e+06
    * - :ref:`SCMO <val-scmo>`
      - 1
      - 1 tight
@@ -627,6 +631,28 @@ ROLLDID
      - 0
      - exact — matches to display precision
      - `rolldid_lw <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rolldid_lw.py>`__
+
+.. _val-sbc:
+
+SBC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - authors' SBC_HK.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
+     - ``hong_kong_handover.csv`` (4f3fea9b93ba…)
+     - 6
+     - 1e+06
+     - close
+     - `sbc_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sbc_hongkong.py>`__
 
 .. _val-scmo:
 
