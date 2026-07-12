@@ -58,6 +58,33 @@ def test_pioid_reproduces_manuscript_germany_att() -> None:
     assert att == pytest.approx(-1.709137, abs=1e-3)
 
 
+def test_pioid_se_matches_manuscript_gmm_ci() -> None:
+    """At the manuscript's Newey-West lag (default 10), PIOID's HAC SE reproduces
+    the paper's GMM PI 90% CI of (-2806, -616) USD."""
+    df = _germany()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = PROXIMAL(_pioid_cfg(df)).fit().methods["PIOID"]
+    # SE in thousands of USD; the paper's 90% CI implies SE ~= 0.666.
+    assert fit.att_se == pytest.approx(0.6655, abs=5e-3)
+    z90 = 1.6448536269514722
+    lo, hi = fit.att - z90 * fit.att_se, fit.att + z90 * fit.att_se
+    assert lo * 1000 == pytest.approx(-2804, abs=15)   # paper -2806
+    assert hi * 1000 == pytest.approx(-614, abs=15)     # paper -616
+
+
+def test_pioid_hac_lag_is_configurable_and_affects_only_se() -> None:
+    """Changing pioid_hac_lag moves the SE but not the point estimate."""
+    df = _germany()
+    cfg2 = dict(_pioid_cfg(df), pioid_hac_lag=2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        f10 = PROXIMAL(_pioid_cfg(df)).fit().methods["PIOID"]
+        f2 = PROXIMAL(cfg2).fit().methods["PIOID"]
+    assert f2.att == pytest.approx(f10.att, abs=1e-9)   # point estimate unchanged
+    assert f2.att_se != pytest.approx(f10.att_se, abs=1e-3)  # SE moves with the lag
+
+
 def test_pioid_counterfactual_uses_only_donors() -> None:
     """The PIOID counterfactual is W @ omega -- the instruments Z do not enter it."""
     df = _germany()

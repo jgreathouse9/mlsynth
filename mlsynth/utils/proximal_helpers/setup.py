@@ -50,6 +50,7 @@ def prepare_proximal_inputs(
     treatment_instruments: Optional[List[Union[str, int]]] = None,
     dr_oid_ridge: float = 0.0,
     dr_oid_n_starts: int = 8,
+    pioid_hac_lag: int = 10,
 ) -> PROXIMALInputs:
     """Pivot a long panel into the typed inputs the PROXIMAL pipeline expects.
 
@@ -164,4 +165,5 @@ def prepare_proximal_inputs(
         treatment_instruments=ti_mat,
         dr_oid_ridge=dr_oid_ridge,
         dr_oid_n_starts=dr_oid_n_starts,
+        pioid_hac_lag=pioid_hac_lag,
     )

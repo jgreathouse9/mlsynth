@@ -123,6 +123,7 @@ class PROXIMALInputs:
     treatment_instruments: Optional[np.ndarray] = None
     dr_oid_ridge: float = 0.0
     dr_oid_n_starts: int = 8
+    pioid_hac_lag: int = 10
 
     @property
     def has_surrogates(self) -> bool:

@@ -75,9 +75,11 @@ def _run_pi(inputs: PROXIMALInputs) -> ProximalMethodFit:
 
 
 def _run_pioid(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    # PIOID uses its own Newey-West lag (default 10, the manuscript's), not the
+    # shared PROXIMAL Bartlett bandwidth -- other methods keep theirs.
     cf, alpha, se = estimate_pi_overid(
         inputs.y, inputs.donor_outcomes, inputs.outcome_instruments,
-        inputs.T0, inputs.n_post, inputs.T, inputs.bandwidth,
+        inputs.T0, inputs.n_post, inputs.T, inputs.pioid_hac_lag,
     )
     return _build_fit(PIOID, inputs, cf, inputs.y - cf, se, alpha)
 

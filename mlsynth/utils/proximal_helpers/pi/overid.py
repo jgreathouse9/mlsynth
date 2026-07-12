@@ -41,6 +41,19 @@ def estimate_pi_overid(
 ) -> Tuple[np.ndarray, np.ndarray, float]:
     """Over-identified PI counterfactual, donor weights, and ATT SE.
 
+    The point estimate is the one-step GMM (identity-weight) outcome bridge
+    ``omega = (W'Z Z'W)^{-1} W'Z Z'Y`` on the pre-period, i.e. 2SLS of the
+    treated series on ``W`` using ``Z`` as instruments; ``W omega`` is the
+    counterfactual and its post-period gap the ATT.
+
+    The ATT standard error follows the authors' ``NC_nocov_gmm`` exactly: a
+    single one-step GMM over all periods with parameters ``theta = (tau, omega)``,
+    moment ``(Y - S1 theta) S2`` for ``S1 = [X, W]`` and ``S2 = [X, Z(1-X)]`` (the
+    treatment indicator identifies ``tau``, the pre-period instruments identify
+    ``omega``), and the over-identified sandwich ``(G'G)^{-1} G' Omega G (G'G)^{-1}``
+    with a Bartlett-HAC ``Omega`` at ``hac_truncation_lag``. At the manuscript's
+    Newey-West lag (10) this reproduces the paper's GMM confidence interval.
+
     Parameters
     ----------
     outcome_vector : np.ndarray
@@ -57,7 +70,7 @@ def estimate_pi_overid(
     total_periods : int
         Total number of periods ``T``.
     hac_truncation_lag : int
-        Bartlett bandwidth for the HAC variance.
+        Bartlett/Newey-West bandwidth for the HAC variance.
 
     Returns
     -------
@@ -85,9 +98,7 @@ def estimate_pi_overid(
     gap = Y - counterfactual
     tau = float(np.mean(gap[T0 : T0 + num_post_periods_for_effect_eval]))
 
-    se_tau = _overid_att_se(
-        Y, W, Z, alpha, tau, T0, total_periods, hac_truncation_lag,
-    )
+    se_tau = _overid_att_se(Y, W, Z, alpha, tau, T0, total_periods, hac_truncation_lag)
     return counterfactual, alpha, se_tau
 
 
@@ -101,37 +112,28 @@ def _overid_att_se(
     total_periods: int,
     hac_truncation_lag: int,
 ) -> float:
-    """GMM sandwich SE of the ATT for the one-step (identity-weight) over-id bridge.
+    """Over-identified one-step-GMM sandwich SE of the ATT (authors' NC_nocov_gmm).
 
-    Stacks the pre-period bridge moment ``g_t = (Z'W)(Z_t)(Y_t - W_t' alpha)``
-    (the identity-weighted projection that defines ``alpha``) with the
-    post-period ATT moment, and returns the HAC-cored sandwich standard error of
-    the ATT. Returns ``np.nan`` if the Jacobian is singular.
+    Builds the joint moment matrix ``bg = (Y - S1 theta) * S2`` with
+    ``S1 = [X, W]``, ``S2 = [X, Z(1-X)]`` and ``theta = (tau, omega)``; the ATT
+    variance is the top-left entry of the over-identified sandwich
+    ``(G'G)^{-1} G' Omega G (G'G)^{-1} / T`` with a Bartlett-HAC ``Omega``.
+    Returns ``np.nan`` if the projection is singular.
     """
 
-    n_donors = W.shape[1]
-    WZ = W[:T0].T @ Z[:T0]                        # (n_donors, n_instruments)
-    resid = Y - W @ alpha
+    T = total_periods
+    X = np.concatenate([np.zeros(T0), np.ones(T - T0)])
+    theta = np.concatenate([[tau], alpha])
+    S1 = np.column_stack([X, W])                 # (T, 1 + n_donors)
+    S2 = np.column_stack([X, Z * (1.0 - X)[:, None]])  # (T, 1 + n_instruments)
 
-    # Effective bridge instrument for the just-identified projection: WZ @ Z_t.
-    # Pre-period moments (n_donors), post-period ATT moment (1).
-    U0 = (WZ @ Z.T) * resid.reshape(1, -1)        # (n_donors, T)
-    U0[:, T0:] = 0.0
-    U1 = resid - tau
-    U1[:T0] = 0.0
-    U = np.column_stack((U0.T, U1))               # (T, n_donors + 1)
-
-    G = np.zeros((n_donors + 1, n_donors + 1))
-    # d(pre moments)/d(alpha) = -(WZ Z') W summed, scaled by T.
-    G[:n_donors, :n_donors] = -(WZ @ Z[:T0].T @ W[:T0]) / total_periods
-    G[-1, :n_donors] = np.sum(W[T0:], axis=0) / total_periods
-    G[-1, -1] = (total_periods - T0) / total_periods
-
-    omega = hac(U, hac_truncation_lag)
+    bg = (Y - S1 @ theta)[:, None] * S2          # (T, 1 + n_instruments) moments
+    G = S2.T @ S1 / T                            # (1 + n_instr, 1 + n_donors) Jacobian
+    omega = hac(bg, hac_truncation_lag)
     try:
-        G_inv = np.linalg.inv(G)
-        cov = G_inv @ omega @ G_inv.T
-        var_tau = cov[-1, -1] / total_periods
+        proj = np.linalg.inv(G.T @ G) @ G.T      # (1 + n_donors, 1 + n_instr)
+        hac_sigma = proj @ omega @ proj.T
+        var_tau = hac_sigma[0, 0] / T
         return float(np.sqrt(var_tau)) if var_tau >= 0 else np.nan
     except np.linalg.LinAlgError:
         return np.nan
