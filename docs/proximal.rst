@@ -522,6 +522,47 @@ PIPost the normalization uses the post-period count :math:`T - T_0` in
 place of :math:`T`.) The HAC middle is what makes the intervals valid under
 serially correlated errors.
 
+Per-period counterfactual bands (PIOID)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The GMM sandwich above summarises uncertainty in the ATT. Shi et al. [ProxSCM]_,
+Section 3.2, note that after fitting the outcome bridge the residual process
+:math:`e_t = y_{1t} - h(W_{Dt})` is a standard time series, and adapt three
+inference routes to it -- conformal permutation (Section 3.2.1, following
+Chernozhukov, Wüthrich & Zhu [CWZ2021P]_), scpi-style prediction intervals
+(Section 3.2.2), and GMM (Section 3.2.3) -- each giving a *per-period* interval,
+not just the aggregated ATT. Set ``pioid_band=True`` to attach one to the
+over-identified fit; ``pioid_band_method`` selects the route:
+
+``"gmm"`` (Section 3.2.3, the default). The counterfactual is
+:math:`h(W_t) = W_t^\top \widehat{\boldsymbol{\omega}}`, so the delta method turns
+the same joint :math:`(\tau, \boldsymbol{\omega})` sandwich the ATT already uses
+into a per-period confidence band,
+
+.. math::
+
+   W_t^\top \widehat{\boldsymbol{\omega}} \;\pm\; z_{1-a/2}\,
+     \sqrt{ W_t^\top \widehat{\mathrm{Cov}}(\widehat{\boldsymbol{\omega}})\, W_t },
+
+with :math:`\widehat{\mathrm{Cov}}(\widehat{\boldsymbol{\omega}})` the
+``omega`` block of the sandwich. Because both quantities are read off one
+covariance, the band is the exact per-period companion to the ATT interval the
+estimator reports (and cross-validates, value for value, against the authors'
+``NC_nocov_gmm`` in ``KenLi93/proximal_sc_manuscript`` [ProxSCM]_).
+
+``"conformal"`` (Section 3.2.1; [CWZ2021P]_). The over-identified bridge is fit on
+the pre-period only, so the counterfactual never sees the post outcomes and the
+split-conformal prediction band is exact and refit-free: :math:`h(W_t) \pm q`,
+with :math:`q` the ``pioid_band_level`` quantile of the absolute pre-period
+residuals -- one half-width shared across post periods. ``pioid_band_level`` sets
+the nominal coverage (default ``0.90``). The band is exposed as
+``res.counterfactual_band`` and, per method, on the PIOID fit's
+``counterfactual_lower`` / ``counterfactual_upper``; the constrained (cPI /
+``pioid_simplex``) fit reports no GMM band, matching the paper's
+permutation-based constrained inference. The related conformal machinery for the
+single-proxy method (SPSC, [SPSC]_) and the doubly-robust proximal control
+([DRProx]_) lives in the same package.
+
 Assumptions
 -----------
 

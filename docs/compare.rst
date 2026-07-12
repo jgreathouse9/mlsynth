@@ -26,6 +26,54 @@ compare results that do not expose the standardized surface -- for instance the
 :doc:`spillsynth` dispatcher, whose spillover-adjusted counterfactual is
 assembled per method -- alongside ones that do.
 
+Fitting and comparing in one call
+---------------------------------
+
+:func:`~mlsynth.utils.counterfactual_compare.compare_counterfactuals` takes
+results you have already fit. When you would rather hand over the estimators and
+let mlsynth run them,
+:func:`~mlsynth.utils.counterfactual_compare.compare_estimators` is the
+one-call front-end -- the observational counterpart of the design-side
+:func:`~mlsynth.utils.design_compare.compare_methods`. You pass fully configured
+estimator instances (so every option stays yours), it fits each on the shared
+panel, reads each one's counterfactual and per-period band off the contract, and
+returns the same :class:`~mlsynth.utils.counterfactual_compare.CounterfactualComparison`:
+
+.. code:: python
+
+   from mlsynth import VanillaSC, CLUSTERSC, SparseSC, compare_estimators
+
+   cmp = compare_estimators(
+       [VanillaSC(cfg), CLUSTERSC({**cfg, "method": "RPCA"}), SparseSC(cfg)],
+       show_bands=True)
+   print(cmp.summary)      # att / pre_rmse per method
+   cmp.plot()
+
+``show_bands`` is a required argument, not a default: you decide explicitly
+whether the overlay shades each method's prediction interval or compares the
+counterfactual lines alone. Estimators are labelled by class name (pass a
+``{label: estimator}`` mapping to name them yourself), and all must be fit on the
+same panel -- a differing observed series raises
+:class:`~mlsynth.exceptions.MlsynthConfigError`. Dispatcher estimators that do not
+expose a standardized ``time_series`` (:doc:`proximal`, :doc:`spillsynth`) are
+read through their flat accessors, so a PROXIMAL PIOID fit with its per-period
+band compares directly alongside a standardized synthetic-control result.
+
+Where the bands come from
+-------------------------
+
+Each estimator that carries a per-period prediction interval normalises it onto
+one place on the standardized contract: ``counterfactual_lower`` /
+``counterfactual_upper`` (and their ``*_simultaneous`` siblings) on
+:class:`~mlsynth.config_models.TimeSeriesResults`, aligned to ``time_periods`` and
+NaN where a method has no band, tagged with ``prediction_interval_level`` and
+``prediction_interval_kind``. The comparison reads that single field rather than
+each estimator's private band object, so a scpi band (VanillaSC / CLUSTERSC /
+SparseSC / SCUL), a proximal GMM or conformal band (:doc:`proximal`), and a
+conformal ASCM band all line up the same way. Methods that report only a scalar
+ATT interval (no per-period band) appear as a line with their effect in the
+summary table, never a fabricated band.
+
 What it returns
 ---------------
 
