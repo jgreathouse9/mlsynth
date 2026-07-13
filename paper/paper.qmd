@@ -56,7 +56,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import mlsynth
-from mlsynth import (VanillaSC, CLUSTERSC, SPILLSYNTH, SparseSC, PROXIMAL,
+from mlsynth import (VanillaSC, CLUSTERSC, SPILLSYNTH, SDID, PROXIMAL,
                      compare_estimators)
 from mlsynth.utils.plotting import apply_mlsynth_style
 
@@ -832,12 +832,12 @@ per capita a year. The fifteen years since have produced estimators that answer
 that same question from very different premises, and I fit three of them, one from
 each of three traditions, on the one panel. The first is [VanillaSC]{.pkg}, the
 convex synthetic control of @abadie2010synthetic, whose non-negative donor weights
-sum to one and never reach beyond the donors' hull. The second is [CLUSTERSC]{.pkg}
-in its robust form [@amjad2018robust]. The third is [SparseSC]{.pkg}
-[@vivesibastida2022predictorselectionsyntheticcontrols], which selects predictors
-and donors jointly through an $\ell_1$ penalty, a capability packaged nowhere else;
-I hand it a deliberately over-rich set of thirty-three predictors and let it keep
-only the few that matter.
+sum to one and never reach beyond the donors' hull; I fit it on Abadie's own
+predictor set through the corner solver of @malo2024computing. The second is
+[CLUSTERSC]{.pkg} in its robust form [@amjad2018robust]. The third is [SDID]{.pkg},
+synthetic difference-in-differences [@arkhangelsky2021synthetic], which pairs
+donor weights with a difference-in-differences adjustment, matching the treated
+unit's pre-period trend rather than its level.
 
 They share nothing in their internals and everything in their interface, so one
 call fits all three and lines their counterfactuals up against the treated series:
@@ -848,63 +848,62 @@ prop99 = pd.read_csv(find_data("augmented_cali_long.csv"))
 prop99 = prop99[prop99["year"] <= 2000].copy()
 prop99["treated"] = ((prop99["state"] == "California")
                      & (prop99["year"] >= 1989)).astype(int)
+# Abadie's special predictors: three cigarette-sales lags and four covariates.
+for L in (1975, 1980, 1988):
+    prop99[f"cig{L}"] = prop99["state"].map(
+        prop99.loc[prop99["year"] == L].set_index("state")["cigsale"])
+covs = ["loginc", "p_cig", "pct15-24", "pc_beer", "cig1975", "cig1980", "cig1988"]
+windows = {"loginc": (1980, 1988), "p_cig": (1980, 1988), "pct15-24": (1980, 1988),
+           "pc_beer": (1984, 1988), "cig1975": (1975, 1975),
+           "cig1980": (1980, 1980), "cig1988": (1988, 1988)}
 p99 = dict(df=prop99, outcome="cigsale", treat="treated", unitid="state",
            time="year", display_graphs=False)
-
-# SparseSC's value is selection: hand it every usable numeric covariate (plus a
-# few outcome lags) and let the l1 penalty keep the few that carry the fit.
-drop = {"state", "year", "treated", "cigsale", "stateno", "state_fips",
-        "state_icpsr", "is_a_state", "region"}
-pre = prop99[prop99["year"] < 1989]
-covs = [c for c in prop99.columns
-        if c not in drop and prop99[c].dtype.kind in "if"
-        and pre.groupby("state")[c].mean().notna().all()
-        and pre.groupby("state")[c].mean().std() > 0][:30]
 
 # Each estimator is configured however it likes; the comparison only asks that
 # they share the panel. show_bands is a required choice, here left off.
 cmp99 = compare_estimators(
-    {"VanillaSC": VanillaSC({**p99}),
+    {"VanillaSC": VanillaSC({**p99, "backend": "malo",
+                             "covariates": covs, "covariate_windows": windows}),
      "Robust SC": CLUSTERSC({**p99, "method": "PCR", "clustering": False}),
-     "SparseSC":  SparseSC({**p99, "covariates": covs,
-                            "outcome_lag_periods": [1975, 1980, 1988],
-                            "run_inference": False})},
+     "SDID":      SDID({**p99, "intercept_adjust": True})},
     show_bands=False)
 s99 = cmp99.summary
 ```
 
 ```{python}
 #| label: fig-prop99
-#| fig-cap: "Three synthetic-control estimators of the Proposition 99 effect, fit on one panel: observed California cigarette sales (black) against VanillaSC (blue), Robust SC (brown), and SparseSC (green). The line marks the 1989 intervention."
+#| fig-cap: "Three estimators of the Proposition 99 effect, fit on one panel: observed California cigarette sales (black) against VanillaSC (blue), Robust SC (brown), and SDID (green). The line marks the 1989 intervention."
 fig, ax = plt.subplots(figsize=(5, 3.2))
 cmp99.plot(ax=ax,                        # one call: three counterfactuals, one axis
            colors={"VanillaSC": "#4e6e8e", "Robust SC": "#a0785a",
-                   "SparseSC": "#70896f"})
+                   "SDID": "#70896f"})
 ax.axvline(1989, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("cigarette sales (packs per capita)")
 fig.tight_layout(); plt.show()
 ```
 
-The three estimators build California from different premises and land in the
-same place (@fig-prop99). VanillaSC puts the average post-1989 shortfall at
+The three estimators build California from different premises (@fig-prop99).
+VanillaSC, matching on Abadie's predictors through the Malo corner solver, puts
+the average post-1989 shortfall at
 `{python} f"{abs(s99.att['VanillaSC']):.2f}"` packs per capita, reproducing the
 value the R package `Synth` and the `MSCMT` solver return on this panel to the
-decimals reported in @sec-related; Robust SC returns almost the same,
-`{python} f"{abs(s99.att['Robust SC']):.2f}"`; and SparseSC, keeping only a handful
-of the thirty-three predictors it was handed, returns
-`{python} f"{abs(s99.att['SparseSC']):.2f}"`. That three methods from three
-lineages -- convex weighting, low-rank projection, and penalized selection -- all
-land near a nineteen-pack annual decline is the kind of robustness check that,
-before one interface carried them, meant three packages, three data formats, and
-three notions of a result reconciled by hand. The convex control fits the
-pre-period tightest (RMSE `{python} f"{s99.pre_rmse['VanillaSC']:.2f}"`), Robust SC
-barely behind (`{python} f"{s99.pre_rmse['Robust SC']:.2f}"`), and SparseSC a
-little looser (`{python} f"{s99.pre_rmse['SparseSC']:.2f}"`), the price of a sparse
-fit that, unlike the others, names the handful of predictors it keeps. Only the
-interface is
-shared; what varies is the estimator, so the disagreement between the three is
-attributable to their assumptions alone, each cross-validated against its own
-reference implementation (@sec-related).
+decimals reported in @sec-related; Robust SC, fitting a low-rank donor matrix,
+returns almost the same, `{python} f"{abs(s99.att['Robust SC']):.2f}"`. Synthetic
+difference-in-differences returns a smaller
+`{python} f"{abs(s99.att['SDID']):.2f}"`, the estimate @arkhangelsky2021synthetic
+report for this panel; it is smaller by construction, because its
+difference-in-differences step relaxes the level-matching the two synthetic
+controls enforce and asks the donors to match only the treated unit's pre-period
+trend. All three track California closely before 1989 (pre-period RMSE
+`{python} f"{s99.pre_rmse['VanillaSC']:.2f}"`,
+`{python} f"{s99.pre_rmse['Robust SC']:.2f}"`, and
+`{python} f"{s99.pre_rmse['SDID']:.2f}"`), then separate after it. Reading three
+lineages -- convex weighting, low-rank projection, and a difference-in-differences
+hybrid -- off one panel in a single call, before one interface carried them, meant
+three packages, three data formats, and three notions of a result reconciled by
+hand. Only the interface is shared; what varies is the estimator, so the spread
+between the three is attributable to their assumptions alone, each cross-validated
+against its own reference implementation (@sec-related).
 
 ### Three defenses on one panel {#sec-westgermany}
 
