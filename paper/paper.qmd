@@ -249,9 +249,8 @@ to Monte-Carlo error. Both Bayesian ports are pinned as durable benchmark cases.
 The Python options are fewer and narrower. `SyntheticControlMethods`
 [@engelbrektson2020synthetic] implements the classic estimator; `pysyncon`
 [@fordham2022pysyncon] adds its robust, augmented, and penalized variants but no
-inference or experimental design; `tidysynth` [@dunford2021tidysynth] brings the
-simplex into R's tidyverse; `CausalPy` [@causalpy2024] places a Bayesian synthetic
-control alongside other quasi-experimental designs on a `PyMC` backend. Closest in spirit is
+inference or experimental design; `CausalPy` [@causalpy2024] places a Bayesian
+synthetic control alongside other quasi-experimental designs on a `PyMC` backend. Closest in spirit is
 `causaltensor` [@peng2022causaltensor], which collects matrix-completion and
 factor-model estimators behind a common interface, the nearest peer to `mlsynth`'s
 missing-data family ([MCNNM]{.pkg}, [SNN]{.pkg}), but does not carry the simplex,
@@ -914,8 +913,9 @@ reference implementation (@sec-related).
 
 Synthetic control rests on assumptions that observational panels often strain.
 The donor outcomes may be noisy proxies for the forces that move the treated unit;
-the donor pool may contain contaminated or outlier units; and a donor may itself
-be affected by the treatment, violating the no-interference assumption. `mlsynth`
+the donor pool may include units that do not belong or are contaminated by
+outliers; and a donor may itself be affected by the treatment, violating the
+no-interference assumption. `mlsynth`
 carries a dedicated estimator for each, and I apply all three to one panel.
 
 @abadie2015comparative asked what the 1990 reunification cost West German GDP per
@@ -927,9 +927,11 @@ reads the donor outcomes as error-laden proxies of West Germany's untreated path
 and uses a second, disjoint set of donor countries as instruments to purge the
 measurement error, a proximal-causal-inference repair for noisy proxies. The
 second is [CLUSTERSC]{.pkg} in its robust-PCA form (`rpca`) [@bayani2021robust],
-which splits the donor matrix into a low-rank signal and a sparse-outlier part by
-principal component pursuit and fits on the denoised signal, a repair for a
-contaminated donor pool. The third is [SPILLSYNTH]{.pkg}'s inclusive synthetic
+which first selects the donor pool by clustering the units on their pre-period
+principal-component scores, keeping only those that move with the treated unit,
+then splits that pool into a low-rank signal and a sparse-outlier part by
+principal component pursuit and fits on the denoised signal, a repair for a donor
+pool that is ill-chosen or contaminated by outliers. The third is [SPILLSYNTH]{.pkg}'s inclusive synthetic
 control (`iscm`) [@distefano2024inclusive], which keeps Austria, the neighbour
 most exposed to reunification, in the pool and solves it jointly with West
 Germany, de-contaminating the spillover rather than discarding the donor, a repair
