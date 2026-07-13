@@ -878,10 +878,11 @@ s99 = cmp99.summary
 
 ```{python}
 #| label: fig-prop99
-#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, red), and the predictor- and donor-selecting control (SparseSC, green). The vertical line marks the 1989 intervention. The three rest on different assumptions -- convex weighting, matrix denoising, and penalized selection -- yet agree on the shape and size of the effect."
+#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, brown), and the predictor- and donor-selecting control (SparseSC, green). The vertical line marks the 1989 intervention. The three rest on different assumptions -- convex weighting, matrix denoising, and penalized selection -- yet agree on the shape and size of the effect."
 fig, ax = plt.subplots(figsize=(5, 3.2))
 cmp99.plot(ax=ax,                        # one call: three counterfactuals, one axis
-           colors={"VanillaSC": "C0", "Robust SC": "C3", "SparseSC": "C2"})
+           colors={"VanillaSC": "#4e6e8e", "Robust SC": "#a0785a",
+                   "SparseSC": "#70896f"})
 ax.axvline(1989, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("cigarette sales (packs per capita)")
 fig.tight_layout(); plt.show()
@@ -911,22 +912,16 @@ reference implementation (@sec-related).
 
 ### Three defenses on one panel {#sec-westgermany}
 
-The Proposition 99 panel was forgiving: California's donors are clean, its
-pre-period is long, and every estimator tracked it well. Most panels are less
-kind, and three failures recur. The donor outcomes can be noisy measurements of
-the forces that actually move the treated unit, so a fit that matches them
-matches the noise as well as the signal. A few contaminated donors can distort
-the whole synthetic control. And a donor can be struck by the very treatment it
-is supposed to be innocent of, breaking the no-interference assumption that
-synthetic control inherits from the wider causal-inference literature. Each
-failure has spawned its own repair, and `mlsynth` carries three of them; I set
-them against each other on the study that made synthetic control canonical
-outside the United States.
+Synthetic control rests on assumptions that observational panels often strain.
+The donor outcomes may be noisy proxies for the forces that move the treated unit;
+the donor pool may contain contaminated or outlier units; and a donor may itself
+be affected by the treatment, violating the no-interference assumption. `mlsynth`
+carries a dedicated estimator for each, and I apply all three to one panel.
 
 @abadie2015comparative asked what the 1990 reunification cost West German GDP per
 capita, building a synthetic West Germany from other OECD economies and tracing a
 shortfall that widened across the 1990s. I answer the same question three ways,
-each estimator built to survive a different one of the three failures. The first
+each estimator addressing one of the three problems above. The first
 is [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) [@proximaltheory], which
 reads the donor outcomes as error-laden proxies of West Germany's untreated path
 and uses a second, disjoint set of donor countries as instruments to purge the
@@ -974,10 +969,11 @@ swg = cmpwg.summary
 
 ```{python}
 #| label: fig-germany
-#| fig-cap: "The 1990 West German reunification through three synthetic-control repairs, fit and compared in one call. Observed West German GDP per capita (black) against the over-identified proximal counterfactual (PIOID, blue), the robust-PCA control (RPCA-SC, red), and the inclusive control that keeps Austria in the donor pool (Inclusive SCM, green). The vertical line marks the 1990 reunification. Three estimators built to survive three different failures -- noisy proxies, a contaminated donor pool, and an affected neighbour -- agree that reunification cost West Germany on the order of fifteen hundred dollars a head a year."
+#| fig-cap: "The 1990 West German reunification through three synthetic-control repairs, fit and compared in one call. Observed West German GDP per capita (black) against the over-identified proximal counterfactual (PIOID, blue), the robust-PCA control (RPCA-SC, brown), and the inclusive control that keeps Austria in the donor pool (Inclusive SCM, green). The vertical line marks the 1990 reunification. The three estimators, each addressing one of three problems -- noisy proxies, a contaminated donor pool, and an affected neighbour -- agree that reunification cost West Germany on the order of fifteen hundred dollars a head a year."
 fig, ax = plt.subplots(figsize=(5.2, 3.2))
 cmpwg.plot(ax=ax,                        # one call: three counterfactuals, one axis
-           colors={"PIOID": "C0", "RPCA-SC": "C3", "Inclusive SCM": "C2"})
+           colors={"PIOID": "#4e6e8e", "RPCA-SC": "#a0785a",
+                   "Inclusive SCM": "#70896f"})
 ax.axvline(1990, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("GDP per capita (2002 US$)")
 fig.tight_layout(); plt.show()
