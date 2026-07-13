@@ -1,0 +1,11 @@
+# case: scpi_ridge_germany
+# generated_at: 2026-07-13T10:24:54Z
+# mlsynth_version: 1.0.0
+# estimator: CLUSTERSC
+# config: {"compute_scpi_pi": true, "method": "pcr", "outcome": "gdp", "pcr_objective": "OLS", "rank": 16, "rank_method": "fixed", "scpi_constraint": "ridge", "time": "year", "treat": "status", "unitid": "country"}
+# reference_impl: scpi_pkg scest(w_constr={'name':'ridge'}) + df_EST
+# reference_version: scpi_pkg 4.0.0 (PyPI)
+quantity,mlsynth,reference,abs_diff
+ridge_Q,0.66876212,0.66876212,0.0
+ridge_lambda,0.09607606,0.09607606,0.0
+ridge_df,11.4626727,11.4626727,0.0

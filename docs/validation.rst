@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **60 cross-validation checks** against original
-implementations across **35 estimators** -- 27 reproduce the reference to display precision, 21 to
+Coverage: **61 cross-validation checks** against original
+implementations across **35 estimators** -- 28 reproduce the reference to display precision, 21 to
 within two percent. A further 1 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -42,8 +42,8 @@ Summary
      - 1 tight
      - 0.00041
    * - :ref:`CLUSTERSC <val-clustersc>`
-     - 1
-     - 1 exact
+     - 2
+     - 2 exact
      - 0
    * - :ref:`ClusterSC <val-clustersc>`
      - 2
@@ -257,6 +257,12 @@ CLUSTERSC
      - 0
      - exact — matches to display precision
      - `clustersc_rpca_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/clustersc_rpca_germany.py>`__
+   * - scpi_pkg scest(w_constr={'name':'ridge'}) + df_EST
+     - ``scpi_germany.csv`` (10b150fbcc2c…)
+     - 3
+     - 0
+     - exact — matches to display precision
+     - `scpi_ridge_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scpi_ridge_germany.py>`__
 
 .. _val-clustersc:
 
