@@ -285,7 +285,7 @@ reference or reproduced from the source paper at validation time (@tbl-related).
 | `pysyncon` | Python | classic / robust / augmented / penalized SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | n/a |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | n/a |
 
-: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. A dash in the fourth column marks an adjacent tool that targets a distinct counterfactual, which `mlsynth` does not reproduce. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically; ``n/a`` there marks a package whose engine `mlsynth` reaches through an estimator cross-checked elsewhere rather than against that package directly (for instance the canonical `Synth` check covers the simplex backend that `tidysynth` and `SyntheticControlMethods` share), not an unverified claim. The full per-estimator validation is in @tbl-catalogue. {#tbl-related}
+: Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. A dash in the fourth column marks an adjacent tool that targets a distinct counterfactual, which `mlsynth` does not reproduce. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically; ``n/a`` there marks a package whose engine `mlsynth` reaches through an estimator cross-checked elsewhere rather than against that package directly (for instance the canonical `Synth` check covers the simplex backend that `tidysynth` and `SyntheticControlMethods` share), not an unverified claim. The full per-estimator validation is maintained on the validation dashboard (<https://mlsynth.readthedocs.io/en/latest/validation.html>). {#tbl-related}
 
 The remainder of the paper is organized as follows. @sec-unified develops the
 shared computational view and the resulting taxonomy of estimators. @sec-arch
@@ -508,65 +508,21 @@ inputs and outputs, a factor-model estimator, a proximal one, a
 forecast-combination one, and a balancing one can be run on one panel and judged by
 the counterfactuals they produce rather than the premises they require.
 
-Every estimator the library ships is listed in @tbl-catalogue, grouped by the
-regime it targets and annotated with the durable benchmark that guards it
-(@sec-quality). Three are illustrated in detail in @sec-applications; the table
-is the map of everything else a one-line change can reach. Six classes are
-dispatchers that host several named methods behind one interface, so the number
-of distinct methods a user can run exceeds the number of classes.
-
-| Estimator | Method | Regime | Validation |
-|:--|:--|:--|:--|
-| `FDID` | Forward difference-in-differences | Single treated unit | A, B, X |
-| `VanillaSC` | Canonical (simplex) synthetic control | Single treated unit | A, X |
-| `TSSC` | Two-step synthetic control | Single treated unit | A, B |
-| `MASC` | Matching and synthetic control | Single treated unit | A, X |
-| `NSC` | Nonlinear synthetic control | Single treated unit | B, X |
-| `RESCM` | Relaxed and penalized synthetic control | Single treated unit | A, B, X |
-| `FSCM` | Forward-selected synthetic control | Single treated unit | A |
-| `SparseSC` | Sparse synthetic control | Single treated unit | A |
-| `PDA` | Panel-data approach (HCW / lasso / forward / $\ell_2$) | Single treated unit | A, B, X |
-| `BVSS` | Bayesian synthetic control (soft simplex) | Single treated unit | — |
-| `MUSC` | Modified unbiased synthetic control | Single treated unit | — |
-| `CLUSTERSC` | Cluster synthetic control (PCR / RPCA) | Low-rank and factor models | A, B, X |
-| `FMA` | Factor-model approach | Low-rank and factor models | B |
-| `TASC` | Time-aware synthetic control | Low-rank and factor models | B, X |
-| `RMSI` | Robust matrix estimation with side information | Low-rank and factor models | — |
-| `SNN` | Synthetic nearest neighbors | Low-rank and factor models | X |
-| `MCNNM` | Matrix completion (nuclear-norm) | Low-rank and factor models | X |
-| `SI` | Synthetic interventions | Low-rank and factor models | X |
-| `SBC` | Synthetic business cycle | Time series and nonstationary | A, B, X |
-| `HSC` | Harmonic synthetic control | Time series and nonstationary | A, B |
-| `DSCAR` | Dynamic SC for autoregressive processes | Time series and nonstationary | A |
-| `SHC` | Synthetic historical control | Time series and nonstationary | B |
-| `DSC` | Distributional synthetic control | Distributional and multi-outcome | A |
-| `CTSC` | Continuous-treatment synthetic control | Distributional and multi-outcome | B |
-| `SCMO` | Synthetic control with multiple outcomes | Distributional and multi-outcome | A, B, X |
-| `ORTHSC` | Orthogonalized synthetic control (+ GMM-SCE) | Endogeneity, proxies and instruments | A, B, X |
-| `SIV` | Synthetic instrumental variables | Endogeneity, proxies and instruments | B |
-| `PROXIMAL` | Proximal-inference synthetic control | Endogeneity, proxies and instruments | B, X |
-| `SPILLSYNTH` | Spillover-aware synthetic control | Spillover-aware | A, B, X |
-| `SPOTSYNTH` | Spillover-detecting synthetic control | Spillover-aware | A |
-| `ISCM` | Imperfect synthetic control | Spillover-aware | A, X |
-| `SpSyDiD` | Spatial synthetic difference-in-differences | Spillover-aware | X |
-| `CMBSTS` | Causal multivariate Bayesian structural time series | Spillover-aware | A, X |
-| `MSQRT` | Multivariate square-root-lasso synthetic control | Many treated / staggered | B |
-| `SDID` | Synthetic difference-in-differences | Many treated / staggered | X |
-| `SequentialSDID` | Sequential synthetic difference-in-differences | Many treated / staggered | B |
-| `ROLLDID` | Rolling-transformation difference-in-differences | Many treated / staggered | A, X |
-| `PPSCM` | Partially-pooled synthetic control | Many treated / staggered | X |
-| `SSC` | Staggered synthetic control | Many treated / staggered | X |
-| `MicroSynth` | Micro-level (calibrated) synthetic control | Many treated / staggered | X |
-| `MLSC` | Multi-level synthetic control | Many treated / staggered | X |
-| `MAREX` | Synthetic control for experimental design | Experimental design | A, X |
-| `LEXSCM` | Lexicographic synthetic-control design | Experimental design | A, B |
-| `SYNDES` | Synthetic design | Experimental design | B |
-| `SPCD` | Synthetic principal-component design | Experimental design | A |
-| `PANGEO` | Parallel-trends supergeo design | Experimental design | B |
-| `GEOLIFT` | GeoLift market selection | Experimental design | X |
-| `MULTICELLGEOLIFT` | Multi-cell GeoLift | Experimental design | X |
-
-: Every estimator `mlsynth` ships, grouped by the regime it targets, with the validation that guards it. Dispatcher classes (`PDA`, `CLUSTERSC`, `SCMO`, `TSSC`, `PROXIMAL`, `SPILLSYNTH`, `ORTHSC`) host several named methods behind one class, so the number of distinct methods exceeds the number of classes. The Validation column records the durable benchmarks of @sec-quality: A, the source paper's empirical result on the authors' own data; B, a Monte Carlo or simulation-table target; X, a numerical cross-check against an external reference implementation. A dash marks an estimator whose durable benchmark case is still being written. Each method's source paper, assumptions, and worked example are on its documentation page. {#tbl-catalogue}
+Every estimator the library ships targets one of a few problem regimes -- a
+single treated unit, low-rank and factor models, time series, distributional and
+multi-outcome settings, endogeneity and proxies, spillovers, staggered adoption,
+and experimental design -- and each is guarded by a durable benchmark: the source
+paper's own empirical result (Path A), its Monte Carlo or simulation-table target
+(Path B), or a numerical cross-check against a reference implementation (X). Six
+classes are dispatchers that host several named methods behind one interface, so
+the number of distinct methods a user can run exceeds the number of classes.
+Rather than freeze that catalogue as a table that would drift out of date, the
+full per-estimator list and its live validation status are maintained on the
+validation dashboard
+(<https://mlsynth.readthedocs.io/en/latest/validation.html>), regenerated from
+the benchmark suite of @sec-quality; @sec-applications illustrates three of the
+estimators in detail, and the dashboard is the map of everything else a one-line
+change can reach.
 
 ## Software design {#sec-arch}
 
@@ -874,22 +830,20 @@ paper's central claim concrete. @abadie2010synthetic estimated the effect of
 California's 1988 Proposition 99 tobacco-control program by building a synthetic
 California from the other states, and put the decline at roughly nineteen packs
 per capita a year. The fifteen years since have produced estimators that answer
-that same question from very different premises. I fit three of them, one from
-each of three traditions, on the one panel and read them off together:
-
-- [VanillaSC]{.pkg}, the convex synthetic control of @abadie2010synthetic --
-  non-negative donor weights summing to one, no extrapolation beyond the donors'
-  hull;
-- [CLUSTERSC]{.pkg} in its robust form [@amjad2018robust], which de-noises the
-  donor matrix through a low-rank principal-component projection before fitting,
-  a matrix-estimation lineage that arrived a decade after the original;
-- [SparseSC]{.pkg} [@vivesibastida2022predictorselectionsyntheticcontrols],
-  which selects predictors and donors jointly through an $\ell_1$ penalty, a
-  capability packaged nowhere else.
+that same question from very different premises, and I fit three of them, one from
+each of three traditions, on the one panel. The first is [VanillaSC]{.pkg}, the
+convex synthetic control of @abadie2010synthetic, whose non-negative donor weights
+sum to one and never reach beyond the donors' hull. The second is [CLUSTERSC]{.pkg}
+in its robust form [@amjad2018robust], a matrix-estimation lineage that arrived a
+decade later: it de-noises the donor matrix through a low-rank principal-component
+projection before fitting. The third is [SparseSC]{.pkg}
+[@vivesibastida2022predictorselectionsyntheticcontrols], which selects predictors
+and donors jointly through an $\ell_1$ penalty, a capability packaged nowhere else;
+I hand it a deliberately over-rich set of thirty-three predictors and let it keep
+only the few that matter.
 
 They share nothing in their internals and everything in their interface, so one
-call fits all three and lines their counterfactuals up against the treated
-series:
+call fits all three and lines their counterfactuals up against the treated series:
 
 ```{python}
 #| label: fit-prop99
@@ -900,24 +854,33 @@ prop99["treated"] = ((prop99["state"] == "California")
 p99 = dict(df=prop99, outcome="cigsale", treat="treated", unitid="state",
            time="year", display_graphs=False)
 
+# SparseSC's value is selection: hand it every usable numeric covariate (plus a
+# few outcome lags) and let the l1 penalty keep the few that carry the fit.
+drop = {"state", "year", "treated", "cigsale", "stateno", "state_fips",
+        "state_icpsr", "is_a_state", "region"}
+pre = prop99[prop99["year"] < 1989]
+covs = [c for c in prop99.columns
+        if c not in drop and prop99[c].dtype.kind in "if"
+        and pre.groupby("state")[c].mean().notna().all()
+        and pre.groupby("state")[c].mean().std() > 0][:30]
+
 # Each estimator is configured however it likes; the comparison only asks that
-# they share the panel. show_bands is a required choice, not a default.
+# they share the panel. show_bands is a required choice, here left off.
 cmp99 = compare_estimators(
-    {"VanillaSC": VanillaSC({**p99, "inference": "scpi", "alpha": 0.10}),
-     "Robust SC": CLUSTERSC({**p99, "method": "PCR", "compute_scpi_pi": True,
-                             "scpi_constraint": "ridge"}),
-     "SparseSC":  SparseSC({**p99, "covariates": ["p_cig", "loginc", "pc_beer"],
+    {"VanillaSC": VanillaSC({**p99}),
+     "Robust SC": CLUSTERSC({**p99, "method": "PCR"}),
+     "SparseSC":  SparseSC({**p99, "covariates": covs,
                             "outcome_lag_periods": [1975, 1980, 1988],
-                            "compute_scpi_pi": True, "run_inference": False})},
-    show_bands=True)
+                            "run_inference": False})},
+    show_bands=False)
 s99 = cmp99.summary
 ```
 
 ```{python}
 #| label: fig-prop99
-#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, red), and the jointly predictor- and donor-selecting control (SparseSC, green), each carrying its scpi prediction interval under the weight constraint its own fitted weights satisfy -- simplex, ridge and simplex respectively -- as a shaded band over the post-1989 window. The vertical line marks the 1989 intervention. The three rest on different assumptions yet agree on the shape and size of the effect."
+#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, red), and the predictor- and donor-selecting control (SparseSC, green). The vertical line marks the 1989 intervention. The three rest on different assumptions -- convex weighting, matrix denoising, and penalized selection -- yet agree on the shape and size of the effect."
 fig, ax = plt.subplots(figsize=(5, 3.2))
-cmp99.plot(ax=ax, band="fill",           # one call: three counterfactuals + bands
+cmp99.plot(ax=ax,                        # one call: three counterfactuals, one axis
            colors={"VanillaSC": "C0", "Robust SC": "C3", "SparseSC": "C2"})
 ax.axvline(1989, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("cigarette sales (packs per capita)")
@@ -930,30 +893,21 @@ same place (@fig-prop99). VanillaSC puts the average post-1989 shortfall at
 value the R package `Synth` and the `MSCMT` solver return on this panel to the
 decimals reported in @sec-related; the low-rank Robust SC, fitting a denoised
 donor matrix, puts it a little larger at
-`{python} f"{abs(s99.att['Robust SC']):.2f}"`; and SparseSC, choosing a sparse
-set of predictors and donors, returns
+`{python} f"{abs(s99.att['Robust SC']):.2f}"`; and SparseSC, keeping only a handful
+of the thirty-three predictors it was handed, returns
 `{python} f"{abs(s99.att['SparseSC']):.2f}"`. That three methods from three
-methodological lineages -- convex weighting, matrix denoising and penalized
+methodological lineages -- convex weighting, matrix denoising, and penalized
 selection -- all land near a twenty-pack annual decline is the kind of robustness
 check that, before one interface carried them, meant three packages, three data
-formats, and three notions of a result reconciled by hand. The robust control
-fits the pre-period tightest on its denoised donor matrix (RMSE
+formats, and three notions of a result reconciled by hand. The robust control fits
+the pre-period tightest on its denoised donor matrix (RMSE
 `{python} f"{s99.pre_rmse['Robust SC']:.2f}"`), the convex control barely behind
 (`{python} f"{s99.pre_rmse['VanillaSC']:.2f}"`), and SparseSC a little looser
-(`{python} f"{s99.pre_rmse['SparseSC']:.2f}"`) -- the price of a sparse fit that,
-unlike the others, names the handful of predictors it keeps.
-
-The comparison also carries uncertainty the same way for all three. Each fit's
-prediction interval is the @cattaneo2025scpi engine run under the weight
-constraint the fitted weights satisfy -- the simplex constraint for the convex
-control, the ridge constraint scpi pairs with robust synthetic control, and
-again the simplex constraint for the penalized fit, whose $\ell_1$ penalty
-selects the donors but leaves the surviving weights on the simplex -- so a single
-inference apparatus adapts to each method rather than three bespoke intervals
-drawn on one axis. Only the
-interface is shared; what varies is the estimator, so the disagreement between
-the three is attributable to their assumptions alone, each cross-validated
-against its own reference implementation (@sec-related).
+(`{python} f"{s99.pre_rmse['SparseSC']:.2f}"`), the price of a sparse fit that,
+unlike the others, names the handful of predictors it keeps. Only the interface is
+shared; what varies is the estimator, so the disagreement between the three is
+attributable to their assumptions alone, each cross-validated against its own
+reference implementation (@sec-related).
 
 ### Three defenses on one panel {#sec-westgermany}
 
@@ -972,22 +926,19 @@ outside the United States.
 @abadie2015comparative asked what the 1990 reunification cost West German GDP per
 capita, building a synthetic West Germany from other OECD economies and tracing a
 shortfall that widened across the 1990s. I answer the same question three ways,
-each estimator built to survive a different one of the three failures:
-
-- [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) [@proximaltheory], which
-  reads the donor outcomes as error-laden proxies of West Germany's untreated
-  path and uses a *second, disjoint set of donor countries as instruments* to
-  purge the measurement error -- a proximal-causal-inference repair for noisy
-  proxies;
-- [CLUSTERSC]{.pkg} in its robust-PCA form (`rpca`) [@bayani2021robust], which
-  splits the donor matrix into a low-rank signal and a sparse-outlier part by
-  principal component pursuit and fits on the denoised signal -- a repair for a
-  contaminated donor pool;
-- [SPILLSYNTH]{.pkg}'s inclusive synthetic control (`iscm`)
-  [@distefano2024inclusive], which *keeps* Austria -- the neighbour most exposed
-  to reunification -- in the pool and solves it jointly with West Germany,
-  de-contaminating the spillover rather than discarding the donor -- a repair for
-  a no-interference violation.
+each estimator built to survive a different one of the three failures. The first
+is [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) [@proximaltheory], which
+reads the donor outcomes as error-laden proxies of West Germany's untreated path
+and uses a second, disjoint set of donor countries as instruments to purge the
+measurement error, a proximal-causal-inference repair for noisy proxies. The
+second is [CLUSTERSC]{.pkg} in its robust-PCA form (`rpca`) [@bayani2021robust],
+which splits the donor matrix into a low-rank signal and a sparse-outlier part by
+principal component pursuit and fits on the denoised signal, a repair for a
+contaminated donor pool. The third is [SPILLSYNTH]{.pkg}'s inclusive synthetic
+control (`iscm`) [@distefano2024inclusive], which keeps Austria, the neighbour
+most exposed to reunification, in the pool and solves it jointly with West
+Germany, de-contaminating the spillover rather than discarding the donor, a repair
+for a no-interference violation.
 
 Each was, until now, reachable only as its authors' own research code: the
 over-identified proximal estimator in the manuscript repository for
@@ -1013,20 +964,19 @@ instruments = [c for c in germany["country"].unique()
 
 cmpwg = compare_estimators(
     {"PIOID": PROXIMAL({**wg, "donors": proxies, "outcome_instruments": instruments,
-                        "methods": ["PIOID"], "pioid_band": True}),
-     "RPCA-SC": CLUSTERSC({**wg, "method": "rpca", "rpca_method": "PCP",
-                           "compute_scpi_pi": True, "scpi_constraint": "simplex"}),
+                        "methods": ["PIOID"]}),
+     "RPCA-SC": CLUSTERSC({**wg, "method": "rpca", "rpca_method": "PCP"}),
      "Inclusive SCM": SPILLSYNTH({**wg, "method": "iscm",
                                   "affected_units": ["Austria"]})},
-    show_bands=True)
+    show_bands=False)
 swg = cmpwg.summary
 ```
 
 ```{python}
 #| label: fig-germany
-#| fig-cap: "The 1990 West German reunification through three synthetic-control repairs, fit and compared in one call. Observed West German GDP per capita (black) against the over-identified proximal counterfactual (PIOID, blue), the robust-PCA control (RPCA-SC, red), and the inclusive control that keeps Austria in the donor pool (Inclusive SCM, green). PIOID carries a GMM delta-method band and RPCA-SC an scpi prediction interval, both narrow at this scale; the inclusive control is a point estimator and so carries no per-period band, shown honestly as a bare line rather than an invented one. The vertical line marks the 1990 reunification. Three estimators built to survive three different failures -- noisy proxies, a contaminated donor pool, and an affected neighbour -- agree that reunification cost West Germany on the order of fifteen hundred dollars a head a year."
+#| fig-cap: "The 1990 West German reunification through three synthetic-control repairs, fit and compared in one call. Observed West German GDP per capita (black) against the over-identified proximal counterfactual (PIOID, blue), the robust-PCA control (RPCA-SC, red), and the inclusive control that keeps Austria in the donor pool (Inclusive SCM, green). The vertical line marks the 1990 reunification. Three estimators built to survive three different failures -- noisy proxies, a contaminated donor pool, and an affected neighbour -- agree that reunification cost West Germany on the order of fifteen hundred dollars a head a year."
 fig, ax = plt.subplots(figsize=(5.2, 3.2))
-cmpwg.plot(ax=ax, band="fill",           # one call: three counterfactuals + their bands
+cmpwg.plot(ax=ax,                        # one call: three counterfactuals, one axis
            colors={"PIOID": "C0", "RPCA-SC": "C3", "Inclusive SCM": "C2"})
 ax.axvline(1990, color="0.4", lw=1.0)
 ax.set_xlabel("year"); ax.set_ylabel("GDP per capita (2002 US$)")
@@ -1049,23 +999,13 @@ land within a couple of hundred dollars of one another is the robustness the
 reunification literature has long asserted and rarely shown side by side, because
 showing it meant three research codebases in two languages.
 
-The comparison carries uncertainty in the same slot for every method that has it,
-and is silent for the one that does not. `PIOID`'s band is the Shi et al. GMM
-interval -- a delta-method spread of the counterfactual through the joint
-$(\tau, \omega)$ sandwich, with a Newey-West correction for serial dependence --
-while `RPCA-SC`'s is the @cattaneo2025scpi prediction interval under the simplex
-constraint its non-negative weights satisfy. Both are read from the same
-canonical band on the result, so `compare_estimators` draws them without knowing
-how either was produced. The inclusive control is a closed-form point estimator
-with no per-period interval in its theory, and the comparison neither invents one
-nor drops the method: it plots the counterfactual as a bare line, so the reader
-sees exactly which of the three quantify their own uncertainty and which does
-not. Each fit is cross-validated against its originating implementation --
-the proximal estimator against the authors' manuscript code, the robust-PCA
-control against Bayani's own scripts, the inclusive control against Di Stefano
-and Mellace's -- and those checks are pinned as durable benchmarks
+Only the interface is shared. Each fit is cross-validated against its originating
+implementation -- the proximal estimator against the authors' manuscript code, the
+robust-PCA control against Bayani's own scripts, the inclusive control against Di
+Stefano and Mellace's -- and those checks are pinned as durable benchmarks
 (`benchmarks/cases/proximal_germany_oid.py`, `clustersc_rpca_germany.py`,
-`spillsynth_iscm_germany.py`).
+`spillsynth_iscm_germany.py`), so the agreement in @fig-germany is a fact about the
+methods rather than reconciled code.
 
 ### Experimental design {#sec-design}
 
@@ -1382,7 +1322,7 @@ may expose options `mlsynth` does not, and the library reproduces these methods
 rather than re-deriving or extending them. Coverage is uneven across regimes —
 most estimators target a single treated unit, with a smaller set for staggered
 adoption and for experimental design — and a few of the newest additions are
-still awaiting a durable benchmark case (the dashes in @tbl-catalogue). The
+still awaiting a durable benchmark case (flagged on the validation dashboard). The
 Bayesian and design-search estimators are markedly slower than the convex-program
 ones, and the weight solves scale with the size of the donor pool, so very large
 panels carry a cost. Inference is method-specific by design: each estimator
