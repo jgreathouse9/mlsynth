@@ -1039,14 +1039,14 @@ $\mathbf{v}$ for the treated and control weights, and $z_j \in \{0,1\}$ for
 whether unit $j$ is treated. The base (`standard`) design solves
 
 $$
-\min_{\mathbf{w},\,\mathbf{v},\,\mathbf{z}}\;
-\Bigl\lVert \bar{\mathbf{x}} - \textstyle\sum_j w_j \mathbf{x}_j \Bigr\rVert_2^2
-+ \Bigl\lVert \bar{\mathbf{x}} - \textstyle\sum_j v_j \mathbf{x}_j \Bigr\rVert_2^2
-\quad\text{s.t.}\quad
-\textstyle\sum_j w_j = \sum_j v_j = 1,\;\;
-w_j, v_j \ge 0,\;\;
-w_j \le z_j,\;\;
-v_j \le 1 - z_j,
+\begin{aligned}
+\min_{\mathbf{w},\,\mathbf{v},\,\mathbf{z}}\quad
+& \Bigl\lVert \bar{\mathbf{x}} - \textstyle\sum_j w_j \mathbf{x}_j \Bigr\rVert_2^2
++ \Bigl\lVert \bar{\mathbf{x}} - \textstyle\sum_j v_j \mathbf{x}_j \Bigr\rVert_2^2 \\
+\text{s.t.}\quad
+& \textstyle\sum_j w_j = \sum_j v_j = 1, \quad w_j, v_j \ge 0, \\
+& w_j \le z_j, \quad v_j \le 1 - z_j,
+\end{aligned}
 $$ {#eq-marex}
 
 with the number of treated units bounded by $m_{\min} \le \sum_j z_j \le
