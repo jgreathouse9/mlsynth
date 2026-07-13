@@ -28,14 +28,15 @@ abstract: |
   returns weights, a counterfactual, and a gap, so one interface makes them
   directly comparable on identical inputs and lets the library span both
   estimation and experimental design, which the surrounding ecosystem has not
-  packaged together. We illustrate the library with four worked applications, one
-  per regime: a single treated unit on Abadie and Gardeazabal's Basque study, fit
-  with two solvers and Cattaneo, Feng, and Titiunik prediction intervals;
-  a spatial-autoregressive model of spillover on the 2011 Sudan secession,
-  recovering the GDP cost and mapping it onto neighbouring economies;
-  proximal inference on the Panic of 1907, including methods previously available
-  only in R or nowhere; and experimental design with MAREX, which reproduces
-  Abadie and Zhao's Walmart placebo design on real store data.
+  packaged together. We illustrate the library with three worked applications:
+  a cross-method comparison on Proposition 99, where convex, robust-matrix, and
+  predictor-selecting synthetic controls are fit and read off together in one
+  call, each carrying a matched prediction interval; a second comparison on the
+  West German reunification, where proximal, robust-PCA, and spillover-inclusive
+  estimators -- each previously available only in R or as research code -- guard
+  against a different threat to the fit yet agree on the effect; and experimental
+  design with MAREX, which reproduces Abadie and Zhao's Walmart placebo design on
+  real store data.
 keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
 keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
 bibliography: paper.bib
@@ -67,9 +68,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import mlsynth
-from mlsynth import (VanillaSC, SDID, CLUSTERSC, SPILLSYNTH, SparseSC, PROXIMAL,
+from mlsynth import (VanillaSC, CLUSTERSC, SPILLSYNTH, SparseSC, PROXIMAL,
                      compare_estimators)
-from mlsynth.utils.counterfactual_compare import compare_counterfactuals
 from mlsynth.utils.plotting import apply_mlsynth_style
 
 apply_mlsynth_style()                                     # mlsynth house style for every figure
@@ -314,12 +314,13 @@ shared computational view and the resulting taxonomy of estimators. @sec-arch
 describes the library's software design along the path one call takes: the
 Pydantic-validated configuration object [@pydantic], the one-package-per-estimator
 structure, the internal data-preparation routine, and the standardized result
-hierarchy. @sec-applications then illustrates the library by problem regime: one
-treated unit on Abadie and Gardeazabal's Basque data, fit with two synthetic-control
-solvers that no other package carries together and with prediction intervals;
-spillovers, relaxing the no-interference assumption with a spatial-autoregressive
-model of the 2011 Sudan secession through the SPILLSYNTH dispatcher; proximal inference on the
-Panic of 1907, with three estimators that existed only in R or nowhere; and
+hierarchy. @sec-applications then illustrates the library by problem regime: a cross-method
+comparison on the Proposition 99 tobacco panel, where convex, robust-matrix, and
+predictor-selecting synthetic controls are fit and read off together in one call,
+each with a matched prediction interval; a second comparison on the West German
+reunification, where a proximal, a robust-PCA, and a spillover-inclusive
+estimator -- each previously confined to R or to research code -- defend against
+a different threat to the fit and still agree on the effect; and
 experimental design, using MAREX to
 reproduce Abadie and Zhao's Walmart placebo design on real store data and
 situate it in the broader design family.
@@ -867,13 +868,16 @@ inference off this common object without any estimator-specific glue.
 
 ## Applications {#sec-applications}
 
-The next four subsections put the library to work, one per problem regime: a
-cross-method comparison on one panel, spillovers, proximal inference under
-imperfect fit, and experimental design. Each is a self-contained, reproducible
-transcript, and together they show that moving between regimes is a change of
-estimator against an unchanged data frame, not a change of tool -- most directly
-in the first, where three estimators are fit and read off together in a single
-call.
+The next three subsections put the library to work, one per problem regime: two
+cross-method comparisons on a single panel each -- a forgiving one and an
+adversarial one -- and an experimental design. Each is a self-contained,
+reproducible transcript, and together they show that moving between regimes, and
+between the estimators that suit them, is a change of argument against an
+unchanged data frame, not a change of tool. The first two make the point most
+directly, fitting three estimators and reading them off together in a single
+call: the Proposition 99 panel where the traditions agree easily, and the West
+German reunification where each estimator must first survive a different threat
+to the fit.
 
 ### Three traditions on one panel {#sec-estimation}
 
@@ -963,272 +967,117 @@ interface is shared; what varies is the estimator, so the disagreement between
 the three is attributable to their assumptions alone, each cross-validated
 against its own reference implementation (@sec-related).
 
-### Spillovers {#sec-spillovers}
+### Three defenses on one panel {#sec-westgermany}
 
-The illustration so far treats the donor pool as clean: untreated units are assumed
-unaffected by the treatment, the stable-unit-treatment-value assumption (SUTVA) that
-synthetic control inherits from the wider causal-inference literature. Interventions
-often violate it, and a national breakup is a stark case. When South Sudan seceded in
-2011 the shock did not halt at the new border: it moved the economies of Sudan's
-trading partners, so those countries are contaminated donors. The long-standing
-remedy is subtractive, dropping the units you suspect, as an earlier synthetic-control
-analysis of this very episode dropped Sudan's neighbours, trading a SUTVA violation
-for a smaller, weaker comparison. A newer literature keeps every unit and models the
-leakage instead, and `mlsynth` gathers five such estimators behind one dispatcher,
-[SPILLSYNTH]{.pkg}, chosen by a `method` keyword [@cao2023estimation;
-@distefano2024inclusive; @melnychuk2024synthetic; @grossi2025direct;
-@sakaguchi2026identification].
+The Proposition 99 panel was forgiving: California's donors are clean, its
+pre-period is long, and every estimator tracked it well. Most panels are less
+kind, and three failures recur. The donor outcomes can be noisy measurements of
+the forces that actually move the treated unit, so a fit that matches them
+matches the noise as well as the signal. A few contaminated donors can distort
+the whole synthetic control. And a donor can be struck by the very treatment it
+is supposed to be innocent of, breaking the no-interference assumption that
+synthetic control inherits from the wider causal-inference literature. Each
+failure has spawned its own repair, and `mlsynth` carries three of them; we set
+them against each other on the study that made synthetic control canonical
+outside the United States.
 
-We use the spatial-autoregressive model of @sakaguchi2026identification
-(`method="sar"`), a Bayesian synthetic control that lets the treatment propagate
-across a trade-weighted spatial-weight matrix and so estimates the treated effect and
-a *per-donor* spillover jointly, rather than assuming the donors inert. The treated
-unit is the former united Sudan (North and South recombined); the donors are other
-African economies; the weights `spatial_W` and `spatial_w` are built from pre-period
-bilateral trade. The partition year 2011 is dropped, since GDP per capita is
-undefined for the split itself.
+@abadie2015comparative asked what the 1990 reunification cost West German GDP per
+capita, building a synthetic West Germany from other OECD economies and tracing a
+shortfall that widened across the 1990s. We answer the same question three ways,
+each estimator built to survive a different one of the three failures:
+
+- [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) [@proximaltheory], which
+  reads the donor outcomes as error-laden proxies of West Germany's untreated
+  path and uses a *second, disjoint set of donor countries as instruments* to
+  purge the measurement error -- a proximal-causal-inference repair for noisy
+  proxies;
+- [CLUSTERSC]{.pkg} in its robust-PCA form (`rpca`) [@bayani2021robust], which
+  splits the donor matrix into a low-rank signal and a sparse-outlier part by
+  principal component pursuit and fits on the denoised signal -- a repair for a
+  contaminated donor pool;
+- [SPILLSYNTH]{.pkg}'s inclusive synthetic control (`iscm`)
+  [@distefano2024inclusive], which *keeps* Austria -- the neighbour most exposed
+  to reunification -- in the pool and solves it jointly with West Germany,
+  de-contaminating the spillover rather than discarding the donor -- a repair for
+  a no-interference violation.
+
+Each was, until now, reachable only as its authors' own research code: the
+over-identified proximal estimator in the manuscript repository for
+@proximaltheory, the robust-PCA control in Bayani's dissertation scripts, and the
+inclusive method in Di Stefano and Mellace's replication files -- three
+languages of result, none installable off the shelf. `mlsynth` carries all three
+behind one interface, so a single call fits them and reads their counterfactuals
+off together:
 
 ```{python}
-#| label: fit-sudan-sar
-panel = pd.read_csv(find_data("sudan_panel.csv"))
-W = pd.read_csv(find_data("sudan_W_matrix.csv"), index_col=0)            # control-to-control
-w = pd.read_csv(find_data("sudan_w_vector.csv"), index_col=0).squeeze()  # treated-to-control
-gdp, covs = panel.columns[3], list(panel.columns[4:10])   # GDP per capita + six covariates
-panel["treated"] = ((panel["country"] == "Sudan") & (panel["year"] >= 2011)).astype(int)
+#| label: fit-germany
+germany = pd.read_csv(find_data("german_reunification.csv"))
+germany["treated"] = ((germany["country"] == "West Germany")
+                      & (germany["year"] >= 1990)).astype(int)
+wg = dict(df=germany, outcome="gdp", treat="treated", unitid="country",
+          time="year", display_graphs=False)
 
-res = SPILLSYNTH({"df": panel, "outcome": gdp, "treat": "treated", "unitid": "country",
-                  "time": "year", "method": "sar", "spatial_W": W, "spatial_w": w,
-                  "covariates": covs, "p_factors": 1, "mcmc_iter": 8000, "mcmc_burn": 2000,
-                  "step_rho": 0.02, "mcmc_seed": 20251022, "display_graphs": False}).fit()
+# PIOID alone needs a proxy/instrument split of the donor pool: the six countries
+# that carry synthetic West Germany act as proxies, the rest as instruments.
+proxies = ["Austria", "Italy", "Japan", "Netherlands", "Switzerland", "USA"]
+instruments = [c for c in germany["country"].unique()
+               if c not in proxies + ["West Germany"]]
 
-sud = panel[panel["country"] == "Sudan"].sort_values("year")
-yr, obs = sud["year"].to_numpy(), sud[gdp].to_numpy(float)
-cf = np.asarray(res.time_series.counterfactual_outcome, float).ravel()
-pct = 100 * (obs - cf) / cf                                # per-year % effect vs counterfactual
-e12, e15 = pct[yr == 2012][0], pct[yr == 2015][0]
-spill = {k.split(",")[0]: float(np.mean(v)) for k, v in res.spillover_effects.items()}
-top2 = [k for k, _ in sorted(spill.items(), key=lambda kv: kv[1])[:2]]
+cmpwg = compare_estimators(
+    {"PIOID": PROXIMAL({**wg, "donors": proxies, "outcome_instruments": instruments,
+                        "methods": ["PIOID"], "pioid_band": True}),
+     "RPCA-SC": CLUSTERSC({**wg, "method": "rpca", "rpca_method": "PCP",
+                           "compute_scpi_pi": True, "scpi_constraint": "simplex"}),
+     "Inclusive SCM": SPILLSYNTH({**wg, "method": "iscm",
+                                  "affected_units": ["Austria"]})},
+    show_bands=True)
+swg = cmpwg.summary
 ```
 
-The spatial model recovers the secession's cost: GDP per capita in the Sudans falls
-about `{python} f"{abs(e12):.0f}"`% below its synthetic counterfactual by 2012,
-widening to about `{python} f"{abs(e15):.0f}"`% by 2015, reproducing the
-@sakaguchi2026identification finding (their estimates are 7.8% then 9.5%, a 34%
-cumulative loss). The spillover is not a nuisance assumed away but an estimand of its
-own: the deepest negative spillovers fall on `{python} top2[0]` and
-`{python} top2[1]`, the partners with the strongest trade ties to Sudan, exactly the
-units a subtractive analysis would have deleted from the pool.
-
 ```{python}
-#| label: fig-spillovers
-#| echo: false
-#| fig-cap: "The 2011 Sudan secession through the spatial-autoregressive SPILLSYNTH model. Left: GDP per capita in the former united Sudan (black) against its SAR counterfactual (red dashed, with a 95% credible band), an estimator that keeps and models every donor; the partition year 2011 is omitted and the vertical line marks the pre/post split. The economy holds to its synthetic path through 2010, then settles well below it. Right: the estimated per-donor spillover, the model's distinctive output: the secession's shock leaks onto Sudan's trading partners, deepest on Egypt and Kenya, the economies a neighbour-dropping analysis would have discarded."
-keep = yr != 2011                                       # omit the partition transition year
-postf = yr >= 2011
-gci = np.asarray(res.sar.gap_ci, float)                # gap credible band, 2011..2015
-cflo, cfhi = obs[postf] - gci[:, 1], obs[postf] - gci[:, 0]
-show = yr[postf] != 2011
-
-fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.2, 3.0))
-a1.plot(yr[keep], obs[keep], "k-", lw=1.6, label="the Sudans (observed)")
-a1.plot(yr[keep], cf[keep], "C3--", lw=1.4, label="SAR counterfactual")
-a1.fill_between(yr[postf][show], cflo[show], cfhi[show], color="C3", alpha=0.18)
-a1.axvline(2010, color="0.4", lw=1.0); a1.set_xticks([2000, 2005, 2010, 2015])
-a1.set_xlabel("year"); a1.set_ylabel("GDP per capita (2015 US$)", fontsize=8)
-a1.set_title("Sudan secession (2011)", fontsize=8); a1.legend(fontsize=6.5, loc="lower right")
-
-top8 = sorted(spill.items(), key=lambda kv: kv[1])[:8]
-a2.barh(range(len(top8))[::-1], [v for _, v in top8], color="C3")
-a2.set_yticks(range(len(top8))[::-1]); a2.set_yticklabels([k for k, _ in top8], fontsize=7)
-a2.axvline(0, color="0.5", lw=0.8); a2.set_xlabel("GDP per capita spillover", fontsize=8)
-a2.set_title("Spillover onto trade partners", fontsize=8)
+#| label: fig-germany
+#| fig-cap: "The 1990 West German reunification through three synthetic-control repairs, fit and compared in one call. Observed West German GDP per capita (black) against the over-identified proximal counterfactual (PIOID, blue), the robust-PCA control (RPCA-SC, red), and the inclusive control that keeps Austria in the donor pool (Inclusive SCM, green). PIOID carries a GMM delta-method band and RPCA-SC an scpi prediction interval, both narrow at this scale; the inclusive control is a point estimator and so carries no per-period band, shown honestly as a bare line rather than an invented one. The vertical line marks the 1990 reunification. Three estimators built to survive three different failures -- noisy proxies, a contaminated donor pool, and an affected neighbour -- agree that reunification cost West Germany on the order of fifteen hundred dollars a head a year."
+fig, ax = plt.subplots(figsize=(5.2, 3.2))
+cmpwg.plot(ax=ax, band="fill",           # one call: three counterfactuals + their bands
+           colors={"PIOID": "C0", "RPCA-SC": "C3", "Inclusive SCM": "C2"})
+ax.axvline(1990, color="0.4", lw=1.0)
+ax.set_xlabel("year"); ax.set_ylabel("GDP per capita (2002 US$)")
 fig.tight_layout(); plt.show()
 ```
 
-What a cross-method panel would give as a band of disagreement, the SAR model gives
-as a map: not just how large the effect on Sudan is, but where it went. The treated
-effect and the per-donor spillovers come from one fit under one declared spatial
-structure, and the result carries the standard schema, so the spillover ranking is
-read off the same object as the counterfactual. SUTVA is relaxed by modelling the
-interference, not by guessing which units to discard.
+The three repairs disagree about what threatens the fit and agree about the
+answer (@fig-germany). The over-identified proximal estimator, correcting the
+donor proxies with a separate block of instrument countries, puts the average
+post-1990 loss at \$`{python} f"{abs(swg.att['PIOID']):.0f}"` a head a year; the
+robust-PCA control, fitting West Germany to a donor matrix stripped of its
+sparse outliers, returns \$`{python} f"{abs(swg.att['RPCA-SC']):.0f}"`; and the
+inclusive control, which refuses to drop Austria and de-contaminates the
+spillover instead, returns \$`{python} f"{abs(swg.att['Inclusive SCM']):.0f}"`.
+The inclusive figure is the more negative for a reason the method makes explicit:
+a synthetic West Germany that quietly borrows from an Austria depressed by the
+same shock understates the loss, and putting Austria back in on its own terms
+restores it. That three estimators guarding against three unrelated pathologies
+land within a couple of hundred dollars of one another is the robustness the
+reunification literature has long asserted and rarely shown side by side, because
+showing it meant three research codebases in two languages.
 
-### Proximal inference {#sec-proximal}
-
-The illustrations so far lean on a good pre-treatment fit: the synthetic control
-tracks the treated unit before the intervention, and we trust it to keep tracking
-after. When that fit is poor, or the donors are noisy measurements of the forces
-that actually move the outcome, classical synthetic control can be biased, and the
-proxy rationale of @sec-model takes over. Read the donor outcomes as error-laden
-proxies of the treated unit's untreated path, and use a second set of proxies to
-correct the measurement error: this is the proximal-inference family, and until now
-no installable package put it in a Python user's hands. The two-proxy surrogate
-estimator of @proximaltheory and @pmlr-v238-liu24a existed only as its authors'
-replication code;^[`github.com/freshtaste/proximal` -- a research repository rather
-than a documented, installable package, known to few and usable off the shelf by
-fewer. `mlsynth` cross-validates against it (pinned commit `a67d81e`) in
-`benchmarks/cases/proximal_panic1907.py`.] the single-proxy method of
-@ParkTchetgenTchetgen2025 shipped only as [an R package](https://github.com/qkrcks0218/SPSC);
-and the spillover-detection screen of @oriordan2025spillover had no public
-implementation in any language. `mlsynth` carries all three, so they can be run
-against each other on a single panel.
-
-The natural testbed is the one the proximal papers use themselves: the Panic of
-1907 [@fohlin2021panic]. A failed corner of the copper market triggered a run on
-the Knickerbocker Trust, and the panic spread to the Trust Company of America. The
-question is what the panic did to the treated trust's stock price, against a
-counterfactual built from trusts conjectured to be unaffected. The donor proxy is
-each trust's logged bid price; the affected trusts, repurposed, supply the second
-proxy.
-
-```{python}
-#| label: load-panic
-from mlsynth import PROXIMAL, SPOTSYNTH
-
-# The Panic of 1907 trust panel (Fohlin-Lu): logged stock prices of the trusts,
-# the treated trust struck by the panic after period 229. The donor proxy is each
-# trust's logged bid price; the affected trusts supply the second (surrogate) proxy.
-panic = pd.read_stata(find_data("trust.dta"))
-panic = panic[panic["ID"] != 1].copy()              # drop the one unbalanced trust
-panic["Panic"] = np.where((panic["time"] > 229) & (panic["ID"] == 34), 1, 0)
-panic[["bid_itp", "ask_itp"]] = panic[["bid_itp", "ask_itp"]].apply(np.log)
-affected = panic[panic["introuble"] == 1]["ID"].unique().tolist()
-normal = panic[panic["type"] == "normal"]["ID"].unique().tolist()
-```
-
-We fit three readings of the same panel. `PROXIMAL` carries the two-proxy estimator
-of @proximaltheory and @pmlr-v238-liu24a (here `PI`) and the single-proxy method of
-@ParkTchetgenTchetgen2025 (`SPSC`); `SPOTSYNTH` screens the donor pool for
-spillover contamination and then debiases through the donors it excludes.
-
-```{python}
-#| label: fit-proximal
-prox_base = dict(df=panic, treat="Panic", time="date", outcome="prc_log", unitid="ID",
-                 vars={"donorproxies": ["bid_itp"], "surrogatevars": ["ask_itp"]},
-                 donors=normal, surrogates=affected, display_graphs=False,
-                 spsc_spline_df=6)   # the authors' six-dim cubic B-spline detrend B_6(t)
-spot_base = dict(df=panic, outcome="prc_log", treat="Panic", time="time", unitid="ID",
-                 display_graphs=False, selection="S1", forecast="loo")
-
-prox = PROXIMAL({**prox_base, "methods": ["PI", "SPSC"]}).fit()
-att = prox.att_by_method()                       # two-proxy PI and single-proxy SPSC
-
-spot = SPOTSYNTH({**spot_base,                    # screen the pool, then debias
-                  "inference": "frequentist", "debias": True}).fit()
-
-screen = spot.screen
-names = [int(n) for n in screen.donor_names]
-fe = np.asarray(screen.forecast_error)
-excluded = {int(names[i]) for i in np.asarray(screen.excluded_idx)}
-tca_rank = list(np.array(names)[np.argsort(-fe)]).index(57) + 1
-agree = abs(att["PI"] - spot.att_debiased)
-```
-
-The two estimators that use a second proxy agree closely. `PROXIMAL`'s two-proxy
-`PI` puts the panic's effect on the treated trust at
-`{python} f"{att['PI']:.2f}"` log points, and `SPOTSYNTH`'s proximal debias, built
-on an entirely different selection of donors, lands within
-`{python} f"{agree:.3f}"` of it. The single-proxy `SPSC`, which needs no second
-proxy and so uses less information, returns a smaller
-`{python} f"{att['SPSC']:.2f}"`. The agreement between `PI` and the debiased
-screen, built on a different selection of donors, is a fact about the methods
-rather than reconciled code, since each read the same prepared frame.
-
-```{python}
-#| label: fig-proximal-screen
-#| echo: false
-#| fig-cap: "The SPOTSYNTH spillover screen on the Panic of 1907. Each donor trust is placed by its leave-one-out forecast error: how far its realised post-panic price departs from a forecast built on the pre-panic donor panel. Trusts the screen keeps as valid donors are blue; those it excludes as spillover-contaminated are red. Run blind on the pool, the screen ranks the Trust Company of America, the trust the proximal papers single out as panic-struck, as the single most anomalous donor, and excludes it."
-fig, ax = plt.subplots(figsize=(5, 3))
-order = np.argsort(fe)
-rank = np.arange(len(names))
-kept = np.array([names[i] not in excluded for i in order])
-ax.scatter(rank[kept], fe[order][kept], s=14, color="C0", label="kept (valid)")
-ax.scatter(rank[~kept], fe[order][~kept], s=14, color="C3", label="excluded")
-ti = list(np.array(names)[order]).index(57)
-ax.annotate("Trust Co. of America", (ti, fe[order][ti]), fontsize=7,
-            xytext=(ti - 22, fe.max() * 0.82),
-            arrowprops=dict(arrowstyle="->", lw=0.7))
-ax.set_xlabel("donor rank (ascending forecast error)")
-ax.set_ylabel("leave-one-out forecast error")
-ax.legend(fontsize=7, loc="upper left"); fig.tight_layout(); plt.show()
-```
-
-The screen earns its keep on a second axis: deciding which donors are valid in the
-first place. @oriordan2025spillover forecast each donor's post-panic value from the
-pre-panic donor panel; a donor whose realised value departs from that forecast has
-been hit by a spillover or seen its latent shift, and is dropped. Run blind on the
-trust pool, the screen ranks the Trust Company of America, the very trust the
-proximal papers name as panic-struck, as the single most anomalous donor of
-`{python} f"{len(names)}"`, and excludes it, recovering a domain fact it was never
-told. The recovery is partial, and honestly so: the Panic of 1907 was a systemic
-shock that moved every trust's latent at once, the regime @oriordan2025spillover
-flag as their method's hard case, so the screen cleanly isolates only the most
-violently affected trust.
-
-`SPOTSYNTH` meets three needs in a single pass: it *detects* which donors are
-compromised with the forecast test, *mitigates* the damage by excluding them and
-fitting on the survivors, and *corrects* the residual bias by turning the excluded
-donors into instruments, an instrumental-variables correction in proximal dress.
-These are ordinarily three literatures and three pieces of code; the econometric
-advance is @oriordan2025spillover's, and the package makes the whole pipeline
-reachable off the shelf.
-
-A last need is honest uncertainty, and here the package offers more than one kind.
-`SPOTSYNTH` can wrap its counterfactual in a Bayesian credible band by sampling the
-donor-weight posterior; `SPSC` instead inverts a conformal test for a finite-sample
-prediction interval that assumes no model of the weights at all. Both read the same
-panel, and @fig-proximal-intervals draws them together.
-
-```{python}
-#| label: fig-proximal-intervals
-#| fig-cap: "Two kinds of uncertainty on the same panel. The treated trust's observed log price (black) collapses after the panic (vertical line), while two counterfactuals hold near the pre-panic level. SPOTSYNTH's Bayesian 95% credible band (blue), from sampling the donor-weight posterior, and SPSC's 95% conformal prediction interval (red), from inverting a finite-sample test, are drawn as shaded regions. On this panel the two are comparably tight, the conformal interval if anything the narrower, so its distribution-free coverage costs little precision here."
-treated = panic[panic["ID"] == 34].sort_values("time")
-y, tax = treated["prc_log"].to_numpy(), treated["time"].to_numpy()
-post = tax > 229
-
-# SPSC with a conformal interval on the per-period effect (Park-Tchetgen); turn the
-# effect band into a band on the counterfactual, y - effect.
-spsc = PROXIMAL({**prox_base, "methods": ["SPSC"], "spsc_conformal": True}).fit().spsc
-conf = spsc.metadata["conformal"]
-pidx = np.asarray(conf["periods"])
-spsc_lo = y[pidx] - np.asarray(conf["upper"])
-spsc_hi = y[pidx] - np.asarray(conf["lower"])
-
-# SPOTSYNTH with a Bayesian credible band (sample the donor-weight posterior).
-spb = SPOTSYNTH({**spot_base, "inference": "bayes",
-                 "n_samples": 1000, "n_warmup": 1000, "ci_level": 0.95, "seed": 0}).fit()
-cf_b = np.asarray(spb.time_series.counterfactual_outcome)
-
-cmp = compare_counterfactuals({
-    "SPOTSYNTH (Bayesian 95% credible)": {
-        "counterfactual": cf_b, "time": tax, "periods": tax[post],
-        "lower": np.asarray(spb.counterfactual_lower)[post],
-        "upper": np.asarray(spb.counterfactual_upper)[post]},
-    "SPSC (95% conformal)": {
-        "counterfactual": np.asarray(spsc.counterfactual), "time": tax,
-        "periods": tax[pidx], "lower": spsc_lo, "upper": spsc_hi},
-}, observed=y, time=tax)
-
-fig, ax = plt.subplots(figsize=(5.2, 3.2))
-cmp.plot(ax=ax, band="fill",                     # shaded bands, not error-bar spikes
-         colors={"SPOTSYNTH (Bayesian 95% credible)": "C0", "SPSC (95% conformal)": "C3"},
-         styles={"SPOTSYNTH (Bayesian 95% credible)": "--", "SPSC (95% conformal)": "-."})
-ax.axvline(229, color="0.4", lw=1.0)            # full series; no x-axis crop
-ax.set_xlabel("period"); ax.set_ylabel("log stock price")
-ax.legend(fontsize=6.5, loc="lower left"); fig.tight_layout(); plt.show()
-```
-
-The two bands answer different questions. The conformal interval makes no model of
-the weights at all, yet here it is no wider than the Bayesian band, if anything
-slightly tighter, so its distribution-free, finite-sample coverage costs little
-precision on this panel. The Bayesian band is comparably narrow, but leans on the
-weight model it samples. Neither is uniformly right, and that is the point: an analyst
-who needs a coverage guarantee and one who needs a sharp interval are both served,
-from the same panel, by changing an `inference` keyword. The cross-method agreement, the screen's
-ranking, and these intervals are pinned as a durable benchmark
-(`benchmarks/cases/spotsynth_panic1907.py`). Methods that lived only in R, or
-nowhere, thus read one panel through one interface, answer detection, mitigation,
-bias-correction, and inference in a single place, and can be checked against each
-other.
+The comparison carries uncertainty in the same slot for every method that has it,
+and is silent for the one that does not. `PIOID`'s band is the Shi et al. GMM
+interval -- a delta-method spread of the counterfactual through the joint
+$(\tau, \omega)$ sandwich, with a Newey-West correction for serial dependence --
+while `RPCA-SC`'s is the @cattaneo2025scpi prediction interval under the simplex
+constraint its non-negative weights satisfy. Both are read from the same
+canonical band on the result, so `compare_estimators` draws them without knowing
+how either was produced. The inclusive control is a closed-form point estimator
+with no per-period interval in its theory, and the comparison neither invents one
+nor drops the method: it plots the counterfactual as a bare line, so the reader
+sees exactly which of the three quantify their own uncertainty and which does
+not. Each fit is cross-validated against its originating implementation --
+the proximal estimator against the authors' manuscript code, the robust-PCA
+control against Bayani's own scripts, the inclusive control against Di Stefano
+and Mellace's -- and those checks are pinned as durable benchmarks
+(`benchmarks/cases/proximal_germany_oid.py`, `clustersc_rpca_germany.py`,
+`spillsynth_iscm_germany.py`).
 
 ### Experimental design {#sec-design}
 
@@ -1526,11 +1375,13 @@ software has fragmented along with it. We have argued the fragmentation is large
 incidental: most of these estimators run one computation, differing only in how they
 constrain or denoise a single shared fit (@sec-unified). `mlsynth` takes that
 observation seriously, placing more than forty estimators behind one data contract,
-one validated configuration-and-fit interface, and one standardized result. The four
-illustrations show what the consolidation buys: a controlled comparison of two
-solvers on Abadie and Gardeazabal's Basque study; a spatial-autoregressive model
-mapping the 2011 Sudan secession's spillover onto its trade partners; three proximal estimators, previously available only
-in R or nowhere, agreeing on the Panic of 1907; and an experimental design with
+one validated configuration-and-fit interface, and one standardized result. The three
+illustrations show what the consolidation buys: a cross-method comparison of convex,
+robust-matrix, and predictor-selecting synthetic controls on Proposition 99, fit and
+read off together in one call; a second comparison on the West German reunification,
+where proximal, robust-PCA, and spillover-inclusive estimators -- each previously
+available only in R or as research code -- guard against different threats to the fit
+and still agree on the effect; and an experimental design with
 MAREX, the first packaged synthetic-control design, reproducing Abadie and Zhao's
 Walmart placebo on real data through the same interface as every estimator before it. Once a dozen estimators
 report in one format on one panel, the applied question can shift from which method
@@ -1579,9 +1430,10 @@ at <https://mlsynth.readthedocs.io>.
 The paper is reproducible from its own source. Rendering `paper/paper.qmd` re-runs
 every code block above and regenerates each number and figure from the installed
 library, against the package versions pinned in `paper/requirements.txt`. The
-handful of analyses that draw random numbers, the differential-evolution solver in
-the Basque fit, the MAREX design search, and the SPOTSYNTH Bayesian sampler, fix a
-seed at the call site, so their output is stable from one render to the next.
+handful of analyses that draw random numbers, the simulation-based scpi
+prediction intervals in the two cross-method comparisons and the MAREX design
+search, fix a seed at the call site, so their output is stable from one render to
+the next.
 
 The benchmark suite that holds each estimator to its outside answer is described
 in @sec-quality. Its reference cross-checks are frozen at pinned commits and run
