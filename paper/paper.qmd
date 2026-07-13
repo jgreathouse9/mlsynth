@@ -119,7 +119,7 @@ geo-experiments on the augmented synthetic control of @benmichael2021augmented.
 This proliferation carries costs for the practitioner. Each new SCM variant
 typically ships as its own codebase, usually replication code attached to its
 paper rather than an installable package [@pmlr-v238-liu24a;
-@ParkTchetgenTchetgen2025; @amjad2018robust; @malo2024computing]. By *packaged* we
+@ParkTchetgenTchetgen2025; @amjad2018robust; @malo2024computing]. By *packaged* I
 mean software installable from a standard channel (GitHub, `pip`, CRAN, or Stata's
 SSC) and called as-is, without moving files into a working directory or
 reassembling the authors' replication archive by hand.
@@ -147,7 +147,7 @@ recurs in policy analysis, where several treatments may be assigned at once
 [@revpaper]; yet SI has no maintained, packaged implementation. Inference methods
 for small control pools, such as the leave-two-out refined placebo test of
 @lei2025inferencesyntheticcontrolsrefined, have no implementation in any language
-we know of. The predictor-selection method of
+I know of. The predictor-selection method of
 @vivesibastida2022predictorselectionsyntheticcontrols has no public
 implementation. Well-maintained packages exist [@robbins2021microsynth;
 @shi2023forward; @cattaneo2025scpi], but much of the new literature ships only as
@@ -182,9 +182,9 @@ previously spanned several packages across two languages, where available at all
 paper does not re-derive the forty-odd methods it ships; each has its own
 optimization, inference theory, and proofs, which belong to the source papers and
 the per-estimator documentation
-(for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>) and which we
-cite rather than reproduce. Nor is anything special about the three estimators we
-illustrate below: none is privileged over the dozens we omit, and a different
+(for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>) and which I
+cite rather than reproduce. Nor is anything special about the three estimators I
+illustrate below: none is privileged over the dozens I omit, and a different
 three would have served as well. They can be shown side by side, and swapped with
 a one-line edit, because they share one input contract and one interface.
 
@@ -192,9 +192,9 @@ a one-line edit, because they share one input contract and one interface.
 
 Individually, the estimators in `mlsynth` are already well served by existing
 software. The canonical implementations live in R and Stata, split one method to a
-package; the few Python options each cover a narrow slice. We group the
+package; the few Python options each cover a narrow slice. I group the
 representative packages by strand, note the `mlsynth` equivalent, and report where
-we have checked the two numerically; @tbl-related collects them.
+I have checked the two numerically; @tbl-related collects them.
 
 The original synthetic control method ships as the R package `Synth`
 [@abadie2011synth], itself a paper in this journal, and is reproduced as
@@ -268,7 +268,7 @@ factor-model estimators behind a common interface, the nearest peer to `mlsynth`
 missing-data family ([MCNNM]{.pkg}, [SNN]{.pkg}), but does not carry the simplex,
 regression-control, penalized, spillover-aware, or experimental-design estimators.
 
-To our knowledge `mlsynth` is the first comprehensive Python library for this
+To my knowledge `mlsynth` is the first comprehensive Python library for this
 family: every estimator named above, and roughly forty more, is reached through one
 data-preparation step, one configuration-and-fit call, and one standardized result,
 where today a researcher who wants to weigh these methods against one another must
@@ -333,7 +333,7 @@ It helps to state the causal target in potential-outcomes terms [@rubin1974;
 the outcome were unit $i$ exposed to the intervention in period $t$, and
 $y_{it}(0)$, the outcome were it not. Let $D_{it} = 1$ when unit $i$ is under the
 intervention in period $t$ and $D_{it} = 0$ otherwise; in the single-treated-unit
-design $D_{it} = 1$ exactly when $i = 1$ and $t > T_0$. What we observe is governed
+design $D_{it} = 1$ exactly when $i = 1$ and $t > T_0$. What I observe is governed
 by the switching equation,
 $$
 y_{it} \;=\; D_{it}\,y_{it}(1) \;+\; (1 - D_{it})\,y_{it}(0),
@@ -341,7 +341,7 @@ $$ {#eq-switch}
 so a unit reveals its treated potential outcome only while it is treated and its
 untreated one the rest of the time. Only one of the two is ever seen in any cell,
 the fundamental problem of causal inference [@holland1986]. For the treated unit
-after $T_0$ we therefore observe $y_{1t} = y_{1t}(1)$, while the quantity the
+after $T_0$ I therefore observe $y_{1t} = y_{1t}(1)$, while the quantity the
 analysis needs, the untreated potential outcome $y_{1t}(0)$, is missing. The
 per-period effect on the treated unit is the gap
 $$
@@ -573,7 +573,7 @@ of distinct methods a user can run exceeds the number of classes.
 The library is organized so that each piece teaches the next. A user writes one
 configuration, hands it to one estimator, and reads one result; in between, the
 data are prepared, internally, identically, by one routine the user never calls.
-We follow that path (config, estimator, data preparation, result) because it is
+I follow that path (config, estimator, data preparation, result) because it is
 also the order in which the design builds on itself. Two commitments run through
 all four. Outwardly, every estimator presents the same surface, so learning one
 teaches every other. Inwardly, every estimator is its own self-contained package,
@@ -869,12 +869,12 @@ to the fit.
 
 ### Three traditions on one panel {#sec-estimation}
 
-We open with the study that made the method famous, and use it to make the
+I open with the study that made the method famous, and use it to make the
 paper's central claim concrete. @abadie2010synthetic estimated the effect of
 California's 1988 Proposition 99 tobacco-control program by building a synthetic
 California from the other states, and put the decline at roughly nineteen packs
 per capita a year. The fifteen years since have produced estimators that answer
-that same question from very different premises. We fit three of them, one from
+that same question from very different premises. I fit three of them, one from
 each of three traditions, on the one panel and read them off together:
 
 - [VanillaSC]{.pkg}, the convex synthetic control of @abadie2010synthetic --
@@ -965,13 +965,13 @@ matches the noise as well as the signal. A few contaminated donors can distort
 the whole synthetic control. And a donor can be struck by the very treatment it
 is supposed to be innocent of, breaking the no-interference assumption that
 synthetic control inherits from the wider causal-inference literature. Each
-failure has spawned its own repair, and `mlsynth` carries three of them; we set
+failure has spawned its own repair, and `mlsynth` carries three of them; I set
 them against each other on the study that made synthetic control canonical
 outside the United States.
 
 @abadie2015comparative asked what the 1990 reunification cost West German GDP per
 capita, building a synthetic West Germany from other OECD economies and tracing a
-shortfall that widened across the 1990s. We answer the same question three ways,
+shortfall that widened across the 1990s. I answer the same question three ways,
 each estimator built to survive a different one of the three failures:
 
 - [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) [@proximaltheory], which
@@ -1074,7 +1074,7 @@ happened, and the estimator's job was to reconstruct, after the fact, the
 counterfactual path of a unit that was treated whether or not a good comparison
 existed for it. The third regime inverts the order of operations. Here the
 experiment has not run yet, and the question is one of *design*: of all the
-units we could treat, which ones should we, and which should we hold back as
+units I could treat, which ones should I, and which should I hold back as
 controls, so a credible comparison exists once the experiment is over? The data
 are the same shape as before, a panel of units over time, but the assignment is
 now the thing being chosen rather than given, and choosing it well is what makes
@@ -1088,10 +1088,10 @@ compromise the comparison before it begins. MAREX
 [@abadie2026syntheticcontrolsexperimentaldesign] instead chooses the treated and
 control units up front, so that each group reproduces the population on its
 pre-period predictors; the paper proves this non-randomized design sharply reduces
-the bias of the effect later estimated, and to our knowledge `mlsynth` is the
+the bias of the effect later estimated, and to my knowledge `mlsynth` is the
 first package to make it available off the shelf.
 
-We reproduce the authors' own empirical illustration (their Section 4): a
+I reproduce the authors' own empirical illustration (their Section 4): a
 *placebo* experiment on a balanced panel of weekly sales for forty-five Walmart
 stores over 143 weeks [@prakash2023walmart]. The intervention is
 fictitious, so no store is actually treated, and a sound design must therefore
@@ -1129,12 +1129,12 @@ with the open-source SCIP solver (the paper used commercial Gurobi). Once the
 weights are fixed, the per-period effect is the gap between the two synthetic
 units, $\widehat{\tau}_t = \sum_j w_j y_{jt} - \sum_j v_j y_{jt}$. The `MAREX`
 class also exposes the paper's other objectives through one `design` argument
-(`weakly_targeted`, `penalized`, `unit_penalized`); we use the base design here.
+(`weakly_targeted`, `penalized`, `unit_penalized`); I use the base design here.
 
-We hand the authors' own Walmart panel to MAREX. It carries weekly sales for
+I hand the authors' own Walmart panel to MAREX. It carries weekly sales for
 forty-five stores together with four store-level covariates an experimenter can
 also balance on, the local average temperature, fuel price, consumer price index,
-and unemployment rate [@prakash2023walmart]. We design a placebo experiment with a
+and unemployment rate [@prakash2023walmart]. I design a placebo experiment with a
 fictitious intervention at week 129, taking the first hundred weeks as the fitting
 window, the next twenty-eight as held-out blank weeks, and the final fifteen as
 the experimental period, and fix the number of treated stores to two, the count
@@ -1283,7 +1283,7 @@ an effect the experiment could detect and how long it must run (the derivation i
 on the estimator's documentation page,
 <https://mlsynth.readthedocs.io/en/latest/marex.html>). Design, estimate,
 permutation test, conformal band, and power curve all fall out of one `fit`, the
-first time, as far as we know, that this design-and-analyze workflow has been
+first time, as far as I know, that this design-and-analyze workflow has been
 packaged for applied use.
 
 #### The broader design family {#sec-design-family}
@@ -1304,7 +1304,7 @@ enumeration cannot. `mlsynth` also reproduces Meta's industry `GeoLift`
 geo-experiment walkthrough [@geolift] to within numerical tolerance, shipped as a
 durable benchmark, so one interface spans the academic and industrial corners of
 the design literature. Selecting an experiment and, later, analyzing it are two
-calls against one library rather than two separate tools, and to our knowledge
+calls against one library rather than two separate tools, and to my knowledge
 no other package places this design family alongside the full estimation catalog
 behind a common interface.
 
@@ -1359,7 +1359,7 @@ project's functionality as new estimators are added.
 ## Summary {#sec-summary}
 
 Synthetic control has grown from a single method into a sprawling family, and the
-software has fragmented along with it. We have argued the fragmentation is largely
+software has fragmented along with it. I have argued the fragmentation is largely
 incidental: most of these estimators run one computation, differing only in how they
 constrain or denoise a single shared fit (@sec-unified). `mlsynth` takes that
 observation seriously, placing more than forty estimators behind one data contract,
@@ -1388,7 +1388,7 @@ ones, and the weight solves scale with the size of the donor pool, so very large
 panels carry a cost. Inference is method-specific by design: each estimator
 carries the procedure its own theory supports rather than one uniform scheme.
 None of these is fundamental, and the shared interface makes each a contained
-target for later work; we record them so the catalog's breadth is not mistaken
+target for later work; I record them so the catalog's breadth is not mistaken
 for uniform depth.
 
 ## Computational details {#sec-computational}
