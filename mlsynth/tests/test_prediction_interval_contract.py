@@ -69,6 +69,23 @@ def test_post_only_band_aligns_onto_axis():
     assert np.allclose(hi[3:], [2.0, 2.5])
 
 
+def test_full_length_band_with_redundant_periods_uses_bounds():
+    # The EIV / conformal inference paths stash a full-length (NaN-padded) band
+    # *and* a post-only ``periods`` label list. That pairing must be accepted:
+    # the bounds are already aligned, so ``periods`` is redundant, not a
+    # length-mismatch error. (Regression for the PR #229 band-lift, which only
+    # handled the scpi convention of post-only bounds keyed by ``periods``.)
+    t = np.array([2000, 2001, 2002, 2003, 2004])          # T0 = 3
+    full_lo = [np.nan, np.nan, np.nan, 1.0, 1.5]
+    full_hi = [np.nan, np.nan, np.nan, 2.0, 2.5]
+    lo, hi = normalize_counterfactual_band(
+        lower=full_lo, upper=full_hi,
+        periods=[2003, 2004], time_periods=t)             # post-only periods
+    assert np.isnan(lo[:3]).all() and np.isnan(hi[:3]).all()
+    assert np.allclose(lo[3:], [1.0, 1.5])
+    assert np.allclose(hi[3:], [2.0, 2.5])
+
+
 def test_one_sided_band_rejected():
     with pytest.raises(MlsynthConfigError):
         normalize_counterfactual_band(lower=[1, 2], upper=None,
@@ -183,3 +200,36 @@ def test_vanillasc_scpi_populates_canonical_band():
     post = np.isfinite(ts.counterfactual_lower)
     assert post.any() and not post.all()
     assert str(ts.prediction_interval_kind).startswith("scpi:")
+
+
+def _factor_panel_df(T=20, T0=14, n=6, seed=0):
+    import pandas as pd
+    rng = np.random.default_rng(seed)
+    F = rng.standard_normal((T, 3)); L = rng.standard_normal((n + 1, 3))
+    Y = F @ L.T + 0.2 * rng.standard_normal((T, n + 1)); Y[T0:, 0] -= 3.0
+    rows = [{"unit": f"u{u}", "year": 2000 + t, "y": float(Y[t, u]),
+             "tr": int(u == 0 and t >= T0)}
+            for u in range(n + 1) for t in range(T)]
+    return pd.DataFrame(rows), T, T0
+
+
+@pytest.mark.parametrize("mode", ["eiv", "conformal"])
+def test_vanillasc_full_length_inference_populates_canonical_band(mode):
+    # EIV and conformal stash a full-length band + post-only periods in
+    # inference.details; the canonical band must populate on the post-tail
+    # rather than raising a length mismatch (regression for PR #229).
+    import warnings
+    from mlsynth import VanillaSC
+
+    df, T, T0 = _factor_panel_df()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = VanillaSC({"df": df, "outcome": "y", "treat": "tr",
+                         "unitid": "unit", "time": "year",
+                         "display_graphs": False, "inference": mode}).fit()
+    ts = res.time_series
+    assert ts.has_prediction_interval is True
+    assert len(ts.counterfactual_lower) == T
+    post = np.isfinite(ts.counterfactual_lower)
+    assert post.any() and not post.all()
+    assert np.all(ts.counterfactual_upper[post] >= ts.counterfactual_lower[post])
