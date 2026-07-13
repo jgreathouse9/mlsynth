@@ -15,9 +15,8 @@ author:
 abstract: |
   Synthetic control and its descendants are a default tool for estimating the
   effect of a policy, product, or intervention on a few aggregate units. The
-  literature has fractured into dozens of variants -- robust, penalized,
-  factor-model, proximal, and matrix-completion estimators, and a newer family of
-  experimental-design methods that choose which units to treat -- each usually a
+  literature has fractured into dozens of variants, alongside a newer family of
+  experimental-design methods that choose which units to treat, each usually a
   separate package with its own data conventions, result format, and inference,
   spread across R, Stata, and Python. This paper introduces `mlsynth`, a Python
   library that collects them behind a common interface. Because most share a
