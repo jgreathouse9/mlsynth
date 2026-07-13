@@ -67,7 +67,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import mlsynth
-from mlsynth import VanillaSC, SDID, CLUSTERSC, SPILLSYNTH
+from mlsynth import (VanillaSC, SDID, CLUSTERSC, SPILLSYNTH, SparseSC, PROXIMAL,
+                     compare_estimators)
 from mlsynth.utils.counterfactual_compare import compare_counterfactuals
 from mlsynth.utils.plotting import apply_mlsynth_style
 
@@ -867,137 +868,99 @@ inference off this common object without any estimator-specific glue.
 ## Applications {#sec-applications}
 
 The next four subsections put the library to work, one per problem regime: a
-single treated unit, spillovers, proximal inference under imperfect fit, and
-experimental design. Each is a self-contained, reproducible transcript, and
-together they show that moving between regimes is a change of estimator against an
-unchanged data frame, not a change of tool.
+cross-method comparison on one panel, spillovers, proximal inference under
+imperfect fit, and experimental design. Each is a self-contained, reproducible
+transcript, and together they show that moving between regimes is a change of
+estimator against an unchanged data frame, not a change of tool -- most directly
+in the first, where three estimators are fit and read off together in a single
+call.
 
-### A single treated unit {#sec-estimation}
+### Three traditions on one panel {#sec-estimation}
 
-We begin with the other study that made the method famous. @abadie2003economic
-built a synthetic Basque Country to estimate what ETA's terrorism campaign cost the
-regional economy, tracking per-capita GDP against a weighted combination of other
-Spanish regions.
+We open with the study that made the method famous, and use it to make the
+paper's central claim concrete. @abadie2010synthetic estimated the effect of
+California's 1988 Proposition 99 tobacco-control program by building a synthetic
+California from the other states, and put the decline at roughly nineteen packs
+per capita a year. The fifteen years since have produced estimators that answer
+that same question from very different premises. We fit three of them, one from
+each of three traditions, on the one panel and read them off together:
 
-The example also lets us look inside the *optimization* step of @sec-unified,
-because a synthetic control's weights are harder to compute than they look. The
-classical specification chooses predictor weights and donor weights together, an
-outer search over the predictors wrapped around an inner fit for the donors, and
-@malo2024computing show this nested problem is a bilevel program whose optimum is
-typically a corner solution that data-driven nested solvers can fail to reach. Two
-solver families address it. The nested differential-evolution search of the R
-package `MSCMT` [@becker2018fast] is the careful, widely used implementation of
-Abadie and Gardeazabal's original procedure; the bilevel solver of
-@malo2024computing reaches the global optimum but ships only as replication code,
-in no installable package. `mlsynth` carries both as backends of one estimator,
-[VanillaSC]{.pkg}, one `backend` keyword apart, so they can be run on the same
-panel and compared, which no other package permits.
+- [VanillaSC]{.pkg}, the convex synthetic control of @abadie2010synthetic --
+  non-negative donor weights summing to one, no extrapolation beyond the donors'
+  hull;
+- [CLUSTERSC]{.pkg} in its robust form [@amjad2018robust], which de-noises the
+  donor matrix through a low-rank principal-component projection before fitting,
+  a matrix-estimation lineage that arrived a decade after the original;
+- [SparseSC]{.pkg} [@vivesibastida2022predictorselectionsyntheticcontrols],
+  which selects predictors and donors jointly through an $\ell_1$ penalty, a
+  capability packaged nowhere else.
 
-```{python}
-#| label: load-basque
-# Abadie-Gardeazabal's Basque panel (the MSCMT-transformed spec), treated from
-# 1970, with their thirteen predictors each averaged over its own window.
-basque = pd.read_csv(find_data("basque_mscmt.csv"))
-basque["treat"] = ((basque["regionname"] == "Basque Country (Pais Vasco)")
-                   & (basque["year"] >= 1970)).astype(int)
-
-schooling = ["school.illit", "school.prim", "school.med", "school.higher", "invest"]
-sectors = ["sec.agriculture", "sec.energy", "sec.industry", "sec.construction",
-           "sec.services.venta", "sec.services.nonventa"]
-covariates = schooling + ["gdpcap"] + sectors + ["popdens"]
-windows = ({c: (1964, 1969) for c in schooling}
-           | {c: (1961, 1969) for c in sectors}
-           | {"gdpcap": (1960, 1969), "popdens": (1969, 1969)})
-
-ag_base = dict(df=basque, outcome="gdpcap", treat="treat", unitid="regionname",
-               time="year", covariates=covariates, covariate_windows=windows,
-               fit_window=(1960, 1969), inference="scpi", alpha=0.10,
-               display_graphs=False)
-```
-
-#### One problem, two solvers {#sec-two-solvers}
-
-We fit the Abadie-Gardeazabal specification twice, changing only the solver. The
-first call passes `backend="mscmt"`, the nested differential-evolution search,
-which reproduces the `MSCMT` vignette value-for-value; the second passes
-`backend="malo"`, the bilevel solver, which reproduces the `scm.corner` reference
-of @malo2024computing. Both attach the @cattaneo2021prediction prediction intervals
-through the same `inference="scpi"` switch.
+They share nothing in their internals and everything in their interface, so one
+call fits all three and lines their counterfactuals up against the treated
+series:
 
 ```{python}
-#| label: fit-basque
-mscmt = VanillaSC({**ag_base, "backend": "mscmt", "canonical_v": "min.loss.w",
-                   "mscmt_maxiter": 400, "mscmt_popsize": 20, "seed": 42}).fit()
-malo = VanillaSC({**ag_base, "backend": "malo", "seed": 0}).fit()       # one keyword
+#| label: fit-prop99
+prop99 = pd.read_csv(find_data("augmented_cali_long.csv"))
+prop99 = prop99[prop99["year"] <= 2000].copy()
+prop99["treated"] = ((prop99["state"] == "California")
+                     & (prop99["year"] >= 1989)).astype(int)
+p99 = dict(df=prop99, outcome="cigsale", treat="treated", unitid="state",
+           time="year", display_graphs=False)
 
-# One call carries the figure (counterfactuals + observed + CFT bands) and every
-# number below: the stored att, the stored all-pre pre_rmse, and the windowed fit
-# loss over 1960-1969. Observed and the time axis are read off the results.
-cmp = compare_counterfactuals(
-    {"MSCMT nested solver": mscmt, "Malo bilevel solver": malo},
-    fit_window=(1960, 1969))
-s = cmp.summary
-gap_pct = 100 * (s.att["Malo bilevel solver"] - s.att["MSCMT nested solver"]) \
-          / s.att["MSCMT nested solver"]
+# Each estimator is configured however it likes; the comparison only asks that
+# they share the panel. show_bands is a required choice, not a default.
+cmp99 = compare_estimators(
+    {"VanillaSC": VanillaSC({**p99, "inference": "scpi", "alpha": 0.10}),
+     "Robust SC": CLUSTERSC({**p99, "method": "PCR", "compute_scpi_pi": True,
+                             "scpi_constraint": "ridge"}),
+     "SparseSC":  SparseSC({**p99, "covariates": ["p_cig", "loginc", "pc_beer"],
+                            "outcome_lag_periods": [1975, 1980, 1988],
+                            "compute_scpi_pi": True, "run_inference": False})},
+    show_bands=True)
+s99 = cmp99.summary
 ```
 
 ```{python}
-#| label: fig-basque
-#| fig-cap: "The Abadie-Gardeazabal Basque study fit twice, changing only the solver. Observed Basque per-capita GDP (black) against the synthetic control from the MSCMT nested differential-evolution search (blue, dashed) and the Malo et al. bilevel solver (red, dash-dotted), each carrying its Cattaneo-Feng-Titiunik 90% prediction interval as per-period error bars over the post-treatment window (dodged for legibility). The solid vertical line marks 1970, the start of the treatment window; the solvers fit the pre-period almost identically yet rest on different donor weights (@fig-basque-weights)."
-
+#| label: fig-prop99
+#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, red), and the jointly predictor- and donor-selecting control (SparseSC, green), each carrying its scpi prediction interval under the weight constraint natural to it -- simplex, ridge and lasso respectively -- as a shaded band over the post-1989 window. The vertical line marks the 1989 intervention. The three rest on different assumptions yet agree on the shape and size of the effect."
 fig, ax = plt.subplots(figsize=(5, 3.2))
-cmp.plot(ax=ax, dodge=0.5,           # one call: both counterfactuals + CFT bands
-         colors={"MSCMT nested solver": "C0", "Malo bilevel solver": "C3"},
-         styles={"MSCMT nested solver": "--", "Malo bilevel solver": "-."},
-         legend=False)
-ax.axvline(1970, color="0.4", lw=1.0)
-ax.set_xlabel("year"); ax.set_ylabel("GDP per capita (000s USD)")
-ax.legend(fontsize=6.5, loc="upper left"); fig.tight_layout(); plt.show()
+cmp99.plot(ax=ax, band="fill",           # one call: three counterfactuals + bands
+           colors={"VanillaSC": "C0", "Robust SC": "C3", "SparseSC": "C2"})
+ax.axvline(1989, color="0.4", lw=1.0)
+ax.set_xlabel("year"); ax.set_ylabel("cigarette sales (packs per capita)")
+fig.tight_layout(); plt.show()
 ```
 
-The two solvers build different synthetic Basque Countries from the same donor pool
-(@fig-basque-weights). The nested search puts most of its weight on Cataluna; the
-bilevel solver drops Cataluna entirely, promotes Madrid to the largest donor, and
-adds Rioja. They are solving the same problem, and @malo2024computing's point is
-that the nested search need not reach its optimum, which is what happens here: the
-bilevel solution attains a lower pre-treatment fit loss over the matching window
-(RMSE `{python} f"{s.window_rmse['Malo bilevel solver']:.4f}"` against
-`{python} f"{s.window_rmse['MSCMT nested solver']:.4f}"`, and
-`{python} f"{s.pre_rmse['Malo bilevel solver']:.4f}"` against
-`{python} f"{s.pre_rmse['MSCMT nested solver']:.4f}"` over the
-full pre-period, the result's stored `pre_rmse`). The
-better fit moves the headline number. The nested solver puts the average GDP
-shortfall from terrorism at `{python} f"{abs(s.att['MSCMT nested solver']):.2f}"`
-thousand USD per capita; the bilevel optimum, fitting the pre-period better, puts it
-`{python} f"{abs(gap_pct):.0f}"`% larger at
-`{python} f"{abs(s.att['Malo bilevel solver']):.2f}"`, and
-with a tighter prediction interval that the looser fit would not earn.
-@malo2024computing demonstrate this failure on the California tobacco study; here it
-recurs on the Basque study, the field's other canonical application, in a
-side-by-side comparison only possible because both solvers sit behind one interface.
+The three estimators build California from different premises and land in the
+same place (@fig-prop99). VanillaSC puts the average post-1989 shortfall at
+`{python} f"{abs(s99.att['VanillaSC']):.2f}"` packs per capita, reproducing the
+value the R package `Synth` and the `MSCMT` solver return on this panel to the
+decimals reported in @sec-related; the low-rank Robust SC, fitting a denoised
+donor matrix, puts it a little larger at
+`{python} f"{abs(s99.att['Robust SC']):.2f}"`; and SparseSC, choosing a sparse
+set of predictors and donors, returns
+`{python} f"{abs(s99.att['SparseSC']):.2f}"`. That three methods from three
+methodological lineages -- convex weighting, matrix denoising and penalized
+selection -- all land near a twenty-pack annual decline is the kind of robustness
+check that, before one interface carried them, meant three packages, three data
+formats, and three notions of a result reconciled by hand. The convex control
+fits the pre-period tightest (RMSE
+`{python} f"{s99.pre_rmse['VanillaSC']:.2f}"`), the robust control marginally
+tighter still on the denoised matrix
+(`{python} f"{s99.pre_rmse['Robust SC']:.2f}"`), and SparseSC a little looser
+(`{python} f"{s99.pre_rmse['SparseSC']:.2f}"`) -- the price of a sparse fit that,
+unlike the others, names the handful of predictors it keeps.
 
-Both solutions live under the same `weights.donor_weights` field, and
-@fig-basque-weights plots them side by side.
-
-```{python}
-#| label: fig-basque-weights
-#| fig-cap: "Donor weights from the two solvers (`weights.donor_weights`), regions with negligible weight omitted. The nested search (blue) and the bilevel search (red) select different regions, Cataluna versus Rioja, and weight their shared donors, Madrid and Baleares, differently, for the same treated unit."
-fig, ax = plt.subplots(figsize=(5, 2.8))
-cmp.plot_weights(ax=ax, threshold=1e-3,        # the same comparison, on the weights
-                 colors={"MSCMT nested solver": "C0", "Malo bilevel solver": "C3"},
-                 label=lambda r: r.split(" (")[0])   # drop the parenthetical region tag
-ax.legend(fontsize=7); fig.tight_layout(); plt.show()
-```
-
-That the comparison is controlled is the point. Only the solver changes; the data
-frame, the data-preparation contract, and the result schema are held fixed, so the
-disagreement between the nested solver and the bilevel one is attributable to the
-solver alone rather than to two reconciled implementations, each cross-validated
-against its reference (the R package `MSCMT` and @malo2024computing's `scm.corner`).
-The same one-field edit reaches the rest of the catalog: `SDID` adds unit and time
-weights to a two-way fixed-effects fit [@arkhangelsky2021synthetic], `CLUSTERSC`
-de-noises the donor matrix before fitting [@amjad2018robust], each on the unchanged
-`ag_base` configuration.
+The comparison also carries uncertainty the same way for all three. Each fit's
+prediction interval is the @cattaneo2025scpi engine run under the weight
+constraint that matches the estimator -- the simplex constraint for the convex
+control, the ridge constraint scpi pairs with robust synthetic control, and the
+lasso constraint for the penalized fit -- so a single inference apparatus adapts
+to each method rather than three bespoke intervals drawn on one axis. Only the
+interface is shared; what varies is the estimator, so the disagreement between
+the three is attributable to their assumptions alone, each cross-validated
+against its own reference implementation (@sec-related).
 
 ### Spillovers {#sec-spillovers}
 
