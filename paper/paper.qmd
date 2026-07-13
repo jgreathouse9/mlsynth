@@ -13,19 +13,18 @@ author:
         region: GA
         country: United States
 abstract: |
-  Synthetic control and its descendants are a default tool for estimating the
-  effect of a policy, product, or intervention on a few aggregate units. The
-  literature has fractured into dozens of variants, alongside a newer family of
-  experimental-design methods that choose which units to treat, each usually a
-  separate package with its own data conventions, result format, and inference,
-  spread across R, Stata, and Python. This paper introduces `mlsynth`, a Python
-  library that collects them behind a common interface. Because most share a
-  single computational shape -- a treated-unit vector and a donor matrix produce
-  weights, a counterfactual, and a gap -- the library makes them directly
-  comparable and spans both estimation and experimental design, a combination the
-  surrounding ecosystem lacks. We illustrate with three applications: cross-method
-  comparisons on Proposition 99 and the West German reunification, each fitting
-  several estimators in a single call, and experimental design with MAREX.
+  Synthetic control methods are established tools for estimating treatment
+  effects in economics, policy, and marketing science. The literature now has
+  dozens of variants for observational work, alongside a newer family of
+  experimental-design methods. Each new synthetic-control method usually comes as
+  a separate package with its own data conventions, result format, and inference.
+  I introduce `mlsynth`, a Python library that collects much of the modern
+  synthetic-control literature behind a common interface. The library spans both
+  estimation and experimental design, a combination the surrounding ecosystem
+  lacks. Every estimator is validated against its originating paper or a reference
+  implementation, and these checks are maintained as a durable benchmark suite. I
+  illustrate `mlsynth` with two observational applications and one
+  experimental-design application.
 keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
 keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
 bibliography: paper.bib
