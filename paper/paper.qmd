@@ -15,28 +15,20 @@ author:
 abstract: |
   Synthetic control and its descendants are a default tool for estimating the
   effect of a policy, product, or intervention on a few aggregate units. The
-  literature has fractured into dozens of variants, robust, penalized,
-  factor-model, proximal, forward-selected, and matrix-completion estimators,
-  alongside a newer family of experimental-design methods that choose which units
-  to treat before an intervention runs. Each typically arrives as a separate
-  package with its own data conventions, result format, and inference, often
+  literature has fractured into dozens of variants -- robust, penalized,
+  factor-model, proximal, and matrix-completion estimators, and a newer family of
+  experimental-design methods that choose which units to treat -- each usually a
+  separate package with its own data conventions, result format, and inference,
   spread across R, Stata, and Python. This paper introduces `mlsynth`, a strongly
   typed Python library that places more than forty of them behind one
   data-preparation step, one validated configuration-and-fit interface, and one
-  standardized result. Most of these estimators share a single computational
-  shape, a treated-unit vector and a donor matrix enter an optimization that
-  returns weights, a counterfactual, and a gap, so one interface makes them
-  directly comparable on identical inputs and lets the library span both
-  estimation and experimental design, which the surrounding ecosystem has not
-  packaged together. We illustrate the library with three worked applications:
-  a cross-method comparison on Proposition 99, where convex, robust-matrix, and
-  predictor-selecting synthetic controls are fit and read off together in one
-  call, each carrying a matched prediction interval; a second comparison on the
-  West German reunification, where proximal, robust-PCA, and spillover-inclusive
-  estimators -- each previously available only in R or as research code -- guard
-  against a different threat to the fit yet agree on the effect; and experimental
-  design with MAREX, which reproduces Abadie and Zhao's Walmart placebo design on
-  real store data.
+  standardized result. Because most share a single computational shape -- a
+  treated-unit vector and a donor matrix enter an optimization that returns
+  weights, a counterfactual, and a gap -- one interface makes them directly
+  comparable and spans both estimation and experimental design, a combination the
+  surrounding ecosystem lacks. We illustrate with three applications: cross-method
+  comparisons on Proposition 99 and the West German reunification, each fitting
+  several estimators in a single call, and experimental design with MAREX.
 keywords: [synthetic control, causal inference, panel data, experimental design, difference-in-differences]
 keywords-formatted: [synthetic control, causal inference, panel data, experimental design, "\\proglang{Python}"]
 bibliography: paper.bib
