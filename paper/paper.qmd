@@ -299,8 +299,7 @@ reunification, where a proximal, a robust-PCA, and a spillover-inclusive
 estimator -- each previously confined to R or to research code -- defend against
 a different threat to the fit and still agree on the effect; and
 experimental design, using MAREX to
-reproduce Abadie and Zhao's Walmart placebo design on real store data and
-situate it in the broader design family.
+reproduce Abadie and Zhao's Walmart placebo design on real store data.
 @sec-quality describes the library's testing, validation, and documentation,
 @sec-summary concludes, and @sec-computational records the computational and
 reproducibility details.
@@ -1214,28 +1213,6 @@ on the estimator's documentation page,
 permutation test, conformal band, and power curve all fall out of one `fit`, the
 first time, as far as I know, that this design-and-analyze workflow has been
 packaged for applied use.
-
-#### The broader design family {#sec-design-family}
-
-MAREX is one member of a family of experimental-design estimators that `mlsynth`
-packages together, all sharing the configure-and-fit shape and the standardized
-result used above. Where MAREX matches the population mean by solving a single
-mixed-integer program, the design method of @syndes takes a target effect size
-and *chooses* the treated set so that a credible synthetic control will exist
-afterward, reporting the power of the result; and [LEXSCM]{.pkg}, which has no
-implementation anywhere else, adapts the synthetic experimental design of
-@abadie2026syntheticcontrolsexperimentaldesign, choosing the treated
-combination lexicographically, validity (pre-treatment fit) ahead of power (a
-small minimum detectable effect), with the fast small-treated-set algorithm of
-@vivesibastida2022syntheticexperimentaldesign, ranking combinations by balance
-and pruning budget-infeasible ones so the search scales where exhaustive
-enumeration cannot. `mlsynth` also reproduces Meta's industry `GeoLift`
-geo-experiment walkthrough [@geolift] to within numerical tolerance, shipped as a
-durable benchmark, so one interface spans the academic and industrial corners of
-the design literature. Selecting an experiment and, later, analyzing it are two
-calls against one library rather than two separate tools, and to my knowledge
-no other package places this design family alongside the full estimation catalog
-behind a common interface.
 
 ## Code quality and documentation {#sec-quality}
 
