@@ -166,15 +166,24 @@ class CLUSTERSC:
         )
         ts_band: dict = {}
         if cluster_inference.scpi is not None:
-            from ..utils.results_helpers import normalize_counterfactual_band
             spec = cluster_inference.scpi.to_prediction_interval_spec()
-            axis = np.asarray(inputs.time_labels)
-            lo, hi = normalize_counterfactual_band(
-                spec["lower"], spec["upper"], time_periods=axis,
-                periods=spec["periods"])
-            lo_s, hi_s = normalize_counterfactual_band(
-                spec["lower_simultaneous"], spec["upper_simultaneous"],
-                time_periods=axis, periods=spec["periods"])
+            # The scpi band covers the post-treatment block; place it at the tail
+            # positions of the time axis. (Its ``periods`` are position indices,
+            # not the panel's time labels, so we align by position, not by label.)
+            T = int(inputs.T)
+
+            def _tail(vals):
+                if vals is None:
+                    return None
+                v = np.asarray(vals, dtype=float).reshape(-1)
+                full = np.full(T, np.nan)
+                if v.size:
+                    full[T - v.size:] = v
+                return full
+
+            lo, hi = _tail(spec["lower"]), _tail(spec["upper"])
+            lo_s, hi_s = (_tail(spec["lower_simultaneous"]),
+                          _tail(spec["upper_simultaneous"]))
             ts_band = dict(
                 counterfactual_lower=lo, counterfactual_upper=hi,
                 counterfactual_lower_simultaneous=lo_s,

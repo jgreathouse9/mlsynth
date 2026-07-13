@@ -132,6 +132,25 @@ def test_pcr_scpi_populates_canonical_band(pcr_scpi):
     assert ts.prediction_interval_kind == "scpi:ridge"
 
 
+def test_scpi_band_populates_on_year_labeled_panel(panel):
+    """The band must align on a real (non-integer) time axis: the scpi post
+    periods are position indices, so the estimator places the band by position,
+    not by matching year labels."""
+    df = panel.copy()
+    df["time"] = df["time"] + 1970          # 1970, 1971, ... calendar years
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = CLUSTERSC(_cfg(df, method="pcr", compute_scpi_pi=True,
+                             scpi_constraint="ridge", scpi_sims=60,
+                             random_state=0)).fit()
+    ts = res.time_series
+    assert ts.has_prediction_interval is True
+    post = np.isfinite(ts.counterfactual_lower)
+    assert post.any() and not post.all()
+    # the finite band sits on the post-treatment tail of the axis
+    assert np.isnan(ts.counterfactual_lower[:len(ts.observed_outcome) - int(post.sum())]).all()
+
+
 def test_rpca_scpi_runs(panel):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
