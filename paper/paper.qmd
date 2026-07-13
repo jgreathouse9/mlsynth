@@ -923,7 +923,7 @@ s99 = cmp99.summary
 
 ```{python}
 #| label: fig-prop99
-#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, red), and the jointly predictor- and donor-selecting control (SparseSC, green), each carrying its scpi prediction interval under the weight constraint natural to it -- simplex, ridge and lasso respectively -- as a shaded band over the post-1989 window. The vertical line marks the 1989 intervention. The three rest on different assumptions yet agree on the shape and size of the effect."
+#| fig-cap: "Three synthetic-control traditions fit on the Proposition 99 panel and compared in one call. Observed California per-capita cigarette sales (black) against the convex synthetic control (VanillaSC, blue), the low-rank robust control (Robust SC, red), and the jointly predictor- and donor-selecting control (SparseSC, green), each carrying its scpi prediction interval under the weight constraint its own fitted weights satisfy -- simplex, ridge and simplex respectively -- as a shaded band over the post-1989 window. The vertical line marks the 1989 intervention. The three rest on different assumptions yet agree on the shape and size of the effect."
 fig, ax = plt.subplots(figsize=(5, 3.2))
 cmp99.plot(ax=ax, band="fill",           # one call: three counterfactuals + bands
            colors={"VanillaSC": "C0", "Robust SC": "C3", "SparseSC": "C2"})
@@ -944,20 +944,21 @@ set of predictors and donors, returns
 methodological lineages -- convex weighting, matrix denoising and penalized
 selection -- all land near a twenty-pack annual decline is the kind of robustness
 check that, before one interface carried them, meant three packages, three data
-formats, and three notions of a result reconciled by hand. The convex control
-fits the pre-period tightest (RMSE
-`{python} f"{s99.pre_rmse['VanillaSC']:.2f}"`), the robust control marginally
-tighter still on the denoised matrix
-(`{python} f"{s99.pre_rmse['Robust SC']:.2f}"`), and SparseSC a little looser
+formats, and three notions of a result reconciled by hand. The robust control
+fits the pre-period tightest on its denoised donor matrix (RMSE
+`{python} f"{s99.pre_rmse['Robust SC']:.2f}"`), the convex control barely behind
+(`{python} f"{s99.pre_rmse['VanillaSC']:.2f}"`), and SparseSC a little looser
 (`{python} f"{s99.pre_rmse['SparseSC']:.2f}"`) -- the price of a sparse fit that,
 unlike the others, names the handful of predictors it keeps.
 
 The comparison also carries uncertainty the same way for all three. Each fit's
 prediction interval is the @cattaneo2025scpi engine run under the weight
-constraint that matches the estimator -- the simplex constraint for the convex
-control, the ridge constraint scpi pairs with robust synthetic control, and the
-lasso constraint for the penalized fit -- so a single inference apparatus adapts
-to each method rather than three bespoke intervals drawn on one axis. Only the
+constraint the fitted weights satisfy -- the simplex constraint for the convex
+control, the ridge constraint scpi pairs with robust synthetic control, and
+again the simplex constraint for the penalized fit, whose $\ell_1$ penalty
+selects the donors but leaves the surviving weights on the simplex -- so a single
+inference apparatus adapts to each method rather than three bespoke intervals
+drawn on one axis. Only the
 interface is shared; what varies is the estimator, so the disagreement between
 the three is attributable to their assumptions alone, each cross-validated
 against its own reference implementation (@sec-related).
