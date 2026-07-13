@@ -62,12 +62,9 @@ def normalize_counterfactual_band(
     n = axis.size
     full_lo = np.full(n, np.nan)
     full_hi = np.full(n, np.nan)
-    if periods is not None:
-        band_p = np.asarray(periods).reshape(-1)
-        if band_p.size != lo.size:
-            raise MlsynthConfigError(
-                f"Band 'periods' length ({band_p.size}) does not match the "
-                f"bounds ({lo.size}).")
+    band_p = None if periods is None else np.asarray(periods).reshape(-1)
+    if band_p is not None and band_p.size == lo.size:
+        # Post-only bounds keyed by period labels: scatter onto the axis.
         index = {p: i for i, p in enumerate(axis.tolist())}
         for p, l, u in zip(band_p.tolist(), lo, hi):
             if p not in index:
@@ -76,12 +73,14 @@ def normalize_counterfactual_band(
             full_lo[index[p]] = l
             full_hi[index[p]] = u
     elif lo.size == n:
+        # Already full-length (possibly NaN-padded, as the EIV / conformal
+        # inference paths produce); any accompanying 'periods' list is redundant.
         full_lo[:] = lo
         full_hi[:] = hi
     else:
         raise MlsynthConfigError(
             f"Prediction interval has length {lo.size} but the counterfactual "
-            f"has length {n}; pass 'periods' to align a post-only band.")
+            f"has length {n}; pass a matching 'periods' to align a post-only band.")
     return full_lo, full_hi
 
 
