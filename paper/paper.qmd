@@ -110,15 +110,15 @@ completion [@athey2021matrix], the panel-data approach of
 @hsiao2012panel and its forward selection variant by @shi2023forward, proximal and surrogate methods [@ParkTchetgenTchetgen2025; @proximaltheory; @pmlr-v238-liu24a], and the
 synthetic-difference-in-differences estimator [@arkhangelsky2021synthetic].
 
-Synthetic control also runs before an intervention, not only after it. Used for
-*experimental design*, the same weighting logic chooses which units to treat, and
+Synthetic control can also be used for
+*experimental design*, where a weighting logic chooses which units to treat, and
 which to hold back as controls
-[@abadie2026syntheticcontrolsexperimentaldesign; @syndes], so that a credible
+[@abadie2026syntheticcontrolsexperimentaldesign; @syndes] so that a credible
 counterfactual exists once the experiment ends. Industry moved the same way: Meta's `GeoLift` [@geolift] brought
 the design-first idea to geographic marketing experiments, building valid
 geo-experiments on the augmented synthetic control of @benmichael2021augmented.
 
-This proliferation carries costs. Each new variant typically ships as replication
+This proliferation of methods carries costs to the practitioner, however. Each new SC variant typically ships as replication
 code attached to its paper rather than an installable package [@pmlr-v238-liu24a;
 @ParkTchetgenTchetgen2025; @amjad2018robust; @malo2024computing]; by *packaged* I
 mean installable from a standard channel (GitHub, `pip`, CRAN, Stata's SSC) and
@@ -130,23 +130,7 @@ between the Stata command `rcm` [@yan2022rcm] and the R package `pampe`
 [@vegabayo2015pampe]. Each package brings its own data format, argument names,
 notion of a result, and inference, so comparing two estimators on one dataset can
 mean reshaping the data twice, learning two APIs, and reconciling two result
-formats by hand.
-
-Worse, the gap is uneven: the advances that would help analysts most often have no
-packaged implementation at all. The Synthetic Interventions estimator of @SI,
-which asks how a unit treated with one policy would have fared under another
-[@revpaper], the refined leave-two-out placebo test for small donor pools of
-@lei2025inferencesyntheticcontrolsrefined, and the predictor-selection method of
-@vivesibastida2022predictorselectionsyntheticcontrols all ship, if at all, only as
-paper-replication scripts. Well-maintained packages do exist
-[@robbins2021microsynth; @shi2023forward; @cattaneo2025scpi], but much of the new
-literature is not software a data scientist can use off the shelf.
-
-
-All are capable tools, and `mlsynth` critiques none of them. The obstacle is not
-any one of them but their dispersion: they span at least two languages, with no
-shared data format, no shared notion of a result, and no way to run one against
-another on the same panel without redoing the work each time.
+formats by hand. 
 
 This paper introduces `mlsynth`, a Python [@harris2020array] library that
 addresses this fragmentation. It ships `{python} n_estimators` estimators^[Counted
@@ -160,18 +144,11 @@ periods, enter an optimization that returns weights, a counterfactual, and a gap
 A single interface therefore makes them directly comparable on identical inputs. A
 researcher can fit a `Synth`-style simplex control, an `rcm`-style panel-data
 regression, and a `synthdid`-style difference-in-differences design on one data
-frame, compare them, and attach prediction-interval or conformal inference to
-each.
-
-`mlsynth` aims to make this catalog accessible, free, and simple to call. The
+frame and compare them. `mlsynth` aims to make this catalog accessible, free, and simple to call. The
 paper does not walk through the implementation of every method it ships; each has
 its own optimization, inference theory, and proofs, which belong to the source
 papers and the per-estimator documentation
-(for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>). Nor is
-anything special about the three estimators I
-illustrate below: none is privileged over the dozens I omit, and a different
-three would have served as well. They can be shown side by side, and swapped with
-a one-line edit, because they share one input contract and one interface.
+(for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>).
 
 ### Related software {#sec-related}
 
