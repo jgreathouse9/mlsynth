@@ -92,66 +92,55 @@ is estimating what would have happened to one unit (a state, a country, a market
 a product line) absent some intervention. Randomized experiments are usually
 impossible at this aggregation: there is one California, and it either passed an
 anti-smoking proposition or it did not. The synthetic control method
-[@abadie2003economic; @abadie2010synthetic] answers this by building the missing
-counterfactual as a weighted average of untreated units, a *synthetic* California
-assembled from other states whose weighted donors track the treated unit over a
-pre-intervention window. It is now among the most widely used tools in program
+[@abadie2003economic; @abadie2010synthetic] answers this by choosing a weighted
+average of untreated units, a *synthetic* California assembled from other states,
+with weights picked so the combination tracks the treated unit before the
+intervention. Carried past it, where the donors stay untreated, that same
+weighted average is the imputed counterfactual. It is now among the most widely
+used tools in program
 evaluation [@abadie2021using], and its original software, the `Synth` package
 [@abadie2011synth], appeared in this journal.
 
-Fifteen years on, that one method is a research program. The
+The
 simplex-weighted original sits alongside robust low-rank variants
-[@amjad2018robust], penalized and regularized weights, augmented estimators that
-debias the in-sample simplex fit with an outcome model [@benmichael2021augmented], factor-model and
+[@amjad2018robust], regularized variants [@abadie2021penalized;
+@benmichael2021augmented], factor-model and
 interactive-fixed-effects approaches [@bai2009panel; @xu2017generalized], matrix
 completion [@athey2021matrix], the panel-data approach of
 @hsiao2012panel and its forward selection variant by @shi2023forward, proximal and surrogate methods [@ParkTchetgenTchetgen2025; @proximaltheory; @pmlr-v238-liu24a], and the
 synthetic-difference-in-differences estimator [@arkhangelsky2021synthetic].
 
-A newer literature inverts the question: instead of building a counterfactual
-after the intervention, *experimental-design* methods
-[@abadie2026syntheticcontrolsexperimentaldesign; @syndes] choose which units to
-treat, and their controls, up front, so a credible counterfactual exists once the
-experiment ends. Industry moved the same way: Meta's `GeoLift` [@geolift] brought
+Synthetic control also runs before an intervention, not only after it. Used for
+*experimental design*, the same weighting logic chooses which units to treat, and
+which to hold back as controls
+[@abadie2026syntheticcontrolsexperimentaldesign; @syndes], so that a credible
+counterfactual exists once the experiment ends. Industry moved the same way: Meta's `GeoLift` [@geolift] brought
 the design-first idea to geographic marketing experiments, building valid
 geo-experiments on the augmented synthetic control of @benmichael2021augmented.
 
-This proliferation carries costs for the practitioner. Each new SCM variant
-typically ships as its own codebase, usually replication code attached to its
-paper rather than an installable package [@pmlr-v238-liu24a;
-@ParkTchetgenTchetgen2025; @amjad2018robust; @malo2024computing]. By *packaged* I
-mean software installable from a standard channel (GitHub, `pip`, CRAN, or Stata's
-SSC) and called as-is, without moving files into a working directory or
-reassembling the authors' replication archive by hand.
+This proliferation carries costs. Each new variant typically ships as replication
+code attached to its paper rather than an installable package [@pmlr-v238-liu24a;
+@ParkTchetgenTchetgen2025; @amjad2018robust; @malo2024computing]; by *packaged* I
+mean installable from a standard channel (GitHub, `pip`, CRAN, Stata's SSC) and
+called as-is, without reassembling an author's replication archive by hand. What
+does ship scatters across languages even within one lineage: the doubly-robust
+proximal estimator of @drprox is in R and its surrogate sibling
+[@pmlr-v238-liu24a] in Python; the panel-data regression-control approach is split
+between the Stata command `rcm` [@yan2022rcm] and the R package `pampe`
+[@vegabayo2015pampe]. Each package brings its own data format, argument names,
+notion of a result, and inference, so comparing two estimators on one dataset can
+mean reshaping the data twice, learning two APIs, and reconciling two result
+formats by hand.
 
-The pieces scatter across languages even within one lineage: the doubly-robust
-proximal estimator of @drprox is in R, its surrogate-based sibling
-[@pmlr-v238-liu24a] in Python; the panel-data regression-control approach is the
-Stata command `rcm` [@yan2022rcm] and the R package `pampe` [@vegabayo2015pampe].
-A single method fragments too: the original `Synth` surfaced in three syntaxes
-(unpackaged MATLAB alongside the packaged Stata and R versions), and even the two
-packaged versions differ, since the R one needs a separate `dataprep` step the
-Stata command does not. Each package brings its own data format, argument names,
-notion of a "result", and inference (when it has any). Comparing two estimators on
-one dataset can mean reshaping the data twice, learning two APIs, and reconciling
-two result formats by hand. Synthetic difference-in-differences alone ships as the
-R package `synthdid` and the Stata command `sdid` [@arkhangelsky2021synthetic;
-@clarke2023sdid], each with its own syntax.
-
-
-Worse, the gap between methods and usable software is uneven: advances that would
-help analysts often have no packaged implementation at all. A major recent
-development, the Synthetic Interventions estimator of @SI, lets analysts ask, "How
-would Unit 1, treated with A, have looked under B instead?", a question that
-recurs in policy analysis, where several treatments may be assigned at once
-[@revpaper]; yet SI has no maintained, packaged implementation. Inference methods
-for small control pools, such as the leave-two-out refined placebo test of
-@lei2025inferencesyntheticcontrolsrefined, have no implementation in any language
-I know of. The predictor-selection method of
-@vivesibastida2022predictorselectionsyntheticcontrols has no public
-implementation. Well-maintained packages exist [@robbins2021microsynth;
-@shi2023forward; @cattaneo2025scpi], but much of the new literature ships only as
-paper-replication scripts, not as software a data scientist can use off the shelf.
+Worse, the gap is uneven: the advances that would help analysts most often have no
+packaged implementation at all. The Synthetic Interventions estimator of @SI,
+which asks how a unit treated with one policy would have fared under another
+[@revpaper], the refined leave-two-out placebo test for small donor pools of
+@lei2025inferencesyntheticcontrolsrefined, and the predictor-selection method of
+@vivesibastida2022predictorselectionsyntheticcontrols all ship, if at all, only as
+paper-replication scripts. Well-maintained packages do exist
+[@robbins2021microsynth; @shi2023forward; @cattaneo2025scpi], but much of the new
+literature is not software a data scientist can use off the shelf.
 
 
 All are capable tools, and `mlsynth` critiques none of them. The obstacle is not
@@ -165,25 +154,21 @@ as the public classes that implement the `fit` contract; several are dispatchers
 that host a family of related methods behind one class, so the number of distinct
 methods a user can run is larger.] behind one data-preparation routine, one
 validated configuration-and-fit interface, and one standardized result. Most of
-these estimators run the same computation, as @sec-unified makes precise: a
-treated-unit vector and a donor matrix enter an optimization that returns weights,
-a counterfactual, and a gap. A single interface therefore makes them directly
-comparable on identical inputs, lets each inherit the same validated data handling
-and modern inference (conformal and prediction intervals), and lets one library
-span both the estimation question and the design question the wider ecosystem
-never packaged together. A researcher can fit a `Synth`-style simplex control, an
-`rcm`-style panel-data regression, and a `synthdid`-style
-difference-in-differences design on one data frame, compare them, attach
-prediction-interval or conformal inference to each, and, in the same syntax,
-design the experiment a synthetic control will later analyze, a workflow that
-previously spanned several packages across two languages, where available at all.
+these estimators share the same recipe, as @sec-unified makes precise: a
+treated-unit vector and a donor matrix, split into pre- and post-treatment
+periods, enter an optimization that returns weights, a counterfactual, and a gap.
+A single interface therefore makes them directly comparable on identical inputs. A
+researcher can fit a `Synth`-style simplex control, an `rcm`-style panel-data
+regression, and a `synthdid`-style difference-in-differences design on one data
+frame, compare them, and attach prediction-interval or conformal inference to
+each.
 
 `mlsynth` aims to make this catalog accessible, free, and simple to call. The
-paper does not re-derive the forty-odd methods it ships; each has its own
-optimization, inference theory, and proofs, which belong to the source papers and
-the per-estimator documentation
-(for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>) and which I
-cite rather than reproduce. Nor is anything special about the three estimators I
+paper does not walk through the implementation of every method it ships; each has
+its own optimization, inference theory, and proofs, which belong to the source
+papers and the per-estimator documentation
+(for example <https://mlsynth.readthedocs.io/en/latest/sdid.html>). Nor is
+anything special about the three estimators I
 illustrate below: none is privileged over the dozens I omit, and a different
 three would have served as well. They can be shown side by side, and swapped with
 a one-line edit, because they share one input contract and one interface.
@@ -206,8 +191,9 @@ outcome-only backend reaches directly. On the California tobacco data it agrees 
 the installed `MSCMT` on every donor weight (Utah $0.3939$, Montana $0.2318$, Nevada
 $0.2049$, Connecticut $0.1091$) and on an average effect of $-19.51363$, to five
 decimals; run against the original `Synth` solver under outcome-only matching it
-matches the donor weights to about $0.003$ while reaching a strictly lower
-pre-period loss ($52.130$ against `Synth`'s $52.136$), the small optimality gap the
+matches the donor weights to about $0.003$ while reaching a strictly lower value
+of the loss `Synth` minimizes, the summed squared pre-period residuals ($52.130$
+against `Synth`'s $52.136$; an RMSE of about $1.66$), the small optimality gap the
 numerics literature describes, shown here against the reference implementation
 itself.
 
@@ -256,13 +242,16 @@ regressors; `mlsynth` brings this route inside its interface as [CMBSTS]{.pkg}, 
 port of `CausalMBSTS` [@menchetti2022estimating] cross-checked cell by cell against
 the R reference. A second offering, [BVSS]{.pkg} [@xu2025bayesian], stays in the
 weighted-donor family, placing a spike-and-slab prior over the donors and a soft
-simplex constraint on their weights.
+simplex constraint on their weights; its posterior reproduces the authors' own
+Gibbs sampler on their trade panel, the two agreeing on the posterior-mean effect
+to Monte-Carlo error. Both Bayesian ports are pinned as durable benchmark cases.
 
 The Python options are fewer and narrower. `SyntheticControlMethods`
-[@engelbrektson2020synthetic] implements the classic estimator and its Bayesian and
-robust variants; `tidysynth` [@dunford2021tidysynth] brings the simplex into R's
-tidyverse; `CausalPy` [@causalpy2024] places a Bayesian synthetic control alongside
-other quasi-experimental designs on a `PyMC` backend. Closest in spirit is
+[@engelbrektson2020synthetic] implements the classic estimator; `pysyncon`
+[@fordham2022pysyncon] adds its robust, augmented, and penalized variants but no
+inference or experimental design; `tidysynth` [@dunford2021tidysynth] brings the
+simplex into R's tidyverse; `CausalPy` [@causalpy2024] places a Bayesian synthetic
+control alongside other quasi-experimental designs on a `PyMC` backend. Closest in spirit is
 `causaltensor` [@peng2022causaltensor], which collects matrix-completion and
 factor-model estimators behind a common interface, the nearest peer to `mlsynth`'s
 missing-data family ([MCNNM]{.pkg}, [SNN]{.pkg}), but does not carry the simplex,
@@ -292,7 +281,8 @@ reference or reproduced from the source paper at validation time (@tbl-related).
 | `mbsts` | R | multivariate Bayesian structural time series | [CMBSTS]{.pkg} | cell-by-cell vs `CausalMBSTS` |
 | `CausalPy` | Python | Bayesian SC, RD, DiD, ITS (`PyMC`) | — | n/a |
 | `tidysynth` | R | simplex SCM (tidyverse API) | [VanillaSC]{.pkg} | n/a |
-| `SyntheticControlMethods` | Python | classic / Bayesian / robust SCM | [VanillaSC]{.pkg} | n/a |
+| `SyntheticControlMethods` | Python | classic SCM | [VanillaSC]{.pkg} | n/a |
+| `pysyncon` | Python | classic / robust / augmented / penalized SCM | [VanillaSC]{.pkg}, [CLUSTERSC]{.pkg} | n/a |
 | `mlsynth` | Python | all of the above and roughly forty more | one interface | n/a |
 
 : Representative synthetic-control packages and their `mlsynth` equivalents. The canonical implementations are spread across R and Stata and split one method to a package; the few Python options each cover a narrow slice. The final row is the contribution in one line: a single validated interface, in one language, over a family otherwise spread across three languages and a dozen packages. A dash in the fourth column marks an adjacent tool that targets a distinct counterfactual, which `mlsynth` does not reproduce. The "Checked" column records where `mlsynth`'s benchmark suite reproduces the reference implementation or the source paper's published result numerically; ``n/a`` there marks a package whose engine `mlsynth` reaches through an estimator cross-checked elsewhere rather than against that package directly (for instance the canonical `Synth` check covers the simplex backend that `tidysynth` and `SyntheticControlMethods` share), not an unverified claim. The full per-estimator validation is in @tbl-catalogue. {#tbl-related}
@@ -484,18 +474,28 @@ span) are obtained. Beyond the choice of admissible set and penalty in
 @eq-program, members of the family differ in how they treat the donor matrix
 itself:
 
-- Penalized and ridge-augmented weights trade a small amount of in-sample fit
-  for stability when donors are collinear [@benmichael2021augmented].
+- Penalized weights add a term that trades the fit of the synthetic control as a
+  whole against how closely each contributing donor resembles the treated unit,
+  singling out a unique, sparser solution when many donors would otherwise match
+  equally well [@abadie2021penalized]. Augmented weights instead fit an outcome
+  model, typically a ridge regression, to the imbalance the simplex leaves in the
+  pre-period and subtract the implied bias, which relaxes the convex-hull
+  restriction and can place negative weights on some donors
+  [@benmichael2021augmented].
 - Principal-component and robust variants first denoise $\mathbf{Y}_0$ by
-  truncating its singular-value spectrum (estimating $\mathbf{f}_t$ directly)
-  before fitting the weights [@amjad2018robust], which is exactly the low-rank
-  reading of @eq-factor.
-- Forward-selection and best-subset approaches, following the panel-data method
-  of @hsiao2012panel, choose a small set of donors by an information criterion
-  rather than weighting all of them.
+  truncating its singular-value spectrum, estimating $\mathbf{f}_t$ directly; the
+  thresholding doubles as donor selection and tolerates missing entries, and the
+  weights are fit on the denoised matrix [@amjad2018robust], the low-rank reading
+  of @eq-factor.
+- Forward-selection and best-subset approaches choose a small set of donors rather
+  than weighting all of them: building on the panel-data method of @hsiao2012panel,
+  a forward-selection algorithm adds control units one at a time and supports valid
+  post-selection inference even when the candidate pool grows faster than the
+  pre-period [@shi2023forward].
 - Factor and interactive-fixed-effects estimators fit @eq-factor explicitly
-  [@bai2009panel; @xu2017generalized], and matrix-completion methods recover the
-  full low-rank outcome matrix [@athey2021matrix].
+  [@bai2009panel; @xu2017generalized], while matrix-completion methods recover the
+  untreated-outcome matrix by low-rank completion under a nuclear-norm penalty,
+  imputing the treated entries directly [@athey2021matrix].
 
 Seen this way, the catalog is a set of choices along a few axes (the constraint on
 the weights, whether the donor matrix is denoised first, whether donors are
