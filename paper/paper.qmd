@@ -811,16 +811,11 @@ inference off this common object without any estimator-specific glue.
 
 ## Applications {#sec-applications}
 
-The next three subsections put the library to work, one per problem regime: two
-cross-method comparisons on a single panel each -- a forgiving one and an
-adversarial one -- and an experimental design. Each is a self-contained,
-reproducible transcript, and together they show that moving between regimes, and
-between the estimators that suit them, is a change of argument against an
-unchanged data frame, not a change of tool. The first two make the point most
-directly, fitting three estimators and reading them off together in a single
-call: the Proposition 99 panel where the traditions agree easily, and the West
-German reunification where each estimator must first survive a different threat
-to the fit.
+The next three subsections apply the library to two cross-method comparisons and
+an experimental design. Each comparison fits three estimators on one panel through
+a single `compare_estimators` call -- the first on the Proposition 99 tobacco
+panel, the second on the West German reunification -- and the design example uses
+MAREX. Each is a self-contained, reproducible transcript.
 
 ### Three traditions on one panel {#sec-estimation}
 
