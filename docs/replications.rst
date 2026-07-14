@@ -54,6 +54,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/src
    replications/bscm
    replications/bfsc
+   replications/mtgp
    replications/tssc
    replications/vanillasc
    replications/vanillasc_staggered

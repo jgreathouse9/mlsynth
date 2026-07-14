@@ -51,6 +51,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MEDSC** — Mediation-analysis synthetic control estimator.  (config: MEDSCConfig)
 - **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
 - **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
+- **MTGP** — Multitask Gaussian Process synthetic control (Ben-Michael et al. 2023).  (config: MTGPConfig)
 - **MULTICELLGEOLIFT** — Multi-cell GeoLift: measure several treatment cells at once.
 - **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
 - **MicroSynth** — User-level balancing synthetic control estimator.  (config: MicroSynthConfig)

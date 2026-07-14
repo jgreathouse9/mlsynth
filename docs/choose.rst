@@ -404,9 +404,12 @@ observation noise?
 
 * No -- next question.
 * Yes -- :doc:`tasc` (time-aware state-space model), :doc:`fma` (PC factors
-  with a residual-bootstrap test), or :doc:`bfsc` (a Bayesian latent-factor
+  with a residual-bootstrap test), :doc:`bfsc` (a Bayesian latent-factor
   model that returns a full posterior credible band on the counterfactual and
-  prunes surplus factors with a horseshoe+ prior; needs the ``[bayes]`` extra).
+  prunes surplus factors with a horseshoe+ prior; needs the ``[bayes]`` extra),
+  or :doc:`mtgp` (a Bayesian factor model whose factors are *smooth in time* --
+  a Gaussian-process prior -- so the counterfactual band widens the further the
+  post-period extrapolates; also needs the ``[bayes]`` extra).
   (For micro panels with observed time-varying *confounders* and autoregressive
   outcomes, :doc:`dscar` is a different paradigm -- see the remark below.) If you
   also observe many time-varying *covariates* and want them to identify the
@@ -442,14 +445,20 @@ already in hand. It needs at least as many covariates as factors and a
 pre-period longer than covariates-times-factors, and reports a per-period
 moving-block conformal band. With no covariates, use :doc:`fma` or :doc:`cfm`.
 
-*Which Bayesian synthetic control?* Three estimators are Bayesian, and they
+*Which Bayesian synthetic control?* Four estimators are Bayesian, and they
 split on what carries the prior. :doc:`bscm` and :doc:`bvss` put a shrinkage /
 selection prior on the *donor weights* (both pure-numpy, both report donor
 weights) -- reach for them, at Q1.2 or Q1.6, when you want interpretable weights
-with a credible interval. :doc:`bfsc` puts the prior on a *latent-factor model*
-of the outcome and reports a counterfactual band with no donor weights -- reach
-for it, here, when a shared factor structure rather than a weighted average of
-donors is the right model.
+with a credible interval. :doc:`bfsc` and :doc:`mtgp` put the prior on a
+*latent-factor model* of the outcome and report a counterfactual band with no
+donor weights -- reach for them, here, when a shared factor structure rather
+than a weighted average of donors is the right model. The two factor models
+differ in one thing: :doc:`bfsc` leaves the factors unconstrained over time,
+while :doc:`mtgp` puts a Gaussian-process (squared-exponential) prior on them,
+so its factor paths are smooth and its post-period band grows with extrapolation
+distance. Prefer :doc:`mtgp` when the untreated series are smooth trends and you
+want that widening band; prefer :doc:`bfsc` when the shared structure is best
+left unconstrained.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
@@ -882,7 +891,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Decompose the effect through a mediator (mechanism)
      - :doc:`medsc`
    * - Time-varying dynamics / persistent factors / noise
-     - :doc:`tasc`, :doc:`fma`, :doc:`bfsc`, :doc:`dscar`
+     - :doc:`tasc`, :doc:`fma`, :doc:`bfsc`, :doc:`mtgp`, :doc:`dscar`
    * - Nonlinear outcome surface
      - :doc:`nsc`
    * - Donor pool large vs pre-period (N ≳ T0)

@@ -576,6 +576,7 @@ _RELOCATED_CONFIGS = {
     "BVSSConfig": "mlsynth.utils.bvss_helpers.config",
     "BSCMConfig": "mlsynth.utils.bscm_helpers.config",
     "BFSCConfig": "mlsynth.utils.bfsc_helpers.config",
+    "MTGPConfig": "mlsynth.utils.mtgp_helpers.config",
     "SPCDConfig": "mlsynth.utils.spcd_helpers.config",
     "NSCConfig": "mlsynth.utils.nsc_helpers.config",
     "SDIDConfig": "mlsynth.utils.sdid_helpers.config",

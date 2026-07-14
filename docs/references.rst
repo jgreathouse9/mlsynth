@@ -500,6 +500,12 @@ References
     DOI: https://doi.org/10.1177/0022243720936230
     Reference code: https://github.com/clarencejlee/bscm
 
+.. [MTGP2023]
+    Ben-Michael, Eli, Arbour, David, Feller, Avi, Franks, Alexander, and Raphael, Steven.
+    *"Estimating the effects of a California gun control program with multitask Gaussian processes."*
+    Annals of Applied Statistics 17(2):985-1016, 2023.
+    DOI: https://doi.org/10.1214/22-AOAS1654
+
 .. [BomzeSparseQP] Bomze, Immanuel M., Peng, Bo, Qiu, Yuzhou, and Yıldırım, E. Alper.
     *"On Tractable Convex Relaxations of Standard Quadratic Optimization Problems under Sparsity Constraints."*
     arXiv:2310.04340, 2023. https://arxiv.org/abs/2310.04340
