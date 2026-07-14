@@ -888,21 +888,15 @@ carries a dedicated estimator for each, and I apply all three to one panel.
 @abadie2015comparative asked what the 1990 reunification cost West German GDP per
 capita, building a synthetic West Germany from other OECD economies and tracing a
 shortfall that widened across the 1990s. I answer the same question three ways,
-each estimator addressing one of the three problems above. The first
-is [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) [@proximaltheory], which
-reads the donor outcomes as error-laden proxies of West Germany's untreated path
-and uses a second, disjoint set of donor countries as instruments to purge the
-measurement error, a proximal-causal-inference repair for noisy proxies. The
-second is [CLUSTERSC]{.pkg} in its robust-PCA form (`rpca`) [@bayani2021robust],
-which first selects the donor pool by clustering the units on their pre-period
-principal-component scores, keeping only those that move with the treated unit,
-then splits that pool into a low-rank signal and a sparse-outlier part by
-principal component pursuit and fits on the denoised signal, a repair for a donor
-pool that is ill-chosen or contaminated by outliers. The third is [SPILLSYNTH]{.pkg}'s inclusive synthetic
-control (`iscm`) [@distefano2024inclusive], which keeps Austria, the neighbour
-most exposed to reunification, in the pool and solves it jointly with West
-Germany, de-contaminating the spillover rather than discarding the donor, a repair
-for a no-interference violation.
+one estimator per problem. These are deep, specialized methods, two of the three
+as yet unpublished, so I describe each in a line and leave the technical detail to
+its paper. [PROXIMAL]{.pkg} in its over-identified form (`PIOID`) treats the donor
+outcomes as noisy proxies and corrects them with a second, disjoint block of donor
+countries as instruments [@proximaltheory]. [CLUSTERSC]{.pkg} in its robust-PCA
+form (`rpca`) selects the donor pool and denoises it by robust principal-component
+analysis [@bayani2021robust]. [SPILLSYNTH]{.pkg}'s inclusive synthetic control
+(`iscm`) keeps the affected neighbour, Austria, in the pool and de-contaminates
+the spillover rather than dropping the donor [@distefano2024inclusive].
 
 Each was, until now, reachable only as its authors' own research code: the
 over-identified proximal estimator in the manuscript repository for
