@@ -30,6 +30,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, Field, model_validator
+
+from ...config_models import (
+    BaseEstimatorResults,
+    EffectResult,
+    InferenceResults,
+    WeightsResults,
+)
 
 
 # Public method names.
@@ -202,16 +210,26 @@ class ProximalMethodFit:
         return (self.att - half, self.att + half)
 
 
-@dataclass(frozen=True)
-class PROXIMALResults:
+class PROXIMALResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.PROXIMAL.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational
+    report). PROXIMAL is a dispatcher -- one ``fit()`` runs up to eight
+    proximal methods -- so, exactly like :class:`TSSC`, the headline variant
+    (``selected_variant``, the first requested method) is lifted into the
+    standardized sub-models (``effects``, ``time_series``, ``weights``,
+    ``inference``, ``fit_diagnostics``, ``method_details``) and every run
+    variant is additionally promoted to its own ``EffectResult`` under
+    ``sub_method_results`` so cross-method tooling can consume any of them.
+    The variant-specific fits and the flat convenience accessors below are
+    retained unchanged.
 
     Parameters
     ----------
     inputs : PROXIMALInputs
         Preprocessed panel.
     pi : ProximalMethodFit or None
-        Proximal Inference fit (always populated).
+        Proximal Inference fit.
     pis : ProximalMethodFit or None
         Proximal-with-surrogates fit (populated only when surrogates are
         configured).
@@ -220,23 +238,104 @@ class PROXIMALResults:
         configured).
     selected_variant : str
         Which fit is exposed via the convenience aliases ``att``,
-        ``att_se``, ``counterfactual``, ``gap``, ``donor_weights`` --
-        one of ``"PI"``, ``"PIS"``, ``"PIPost"``. Defaults to ``"PI"``.
+        ``att_se``, ``counterfactual``, ``gap``, ``donor_weights`` and lifted
+        into the standardized sub-models. Defaults to the first requested
+        method.
     metadata : dict
         Free-form pipeline diagnostics.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: PROXIMALInputs
-    pi: Optional[ProximalMethodFit]
-    pis: Optional[ProximalMethodFit]
-    pipost: Optional[ProximalMethodFit]
+    pi: Optional[ProximalMethodFit] = None
+    pis: Optional[ProximalMethodFit] = None
+    pipost: Optional[ProximalMethodFit] = None
     spsc: Optional[ProximalMethodFit] = None
     dr: Optional[ProximalMethodFit] = None
     pipw: Optional[ProximalMethodFit] = None
     dr_oid: Optional[ProximalMethodFit] = None
     pioid: Optional[ProximalMethodFit] = None
     selected_variant: str = PI
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    def _submodels_for(self, fit: "ProximalMethodFit") -> Dict[str, Any]:
+        """Standardized sub-model bundle for one variant fit.
+
+        Maps the variant's authoritative numbers (ATT, GMM/HAC SE, donor
+        weights, pre/post RMSE, per-period band) onto the shared sub-models via
+        :func:`build_effect_submodels`, pinning the ATT / RMSE so the validated
+        values never drift from the canonical series recomputation.
+        """
+        from ..results_helpers import build_effect_submodels
+
+        se = fit.att_se if (fit.att_se is not None and np.isfinite(fit.att_se)) else None
+        ci_lower = ci_upper = None
+        if se is not None:
+            ci_lower, ci_upper = fit.ci
+        # SPSC's conformal output is a per-period band on the *effect* (a
+        # different object from the counterfactual band below), so it rides in
+        # ``inference.details`` -- its documented home -- rather than the
+        # counterfactual band fields.
+        inference = InferenceResults(
+            standard_error=se,
+            ci_lower=ci_lower,
+            ci_upper=ci_upper,
+            confidence_level=0.95 if se is not None else None,
+            method="gmm-hac",
+            details=fit.metadata.get("conformal") if fit.metadata else None,
+        )
+        # Only a genuine counterfactual band (e.g. PIOID's) maps to the
+        # standardized per-period counterfactual band fields.
+        prediction_interval = None
+        if fit.counterfactual_lower is not None:
+            prediction_interval = {
+                "lower": fit.counterfactual_lower,
+                "upper": fit.counterfactual_upper,
+                "level": fit.band_level,
+                "kind": fit.band_kind or "conformal",
+            }
+        time_labels = self.inputs.time_labels
+        intervention_time = (
+            time_labels[self.inputs.T0]
+            if time_labels is not None and self.inputs.T0 < len(time_labels)
+            else None
+        )
+        return build_effect_submodels(
+            observed_outcome=self.inputs.y,
+            counterfactual_outcome=fit.counterfactual,
+            n_pre_periods=self.inputs.T0,
+            n_post_periods=self.inputs.n_post,
+            time_periods=time_labels,
+            weights=WeightsResults(
+                donor_weights={str(k): float(v) for k, v in fit.donor_weights.items()} or None
+            ),
+            inference=inference,
+            method_name=fit.name,
+            att_std_err=se,
+            effects_overrides={"att": fit.att},
+            fit_overrides={"rmse_pre": fit.pre_rmse, "rmse_post": fit.post_rmse},
+            intervention_time=intervention_time,
+            prediction_interval=prediction_interval,
+        )
+
+    @model_validator(mode="after")
+    def _populate_standard_submodels(self) -> "PROXIMALResults":
+        """Lift the headline variant into the standardized sub-models and
+        promote every run variant to its own ``EffectResult``.
+
+        Uses ``object.__setattr__`` because the model is frozen. A no-op when
+        no method ran (all fits ``None``) -- the result stays an empty
+        EffectResult rather than fabricating sub-models.
+        """
+        primary = self._primary
+        if self.effects is None and primary is not None:
+            for key, value in self._submodels_for(primary).items():
+                object.__setattr__(self, key, value)
+            sub = {name: EffectResult(**self._submodels_for(fit))
+                   for name, fit in self.methods.items()}
+            object.__setattr__(self, "sub_method_results", sub)
+        return self
 
     @property
     def mode(self) -> str:
