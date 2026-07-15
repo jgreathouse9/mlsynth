@@ -233,6 +233,8 @@ Cross-validation against reference implementations
      - vs augsynth::multisynth (jackknife + bootstrap SEs)
    * - ``dr_proximal_brazil``
      - vs live R (authors' analysis.Rmd, commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
+   * - ``brazil_vaccine_scm_vs_proximal``
+     - vs live R (same script): standard SC (VanillaSC) vs proximal (DR-OID h/DR) contrast, Brazil vaccine/pneumonia
    * - ``proximal_panic1907``
      - vs freshtaste/proximal (Panic 1907 Table 3)
    * - ``rescm_relax_ref``

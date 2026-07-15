@@ -1106,6 +1106,16 @@ live and compares it against this exact ``PROXIMAL(...).fit()`` call. See
 *Replication Status* and the benchmark
 `benchmarks/cases/dr_proximal_brazil.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dr_proximal_brazil.py>`_.
 
+A companion benchmark,
+`benchmarks/cases/brazil_vaccine_scm_vs_proximal.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`_,
+draws the contrast that motivates the whole exercise: a standard synthetic
+control restricted to the three donor causes lands near null on this panel
+(ATT :math:`\approx +0.4\text{k}` hospitalisations), while the proximal
+estimators -- using the same non-pneumonia causes as negative controls --
+recover the vaccine's reduction (outcome bridge :math:`\approx -3.6\text{k}`,
+DR :math:`\approx -2.8\text{k}`). The contamination that sinks standard SC is
+exactly what identifies the effect proximally.
+
 Replication Status
 ------------------
 
