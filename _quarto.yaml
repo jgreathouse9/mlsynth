@@ -1,0 +1,72 @@
+project:
+  type: book
+
+book:
+  title: "Foundations of the Synthetic Control Method"
+  author: "Jared Greathouse"
+
+  chapters:
+    - part: "Foundations"
+      chapters:
+        - index.qmd
+        - math.qmd
+        - averages.qmd
+        - mlsynthbasic.qmd
+
+    - part: "Estimation and Inference"
+      chapters:
+        - poframe.qmd
+        - did.qmd
+        - ols.qmd
+        - regols.qmd
+        - cvxscm.qmd
+        - validation.qmd
+
+    - part: "Applications"
+      chapters:
+        - donorselect.qmd
+        # future chapters:
+        # - staggered.qmd
+        # - spillovers.qmd
+
+bibliography: book.bib
+csl: apa.csl
+
+format:
+  html:
+    theme: clean.scss
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    include-in-header:
+      - text: |
+          <script src="js/mathjax-macros.js"></script>
+    include-after-body: 
+      - js/assumptions.js
+    execute:
+      echo: true
+
+
+  pdf:
+    documentclass: book
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    fontsize: 12pt
+    pdf-engine: pdflatex
+    keep-tex: true
+    include-in-header: preamble.tex
+    colorlinks: true
+    linkcolor: blue
+    citecolor: red
+    urlcolor: magenta
+    link-citations: true
+    filters:
+      - filters/div2thm.lua
+    execute:
+      echo: false
+      warning: false
+      error: false
+      message: false
+

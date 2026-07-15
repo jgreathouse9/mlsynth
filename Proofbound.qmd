@@ -1,0 +1,190 @@
+# Proof of Bias Bound
+
+We begin from the expression for the synthetic control estimator under the interactive fixed effects model:
+[
+Y_{it} = \boldsymbol{\lambda}*t^\top \boldsymbol{\mu}*i + \varepsilon*{it}.
+]
+For a treated unit (i=1), the estimated post-treatment effect at time (t>T_0) is
+[
+\hat{\tau}*{1t} - \tau_{1t}
+= \boldsymbol{\lambda}_t^\top \Big(\boldsymbol{\mu}*1 - \sum*{j\in\mathcal{N}_0} w_j \boldsymbol{\mu}_j\Big)
+
+* \Big(\varepsilon_{1t} - \sum_{j\in\mathcal{N}*0} w_j \varepsilon*{jt}\Big).
+  ]
+
+Taking expectations and absolute value yields
+[
+|\mathbb{E}[\hat{\tau}*{1t}-\tau*{1t}]|
+= \Big|\mathbb{E}\Big[\boldsymbol{\lambda}_t^\top \Big(\boldsymbol{\mu}*1 - \sum*{j} w_j \boldsymbol{\mu}_j\Big)
+
+* \Big(\varepsilon_{1t} - \sum_{j} w_j \varepsilon_{jt}\Big)\Big]\Big|.
+  ]
+
+---
+
+### Step 1: Separate systematic and stochastic components
+
+At this point, the expression contains two conceptually distinct sources of error:
+
+1. The **systematic mismatch** between the treated unit’s factor loadings and the weighted average of the donors’, and
+2. The **random idiosyncratic shocks**.
+
+To separate these two contributions, we use the **triangle inequality** for real numbers,
+[
+|a + b| \le |a| + |b|.
+]
+Applying it to the inside of the expectation lets us control each part separately:
+[
+|\mathbb{E}[\hat{\tau}*{1t}-\tau*{1t}]|
+\le
+\Big|\mathbb{E}\Big[\boldsymbol{\lambda}_t^\top \Big(\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j\Big)\Big]\Big|
+
+* \Big|\mathbb{E}\Big[\varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}\Big]\Big|.
+  ]
+
+*Why:*
+This inequality allows us to bound the bias term by the **sum of two simpler quantities**, each interpretable as the mean magnitude of either systematic or random discrepancy. It isolates the deterministic misalignment from sampling noise.
+
+---
+
+### Step 2: Eliminate the mean-zero stochastic part
+
+The second term involves only idiosyncratic errors, which are mean zero by assumption:
+[
+\mathbb{E}[\varepsilon_{jt}] = 0 \quad \text{for all } j,t.
+]
+Hence,
+[
+\mathbb{E}\Big[\varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}\Big] = 0,
+]
+and the bias simplifies to
+[
+|\mathbb{E}[\hat{\tau}*{1t}-\tau*{1t}]|
+= \Big|\mathbb{E}\Big[\boldsymbol{\lambda}_t^\top \Big(\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j\Big)\Big]\Big|.
+]
+
+*Why:*
+This step uses the **mean-zero property of idiosyncratic shocks** to show that the expectation of the stochastic component vanishes. The remaining bias must therefore come from imperfect factor alignment.
+
+---
+
+### Step 3: Bound the scalar product between factors and loading differences
+
+Now the only term left involves an inner product between two vectors: the common factor (\boldsymbol{\lambda}_t) and the loading difference
+[
+\boldsymbol{\nu} = \boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j.
+]
+We need to bound this scalar product.
+
+We know from basic vector algebra that the magnitude of a dot product is bounded by the product of Euclidean norms, via the **Cauchy–Schwarz inequality**:
+[
+|\mathbf{a}^\top \mathbf{b}| \le |\mathbf{a}|_2 |\mathbf{b}|_2.
+]
+Applying it to our term gives
+[
+\Big|\boldsymbol{\lambda}_t^\top \Big(\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j\Big)\Big|
+\le |\boldsymbol{\lambda}_t|_2 , \Big|\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j\Big|*2.
+]
+Let (\bar{\lambda} = \max*{s\le T_0}|\boldsymbol{\lambda}*s|*2). Then
+[
+|\mathbb{E}[\hat{\tau}*{1t}-\tau*{1t}]| \le \bar{\lambda} ,
+\mathbb{E}\Big[\Big|\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j\Big|_2\Big].
+]
+
+*Why:*
+Cauchy–Schwarz transforms an **unobservable inner product** (which might have positive or negative sign) into a **nonnegative product of magnitudes**. This step reframes the problem in terms of the *size* of the loading difference, which we can further control using pre-treatment fit.
+
+---
+
+### Step 4: Express and bound the loading mismatch using pre-treatment fit
+
+From the synthetic control pre-treatment matching condition,
+[
+\Lambda \Big(\boldsymbol{\mu}*1 - \sum_j w_j \boldsymbol{\mu}*j\Big)
+= b,
+]
+where (b = (b_1, \dots, b*{T_0})^\top) and each (b_s = \sum_j w_j(\varepsilon*{js} - \varepsilon_{1s})).
+
+Because (\Lambda) has full column rank, we can solve for the mismatch:
+[
+\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j = (\Lambda^\top \Lambda)^{-1}\Lambda^\top b.
+]
+
+Now we want to bound the norm of this expression. The operator norm satisfies
+[
+|AB|_2 \le |A|_2 |B|_2.
+]
+Applying this inequality (submultiplicativity of the spectral norm) gives
+[
+\Big|\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j\Big|_2
+\le |(\Lambda^\top\Lambda)^{-1}\Lambda^\top|_2 |b|_2.
+]
+
+Let (M = \frac{1}{T_0}\Lambda^\top \Lambda) and (\xi_{A_P}) be its minimum eigenvalue. Then
+[
+|(\Lambda^\top\Lambda)^{-1}\Lambda^\top|*2
+= \frac{1}{T_0 \xi*{A_P}} |\Lambda^\top|_2,
+]
+so
+[
+\Big|\boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}*j\Big|*2
+\le \frac{1}{T_0\xi*{A_P}} \Big|\sum*{s=1}^{T_0} b_s \boldsymbol{\lambda}_s\Big|_2.
+]
+
+*Why:*
+This uses **the norm inequality for linear operators** to propagate the bound through the inverse and transpose of (\Lambda). It links the size of the factor-loading mismatch directly to the random pre-treatment residuals (b_s), which we can now handle probabilistically.
+
+---
+
+### Step 5: Bound the random vector sum (\sum_{s=1}^{T_0} b_s \boldsymbol{\lambda}_s)
+
+At this stage we need to control
+[
+\mathbb{E}\Big[\Big|\sum_{s=1}^{T_0} b_s \boldsymbol{\lambda}_s\Big|_2\Big].
+]
+
+Each (b_s = \sum_j w_j(\varepsilon_{js} - \varepsilon_{1s})) is a **mean-zero** random scalar, and the vectors (\boldsymbol{\lambda}_s) are deterministic. Therefore, this is a **sum of independent mean-zero random vectors** of the form (b_s \boldsymbol{\lambda}_s).
+
+To bound the expected norm of such a sum, we use the **vector-valued Rosenthal inequality**, which gives moment bounds for sums of independent mean-zero random vectors:
+[
+\mathbb{E}\Big[\Big|\sum_s X_s\Big|_2^g\Big]^{1/g}
+\le C(g)\max\Big{\Big(\sum_s \mathbb{E}|X_s|_2^g\Big)^{1/g}, \Big(\sum_s \mathbb{E}|X_s|_2^2\Big)^{1/2}\Big}.
+]
+We apply this to (X_s = b_s \boldsymbol{\lambda}_s).
+This inequality controls the **growth of the random sum** either through its higher moments ((g)) or its variance term ((2)).
+
+Next, to relate the (L^g)-norm of the vector sum to its expectation, we use the **Minkowski inequality**, which ensures that
+[
+\mathbb{E}|\cdot| \le (\mathbb{E}|\cdot|^g)^{1/g}.
+]
+
+Applying both inequalities gives the bound
+[
+\mathbb{E}\Big[\Big|\sum_{s=1}^{T_0} b_s \boldsymbol{\lambda}_s\Big|_2\Big]
+\lesssim C(g)^{1/g} N^{1/g} F \max\Big(T_0^{1/g} \bar{\lambda}\bar{m}_g^{1/g}, \sqrt{T_0},\bar{\lambda}\bar{\sigma}^{1/2}\Big),
+]
+where the first term corresponds to the **moment-dominated** regime and the second to the **variance-dominated** regime.
+
+*Why:*
+Rosenthal’s inequality is appropriate here because we have **independent, mean-zero random summands** with finite (g)-th moments, and we need a bound that scales correctly in (T_0).
+Minkowski’s inequality lets us pull the expectation outside the vector norm in a controlled way.
+
+---
+
+### Step 6: Combine all bounds
+
+Substituting this into Step 4’s expression gives
+[
+\mathbb{E}\Big[\Big|\boldsymbol{\mu}*1 - \sum_j w_j \boldsymbol{\mu}*j\Big|*2\Big]
+\lesssim
+C(g)^{1/g}\frac{\bar{\lambda} F N^{1/g}}{\xi*{A_P}}
+\max\Big(\frac{\bar{m}*g^{1/g}}{T_0^{1-1/g}}, \frac{\bar{\sigma}^{1/2}}{T_0^{1/2}}\Big).
+]
+Multiplying by (\bar{\lambda}) from Step 3 yields the finite-sample bias bound:
+[
+|\mathbb{E}[\hat{\tau}*{1t}-\tau*{1t}]|
+\lesssim
+C(g)^{1/g}\frac{\bar{\lambda}^2 F N^{1/g}}{\xi*{A_P}}
+\max\Big(\frac{\bar{m}_g^{1/g}}{T_0^{1-1/g}}, \frac{\bar{\sigma}^{1/2}}{T_0^{1/2}}\Big).
+]
+(\square)

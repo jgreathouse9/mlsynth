@@ -1,0 +1,1771 @@
+# Mathematical Preliminaries
+
+::: {.epigraph}
+> "If you stop at general math, you're only going to make general math money."  
+> — Snoop Dogg
+:::
+
+
+
+This chapter collects the minimal, concrete mathematical vocabulary used throughout the book. Worked examples illustrate each concept. These tools will appear frequently in synthetic control methods: sets, vectors, matrices, norms, derivatives, objective functions, and convexity.
+
+## Objects
+
+
+::: {#def-topological-space}
+##  Topological Space
+
+A *topological space* is a set equipped with a notion of "closeness" or limits between elements. For our purposes, the most common topological space is the set of real numbers:
+$$
+\mathbb{R} = \text{the set of real numbers.}
+$$
+
+**Worked example:** $y_1 = 2.5, y_2 = 4.0, y_3 = 3.1 \implies (y_1, y_2, y_3) \in \mathbb{R}^3.$
+:::
+
+This is also called the real line. The study of the real numbers and the functions that live within it is called *Real Analysis*. However, you will not need any real analysis to read this book.
+
+::: {#def-set}
+## Set
+
+A *set* is a collection of distinct and well-defined objects, called *elements* or *members* of the set. If an object $x$ belongs to a set $\mathcal{A}$, we write $x \in \mathcal{A}$; otherwise, $x \notin \mathcal{A}$. Sets are unordered and contain no duplicates. Two sets are equal if and only if they contain exactly the same elements. Or more formally, by the axiom of extensionality:
+
+$$
+\mathcal{A} = \mathcal{B} \iff (\forall x)(x \in \mathcal{A} \leftrightarrow x \in \mathcal{B}).
+$$
+
+The set with no elements is called the empty set, denoted $\emptyset$. For example:
+
+$$
+\mathcal{A} = \{1, 2, 3\}, \quad
+\mathcal{B} = \{x \in \mathbb{N} : x \text{ is even}\}, \quad
+\mathcal{C} = \emptyset.
+$$
+:::
+
+
+The union of two sets $\mathcal{A}$ and $\mathcal{B}$ is the set of all elements that belong to either $\mathcal{A}$ or $\mathcal{B}$:
+
+$$
+\mathcal{A} \cup \mathcal{B} = \{x : x \in \mathcal{A} \text{ or } x \in \mathcal{B}\}.
+$$
+
+The intersection of two sets $\mathcal{A}$ and $\mathcal{B}$ is the set of all elements that belong to both $\mathcal{A}$ and $\mathcal{B}$:
+
+$$
+\mathcal{A} \cap \mathcal{B} = \{x : x \in \mathcal{A} \text{ and } x \in \mathcal{B}\}.
+$$
+
+The difference of two sets $\mathcal{A}$ and $\mathcal{B}$ is the set of elements in $\mathcal{A}$ but not in $\mathcal{B}$:
+
+$$
+\mathcal{A} \setminus \mathcal{B} = \{x : x \in \mathcal{A} \text{ and } x \notin \mathcal{B}\}.
+$$
+
+If $\mathcal{U}$ is the universal set, the complement of a set $\mathcal{A}$ is:
+
+$$
+\mathcal{A}^c = \{x \in \mathcal{U} : x \notin \mathcal{A}\}.
+$$
+
+The cardinality of a set $\mathcal{A}$ is the number of elements in the set, denoted $|\mathcal{A}|$.
+
+In econometrics, sets appear frequently to organize units, time periods, and other objects of interest. For example, let $\mathcal{N}$ denote the set of all units, and $\mathcal{N}_0 \subseteq \mathcal{N}$ the donor set. Let $\mathcal{T}$ be the set of all time periods, with $\mathcal{T}_1 = \{t \in \mathbb{N} : t \le T_0\} \subseteq \mathcal{T}$ representing the pre-intervention periods, and $\mathcal{T}_2 = \{t \in \mathbb{N} : t > T_0\} \subseteq \mathcal{T}$ representing the post-treatment periods. Sets in econometrics can contain numbers, individuals, time periods, or even other sets, depending on the application.
+
+
+::: {#def-scalar}
+##  Scalar
+
+A *scalar* is a single real number, $x \in \mathbb{R}$.
+
+**Worked example:** $c = 2.5 \cdot q$; if $q=4$, $c=10$.  
+In SCM, $y_{jt} \in \mathbb{R}$ is an observed outcome, $d_j \in \{0,1\}$ is treatment.
+:::
+
+We work with these all the time.
+
+::: {#def-summation}
+##  Summation
+
+For numbers $x_1,\dots,x_n$:
+$$
+\sum_{i=1}^n x_i = x_1 + x_2 + \dots + x_n
+$$
+
+**Worked example:** $x_1=2, x_2=4, x_3=5 \implies \sum_{i=1}^3 x_i = 11$.
+:::
+
+This offers a convenient way to express summations of scalars.
+
+
+::: {#def-sequence}
+
+## Sequence
+
+A *sequence* is a function 
+
+$$
+a : \mathbb{N} \to S
+$$
+
+where $\mathbb{N} = \{1, 2, 3, \dots\}$ is the set of natural numbers, and $S$ is some set (often $\mathbb{R}$). We usually denote a sequence by $(a_n)_{n \in \mathbb{N}}$ or simply $(a_n)$, where 
+
+$$
+a_n = a(n)
+$$
+
+is the $n$-th term of the sequence. In words, a sequence is an *ordered list of elements* $(a_1, a_2, a_3, \dots)$ indexed by natural numbers.  For example, the sequence of natural numbers: $(1, 2, 3, 4, \dots)$, where $a_n = n$ and the sequence of reciprocals: $\left(1, \frac{1}{2}, \frac{1}{3}, \dots \right)$, where $a_n = \frac{1}{n}$.  
+
+:::
+
+
+
+## Matrices and Vectors
+
+Scalars can be collected into rows and columns, which we call elements of vectors (single row/column sequences of scalars) or matrices (tables of vectors).
+
+
+::: {#def-vector}
+## Vector
+
+An *n-dimensional vector* is an ordered collection of scalars of *length* $n\in \mathbb{N}$:  
+$$
+\mathbf{x} =
+\begin{bmatrix} x_1 \\ x_2 \\ \vdots \\ x_n \end{bmatrix} \in \mathbb{R}^n.
+$$
+
+**Worked example:**  
+$$
+\mathbf{v} = \begin{bmatrix} 3 \\ 5 \\ 7 \end{bmatrix} \in \mathbb{R}^3.
+$$
+:::
+
+::: {#def-transpose}
+## Transpose
+
+The *transpose* of a vector $\mathbf{x}$, denoted $\mathbf{x}^\top$, is a row vector formed by flipping the vector:  
+$$
+\mathbf{x}^\top = \begin{bmatrix} x_1 & x_2 & \cdots & x_n \end{bmatrix}.
+$$
+
+**Worked example:**  
+If  
+$$
+\mathbf{v} = \begin{bmatrix} 3 \\ 5 \\ 7 \end{bmatrix}, \quad
+\text{then } \mathbf{v}^\top = \begin{bmatrix} 3 & 5 & 7 \end{bmatrix}.
+$$
+:::
+
+::: {#def-dot-product}
+## Dot Product
+
+The *dot product* of two vectors $\mathbf{a}, \mathbf{b} \in \mathbb{R}^n$ is  
+$$
+\mathbf{a}^\top \mathbf{b} = \sum_{i=1}^n a_i b_i.
+$$
+
+**Worked example:**  
+Let  
+$$
+\mathbf{a} = \begin{bmatrix} 2 \\ 4 \\ 6 \end{bmatrix}, \quad
+\mathbf{b} = \begin{bmatrix} 1 \\ 0 \\ 3 \end{bmatrix}.
+$$  
+Then  
+$$
+\mathbf{a}^\top \mathbf{b} = 2\cdot 1 + 4 \cdot 0 + 6 \cdot 3 = 20.
+$$
+:::
+
+
+
+::: {#def-matrix}
+## Matrix
+
+A *matrix* is a two-dimensional array (a table) of scalars arranged in rows and columns:
+$$
+\mathbf{A} =
+\begin{bmatrix}
+a_{11} & \dots & a_{1n} \\
+\vdots & \ddots & \vdots \\
+a_{m1} & \dots & a_{mn}
+\end{bmatrix} \in \mathbb{R}^{m \times n}.
+$$
+Here, $m$ is the number of rows and $n$ the number of columns.
+
+**Worked example:**  
+$$
+\mathbf{A} =
+\begin{bmatrix}
+1 & 2 & 3 \\
+4 & 5 & 6
+\end{bmatrix} \in \mathbb{R}^{2 \times 3}.
+$$
+:::
+
+
+As we can see, matrices are simple tables of vectors that we use to organize data into.
+
+::: {#def-matrix-transpose}
+## Matrix Transpose
+
+The *transpose* of a matrix $\mathbf{A} \in \mathbb{R}^{m \times n}$, written $\mathbf{A}^\top$, is obtained by interchanging its rows and columns:
+$$
+(\mathbf{A}^\top)_{ij} = a_{ji}, \quad \mathbf{A}^\top \in \mathbb{R}^{n \times m}.
+$$
+
+**Worked example:**  
+If  
+$$
+\mathbf{A} =
+\begin{bmatrix}
+1 & 2 & 3 \\
+4 & 5 & 6
+\end{bmatrix},
+$$
+then  
+$$
+\mathbf{A}^\top =
+\begin{bmatrix}
+1 & 4 \\
+2 & 5 \\
+3 & 6
+\end{bmatrix}.
+$$
+:::
+
+::: {#def-matrix-vector-product}
+## Matrix–Vector and Vector–Matrix Products
+
+For $\mathbf{A} \in \mathbb{R}^{m \times n}$ and $\mathbf{x} \in \mathbb{R}^n$,  
+$$
+\mathbf{A} \mathbf{x} \in \mathbb{R}^m, \quad (\mathbf{A}\mathbf{x})_i = \sum_{j=1}^n a_{ij} x_j.
+$$
+
+**Worked example:**  
+$$
+\mathbf{A} =
+\begin{bmatrix}
+1 & 2 & 3 \\
+4 & 5 & 6
+\end{bmatrix}, \quad
+\mathbf{x} =
+\begin{bmatrix}
+2 \\ 1 \\ 3
+\end{bmatrix}.
+$$
+Then  
+$$
+\mathbf{A}\mathbf{x} =
+\begin{bmatrix}
+1\cdot2 + 2\cdot1 + 3\cdot3 \\
+4\cdot2 + 5\cdot1 + 6\cdot3
+\end{bmatrix}
+=
+\begin{bmatrix}
+13 \\ 31
+\end{bmatrix}.
+$$
+
+For $\mathbf{x} \in \mathbb{R}^n$ and $\mathbf{A} \in \mathbb{R}^{n \times m}$,  
+$$
+\mathbf{x}^\top \mathbf{A} \in \mathbb{R}^{1 \times m}, \quad (\mathbf{x}^\top \mathbf{A})_j = \sum_{i=1}^n x_i a_{ij}.
+$$
+
+**Worked example:**  
+$$
+\mathbf{x} =
+\begin{bmatrix} 2 \\ 1 \\ 3 \end{bmatrix}, \quad
+\mathbf{A} =
+\begin{bmatrix}
+1 & 4 & 0 \\
+2 & 5 & 1 \\
+3 & 6 & 2
+\end{bmatrix}.
+$$
+
+Then  
+$$
+\mathbf{x}^\top \mathbf{A} =
+\begin{bmatrix}
+13 & 31 & 7
+\end{bmatrix}.
+$$
+:::
+
+A *norm* measures the *magnitude* (or *length*) of a vector or matrix.  It generalizes the concept of distance from the origin. 
+
+::: {#def-norm}
+## Norm
+
+Formally, a norm $\|\cdot\|$ satisfies:
+
+1. *Non-negativity:* $\|\mathbf{x}\| \ge 0$ and $\|\mathbf{x}\| = 0$ iff $\mathbf{x} = 0$.  
+2. *Homogeneity:* $\|\alpha \mathbf{x}\| = |\alpha| \|\mathbf{x}\|$.  
+3. *Triangle inequality:* $\|\mathbf{x} + \mathbf{y}\| \le \|\mathbf{x}\| + \|\mathbf{y}\|$. We will formally define this below.
+
+:::
+
+Norms are used to measure *size*, *distance*, and *error*, and to impose *regularization* in optimization problems (another thing we will define below).
+
+### Vector Norms
+
+::: {#def-l0}
+## $\ell_0$ “Norm”
+
+The *$\ell_0$* “norm” counts the number of nonzero entries in a vector:
+$$
+\|\mathbf{x}\|_0 = \#\{i : x_i \neq 0\}.
+$$
+
+It measures *sparsity* (how many components are active). It is *not* a true norm, since it violates the triangle inequality.
+
+**Worked example:**  
+Let  
+$$
+\mathbf{x} =
+\begin{bmatrix} 3 \\ -4 \\ 0 \end{bmatrix}.
+$$  
+Then  
+$$
+\|\mathbf{x}\|_0 = 2.
+$$
+:::
+
+::: {#def-l1}
+## $\ell_1$ Norm
+
+The *$\ell_1$ norm* (also called the *Manhattan* or *taxicab* norm) is the sum of absolute values:
+$$
+\|\mathbf{x}\|_1 = \sum_i |x_i|.
+$$
+
+It measures *total magnitude*, encouraging *sparsity* when used in optimization.
+
+**Worked example:**  
+Let  
+$$
+\mathbf{x} =
+\begin{bmatrix} 3 \\ -4 \\ 0 \end{bmatrix}.
+$$  
+Then  
+$$
+\|\mathbf{x}\|_1 = |3| + |-4| + |0| = 7.
+$$
+:::
+
+I did not really understand norms until I came up with silly examples for them. For the *$\ell_1$ norm*, imagine walking on a trail. You take 10 steps forward and 2 steps back — even though your net position is 8 steps ahead, the total *distance walked* is $|10| + |{-2}| = 12$. That total distance is your $\ell_1$ norm.
+
+
+```{python}
+
+from style import set_book_style
+set_book_style()
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- example path ---
+# +10 steps forward, -2 steps back
+steps = np.array([10, -2])
+positions = np.cumsum(steps)
+positions = np.insert(positions, 0, 0)  # start at 0
+
+# --- compute L1 norm ---
+l1_norm = np.sum(np.abs(steps))
+
+# --- plot ---
+plt.figure(figsize=(7, 3))
+plt.plot(range(len(positions)), positions, 'o-', lw=2, label='Path along trail')
+plt.axhline(0, color='gray', lw=1)
+plt.title(f"L1 Norm as Total Distance Walked = {l1_norm}")
+plt.xlabel("Step index")
+plt.ylabel("Position on trail")
+
+# annotate steps
+for i in range(1, len(positions)):
+    plt.text(i - 0.5, (positions[i] + positions[i - 1]) / 2,
+             f"{steps[i-1]:+d}", ha='center', va='bottom', fontsize=10)
+
+plt.legend()
+plt.grid(True, linestyle=':')
+plt.tight_layout()
+plt.show()
+
+```
+
+::: {#def-l2}
+## $\ell_2$ Norm
+
+The *$\ell_2$ norm* (Euclidean norm) measures the *straight-line distance* from the origin:
+$$
+\|\mathbf{x}\|_2 = \sqrt{\sum_i x_i^2}.
+$$
+
+It corresponds to the geometric length of $\mathbf{x}$.
+
+**Worked example:**  
+Let  
+$$
+\mathbf{x} =
+\begin{bmatrix} 3 \\ -4 \\ 0 \end{bmatrix}.
+$$  
+Then  
+$$
+\|\mathbf{x}\|_2 = \sqrt{3^2 + (-4)^2 + 0^2} = \sqrt{25} = 5.
+$$
+:::
+
+In this case, it measures how far you are from the origin had you walked in a straight line. We can use the same trail analogy above. Suppose you take ten steps forward, and 2 back: we've traveled a total of 12 steps, but we are 8 steps from the starting point: $\|\mathbf{x}\|_2 = \sqrt{(10 + (-2))^2} = \sqrt{8^2} = 8$. 
+
+
+```{python}
+
+#| label: fig-pythag
+#| fig-cap: "$\\ell_2$ norm, Pythagorean"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- your path ---
+steps = np.array([10, -2])       # walk 10 forward, 2 back
+positions = np.cumsum(steps)
+positions = np.insert(positions, 0, 0)  # include starting point
+
+# --- compute norms ---
+l1_norm = np.sum(np.abs(steps))               # total distance walked
+l2_norm = np.sqrt((positions[-1] - positions[0])**2)  # straight-line distance
+
+# --- plot ---
+plt.figure(figsize=(8, 3))
+plt.plot(range(len(positions)), positions, 'o-', lw=2, label='Path along trail (L1 distance)')
+plt.plot([0, len(positions) - 1], [positions[0], positions[-1]], 'r--', lw=2, label='Straight line (L2 distance)')
+plt.axhline(0, color='gray', lw=1)
+
+# --- annotate ---
+plt.title(f"L1 = {l1_norm:.1f} (total walked),  L2 = {l2_norm:.1f} (straight line)")
+plt.xlabel("Step index")
+plt.ylabel("Position on trail")
+plt.legend()
+plt.grid(True, linestyle=':')
+
+# label points
+for i in range(1, len(positions)):
+    plt.text(i - 0.5, (positions[i] + positions[i - 1]) / 2,
+             f"{steps[i-1]:+d}", ha='center', va='bottom', fontsize=10)
+
+plt.tight_layout()
+plt.show()
+
+```
+
+
+If @fig-pythag look familiar to you, this is simply the Pythagorean Theorem in action! This is also why people jaywalk/cross the street at places other than cross-walks, because they will get to their destination quicker if they take a straight line instead of walking to the corner and crossing.
+
+
+We also have the infinity norm:
+
+::: {#def-linf}
+## $\ell_\infty$ Norm
+
+The *$\ell_\infty$ norm* (supremum or max norm) takes the largest absolute entry:
+$$
+\|\mathbf{x}\|_\infty = \max_i |x_i|.
+$$
+
+It measures the *maximum deviation* among components.
+
+**Worked example:**  
+Let  
+$$
+\mathbf{x} =
+\begin{bmatrix} 3 \\ -4 \\ 0 \end{bmatrix}.
+$$  
+Then  
+$$
+\|\mathbf{x}\|_\infty = \max(|3|, |-4|, |0|) = 4.
+$$
+:::
+
+Using the same steps $\mathbf{x} = [10, -2]$, the $\ell_\infty$ norm measures your *largest single stride*.  
+$$
+\|\mathbf{x}\|_\infty = \max(|10|, |-2|) = 10.
+$$
+
+It answers the question: *"What was my biggest single effort along the path?"*
+
+
+### Matrix Norms
+
+
+As it turns out, matrices can have norms too! The first is the Frobenius norm
+
+::: {#def-frobenius}
+## Frobenius Norm
+
+The *Frobenius norm* measures the magnitude of a matrix by aggregating the squares of all its entries:
+$$
+\|\mathbf{Y}\|_F = \sqrt{\sum_{i,j} y_{ij}^2}.
+$$
+
+It generalizes the $\ell_2$ norm to matrices and corresponds to the Euclidean length of the vector formed by stacking all entries.
+:::
+
+
+If each column of $\mathbf{Y}$ represents a separate person on a trail, each row entry is a step along that trail. The Frobenius norm sums up the squared steps of all people and takes the square root. It measures the *combined magnitude of movement* across all people.
+
+**Worked example:**  
+Let  
+$$
+\mathbf{Y} =
+\begin{bmatrix}
+1 & 2 & 0 \\
+2 & 1 & 3
+\end{bmatrix}.
+$$
+Then  
+$$
+\|\mathbf{Y}\|_F = \sqrt{1^2 + 2^2 + 0^2 + 2^2 + 1^2 + 3^2} = \sqrt{19}.
+$$
+
+
+```{python}
+
+#| label: fig-FroN
+#| fig-cap: "$\\| \\cdot \\|_{F}$ norm"
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# --- example matrix: 2 steps along 3 trails
+Y = np.array([
+    [1, 2, 0],
+    [2, 1, 3]
+])
+
+# number of steps and trails
+n_steps, n_trails = Y.shape  # careful: rows = steps, cols = trails
+
+# --- compute cumulative positions along each person ---
+positions = np.cumsum(Y, axis=0)
+positions = np.vstack([np.zeros((1, n_trails)), positions])  # include starting point
+
+# --- compute Frobenius norm ---
+fro_norm = np.sqrt(np.sum(Y**2))
+
+# --- plot ---
+plt.figure(figsize=(8, 4))
+
+colors = ['blue', 'green', 'orange']
+for j in range(n_trails):
+    plt.plot(range(n_steps+1), positions[:, j], 'o-', color=colors[j], lw=2, label=f'Trail {j+1}')
+
+plt.title(f"Multiple Walkers: Frobenius Norm = {fro_norm:.2f}")
+plt.xlabel("Step index")
+plt.ylabel("Position along trail")
+plt.grid(True, linestyle=':')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+```
+
+
+
+::: {#def-eigenvalue}
+## Eigenvalues
+
+Let $A \in \mathbb{R}^{n \times n}$ be a square matrix. A *scalar* $\lambda \in \mathbb{R}$ (or $\mathbb{C}$) is called an *eigenvalue* of $A$ if there exists a nonzero vector $\mathbf{v} \in \mathbb{R}^n$ such that
+
+$$
+A \mathbf{v} = \lambda \mathbf{v}.
+$$
+
+The corresponding *eigenvector* $\mathbf{v}$ is the vector that is only *scaled, not rotated*, by the transformation $A$.  
+
+Equivalently, $\lambda$ is an eigenvalue if the following *characteristic equation* holds:
+
+$$
+\det(A - \lambda I) = 0,
+$$
+
+where $I$ is the $n \times n$ identity matrix.
+:::
+
+
+Think of each column of $A$ as a separate person on a trail, and each entry as a step they take along that trail. The matrix $A$ mixes the trail walkers, so normally any direction of steps gets both *stretched and rotated*. An *eigenvector* is a special “trail direction” that only gets *stretched*, not turned, when applying $A$. The *eigenvalue* tells you *how much* that direction is stretched. Large eigenvalues correspond to the "dominant trail" that grows the fastest. Small eigenvalues correspond to directions that barely change. This is why in many systems, the largest eigenvalue often *drives the main behavior*, similar to how the biggest steps dominate the Frobenius norm in the trail analogy.
+
+
+```{python}
+
+
+
+#| label: fig-zero-trail
+#| fig-cap: "Trail Walkers with a Collapsed Trail"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Original trails ---
+Y = np.array([
+    [1, 2, 0],
+    [2, 1, 3]
+])
+
+# Add a zero-trail column (collapsed trail)
+zero_trail = np.zeros((Y.shape[0], 1))
+Y_aug = np.hstack([Y, zero_trail])
+
+n_steps, n_trails = Y_aug.shape
+positions = np.cumsum(Y_aug, axis=0)
+positions = np.vstack([np.zeros((1, n_trails)), positions])  # starting point
+fro_norm = np.sqrt(np.sum(Y_aug**2))
+
+# --- Create subplots ---
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+# Left subplot: multiple trail walkers
+colors = ['blue', 'green', 'orange', 'red']
+for j in range(n_trails):
+    axs[0].plot(range(n_steps+1), positions[:, j], 'o-', color=colors[j], lw=2, label=f'Trail {j+1}')
+axs[0].set_title(f"Multiple Walkers: Frobenius Norm = {fro_norm:.2f}")
+axs[0].set_xlabel("Step index")
+axs[0].set_ylabel("Position")
+axs[0].grid(True, linestyle=':')
+axs[0].legend()
+
+# Right subplot: collapsed trail (zero eigenvalue analogy)
+axs[1].axhline(0, color='grey', lw=1)
+axs[1].axvline(0, color='grey', lw=1)
+
+# Plot one of the normal eigenvector directions for comparison
+eigvec_normal = np.array([1, 2])  # example nonzero eigenvector
+eigvec_zero = np.array([0, 0])    # zero eigenvector
+
+# Scale vectors for visualization
+scale = 1.5
+axs[1].quiver(0, 0, scale*eigvec_normal[0], scale*eigvec_normal[1],
+              angles='xy', scale_units='xy', scale=1, color='blue', label='Nonzero Eigenvector')
+axs[1].quiver(0, 0, scale*eigvec_zero[0], scale*eigvec_zero[1],
+              angles='xy', scale_units='xy', scale=1, color='red', label='Zero Eigenvector (collapsed)')
+
+axs[1].set_xlim(-1, 4)
+axs[1].set_ylim(-1, 4)
+axs[1].set_aspect('equal', adjustable='box')
+axs[1].set_title("Eigenvector Illustration: Zero Eigenvalue")
+axs[1].grid(True, linestyle=':')
+axs[1].legend()
+
+plt.tight_layout()
+plt.show()
+
+
+```
+
+
+
+Notice the person who does not move at all — their steps are all zero. Because they have *no variance*, they are completely uninformative about the matrix. In linear algebra terms, their direction corresponds to a *zero eigenvalue*. This is why zero eigenvalues arise: they indicate directions that the matrix *completely flattens*. Practically, we do not care about these people because they contribute *nothing* to the overall movement or dominant directions of the system.
+
+
+
+
+::: {#def-operator-norm}
+## Matrix Operator (Spectral) Norm
+
+The *matrix operator norm*, also called the *spectral norm* or *induced 2-norm*, measures how much a matrix can *stretch* a vector when multiplied by it.
+
+Formally, for $\mathbf{A} \in \mathbb{R}^{m \times n}$:
+$$
+\|\mathbf{A}\|_2 = \max_{\mathbf{x} \neq 0} \frac{\|\mathbf{A}\mathbf{x}\|_2}{\|\mathbf{x}\|_2}.
+$$
+
+Equivalently, it equals the *largest singular value* of $\mathbf{A}$:
+$$
+\|\mathbf{A}\|_2 = \sigma_{\max}(\mathbf{A}) = \sqrt{\lambda_{\max}(\mathbf{A}^\top \mathbf{A})}.
+$$
+
+**Intuition:**  
+- $\|\mathbf{A}\|_2$ captures the *maximum amplification factor* of $\mathbf{A}$.  
+- If you think of $\mathbf{A}$ as a transformation, it tells how much $\mathbf{A}$ can stretch any unit vector.  
+- It is widely used in numerical analysis, stability, and conditioning of linear systems.
+
+**Worked example (2×2 case):**  
+Let  
+$$
+\mathbf{A} =
+\begin{bmatrix}
+1 & 2 \\
+2 & 3
+\end{bmatrix}.
+$$
+
+Compute $\mathbf{A}^\top \mathbf{A}$:
+$$
+\mathbf{A}^\top \mathbf{A} =
+\begin{bmatrix}
+1 & 2 \\
+2 & 3
+\end{bmatrix}^\top
+\begin{bmatrix}
+1 & 2 \\
+2 & 3
+\end{bmatrix}
+=
+\begin{bmatrix}
+5 & 8 \\
+8 & 13
+\end{bmatrix}.
+$$
+
+The eigenvalues of $\mathbf{A}^\top \mathbf{A}$ are solutions to
+$$
+\det(\mathbf{A}^\top \mathbf{A} - \lambda I) = 0 \quad \Rightarrow \quad
+\lambda^2 - 18\lambda + 1 = 0.
+$$
+
+Hence
+$$
+\lambda_{\max} = 9 + 4\sqrt{5}, \quad
+\|\mathbf{A}\|_2 = \sqrt{\lambda_{\max}} = \sqrt{9 + 4\sqrt{5}} \approx 4.11.
+$$
+
+So $\mathbf{A}$ stretches some unit vector by about a factor of 4.1.
+:::
+
+
+In other words, imagine all possible combinations of walkers taking steps according to any unit vector $\mathbf{x}$ The operator norm tells you the combination that produces the largest overall movement. This is the dominant combined trail, the direction along which the walkers' weighted steps are amplified the most. This connects to previous concepts. Like the Frobenius norm, which sums the total effort across all walkers, the operator norm focuses on the single combination that experiences the maximum stretch. Zero eigenvalue directions correspond to walkers who do not move at all in that combination and therefore contribute nothing to the maximum stretch. The operator norm equals the largest singular value, which identifies the most dominant movement pattern among all walkers.
+
+
+
+
+
+## Calculus
+
+
+Calculus is the study of change. It allows scientists to make precise statements about complex systems. In standard algebra we learn that the slope of a line is equal to the rise over run. @fig-linear-function illustrates this idea.
+
+
+```{python}
+
+
+#| label: fig-linear-function
+#| fig-cap: "Plot of the linear function $f(x) = 2x$"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- define x and function ---
+
+x = np.linspace(0, 10, 100)
+y = 2 * x
+
+# --- create plot ---
+
+plt.figure(figsize=(6,4))
+plt.plot(x, y, lw=2, color='blue', label='f(x) = 2x')
+plt.xlabel('x')
+plt.ylabel('f(x)')
+plt.title('Linear Function')
+plt.grid(True, linestyle=':')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+
+This is the function $2x$, where we intuitively see that each movement along the x axis doubles whatever the input is for $x$. Suppose this is a price function where you are paying two dollars per pound of something. The rate of change for your pay is constant in the sense that you pay the same amount of money for every single pound that you buy. However, sometimes reality is a little more complex than nice linear functions. Consider the idea of kicking a football or soccerball.
+
+```{python}
+
+
+#| label: fig-football-trajectory
+#| fig-cap: "Football trajectory with tangent line at peak"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- time vector ---
+
+t = np.linspace(0, 5, 200)
+
+# --- football trajectory ---
+
+s = -4*t**2 + 16*t + 3
+
+# --- derivative (instantaneous velocity) ---
+
+ds_dt = -8*t + 16
+
+# --- tangent line at t = 2 (peak) ---
+
+t0 = 2
+s0 = -4*t0**2 + 16*t0 + 3
+s_tangent = ds_dt[t == t0] if np.any(t == t0) else -8*t0 + 16
+t_tangent = np.linspace(t0-1, t0+1, 50)
+s_tangent_line = s0 + (-8*t0 + 16)*(t_tangent - t0)
+
+# --- plot ---
+
+plt.figure(figsize=(8,4))
+plt.plot(t, s, lw=2, color='blue', label='Trajectory s(t)')
+plt.scatter(t0, s0, color='black', zorder=5)
+plt.xlabel('Time (s)')
+plt.ylabel('Height (m)')
+plt.title('Football Trajectory')
+plt.grid(True, linestyle=':')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+```
+
+Here, @fig-football-trajectory shows us that the height of the ball changes at each point. More precisely, the speed at which the ball attains a given height changes at each point, as a function of time. At times point 0, the ball is with you, but by 2 seconds the ball will have attained a different height and be traveling a certain velocity at that height. Calculus allows us to study this phenomenon as well by using a derivative.
+
+::: {#def-derivative}
+##  Derivative
+
+For a scalar function $f : \mathbb{R} \to \mathbb{R}$, the *derivative* measures the instantaneous rate of change:
+$$
+\frac{\mathrm{d}f(x)}{\mathrm{d}x} = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}.
+$$
+
+**Intuition:** How $f(x)$ changes for an infinitesimal change in $x$.
+:::
+
+
+Derivatives have rules attached to them. For example, one is the power rule:
+
+
+
+::: {#def-power-rule}
+##  Power Rule
+
+If $f(x) = x^n$ for $n \in \mathbb{R}$:
+$$
+\frac{\mathrm{d}f(x)}{\mathrm{d}x} = n x^{n-1}.
+$$
+
+**Worked example:** $\frac{\mathrm{d}}{\mathrm{d}x} x^3 = 3x^2$.
+:::
+
+
+```{python}
+
+
+#| label: fig-football-cvxpy
+#| fig-cap: "Finding the time of maximum height using CVXPY"
+
+import cvxpy as cp
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- decision variable: time ---
+
+t_var = cp.Variable()
+
+# --- football trajectory ---
+
+s = -4*t_var**2 + 16*t_var + 3
+
+# --- objective: maximize height ---
+
+objective = cp.Maximize(s)
+
+# --- problem definition ---
+
+prob = cp.Problem(objective)
+
+# --- solve ---
+
+prob.solve()
+t_max = t_var.value
+s_max = -4*t_max**2 + 16*t_max + 3
+
+print(f"Time of maximum height: t* = {t_max:.4f} s")
+print(f"Maximum height: s* = {s_max:.4f} m")
+
+# --- plot trajectory and maximum point ---
+
+t_plot = np.linspace(0, 5, 200)
+s_plot = -4*t_plot**2 + 16*t_plot + 3
+
+plt.figure(figsize=(8,4))
+plt.plot(t_plot, s_plot, lw=2, color='blue', label='Trajectory s(t)')
+plt.scatter(t_max, s_max, color='red', s=60, zorder=5, label='Maximum Height')
+plt.xlabel('Time (s)')
+plt.ylabel('Height (m)')
+plt.title('Football Trajectory with Maximum Height')
+plt.grid(True, linestyle=':')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+
+@fig-football-cvxpy shows us the solution, but we will work it out by hand. Consider the football trajectory: $s(t) = -4 t^2 + 16 t + 3$. To find the time of maximum height, compute the derivative using the power rule: $\frac{\mathrm{d}s(t)}{\mathrm{d}t} = \frac{\mathrm{d}}{\mathrm{d}t}[-4 t^2 + 16 t + 3] = -8 t + 16$. We set the derivative equal to zero to find the critical point: $-8 t + 16 = 0 \Rightarrow t^* = \frac{16}{8} = 2$ seconds. Compute the maximum height by plugging $t^*$ into the original function: $s(t^*) = -4(2)^2 + 16(2) + 3 = -16 + 32 + 3 = 19$ meters. Thus, the ball reaches its *highest point at $t = 2$ s*, with a height of 19 meters.
+
+
+::: {#def-partial-derivative}
+##  Partial Derivative
+
+For a multivariate function $f : \mathbb{R}^n \to \mathbb{R}$, the *partial derivative* with respect to $x_i$ is
+$$
+\frac{\partial f(\mathbf{x})}{\partial x_i} = \lim_{h \to 0} \frac{f(x_1,\dots,x_i + h,\dots,x_n) - f(x_1,\dots,x_i,\dots,x_n)}{h}.
+$$
+
+**Intuition:** Measures how $f$ changes with $x_i$, holding other variables fixed.
+:::
+
+Another important rule is the chain rule.
+
+::: {#def-chain-rule}
+##  Chain Rule
+
+For $y = f(g(x))$:
+$$
+\frac{\mathrm{d}y}{\mathrm{d}x} = \frac{\mathrm{d}f}{\mathrm{d}g} \cdot \frac{\mathrm{d}g}{\mathrm{d}x}.
+$$
+:::
+
+Consider a firm's profit given by revenue minus cost:
+
+$$
+\Pi(x) = r(x) - c(x) = 75x - \Big[0.25(x+6)^2 + 191\Big].
+$$
+
+The cost term can be viewed as a composition of functions. Let the outer function be 
+
+$$
+f(u) = 0.25 u^2 + 191
+$$
+
+and the inner function be 
+
+$$
+g(x) = x + 6,
+$$
+
+so that 
+
+$$
+c(x) = f(g(x)).
+$$
+
+Applying the chain rule, the derivative of cost with respect to $x$ is
+
+$$
+\frac{\mathrm{d}c}{\mathrm{d}x} = \frac{\mathrm{d}f}{\mathrm{d}u} \cdot \frac{\mathrm{d}g}{\mathrm{d}x} = 0.5 (x+6) \cdot 1 = 0.5(x+6).
+$$
+
+The derivative of profit with respect to $x$ is then
+
+$$
+\frac{\mathrm{d}\Pi}{\mathrm{d}x} = \frac{\mathrm{d}r}{\mathrm{d}x} - \frac{\mathrm{d}c}{\mathrm{d}x} = 75 - 0.5(x+6).
+$$
+
+Setting this derivative equal to zero to find the maximum gives
+
+$$
+75 - 0.5(x+6) = 0 \quad \Rightarrow \quad x^* = 144.
+$$
+
+The maximum profit is
+
+$$
+\Pi(144) = 75(144) - 0.25(150^2) - 191 = 10800 - 5625 - 191 = 4984.
+$$
+
+The inner function is $g(x) = x+6$, the outer function is $f(u) = 0.25 u^2 + 191$, and the derivative of the cost term using the chain rule is $\frac{\mathrm{d}c}{\mathrm{d}x} = 0.5(x+6)$. The optimal quantity is $x^\ast = 144$ and the maximum profit is $\Pi_{\max} = 4984$. To visualize this another way, consider the profit function as depending on revenue and costs, where costs depends on an inner function and outer function.
+
+
+```{python}
+
+#| label: fig-profit
+#| fig-cap: "Finding Maximum Profit"
+
+
+import cvxpy as cp
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+# --- define variable ---
+x = cp.Variable()
+
+# --- revenue and cost ---
+R = 75 * x
+C = 0.25 * (x + 6)**2 + 191
+
+# --- profit ---
+Pi = R - C
+
+# --- solve optimization problem ---
+problem = cp.Problem(cp.Maximize(Pi))
+problem.solve()
+
+x_opt = x.value
+Pi_opt = Pi.value
+R_opt = 75 * x_opt
+C_opt = 0.25 * (x_opt + 6)**2 + 191
+
+print(f"Optimal x: {x_opt:.2f}")
+print(f"Maximum profit: {Pi_opt:.2f}")
+
+# --- prepare 3D plot ---
+x_vals = np.linspace(0, 200, 200)
+R_vals = 75 * x_vals
+C_vals = 0.25 * (x_vals + 6)**2 + 191
+Pi_vals = R_vals - C_vals
+
+fig = plt.figure(figsize=(10,6))
+ax = fig.add_subplot(111, projection='3d')
+
+ax.plot(R_vals, C_vals, Pi_vals, color='blue', lw=2)
+ax.scatter(R_opt, C_opt, Pi_opt, color='red', s=50, label='Maximum Profit')
+
+ax.set_xlabel('Revenue')
+ax.set_ylabel('Cost')
+ax.set_zlabel('Profit')
+ax.legend()
+plt.show()
+
+```
+
+
+Realistically though, functions depend on many variables that we need to account for. To do this, we use the partial derivative.
+
+::: {#def-partial-derivative}
+##  Partial Derivative
+
+For a multivariate function $f : \mathbb{R}^n \to \mathbb{R}$, the *partial derivative* with respect to $x_i$ is
+$$
+\frac{\partial f(\mathbf{x})}{\partial x_i} = \lim_{h \to 0} \frac{f(x_1,\dots,x_i + h,\dots,x_n) - f(x_1,\dots,x_i,\dots,x_n)}{h}.
+$$
+
+**Intuition:** Measures how $f$ changes with $x_i$, holding other variables fixed.
+:::
+
+Consider a small company that sells two products, Product X and Product Y. The company can spend a certain amount of resources on marketing each product, denoted by $x$ and $y$ respectively. 
+
+The expected profit (in thousands of dollars) from marketing is modeled as
+
+$$
+f(x, y) = 3x + 4y - x^2 - y^2
+$$
+
+where $3x + 4y$ represents the linear returns from marketing, and $-x^2 - y^2$ represents diminishing returns.
+
+To maximize profit, we can use partial derivatives with respect to each marketing variable:
+
+$$
+\frac{\mathrm{d}f}{\mathrm{d}x} = 3 - 2x, \quad
+\frac{\mathrm{d}f}{\mathrm{d}y} = 4 - 2y
+$$
+
+Setting the partial derivatives equal to zero gives the optimal allocation:
+
+$$
+3 - 2x = 0 \quad \Rightarrow \quad x^* = 1.5
+$$
+
+$$
+4 - 2y = 0 \quad \Rightarrow \quad y^* = 2
+$$
+
+The maximum profit is
+
+$$
+f(1.5, 2) = 3 \cdot 1.5 + 4 \cdot 2 - 1.5^2 - 2^2 = 6.25
+$$
+
+
+This can also be solved in `cvxpy`
+
+
+```{python}
+
+#| label: fig-partialderiv
+#| fig-cap: "Partial Derivatives"
+
+
+import cvxpy as cp
+
+x = cp.Variable()
+y = cp.Variable()
+
+f = 3*x + 4*y - x**2 - y**2
+
+problem = cp.Problem(cp.Maximize(f))
+problem.solve()
+
+print(f"Optimal x: {x.value:.2f}")
+print(f"Optimal y: {y.value:.2f}")
+print(f"Maximum profit: {f.value:.2f}")
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+# --- define grid of x and y values ---
+x_vals = np.linspace(0, 3, 100)
+y_vals = np.linspace(0, 3, 100)
+X, Y = np.meshgrid(x_vals, y_vals)
+
+# --- compute profit for each (x, y) ---
+Z = 3*X + 4*Y - X**2 - Y**2
+
+# --- optimal point ---
+x_opt = 1.5
+y_opt = 2
+z_opt = 3*x_opt + 4*y_opt - x_opt**2 - y_opt**2
+
+# --- create 3D plot ---
+fig = plt.figure(figsize=(10,7))
+ax = fig.add_subplot(111, projection='3d')
+
+# plot surface
+ax.plot_surface(X, Y, Z, cmap='viridis', alpha=0.8)
+
+# mark optimal point
+ax.scatter(x_opt, y_opt, z_opt, color='red', s=100, label='Maximum Profit')
+
+# labels
+ax.set_xlabel('Marketing X')
+ax.set_ylabel('Marketing Y')
+ax.set_zlabel('Profit')
+ax.set_title('Profit Surface as a Function of Marketing Allocation')
+ax.legend()
+plt.show()
+
+
+
+```
+
+
+
+
+
+::: {#def-gradient}
+##  Gradient
+
+The *gradient* of $f : \mathbb{R}^n \to \mathbb{R}$ is
+$$
+\nabla f(\mathbf{x}) =
+\begin{bmatrix}
+\frac{\partial f}{\partial x_1}(\mathbf{x}) \\
+\vdots \\
+\frac{\partial f}{\partial x_n}(\mathbf{x})
+\end{bmatrix}.
+$$
+:::
+
+Consider the profit function of a company that markets two products, X and Y:
+
+$$
+f(x, y) = 3x + 4y - x^2 - y^2
+$$
+
+where $x$ and $y$ denote the marketing allocations for products X and Y. The gradient of $f(x, y)$ collects the partial derivatives with respect to $x$ and $y$:
+
+$$
+\nabla f(x, y) =
+\begin{bmatrix}
+\frac{\partial f}{\partial x} \\
+\frac{\partial f}{\partial y}
+\end{bmatrix}
+=
+\begin{bmatrix}
+3 - 2x \\
+4 - 2y
+\end{bmatrix}.
+$$
+
+At any point $(x, y)$, the gradient points in the direction of steepest increase of profit.  
+
+For the optimal allocation found earlier:
+
+$$
+x^\ast = 1.5, \quad y^\ast = 2,
+$$
+
+the gradient evaluates to
+
+$$
+\nabla f(x^\ast, y^\ast) =
+\begin{bmatrix}
+3 - 2(1.5) \\
+4 - 2(2)
+\end{bmatrix}
+=
+\begin{bmatrix}
+0 \\
+0
+\end{bmatrix},
+$$
+
+confirming that $(x^\ast, y^\ast)$ is the critical point.
+
+
+::: {#def-gramian}
+## Gramian Matrix
+
+Given vectors $x_1, \dots, x_n \in \mathbb{R}^m$, the Gramian matrix is the $n \times n$ matrix
+
+$$
+\mathbf{G} =
+\begin{bmatrix}
+\mathbf{x}_1^\top \mathbf{x}_1 & \mathbf{x}_1^\top \mathbf{x}_2 & \dots & \mathbf{x}_1^\top \mathbf{x}_n \\
+\mathbf{x}_2^\top \mathbf{x}_1 & \mathbf{x}_2^\top \mathbf{x}_2 & \dots & \mathbf{x}_2^\top \mathbf{x}_n \\
+\vdots & \vdots & \ddots & \vdots \\
+\mathbf{x}_n^\top \mathbf{x}_1 & \mathbf{x}_n^\top \mathbf{x}_2 & \dots & \mathbf{x}_n^\top \mathbf{x}_n
+\end{bmatrix}.
+$$
+
+:::
+
+Consider two vectors in $\mathbb{R}^3$:
+
+$$
+\mathbf{x}_1 =
+\begin{bmatrix} 1 \\ 2 \\ 3 \end{bmatrix}, \quad
+\mathbf{x}_2 = 2 \mathbf{x}_1 =
+\begin{bmatrix} 2 \\ 4 \\ 6 \end{bmatrix}.
+$$
+
+Form the matrix
+
+$$
+\mathbf{X} = [\mathbf{x}_1 \; \mathbf{x}_2] =
+\begin{bmatrix} 1 & 2 \\ 2 & 4 \\ 3 & 6 \end{bmatrix}.
+$$
+
+Compute the Gramian:
+
+$$
+\mathbf{G} = \mathbf{X}^\top \mathbf{X} =
+\begin{bmatrix}
+\mathbf{x}_1^\top \mathbf{x}_1 & \mathbf{x}_1^\top \mathbf{x}_2 \\
+\mathbf{x}_2^\top \mathbf{x}_1 & \mathbf{x}_2^\top \mathbf{x}_2
+\end{bmatrix} =
+\begin{bmatrix}
+14 & 28 \\
+28 & 56
+\end{bmatrix}.
+$$
+
+The correlation coefficient between the vectors is
+
+$$
+\text{corr}(\mathbf{x}_1, \mathbf{x}_2) =
+\frac{\mathbf{x}_1^\top \mathbf{x}_2}{\|\mathbf{x}_1\|_2 \|\mathbf{x}_2\|_2} =
+\frac{28}{\sqrt{14}\sqrt{56}} = 1,
+$$
+
+showing that $\mathbf{x}_1$ and $\mathbf{x}_2$ are perfectly aligned. To visualize what we mean by alignment, we can just plot these vectors:
+
+
+
+```{python}
+#| label: fig-x
+#| fig-cap: "$\\mathbf{x}_1$ (blue) and $\\mathbf{x}_2 = 2\\mathbf{x}_1$ (red)"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# define 2D vectors (taking first two components)
+x1 = np.array([1, 2])
+x2 = 2 * x1
+
+# create figure
+plt.figure(figsize=(6,6))
+plt.quiver(0, 0, x1[0], x1[1], angles='xy', scale_units='xy', scale=1, color='blue', label='x1')
+plt.quiver(0, 0, x2[0], x2[1], angles='xy', scale_units='xy', scale=1, color='red', label='x2 (2*x1)')
+
+# set axes limits and labels
+plt.xlim(0, 5)
+plt.ylim(0, 5)
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Perfectly Aligned Vectors in 2D')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+
+We will oftentimes return to the Gramian in order to talk about the relationships between units (cities, states, or others for synthetic control methods)
+
+## Optimization
+
+Much of this chapter has been building up to optimization. With the exception of some Bayesian SCMs, basic knowledge of optimization is crucial to being fluent in SCM research, instead of merely a user who uses preexisting code. Let's start with the idea of an objective function.
+
+
+::: {#def-objective-function}
+##  Objective Function
+
+An *objective function* is a scalar-valued function we aim to minimize or maximize:
+$$
+f : \mathbb{R}^n \to \mathbb{R}.
+$$
+
+Optimization problem:
+$$
+\min_{\mathbf{x}} f(\mathbf{x}) \quad \text{or} \quad \max_{\mathbf{x}} f(\mathbf{x}).
+$$
+:::
+
+An objective function may look like
+
+$$
+f(\mathbf{w}) = \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2
+$$
+where the vector $\mathbf{y}_1$ is our target variable of interest, $\mathbf{Y}_0$ is some matrix, and $\mathbf{w}$ is what we call a decision variable, or, the vector of values that we seek to optimize the function with. In this case, we are using the Frobenius matrix to minimize the squared error between treated and the dot product of the matrix and some transformation of its values. The first step of minimizing an objective function is getting the first order conditions:
+
+
+::: {#def-foc}
+## First-Order Condition (FOC)
+
+The *first-order condition* is necessary for a local extremum of a differentiable function $f(\mathbf{x})$:
+
+$$
+\nabla f(\mathbf{x}^*) = \mathbf{0}.
+$$
+
+This must hold at any local minimum or maximum.
+:::
+
+This is essentially taking the first derivative. Consider the target vector $\mathbf{y}_1 = \begin{bmatrix}2 \\ 4 \\ 6\end{bmatrix}$ and the matrix/vector $\mathbf{Y}_0 = \begin{bmatrix}1 \\ 2 \\ 3\end{bmatrix}$, with a scalar decision variable $w$. Our objective function is the squared 2-norm of the difference:
+
+$$
+f(w) = \|\mathbf{y}_1 - \mathbf{Y}_0 w\|_2^2.
+$$
+
+By definition, the squared 2-norm of a vector is the sum of the squares of its entries. Therefore, if we subtract $\mathbf{Y}_0 w$ from $\mathbf{y}_1$, we get the vector
+
+$$
+\mathbf{y}_1 - \mathbf{Y}_0 w = \begin{bmatrix} 2 - w \\ 4 - 2w \\ 6 - 3w \end{bmatrix},
+$$
+
+and taking the squared 2-norm of this vector gives
+
+$$
+f(w) = (2 - w)^2 + (4 - 2w)^2 + (6 - 3w)^2.
+$$
+
+Expanding each square, we find
+
+$$
+f(w) = (4 - 4w + w^2) + (16 - 16w + 4w^2) + (36 - 36w + 9w^2),
+$$
+
+and combining like terms results in
+
+$$
+f(w) = 14 w^2 - 56 w + 56.
+$$
+
+From here we can complete the square, use the power rule, or use the quadratic formula; I prefer the power rule. Differentiating with respect to $w$ yields the first-order condition
+
+$$
+f'(w) = 28 w - 56=0,
+$$
+
+To solve this, we add 56 to the right hand side and divide by 28.
+
+$$
+w^\ast = 2.
+$$
+
+Since the second derivative is positive, $f''(w) = 28 > 0$, we confirm that this is indeed a minimum. Now, in fairness, we could have just done this in our heads. But the reason I worked this out here is because we will be working a lot with objective functions. At least for me, I was very intimidated by them when I first saw them (and I still am all the time). So, I work through them to show you that the math behind this is not as arcane as it at first seems.
+
+
+Frequently, we have optimization problems under constraints in real life. Often, there are limits to how much we can spend or how far we can go. These constraints change the feasibility set of our solutions"
+
+::: {#def-feasible-region}
+## Feasible Region
+
+Let $f : \mathbb{R}^n \to \mathbb{R}$ be an objective function, and let the optimization problem be
+
+$$
+\min_{x \in \mathbb{R}^n} f(x) \quad \text{subject to} \quad
+\begin{cases}
+g_i(x) \le 0, & i = 1, \dots, m, \\
+h_j(x) = 0, & j = 1, \dots, p,
+\end{cases}
+$$
+
+where $g_i(x)$ are inequality constraints and $h_j(x)$ are equality constraints.  
+
+The *feasible region* (also called the feasibility set) is defined as
+
+$$
+\mathcal{W} = \{ x \in \mathbb{R}^n \mid g_i(x) \le 0, \ i=1,\dots,m; \ h_j(x) = 0, \ j=1,\dots,p \}.
+$$
+
+In words, $\mathcal{W}$ is the set of all points that satisfy *all the constraints* of the optimization problem. The solution of the optimization problem must lie in $\mathcal{W}$. For example, with the problem
+
+$$
+\min_{x_1, x_2} x_1^2 + x_2^2 \quad \text{s.t.} \quad x_1 + x_2 = 1,
+$$
+
+the feasible region is
+
+$$
+\mathcal{W} = \{ (x_1, x_2) \in \mathbb{R}^2 \mid x_1 + x_2 = 1 \}.
+$$
+
+:::
+
+
+## Convexity
+
+Convexity is an important idea that we will return to in later chapters. Here we define some basic terms, which we will build on later.
+
+::: {#def-convex-function}
+##  Convex Function
+
+A function $f:\mathbb{R}^n \to \mathbb{R}$ is convex if for all $x,y \in \mathbb{R}^n$, $\lambda \in [0,1]$:
+$$
+f(\lambda x + (1-\lambda)y) \le \lambda f(x) + (1-\lambda) f(y).
+$$
+
+Differentiable functions satisfy $f(y) \ge f(x) + \nabla f(x)^\top (y-x)$.
+
+
+:::
+
+The intuition is that a convex function is bowl-shaped and always lies below the line connecting any two points on its graph. An example is $f(x) = x^2$ on $\mathbb{R}$, which has a minimum at zero and curves upward on both sides. Another example is $f(x) = e^x$, which grows exponentially but also satisfies the convexity property.
+
+::: {#def-convex-set}
+##  Convex Set
+
+A set $C \subset \mathbb{R}^n$ is convex if for any $x,y \in C$ and $\lambda \in [0,1]$, the point $\lambda x + (1-\lambda)y$ is also in $C$. 
+
+
+:::
+
+
+Intuitively, any line segment connecting points in the set stays entirely within the set. For example, the interval $[0,1]$ in $\mathbb{R}$ is convex because any point between two numbers in the interval is also in the interval. Similarly, the unit disk $\{x \in \mathbb{R}^2 : \|x\| \le 1\}$ is convex because any line segment between two points in the disk remains inside the disk.
+
+
+
+::: {#def-closed-set}
+##  Closed Set
+
+A set $C \subset \mathbb{R}^n$ is closed if it contains all its limit points. That is, if a sequence $(x_k)$ in $C$ converges to $x$, then $x$ must also be in $C$. 
+
+:::
+
+The intuition is that a closed set has no “missing boundary points.” For example, the interval $[0,1]$ is closed because its endpoints are included. Another example is $\{x \in \mathbb{R} : x \ge 0\}$, which contains all points that are limits of sequences within the set.
+
+::: {#def-bounded-set}
+##  Bounded Set
+
+A set $C \subset \mathbb{R}^n$ is bounded if all its points lie within some finite distance from the origin. Formally, there exists $M > 0$ such that $\|x\| \le M$ for all $x \in C$.
+
+
+:::
+
+Intuitively, a bounded set fits inside a ball of finite radius. The interval $[0,1]$ is bounded, as is the unit circle $\{x \in \mathbb{R}^2 : \|x\| = 1\}$.
+
+::: {#def-compact-set}
+##  Compact Set
+
+A set $C \subset \mathbb{R}^n$ is compact if it is both closed and bounded. 
+
+
+:::
+
+This means the set is finite in extent and contains all its boundary points. A compact set ensures that continuous functions defined on it achieve maximum and minimum values. Examples include the interval $[0,1]$ and the closed unit disk $\{x \in \mathbb{R}^2 : \|x\| \le 1\}$.
+
+::: {#def-convex-hull}
+##  Convex Hull
+
+The convex hull of points $\{x_1,\dots,x_J\}$ is 
+$$
+\operatorname{conv}\{x_1,\dots,x_J\} = \Big\{ \sum_{j=1}^J w_j x_j \;\Big|\; w_j \ge 0, \sum_{j=1}^J w_j = 1 \Big\}.
+$$
+
+
+:::
+
+Intuitively, the convex hull is the smallest convex set containing all the points, formed by all weighted averages of the points. For instance, the convex hull of points $(0,0), (1,0), (0,1)$ is the triangle defined by these vertices. If the points lie on a line, such as $x_1 = 0, x_2 = 2, x_3 = 5$, the convex hull is the interval $[0,5]$.
+
+
+## Inequalities
+
+While this book is not a real analysis book, I will occasionally present some theoretical results if they help explain why certain models or ideas behave the way they do. Typically, these are simple algebraic manipulations. In an appendix, I will go through the asymptotic bias bound of the standard SCM much later on. To do this, we need inequalities that allow us to give formal bounds.
+
+The first of these is the triangle inequality.
+
+::: {#def-triangle-scalar}
+## Triangle Inequality for Scalars
+
+For any real numbers $a$ and $b$, the triangle inequality states:
+
+$$
+|a + b| \le |a| + |b|.
+$$
+:::
+
+This inequality allows us to bound the absolute value of a sum of scalars by the sum of their absolute values. To build intuition, imagine walking along a trail. Suppose you first take 3 steps backward, then 5 steps forward. Your net position relative to the start is 2 steps forward, even though you actually moved a total of 8 steps. The triangle inequality formalizes this idea: the net change cannot exceed the total distance covered.  
+
+In symbols, if $a = -3$ and $b = 5$, then
+
+$$
+|a+b| = |-3 + 5| = |2| = 2,
+\quad |a| + |b| = 3 + 5 = 8,
+$$
+
+so indeed $|a+b| \le |a| + |b|$.
+
+We can also apply the triangle inequality to vectors. Intuitively, the idea is the same: the length of the sum of two vectors cannot exceed the sum of their lengths.
+
+::: {#def-triangle-vector}
+## Triangle Inequality for Vectors
+
+For any vectors $\mathbf{x}, \mathbf{y} \in \mathbb{R}^n$, the triangle inequality states:
+
+$$
+\|\mathbf{x} + \mathbf{y}\|_2 \le \|\mathbf{x}\|_2 + \|\mathbf{y}\|_2.
+$$
+:::
+
+To build intuition, imagine walking along a trail in two dimensions. If you first walk along vector $\mathbf{x}$ and then along vector $\mathbf{y}$, your net displacement from the start is represented by $\mathbf{x} + \mathbf{y}$. The length of this net displacement (the straight-line distance from start to finish) is always less than or equal to the total distance you actually walked (the sum of the lengths of $\mathbf{x}$ and $\mathbf{y}$). For example, if $\mathbf{x} = (3,0)$ and $\mathbf{y} = (0,4)$, then 
+
+$$
+\|\mathbf{x} + \mathbf{y}\|_2 = \|(3,4)\|_2 = 5,
+\quad \|\mathbf{x}\|_2 + \|\mathbf{y}\|_2 = 3 + 4 = 7,
+$$
+
+so indeed $\|\mathbf{x} + \mathbf{y}\|_2 \le \|\mathbf{x}\|_2 + \|\mathbf{y}\|_2$. This inequality really helped me understand the $\ell_1$ norm.
+
+
+::: {#def-jensen}
+## Jensen's Inequality
+
+Let $X$ be a random variable and $f$ a convex function. Then:
+
+$$
+f(\mathbb{E}[X]) \le \mathbb{E}[f(X)].
+$$
+
+In our context, the convex function is $f(x) = |x|$, so
+
+$$
+|\mathbb{E}[X]| \le \mathbb{E}[|X|].
+$$
+:::
+
+To build intuition, consider a trail example. Suppose you take two steps: $x = -2$ steps backward and $y = 4$ steps forward, with weights $\theta = 0.3$ and $1-\theta = 0.7$. Then
+
+$$
+|\theta x + (1-\theta)y| = |0.3(-2) + 0.7(4)| = 2.2,
+$$
+
+while
+
+$$
+\theta |x| + (1-\theta)|y| = 0.3\cdot 2 + 0.7\cdot 4 = 3.4.
+$$
+
+Indeed, Jensen's inequality holds: $2.2 \le 3.4$. The average magnitude is at least as big as the magnitude of the weighted average step.
+
+
+
+Finally, we arrive at the great-granddaddy of inequalities: the Cauchy–Schwarz inequality. This inequality is fundamental in linear algebra and statistics, and it underpins many other results, including the triangle inequality for vectors.
+
+::: {#def-cs}
+## Cauchy–Schwarz Inequality
+
+For any vectors $\mathbf{x}, \mathbf{y} \in \mathbb{R}^n$, the Cauchy–Schwarz inequality states:
+
+$$
+|\mathbf{x}^\top \mathbf{y}| \le \|\mathbf{x}\|_2 \, \|\mathbf{y}\|_2.
+$$
+:::
+
+Intuitively, Cauchy–Schwarz says that the absolute value of the dot product of two vectors cannot exceed the product of their lengths. Geometrically, it captures the idea that the "projection" of one vector onto another can never be longer than the product of their magnitudes. For example, consider vectors $\mathbf{x} = (1,2,2)$ and $\mathbf{y} = (2,0,1)$. Then
+
+$$
+\mathbf{x}^\top \mathbf{y} = 1\cdot 2 + 2\cdot 0 + 2\cdot 1 = 4,
+\quad \|\mathbf{x}\|_2 = \sqrt{1^2 + 2^2 + 2^2} = 3,
+\quad \|\mathbf{y}\|_2 = \sqrt{2^2 + 0^2 + 1^2} = \sqrt{5}.
+$$
+
+The product of the norms is $3 \cdot \sqrt{5} \approx 6.71$, and indeed
+
+$$
+|\mathbf{x}^\top \mathbf{y}| = 4 \le 6.71 = \|\mathbf{x}\|_2 \, \|\mathbf{y}\|_2.
+$$
+
+This inequality is extremely useful because it allows us to bound dot products in terms of vector lengths.
+
+We can also see how Cauchy–Schwarz leads naturally to the triangle inequality for vectors, using our trail analogy. Suppose you first walk along vector $\mathbf{x}$, then along vector $\mathbf{y}$. Your net displacement is $\mathbf{x} + \mathbf{y}$, and the triangle inequality says
+
+$$
+\|\mathbf{x} + \mathbf{y}\|_2 \le \|\mathbf{x}\|_2 + \|\mathbf{y}\|_2.
+$$
+
+Cauchy–Schwarz helps prove this because
+
+$$
+\|\mathbf{x} + \mathbf{y}\|_2^2 = (\mathbf{x} + \mathbf{y})^\top (\mathbf{x} + \mathbf{y}) = \|\mathbf{x}\|_2^2 + 2 \mathbf{x}^\top \mathbf{y} + \|\mathbf{y}\|_2^2 \le \|\mathbf{x}\|_2^2 + 2 \|\mathbf{x}\|_2 \|\mathbf{y}\|_2 + \|\mathbf{y}\|_2^2 = (\|\mathbf{x}\|_2 + \|\mathbf{y}\|_2)^2,
+$$
+
+where we applied Cauchy–Schwarz to bound $|\mathbf{x}^\top \mathbf{y}| \le \|\mathbf{x}\|_2 \, \|\mathbf{y}\|_2$.
+
+For a concrete numeric example, consider a 2D trail: let $\mathbf{x} = (3,0)$ represent walking 3 steps east, and $\mathbf{y} = (0,4)$ represent walking 4 steps north. Then your net displacement is
+
+$$
+\mathbf{x} + \mathbf{y} = (3,4), \quad \|\mathbf{x} + \mathbf{y}\|_2 = \sqrt{3^2 + 4^2} = 5.
+$$
+
+The sum of the lengths of your individual steps is
+
+$$
+\|\mathbf{x}\|_2 + \|\mathbf{y}\|_2 = 3 + 4 = 7.
+$$
+
+Cauchy–Schwarz guarantees that your net displacement cannot exceed the total distance you walked:
+
+$$
+\|\mathbf{x} + \mathbf{y}\|_2 = 5 \le 7 = \|\mathbf{x}\|_2 + \|\mathbf{y}\|_2.
+$$
+
+Thus, the triangle inequality for vectors is a direct consequence of Cauchy–Schwarz.
+
+
+Minkowski's inequality generalizes the triangle inequality to sums of vectors (or sequences of vectors) and higher moments. It is particularly useful when we want to bound the “combined displacement” of multiple vectors at once.
+
+::: {#def-minkowski}
+## Minkowski Inequality
+
+For vectors $\mathbf{x}_1, \dots, \mathbf{x}_n \in \mathbb{R}^F$ and $g \ge 1$:
+
+$$
+\Big( \sum_{i=1}^n \|\mathbf{x}_i + \mathbf{y}_i\|_2^g \Big)^{1/g} \le \Big( \sum_{i=1}^n \|\mathbf{x}_i\|_2^g \Big)^{1/g} + \Big( \sum_{i=1}^n \|\mathbf{y}_i\|_2^g \Big)^{1/g}.
+$$
+:::
+
+Intuitively, imagine a group of people walking on the same trail at once. Each person takes a step represented by $\mathbf{x}_i$ and another step represented by $\mathbf{y}_i$. Minkowski's inequality says that the combined “effort” of all people moving along both sets of steps, measured in the $g$-norm, cannot exceed the sum of the efforts of each set of steps separately.
+
+For a numeric illustration, suppose three people take steps $\mathbf{x}_1 = (1,0)$, $\mathbf{x}_2 = (0,2)$, $\mathbf{x}_3 = (1,1)$, and corresponding steps $\mathbf{y}_1 = (0,1)$, $\mathbf{y}_2 = (1,0)$, $\mathbf{y}_3 = (1,0)$, with $g=2$. Then the total “combined displacement” is
+
+$$
+\Big( \sum_{i=1}^3 \|\mathbf{x}_i + \mathbf{y}_i\|_2^2 \Big)^{1/2} = \Big( \|(1,1)\|_2^2 + \|(1,2)\|_2^2 + \|(2,1)\|_2^2 \Big)^{1/2} = \sqrt{2 + 5 + 5} = \sqrt{12} \approx 3.46.
+$$
+
+The sum of the separate “efforts” is
+
+$$
+\Big( \sum_{i=1}^3 \|\mathbf{x}_i\|_2^2 \Big)^{1/2} + \Big( \sum_{i=1}^3 \|\mathbf{y}_i\|_2^2 \Big)^{1/2} = \sqrt{1+4+2} + \sqrt{1+1+1} = \sqrt{7} + \sqrt{3} \approx 4.45.
+$$
+
+Indeed, the combined displacement $3.46 \le 4.45$, illustrating Minkowski’s inequality. This shows how the total movement of multiple people along a trail is controlled by the sum of their individual efforts.
+
+
+
+Finally, we generalize Cauchy–Schwarz to Hölder's inequality. While Cauchy–Schwarz handles the case of $p=q=2$, Hölder's inequality allows us to bound sums of products for any exponents $p, q \ge 1$ satisfying $1/p + 1/q = 1$. This is very useful when dealing with weighted sums or expectations.
+
+::: {#def-holder}
+## Hölder's Inequality
+
+For sequences of real numbers $(a_i)$ and $(b_i)$, and exponents $p, q \ge 1$ such that $1/p + 1/q = 1$, Hölder's inequality states:
+
+$$
+\sum_i |a_i b_i| \le \left( \sum_i |a_i|^p \right)^{1/p} \left( \sum_i |b_i|^q \right)^{1/q}.
+$$
+:::
+
+Intuitively, Hölder's inequality says that the “weighted overlap” between two sequences cannot exceed the product of their generalized lengths.  
+
+For a simple numeric example, consider two sequences $a = (1,2)$ and $b = (3,4)$ with $p=3$ and $q=3/2$ (so that $1/p + 1/q = 1$). Then
+
+$$
+\sum_i |a_i b_i| = |1 \cdot 3| + |2 \cdot 4| = 3 + 8 = 11.
+$$
+
+On the right-hand side, we compute the generalized $p$-norms:
+
+$$
+\left( \sum_i |a_i|^p \right)^{1/p} = (1^3 + 2^3)^{1/3} = (1 + 8)^{1/3} = 9^{1/3} \approx 2.08,
+$$
+
+$$
+\left( \sum_i |b_i|^q \right)^{1/q} = (3^{3/2} + 4^{3/2})^{2/3} \approx (5.196 + 8)^{2/3} = 13.196^{2/3} \approx 5.43.
+$$
+
+Multiplying the norms gives $2.08 \cdot 5.43 \approx 11.3$, which indeed bounds the sum of products $11 \le 11.3$.
+
+Rosenthal's inequality generalizes the idea of bounding the magnitude of a sum of independent random variables, similar to how the triangle, Cauchy–Schwarz, and Hölder inequalities help for deterministic sequences or vectors. In the random variable case, it controls the expected size of the sum, measured in terms of higher moments.
+
+::: {#def-rosenthal}
+## Rosenthal Inequality (Scalar Version)
+
+Let $X_1, \dots, X_n$ be independent, mean-zero random variables with finite $g$-th moments ($g \ge 2$). Then there exists a constant $C(g)$ such that:
+
+$$
+\mathbb{E}\Big[ \Big| \sum_{i=1}^n X_i \Big|^g \Big] \le C(g) \, \max\Bigg( \sum_{i=1}^n \mathbb{E}[|X_i|^g], \Big( \sum_{i=1}^n \mathbb{E}[X_i^2] \Big)^{g/2} \Bigg).
+$$
+
+This inequality bounds the $g$-th moment of a sum of independent mean-zero random variables.
+:::
+
+Intuitively, imagine walking along a trail where each step is random — sometimes forward, sometimes backward — and the steps are independent of each other. Your net displacement after $n$ steps is random. Rosenthal’s inequality tells us that the expected “size” of your total displacement (raised to the $g$-th power) can be bounded by either the sum of the $g$-th powers of your individual steps or by the $g/2$ power of the sum of the step variances, whichever is larger.
+
+For a concrete numeric illustration, consider $n=2$ independent random steps $X_1$ and $X_2$, where $X_1$ takes values $1$ or $-1$ with equal probability, and $X_2$ takes values $2$ or $-2$ with equal probability. Let $g=4$. Then
+
+$$
+\mathbb{E}[|X_1|^4] = 1, \quad \mathbb{E}[|X_2|^4] = 16, \quad \sum_i \mathbb{E}[|X_i|^4] = 17,
+$$
+
+and
+
+$$
+\mathbb{E}[X_1^2] = 1, \quad \mathbb{E}[X_2^2] = 4, \quad \left(\sum_i \mathbb{E}[X_i^2]\right)^{4/2} = (1 + 4)^2 = 25.
+$$
+
+Hence, Rosenthal's inequality gives
+
+$$
+\mathbb{E}[|X_1 + X_2|^4] \le C(4) \cdot \max(17, 25) = C(4) \cdot 25,
+$$
+
+showing that the fourth moment of the total displacement is controlled by either the sum of the fourth moments of the individual steps or by the squared sum of their variances. In other words, even though the steps are random and sometimes cancel each other out, Rosenthal gives a formal bound on how large the total displacement can be in expectation.
+
+
+::: {#def-rosenthal-vector}
+## Vector-Valued Rosenthal Inequality
+
+Let $X_1, \dots, X_n \in \mathbb{R}^F$ be independent, mean-zero random vectors with finite $g$-th moments ($g \ge 2$). Then there exists a constant $C(g)$ such that:
+
+$$
+\mathbb{E}\Big[ \Big\|\sum_{i=1}^n X_i \Big\|_2^g \Big] \le C(g) \, \max\Bigg( \sum_{i=1}^n \mathbb{E}\|X_i\|_2^g, \Big(\sum_{i=1}^n \mathbb{E}\|X_i\|_2^2\Big)^{g/2} \Bigg).
+$$
+:::
+
+To see this intuitively, imagine walking along a trail where each step is a random vector in 2D space, e.g. $X_1 = (1,0)$, $X_2 = (0,2)$. The sum $X_1 + X_2 = (1,2)$ represents your net displacement. Rosenthal's inequality bounds the expected size of the net displacement in the $g$-th moment norm:
+
+$$
+\mathbb{E}\|X_1 + X_2\|_2^g \le C(g) \max\big(\mathbb{E}\|X_1\|_2^g + \mathbb{E}\|X_2\|_2^g, (\mathbb{E}\|X_1\|_2^2 + \mathbb{E}\|X_2\|_2^2)^{g/2}\big).
+$$
+
+Even if the steps sometimes cancel out in some directions, this inequality ensures the expected size cannot blow up arbitrarily.
+
+
+## Conclusion
+
+These definitions and worked examples form the mathematical toolbox for synthetic control. Analysts can now reason rigorously about vectors, matrices, derivatives, convexity, and optimization, while connecting directly to SCM applications. I have simply defined these for use later on, so we will become more acquainted with these over time. A brief word of warning—and encouragement—is in order. While this book aims to make SCM accessible to a wide audience, mathematics will be, in a sense, non-negotiable.
+
+One of my favorite econometricians once asked hypothetically in his lecture notes, "Do I really need the fancy mathematics to understand econometrics?" [@shi_econ5121a]. The answer, as he put it, is both yes and no: not all practitioners need measure theory to apply econometrics effectively. By extension, not all practitioners who use causal inference and SCM need measure theory or post-graduate understanding of optimization and real analysis. In fact, my first degrees were in political science where I had no exposure to linear algebra, calculus, set theory, or discrete mathematics. However, without some degree of mathematical precision, core ideas like weighted averages, convex hulls, interpolation and extrapolation biases, and other important concepts cannot be fully defined. In the same spirit, this text strives for balance. I will avoid unnecessary abstraction, but I will also insist on clarity and correctness where it matters most. Only by taking advantage of the language of probability and statistics can the full value of the SCM be made known.
+
+
+
+
+
+
+

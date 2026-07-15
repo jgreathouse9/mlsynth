@@ -1,0 +1,659 @@
+# Multiple Treated Units
+
+::: {.epigraph}
+> "And I hear you call for more."  
+> — Courtney Shanade Salter
+:::
+
+## Introduction
+
+
+Up to this point, our discussion of SCM has assumed a single treated unit—one state, one firm, one policy exposure—that stands alone against a backdrop of untreated units. This framing captures the cleanest intuition behind the method: we construct a weighted average of donors which behaves as the treated unit would have in the absence of intervention. Conditional on good pre-treatment fit and non-sensitivity to reasonable placebo tests, we have a well identified effect size (even if it is biased).
+
+
+But empirical research rarely affords us such simplicity. While the single unit case is an easy motivator, policies are often rolled out across multiple regions, firms adopt similar innovations at once, or several individuals experience the same treatment under comparable conditions. In marketing measurement, we literally see this all the time, where 5 markets will be picked to be treated and some remaining subset will be under control/not exposed to the intervention. Analysts in these situations naturally ask: what happens when we have multiple treated units? If you have been tormented by the mathematics we have worked with up until this point, then we have good news: we now officially begin our transition from theory to practice. Yes, there will still be mathematics, but from this point on, we turn toward applied questions—how analysts can actually use SCM in empirical settings that deviate from the textbook single-unit ideal or where other important deviations materially affect the results. Among the most common and conceptually rich of these extensions is the multiple-treated-units problem.
+
+
+## From One Treated Unit to Many
+
+Assuming you've been reading along closely, by now the canonical formulation of SCM should feel more or less routine. If you had to describe it at simplest, you'd likely say "Well Jared, it's basically an OLS regression problem with constraints upon the weights/betas where the weights are nonnegative and add to one." Here is how that looks
+
+\begin{align}
+&\mathbf{w}^{\mathrm{SCM}}
+= \underset{\mathbf{w}^{\mathrm{SCM}} \in \mathcal{W}_{\mathrm{conv}}}{\operatorname*{argmin}} \;
+\left\| \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}^{\mathrm{SCM}} \right\|_2^2 \quad \forall \, t \in \mathcal{T}_{1}, \\
+&\mathcal{W}_{\mathrm{conv}} \in \Big\{ \mathbf{w}^{\mathrm{SCM}} \in (\{0\} \cup \mathbb{R}_+)^{|\mathcal{N}_0|} : \sum_{j \in \mathcal{N}_0} w_j = 1 \Big\}.
+\end{align}
+
+
+Okay, so the goal is to solve for a vector of weights using this program, where we use a weighted average of control units as a proxy for the counterfactual in the post-treatment period. But, let's take this a step further for just a second: suppose instead of one treated unit, we have three units of interest. @fig-mexmultisynth is an example of this, where instead of just having one state be treated, we have two more states be treated at roughly the same time. In our case, military operations against drug traffickers began in the states of Chihuahua and the two in Baja California approximately around January 2008.
+
+
+```{python}
+
+#| echo: False
+#| label: fig-mexmultisynth
+#| fig-cap: "Treated States versus Donor Mexican States"
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from style import set_book_style
+set_book_style()
+
+# --- Load data ---
+df = pd.read_csv(r"MexicanHomicideData.csv")
+
+# --- Convert 'date' to datetime ---
+df['date'] = pd.to_datetime(df['date'])
+df = df[df['date'].dt.year <= 2013]
+
+# --- Define states of interest ---
+focus_states = ['Chihuahua', 'Baja California', 'Baja California Sur'] #                'Nuevo León', 'Guerrero', 'Sinaloa', 'Durango'
+
+# --- Split data ---
+focus_df = df[df['State'].isin(focus_states)]
+other_states_df = df[~df['State'].isin(focus_states)]
+
+# --- Compute empirical mean of other states per date ---
+mean_other = other_states_df.groupby('date')['Homicide Rate'].mean().reset_index()
+
+# --- Generate distinct random colors for focus states ---
+np.random.seed(1)  # for reproducibility
+colors = plt.cm.tab10(np.linspace(0, 1, len(focus_states)))  # use a nice qualitative colormap
+color_map = dict(zip(focus_states, colors))
+
+# --- Plot ---
+plt.figure(figsize=(12, 6))
+
+# Plot individual donor lines (light grey)
+for state, group in other_states_df.groupby('State'):
+    plt.plot(group['date'], group['Homicide Rate'], color='lightgrey', linewidth=1, alpha=0.6)
+
+# Plot focus states with random colors
+for state, group in focus_df.groupby('State'):
+    plt.plot(group['date'], group['Homicide Rate'], color=color_map[state], linewidth=2.5, label=state)
+
+# Plot donor mean
+plt.plot(mean_other['date'], mean_other['Homicide Rate'], color='blue', linewidth=2, label='Other States (mean)', linestyle='--')
+
+# Add a vertical reference line for Q1 2008 (which starts on '2008-01-01')
+plt.axvline(pd.to_datetime('2008-01-01'), color='red', linewidth=2, label='Q1 2008')
+
+# Labels and formatting
+plt.xlabel('Date')
+plt.ylabel('Homicide Rate')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+```
+
+
+For years, the canonical advice in SCM was to estimate a single synthetic control per treated unit [@synthrunner]. In the Mexican example, we now have multiple treated states — Chihuahua, Baja California, and Baja California Sur — each exposed to federal military interventions beginning around early 2008. In such settings, the natural extension of the single-unit SCM is to estimate a distinct set of weights for each treated unit. Let $\mathcal{N}_1$ denote the set of treated states, and $\mathcal{N}_0$ the set of pure control states, i.e., states never exposed to the intervention. Denote by $\mathbf{y}_i \in \mathbb{R}^{|\mathcal{T}_1|}$ the vector of pre-intervention outcomes for treated unit $i \in \mathcal{N}_1$, and by $\mathbf{Y}_0 \in \mathbb{R}^{|\mathcal{T}_1| \times |\mathcal{N}_0|}$ the matrix of pre-intervention outcomes for donor units $j \in \mathcal{N}_0$.
+
+For each treated unit $i$, SCM solves the constrained optimization problem
+
+$$
+\mathbf{w}_i^{\mathrm{SCM}} 
+= \underset{\mathbf{w}_i \in \mathcal{W}_{\mathrm{conv}}}{\operatorname*{argmin}}
+\left\| \mathbf{y}_i - \mathbf{Y}_0 \mathbf{w}_i \right\|_2^2,
+\quad i \in \mathcal{N}_1,
+$$
+
+where $\mathbf{w}_i \in \mathbb{R}^{|\mathcal{N}_0|}$ is a nonnegative vector of weights over donor units $j \in \mathcal{N}_0$ constrained to sum to one:
+
+$$
+\mathcal{W}_{\mathrm{conv}} = \Big\{ \mathbf{w}_i \in \mathbb{R}_+^{|\mathcal{N}_0|} : \sum_{j \in \mathcal{N}_0} w_{ij} = 1 \Big\}.
+$$
+
+Each optimization produces a unit-specific vector of weights $\mathbf{w}_i^{\mathrm{SCM}}$, which is then applied to the post-intervention outcomes of the donor units to construct the counterfactual trajectory:
+
+$$
+\widehat{\mathbf{y}}_i = \mathbf{Y}_0^{\text{post}} \mathbf{w}_i^{\mathrm{SCM}}, 
+\quad i \in \mathcal{N}_1,
+$$
+
+where $\mathbf{Y}_0^{\text{post}} \in \mathbb{R}^{|\mathcal{T}_2| \times |\mathcal{N}_0|}$ contains the post-intervention outcomes of the donor units.  
+
+For each treated unit $i$, define the vector of post-intervention treatment effects
+
+$$
+\boldsymbol{\tau}_i = \mathbf{y}_i^{\text{post}} - \widehat{\mathbf{y}}_i \in \mathbb{R}^{|\mathcal{T}_2|}.
+$$
+
+Stacking all treated units, form the matrix
+
+$$
+\mathbf{T} = \big[ \boldsymbol{\tau}_1, \boldsymbol{\tau}_2, \dots, \boldsymbol{\tau}_{|\mathcal{N}_1|} \big] \in \mathbb{R}^{|\mathcal{T}_2| \times |\mathcal{N}_1|}.
+$$
+
+Define the uniform weight vector over post-treatment periods
+
+$$
+\mathbf{w}_\text{time} = \frac{1}{|\mathcal{T}_2|} \mathbf{1}_{|\mathcal{T}_2|} \in \mathbb{R}^{|\mathcal{T}_2|},
+$$
+
+and the uniform weight vector over treated units
+
+$$
+\mathbf{w}_\text{units} = \frac{1}{|\mathcal{N}_1|} \mathbf{1}_{|\mathcal{N}_1|} \in \mathbb{R}^{|\mathcal{N}_1|}.
+$$
+
+The vector of unit-specific ATTs is then
+
+$$
+\text{ATT} = \mathbf{w}_\text{time}^\top \mathbf{T} \in \mathbb{R}^{|\mathcal{N}_1|},
+$$
+
+with each element corresponding to
+
+$$
+\text{ATT}_i = \mathbf{w}_\text{time}^\top \boldsymbol{\tau}_i, \quad i \in \mathcal{N}_1.
+$$
+
+Finally, the overall pooled ATT across all treated units can be written as
+
+$$
+\widehat{\tau}_{\text{pooled}} = \mathbf{w}_\text{units}^\top \, \text{ATT} 
+= \mathbf{w}_\text{units}^\top \, \mathbf{w}_\text{time}^\top \, \mathbf{T}.
+$$
+
+
+Much of this so far is not at all new. We already know what it means to take a dot product where the eight vector is equal to the length of the elements, that's just the arithmetic average. Now we are simply extending this idea for more than one treated unit, using convenient matrix notations to make the idea easier.
+
+
+Now consider this setting from @fig-mexsd:
+
+```{python}
+
+#| echo: False
+#| label: fig-mexsd
+#| fig-cap: "Staggered Adoption of Treatment"
+
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from style import set_book_style
+set_book_style()
+
+# --- Load data ---
+df = pd.read_csv(r"MexicanHomicideData.csv")
+
+# --- Convert 'date' to datetime ---
+df['date'] = pd.to_datetime(df['date'])
+df = df[df['date'].dt.year <= 2013]
+
+# --- Define states of interest including staggered adoption ---
+focus_states = [
+    'Chihuahua', 'Baja California', 'Baja California Sur',
+    'Nuevo León', 'Guerrero', 'Sinaloa', 'Durango'
+]
+
+# --- Split data ---
+focus_df = df[df['State'].isin(focus_states)]
+other_states_df = df[~df['State'].isin(focus_states)]
+
+# --- Compute empirical mean of other states per date ---
+mean_other = other_states_df.groupby('date')['Homicide Rate'].mean().reset_index()
+
+# --- Generate distinct random colors for focus states ---
+np.random.seed(1)  # for reproducibility
+colors = plt.cm.tab10(np.linspace(0, 1, len(focus_states)))  # qualitative colormap
+color_map = dict(zip(focus_states, colors))
+
+# --- Plot ---
+plt.figure(figsize=(12, 6))
+
+# Plot individual donor lines (light grey)
+for state, group in other_states_df.groupby('State'):
+    plt.plot(group['date'], group['Homicide Rate'], color='lightgrey', linewidth=1, alpha=0.6)
+
+# Plot focus states with assigned colors
+for state, group in focus_df.groupby('State'):
+    plt.plot(group['date'], group['Homicide Rate'], color=color_map[state], linewidth=2.5, label=state)
+
+# Plot donor mean
+plt.plot(mean_other['date'], mean_other['Homicide Rate'], color='blue', linewidth=2, label='Other States (mean)', linestyle='--')
+
+# Add vertical reference lines for staggered intervention dates
+intervention_dates = {
+    'Chihuahua': '2008-01-01',
+    'Baja California': '2008-01-01',
+    'Baja California Sur': '2008-01-01',
+    'Nuevo León': '2010-01-01',
+    'Guerrero': '2008-01-01',
+    'Sinaloa': '2008-01-01',
+    'Durango': '2010-01-01'
+}
+
+for state, date in intervention_dates.items():
+    plt.axvline(pd.to_datetime(date), color=color_map[state], linewidth=1.5, linestyle='--', alpha=0.7)
+
+
+
+# Labels and formatting
+plt.xlabel('Date')
+plt.ylabel('Homicide Rate')
+plt.legend(loc='upper left', bbox_to_anchor=(1, 1))  # place legend outside
+plt.tight_layout()
+plt.show()
+
+```
+
+
+
+In this case, we have treatment begin at two times, although more than two are certainly possible. We have a set of earlier treated states (early adopters, Chihuahua, Durango, Sinaloa, Baja California (Sur) and Guerrero) and Nuevo Leon as the single later-adopter. The early adopters have their first major military actions in 2008, instead of Nuevo Leon whose intervention began in 2010. This is a case of *staggered adoption*, one which we we have not seen before. We require a more developed grammar to formalize how synthetic controls can be estimated in this setting. In the sections that follow, we extend the canonical SCM from the simple single unit treated setup to the setting where many area treated, and we proceed to estimate effect sizes for the treated areas of interest.
+
+
+
+::: {.problem title="Review: Single-Treated Unit SCM" data-link="#problem-single-unit"}
+a) Write the canonical SCM optimization problem for a single treated unit $i$ using matrix notation. Define all symbols clearly.
+
+b) Explain in words why the weights are constrained to sum to $1$ and to be nonnegative.
+:::
+
+::: {.problem title="Extending SCM to Multiple Treated Units" data-link="#problem-multi-unit"}
+a) Suppose you have three treated states: Chihuahua, Baja California, and Baja California Sur. Explain how SCM is applied to estimate counterfactual outcomes for each treated state.
+
+b) For each treated state $i$, define the vector of post-intervention treatment effects $\boldsymbol{\tau}_i$. How can these vectors be stacked into a matrix $\mathbf{T}$?
+:::
+
+::: {.problem title="Computing Unit-Level ATTs" data-link="#problem-unit-att"}
+a) Define a uniform weight vector over post-treatment periods $\mathbf{w}_\text{time}$ and explain its purpose.  
+
+b) Express the vector of unit-specific ATTs in matrix notation using $\mathbf{T}$ and $\mathbf{w}_\text{time}$.  
+
+c) Write the formula for $\text{ATT}_i$ explicitly for treated unit $i$, $i \in \mathcal{N}_1$.
+:::
+
+::: {.problem title="Pooled ATT Across Treated Units" data-link="#problem-pooled-att"}
+a) Define a uniform weight vector over treated units $\mathbf{w}_\text{units}$ and explain why it is used.  
+
+b) Using $\mathbf{T}$, $\mathbf{w}_\text{time}$, and $\mathbf{w}_\text{units}$, write a matrix formula for the overall pooled ATT $\widehat{\tau}_\text{pooled}$.  
+:::
+
+::: {.problem title="Interpretation" data-link="#problem-interpretation"}
+a) If the pooled ATT $\widehat{\tau}_\text{pooled}$ is positive, what does this indicate about the effect of militarization on homicide rates?  
+
+b) Discuss one limitation of simply averaging ATTs across treated units.
+:::
+
+::: {.problem title="Staggered Adoption" data-link="#problem-staggered"}
+a) In your own words, describe what is meant by *staggered adoption* in this context.  
+
+b) Suppose some states are treated in 2008 and others in 2010. How might the SCM approach need to be modified to account for staggered adoption?  
+
+c) Suggest a way to visualize the staggered adoption scenario using the Mexican homicide data (similar to $\text{@fig-mexsd}$).
+:::
+
+
+
+### Extending to Multiple Treated Units
+
+In the canonical synthetic control method, the goal is to construct a weighted combination of donor units that closely approximates the trajectory of a treated unit in the pre-treatment period. Let $\mathbf{y}_j \in \mathbb{R}^{L_j}$ denote the vector of pre-treatment outcomes for treated unit $j$, and let $\mathbf{Y}_0^{(j)} \in \mathbb{R}^{L_j \times |\mathcal{N}_0|}$ denote the corresponding pre-treatment outcomes of donor units aligned to the same periods. Each treated unit is assigned a weight vector $\mathbf{w}_j \in \mathbb{R}^{|\mathcal{N}_0|}$, constrained to be nonnegative and sum to one. The first imbalance of interest, the unit-level imbalance, is defined as the pre-treatment residuals for each treated unit:
+
+$$
+\boldsymbol{\epsilon}_j^\text{unit} 
+\;\equiv\;
+\mathbf{y}_j 
+- 
+\mathbf{Y}_0^{(j)} \mathbf{w}_j 
+- 
+\alpha_j \mathbf{1}_{L_j},
+$$
+
+where $\alpha_j$ is a unit-specific intercept that allows for level shifts between the treated unit and its synthetic control. Minimizing the squared norm $\|\boldsymbol{\epsilon}_j^\text{unit}\|_2^2$ ensures that each synthetic control accurately reproduces the pre-treatment trajectory of its corresponding treated unit.
+
+When multiple units are treated, estimating independent synthetic controls for each unit may produce highly variable weight vectors that reflect idiosyncratic noise rather than underlying common trends. To address this, partially pooled synthetic control introduces a second imbalance, the pooled imbalance, which measures the pre-treatment discrepancy for the average trajectory across treated units. Denote by $N_1 = |\mathcal{N}_1|$ the number of treated units. The pooled residual vector is defined as
+
+$$
+\boldsymbol{\epsilon}^\text{pool} 
+\;\equiv\;
+\frac{1}{N_1} 
+\sum_{j=1}^{N_1} 
+\mathbf{y}_j 
+-
+\mathbf{Y}_0 \bar{\mathbf{w}} 
+-
+\bar{\alpha} \mathbf{1}_{L_\text{union}},
+$$
+
+where
+
+$$
+\bar{\mathbf{w}} 
+= 
+\frac{1}{N_1} 
+\sum_{j=1}^{N_1} 
+\mathbf{w}_j,
+\qquad
+\bar{\alpha} 
+= 
+\frac{1}{N_1} 
+\sum_{j=1}^{N_1} 
+\alpha_j,
+$$
+
+and $L_\text{union}$ is the union of pre-treatment periods across treated units. Minimizing $\|\boldsymbol{\epsilon}^\text{pool}\|_2^2$ encourages consistency across weight vectors and reduces the influence of idiosyncratic deviations in individual units.
+
+To simplify notation, define the scalar imbalance measures
+
+$$
+q^\text{sep} 
+\;\defeq\;
+\frac{1}{N_1} 
+\sum_{j=1}^{N_1} 
+\|
+  \boldsymbol{\epsilon}_j^\text{unit}
+\|_2^2,
+\qquad
+q^\text{pool}
+\;\defeq\;
+\|
+  \boldsymbol{\epsilon}^\text{pool}
+\|_2^2.
+$$
+
+The partially pooled synthetic control estimator balances these two imbalances through a convex combination controlled by the pooling parameter $\nu \in [0,1]$. The overall optimization problem is
+
+$$
+\min_{\{\mathbf{w}_j\}, \{\alpha_j\}}
+(1 - \nu)\, q^\text{sep}
++
+\nu\, q^\text{pool}
++
+\lambda \sum_{j=1}^{N_1} 
+\|\mathbf{w}_j\|_2^2,
+$$
+
+subject to
+
+$$
+\mathbf{w}_j \ge 0,
+\qquad
+\mathbf{1}^\top \mathbf{w}_j = 1,
+\qquad
+\forall j \in \mathcal{N}_1.
+$$
+
+Here $\lambda$ is a ridge penalty that stabilizes the optimization and prevents extreme weights. When $\nu = 0$, the estimator fits independent synthetic controls for each treated unit. When $\nu = 1$, it enforces complete pooling, shrinking individual weight vectors toward a common pattern across all treated units.
+
+
+
+
+@poolsc  propose a heuristic to compute $\hat{\nu}$:
+
+$$
+\hat{\nu} = \frac{\sqrt{L_\text{max}} \, q_\text{pool}}{\frac{1}{N_1} \sum_{j=1}^{N_1} \sqrt{L_j} \, q_j},
+$$
+
+where $q_j$ is the mean squared residual from a separately estimated SCM for unit $j$, $q_\text{pool}$ is the mean squared residual for the pooled average trajectory, and $L_j$ is the number of pre-treatment periods for unit $j$. The heuristic scales the pooled residual relative to the unit-specific residuals and caps $\hat{\nu}$ at $1$ to maintain a valid convex combination. Conceptually, the denominator $\frac{1}{N_1} \sum_{j=1}^{N_1} \sqrt{L_j} \, q_j$ reflects the average unit-level pre-treatment misfit. As this denominator becomes very large, meaning the separate SCMs fit poorly, $\hat{\nu}$ approaches $0$, which downweights pooling and favors unit-specific fits. Conversely, as the denominator approaches $0$, meaning the separate SCMs fit nearly perfectly, $\hat{\nu}$ becomes large, pushing toward more pooling since the pooled fit is relatively more important. In practice, $\hat{\nu}$ is capped at $1$, ensuring a valid convex combination between unit-level and pooled imbalances.   This behavior reflects the intuition that pooling is most valuable when unit-level fits are individually reliable, and less valuable when the separate SCMs are noisy or unstable.
+
+
+After solving for the optimal $w_j$ and $\alpha_j$, the post-treatment counterfactual for each treated unit is obtained as
+
+$$
+\hat{y}_j^\text{post} = Y_0^\text{post} w_j + \alpha_j \mathbf{1}_{T_2},
+$$
+
+and the vector of treatment effects is
+
+$$
+\tau_j = y_j^\text{post} - \hat{y}_j^\text{post}.
+$$
+
+
+
+::: {.problem title="Unit-Level Imbalance" data-link="#problem-unit-imbalance"}
+a) Define the unit-level residual vector $\epsilon_j^\text{unit}$ and explain its role in the SCM optimization.  
+
+b) Why is it useful to include a unit-specific intercept $\alpha_j$?  
+:::
+
+::: {.problem title="Pooled Imbalance" data-link="#problem-pooled-imbalance"}
+a) Define the pooled residual vector $\epsilon^\text{pool}$ and explain how it differs from the unit-level residuals.  
+
+b) Express $\bar{w}$ and $\bar{\alpha}$ in terms of the individual weight vectors $w_j$ and intercepts $\alpha_j$.  
+:::
+
+::: {.problem title="Partially Pooled Objective Function" data-link="#problem-partially-pooled-objective"}
+a) Write the full partially pooled SCM objective function and identify the role of each term.  
+
+b) Explain the effect of the pooling parameter $\nu$ in words. What happens when $\nu = 0$ versus $\nu = 1$?  
+
+c) What is the role of the ridge penalty $\lambda$ in this optimization problem?  
+:::
+
+::: {.problem title="Constraints on Weights" data-link="#problem-weight-constraints"}
+a) State the constraints imposed on each weight vector $w_j$. Why are these constraints important in the SCM framework?  
+
+b) What would happen if the weights were allowed to be negative or not sum to one?  
+:::
+
+::: {.problem title="Counterfactual and Treatment Effects" data-link="#problem-counterfactuals"}
+a) Given the optimal weights $w_j$ and intercepts $\alpha_j$, write the formula for the post-treatment counterfactual $\hat{y}_j^\text{post}$.  
+
+b) Define the vector of treatment effects $\tau_j$ for treated unit $j$ in terms of the observed post-treatment outcomes and the counterfactual.  
+:::
+
+::: {.problem title="Stacking Treated Units" data-link="#problem-stacking-units"}
+a) Explain how the treatment effect vectors $\tau_j$ are combined into a matrix $T$.  
+
+b) If $N_1 = 3$ treated units each with $T_2 = 4$ post-treatment periods, what are the dimensions of $T$?  
+:::
+
+::: {.problem title="Pooled ATT Calculation" data-link="#problem-pooled-att-calc"}
+a) Write the formula for the pooled ATT $\hat{\tau}_\text{pooled}$ using $T$, and explain the weighting implicit in the calculation.  
+
+b) How does the pooled ATT relate to the naive average of the unit-level ATTs?  
+:::
+
+::: {.problem title="Effect of Pooling on Weights" data-link="#problem-pooling-weights"}
+a) Conceptually, how does increasing $\nu$ influence the similarity of weight vectors $w_j$ across treated units?  
+
+b) Why might a researcher prefer an intermediate value of $\nu$ rather than the extremes 0 or 1?  
+:::
+
+
+## Pooled ATT Estimation
+
+Once we have constructed counterfactuals for each treated unit, we can compute post-treatment treatment effects. Let $\mathbf{y}_i^{\text{post}} \in \mathbb{R}^{|\mathcal{T}_{2,i}|}$ denote the vector of post-treatment outcomes for treated unit $i \in \mathcal{N}_1$, and let $\widehat{\mathbf{y}}_i \in \mathbb{R}^{|\mathcal{T}_{2,i}|}$ be the corresponding counterfactual trajectory. The unit-level treatment effect vector is
+
+$$
+\boldsymbol{\tau}_i = \mathbf{y}_i^{\text{post}} - \widehat{\mathbf{y}}_i.
+$$
+
+The unit-level average treatment effect is
+
+$$
+\text{ATT}_i = \frac{1}{|\mathcal{T}_{2,i}|} \mathbf{1}_{T_i}^\top \boldsymbol{\tau}_i.
+$$
+
+To ground our discussion, consider a simple example with two treated cohorts. Suppose the first cohort has an average post-treatment effect of $\text{ATT}_1 = 200$, and the second cohort has $\text{ATT}_2 = 350$. We will use these two numbers throughout the examples below to illustrate how different weighting schemes alter the pooled ATT.
+
+### Naive ATT
+
+The most direct way to summarize treatment effects across multiple units is to take a simple average. The naive pooled ATT treats each unit equally, assigning an equal share $s_i = 1/N_1$ to each treated unit, where $N_1 = |\mathcal{N}_1|$ is the number of treated units:
+
+$$
+\widehat{\tau}_{\text{naive}} = \frac{1}{N_1} \sum_{i \in \mathcal{N}_1} \text{ATT}_i.
+$$
+
+In the two-cohort example, each cohort represents one treated unit, so $s_1 = s_2 = 0.5$. The pooled ATT is therefore
+
+$$
+\widehat{\tau}_{\text{naive}} = 0.5(200) + 0.5(350) = 275.
+$$
+
+This estimator gives equal influence to each treated unit (or cohort), regardless of how many units or how much population each represents. It also implicitly weights units by the number of post-treatment periods observed, since each $\text{ATT}_i$ averages over its available time points.
+
+### Cohort-Size Weighted ATT
+
+Now suppose these two cohorts differ in size. Let $n_1$ and $n_2$ denote the number of treated units in cohorts 1 and 2, respectively. Let $\text{ATT}_c$ be the average ATT for all treated units within cohort $c$. Then the cohort-size-weighted pooled ATT is
+
+$$
+\widehat{\tau}_{\text{cohort-weighted}} = \sum_{c=1}^{C} s_c \, \text{ATT}_c,
+$$
+
+where $s_c = \frac{n_c}{\sum_{k=1}^{C} n_k}$ is the share of treated units belonging to cohort $c$.
+
+Continuing our example, suppose cohort 1 contains $n_1 = 5$ treated units, and cohort 2 contains $n_2 = 10$ treated units. The corresponding shares are
+
+$$
+s_1 = \frac{5}{15} = \frac{1}{3}, \quad s_2 = \frac{10}{15} = \frac{2}{3}.
+$$
+
+The cohort-size-weighted pooled ATT is therefore
+
+$$
+\widehat{\tau}_{\text{cohort-weighted}} = \frac{1}{3}(200) + \frac{2}{3}(350) = 300.
+$$
+
+Relative to the naive estimator, this gives greater weight to the larger cohort and thus yields a higher pooled estimate.
+
+### Population-Weighted ATT
+
+Finally, we can assign weights proportional to the population size of each treated unit.  
+Let $P_i$ denote the population of treated unit $i$, and let $P_{\text{total}} = \sum_{j \in \mathcal{N}_1} P_j$ be the total treated population.  
+The population share associated with unit $i$ is
+
+$$
+s_i = \frac{P_i}{P_{\text{total}}},
+$$
+
+and the population-weighted pooled ATT is
+
+$$
+\widehat{\tau}_{\text{pop-weighted}} = \sum_{i \in \mathcal{N}_1} s_i \, \text{ATT}_i.
+$$
+
+Returning to our two-cohort example, suppose the five treated units in cohort 1 each have an average population of 100,000, and the ten treated units in cohort 2 each have an average population of 300,000.  
+Then the total population represented by each cohort is
+
+$$
+P_1 = 5 \times 100{,}000 = 500{,}000, \quad P_2 = 10 \times 300{,}000 = 3{,}000{,}000,
+$$
+
+and the total treated population is
+
+$$
+P_{\text{total}} = P_1 + P_2 = 3{,}500{,}000.
+$$
+
+The population shares are therefore
+
+$$
+s_1 = \frac{500{,}000}{3{,}500{,}000} \approx 0.143, \quad
+s_2 = \frac{3{,}000{,}000}{3{,}500{,}000} \approx 0.857.
+$$
+
+The population-weighted pooled ATT is
+
+$$
+\widehat{\tau}_{\text{pop-weighted}} = 0.143(200) + 0.857(350) = 328.5.
+$$
+
+This weighting scheme gives greater influence to cohorts that represent larger populations, providing an estimate that better reflects the average treatment effect experienced by an individual in the treated population rather than the average treated unit.
+
+
+By expressing all estimators in terms of proportional shares, we see clearly how each weighting scheme redistributes influence across treated units. The naive estimator gives equal weight to each unit, the cohort-size estimator weights by the number of treated units per adoption cohort, and the population-weighted estimator scales effects by the population size represented by each unit. Each reflects a different empirical perspective: whether one cares most about the average treated unit, the average treated cohort, or the average treated individual in the population.
+
+
+::: {.problem title="Review: Defining the Treatment Effect Vector" data-link="#problem-tau-vector"}
+a) For treated unit $i \in \mathcal{N}_1$, define the post-treatment outcome vector $\mathbf{y}_i^{\text{post}}$ and its counterfactual $\widehat{\mathbf{y}}_i$.  
+
+b) Write the formula for the vector of treatment effects $\boldsymbol{\tau}_i$.  
+
+c) Briefly explain what each element of $\boldsymbol{\tau}_i$ represents.
+:::
+
+::: {.problem title="Averaging Within Units" data-link="#problem-unit-average"}
+a) Define the time-averaged ATT for a single treated unit $\text{ATT}_i$.  
+
+b) Why might this simple average be appropriate in balanced panel data but less so when post-treatment period lengths differ across units?
+:::
+
+::: {.problem title="Naive Pooled ATT" data-link="#problem-naive-pool"}
+a) Write the expression for the naive pooled ATT $\widehat{\tau}_{\text{naive}}$.  
+
+b) Explain how this estimator implicitly weights units with longer post-treatment periods more heavily.  
+
+c) Suppose $\text{ATT}_1 = 200$ and $\text{ATT}_2 = 350$. If unit 1 has 5 post-periods and unit 2 has 10, compute $\widehat{\tau}_{\text{naive}}$.
+:::
+
+::: {.problem title="Cohort Definition and Notation" data-link="#problem-cohort-notation"}
+a) Define a cohort $\mathcal{C}_g$ as the set of treated units sharing a common treatment adoption year $g$.  
+
+b) Write expressions for the number of treated units per cohort $n_g = |\mathcal{C}_g|$ and the total number of treated units $N_1 = \sum_g n_g$.  
+
+c) Explain why considering cohorts is important when aggregating treatment effects across units with staggered adoption.
+:::
+
+::: {.problem title="Cohort-Level ATT" data-link="#problem-cohort-att"}
+a) Define the cohort-level ATT as the average of $\text{ATT}_i$ within cohort $\mathcal{C}_g$.  
+
+b) Write the formula for $\text{ATT}_{\mathcal{C}_g} = \frac{1}{n_g} \sum_{i \in \mathcal{C}_g} \text{ATT}_i$.  
+
+c) Given two cohorts with $\text{ATT}_{\mathcal{C}_1} = 200$ and $\text{ATT}_{\mathcal{C}_2} = 350$, interpret these estimates.
+:::
+
+::: {.problem title="Cohort-Size Weighted ATT" data-link="#problem-cohort-size-weighted"}
+a) Define the cohort-size share $s_g = \frac{n_g}{N_1}$.  
+
+b) Write the formula for the cohort-size weighted pooled ATT:
+
+$$
+\widehat{\tau}_{\text{cohort}} = \sum_g s_g \, \text{ATT}_{\mathcal{C}_g}.
+$$
+
+c) Suppose cohort 1 contains 5 treated units and cohort 2 contains 10. Compute $\widehat{\tau}_{\text{cohort}}$ using the values in the previous problem.
+:::
+
+::: {.problem title="Interpreting Weight Shares" data-link="#problem-weight-shares"}
+a) Explain in words how weighting by cohort size differs conceptually from the naive ATT.  
+
+b) Which approach gives equal weight to *units*? Which gives equal weight to *cohorts*?  
+
+c) Under what conditions would the naive and cohort-size weighted ATTs coincide?
+:::
+
+::: {.problem title="Population-Weighted ATT" data-link="#problem-pop-weighted"}
+a) Let $P_i$ denote the population of treated unit $i$ and $P_{\text{total}} = \sum_i P_i$. Define the population share $s_i = \frac{P_i}{P_{\text{total}}}$.  
+
+b) Write the formula for the population-weighted ATT:
+
+$$
+\widehat{\tau}_{\text{pop-weighted}} = \sum_{i \in \mathcal{N}_1} s_i \, \text{ATT}_i.
+$$
+
+c) Suppose the five treated units in cohort 1 each have $100{,}000$ people and the ten treated units in cohort 2 each have $300{,}000$. Compute $s_1$, $s_2$, and $\widehat{\tau}_{\text{pop-weighted}}$ given $\text{ATT}_1 = 200$ and $\text{ATT}_2 = 350$.
+:::
+
+::: {.problem title="Comparing Weighting Schemes" data-link="#problem-comparison"}
+a) Summarize in a table how each weighting scheme (naive, cohort-size, population-weighted) assigns relative influence to treated units.  
+
+b) Which estimator would you prefer if the policy’s effects are expected to scale with population size?  
+
+c) Which estimator is most appropriate if every treated unit is conceptually “equal,” regardless of population?
+:::
+
+::: {.problem title="General Weighted ATT Formulation" data-link="#problem-general-weighted"}
+a) Write a general formula for a pooled ATT as a weighted sum of unit-level ATTs:
+
+$$
+\widehat{\tau}_{w} = \sum_{i \in \mathcal{N}_1} w_i \, \text{ATT}_i,
+$$
+
+where $\sum_i w_i = 1$ and $w_i \ge 0$.  
+
+b) Explain how the naive, cohort-size, and population-weighted estimators can each be represented as special cases of this general form.  
+
+c) Discuss one possible context where you might design your own custom weighting scheme.
+
+d) Prove that each form of ATT is a conbvex average.
+:::
+

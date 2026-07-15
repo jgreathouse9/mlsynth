@@ -1,0 +1,658 @@
+# Using The Control Group Mean
+
+
+Now that we have spoken a little about averaging as an idea, we can finally formalize this in a panel data setting such that it is useful. Before, I was sort of vague about using averages for comparison; I gave a plot, but I never said how we would more formally do this. This chapter explains how we would do this as a first pass.
+
+## Two Way Fixed Effects
+
+Recall the [linear factor model](poframe.html#assump-lfm) as a data generating process. The original model assumes that some number of factor loadings and common time factors interact (along with covariates, potentially) to generate outcomes. However, this can be simplified by a lot to what we traditionally know as the two-way fixed effects model. 
+
+::: {#assump-twfe .assumption title="Two-Way Fixed Effects Model" data-link="did.html#assump-twfe"}
+$\forall j \in \mathcal{N}, : t \in \mathcal{T}_{1}$, pre-treatment outcomes are generated according to
+
+$$
+y_{jt}(0) = \mu_j + \lambda_t + \varepsilon_{jt},
+$$
+
+where $\mu_j$ are *unit-specific intercepts* capturing time-invariant heterogeneity, $\lambda_t$ are *time-specific effects* capturing shocks or trends common to all units, and $\varepsilon_{jt}$ are zero-mean *idiosyncratic errors*. This model is a special case of the [linear factor model](poframe.html#assump-lfm), where there is a single factor with identical loadings across all units:
+$$
+\boldsymbol{\lambda}_t = [1, \lambda_t]^\top, \quad \boldsymbol{\mu}_j = [\mu_j, 1]^\top.
+$$
+In this representation, the first component captures unit-level heterogeneity, while the second captures the shared temporal component.
+:::
+
+Intuitively, the TWFE model assumes that all units respond *equally* to the same common time trend $\lambda_t$, differing only in their fixed intercepts $\mu_j$. This simplicity makes it powerful for many policy applications but also restrictive — if units react differently to aggregate shocks (i.e. have heterogeneous loadings on $\lambda_t$), the model is misspecified, and DID-type estimators may become biased. In that sense, the LFM generalizes TWFE by allowing these sensitivities to vary across units. @fig-dag-twfe represents this DGP graphically.
+
+
+```{python}
+
+#| echo: False
+#| label: fig-dag-twfe
+#| fig-cap: "DAG for TWFE Factor Model"
+
+
+import networkx as nx
+import matplotlib.pyplot as plt
+from style import set_book_style
+set_book_style()
+
+# Create DAG
+G = nx.DiGraph()
+
+# Nodes
+nodes = [
+    r'$\mu_j$',           # unit factor
+    r'$\lambda_t$',       # time factor
+    r'$y_{jt}$',          # observed outcome
+    r'$\bar{y}_{0t}$'     # avg controls (estimate lambda_t)
+]
+G.add_nodes_from(nodes)
+
+# Edges
+edges = [
+    (r'$\mu_j$', r'$y_{jt}$'),
+    (r'$\lambda_t$', r'$y_{jt}$'),
+    (r'$y_{jt}$', r'$\bar{y}_{0t}$')
+]
+G.add_edges_from(edges)
+
+# Draw the DAG with nx.draw_planar and styling
+plt.figure(figsize=(7, 4))
+nx.draw_planar(
+    G,
+    with_labels=True,
+    node_size=2500,
+    node_color=["#add8e6", "#add8e6", "#ff7f7f", "#90ee90"],  # blue, blue, red, green
+    width=2,
+    font_size=14,
+    arrowsize=20
+)
+plt.title("Factor Model DAG (TWFE / Additive Factor Model)")
+plt.show()
+
+
+
+
+```
+
+To make this concrete, consider a toy example with two units over two time periods. Consider two units ($j = 1, 2$) observed over two time periods ($t = 1, 2$). Suppose
+
+$$
+y_{jt} = \mu_j + \lambda_t + \varepsilon_{jt}
+$$
+
+holds. Let the fixed effects be
+
+$$
+\mu =
+\begin{bmatrix}
+2 \\
+5
+\end{bmatrix},
+\qquad
+\lambda =
+\begin{bmatrix}
+1 \\
+3
+\end{bmatrix}.
+$$
+
+Ignoring the random errors $\varepsilon_{jt}$, we can represent the predicted outcomes as a matrix where each row corresponds to a time period and each column to a unit:
+
+$$
+M =
+\begin{bmatrix}
+y_{11} & y_{21} \\
+y_{12} & y_{22}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\mu_1 + \lambda_1 & \mu_2 + \lambda_1 \\
+\mu_1 + \lambda_2 & \mu_2 + \lambda_2
+\end{bmatrix}
+=
+\begin{bmatrix}
+2 + 1 & 5 + 1 \\
+2 + 3 & 5 + 3
+\end{bmatrix}
+=
+\begin{bmatrix}
+3 & 6 \\
+5 & 8
+\end{bmatrix}.
+$$
+
+In this example, moving from the first to the second row adds the same amount, $+2$, to each unit because $\lambda_t$ changes by the same amount for everyone. 
+
+
+::: {.problem title="Additive Factor Model" data-link="#problem-additive-factor-model"}
+Explain in your own words what the additive factor model 
+
+$$
+y_{jt} = \mu_j + \lambda_t + \varepsilon_{jt}
+$$ 
+
+represents. What do the terms $\mu_j$ and $\lambda_t$ capture in practical terms?
+:::
+
+
+::: {.problem title="Unit Effects vs. Time Effects" data-link="#problem-unit-vs-time"}
+Give an example of a real-world scenario where two units might share $\lambda_t$ but differ in $\mu_j$. How would this difference affect naive comparisons of levels?
+:::
+
+
+## Demeaning and Difference-in-Differences
+
+A simple way to approximate the counterfactual outcome for a treated unit is to use the mean of the control group. That is, we could take the average outcome of untreated units and use it as an estimate of what the treated unit would have experienced without treatment. However, using the mean alone implicitly assumes that all units start from the same level—that is, that their $\mu_j$ are identical. In practice, this assumption is rarely justified. Units may differ in income, size, resources, or other characteristics long before any intervention occurs. Ignoring these baseline differences can be misleading: post-treatment differences might simply reflect where units began, not the causal effect of the treatment. This is the basic intuition behind DID. To formalize this idea, we can difference out these time-invariant differences via *demeaning*.
+
+::: {#lem-demean-trends .lemma title="Demeaning"}
+
+## Demeaning
+
+Let the observed outcome for unit $j$ at time $t$ in the pre-treatment periods $\mathcal{T}_1$ follow the additive two-way fixed effects model
+$$
+y_{jt} = \mu_j + \lambda_t + \varepsilon_{jt}, \qquad t \in \mathcal{T}_1,
+$$
+where $\mu_j$ is a unit-specific baseline, $\lambda_t$ a common time effect, and $\varepsilon_{jt}$ an idiosyncratic error with finite mean. Define the pre-period demeaned outcome
+$$
+r_{jt} \defeq y_{jt} - \frac{1}{|\mathcal{T}_1|}\sum_{s \in \mathcal{T}_1} y_{js}.
+$$
+Then for every $j$ and $t \in \mathcal{T}_1$,
+$$
+r_{jt} = (\lambda_t - \bar{\lambda}) + (\varepsilon_{jt} - \bar{\varepsilon}_j),
+$$
+where $\displaystyle \bar{\lambda} := \frac{1}{|\mathcal{T}_1|}\sum_{s \in \mathcal{T}_1}\lambda_s$ and $\displaystyle \bar{\varepsilon}_j := \frac{1}{|\mathcal{T}_1|}\sum_{s \in \mathcal{T}_1}\varepsilon_{js}$. In particular, the unit baseline $\mu_j$ cancels exactly, so $r_{jt}$ depends only on deviations of time effects and idiosyncratic errors from their pre-period averages.
+:::
+
+Demeaning is a fundamental idea in econometrics; see, for example, the review by @demscmrev. Rather than comparing treated and control units at a single moment based on current levels, we examine how their outcomes *evolve* across time. Specifically, we compare the *change* in the treated unit before and after treatment to the *change* observed in untreated units over the same period. By focusing on relative changes, we adjust for baseline differences.  The crucial insight is this: what matters is not that two units start at the same level, but that their *pre-treatment trends move similarly*. If trajectories are parallel before treatment, any divergence afterward can be attributed to the treatment itself. This shift from levels to trends is precisely what the Difference-in-Differences estimator formalizes.
+
+::: {.problem title="Baseline Differences" data-link="#problem-baseline-differences"}
+Why is it important to adjust for baseline differences between treated and control units when estimating treatment effects? How does DID address this?
+:::
+
+
+
+## Counterfactuals Under DID
+
+Suppose we have a setting where a group of units is treated all at once, while others are never treated. The simplest form of the DID estimator can be obtained by minimizing the distance between the treated unit’s outcomes and the average of untreated units, up to an additive constant $\beta$ that adjusts for baseline differences. The counterfactual for the DID method is simply the mean of the control group plus some constant.
+
+::: {#def-ddcounterfactual}
+
+## DID Counterfactual
+
+The post-treatment counterfactual for the treated unit under DID can be expressed as
+
+$$
+\hat{y}_{1t}(0) = \bar{y}_{0t} + \beta^\ast, \quad t > T_0,
+$$
+
+where
+
+$$
+\bar{y}_{0t} \coloneqq \frac{1}{N_0} \sum_{j \in \mathcal{N}_0} y_{jt}.
+$$
+
+Here, $N_0 = |\mathcal{N}_0|$ is the number of untreated units, so that each control unit receives an equal weight of $N_0^{-1}$. $\beta$ is a scalar which is the mean difference between the treated and control group in the pre-treatment period.
+:::
+
+A natural extension of this is the idea of DID as a centering estimator. 
+
+
+::: {#lem-centering}
+
+## Centered DID
+
+
+
+For any fixed donor pool $\mathcal{N}_0$, the DID estimator for a single treated unit has a closed-form solution
+
+$$
+\beta^\ast = \frac{1}{T_0} \sum_{t=1}^{T_0} \bigl(y_{1t} - \bar{y}_{\mathcal{N}_0t}\bigr),
+\qquad
+\bar{y}_{\mathcal{N}_0t} = \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt}.
+$$
+
+The residual vector after accounting for this optimal intercept is
+
+$$
+\mathbf{r} = \mathbf{y}_c - \bar{\mathbf{y}}_{c,\mathcal{N}_0},
+\qquad
+\mathbf{y}_c = \mathbf{y}_1 - \bar{y}_1 \mathbf{1}_{T_0},
+\qquad
+\bar{\mathbf{y}}_{c,\mathcal{N}_0} = \bar{\mathbf{y}}_{\mathcal{N}_0} - \bar{m}_{\mathcal{N}_0} \mathbf{1}_{T_0}.
+$$
+
+Consequently, the pre-treatment sum of squared residuals is
+
+$$
+\ell_{\text{DID}}(\mathcal{N}_0) = \|\mathbf{y}_c - \bar{\mathbf{y}}_{c,\mathcal{N}_0}\|_2^2.
+$$
+
+
+
+:::
+
+Even if the treated and control units hae different levels, the demeaning removes these level differences. DID relies on the Parallel Trends Assumption (PTA), which states that, in expectation, the difference between treated and control units would remain constant over time in the absence of treatment:
+
+::: {#def-pta .definition title="Parallel Trends Assumption"}
+In the absence of treatment,
+$$
+\mathbb{E}[y_{1t}(0) - \bar{y}_{0t}(0)] = \mathbb{E}[y_{1t'}(0) - \bar{y}_{0t'}(0)], \qquad \forall t, t' \in \mathcal{T}_1.
+$$
+:::
+
+Under this assumption, subtracting pre-treatment differences correctly removes all systematic level effects, so any post-treatment divergence can be interpreted as a causal effect of treatment. However, we cannot test for the [Parallel Trends Assumption](did.html#def-pta) globally, as the counterfactual is never observed to the researcher. Thus, econometricians resort to a version of PTA that we may observe,
+
+::: {#def-ppta}
+
+## Parallel Pre-Trends Assumption
+
+$$
+\mathbb{E}\Big[y_{1t}(0) - N_{0}^{-1} \sum_{j \in \mathcal{N}_0} y_{jt}(0)\Big] = \beta, \quad \forall t \in \mathcal{T}_{1}.
+$$
+:::
+
+
+if the expectation holds in the pre-intervention period, we generally think that the DID estimator is unbiased (assuming, additionally, no anticipation and SUTVA hold; see @DIDmodern for more).
+
+
+::: {.problem title="Parallel Trends Assumption" data-link="#problem-parallel-trends"}
+Define the parallel trends assumption formally. How can you assess whether this assumption is plausible in pre-treatment data? You may integrate ideas from the recent staggered DID literature, if you wish.
+:::
+
+::: {.problem title="Counterfactual Construction" data-link="#problem-counterfactual-construction"}
+Explain how the DID estimator, as discussed above, constructs the counterfactual for a treated unit. How does using the mean of control units approximate the unobserved $\lambda_t$?
+:::
+
+
+## Parallel Trends in Small $N$ Settings
+
+DID is usually framed in the large $N$, small $T$ framework [@DIDmodern]. In cases of small $N$, the parallel pre-trends assumption can be less likely to hold. To illustrate, consider the canonical paper on SCM by @Abadie2010, which studies the impact of California's Anti-Tobacco Campaign, Proposition 99, on cigarette sales per capita. Enacted in 1989, Prop 99 attempted to reduce smoking via a statewide public health campaign. In the original dataset, the authors had 38 control states to work with from 1970 to 2000. Using the estimator described above, we will use Python to estimate the DID design for the effect of Prop 99 on tobacco consumption. To follow along, you'll need the `dataprep` helper from my mlsynth code, which may be installed like
+
+
+```{shell}
+pip install -U git+https://github.com/jgreathouse9/mlsynth.git
+
+```
+
+In the code below, we load the `dataprep` function alongside `numpy` and `pandas`, as well as the Prop 99 dataset.
+
+```{python}
+
+import pandas as pd
+import numpy as np
+from mlsynth.utils.datautils import dataprep
+
+base_url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/"
+file_path = "basedata/smoking_data.csv"
+url = base_url + file_path
+data = pd.read_csv(url)
+prepped_data = dataprep(data,data.columns[0],
+data.columns[1],
+data.columns[2],
+data.columns[-1])
+```
+
+We then implement the DID estimator as described above, using `numpy` in this case.
+
+```{python}
+
+donor_mean = prepped_data['donor_matrix'].mean(axis=1)
+T0 = prepped_data['pre_periods']
+beta = np.mean(prepped_data['y'][:T0] - donor_mean[:T0])
+yhat = donor_mean + beta
+
+# --- Compute ATT ---
+ATT = np.mean(prepped_data['y'][T0:] - yhat[T0:])
+```
+
+
+The pre-treatment mean difference $\approx -14.359$. So, this is what we subtract the donor mean vector entries by. When we do this, we get @fig-did-cali.
+
+
+```{python}
+#| label: fig-did-cali
+#| fig-cap: "Difference-in-Differences, Proposition 99"
+#| echo: False
+
+import matplotlib.pyplot as plt
+
+# --- Extract key info ---
+T0 = prepped_data['pre_periods']
+T = len(prepped_data['y'])
+time = np.arange(1970, 1970 + T)
+
+# --- Plot ---
+plt.plot(time, prepped_data['y'], label='California', linewidth=2, color='black')
+plt.plot(time, yhat, '--', label='DID California', linewidth=2, color='blue')
+
+# Mark the treatment period
+plt.axvline(time[T0 - 1], color='black', linestyle='--', label='Proposition 99')
+
+plt.text(1970 + T0 + 1, min(prepped_data['y']),
+         f"ATT = {ATT:.2f}",
+         fontsize=12, color='red')
+
+
+# --- Style ---
+plt.xlabel('Time')
+plt.ylabel('Cigarette Sales Per Capita')
+plt.legend()
+plt.show()
+```
+We can see here that the scalar-adjusted control group average does not appear parallel to California. The counterfactual is dissimilar to California for the first five years of the dataset in that it undershoots California's values, and for the rest of the pre-treatment period, it has higher per capita smoking than California. Why might this be? The answer lies in the Law of Large Numbers and the interplay of small $N$ and large $T$. With only a few control units, the donor mean $\bar{y}_{0t}$ is highly sensitive to idiosyncratic deviations and unit-specific effects in each control state. Formally, the variance of the control mean is
+
+$$
+\text{Var}\Big(\frac{1}{N_0} \sum_{j=1}^{N_0} y_{jt}\Big) = \frac{1}{N_0^2} \sum_{j=1}^{N_0} \text{Var}(y_{jt}),
+$$
+
+so smaller $N_0$ directly increases the volatility of the average. Over many pre-treatment periods (large $T$), these idiosyncratic shocks accumulate, making the pre-treatment trajectory of the control average unstable and less likely to satisfy the Parallel Trends Assumption (PTA). Put another way, parallel trends assumes any systematic variation over time is common across units (i.e., the common tiem effect of the factor model), and, beyond this common variation, any remaining variation in outcomes is zero-mean and idiosyncratic. That is, the estimator effectively assumes that we can ignore unit-specific effects and focus on trends. This holds only in expectation, and relies on having either a sufficient number of "good" control units in a small sample or a large number of controls so that outliers do not dominate the donor mean.   In the small $N$, large $T$ setting, this is less likely to hold. With few control units, idiosyncratic shocks are more influential.
+
+
+This becomes even clearer when we experiment with different control units. Here, we compare California to Kentucky, NC, and both jointly, using a DID model for each state individually as well as jointly. These results are presented in @fig-did-calikent. For example, Kentucky’s cigarette consumption exhibits persistent idiosyncratic dynamics—its high baseline smoking rates and tobacco-based economy create predictable deviations that are correlated with pre-treatment outcomes. Similarly, NC displays systematic differences from California that violate the martingale property. As a result, even after demeaning by the donor mean, the control units’ evolution is not mean-independent of their pre-treatment shocks. 
+
+
+Practically, these violations are evident when we compare the ATT estimates. Using all controls, the naive DID yields an ATT of roughly $-27$. Using Kentucky alone yields $-29$, NC alone yields $-34$, and the Kentucky + NC combination gives $-32.36$. Small $N$ exacerbates the issue because the law of large numbers cannot stabilize the average across control units. This provides a concrete illustration of why PTA may not hold in real-world, small-$N$ applications like Proposition 99.
+
+```{python}
+#| label: fig-did-calikent
+#| fig-cap: "Difference-in-Differences, Different Controls"
+#| echo: False
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# --- Treated unit ---
+california = prepped_data["y"]
+T0 = prepped_data["pre_periods"]
+time = np.arange(1970, 1970 + len(california))
+
+# --- Control units ---
+kentucky = prepped_data["Ywide"]["Kentucky"].values
+NC = prepped_data["Ywide"]["North Carolina"].values
+
+# --- DID for Kentucky ---
+beta_kentucky = np.mean(california[:T0] - kentucky[:T0])
+yhat_kentucky = kentucky + beta_kentucky
+ATT_kentucky = np.mean(california[T0:] - yhat_kentucky[T0:])
+
+# --- DID for NC ---
+beta_NC = np.mean(california[:T0] - NC[:T0])
+yhat_NC = NC + beta_NC
+ATT_NC = np.mean(california[T0:] - yhat_NC[T0:])
+
+# --- DID for Kentucky + NC jointly ---
+donor_avg = (kentucky + NC) / 2
+beta_joint = np.mean(california[:T0] - donor_avg[:T0])
+yhat_joint = donor_avg + beta_joint
+ATT_joint = np.mean(california[T0:] - yhat_joint[T0:])
+
+# --- Plot subfigures ---
+fig, axes = plt.subplots(1, 2, figsize=(14,5), sharey=True)
+
+# Left: Observed trajectories
+axes[0].plot(time, california, label='California (Observed)', linewidth=2, color='black')
+axes[0].plot(time, kentucky, label='Kentucky (Observed)', linewidth=2, color='gray')
+axes[0].plot(time, NC, label='NC (Observed)', linewidth=2, color='blue')
+axes[0].axvline(time[T0 - 1], color='black', linestyle='--', label='Proposition 99')
+axes[0].set_title('Observed Cigarette Sales')
+axes[0].set_xlabel('Year')
+axes[0].set_ylabel('Cigarette Sales Per Capita')
+axes[0].legend()
+
+# Right: DID counterfactuals
+axes[1].plot(time, california, label='California (Observed)', linewidth=2, color='black')
+axes[1].plot(time, yhat_kentucky, '--', label='Kentucky DID Counterfactual', linewidth=2, color='blue')
+axes[1].plot(time, yhat_NC, '--', label='NC DID Counterfactual', linewidth=2, color='red')
+axes[1].plot(time, yhat_joint, '--', label='Kentucky+NC DID', linewidth=2, color='green')
+axes[1].axvline(time[T0 - 1], color='black', linestyle='--', label='Proposition 99')
+axes[1].text(1970 + T0 + 1, min(california)+140, f"ATT Kentucky = {ATT_kentucky:.2f}", color='blue')
+axes[1].text(1970 + T0 + 1, min(california)+120, f"ATT NC = {ATT_NC:.2f}", color='red')
+axes[1].text(1970 + T0 + 1, min(california)+100, f"ATT Joint = {ATT_joint:.2f}", color='green')
+axes[1].set_title('DID Counterfactuals')
+axes[1].set_xlabel('Year')
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+It is important to emphasize that this is not a fault of DID per se. The DID method performs as intended when its key assumptions hold: SUTVA (no interference between units) and parallel trends. In the chapters that follow, we will explore other forms of looking at this problem, which address these issues by constructing a weighted combination of controls to better match the treated unit’s pre-treatment trajectory, mitigating the impact of non-parallel trends and small $N$ challenges.
+
+
+
+::: {.problem title="Small N and Pre-Treatment Variation" data-link="#problem-small-n"}
+In settings with a small number of control units, the pre-treatment average of the controls can fluctuate due to idiosyncratic shocks in individual units.
+
+a) Explain why this makes the pre-treatment trajectory of the donor mean potentially unstable.  
+
+b) How does this instability affect the accuracy of the DID counterfactual for the treated unit?  
+
+c) What role does the number of control units ($N$) play in mitigating or exacerbating this problem?
+:::
+
+
+
+
+
+::: {.problem title="Observed vs. Counterfactual Trajectories" data-link="#problem-observed-vs-counterfactual"}
+Suppose California’s pre-treatment trajectory is steadily decreasing while Kentucky’s is flat. Sketch and describe what the DID counterfactual using Kentucky would look like. Why might this estimate be biased?
+:::
+
+::: {.problem title="Multiple Donors" data-link="#problem-multiple-donors"}
+Conceptually, why might using multiple control units (e.g., Kentucky + NC) improve the counterfactual estimate? Under what circumstances might it still fail?
+:::
+
+::: {.problem title="Interpretation of ATT" data-link="#problem-interpretation-att"}
+If a DID analysis gives an ATT of –32, what does this mean in terms of California’s cigarette consumption post–Proposition 99?
+:::
+
+::: {.problem title="Limitations of DID" data-link="#problem-limitations-did"}
+Discuss at least two situations in which DID may give biased estimates, even if implemented correctly. Relate your answer to the additive factor model.
+:::
+
+::: {.problem title="Arithmetic Mean as a DID Counterfactual" data-link="#problem-arithmetic-mean-did"}
+In previous chapters, we defined the arithmetic average as a weighted sum where each member’s weight is proportional to its size in the sequence. In the context of using the arithmetic mean of control units to construct a DID counterfactual:
+
+1. Explain what assumptions are being made implicitly about the control units when we take a simple arithmetic mean. Consider both their contribution to the counterfactual and their relative similarity to the treated unit.  
+
+2. Discuss potential limitations of this assumption. Under what circumstances might the arithmetic mean of controls misrepresent the “true” counterfactual trajectory?
+:::
+
+::: {.proof title="Demeaning" data-link="did.html#proof-demean" data-target="did.html#lem-demean-trends"}
+By definition,
+$$
+r_{jt} = y_{jt} - \frac{1}{|\mathcal{T}_1|}\sum_{s \in \mathcal{T}_1} y_{js}
+= (\mu_j+\lambda_t+\varepsilon_{jt}) - \frac{1}{|\mathcal{T}_1|}\sum_{s \in \mathcal{T}_1}(\mu_j+\lambda_s+\varepsilon_{js}).
+$$
+Because summation is linear,
+$$
+\frac{1}{|\mathcal{T}_1|}\sum_{s \in \mathcal{T}_1}(\mu_j+\lambda_s+\varepsilon_{js})
+= \mu_j + \bar{\lambda} + \bar{\varepsilon}_j.
+$$
+Subtracting this average from $y_{jt}$ gives
+$$
+r_{jt} = (\mu_j+\lambda_t+\varepsilon_{jt}) - (\mu_j+\bar{\lambda}+\bar{\varepsilon}_j)
+= (\lambda_t-\bar{\lambda}) + (\varepsilon_{jt}-\bar{\varepsilon}_j),
+$$
+which proves the claim.
+:::
+
+
+::: {.proof title="DID Counterfactual" data-link="#proof-ddcf"}
+
+Expanding the squared Euclidean norm gives
+
+$$
+f(\beta) = \sum_{t=1}^{T_0} \big(y_{1t} - \bar{y}_{0t} - \beta\big)^2.
+$$
+
+For clarity, define the inner function
+
+$$
+u_t(\beta) = y_{1t} - \bar{y}_{0t} - \beta,
+$$
+
+so that
+
+$$
+f(\beta) = \sum_{t=1}^{T_0} u_t(\beta)^2.
+$$
+
+To differentiate $u_t(\beta)^2$ with respect to $\beta$, we apply [the chain rule](math.html#def-chain-rule). Here, the outer function is $g(u) = u^2$ with derivative $g'(u) = 2u$, and the inner function is $h(\beta) = u_t(\beta) = y_{1t} - \bar{y}_{0t} - \beta$ with
+
+$$
+\frac{\mathrm{d} h}{\mathrm{d} \beta} = -1,
+$$
+
+since $y_{1t}$ and $\bar{y}_{0t}$ are constants with respect to $\beta$. Applying the chain rule, we find the derivative of each term:
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} \beta} u_t(\beta)^2 = 2 u_t(\beta) \cdot (-1) = -2 \big(y_{1t} - \bar{y}_{0t} - \beta\big).
+$$
+
+Summing over all $T_0$ pre-treatment periods, by linearity of the derivative, gives
+
+$$
+\frac{\mathrm{d} f}{\mathrm{d} \beta} = -2 \sum_{t=1}^{T_0} \big(y_{1t} - \bar{y}_{0t} - \beta\big).
+$$
+
+Setting this derivative equal to zero, which is our first-order condition (FOC), we have
+
+$$
+-2 \sum_{t=1}^{T_0} \big(y_{1t} - \bar{y}_{0t} - \beta\big) = 0.
+$$
+
+Dividing both sides by $-2$ yields
+
+$$
+\sum_{t=1}^{T_0} \big(y_{1t} - \bar{y}_{0t} - \beta\big) = 0.
+$$
+
+Distributing the summation and noting that $\beta$ is constant across $t$:
+
+$$
+\sum_{t=1}^{T_0} (y_{1t} - \bar{y}_{0t}) - \sum_{t=1}^{T_0} \beta = \sum_{t=1}^{T_0} (y_{1t} - \bar{y}_{0t}) - T_0 \beta = 0.
+$$
+
+Now we solve for beta. To do this we add $T_0 \beta$ to the RHS. That gives us this result:
+
+$$
+\sum_{t=1}^{T_0} (y_{1t} - \bar{y}_{0t}) = T_0 \beta
+$$
+
+Now to isolate beta, we divide both sides by $T_0$, noting that division by a scalar $T_0$ is the same as multiplying by the reciprocal of that scalar:
+
+$$
+\beta^\ast = \frac{1}{T_0} \sum_{t=1}^{T_0} (y_{1t} - \bar{y}_{0t}).
+$$
+
+This shows that $\beta^\ast$ is simply the average pre-treatment difference between the treated unit and the control group. Under parallel trends, this difference would hold in expectation, even absent treatment. Finally, the post-treatment counterfactual for the treated unit is simply the control group mean adjusted by this optimal $\beta^\ast$:
+
+$$
+\hat{y}_{1t}(0) = \bar{y}_{0t} + \beta^\ast, \quad \forall \: t \in \mathcal{T}_2
+$$
+
+:::
+
+
+
+
+::: {.proof title="Centering Lemma" data-link="#proof-centering" data-target="#lem-centering"}
+
+For any fixed donor pool $\mathcal{N}_0$, we know from [this proof](did.html#proof-ddcf)
+
+$$
+\beta^\ast = \frac{1}{T_0} \sum_{t=1}^{T_0} \bigl(y_{1t} - \bar{y}_{\mathcal{N}_0,t}\bigr)
+\qquad\text{where}\qquad
+\bar{y}_{\mathcal{N}_0,t} = \frac{1}{|\mathcal{N}_0|} \sum_{j\in\mathcal{N}_0} y_{jt}.
+$$
+
+Here is the residual:
+
+$$
+r_t = y_{1t} 
+      - \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} 
+      - \beta^\ast
+\qquad\text{where}\qquad
+\beta^\ast = \frac{1}{T_0} \sum_{t=1}^{T_0} \left( y_{1t} 
+      - \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} \right).
+$$
+
+Substitute $\beta^\ast$ directly into the residual:
+
+$$
+\begin{aligned}
+r_t &= y_{1t} 
+       - \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} 
+       - \frac{1}{T_0} \sum_{t=1}^{T_0} \left( y_{1t} 
+       - \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} \right) \\[12pt]
+    &= y_{1t} 
+       - \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} 
+       - \frac{1}{T_0} \sum_{t=1}^{T_0} y_{1t} 
+       + \frac{1}{T_0} \sum_{t=1}^{T_0} \left( \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} \right).
+\end{aligned}
+$$
+
+Now recognize the averages:
+
+$$
+\frac{1}{T_0} \sum_{t=1}^{T_0} y_{1t} = \bar{y}_1
+$$
+
+and
+
+$$
+\frac{1}{T_0} \sum_{t=1}^{T_0} \left( \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} \right) 
+  = \frac{1}{T_0} \sum_{t=1}^{T_0} \bar{y}_{\mathcal{N}_0,t} 
+  = \bar{m}_{\mathcal{N}_0}.
+$$
+
+So
+
+$$
+r_t = y_{1t} - \bar{y}_1 - \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} + \bar{m}_{\mathcal{N}_0}
+$$
+
+becomes
+
+$$
+\left(y_{1t} - \bar{y}_1\right)
+-
+\left( \frac{1}{|\mathcal{N}_0|} \sum_{j \in \mathcal{N}_0} y_{jt} 
+       - \bar{m}_{\mathcal{N}_0}\right),
+$$
+
+which simplifies to
+
+$$
+\left(y_{1t} - \bar{y}_1\right)
+-
+(\bar{y}_{\mathcal{N}_0,t} - \bar{m}_{\mathcal{N}_0}).
+$$
+
+In vector form, this is:
+
+$$
+\boxed{
+\mathbf{r}
+= \mathbf{y}_c - \bar{\mathbf{y}}_{c,\mathcal{N}_0}
+\qquad\Rightarrow\qquad
+\ell_{\text{DID}}(\mathcal{N}_0) 
+= \|\mathbf{y}_c - \bar{\mathbf{y}}_{c,\mathcal{N}_0}\|_2^2
+}
+$$
+
+where
+
+$$
+\mathbf{y}_c = \mathbf{y}_1 - \bar{y}_1 \, \mathbf{1}_{T_0},
+\qquad
+\bar{\mathbf{y}}_{c,\mathcal{N}_0} = \bar{\mathbf{y}}_{\mathcal{N}_0} - \bar{m}_{\mathcal{N}_0} \, \mathbf{1}_{T_0}.
+$$
+
+:::
+
+
+
+

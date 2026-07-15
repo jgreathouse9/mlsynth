@@ -1,0 +1,132 @@
+# Intro to mlsynth
+
+This is not a book about Python. However, Python is the language I use to estimate synthetic control methods. In particular, I developed mlsynth, the largest synthetic control package in the world. While this book is not about mlsynth itself, I frequently use its functions to simplify operations and streamline examples. This chapter introduces the basics of mlsynth. I cover the key functions and tools that readers will need to follow along with the analyses in this book.
+
+## Installing mlsynth
+
+Before using any mlsynth functions, the package must be installed. It can be installed directly from GitHub using pip with the following command:
+
+```{shell}
+
+
+pip install git+https://github.com/jgreathouse9/mlsynth.git
+
+```
+
+mlsynth requires Python version 3.9 or higher. It also depends on standard scientific Python packages including numpy, pandas, matplotlib, scipy, scikit-learn, statsmodels, cvxpy, pydantic, and scikit-optimize. Once installed, functions from mlsynth can be imported into a Python script or notebook. For example:
+
+```{python}
+#| eval: false
+#| echo: True
+
+from mlsynth.utils.helperutils import dataprep, sc_diagplot
+```
+
+## The mlsynth API
+
+mlsynth provides a large number of functions internally, but I went through great pains to ensure that users do not need to interact with most of them if they do not want to. The package is designed so that analysts mainly work with one standardized API: the high-level estimator classes. Each estimator, has a fit method that handles all the underlying data preparation, estimation, effect calculation, and plotting automatically.
+
+Before running any estimator, it helps to understand how mlsynth organizes the panel data. All class estimators in mlsynth share a common structure: they take a configuration dictionary that fully describes the panel. A dictionary is a data structure that stores key-value pairs, meaning each “key” identifies a piece of information, and the “value” holds the corresponding data. This allows the functions to access exactly what they need by referring to the keys. All estimators require the user to provide a data frame, the name of the outcome column, treatment, unit, and time columns. For example, here is the workflow for Proposition 99:
+
+```{python}
+#| eval: false
+#| echo: True
+
+
+
+import pandas as pd
+from mlsynth import FDID
+
+url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv"
+data = pd.read_csv(url)
+
+# base config
+config = {
+    "df": data,
+    "outcome": data.columns[2],
+    "treat": data.columns[-1],
+    "unitid": data.columns[0],
+    "time": data.columns[1],
+    "display_graphs": True,
+    "save": False,
+    "counterfactual_color": ["red"]
+}
+```
+
+
+Here, the configuration dictionary fully describes the panel structure. df points to the loaded data. outcome identifies the variable to be modeled, cigsale, while treat points to the treatment indicator. unitid and time identify the cross-sectional units and time periods, respectively. Options for plotting and saving rests can also be specified.
+
+Once this configuration is passed to the estimator, mlsynth handles the rest. The data are pivoted into a wide format, treated and donor units are identified, pre- and post-treatment periods are determined, and the counterfactual outcome is estimated. The treatment effect is then calculated and, if requested, plotted.
+
+The key point is that the user never needs to manually manipulate the panel, compute donor matrices, or separate pre- and post-treatment periods. The configuration dictionary encapsulates all of these inputs, and the estimator performs the necessary steps internally. This makes running a synthetic control analysis with mlsynth both fast and reliable.
+
+## Preparing data with dataprep
+
+dataprep is the lifeblood of mlsynth. Many synthetic control methods require the data to be in a wide format, with rows representing time periods and columns representing units. Treated units and donor units must be clearly separated, and pre-treatment and post-treatment periods need to be identified. The dataprep function completely automates this process. It converts a long panel dataset into a wide format, such that each column is a unit and each row a time periods. It identifies treated units and donors, separates the data into pre- and post-treatment periods, and even handles cases with multiple treated units by grouping them into cohorts based on treatment start times.
+
+The function takes a panel data frame and the names of the columns for the unit identifier, time period, outcome variable, and treatment indicator. It returns a dictionary containing the prepared data. For a single treated unit, the dictionary includes the treated unit name, a wide outcome matrix, the treated unit outcome vector, donor names, a donor outcome matrix, total periods, and the number of pre- and post-treatment periods. For multiple treated units, the dictionary contains the wide outcome matrix, a cohort dictionary with treated units for each cohort, donor matrices for each cohort, and the corresponding pre- and post-treatment periods. dataprep also performs checks to ensure that the panel is strongly balanced, meaning every unit has an observation for every time period and that there are no duplicate unit-time observations. This ensures that subsequent analyses using synthetic control methods are valid and comparable across units.
+
+
+For example, consider the Basque data. After loading the panel into a DataFrame, we can call `dataprep` as follows:
+
+```{python}
+#| eval: false
+#| echo: True
+
+from mlsynth.utils.datautils import dataprep
+import pandas as pd
+
+url =("https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv")
+
+data = pd.read_csv(url)
+
+prepped_data = dataprep(
+    data, 
+    "regionname", 
+    "year", 
+    "gdpcap", 
+    "Terrorism"
+)
+
+y, Y0, T0, time = prepped_data["y"], prepped_data["donor_matrix"], prepped_data["pre_periods"], prepped_data["time_labels"]
+```
+
+dataprep returns a dictionary containing several key objects. y is the outcome vector for the treated unit, which in this case represents GDP per capita for the Basque Country. Y0 is the donor matrix, containing the same outcome variable for all donor regions that were not treated. T0 gives the number of pre-treatment periods, which defines the time window used to fit the synthetic control. time contains the time labels, such as years, for reference in plotting or analysis.
+
+Using dataprep allows analysts to quickly extract the essential elements of the panel without manually pivoting the DataFrame or separating treated and donor units. This makes subsequent estimation with any mlsynth estimator much simpler and less error-prone.
+
+## Visualizing Treated vs Donor Trends
+
+After preparing the data for a synthetic control analysis, it is often useful to visually inspect how the treated unit compares to the donor pool before and after treatment. The `sc_diagplot` function provides this diagnostic view.
+
+```{python}
+#| echo: True
+
+import pandas as pd
+from mlsynth.utils.helperutils import sc_diagplot
+
+# Load Proposition 99 smoking data
+url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv"
+data = pd.read_csv(url)
+
+# Define a configuration dictionary for the treated unit
+plot_config = [{
+    "df": data,
+    "unitid": "state",          # Column identifying cross-sectional units
+    "time": "year",             # Column identifying time periods
+    "outcome": "cigsale",       # Outcome variable to plot
+    "treat": "Proposition 99",      # Treatment name
+    "display_graphs": True,     # Whether to show the plot
+    "save": False,              # Set a file path to save instead of showing
+    "counterfactual_color": ["red"]
+}]
+
+# Generate the diagnostic plot
+sc_diagplot(plot_config)
+```
+
+In synthetic control analyses, it is critical to understand how the treated unit relates to the donor pool. `sc_diagplot` provides a straightforward way to inspect this relationship.  
+
+The plot shows the trajectory of the treated unit, the individual donor units, and the mean of all donors. Visualizing the donor pool helps identify potential donors that closely match the treated unit before treatment. Plotting the mean of donors provides a reference for the average behavior of the control group, which is essentially the baseline against which the treatment effect will be estimated.  
+
+By comparing the treated unit to both the individual donors and their mean, analysts can check the pre-treatment fit and assess whether the donor pool overall provides a credible counterfactual. This step is important because the quality of the synthetic control estimate depends on the treated unit being well-represented by a combination of donors. Visual inspection can reveal mismatches, outliers, or trends that may influence the estimated treatment effect, giving analysts insight on their results before formal estimation.

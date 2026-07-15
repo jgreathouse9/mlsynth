@@ -1,0 +1,640 @@
+# Potential Outcomes and Comparative Case Studies
+
+::: {.epigraph}
+> "If there's another universe, please make some noise. Give me a sign..."  
+> — Solana Imani Rowe
+:::
+
+This chapter introduces the potential outcomes framework—the cornerstone of causal inference—and connects it to the comparative case study framework that underlies SCM [@designtrump]. Together, they provide a formal way to think about causality when experiments are infeasible. In principle, causal inference is about constructing another universe: one where what did happen, did not happen. The goal is to use observable data and statistical structure to make that alternate universe as realistic and plausible as possible. Note that this chapter cannot cover all of the basics-- there is already a very mature body of work that treats this in more detail. Because I do not wish to reinvent wheels, I refer readers to much more thorough texts such as Cunningham’s *Mixtape*, Huntington-Klein’s *The Effect*, and Facure’s *Causal Inference for the Brave and True* [@cunningham2021mixtape; @huntington-klein2025effect; @facure2022brave]. The mathematical foundation introduced in the previous chapter now becomes essential. It allows us to express these ideas formally, to see why counterfactual reconstruction is even possible, and to understand the role of similarity between units. We begin by defining the key ideas behind potential outcomes, clarifying why causal effects are unobservable for any individual unit, and introducing the notation and modeling ideas that makes these concepts precise.
+
+We then turn to the comparative case study framework, which shows how researchers and practitioners attempt to approximate those missing outcomes in practice. When policymakers, marketers, or data scientists evaluate an intervention—be it a policy reform, a new advertising campaign, or an infrastructure project—they face the same profound challenge: we only ever observe one version of history. Randomized experiments, while ideal, are often impossible, unethical, or prohibitively expensive. The comparative case study approach provides a structured way to reason about "what would have happened otherwise," using other units or regions as stand-ins for the unobserved counterfactual. At the end of this chapter, we will connect this logic to real examples—such as the case of West Germany’s reunification.
+
+## The Fundamental Problem of Causal Inference
+
+Academic and business scientists face a fundamental challenge: for any given unit (e.g., a country, region, or individual), we can only observe one outcome at a time [@FPCI]. If a unit receives a single treatment, we see the version of the outcome we see given that the treatment has happened; if it does not, we see the untreated outcome. Formally, for unit $j$ at time $t$ we have:
+$$
+y_{jt} = d_j y_{jt}(1) + (1 - d_j) y_{jt}(0),
+$$
+where $d_j \in \{0,1\}$ indicates treatment status. The key algebraic fact here formalizes the intuition above: given that a treatment happens, the untreated outcomes $y_{jt}(0)$ go away. Given that the treatment has not yet been enacted, we do not see $y_{jt}(1)$, or the treated outcomes.  Another key way of expressing this is
+
+$$
+y_{jt} =
+\begin{cases}
+y_{jt}(1)=f_j(t), & t\in\mathcal{T}_1, \ j \in \mathcal{N},\\
+y_{jt}(1)=f_j(t), & t\in\mathcal{T}_2,\ j\in\mathcal{N}_0,\\
+y_{jt}(1)=f_j(t)+\tau_{jt}, & t\in\mathcal{T}_2,\ j\in\mathcal{N}_1 \\
+y_{jt}(0)=f_j(t), & t\in\mathcal{T}_2,\ j\in\mathcal{N}_1
+\end{cases}
+$$
+
+where $f_j(t)$ represents the *generic outcome-generating process* in the absence of treatment, and $\tau_{jt}$ is the *treatment effect*, potentially varying across time and units. The algebra of this suggests that we can recover the potential outcome by having an estimate of $y_{jt}(0) \:\: \forall \,\, t \in \mathcal{T}_{2}$. Given some estimate for $y_{jt}(0)$, we the may compute the treatment effect of the policy or intervention. Since individual causal effects are unobservable, we often estimate average effects across units or time. Define:
+
+::: {#def-ate}
+## Average Treatment Effect
+
+The Average Treatment Effect (ATE) measures the expected difference in potential outcomes if all units were treated versus if none were treated:
+
+$$
+\text{ATE} = \mathbb{E}[\,y_{jt}(1) - y_{jt}(0)\,].
+$$
+:::
+
+::: {#def-att}
+## Average Treatment Effect on the Treated
+
+The Average Treatment Effect on the Treated (ATT) measures the expected treatment effect *for those units that actually received the treatment*:
+
+$$
+\text{ATT} = \mathbb{E}[\,y_{jt}(1) - y_{jt}(0)\mid d = 1\,],
+$$
+:::
+
+
+
+These averages rely on comparing treated and untreated units, assuming we can approximate the counterfactual. Practically, however, these hold only in expectation. We ususally work with the in-sample analogs of these:
+
+
+::: {#def-hat-ate}
+## Average Treatment Effect
+
+The sample analog of the ATE is the difference in the average observed outcomes between treated and untreated units:
+
+$$
+\widehat{\text{ATE}} 
+= \frac{1}{N_1} \sum_{j: d_j = 1} y_{jt}
+ - \frac{1}{N_0} \sum_{j: d_j = 0} y_{jt},
+$$
+
+where $N_1$ and $N_0$ are the number of treated and untreated units, respectively.
+
+Worked example: If your observed outcomes are $10, 12, 14$ and the outcomes for untreated units are $7, 8, 9$, then the sample $\widehat{\text{ATE}}$ is 
+$$
+(10 + 12 + 14)/3 - (7 + 8 + 9)/3 = 12 - 8 = 4.
+$$
+:::
+
+::: {#def-hat-att}
+## Average Treatment Effect on the Treated
+
+The sample analog of the ATT focuses on treated units, using untreated units to approximate their counterfactual outcomes:
+
+$$
+\widehat{\text{ATT}} 
+= \frac{1}{N_1} \sum_{j: d_j = 1} y_{jt}(1)
+ - \frac{1}{N_1} \sum_{j: d_j = 1} \widehat{y}_{jt}(0),
+$$
+
+where $\widehat{y}_{jt}(0)$ denotes the estimated counterfactual outcome for treated unit $j$ in period $t$.
+
+Worked example: If your observed outcomes are $15, 18, 20$ but absent treatment they would have been $12, 14, 16$, then the sample $\widehat{\text{ATT}}$ is 
+$$
+(15 + 18 + 20)/3 - (12 + 14 + 16)/3 = 17.67 - 14 = 3.67.
+$$
+:::
+
+::: {.problem title="Potential Outcomes" data-link="#problem-potential-outcomes"}
+Explain in your own words the fundamental problem of causal inference. Why can we never observe both potential outcomes $y_{jt}(1)$ and $y_{jt}(0)$ for the same unit at the same time?
+:::
+
+::: {.problem title="ATE vs. ATT" data-link="#problem-ate-vs-att"}
+Define the Average Treatment Effect (ATE) and the Average Treatment Effect on the Treated (ATT). How do they differ conceptually and in terms of their estimation?
+:::
+
+::: {.problem title="Causal Interpretation" data-link="#problem-causal-interpretation"}
+In the potential outcomes framework, how would you explain the difference between saying “the policy caused an increase in $y$” and saying “$y$ increased after the policy”?
+:::
+
+
+## Counterfactuals and the Role of Controls
+
+Above, I introduced the idea of outcomes $y_{jt}$, but I did not mention where they came from. It turns out that being able to reason about this is central to understanding causal inference models more generally. A useful place to start is the idea of the linear factor model [@lfmtheory].
+
+::: {#assump-lfm .assumption title="Linear Factor Model" data-link="poframe.html#assump-lfm"}
+$\forall j \in \mathcal{N}, \: t \in \mathcal{T}_{1}$, pre-treatment outcomes are generated like
+
+$$
+y_{jt}(0) = \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt},
+$$
+
+where $\boldsymbol{\lambda}_t \in \mathbb{R}^F$ is a vector of *common factors* affecting all units, $\boldsymbol{\mu}_j \in \mathbb{R}^F$ are *unit-specific factor loadings*, and $\varepsilon_{jt}$ are zero-mean *idiosyncratic errors*. Intuitively, $\boldsymbol{\lambda}_t$ captures time-varying shocks or trends shared across all units, while $\boldsymbol{\mu}_j$ determines how sensitive each unit is to those factors.
+:::
+
+If you're anything like me, you're asking what the heck this means practically, so I'll do a small illustration. Suppose there are $F=2$ factor loadings — one capturing geography and another capturing culture. For a treated unit and three donor units, this might  might look like this:
+
+| Unit        | Geography ($\mu_{j1}$) | Culture ($\mu_{j2}$) |
+|:------------|----------------------:|--------------------:|
+| Treated (1) | 1.20                  | 0.50                |
+| Donor A     | 1.05                  | 0.40                |
+| Donor B     | 0.80                  | 0.55                |
+| Donor C     | 0.60                  | 0.70                |
+
+Each column represents a *time-invariant latent component* that affects all periods. Units differ, however, in how much they are influenced by each factor (or, *load* on each factor*. For example, the treated unit loads relatively heavily on Geography (1.20) but moderately on Culture (0.50), while Donor C loads more on Culture (0.70) than on Geography (0.60).
+
+At each time period, the common factors $\boldsymbol{\lambda}_t$ capture *time-varying shocks* that influence all units simultaneously, such as national economic trends, policy changes, or global events. For example, over four periods:
+
+| Time $t$ | Seasonal Factor ($\lambda_{t1}$) | Cyclical Factor ($\lambda_{t2}$) |
+|:---------|---------------------------------:|-------------------------------:|
+| $t_1$    | 1.0                              | 0.1                            |
+| $t_2$    | 0.5                              | 0.3                            |
+| $t_3$    | -0.2                             | 0.8                            |
+| $t_4$    | -0.8                             | 0.4                            |
+
+Here, $\boldsymbol{\lambda}_t$ varies over time but is *common to all units*, which is why these are called "common factors." Multiplying the factor loadings $\boldsymbol{\mu}_j$ by the time-specific factors $\boldsymbol{\lambda}_t$ shows how each unit responds differently to the same underlying shocks, with $\varepsilon_{jt}$ capturing unit-specific noise. @fig-toylfm gives a slightly extended version of this toy example, plotted so we can see.
+
+```{python}
+
+#| label: fig-toylfm
+#| fig-cap: "Simple Toy Factor Model"
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from style import set_book_style
+set_book_style()
+
+# Set seed for reproducibility
+np.random.seed(42)
+
+# Define units and factor loadings
+units = ["Treated", "Donor A", "Donor B", "Donor C"]
+mu = np.array([
+    [1.20, 0.50],  # Treated
+    [1.05, 0.40],  # Donor A
+    [0.80, 0.55],  # Donor B
+    [0.60, 0.70],  # Donor C
+])
+
+# Define time periods and time-varying factors
+T = 10
+lambda_t = np.random.uniform(-1, 1, size=(T, 2))  # random factors for illustration
+# You could also use your example factors for the first four periods and random for the rest
+
+# Generate random intercepts for each unit between 500 and 700
+intercepts = np.random.uniform(500, 700, size=(len(units), 1))
+
+# Generate synthetic outcomes
+data = []
+for i, unit in enumerate(units):
+    for t in range(T):
+        y = intercepts[i] + mu[i, :] @ lambda_t[t, :] + np.random.normal(0, 5)  # small noise
+        data.append([unit, t+1, y])
+
+df = pd.DataFrame(data, columns=["Unit", "Time", "Outcome"])
+
+# Plot donors first
+for donor in ["Donor A", "Donor B", "Donor C"]:
+    subset = df[df["Unit"] == donor]
+    plt.plot(subset["Time"], subset["Outcome"], color="grey", linewidth=1, alpha=0.7)
+
+# Plot treated unit on top
+treated = df[df["Unit"] == "Treated"]
+plt.plot(treated["Time"], treated["Outcome"], color="black", linewidth=3, label="Treated")
+
+# Labels and styling
+plt.xlabel("Time")
+plt.ylabel("Outcome")
+plt.title("Treated vs Donors")
+plt.legend()
+plt.show()
+
+```
+
+Linear factor models can capture many types of temporal dynamics: seasonal factors repeat periodically within a year, capturing patterns like quarterly sales cycles or flu seasons; cyclical factors represent longer-term economic or social cycles; and periodic or oscillatory factors capture phenomena that recur with a known period, such as day-night cycles or weekly traffic patterns.
+
+It is also possible to define grouped factor models [@relbalscm], where units are organized into groups that share similar baseline structures. In this setting, the overall model can be thought of as a baseline linear factor model, but the details — such as factor loadings or even the number of active factors — may vary within each group. For example, different regions in a country might have a shared set of seasonal and cyclical factors, but the magnitude of their loadings on each factor differs by region. This flexibility allows linear factor models to accommodate complex multivariate data while remaining interpretable: the common factors capture shared variation, the factor loadings capture heterogeneity in responses, and the idiosyncratic errors capture unit-specific randomness.
+
+```{python}
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(1455)
+
+# Parameters
+T = 90
+J = 120  # controls
+units = J + 1
+r = 3  # approx floor(np.log(T))
+K = 3  # = r
+
+# Core loadings Lambda_co K x r
+Lambda_co = np.random.normal(0, np.sqrt(3/r), size=(K, r))
+
+# w^*_G
+w_G = np.zeros(K)
+dirich = np.random.dirichlet(np.ones(K-1))  # for entries 2 to K
+w_G[1:] = dirich
+
+# epsilon
+a = 0.1 / np.sqrt(r)
+epsilon = np.random.uniform(-a, a, r)
+
+# lambda_0
+lambda_0 = Lambda_co.T @ w_G + epsilon
+
+# Assign groups to controls, groups 0 to K-1
+group_assign = np.random.randint(0, K, J)
+
+# Z J x K
+Z = np.zeros((J, K))
+for i in range(J):
+    Z[i, group_assign[i]] = 1
+
+# Lambda_controls J x r
+Lambda_controls = Z @ Lambda_co
+
+# alphas
+alphas = np.random.uniform(500, 1000, units)
+
+# factors f T x r
+f = np.zeros((T, r))
+var_stat = 1 / (1 - 0.5**2)  # 4/3
+periods = [12, 4, 30]  # Periods for seasonality, cyclic, and periodicity components
+for ell in range(r):
+    period = periods[ell]
+    f[0, ell] = np.random.normal(0, np.sqrt(var_stat)) + np.sin(2 * np.pi * 0 / period)
+    for t in range(1, T):
+        f[t, ell] = .9 * f[t-1, ell] + np.sin(6 * np.pi * t / period) + np.random.normal(0, 5)
+
+# Y T x units
+Y = np.zeros((T, units))
+for t in range(T):
+    for j in range(units):
+        if j == 0:
+            lam = lambda_0
+        else:
+            lam = Lambda_controls[j-1, :]
+        Y[t, j] = alphas[j] + np.dot(lam, f[t, :]) + np.random.normal(0, 3)
+
+plt.figure(figsize=(10, 6))
+for j in range(1, units):
+    plt.plot(range(T), Y[:, j], color='gray', alpha=0.7, linewidth=0.5)
+plt.plot(range(T), Y[:, 0], color='red', linewidth=2, label='Treated Unit')
+plt.xlabel('Time')
+plt.ylabel('Outcome')
+plt.title('Realized Outcomes Over Time')
+plt.legend()
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.show()
+
+```
+
+
+
+::: {#assump-afffact .assumption title="Affine Factor Combination" data-link="poframe.html#assump-afffact"}
+Suppose the treated unit’s factor loadings lie in the affine span of the donor loadings:
+
+$$
+\boldsymbol{\mu}_1 = \alpha \mathbf{1}_F + \mathbf{M}^\top \mathbf{w},
+$$
+
+for some intercept $\alpha \in \mathbb{R}$ and weights $\mathbf{w} \in \mathbb{R}^{N_0}$, where $\mathbf{1}_F$ is a vector of ones of length $F$. 
+
+:::
+
+
+Oftentimes, we assume that the treated unit's factor loadings may be approximated by the loadings of the control group. It says that the treated unit’s long-run structure — captured by its factor loadings $\boldsymbol{\mu}_1$ — can be expressed as a combination of the donor units’ loadings. The scalar $\alpha$ accounts for overall level differences (an intercept or baseline effect), while $\mathbf{M}^\top \mathbf{w}$ represents a weighted blend of donor characteristics.
+
+
+Much of the synthetic control literature can be interpreted through the lens of factor models and related data-generating processes. While this is not a book on econometric theory, sometimes I will algebraically manipulate the factor model to show how thinking about it carefully allows us to consider the problem of causal impact estimation in a more refined manner. The following result, @lem-lfm, seeks to convey the utility of the factor model as a basis for making comparisons. This demonstration underlies the rest of the book, as it explains why, in principle, comparative case studies are possible.
+
+::: {#lem-lfm}
+
+## Reconstruction of Treated Outcomes
+
+Suppose the untreated outcomes follow the [linear factor model](poframe.html#assump-lfm). Denote the treated unit's factor loading as well as the matrix of donor factor loadings as
+
+
+\begin{align}
+\boldsymbol{\mu}_1^\top &\in \mathbb{R}^{1 \times F}, &
+\mathbf{M} =
+\begin{bmatrix}
+\boldsymbol{\mu}_2^\top \\
+\vdots \\
+\boldsymbol{\mu}_{N_0 + 1}^\top
+\end{bmatrix}
+\in \mathbb{R}^{N_0 \times F}
+\end{align}
+
+
+Further, let the common factors be:
+
+
+\begin{align}
+\boldsymbol{\lambda}_t &\in \mathbb{R}^{F \times 1}, & 
+\boldsymbol{\Lambda} =
+\begin{bmatrix}
+\boldsymbol{\lambda}_1 & \boldsymbol{\lambda}_2 & \cdots & \boldsymbol{\lambda}_T
+\end{bmatrix}
+\in \mathbb{R}^{F \times T}.
+\end{align}
+
+
+
+Now, let the donor pool and target vector be
+
+
+\begin{align}
+\mathbf{y}_1 &= 
+\begin{bmatrix}
+y_{11}(0) \\
+\vdots \\
+y_{1T}(0)
+\end{bmatrix}
+\in \mathbb{R}^{T \times 1}, 
+&
+\mathbf{Y}_0 &=
+\begin{bmatrix} 
+y_{21}(0) & \dots & y_{2T}(0) \\ 
+\vdots & \ddots & \vdots \\ 
+y_{N_0+1,1}(0) & \dots & y_{N_0+1,T}(0)
+\end{bmatrix}^\top
+\in \mathbb{R}^{T \times N_0}, 
+&&
+\end{align}
+
+
+
+Let [the affine combination assumption](poframe.html#assump-afffact) hold. Then the treated unit’s outcomes can be expressed as a linear combination of the donor outcomes plus an intercept and a residual:
+
+$$
+\mathbf{y}_1 = \alpha \mathbf{1}_T + \mathbf{Y}_0 \mathbf{w} + \boldsymbol{\varepsilon}_1^*, 
+\quad \text{where} \quad
+\boldsymbol{\varepsilon}_1^* = \boldsymbol{\varepsilon}_1 - \mathbf{E}_0 \mathbf{w},
+$$
+
+with $\mathbf{y}_1 = (y_{11}(0), \dots, y_{1T}(0))^\top \in \mathbb{R}^T$, $\boldsymbol{\varepsilon}_1 = (\varepsilon_{11}, \dots, \varepsilon_{1T})^\top$, and $\mathbf{E}_0 \in \mathbb{R}^{T \times N_0}$ the matrix of donor idiosyncratic errors.
+
+:::
+
+::: {#cor-lfm}
+
+Notice that the common factors $\boldsymbol{\lambda}_t$ do not explicitly appear in the lemma. There are two reasons for this. First, the common factors are *unobserved*, so we cannot directly use or adjust for them. Second, by definition, common factors affect all units in the same way at each time $t$, so they do not help distinguish the treated unit from the donors. Any linear combination of donor outcomes automatically carries the same influence of the common factors, meaning that these shared shocks cancel out when forming a weighted approximation of the treated unit’s outcomes. The variation we can exploit for comparison comes entirely from the unit-specific loadings $\boldsymbol{\mu}_j$ and the idiosyncratic errors $\varepsilon_{jt}$, which differ across units.
+
+:::
+
+The linear factor model provides a powerful lens for interpreting comparative case studies. In the potential outcomes framework, the challenge was that the counterfactual outcome $y_{1t}(0)$ is unobserved. The factor model tells us why it might nevertheless be *reconstructable* as an estimate: if units share a common latent structure — that is, if their outcomes depend on a set of unobserved but shared factors $\boldsymbol{\lambda}_t$ — then the treated unit’s trajectory before intervention can be expressed as a combination of the donor trajectories.
+
+If the treated unit’s factor loadings $\boldsymbol{\mu}_1$ can be approximated by an affine combination of the donors’ loadings, the donors already encode information about how the treated unit would have responded to each common factor. Consequently, the untreated potential outcome of the treated unit, $y_{1t}(0)$, can be reconstructed as a weighted combination of donor outcomes. This is the formal justification behind comparative case studies.
+
+
+
+::: {.problem title="Linear Factor Model Interpretation" data-link="#problem-linear-factor-model"}
+Consider the linear factor model:
+
+$$
+y_{jt}(0) = \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt}.
+$$
+
+a) Explain what the vectors $\boldsymbol{\lambda}_t$ and $\boldsymbol{\mu}_j$ represent.  
+b) Give an example of a real-world latent factor that could influence outcomes across units.
+:::
+
+::: {.problem title="Affine Factor Combination" data-link="#problem-affine-factor"}
+Describe the affine combination assumption:
+
+$$
+\boldsymbol{\mu}_1 = \alpha \mathbf{1}_F + \mathbf{M}^\top \mathbf{w}.
+$$
+
+What does it imply about the relationship between the treated unit and the donor units?
+:::
+
+::: {.problem title="Reconstruction of Treated Outcomes" data-link="#problem-reconstruction"}
+Based on [this Lemma](poframe.html#assump-afffact), write the treated unit’s outcome vector as a linear combination of donor outcomes plus an intercept and residual. Explain intuitively what each component represents.
+:::
+
+
+
+
+## What Is a Comparative Case Study?
+
+Case studies in general are used to draw conclusions about a phenomenon of interest (say, economic development) by comparing some unit of interest to a set of others. In the classic text by @de2012democracy (a qualitative case study), the United States of America is compared to England, France, and elsewhere in Europe. Quantitative case studies use empirical data about the world to generate counterfactuals. Quantitative case studies approximate a counterfactual by drawing on the observable outcomes of other units that can stand in for the treated unit under alternative circumstances. The core idea here, as with Alexis de Tocqueville, is to find one or more units that resemble the treated unit as closely as possible prior to the intervention and to use their trajectories as a window into the outcome that might have occurred. 
+
+At the heart of the comparative case study framework is the importance of the similarity between the main unit of interest to the units we are comparing it to. Thus, it must begin with a clear identification of the treated unit and the intervention of interest, followed by a careful examination of pre-intervention outcomes and relevant background characteristics. Analysts then search for comparators, either single units or combinations thereof, that replicate the patterns of the treated unit as closely as possible before the intervention. Finally, the comparison of post-intervention trajectories provides an estimate of the intervention’s effect, offering a way to reason about what would have happened under alternative circumstances. This framework is not a simple exercise in matching, but a thoughtful integration of domain knowledge, empirical observation, and careful judgment. 
+
+
+SCM builds on this by leveraging panel data (where multiple units (e.g., countries, regions, or markets) are observed over time) to compare a single treated unit against a set of untreated control units. This allows us to construct a more accurate counterfactual trajectory for what might have happened absent the intervention. 
+
+## West Germany 
+
+To make this concrete, consider the study of German reunification by @Abadie2015 which is one of the most influential applications of the framework. Studying the impact of political and economic reunification on West German GDP per capita, their goal here is to see how GDP would have evolved in the absence of reunification. Of course, they face the challenge that no alternate West Germany exists. To approach this problem, they examined the set of OECD countries whose economic indicators, trade patterns, industrial composition, and growth trends before 1990 closely resembled those of West Germany. 
+
+We can begin from the perspective of the linear factor model. Here, each country’s trajectory of GDP per capita can be thought of as reflecting a mixture of latent "factors" (maybe economic, geographic, institutional, and cultural ones) that shape its evolution over time. The donor countries (Australia, Austria, Belgium, Denmark, France, Greece, Italy, Japan, Netherlands, New Zealand, Norway, Portugal, Spain, Switzerland, the United Kingdom, and the United States) differ in how they load on these underlying dimensions. For instance, France, Austria, and Belgium may be understood as having high geographic and historical loadings relative to West Germany: they share borders, trade patterns, and deep pre-war economic ties, and Austria in particular was once part of the German Empire itself. These countries likely move closely with Germany on factors such as industrial composition, continental integration, and exposure to European macroeconomic shocks. By contrast, countries like Australia, New Zealand, or the United States, though still members of the OECD, are geographically and institutionally distant. Their loadings on these shared European factors may be weaker or even orthogonal.
+
+Of course, this discussion is purely theoretical. We never observe the factor loadings outside of synthetic study, nor do we know how many underlying loadings exist in reality. The factor model is simply a conceptual device that helps us think clearly about why some countries make better comparisons than others. The guiding idea in comparative case studies is therefore to select units that are as similar as possible to the treated unit along these unobserved background dimensions — the economic, political, and historical forces that jointly shape their trajectories. When done thoughtfully, such comparisons help approximate the unobservable counterfactual world where the treatment did not occur.
+
+
+
+```{python}
+
+#| echo: False
+#| label: fig-west-germany-plot-one
+#| fig-cap: "West Germany versus Donor Units"
+
+from mlsynth.utils.helperutils import sc_diagplot
+import pandas as pd
+
+file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/german_reunification.csv'
+# Load the CSV file using pandas
+df = pd.read_csv(file)
+
+treat = "Reunification"
+outcome = "gdp"
+unitid = "country"
+time = "year"
+
+config = {
+    "df": df,
+    "treat": treat,
+    "time": time,
+    "outcome": outcome,
+    "unitid": unitid,
+    "display_graphs": True,
+    "cluster": True,
+}
+
+sc_diagplot([config])
+
+
+```
+
+To make this concrete, let's plot the outcome of interest. Consider @fig-west-germany-plot-one which plots the GDP trajectory of West Germany versus the 16 control units. Simply by looking at the plot, which of these units are most likely to be similar to West Germany in the pre-intervention period? The answer unfortunately is not so obvious, as we can see that multiple units are close to the trajectory of West Germany before Reunification took place. The key thing to note here is that the pure empirical mean of OECD nations does not sufficiently resemble West Germany, in level or in trend. This means that the standard difference-in-differences estimator would be biased from parallel pre-intervention trends violations. @Abadie2015 uses the SCM to estimate the impact of the reunification, wherein only some of these OECD countries are assigned weight as a comparison for West Germany.
+
+## Mexican Drug War
+
+Next, we can consider the setting of the Mexican Drug War. In 2008, the Mexican government invaded several states using the military to combat against the drug traffickers. We can view each state’s homicide trajectory as arising from a set of latent factors — geographic, economic, and strategic — that influence violence over time. Chihuahua, for instance, exhibits consistently high homicide rates relative to many other states. From the factor model perspective, this pattern can be interpreted as Chihuahua having high loadings on factors related to border proximity, drug trafficking routes, and urban centers such as Ciudad Juárez. These factors capture the persistent structural and strategic drivers of violence, rather than transient shocks or random fluctuations.
+
+Other states, particularly those farther from international borders or major trafficking corridors, load less heavily on these factors, which explains why their quarterly homicide rates are generally lower or less volatile. The empirical mean of other states — plotted in blue in @fig-mexhomdata — can be thought of as a rough, unweighted average of these other latent trajectories. Chihuahua’s consistently higher trajectory highlights the importance of underlying structural differences in shaping outcomes.
+
+
+```{python}
+
+#| echo: False
+#| label: fig-mexhomdata
+#| fig-cap: "Chihuahua versus Mexican States"
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# --- Load data ---
+df = pd.read_csv("MexicanHomicideData.csv")
+
+# --- Convert 'date' to datetime ---
+df['date'] = pd.to_datetime(df['date'])
+
+df = df[df['date'].dt.year <= 2013]
+
+# --- Separate Chihuahua and other states ---
+chihuahua_df = df[df['State'] == 'Chihuahua']
+other_states_df = df[df['State'] != 'Chihuahua']
+
+# --- Compute empirical mean of other states per date ---
+mean_other = other_states_df.groupby('date')['Homicide Rate'].mean().reset_index()
+
+# --- Plot ---
+plt.figure(figsize=(12, 6))
+
+# Plot individual donor lines (light grey)
+for state, group in other_states_df.groupby('State'):
+    plt.plot(group['date'], group['Homicide Rate'], color='lightgrey', linewidth=1, alpha=0.7)
+
+# Plot donor mean in blue
+plt.plot(mean_other['date'], mean_other['Homicide Rate'], color='blue', linewidth=2, label='Other States (mean)')
+
+# Plot Chihuahua in black
+plt.plot(chihuahua_df['date'], chihuahua_df['Homicide Rate'], color='black', linewidth=2.5, label='Chihuahua')
+
+# Labels and formatting
+plt.title('Chihuahua vs. Other Mexican States')
+plt.xlabel('Date')
+plt.ylabel('Homicide Rate')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+
+```
+
+
+
+As with our discussion of West Germany, this is a conceptual exercise. We do not observe these latent factors or the exact loadings, and we do not know how many factors truly govern violence dynamics. The point of the linear factor model is to provide a lens through which we can interpret observed heterogeneity: units that share certain characteristics — geography, strategic importance, socio-economic conditions — are likely to move together on some latent dimensions, while units with different characteristics load differently. Comparative case studies aim to leverage this structure, ideally selecting control units whose latent trajectories resemble those of the treated unit prior to intervention. In Chihuahua’s case, this might mean comparing it to other northern border states or urban hubs with similar strategic conditions, rather than to all Mexican states indiscriminately.
+
+
+
+## Marketing Measurement
+
+
+A similar logic underlies how marketers evaluate campaigns in the absence of clean experiments. The challenges faced in marketing contexts mirror those encountered in policy evaluation, though the scale and timing can differ. When a retailer launches a new advertising campaign, managers are immediately confronted with the question of causality: are observed increases in sales truly the result of the campaign, or would sales have risen regardless due to underlying trends in demand, seasonality, or other market forces?
+
+From a theoretical perspective, each region or store can be thought of as having latent factors that influence sales — for instance, local demographics, store size, historical demand patterns, or competitive intensity. Some regions may load heavily on these factors, while others less so. To understand the campaign’s effect, marketers often rely on holdout studies, sometimes referred to as geolift experiments. In a geolift study, a subset of regions or customer segments is deliberately excluded from the campaign and treated as a control group, while the remaining regions receive the intervention (for example, an increase in media spend compared to the business-as-usual scenario).
+
+The goal is to see the effect of media spending on a given metric (called “conversions” in marketing jargon). If treated regions show higher conversions than holdout regions, this suggests the campaign caused the lift. Importantly, this comparison relies on the assumption that the latent factors governing sales in the treated regions are reasonably approximated by those in the holdout regions — that is, that the untreated units provide a plausible counterfactual trajectory for what would have happened absent the intervention. Random fluctuations, seasonal patterns, and other external shocks complicate this comparison, just as idiosyncratic noise affects observed outcomes in other contexts.
+
+In short, the principle is the same as in policy evaluation or the study of violence in Chihuahua: differences in outcomes are interpreted through the lens of underlying latent factors. The better the holdout units resemble the treated units on these unobserved dimensions, the more credible the causal inference. Selecting control regions therefore requires careful judgment, informed by both past data and domain knowledge, rather than a purely mechanical choice.
+
+## Beyond Simple Control Selection
+
+Even when the treated unit and a plausible set of comparison units are clearly identified, important design questions remain for researchers conducting quantitative case studies. Selecting which units to include is only part of the challenge; deciding how many units to use, and how to combine them, is equally consequential. Using too few units risks anchoring a counterfactual on idiosyncratic examples that happen to look similar by chance (such as, units that are only incidentally similar where other comparison units would be better). Using too many comparison units may blur distinctions and dilute meaningful resemblance between the treated unit and the comparison units.
+
+A similar tension arises when analysts incorporate additional information beyond the main outcome of interest, such as auxilary covariates that capture relevant background characteristics. For example, if we are the data science unit of a hotel chain, we may wish to include temperature in our analyses because it can be a proxy for seasonality. Including covariates can improve comparability, but they also introduce new decisions: which variables matter most (and what would it mean in principle for them to matter most?). Furthermore, how many auxilary covariates should we use? In policy analysis, for instance, should unemployment, education, and industrial structure all be treated as equally important predictors of economic growth? In marketing, should store size, regional demographics, and past sales volatility all receive comparable emphasis when identifying holdout regions? Each of these choices shapes the resulting counterfactual.
+
+The difficulties do not stop there. A core assumption of the comparative case framework is that the treated and comparison units evolve independently—that there are no spillovers or cross-unit effects. Yet in many real settings, this assumption is fragile. Policy interventions can influence neighboring jurisdictions through migration, trade, or imitation. Marketing campaigns may spill over across geographic boundaries as customers travel, communicate, or respond to national media. When such spillovers occur, the comparison units no longer represent what would have happened without the intervention; they themselves are partly treated. Recognizing, diagnosing, and mitigating these influences is one of the most subtle and important tasks in applied comparative analysis.
+
+## Looking Ahead
+
+Across policy evaluation, historical case studies, and marketing measurement, the central challenge is the same: we can observe only one version of history for any given unit, yet we wish to reason about what would have happened under alternative circumstances. Comparative case studies provide a structured way to approximate these unobserved counterfactuals by leveraging other units as stand-ins, under the assumption that these units share relevant background structure with the treated unit.
+
+The linear factor model offers a conceptual lens for understanding why such approximations can work. In West Germany, latent factors may represent geography, industrial structure, and historical ties; France, Austria, and Belgium load heavily on these factors, making them plausible comparators. In Chihuahua, latent factors capture geographic proximity, trafficking routes, and urban centers like Juárez; northern border states or other strategic hubs are likely to share these underlying influences. In marketing, latent factors might include demographics, store characteristics, or historical demand patterns; holdout regions with similar factor loadings provide credible counterfactuals for the treated regions.
+
+In all three cases, we never observe the factors or their loadings directly. The power of the factor model lies not in seeing the unobservables but in structuring our thinking: it identifies the dimensions along which units must be similar for comparisons to be meaningful, and clarifies why some units are better matches than others. Comparative case studies are, at their heart, an exercise in reasoning about these latent structures, selecting controls, and incorporating statistical adjustments that best approximate the unobserved counterfactual world.
+
+Finally, this perspective underscores a core principle: constructing credible counterfactuals requires judgment, domain knowledge, and careful consideration of context. Whether analyzing historical events, criminal violence, or advertising campaigns, the goal is to approximate what would have happened in another version of the world — a world we cannot see but can approach through thoughtful comparison and careful use of observable data. This is the essence of causal inference, and it is the guiding logic behind every comparative case study we encounter. This idea will become more formalized in later chapters, as we work with more practical examples.
+
+
+
+::: {.problem title="Comparative Case Study Concept" data-link="#problem-comparative-case"}
+What is the core idea of a comparative case study? How does it relate to the potential outcomes framework?
+:::
+
+::: {.problem title="Selecting Comparison Units" data-link="#problem-comparison-units"}
+In designing a comparative case study, what factors make some units more appropriate comparators than others? Give at least two examples.
+:::
+
+::: {.problem title="Latent Factors in Real-World Examples" data-link="#problem-latent-factors"}
+Using the Chihuahua example, explain how latent factors (e.g., geography, drug trafficking routes) influence the homicide trajectory. Why does understanding these latent factors matter for constructing a counterfactual?
+:::
+
+::: {.problem title="Marketing Application" data-link="#problem-marketing-application"}
+Explain how the logic of potential outcomes and latent factors applies in a marketing context. How can holdout regions be used to estimate the effect of a new advertising campaign?
+:::
+
+::: {.problem title="Bonus Question: Evaluating a Marketing Campaign" data-link="#problem-bonus-marketing"}
+Imagine you are evaluating a marketing campaign across multiple stores, some treated and some held out as controls.  
+
+a) Explain how the linear factor model could help you justify which stores to use as controls.  
+
+b) Discuss potential challenges if treated stores are geographically clustered and subject to correlated shocks not present in the control stores. How would this affect your ATT estimates?
+:::
+
+
+
+
+
+::: {.proof title="Reconstruction of Treated Outcomes" data-link="#proof-lfm" data-target="#lem-lfm"}
+
+We start from the treated unit’s factor model in vector form:
+
+$$
+\mathbf{y}_1 = \boldsymbol{\Lambda} \boldsymbol{\mu}_1 + \boldsymbol{\varepsilon}_1.
+$$
+
+Substituting the affine combination $\boldsymbol{\mu}_1 = \alpha \mathbf{1}_F + \mathbf{M}^\top \mathbf{w}$ gives
+
+$$
+\mathbf{y}_1 = \boldsymbol{\Lambda} (\alpha \mathbf{1}_F + \mathbf{M}^\top \mathbf{w}) + \boldsymbol{\varepsilon}_1.
+$$
+
+Using the distributive property of matrix multiplication:
+
+$$
+\mathbf{y}_1 = \alpha \boldsymbol{\Lambda} \mathbf{1}_F + \boldsymbol{\Lambda} \mathbf{M}^\top \mathbf{w} + \boldsymbol{\varepsilon}_1.
+$$
+
+Define $\mathbf{1}_T := \boldsymbol{\Lambda} \mathbf{1}_F \in \mathbb{R}^T$, so that the first term becomes
+$\alpha \mathbf{1}_T$. For the second term, note that 
+
+$$
+\boldsymbol{\Lambda} \mathbf{M}^\top \mathbf{w} = (\mathbf{M} \boldsymbol{\Lambda})^\top \mathbf{w}.
+$$ 
+
+By definition, 
+
+$$
+\mathbf{Y}_0 = (\mathbf{M} \boldsymbol{\Lambda})^\top + \mathbf{E}_0,
+$$ 
+
+which implies $(\mathbf{M} \boldsymbol{\Lambda})^\top = \mathbf{Y}_0 - \mathbf{E}_0$. Substituting gives
+
+$$
+(\mathbf{M} \boldsymbol{\Lambda})^\top \mathbf{w} = \mathbf{Y}_0 \mathbf{w} - \mathbf{E}_0 \mathbf{w}.
+$$
+
+Combining all terms:
+
+$$
+\mathbf{y}_1 = \alpha \mathbf{1}_T + \mathbf{Y}_0 \mathbf{w} + (\boldsymbol{\varepsilon}_1 - \mathbf{E}_0 \mathbf{w}).
+$$
+
+Defining the combined residual $\boldsymbol{\varepsilon}_1^* := \boldsymbol{\varepsilon}_1 - \mathbf{E}_0 \mathbf{w}$, we have
+
+$$
+\mathbf{y}_1 = \alpha \mathbf{1}_T + \mathbf{Y}_0 \mathbf{w} + \boldsymbol{\varepsilon}_1^*.
+$$
+
+This shows that the treated unit’s outcomes are a linear combination of the donor outcomes plus an intercept and a modified residual. $\blacksquare$
+:::
+

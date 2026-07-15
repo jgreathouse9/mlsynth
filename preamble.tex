@@ -1,0 +1,79 @@
+% =========================================
+% preamble.tex
+% =========================================
+
+% ------------------------
+% Core AMS math & symbols
+% ------------------------
+\usepackage{amsmath,amssymb,amsfonts,mathtools,bm,amsthm}
+
+% ------------------------
+% Figures & graphics
+% ------------------------
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
+
+% ------------------------
+% Fonts & encoding
+% ------------------------
+\usepackage[T1]{fontenc}
+% \usepackage[utf8]{inputenc} % only if using pdflatex, not xelatex/lualatex
+
+\usepackage{geometry}
+\geometry{verbose,tmargin=1in,bmargin=1in,lmargin=1in,rmargin=1in}
+
+
+\newcommand{\defeq}{\mathrel{\mathop:}=}
+
+% ------------------------
+% Tables & floats
+% ------------------------
+\usepackage{booktabs}
+\usepackage{float}
+
+% ------------------------
+% Colors
+% ------------------------
+\usepackage{xcolor}
+\definecolor{npicolor}{RGB}{0,128,128}
+\definecolor{vacccolor}{RGB}{255,165,0}
+\definecolor{variantcolor}{RGB}{220,20,60}
+\definecolor{mandatecolor}{RGB}{128,0,128}
+\definecolor{problemcolor}{RGB}{0,122,204}
+\definecolor{assumptioncolor}{RGB}{0,128,128}
+
+% ------------------------
+% Custom theorem environments
+% ------------------------
+\theoremstyle{definition}
+\newtheorem{assumption}{Assumption}[chapter]
+\newtheorem{problem}{Problem}[chapter]
+
+% ------------------------
+% Custom proof environment
+% ------------------------
+\makeatletter
+\newenvironment{customproof}[1]{%
+  \par\pushQED{\qed}%
+  \normalfont \topsep6\p@\@plus6\p@\relax
+  \trivlist
+  \item[\hskip\labelsep \bfseries Proof of #1.]%
+}{%
+  \popQED\endtrivlist\@endpefalse
+}
+\makeatother
+
+% ------------------------
+% Hyperref setup
+% ------------------------
+\usepackage{hyperref}
+\hypersetup{
+  pdfusetitle,
+  colorlinks=true,
+  linkcolor=assumptioncolor,
+  citecolor=npicolor,
+  urlcolor=problemcolor,
+  pdfborder={0 0 0},
+  hypertexnames=false
+}

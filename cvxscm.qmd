@@ -1,0 +1,1128 @@
+# Convex Synthetic Controls
+
+::: {.epigraph}
+> "People don't need to wear the same shoes; they should find what suit their feet."  
+> — Wei Yuan
+:::
+
+Having discussed the pitfalls of DID in the small-$N$ setting, we saw its validity hinges on the [Parallel Pre-Trends Assumption](did.html#def-ppta): the expected difference between treated and control units must remain constant before treatment. When this assumption fails, DID can produce biased estimates. One alternative is OLS, which constructs counterfactuals by flexibly matching pre-treatment outcomes. While OLS can achieve near-perfect pre-intervention fit, it allows unconstrained weights that may extrapolate far outside the support of the donor pool, producing counterfactuals with implausibly high variance. Regularization using $\ell_1$ and $\ell_2$ norms or PCR weights can shrink extreme weights, but we might prefer a structural constraint that ensures the counterfactual remains within the range of the donor units. This insight motivates the SCM introduced by @Abadie2010, which constructs a weighted combination of donor units that closely approximates the treated unit’s pre-treatment trajectory while respecting convexity constraints. This chapter presents the canonical SCM, the one taught in graduate school for econ and public policy students. 
+
+
+## Convex Least Squares
+
+For the classic SCM, we return to a familiar setting where we yet again solve another least squares problem. However, this problem is different from all of the other ones that we have seen before:
+
+
+\begin{align}
+&\mathbf{w}^{\mathrm{SCM}}
+= \underset{\mathbf{w}^{\mathrm{SCM}} \in \mathcal{W}_{\mathrm{conv}}}{\operatorname*{argmin}} \;
+\left\| \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}^{\mathrm{SCM}} \right\|_2^2 \quad \forall \, t \in \mathcal{T}_{1}, \\
+&\mathcal{W}_{\mathrm{conv}} \in \Big\{ \mathbf{w}^{\mathrm{SCM}} \in (\{0\} \cup \mathbb{R}_+)^{|\mathcal{N}_0|} : \sum_{j \in \mathcal{N}_0} w_j = 1 \Big\}.
+\end{align}
+
+At first glance, this looks like yet another least squares problem — and in a purely algebraic sense, it is. The difference lies not in the objective but in the *constraints*. In OLS and penalized variants, the weights are completely unrestricted: they can theoretically take any real value, positive or negative. This freedom allows the model to "extrapolate" — to combine donor units in ways that generate counterfactuals lying *outside* the convex hull of observed outcomes. In contrast, the convex synthetic control imposes two structural restrictions: $w_j \ge 0$ and $\sum_j w_j = 1$. No donor is allowed to "subtract" from the synthetic control — we can only form additive mixtures of actual units, and the weights must form a convex combination, ensuring that the synthetic unit lies within the convex hull of the donor pool.
+
+These two constraints completely change the character of the problem. Rather than searching the entire vector space of possible weights, SCM confines the solution to a simplex/convex hull — a compact, convex region of feasible combinations. Because $\mathcal{W}_{\mathrm{conv}}$ is [a convex set](math.html#def-convex-set), the solution $\mathbf{w}^{\mathrm{SCM}}$ is a convex combination of the donor units. This implies that the SCM prediction
+
+$$
+\hat{\mathbf{y}}_1^{\mathrm{SCM}} = \mathbf{Y}_0 \mathbf{w}^{\mathrm{SCM}}
+$$
+
+must lie within [the convex hull](math.html#def-convex-hull) of the donor outcomes. Consider the donor outcome vectors $(\mathbf{y}_j)_{j \in \mathcal{N}_{0}} \in \mathbb{R}^{T_0}$. What this means is that the prediction (or, the weighted average) lies inside the convex hull of the donor outcomes. Geometrically, this means that if we imagine the donor outcomes as points in a space, the synthetic control must live inside the polygon (or polyhedron, in higher dimensions) formed by those points. A simple way to see this is to start with a one-dimensional example: if we have two donors with pre-treatment averages of 3 and 7, then any convex combination of them—say, $0.25\times 3 + 0.75×7 = 6$, will fall somewhere on the line segment connecting 3 and 7. 
+
+```{python}
+
+#| echo: False
+#| label: fig-donor-1d
+#| fig-cap: "Convex Hull in Single Dimension"
+
+from style import set_book_style
+set_book_style()
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Two donor points
+donors = np.array([3, 7])
+
+# Generate convex combinations (weights between 0 and 1)
+weights = np.linspace(0, 1, 100)
+synthetic = (1 - weights) * donors[0] + weights * donors[1]
+
+# Plot
+plt.figure(figsize=(6, 2))
+plt.plot(synthetic, np.zeros_like(synthetic), color='gray', lw=3, label='Convex combinations')
+plt.scatter(donors, [0, 0], color='tab:blue', s=100, zorder=5, label='Donor points (3 and 7)')
+plt.scatter([6], [0], color='tab:red', s=100, zorder=6, label='Example: 0.25×3 + 0.75×7 = 6')
+
+plt.yticks([])
+plt.xlabel("Outcome space (1D)")
+plt.title("Convex Combinations Lie on the Line Segment Between Donors")
+plt.legend(loc='upper center', ncol=3, frameon=False)
+plt.show()
+```
+
+Consider any points within this line segment: there is no way to get outside that line segment unless we allow negative weights or weights that sum to more than one. We can do this in two dimensions too:
+
+
+```{python}
+
+#| echo: False
+#| label: fig-donor-2d
+#| fig-cap: "Convex Hull in Two Dimensions"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define donor units as time series
+donor1 = np.array([2, 4,8])
+donor2 = np.array([12, 16,25])
+
+# Treated unit as a time series
+treated = np.array([5, 9,16])
+
+# Generate points along the convex hull (all convex combinations)
+weights = np.linspace(0, 1, 100)
+convex_hull_series = np.outer(1 - weights, donor1) + np.outer(weights, donor2)
+
+time = np.arange(len(donor1))
+
+# Shade the convex hull (range of feasible synthetic controls)
+hull_min = convex_hull_series.min(axis=0)
+hull_max = convex_hull_series.max(axis=0)
+plt.fill_between(time, hull_min, hull_max, color='gray', alpha=0.3, label='Convex Hull')
+
+# Plot donors
+plt.plot(time, donor1, 'bo-', linewidth=2, label='Donor 1')
+plt.plot(time, donor2, 'go-', linewidth=2, label='Donor 2')
+
+# Plot treated unit
+plt.plot(time, treated, 'r*-', linewidth=2, markersize=10, label='Treated Unit')
+
+# Compute closest convex combination (projection onto line segment)
+line_vec = donor2 - donor1
+t = np.dot(treated - donor1, line_vec) / np.dot(line_vec, line_vec)
+t = np.clip(t, 0, 1)  # ensure within [0,1]
+
+plt.xlabel('Time')
+plt.ylabel('Outcome')
+plt.title('Convex Hull in Two Dimensions')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+We can see that the space of predictions is a combination of the control units. Here, there are an infinte number of solutions that we can use for the donors to solve for the target weight vector. As we move to higher dimensions, this idea generalizes: the convex hull is simply the set of all mixtures of donors where the weights are nonnegative and sum to one. We can understand the convex hull idea better by projecting them onto a *two-dimensional plane*, per @fig-donor-span.
+
+```{python}
+
+#| echo: False
+#| label: fig-donor-span
+#| fig-cap: "Convex Hull of Donor Pool"
+
+from style import set_book_style
+set_book_style()
+
+import cvxpy as cp
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from mlsynth.utils.datautils import dataprep
+
+#  Load and preprocess data 
+url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
+data = pd.read_csv(url)
+prepped_data = dataprep(data, "regionname", "year", "gdpcap", "Terrorism")
+
+y, Y0, T0, time = prepped_data["y"], prepped_data["donor_matrix"], prepped_data["pre_periods"], prepped_data['time_labels']
+
+
+# Compute min and max across donors at each time point
+donor_min = Y0.min(axis=1)
+donor_max = Y0.max(axis=1)
+
+plt.figure(figsize=(10,6))
+
+# Shade the convex hull (area between min and max)
+plt.fill_between(time, donor_min, donor_max, color='lightgrey', alpha=0.4, label="Donor Span")
+
+# Plot Basque GDP
+plt.plot(time, y, color='black', linewidth=2, label='Observed Basque')
+# Intervention line
+plt.axvline(x=time[T0], color='red', linestyle='-', linewidth=2, label='Terrorism Begins')
+
+plt.xlabel("Year")
+plt.ylabel("GDP per capita")
+plt.title("Basque GDP vs Donor Span")
+plt.legend()
+plt.show()
+```
+
+This plot shows the Basque Country within the convex hull of donor units. If we were to assign any donor a weight of 1 and the rest 0, the predicted synthetic control would just be that control unit. But because one control unit will likely be insufficient to minimize the pre-treatment residual, we oftentimes rely on more donor units. One of the things I struggled with while learning SCM is the reasons why the convex hull constraint mattered. I did not know what it did or why, I just heard it was important for identification. So, to properly illustrate this, below we will derive the SCM weights for a corner solution.
+
+::: {.problem title="Parallel Trends and SCM" data-link="#problem-parallel-trends-scm"}
+Explain why the standard Difference-in-Differences (DID) assumption of [parallel pre-Assumption](did.html#def-ppta) is problematic in small-$N$ settings, and how SCM addresses this issue. In particular, discuss their weighting schemes and what this implies.
+:::
+
+::: {.problem title="Convex Hull" data-link="#problem-convex-hull"}
+Define the convex hull of the donor pool outcomes in your own words. Why might constraining the synthetic control weights to this hull be important?
+:::
+
+::: {.problem title="Weight Constraints" data-link="#problem-weight-constraints"}
+Consider the SCM weight set
+
+$$
+\mathcal{W}_{\mathrm{conv}} \in \Big\{ \mathbf{w}^{\mathrm{SCM}} \in (\{0\} \cup \mathbb{R}_+)^{|\mathcal{N}_0|} : \sum_{j \in \mathcal{N}_0} w_j = 1 \Big\}.
+$$
+
+Explain the interpretation of the constraint $\sum_j w_j = 1$ and $w_j \ge 0$. What does the summation to 1 suggest? The nonnegativity?
+:::
+
+::: {.problem title="OLS vs SCM" data-link="#problem-ols-vs-scm"}
+Describe a scenario where unconstrained OLS would assign negative or extreme weights to donor units. How does SCM prevent this?
+:::
+
+### A Simple Synthetic Control
+
+Above we say how in very simple settings when we have two time periods and one donor that lies within the span of the donor outcomes, we will have an infinite number of solutions. But, what if we could only have one possible solution? Suppose we have a treated unit and two donor units in 2D:
+
+$$
+\mathbf{y} = 
+\begin{bmatrix}
+50 \\
+60
+\end{bmatrix},
+\qquad
+\mathbf{Y}_0 = 
+[\mathbf{y}_1 \; \mathbf{y}_2] 
+= 
+\begin{bmatrix}
+20 & 48 \\
+22 & 50
+\end{bmatrix}.
+$$
+
+The first of these units is treated, and the latter two are the control units. Graphically, the plot of their trajectories looks like
+
+```{python}
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define vectors
+y = np.array([50, 60])
+y1 = np.array([20, 22])
+y2 = np.array([48, 50])
+
+# Time index (0 and 1)
+t = np.arange(len(y))
+
+# Plot
+plt.figure(figsize=(8,5))
+plt.plot(t, y, 'r-o', label=r'$\mathbf{y}$', linewidth=2)
+plt.plot(t, y1, 'b-o', label=r'$\mathbf{y}_1$', linewidth=2)
+plt.plot(t, y2, 'g-o', label=r'$\mathbf{y}_2$', linewidth=2)
+
+plt.xlabel('Time')
+plt.ylabel('Value')
+plt.title('Time Series Plot')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+We aim to find a synthetic control as a convex combination of the donor units that matches the target vector as closely as possible. Again, because of the fact that the feasible weight set is a convex set, this means a
+tradeoff is at work: where we increase one weight for one donor, this necessarily reduces the weight the other one gets. Exploiting this fact, this allows us to define one weight *in terms of* the other one. To do this, we need the difference vector:
+
+$$
+\mathbf{y}_1 - \mathbf{y}_2 = 
+\begin{bmatrix} 20 \\ 22 \end{bmatrix} - \begin{bmatrix} 48 \\ 50 \end{bmatrix}.
+$$
+
+Perform the subtraction componentwise:
+
+
+\begin{align}
+(\mathbf{y}_1 - \mathbf{y}_2)_1 &= 20 - 48 = -28, \\
+(\mathbf{y}_1 - \mathbf{y}_2)_2 &= 22 - 50 = -28.
+\end{align}
+
+Using this, we can write the synthetic prediction as a function of $w_1$ (the weight on donor 1):
+
+$$
+\hat{\mathbf{y}}(w_1) = \mathbf{y}_2 + w_1 (\mathbf{y}_1 - \mathbf{y}_2)
+= \begin{bmatrix} 48 \\ 50 \end{bmatrix} + w_1 \begin{bmatrix}-28 \\ -28\end{bmatrix}
+= \begin{bmatrix} 48 - 28 w_1 \\ 50 - 28 w_1 \end{bmatrix}.
+$$
+
+Finally, the residual vector, or the difference between the treated unit and the in-sample prediction, is
+
+$$
+\mathbf{r}(w_1) = \mathbf{y} - \hat{\mathbf{y}}(w_1)
+= \begin{bmatrix} 50 \\ 60 \end{bmatrix} - \begin{bmatrix} 48 - 28 w_1 \\ 50 - 28 w_1 \end{bmatrix} 
+= \begin{bmatrix} 2 + 28 w_1 \\ 10 + 28 w_1 \end{bmatrix}.
+$$
+
+This sets up the next step: minimizing the squared norm of the residual vector to find the optimal weight $w_1$. Minimizing the $\ell_2$ norm gives us the following optimization problem:
+
+$$
+w_1^\ast 
+= \underset{w_1 \in \mathbb{R}}{\operatorname*{argmin}}
+\; \| \mathbf{r}(w_1) \|_2^2
+\equiv \underset{w_1 \in \mathbb{R}}{\operatorname*{argmin}}
+\; \big[(2 + 28 w_1)^2 + (10 + 28 w_1)^2\big].
+$$
+
+To find the minimizing weight of this convex function, we differentiate $f(w_1)$ with respect to $w_1$. Since $f(w_1)$ is a sum of two terms, the sum rule allows us to differentiate each term separately and then sum the results:
+
+$$
+f(w_1) = (2 + 28 w_1)^2 + (10 + 28 w_1)^2
+$$
+
+Let's begin with the first term, $(2 + 28 w_1)^2$. This is a composition of two functions: a linear inner function and a quadratic outer function. To differentiate, we apply [the chain rule](math.html#def-chain-rule). Let
+
+$$
+h_1(w_1) = 2 + 28 w_1 \quad \text{(inner function)}, \qquad g_1(u) = u^2 \quad \text{(outer function)}.
+$$
+
+The derivatives are
+
+$$
+\frac{\mathrm{d} g_1}{\mathrm{d} u} = 2 u, \quad \frac{\mathrm{d} h_1}{\mathrm{d} w_1} = 28.
+$$
+
+Applying the chain rule gives
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} w_1} (2 + 28 w_1)^2 = \frac{\mathrm{d} g_1}{\mathrm{d} u} \bigg|_{u = h_1(w_1)} \cdot \frac{\mathrm{d} h_1}{\mathrm{d} w_1} = 2 (2 + 28 w_1) \cdot 28.
+$$
+
+Next, consider the second term, $(10 + 28 w_1)^2$. Let
+
+$$
+h_2(w_1) = 10 + 28 w_1 \quad \text{(inner function)}, \qquad g_2(v) = v^2 \quad \text{(outer function)}.
+$$
+
+The derivatives are
+
+$$
+\frac{\mathrm{d} g_2}{\mathrm{d} v} = 2 v, \quad \frac{\mathrm{d} h_2}{\mathrm{d} w_1} = 28.
+$$
+
+Applying the chain rule gives the derivative of the second term:
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} w_1} (10 + 28 w_1)^2 = 2 (10 + 28 w_1) \cdot 28.
+$$
+
+By the sum rule we have:
+
+$$
+\frac{\mathrm{d} f}{\mathrm{d} w_1} = 2 (2 + 28 w_1) \cdot 28 + 2 (10 + 28 w_1) \cdot 28.
+$$
+
+which just simplifies to
+
+$$
+\frac{\mathrm{d} f}{\mathrm{d} w_1} = 56(2 + 28 w_1) + 56(10 + 28 w_1).
+$$
+
+Now we factor out the 56
+
+$$
+\frac{\mathrm{d} f}{\mathrm{d} w_1} = 56 \big((2 + 28 w_1) + (10 + 28 w_1)\big)
+$$ 
+
+and then combine like terms inside of the parentheses
+
+$$
+(2 + 28 w_1) + (10 + 28 w_1) = 12 + 56 w_1,
+$$ 
+
+and that gives us this result:
+
+$$
+\frac{\mathrm{d} f}{\mathrm{d} w_1} = 56 (12 + 56 w_1).
+$$ 
+
+We can now distribute the 56 $56 \cdot 12 + 56 \cdot 56 w_1 = 0$, which gives us this result: $672 + 3136 w_1 = 0$. Now we isolate the $w_1$ by subtracting 672 from the LHS
+
+$$
+3136 w_1 = -672
+$$ 
+and divide by 3136 
+
+$$
+w_1 = \frac{-672}{3136}.
+$$
+
+Now we find the greatest common divisor. I was too lazy to do this when I was writing this out so I used Python.
+
+```{python}
+
+import math
+
+numerator = -672
+denominator = 3136
+
+gcd = math.gcd(numerator, denominator)
+
+
+# Simplify the fraction
+simplified_numerator = numerator // gcd
+simplified_denominator = denominator // gcd
+
+```
+
+Since this value lies outside the feasible interval $[0,1]$, the SCM solution occurs at the nearest boundary, which is $w_1 = 0$ and $w_2 = 1$. This gives us the synthetic control
+
+$$
+\hat{\mathbf{y}} = \mathbf{y}_2 = \begin{bmatrix} 48 \\ 50 \end{bmatrix},
+$$
+
+which is simply the second donor vector copied over. Now, we can verify with `cvxpy`:
+
+```{python}
+
+import numpy as np
+import matplotlib.pyplot as plt
+import cvxpy as cp
+
+# =====================
+# Step 0: Setup
+# =====================
+# Treated unit
+x = np.array([50, 60])
+
+# Donors
+d1 = np.array([20, 22])
+d2 = np.array([48, 50])
+donors = np.vstack([d1, d2])
+donors_cvx = np.column_stack([d1, d2])
+n_donors = donors_cvx.shape[1]
+
+w = cp.Variable(n_donors, nonneg=True)
+
+objective = cp.Minimize(cp.sum_squares(x - donors_cvx @ w))
+
+constraints = [cp.sum(w) == 1]
+prob = cp.Problem(objective, constraints)
+prob.solve()
+
+x_hat_cvx = donors_cvx @ w.value
+
+# Time steps
+t = np.arange(len(x))
+
+# =====================
+# Plot as subfigures
+# =====================
+fig, axs = plt.subplots(1, 2, figsize=(12,5))
+
+#  Subplot 1: 2D feature plot 
+axs[0].plot(d1[0], d1[1], 'bo', label='Donor 1')
+axs[0].plot(d2[0], d2[1], 'go', label='Donor 2')
+axs[0].plot(x[0], x[1], 'r*', markersize=12, label='Treated Unit')
+axs[0].plot(x_hat_cvx[0], x_hat_cvx[1], 'ms', markersize=10, label='Synthetic Control')
+
+# Convex hull as a dashed line
+axs[0].plot([d1[0], d2[0]], [d1[1], d2[1]], 'k-.', label='Convex Hull')
+
+# Add literal rectangle around convex hull
+x_min, x_max = np.min(donors[:,0]), np.max(donors[:,0])
+y_min, y_max = np.min(donors[:,1]), np.max(donors[:,1])
+rect = plt.Rectangle((x_min, y_min), x_max-x_min, y_max-y_min,
+                     linewidth=1, edgecolor='gray', facecolor='none', linestyle='--', label='Hull Bounding Box')
+axs[0].add_patch(rect)
+
+axs[0].set_xlabel('Feature 1')
+axs[0].set_ylabel('Feature 2')
+axs[0].legend()
+axs[0].grid(True)
+axs[0].set_title('2D Feature Space')
+
+#  Subplot 2: Time series plot 
+axs[1].plot(t, x, 'r*-', label='Treated Unit', markersize=10)
+axs[1].plot(t, d1, 'bo-', label='Donor 1')
+axs[1].plot(t, d2, 'go-', label='Donor 2')
+axs[1].plot(t, x_hat_cvx, 'ms-', label='Synthetic Control', markersize=8)
+
+# Convex hull shading
+donor_min = np.min(donors, axis=0)
+donor_max = np.max(donors, axis=0)
+axs[1].fill_between(t, donor_min, donor_max, color='gray', alpha=0.2, label='Donor Convex Hull')
+
+axs[1].set_xlabel('Time')
+axs[1].set_ylabel('Outcome')
+axs[1].legend()
+axs[1].grid(True)
+axs[1].set_title('Time Series with Convex Hull Highlight')
+
+plt.tight_layout()
+plt.show()
+
+```
+
+Okay, so without question, this is the toughest derivation we've done so far. But I want to emphasize why I chose to do it this way. Even in a corner solution like the one we just saw, there is a powerful lesson to be learned: if your treated unit is extreme with respect to your donor pool, the weight assigned to the donors will increasingly hinge on the nearest neighbors, because that is the best the convex hull condition allows. In other words, the SCM is responding to the geometry of the data. The treated unit lies outside the convex hull/span of the donors, so the optimization goes to the nearest boundary, assigning all weight to the donor closest to the treated unit.
+
+This has a clear practical takeaway: analysts should always check whether the treated unit is extreme relative to the donor set. If it is, the synthetic control may rely heavily on a few donors, and the resulting fit may reflect geometric constraints rather than donor suitability. Of course, there are ways to circumvent this problem, but
+understanding that it is a problem in the first place is key. Being comfortable reasoning about the boundary behavior of one's is crucial for interpreting SCM results correctly and for making informed decisions about donor selection, as well as diagnosing whether the standard solver needs adjustments.
+
+::: {.problem title="Corner Solutions" data-link="#problem-corner-solutions"}
+What does it mean for a treated unit to lie "outside the convex hull" of the donor pool? How does this affect the synthetic control weights?
+:::
+
+::: {.problem title="Simple 2D SCM" data-link="#problem-simple-2d-scm"}
+Given a treated unit $\mathbf{y} = [50, 60]^\top$ and donor units $\mathbf{y}_1 = [20, 22]^\top$, $\mathbf{y}_2 = [48, 50]^\top$, derive the optimal SCM weight $w_1$ analytically, and identify the resulting synthetic control.
+:::
+
+::: {.problem title="Residual Norm Minimization" data-link="#problem-residual-norm-minimization"}
+Let $\mathbf{r}(w) = \mathbf{y} - \hat{\mathbf{y}}(w)$, where $\hat{\mathbf{y}}(w) = \sum_j w_j \mathbf{y}_j$. Show that minimizing $\|\mathbf{r}(w)\|_2^2$ is equivalent to the standard least squares problem for SCM.
+:::
+
+## Returning to the Basque Example
+
+
+Per our discussion and @fig-donor-span, we can see that the Basque Country is not extreme with respect to its donor set. The Basque Country is an outlier in other ways, such as industrialization and education and other covariates, but it is relatively well within the span of the outcomes of the donor pool. This suggests that we can at least try and use the standard SCM to obtain our weights for the Basque Country. For the purposes of distinguishing these from one another, I will compare the Convex Basque to the OLS Basque as well as the penalized approaches from the previous chapter.
+
+```{python}
+
+import pandas as pd
+from mlsynth.utils.datautils import dataprep
+from IPython.display import display
+from mlsynth.utils.estutils import Opt
+from style import set_book_style
+set_book_style()
+import numpy as np
+
+# --- Load Basque data ---
+url = ("https://raw.githubusercontent.com/"
+       "jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/"
+       "basque_data.csv")
+
+data = pd.read_csv(url)
+
+# --- Prepare data ---
+prepped_data = dataprep(
+    data,
+    "regionname",
+    "year",
+    "gdpcap",
+    "Terrorism"
+)
+
+y = prepped_data["y"]
+Y0 = prepped_data["donor_matrix"]
+T0 = prepped_data["pre_periods"]
+donor_names = prepped_data["donor_names"]
+
+# --- Function to extract CVXPY solution weights ---
+def extract_weights(scm_solution):
+    # Take the first variable in primal_vars dict
+    var = next(iter(scm_solution.solution.primal_vars))
+    return np.array(scm_solution.solution.primal_vars[var]).flatten()
+
+# --- OLS (unpenalized) ---
+ols_solution = Opt.SCopt(
+    num_control_units=Y0.shape[1],
+    target_outcomes_pre_treatment=y[:T0],
+    num_pre_treatment_periods=T0,
+    donor_outcomes_pre_treatment=Y0,
+    scm_model_type="OLS",
+    donor_names=donor_names,
+    lambda_penalty=0.0,
+)
+ols_weights = extract_weights(ols_solution)
+
+# --- Ridge (L2 penalty) ---
+ridge_solution = Opt.SCopt(
+    num_control_units=Y0.shape[1],
+    target_outcomes_pre_treatment=y[:T0],
+    num_pre_treatment_periods=T0,
+    donor_outcomes_pre_treatment=Y0,
+    scm_model_type="OLS",
+    donor_names=donor_names,
+    lambda_penalty=0.2,
+    p=2,
+    q=2
+)
+ridge_weights = extract_weights(ridge_solution)
+
+# --- LASSO (L1 penalty) ---
+lasso_solution = Opt.SCopt(
+    num_control_units=Y0.shape[1],
+    target_outcomes_pre_treatment=y[:T0],
+    num_pre_treatment_periods=T0,
+    donor_outcomes_pre_treatment=Y0,
+    scm_model_type="OLS",
+    donor_names=donor_names,
+    lambda_penalty=0.2,
+    p=1,
+    q=1
+)
+lasso_weights = extract_weights(lasso_solution)
+
+# --- SIMPLEX (convex combination) ---
+simplex_solution = Opt.SCopt(
+    num_control_units=Y0.shape[1],
+    target_outcomes_pre_treatment=y[:T0],
+    num_pre_treatment_periods=T0,
+    donor_outcomes_pre_treatment=Y0,
+    scm_model_type="SIMPLEX",
+    donor_names=donor_names,
+)
+simplex_weights = extract_weights(simplex_solution)
+
+# --- Combine weights into a DataFrame ---
+weights_df = pd.DataFrame({
+    "OLS": ols_weights,
+    "Ridge": ridge_weights,
+    "LASSO": lasso_weights,
+    "SIMPLEX": simplex_weights
+}, index=donor_names).round(3)
+
+display(weights_df)
+
+
+
+```
+
+The OLS weights are highly variable, with some donors receiving extremely large positive or negative values, reflecting the unconstrained nature of the estimator and its tendency to overfit the pre-treatment data. Ridge (L2) penalization shrinks these extreme weights toward zero, producing smaller positive and negative values, but still allowing negative contributions. LASSO (L1) introduces sparsity, assigning nonzero weights to only a few donors, notably Cataluna, Madrid, and Principado de Asturias, while setting most others to zero. The SIMPLEX estimator, by contrast, produces a sparse, interpretable set of weights that are strictly non-negative and sum to one, with Cataluna contributing the majority of the weight, followed by moderate contributions from Madrid and a minimal contribution from Principado de Asturias. Compared to LASSO, SIMPLEX is cleaner and more interpretable, as it enforces the convex combination constraint while automatically selecting the most relevant donors for constructing the synthetic Basque counterfactual without needing to tune any lambda parameters. Now we can plot the predictions of both models, depicted in @fig-scm-basque.
+
+
+```{python}
+
+#| label: fig-scm-basque
+#| fig-cap: "Synthetic Basque Estimates"
+
+# --- Compute counterfactuals ---
+counterfactuals = {
+    "OLS": Y0 @ ols_weights,
+    "Ridge": Y0 @ ridge_weights,
+    "LASSO": Y0 @ lasso_weights,
+    "SIMPLEX": Y0 @ simplex_weights
+}
+
+# --- Plot ---
+
+# Plot treated unit
+plt.plot(y, 'k-', linewidth=2, label="Basque")
+
+# Plot all counterfactuals
+colors = {"OLS": "red", "Ridge": "blue", "LASSO": "orange", "SIMPLEX": "#7DF9FF"}
+for model, series in counterfactuals.items():
+    plt.plot(series, color=colors[model], linewidth=2, label=model)
+
+plt.axvline(x=T0, color='black', linestyle='--', label="Terrorism")
+plt.xlabel("Time")
+plt.ylabel("GDP per capita")
+plt.show()
+```
+
+
+We can see here that aside from having more sensible weights, the convex SCM has a more sensible out of sample prediction too, certainly compared to OLS. This is because of the convex hull restriction, meaning that the weights will never allow the post-intervention prediction to extrapolate. In other words, even though SCM does not fit the Basque Country as well as least-squares does, the out-of-sample predictions are more realistic because of the geometric regularization that SCM provides.
+
+
+```{python}
+
+pre_rmses = {}
+for model, series in counterfactuals.items():
+    pre_rmses[model] = np.sqrt(np.mean((y[:T0] - series[:T0])**2))
+    
+atts = {}
+for model, series in counterfactuals.items():
+    atts[model] = np.mean(y[T0:] - series[T0:])
+
+
+results_df = pd.DataFrame({
+    "Pre-RMSE": pre_rmses,
+    "ATT": atts
+}).round(3)
+
+display(results_df)
+```
+
+
+The pre-treatment RMSEs indicate that OLS achieves the closest fit to the Basque series before treatment, with a near-zero RMSE of 0.002, reflecting its unconstrained ability to overfit the pre-treatment data. Ridge, LASSO, and SIMPLEX have higher pre-treatment RMSEs (0.065, 0.083, and 0.084, respectively) due to penalization or convexity constraints, which limit overfitting but produce a slightly less precise fit. In terms of the ATT, OLS predicts a large positive post-treatment effect (1.522), likely exaggerated by its overfitting, while Ridge, LASSO, and SIMPLEX yield negative ATTs (-0.758, -0.671, and -0.692, respectively), suggesting that the Basque outcome was slightly lower than the synthetic counterfactual post-treatment. Overall, these results illustrate a trade-off: OLS achieves perfect pre-treatment fit but unrealistic post-treatment effects, whereas Ridge, LASSO, and SIMPLEX provide more regularized, interpretable estimates at the cost of slightly higher pre-treatment error.
+
+
+## Finite Sample Error Under The Linear Factor Model
+
+Okay, so this is a nice trick, but analysts should also want to quantify the conditions under which SCM is effective. In other words, we should wish to derive the circumstances where we would expect SCM style methods to perform well. @Abadie2010 motivates SCM by a linear factor model. We are interested in characterizing the post-treatment estimation error for the treated unit under the linear factor model, assuming pre-treatment fit is perfect. When I say estimation error/bias here, I refer to the absolute difference between the estimated treatment effect and the true treatment effect. We do not care at all about the direction of the bias, we just care about the absolute  bias.  So by definition, for any post-treatment period $t$, the bias is characterized as
+
+$$
+\epsilon \defeq \hat\tau_{1t} - \tau_{1t} = y_{1t}(0) - \sum_{j \in \mathcal N_0} w_j y_{jt}(0).
+$$
+
+Substituting the linear factor model
+
+$$
+y_{jt}(0) = \delta_t + \theta_t Z_j + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt},
+$$
+
+we obtain
+
+$$
+\epsilon =
+(\delta_t + \theta_t Z_1 + \boldsymbol{\mu}_1^\top \boldsymbol{\lambda}_t + \varepsilon_{1t})
+-\sum_{j \in \mathcal N_0} w_j (\delta_t + \theta_t Z_j + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt}).
+$$
+
+Expanding the weighted sum:
+
+$$
+\epsilon =(\delta_t + \theta_t Z_1 + \boldsymbol{\mu}_1^\top \boldsymbol{\lambda}_t + \varepsilon_{1t})-\left(\delta_t \sum_j w_j + \theta_t \sum_j w_j Z_j + \sum_j w_j \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \sum_j w_j \varepsilon_{jt}\right).
+$$
+
+By SCM weight constraints, $\sum_j w_j = 1$, so the intercept cancels:
+
+$$
+\delta_t - \delta_t \sum_j w_j = 0.
+$$
+
+If pre-treatment covariates are balanced, $\sum_j w_j Z_j = Z_1$, so the covariate term cancels:
+
+$$
+\theta_t Z_1 - \theta_t \sum_j w_j Z_j = 0.
+$$
+
+This leaves
+
+$$
+\epsilon = 
+\boldsymbol{\mu}_1^\top \boldsymbol{\lambda}_t + \varepsilon_{1t} - \sum_j w_j \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t - \sum_j w_j \varepsilon_{jt}.
+$$
+
+Define the factor-loading mismatch vector
+
+$$
+\boldsymbol{\nu} \defeq \boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j.
+$$
+
+Then the post-treatment error becomes
+
+$$
+\epsilon = \boldsymbol{\lambda}_t^\top \boldsymbol{\nu} + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}.
+$$
+
+Exact pre-treatment fit implies
+
+$$
+0 = \boldsymbol{\lambda}_t^\top \boldsymbol{\nu} + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}, \quad \forall t \in \mathcal T_1.
+$$
+
+Rearranging:
+
+$$
+\boldsymbol{\lambda}_t^\top \boldsymbol{\nu} = \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t}).
+$$
+
+Stacking over all pre-treatment periods defines
+
+$$
+\Lambda \boldsymbol{\nu} = b, \quad
+b \defeq \begin{pmatrix} \sum_j w_j (\varepsilon_{j t_1} - \varepsilon_{1 t_1}) \\ \vdots \\ \sum_j w_j (\varepsilon_{j t_{T_0}} - \varepsilon_{1 t_{T_0}}) \end{pmatrix},
+$$
+
+where $\Lambda \in \mathbb{R}^{T_0 \times r}$ has rows $\boldsymbol{\lambda}_t^\top$. If $\Lambda$ has full column rank $r$, the least squares solution is
+
+$$
+\boldsymbol{\nu} = (\Lambda^\top \Lambda)^{-1} \Lambda^\top b.
+$$
+
+Expanding:
+
+$$
+\Lambda^\top \Lambda = \sum_{t \in \mathcal T_1} \boldsymbol{\lambda}_t \boldsymbol{\lambda}_t^\top, \quad
+\Lambda^\top b = \sum_{t \in \mathcal T_t} \boldsymbol{\lambda}_t \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t}).
+$$
+
+Hence
+
+$$
+\boldsymbol{\nu} = \Big( \sum_{t\in \mathcal T_1} \boldsymbol{\lambda}_t \boldsymbol{\lambda}_t^\top \Big)^{-1} \sum_{t \in \mathcal T_1} \boldsymbol{\lambda}_t \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t}).
+$$
+
+Finally, the post-treatment estimation error can be written as
+
+$$
+\epsilon =
+\boldsymbol{\lambda}_t^\top \Big( \sum_{t \in \mathcal T_1} \boldsymbol{\lambda}_t \boldsymbol{\lambda}_t^\top \Big)^{-1} \sum_{t \in \mathcal T_1} \boldsymbol{\lambda}_t \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t}) + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}.
+$$
+
+This decomposition shows two sources of post-treatment error: (i) pre-treatment idiosyncratic differences projected through the factor space, and (ii) direct post-treatment idiosyncratic mismatch. Given this finite sample bound, we can now get to the main identifying assumption of the SCM:
+
+::: {#lemma-LS-factors .lem}
+**Lemma B.1 (@li2024twostep)**
+
+Consider the linear factor model:
+
+$$
+y_{jt}(0) = \delta_j + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt}, 
+\quad j \in \mathcal{N}_0 \cup \{1\}, \ t \in \mathcal{T}_1,
+$$
+
+where $\delta_j$ is the intercept, $\boldsymbol{\mu}_j \in \mathbb{R}^r$ is the vector of factor loadings for unit $j$, and $\boldsymbol{\lambda}_t \in \mathbb{R}^r$ is a vector of common factors at time $t$. SCM's identification assumption holds if all control units share the same intercept and factor loadings:
+
+$$
+\delta_j = \delta, \quad \boldsymbol{\mu}_j = \boldsymbol{\mu}, \quad \forall j \in \mathcal{N}_0,
+$$
+
+and the treated unit's intercept and factor loadings can be expressed as a convex combination of the controls:
+
+$$
+\delta_1 = \sum_{j \in \mathcal{N}_0} w_j \delta_j, \quad
+\boldsymbol{\mu}_1 = \sum_{j \in \mathcal{N}_0} w_j \boldsymbol{\mu}_j, \quad
+\mathcal{W} \in \Big\{ \mathbf{w} \in (\{0\} \cup \mathbb{R}_+)^{|\mathcal{N}_0|} : \sum_{j \in \mathcal{N}_0} w_j = 1 \Big\}.
+$$
+:::
+
+However, it is important to note that the underlying assumption that the treated unit’s intercept $\delta_1$ and factor loadings $\boldsymbol{\mu}_1$ can be represented as a convex combination of the controls’ parameters is not directly testable, because the latent factors $\boldsymbol{\lambda}_t$ and unit-specific loadings $\boldsymbol{\mu}_j$ are unobserved. This is the finite sample bound; asymptotically, we can [show](cvxscm.html#proof-asymbb-full-triangle) that the error is bounded by a function in @thm-asymbb.
+
+
+::: {#thm-asymbb}
+
+## Asymptotic Bias Bound
+
+As shown in @Abadie2010, as the number of pre-treatment periods $|\mathcal{T}_1| \to \infty$ and the synthetic control achieves increasingly precise pre-treatment fit, the bound on the post-treatment bias shrinks. 
+
+$$
+\big|\mathbb{E}[\epsilon ]\big|
+\lesssim C(g)^{1/g} \frac{\bar{\lambda}^2 \, F \, N^{1/g}}{\xi_{A_P}} \ \max\Big( \frac{\bar m_g^{1/g}}{T_0^{1-1/g}}, \ \frac{\bar\sigma^{1/2}}{T_0^{1/2}}\Big).
+$$
+
+
+[*Proof*](cvxscm.html#proof-asymbb-full-triangle)
+:::
+
+
+When we construct a synthetic control, the quantity $\epsilon = \hat{\tau}_{1t} - \tau_{1t}$ measures the difference between the estimated and true post-treatment effect. The asymptotic bias bound provides a way to understand how large this expected error can be as the number of pre-treatment periods grows. It shows that as the pre-treatment window $T_0$ increases and the synthetic control fits the treated unit more precisely, the expected bias shrinks.
+
+
+The bound depends on several intuitive factors. The term $C(g)^{1/g}$ comes from controlling the contribution of large, rare shocks in the pre-treatment idiosyncratic errors; it scales the bound according to how “heavy-tailed” these shocks are but does not shrink with more data. The factor $\bar{\lambda}^2$ measures the size of the common factors; larger factors amplify any mismatch between the treated unit and the synthetic control. The number of latent factors, $F$, represents the dimensions along which the treated unit can differ from the controls, so more factors increase potential bias. The term $N^{1/g}$ reflects the influence of having more donor units: even though the synthetic control combines them optimally, more donors introduce additional sources of variation. Finally, the smallest eigenvalue of the factor Gram matrix, $\xi_{A_P}$, captures the geometry of the pre-treatment factors. A well-conditioned factor space (larger $\xi_{A_P}$) reduces the potential amplification of any mismatch, while a poorly conditioned factor space increases it.
+
+The last piece of the bound, the maximum between $\bar{m}_g^{1/g} / T_0^{1-1/g}$ and $\bar{\sigma}^{1/2} / T_0^{1/2}$, reflects the stochastic component of the bias coming from the idiosyncratic shocks. The first term captures the effect of occasional large shocks, while the second captures typical fluctuations measured by the variance. As the number of pre-treatment periods grows, both terms shrink, with the variance term typically dominating, leading to the familiar $T_0^{-1/2}$ rate of decay. The expected post-treatment bias decreases as more pre-treatment data are available and as the synthetic control fits better, but it also clarifies how the number of factors, size of the factors, number of donors, and factor space geometry influence the potential size of the bias.
+
+
+
+::: {.problem title="Factor-Loading Mismatch" data-link="#problem-factor-loading-mismatch"}
+Starting from the linear factor model
+
+$$
+y_{jt}(0) = \delta_t + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt},
+$$
+
+show that the post-treatment error for the treated unit can be written as
+
+$$
+\epsilon = \boldsymbol{\lambda}_t^\top\boldsymbol{\nu} + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}.
+$$
+:::
+
+::: {.problem title="Corner Solution Behavior" data-link="#problem-corner-solution-behavior"}
+Suppose the donor pool consists of two units with pre-treatment outcomes
+
+$$
+\mathbf{y}_1 = [2, 2]^\top, \quad \mathbf{y}_2 = [10, 10]^\top
+$$
+
+and the treated unit has pre-treatment outcomes
+
+$$
+\mathbf{y}_{\text{treated}} = [12, 12]^\top.
+$$
+
+- Let the synthetic control weight vector be $\mathbf{w} = [w_1, w_2]^\top$.  
+- Analyze what happens to the synthetic control vector $\hat{\mathbf{y}}_{\text{SC}} = w_1 \mathbf{y}_1 + w_2 \mathbf{y}_2$ as $\lim_{\underset{w_2 \to 1^-}{}} \mathbf{w}$.
+:::
+
+::: {.problem title="Pre-Treatment Fit and Bias" data-link="#problem-pre-treatment-fit-bias"}
+Using the expression for $\Delta \boldsymbol{\mu}$, explain why increasing the number of pre-treatment periods $|\mathcal{T}_1|$ improves identification of the treated unit’s latent factors.
+:::
+
+::: {.problem title="Convex SCM Implementation" data-link="#problem-convex-scm-implementation"}
+Using `cvxpy`, write a small script to compute SCM weights for a treated unit with 3 donors in 5 pre-treatment periods. Verify that weights are nonnegative and sum to 1.
+:::
+
+::: {.problem title="Comparing OLS and SCM" data-link="#problem-comparing-ols-scm"}
+For the Basque Country data, compute OLS weights and convex SCM weights. Compare the pre-treatment RMSE of both approaches. Which method produces more interpretable weights?
+:::
+
+::: {.problem title="Convex Hull Visualization" data-link="#problem-convex-hull-visualization"}
+Using Python or R, create a 2D plot showing the donor vectors and the convex hull. Plot the treated unit and the synthetic control on the same graph.
+:::
+
+::: {.problem title="Pre-Treatment MSE and Factor Matching" data-link="#problem-pre-treatment-mse-factor-matching"}
+Compute the pre-treatment mean squared error for SCM with varying subsets of donors. How does the MSE change as you remove the donors closest to the treated unit?
+:::
+
+::: {.problem title="Discussion / Critical Thinking" data-link="#problem-discussion-critical-thinking"}
+Suppose the treated unit is extreme relative to all donors. What are the implications for SCM estimation and interpretation? How might you address this issue in practice?
+:::
+
+::: {.problem title="Negative Weights" data-link="#problem-negative-weights-discussion"}
+In standard SCM, weights are constrained to be nonnegative and sum to one. Discuss the implications of allowing negative weights.
+
+- How might negative weights affect the interpretability of the synthetic control?  
+- When might allowing negative weights be useful?
+:::
+
+::: {.problem title="Adding an Intercept" data-link="#problem-adding-intercept"}
+Suppose we modify the SCM optimization to include an unrestricted intercept term in addition to the convex combination of donors.
+
+- How does this change the optimization problem?  
+- How might this affect pre-treatment fit and post-treatment extrapolation?  
+- Discuss potential benefits and drawbacks of including an intercept.
+:::
+
+::: {.problem title="High-Dimensional Factor Models" data-link="#problem-high-dimensional-factor-models"}
+Consider a scenario where the number of latent factors $r$ exceeds the number of pre-treatment periods $|\mathcal{T}_1|$.
+
+- What happens to the factor-loading mismatch solution $\Delta\boldsymbol{\mu} = (\Lambda^\top \Lambda)^{-1} \Lambda^\top b$ in this case?  
+- How does this affect identification of the SCM weights?
+:::
+
+::: {.problem title="Heterogeneous Factor Loadings" data-link="#problem-heterogeneous-factor-loadings"}
+Suppose that in the linear factor model, donor units have heterogeneous factor loadings that cannot perfectly replicate the treated unit.
+
+- How does this heterogeneity influence the post-treatment bias?  
+- How might one diagnose or mitigate this issue in applied settings?
+:::
+
+::: {.problem title="Convex Hull Limitations" data-link="#problem-convex-hull-limitations"}
+The SCM ensures that the synthetic control lies within the convex hull of the donors.
+
+- Discuss situations in which this restriction might prevent a good counterfactual fit.  
+- How does the geometry of the donor pool constrain the SCM solution?  
+- Are there alternatives or modifications to SCM that can relax the convex hull constraint while retaining interpretability?
+:::
+
+## Conclusion
+
+SCM provides a principled way to construct counterfactuals that respect the geometry of the donor pool, avoiding the implausible extrapolations that can occur under unconstrained OLS. By restricting weights to lie within the convex hull of the donors, SCM (ideally) produces interpretable and stable synthetic controls, even in small-$N$ settings. While the key identification assumption—that the treated unit’s latent factors can be represented as a convex combination of the controls—is not directly testable, @Abadie2010 shows that as the number of pre-treatment periods increases and pre-treatment fit improves, the bound on post-treatment bias shrinks. In practice, a lower pre-treatment mean squared error indicates that the synthetic control is closely tracking the treated unit’s unobserved factors, making it more likely that the SCM weights are effectively matching the relevant unit-specific characteristics. This geometric and factor-based perspective provides both theoretical justification and practical guidance for applying SCM reliably.
+
+
+
+
+## Asymptotic Bias Bound
+
+::: {.proof title="Asymptotic Bias Bound" data-link="#proof-asymbb-full-triangle" data-target="#thm-asymbb"}
+
+The finite sample bound gives us a nice approximation for any given set of factors/loadings in the finite case. However, mathematics is not concerned with secular realities. Econometricians oftentimes wish to make statements about how estimators behave as a sample size grows without bound. For this proof, we are going to algebraically manipulate the finite sample bound into something asymptotic in nature. This way, we can make statements about how the bound of the bias changes given some set of inputs.
+
+
+Above I mentioned how the finite-sample bound has two sources: (i) pre-treatment idiosyncratic differences projected through the factor space, and (ii) direct post-treatment idiosyncratic mismatch. Thus, this proof proceeds in two acts. In the first act, we focus on the bias coming from pre-treatment idiosyncratic differences projected through the factor space. The tools we use to do this are the triangle inequality, Jensen’s inequality, and Cauchy–Schwarz. In the second act, we deal with the bias from direct post-treatment idiosyncratic mismatches. Here, we use Hölder’s inequality, the vector-valued Rosenthal inequality, and Minkowski’s inequality.
+
+### Setup
+
+
+Recall that in the finite sample bias is expressed as: $$ \epsilon \defeq |\hat\tau_{1t} - \tau_{1t}|. $$ [The interactive fixed effects model](poframe.html#assump-lfm) is: $$ y_{jt} = \boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_j + \varepsilon_{jt}, \quad j = 1, \dots, N+1, $$ where $\boldsymbol{\lambda}_t$ are common factors, $\boldsymbol{\mu}_j$ are factor loadings, and $\varepsilon_{jt}$ are idiosyncratic shocks. The post-intervention error for the treated unit is
+
+$$
+\epsilon =
+\boldsymbol{\lambda}_t^\top \Big( \sum_{t \in \mathcal T_1} \boldsymbol{\lambda}_t \boldsymbol{\lambda}_t^\top \Big)^{-1} \sum_{t \in \mathcal T_1} \boldsymbol{\lambda}_t \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t}) + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}
+$$
+
+or more simply 
+
+$$ \epsilon = \boldsymbol{\lambda}_t^\top \boldsymbol{\nu} + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt},$$ 
+
+where 
+
+$$ \boldsymbol{\nu} \defeq \boldsymbol{\mu}_1 - \sum_j w_j \boldsymbol{\mu}_j $$ 
+is the factor-loading difference between the treated unit and the synthetic control.
+
+### Act 1
+
+To start off, we begin by taking expectations and the absolute value of both sides of the equal sign:
+
+$$
+|\mathbb{E}[\epsilon ]| = \Big|\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu} + \varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}]\Big|.
+$$
+
+As we mentioned, we do this because we do not care about the direction of the bias, so the absolute value allows us to make more general statements about the bias in this manner. By the linearity of expectation, we can separate the sum inside the expectation into two parts:
+
+$$
+|\mathbb{E}[\epsilon ]| = |\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}] + \mathbb{E}[\varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}]|.
+$$
+Because the RHS of the equals sign is a sum that evalautes to a scalar, the first inequality from our toolkit that we will apply is the triangle inequality. Recall that this inequality states that the magnitude of a sum cannot exceed the sum of magnitudes — the "length" of two steps taken together can never be longer than taking them one after another. In our context, this means that the total expected bias (which combines factor-driven and idiosyncratic components) cannot exceed the sum of the individual contributions of each source of bias. Formally:
+
+$$
+|\mathbb{E}[\epsilon ]| = |\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu} + (\varepsilon_{1t} - \sum_j w_j \varepsilon_{jt})]| \le |\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}]| + |\mathbb{E}[\varepsilon_{1t} - \sum_j w_j \varepsilon_{jt}]|.
+$$
+
+We assume that the idiosyncratic shocks are mean-zero and have finite variance, i.e. $\mathbb{E}[\varepsilon_{jt}] = 0$ and $\text{Var}(\varepsilon_{jt}) < \infty.$ Hence, the expected post-treatment idiosyncratic mismatch vanishes, leaving only the component driven by the common factors: 
+
+$$
+|\mathbb{E}[\epsilon]| = |\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}]|.
+$$
+
+Note that even if the random noise cancels out on average, in any finite sample it might not — and we want to know how big that randomness can make our bias look (that is the point of Act 2). 
+
+Anyways,this stage, we have the absolute value of an expectation:
+
+$$
+|\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}]|.
+$$
+
+Note that the absolute value function $f(x) = |x|$ is [convex](math.html#def-convex-function). Why? Consider two numbers $x = -2$ and $y = 4$, and let $\theta = 0.3$. Then the weighted average is
+
+$$
+\theta x + (1-\theta)y = 0.3(-2) + 0.7(4) = -0.6 + 2.8 = 2.2.
+$$
+
+Taking the absolute value gives
+
+$$
+|\theta x + (1-\theta)y| = |2.2| = 2.2.
+$$
+
+On the other hand, the weighted sum of absolute values is
+
+$$
+\theta |x| + (1-\theta)|y| = 0.3(2) + 0.7(4) = 0.6 + 2.8 = 3.4.
+$$
+
+Indeed, we see that
+
+$$
+|\theta x + (1-\theta)y| = 2.2 \le 3.4 = \theta |x| + (1-\theta)|y|,
+$$
+
+Extending the triangle inequality to weighted sums, the "length" of a weighted average of two numbers cannot exceed the weighted sum of their individual lengths. Because the absolute value function is convex, we can bound this term with [Jensen's inequality](math.html#def-jensen). Applying Jensen gives
+
+$$
+|\mathbb{E}[\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}]| \le \mathbb{E}[|\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}|].
+$$
+
+Intuitively, this says that the magnitude of the average bias is no larger than the average of the magnitudes of the biases across different realizations.
+
+Now note that $\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}$ on the LHS is a dot product between two vectors: the common-factor vector at time $t$ and the factor-loading difference between the treated unit and the estimated synthetic control. The way we bound dot products between vectors is with [Cauchy-Schwarz](math.html#def-cs). When we apply this to the LHS, we get this result:
+
+$$
+|\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}| \le \|\boldsymbol{\lambda}_t\|_2 \, \|\boldsymbol{\nu}\|_2.
+$$
+
+
+However, this bound may be further simplified by introducing a uniform bound over all pre-treatment periods. To do this, we take the [max norm](math.html#def-linf) of all of the common factors in the pre-treatment period
+
+$$
+\bar{\lambda} \defeq \|\boldsymbol{\lambda}\|_\infty = \max_{\in \mathcal{T}_1} \|\boldsymbol{\lambda}_t\|_2.
+$$
+
+This is the largest value of any common factor across the pre-treatment periods. Since each $\|\boldsymbol{\lambda}_t\|_2 \le \bar{\lambda}$, we can factor this constant out of the expectation:
+
+$$
+\mathbb{E}[|\boldsymbol{\lambda}_t^\top \boldsymbol{\nu}|] \le \mathbb{E}[\bar{\lambda} \, \|\boldsymbol{\nu}\|_2] = \bar{\lambda} \, \mathbb{E}[\|\boldsymbol{\nu}\|_2].
+$$
+
+Thus, combining with the previous steps, we obtain
+
+$$
+|\mathbb{E}[\epsilon]| \le \bar{\lambda} \, \mathbb{E}\|\boldsymbol{\nu}\|_2.
+$$
+
+
+At this point, the only remaining random or unknown quantity is the factor-loading difference $\boldsymbol{\nu}$. So far, we've manipulated the norms of these, but we have not considered the factor difference itself. As it happens, we can bound this term too. Recall the definition of $\boldsymbol{\nu}$, or the difference in factor loadings. In the finite sample derivation, we defined it implicitly via the least squares system
+
+$$
+\Lambda \boldsymbol{\nu} = b, \quad b_t = \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t}), \quad \Lambda = [\boldsymbol{\lambda}_1^\top; \dots; \boldsymbol{\lambda}_{T_0}^\top],
+$$
+
+solving for it analytically. The solution is:
+
+$$
+\boldsymbol{\nu} = (\Lambda^\top \Lambda)^{-1} \Lambda^\top b.
+$$
+
+To place a bound on the maximum factor loading mismatch, we can use the operator norm. The point of this here is to essentially answer "Given the pre-treatment mismatches ($b$) and the geometry of the factor space ($(\Lambda^\top \Lambda)^{-1} \Lambda^\top$), what is the largest possible factor-loading difference that could result?" By the submultiplicativity of the operator norm:
+
+$$
+\|\boldsymbol{\nu}\|_2 = \|(\Lambda^\top \Lambda)^{-1} \Lambda^\top b\|_2 \le \|(\Lambda^\top \Lambda)^{-1}\|_{\rm op} \, \|\Lambda^\top b\|_2.
+$$
+
+Think of the factor-loading difference as the outcome of shooting a bullet at a bullseye in a dark room. The matrix transformation, which combines the geometry of the factor space and the projection of pre-treatment mismatches, acts like the layout of the room, stretching and rotating the trajectory of the bullet in different directions. The operator norm then identifies the worst-case scenario: the maximum distance the bullet could land from the bullseye, given your current vantage point. In other words, even without knowing the exact direction of the pre-treatment mismatches, the operator norm provides a bound on how large the factor-loading difference can be, capturing the greatest possible amplification caused by the factor space.
+
+
+
+
+Normalize the Gram matrix $M = \frac{1}{T_0} \Lambda^\top \Lambda$, giving
+
+$$
+\|(\Lambda^\top \Lambda)^{-1}\|_{\rm op} = \frac{1}{T_0} \|M^{-1}\|_{\rm op} \le \frac{1}{T_0 \, \xi_{A_P}}, \quad \xi_{A_P} = \lambda_{\min}(M).
+$$
+
+In the bullseye analogy, $T_0$ represents the number of vantage points from which you can take a shot at the bullseye. Each vantage point provides information about the geometry of the room, and averaging across these points (normalizing by $T_0$) reduces the maximum potential deviation of a shot. The smallest eigenvalue $\xi_{A_P}$ identifies the weakest direction in the room, the direction in which the bullet can be stretched the most. Together, $T_0$ and $\xi_{A_P}$ give a conservative bound on how far any shot could land from the bullseye, capturing the worst-case amplification of pre-treatment mismatches.
+
+
+### Act 2: Bounding the Stochastic Component
+
+We now address the stochastic component of the estimation error, which arises because the idiosyncratic shocks $\varepsilon_{jt}$ of the control units cannot perfectly match those of the treated unit $\varepsilon_{1t}$, even with optimal weights $w_j$. The goal is to bound the expected factor-loading mismatch $\mathbb{E}\|\boldsymbol{\nu}\|_2$, which captures how random pre-treatment shocks propagate through the factor structure to affect the bias. The approach uses Hölder's inequality to control per-period mismatches, the vector-valued Rosenthal inequality to quantify their accumulation over time, and Minkowski's inequality to simplify the final bound.
+
+The per-period mismatch is defined as $b_t = \sum_j w_j (\varepsilon_{jt} - \varepsilon_{1t})$, where $\varepsilon_{jt}$ represents the idiosyncratic shock for control unit $j$ at time $t$, $\varepsilon_{1t}$ is the shock for the treated unit, and $w_j$ are the weights forming the synthetic control. This $b_t$ measures how much the weighted average of control shocks deviates from the treated unit’s shock at time $t$. Imagine trying to match a song’s melody with a choir that’s slightly out of tune: $b_t$ is the error in that approximation for one note. For clarity, define $\bar{m}_g = \sup_t \mathbb{E}|b_t|^g$ for some $g \geq 2$, which captures the worst-case size of large shocks (higher moments), and $\bar{\sigma} = \sup_t \mathbb{E}[b_t^2]$, which measures typical variability (variance). Assume the shocks $\varepsilon_{jt}$ are independent across time $t$ and units $j$, with mean zero ($\mathbb{E}[\varepsilon_{jt}] = 0$) and finite moments up to order $g$. The factors $\boldsymbol{\lambda}_t$ are treated as fixed (non-random), a standard simplification in this context.
+
+To control $b_t$, apply Hölder's inequality, which separates the weights and shocks:
+
+$$
+|b_t| \leq \left( \sum_j w_j^q \right)^{1/q} \left( \sum_j |\varepsilon_{jt} - \varepsilon_{1t}|^p \right)^{1/p}, \quad \frac{1}{p} + \frac{1}{q} = 1.
+$$
+
+This is like balancing two forces: the weights $w_j$ (how much each control unit contributes) and the shock differences $\varepsilon_{jt} - \varepsilon_{1t}$ (how far each unit’s noise deviates from the treated unit). Hölder's inequality ensures neither dominates excessively, bounding the mismatch by the interplay of weight distribution and shock variability.
+
+Next, define the vector $X_t = b_t \boldsymbol{\lambda}_t$, where $\boldsymbol{\lambda}_t$ scales the mismatch by the factor magnitudes. The total stochastic deviation over the pre-treatment window is $S = \sum_{t=1}^{T_0} X_t$, capturing the cumulative effect of these mismatches. To bound $\mathbb{E}\|S\|_2$, use the vector-valued Rosenthal inequality for independent mean-zero vectors $X_t \in \mathbb{R}^F$ with $g \geq 2$:
+
+$$
+\mathbb{E}\|S\|_2^g \lesssim C(g) \left[ \sum_{t=1}^{T_0} \mathbb{E}\|X_t\|_2^g + \left( \sum_{t=1}^{T_0} \mathbb{E}\|X_t\|_2^2 \right)^{g/2} \right],
+$$
+
+where $C(g)$ is a constant depending only on $g$, and $\lesssim$ hides absolute constants irrelevant for the asymptotic rate. This inequality is like estimating the total error in a series of coin tosses over $T_0$ periods: the first term captures rare large errors (higher moments), while the second reflects typical fluctuations (variance). Since $\|X_t\|_2 = |b_t| \|\boldsymbol{\lambda}_t\|_2 \leq |b_t| \bar{\lambda}$, where $\bar{\lambda} = \max_{t \in \mathcal{T}_1} \|\boldsymbol{\lambda}_t\|_2$, account for $F$ factors (since $X_t$ has $F$ components). Thus, $\mathbb{E}\|X_t\|_2^g \lesssim F \bar{\lambda}^g \mathbb{E}|b_t|^g$ and $\mathbb{E}\|X_t\|_2^2 \lesssim F \bar{\lambda}^2 \mathbb{E}[b_t^2]$. 
+
+Using Hölder's inequality and the normalization $\sum_j w_j^q \leq 1$, obtain $\mathbb{E}|b_t|^g \lesssim \bar{m}_g$ and $\mathbb{E}[b_t^2] \leq \bar{\sigma}$. Including $N$ control units (which enters multiplicatively in $b_t$), this becomes $\mathbb{E}\|X_t\|_2^g \lesssim F N^{1/g} \bar{\lambda}^g \bar{m}_g$ and $\mathbb{E}\|X_t\|_2^2 \lesssim F N^{1/g} \bar{\lambda}^2 \bar{\sigma}$. Summing over $t = 1, \dots, T_0$ gives $\sum_{t=1}^{T_0} \mathbb{E}\|X_t\|_2^g \lesssim T_0 F N^{1/g} \bar{\lambda}^g \bar{m}_g$ and $\sum_{t=1}^{T_0} \mathbb{E}\|X_t\|_2^2 \lesssim T_0 F N^{1/g} \bar{\lambda}^2 \bar{\sigma}$. Substituting into Rosenthal’s inequality yields:
+
+$$
+\mathbb{E}\|S\|_2^g \lesssim C(g) \left[ T_0 F N^{1/g} \bar{\lambda}^g \bar{m}_g + \left( T_0 F N^{1/g} \bar{\lambda}^2 \bar{\sigma} \right)^{g/2} \right].
+$$
+
+Taking the $g$-th root and applying Minkowski’s inequality (which picks the dominant contribution, like choosing the louder of two competing noises) simplifies to:
+
+$$
+\mathbb{E}\|S\|_2 \lesssim C(g)^{1/g} F N^{1/g} \max \left( \left( T_0 \bar{\lambda}^g \bar{m}_g \right)^{1/g}, \left( T_0 \bar{\lambda}^2 \bar{\sigma} \right)^{1/2} \right).
+$$
+
+Simplifying each term, $\left( T_0 \bar{\lambda}^g \bar{m}_g \right)^{1/g} = T_0^{1/g} \bar{\lambda} \bar{m}_g^{1/g}$ and $\left( T_0 \bar{\lambda}^2 \bar{\sigma} \right)^{1/2} = \sqrt{T_0} \bar{\lambda} \bar{\sigma}^{1/2}$, so:
+
+$$
+\mathbb{E}\|S\|_2 \lesssim C(g)^{1/g} F N^{1/g} \bar{\lambda} \max \left( T_0^{1/g} \bar{m}_g^{1/g}, \sqrt{T_0} \bar{\sigma}^{1/2} \right).
+$$
+
+This bound shows that the stochastic mismatch grows with the number of factors $F$ and control units $N^{1/g}$, but is moderated by the pre-treatment window $T_0$. To connect to the factor-loading mismatch, recall $\boldsymbol{\nu} = (\Lambda^\top \Lambda)^{-1} \Lambda^\top b$, so $\mathbb{E}\|\boldsymbol{\nu}\|_2 \leq \|(\Lambda^\top \Lambda)^{-1}\|_{\mathrm{op}} \mathbb{E}\|S\|_2$. Since $\|(\Lambda^\top \Lambda)^{-1}\|_{\mathrm{op}} = 1/(T_0 \xi_{A_P})$, where $\xi_{A_P} = \lambda_{\min}(M)$ and $M = \frac{1}{T_0} \Lambda^\top \Lambda$, combine to get:
+
+$$
+\mathbb{E}\|\boldsymbol{\nu}\|_2 \lesssim C(g)^{1/g} \frac{F N^{1/g} \bar{\lambda}}{T_0 \xi_{A_P}} \max \left( T_0^{1/g} \bar{m}_g^{1/g}, \sqrt{T_0} \bar{\sigma}^{1/2} \right).
+$$
+
+Simplify the powers of $T_0$: $T_0^{1/g} / T_0 = T_0^{-(1-1/g)}$ and $\sqrt{T_0} / T_0 = T_0^{-1/2}$, yielding:
+
+$$
+\mathbb{E}\|\boldsymbol{\nu}\|_2 \lesssim C(g)^{1/g} \frac{F N^{1/g} \bar{\lambda}}{\xi_{A_P}} \max \left( \bar{m}_g^{1/g} T_0^{-(1-1/g)}, \bar{\sigma}^{1/2} T_0^{-1/2} \right).
+$$
+
+Since the post-treatment bias satisfies $|\mathbb{E}[\epsilon]| \leq \bar{\lambda} \mathbb{E}\|\boldsymbol{\nu}\|_2$, the final bound is:
+
+$$
+|\mathbb{E}[\epsilon]| \lesssim C(g)^{1/g} \frac{F N^{1/g} \bar{\lambda}^2}{\xi_{A_P}} \max \left( \bar{m}_g^{1/g} T_0^{-(1-1/g)}, \bar{\sigma}^{1/2} T_0^{-1/2} \right).
+$$
+
+This bound reveals the bias’s behavior as $T_0$ grows. The term $\max \left( \bar{m}_g^{1/g} T_0^{-(1-1/g)}, \bar{\sigma}^{1/2} T_0^{-1/2} \right)$ determines the decay rate: the variance term $\bar{\sigma}^{1/2} T_0^{-1/2}$ typically dominates, giving a decay rate of $O(T_0^{-1/2})$, meaning the bias shrinks as more pre-treatment data is available. For example, if $T_0 = 100$ and the variance term dominates, $T_0^{-1/2} = 0.1$, significantly reducing the bias. However, more factors $F$ or control units $N$ can increase the bound, while a well-conditioned factor space (larger $\xi_{A_P}$) reduces it. Hölder's inequality controlled per-period errors, Rosenthal’s inequality quantified their accumulation, and Minkowski’s inequality isolated the dominant term, providing a complete picture of how stochastic noise propagates through the factor structure and decays with $T_0$.
+
+
+
+:::
+
+:::
+
+
+
+
+

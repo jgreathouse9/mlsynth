@@ -1,0 +1,78 @@
+# The Comparative Case Study Framework
+
+::: {.epigraph}
+> "People don't need to wear the same shoes; they should find what suit their feet."  
+> — Wei Yuan
+:::
+
+In this chapter, we explore how researchers and practitioners confront the challenge of causal inference when experimentation is not feasible. We begin by introducing the comparative case study framework, illustrate it through a classic policy example, and conclude with parallels in marketing and business analytics. When researchers or practitioners seek to evaluate the impact of a policy, a campaign, or an intervention, they are immediately confronted with a profound challenge. We get but one copy of reality; we cannot directly see what would have happened had some intervention never occurred. This basic idea is inherently unobservable. The traditional "gold standard" of randomized trials is appealing, yet sometimes they are unethical, infeasible, or very expensive to implement. For this reason, economists, policy analysts, and marketers spend lots of time trying to build counterfactuals themselves.
+
+## What Is a Comparative Case Study?
+
+Case studies in general are used to draw conclusions about a phenomenon of interest (say, economic development) by comparing some unit of interest to a set of others. In the classic text by @de2012democracy (a qualitative case study), the United States of America is compared to England, France, and elsewhere in Europe. Quantitative case studies use empirical data about the world to generate counterfactuals. Quantitative case studies approximate a counterfactual by drawing on the observable outcomes of other units that can stand in for the treated unit under alternative circumstances. The core idea here, as with Alexis de Tocqueville, is to find one or more units that resemble the treated unit as closely as possible prior to the intervention and to use their trajectories as a window into the outcome that might have occurred. 
+
+At the heart of the comparative case study framework is the importance of the similarity between the main unit of interest to the units we are comparing it to. Thus, it must begin with a clear identification of the treated unit and the intervention of interest, followed by a careful examination of pre-intervention outcomes and relevant background characteristics. Analysts then search for comparators, either single units or combinations thereof, that replicate the patterns of the treated unit as closely as possible before the intervention. Finally, the comparison of post-intervention trajectories provides an estimate of the intervention’s effect, offering a way to reason about what would have happened under alternative circumstances. This framework is not a simple exercise in matching, but a thoughtful integration of domain knowledge, empirical observation, and careful judgment. 
+
+
+SCM builds on this by leveraging panel data (where multiple units (e.g., countries, regions, or markets) are observed over time) to compare a single treated unit against a set of untreated control units. This allows us to construct a more accurate counterfactual trajectory for what might have happened absent the intervention. 
+
+## West Germany 
+
+To make this concrete, consider the study of German reunification by @Abadie2015 which is one of the most influential applications of the framework. Studying the impact of political and economic reunification on West German GDP per capita, their goal here is to see how GDP would have evolved in the absence of reunification. Of course, they face the challenge that no alternate West Germany exists. To approach this problem, they examined the set of OECD countries whose economic indicators, trade patterns, industrial composition, and growth trends before 1990 closely resembled those of West Germany. 
+
+```{python}
+
+#| echo: False
+#| label: fig-west-germany-plot
+#| fig-cap: "West Germany versus Donor Units"
+
+from mlsynth.utils.helperutils import sc_diagplot
+from style import set_book_style
+set_book_style()
+import pandas as pd
+
+file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/german_reunification.csv'
+# Load the CSV file using pandas
+df = pd.read_csv(file)
+
+treat = "Reunification"
+outcome = "gdp"
+unitid = "country"
+time = "year"
+
+config = {
+    "df": df,
+    "treat": treat,
+    "time": time,
+    "outcome": outcome,
+    "unitid": unitid,
+    "display_graphs": True,
+    "cluster": True,
+}
+
+sc_diagplot([config])
+
+
+```
+
+We can begin with simply analyzing the outcome of interest, GDP per capita. Consider @fig-west-germany-plot which plots the GDP trajectory of West Germany versus the 16 control units. Precisely, we have Australia, Austria, Belgium, Denmark, France, Greece, Italy, Japan, Netherlands, New Zealand, Norway, Portugal, Spain, Switzerland, the United Kingdom, and the United States as the comparison units of interest. Simply by looking at the plot, which of these units are most likely to be similar to West Germany pre-intervention? The answer is not so obvious, as we can see that multiple units are close to the trajectory of West Germany before Reunification took place. The key thing to note here is that the pure empirical mean of OECD nations does not sufficiently resemble West Germany, in level or in trend. This means that the standard difference-in-differences estimator would be biased from parallel pre-intervention trends violations. This paper uses the SCM to estimate the impact of the reunification, wherein only some of these OECD countries are assigned weight as a comparison for West Germany.
+
+## Marketing Measurement
+
+A similar logic underlies how marketers evaluate campaigns in the absence of clean experiments. The challenges faced in marketing contexts mirror those encountered in policy evaluation, though the scale and timing can differ. When a retailer launches a new advertising campaign, managers are immediately confronted with the question of causality: are observed increases in sales truly the result of the campaign, or would sales have risen regardless due to underlying trends in demand, seasonality, or other market forces? To answer this question, marketers often rely on holdout studies, sometimes referred to as geolift experiments. In a geolift study, a subset of geographic regions, stores, or customer segments is deliberately excluded from the campaign and treated as a control group, while the remaining set of regions receive the intervention (for example, an increase in media spend compared to the business as usual scenario). The goal here is to see the effect of the media spending on a given metric (called "conversions" in marketing jargon). If treated regions show higher conversions than holdout regions, this suggests the campaign caused the lift. After this, the goal is usually to know "by how much can we increase ad spend to the point that we are wasting money on further increases?" Either way, the principle is the exact same: we observe differences in outcomes between treated and holdout regions so as to understand the treatment effect of ad-spending. The design of holdout studies, as in policy sciences, also highlights some of the core intellectual challenges of comparative case studies. Selecting control regions is rarely straightforward. For one, businesses need to know who to treat at all (a question which is beyond the scope of this text). Beyond that, taking a set of treated units for granted, different untreated regions may closely match the treated unit on past sales trends but differ in demographics, store mix, local competition, or other factors that influence whatever the key metric is. Random fluctuations in sales, seasonal patterns, and other external shocks can further complicate the comparison.
+
+## Beyond Simple Control Selection
+
+Even when the treated unit and a plausible set of comparison units are clearly identified, important design questions remain for researchers conducting quantitative case studies. Selecting which units to include is only part of the challenge; deciding how many units to use, and how to combine them, is equally consequential. Using too few untis risks anchoring a counterfactual on idiosyncratic examples that happen to look similar by chance (such as, units that are only incidentally similar where other comparison units would be better). Using too many comparison units may blur distinctions and dilute meaningful resemblance between the treated unit and the comparison units.
+
+A similar tension arises when analysts incorporate additional information beyond the main outcome of interest, such as auxilary covariates that capture relevant background characteristics. For example, if we are the data science unit of a hotel chain, we may wish to include temperature in our analyses because it can be a proxy for seasonality. Including covariates can improve comparability, but they also introduce new decisions: which variables matter most (and what would it mean in principle for them to matter most?). Furthermore, how many auxilary covariates should we use? In policy analysis, for instance, should unemployment, education, and industrial structure all be treated as equally important predictors of economic growth? In marketing, should store size, regional demographics, and past sales volatility all receive comparable emphasis when identifying holdout regions? Each of these choices shapes the resulting counterfactual.
+
+The difficulties do not stop there. A core assumption of the comparative case framework is that the treated and comparison units evolve independently—that there are no spillovers or cross-unit effects. Yet in many real settings, this assumption is fragile. Policy interventions can influence neighboring jurisdictions through migration, trade, or imitation. Marketing campaigns may spill over across geographic boundaries as customers travel, communicate, or respond to national media. When such spillovers occur, the comparison units no longer represent what would have happened without the intervention; they themselves are partly treated. Recognizing, diagnosing, and mitigating these influences is one of the most subtle and important tasks in applied comparative analysis.
+
+## Looking Ahead
+
+These design considerations remind us that constructing a credible counterfactual is never purely mechanical. It requires judgment about similarity, dimensionality, and interference. Of course, later on we will make use of these judgments in later chapters by translating these into explicit assumptions, estimands, estimators, and diagnostics. For now, it suffices to see that behind every comparative case study lies a series of interlocking design decisions about what to include, what to exclude, and how to interpret what follows.
+
+The SCM, which we will encounter later, operationalizes this reasoning into a systematic framework. But before we formalize, we must first understand the logic of comparison itself. The approach encourages us to think rigorously about similarity, about the dimensions along which units must be matched, and about the imaginative exercise of constructing a world that did not occur. Whether we mean academic research or industry data science, at the heart of any question we strive to answer is context about the empirical question at hand. Before statistics, we first rely on careful reasoning and the disciplined use of observable data to approximate unobservable outcomes. Before we reach the technical apparatus of SCM, the next two chapters will build the mathematical language we need to express these ideas precisely. Chapter 2 introduces the mathematical preliminaries: the notation, vector and matrix conventions, and formal representations of outcomes, units, and interventions. Chapter 3 then focuses on one of the simplest yet most profound ideas in quantitative reasoning—the concept of the average. We will explore what it means to take an average, how different forms of averaging encode assumptions about similarity and weighting, and why this operation becomes central to synthetic control estimation. In the section after that, we begin to explore ways by which we can use averages to generate ounterfactuals, which will finally lead us to the SCM. Together, these chapters lay the conceptual and mathematical groundwork that will allow us, later on, to return to the questions posed here—not only with intuition, but with structure. By the time we reach the formal development of the SCM, we will see that it is, in essence, a disciplined answer to the imaginative problem introduced in this first chapter: how to construct the world that did not occur.
+
+A brief word of warning—and encouragement—is in order. While this book aims to make SCM accessible to a wide audience, mathematics will be, in a sense, non-negotiable. One of my favorite econometricians once asked hypothetically in his lecture notes, "Do I really need the fancy mathematics to understand econometrics?" [@shi_econ5121a]. The answer, as he put it, is both yes and no: not all practitioners need measure theory to apply econometrics effectively. By extension, not all practitioners who use causal inference and SCM need measure theory or post-graduate understanding of optimization and real analysis. In fact, my first degrees were in political science where I had no exposure to linear algebra, calculus, set theory, or discrete mathematics. However, without some degree of mathematical precision, core ideas like weighted averages, convex hulls, interpolation and extrapolation biases, and other important concepts cannot be fully defined. In the same spirit, this text strives for balance. I will avoid unnecessary abstraction, but I will also insist on clarity and correctness where it matters most. Only by taking advantage of the language of probability and statistics can the full value of the SCM be made known.

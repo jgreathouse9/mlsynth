@@ -1,0 +1,951 @@
+# Averages
+
+::: {.epigraph}
+> "I'm too profound to go
+Back and forth, with no average dork"  
+> — [*Solana Imani Rowe*](https://genius.com/Sza-forgiveless-lyrics)
+:::
+
+An average is one of the first summary statistics we learn—often in elementary or middle school, depending on where we grew up. Averages are everywhere in data analysis. We regularly compute metrics like average revenue, averages of income, average of prices, and for many other metrics. Yet, few people pause to consider what an average actually *is* as a concept or why we use them. In this chapter, we cover this in more detail, from simple arithmetic means to general weighted averages—as a foundation for understanding how computers construct synthetic controls in practice. There is an entire chapter for averaging because this is all a synthetic control is. People will say "fake unit" or "weighted mix" without being precise about what they mean, when at simplest we are just computing an average.
+
+## Averaging in Statistics
+
+Averages arise naturally when we try to find a single value that best represents a collection of numbers. In the old days, Egyptians and Babylonians used averages to summarize construction and financial matters. In modern times, we use averages to summarize things like test grades, incomes, and other variables we care about.  To formalize this, suppose we have a sequence of data points $(x_1, x_2, \ldots, x_n)$ of length $n$. We want to choose a single number $\mu$ that is as close as possible to all of them. Here, $\mu$ is a placeholder variable representing a potential candidate for the ‘best’ summary value; we will later find that the minimizing value, denoted $\bar{x}$, is the arithmetic mean. Because we seek a single number as close as possible to all values, this becomes our first example of an optimization problem—minimizing a function with respect to a variable. Recalling the definition of [an objective function](math.html#def-objective-function), let our observed values be $x_i$ and the number that "is as close as possible to all the values" be the Greek letter $\mu$ (m-yoo). Because we are looking for the value that minimizes the distance, we can write $x_i - \mu$ as a shorthand for this deviation. To minimize the total deviation across all points, we sum over each element of the sequence $i$: $\sum_{i=1}^{n} (x_i - \mu)$. Finally, to penalize values of $\mu$ that are further away from the observed data, we square each term. This gives us the optimization problem:
+
+$$
+\min_{\mu} \sum_{i=1}^{n} (x_i - \mu)^2.
+$$
+
+
+This function is [convex](math.html#def-convex-function) and differentiable. We can optimize this function by taking the derivative with respect to $\mu$. We begin by applying the [chain rule](math.html#def-chain-rule) term by term. For each term $(x_i - \mu)^2$, there are two parts to consider: the outer function and the inner function. The outer function is $f(u) = u^2$, where $u = x_i - \mu$. Its derivative (by the [power rule](math.html#def-power-rule)) is
+
+$$
+\frac{\mathrm{d}}{\mathrm{d}u} u^2 = 2u = 2(x_i - \mu)
+$$
+
+The inner function is $u(\mu) = x_i - \mu$. Its derivative with respect to $\mu$ is
+
+$$
+\frac{\mathrm{d}}{\mathrm{d}\mu} (x_i - \mu) = -1
+$$
+
+Multiplying the outer and inner derivatives gives the derivative of a single term:
+$$
+\frac{\mathrm{d}}{\mathrm{d}\mu} (x_i - \mu)^2 = 2(x_i - \mu) \cdot (-1) = -2(x_i - \mu)
+$$
+
+Summing over all $i$ gives the derivative of the entire objective function:
+
+$$
+\frac{\mathrm{d}}{\mathrm{d}\mu} \sum_{i=1}^{n} (x_i - \mu)^2 = \sum_{i=1}^{n} [-2(x_i - \mu)] = -2 \sum_{i=1}^{n} (x_i - \mu)
+$$
+
+Setting this derivative equal to zero gives the first-order condition for the minimum
+
+$$
+-2 \sum_{i=1}^{n} (x_i - \mu)=0.
+$$
+
+
+We now solve for $\mu$. First, just divide both sides by $-2$:
+
+$$
+\sum_{i=1}^{n} (x_i - \mu) = 0.
+$$
+
+Next, split the sum into two parts:
+
+$$
+\sum_{i=1}^{n} x_i - \sum_{i=1}^{n} \mu = 0.
+$$
+
+Since $\mu$ is constant with respect to the index $i$, the second sum simplifies to multiplication:
+
+$$
+\sum_{i=1}^{n} x_i - n\mu = 0.
+$$
+
+Now we add $n\mu$ to both sides:
+
+$$
+\sum_{i=1}^{n} x_i = n \mu.
+$$
+
+Finally, divide both sides by $n$ to isolate $\mu$:
+
+$$
+\mu = \frac{1}{n} \sum_{i=1}^{n} x_i.
+$$
+
+
+::: {#def-aravg}
+##  Arithmetic Average 
+
+For some $(x_1, x_2, \dots, x_n) \in \mathbb{R}^n$, the arithmetic average is: $\bar{x} = \frac{1}{n} \sum_{i=1}^n x_i$ where $n$ is the length of the sequence and $\frac{1}{n}$ is the weight.
+
+:::
+
+Thus, the value of $\mu$ that minimizes the total squared deviation is the arithmetic mean of the data. The arithmetic mean is thus not an arbitrary formula: it is the unique value that minimizes the total squared distance between itself and the data. 
+
+But, recall the definition of an objective function: I mentioned how it is a **scalar valued** function, because it returns a scalar. That scalar is the value of the function where we set $\mu$ equal to the optimal value. Substituting this minimizing value back into the objective function, we get the total deviation around the mean:
+
+$$
+f(\bar{x}) = \sum_{i=1}^{n} (x_i - \bar{x})^2.
+$$
+
+Because this quantity grows with $n$, it is often more useful to consider the average squared deviation (also called the residuals):
+
+$$
+\frac{1}{n} \sum_{i=1}^{n} (x_i - \bar{x})^2,
+$$
+
+which we call the population variance. The variance measures how far the data tend to fall from their best-fitting constant value. We use squared deviations because they produce a smooth, differentiable, and convex objective that penalizes larger errors more heavily. Note that the absolute deviations, instead of the squared deviations, would return the median, not the mean.  The cost of squaring the residuals is that variance is expressed in squared units; taking the square root restores the original units and gives the standard deviation. When variance is estimated from a sample rather than the entire population, the denominator is typically replaced by $n - 1$ to obtain an unbiased estimator.
+
+### So What?
+
+Now, you may be saying "Hey Jared, this is overkill. Why bother doing all of this for something as simple as an average?" The derivation shows us that the average is the solution to an optimization problem. That single insight connects simple statistics to the machinery of modern econometrics. Variance, standard deviation, mean squared error, regression coefficients, and the synthetic control weights are all built on the same principle: finding a number/set of numbers that minimizes some measure of error. The arithmetic mean is the simplest, most familiar instance of this principle. Every estimator in this book is an application of averaging, and this fact will become crucial in later chapters when we take more sophisticated averages.
+
+
+## Kinds of Arithmetic Averages
+
+Okay, so we now have our definition. Now let's apply this to the other objects we already know about, scalars, vectors, and matrices.
+
+### Scalars
+
+For the simplest case, we can simply apply the [arithmetic mean](averages.html#def-aravg) to scalars. Suppose you have 12 apples and your friend has 18. Denote this sequence as  $A = (12, 18) \in \mathbb{N}^2$. There are two elements in this sequence. Because the length of the sequence is 2, our weight is $\frac{1}{2}$. The way to compute the arithmetic average is 
+
+$$
+\bar{x} = \frac{1}{2}(12 + 18) = (0.5 \times 12) + (0.5 \times 18) = 6 + 9 = 15.
+$$
+
+On average, you and your friend each have 15 apples. We can do this in `NumPy`
+
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+A = np.array([12, 18])
+mean_1 = np.mean(A)
+
+weights = np.full(len(A), len(A)**-1)
+mean_2 = np.average(A, weights=weights)
+
+print(f"Mean of Apples: {mean_1}, {mean_2}")
+
+```
+
+See? Nothing special happened here, we just took the empirical mean of this sequence. Just to show that the above calculus derivation was not voodoo or an optical illusion, we can even just plot the objective function itself to see the scalar outputs at different values:
+
+
+```{python}
+
+#| echo: True
+#| label: fig-objaverage
+#| fig-cap: "Objective Function: Arithmetic Mean"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Data points
+
+A = np.array([12, 18])
+
+# Objective function: sum of squared deviations
+
+mu_values = np.linspace(10, 20, 400)
+f_mu = np.sum((A[:, None] - mu_values)**2, axis=0)
+
+# Plot
+
+plt.figure(figsize=(6,4))
+plt.plot(mu_values, f_mu, label=r'$f(\mu) = \sum (x_i - \mu)^2$')
+plt.axvline(np.mean(A), color='red', linestyle='--', label=r'$\bar{x} = 15$')
+plt.scatter(np.mean(A), np.sum((A - np.mean(A))**2), color='red')
+plt.xlabel(r'$\mu$')
+plt.ylabel(r'$f(\mu)$')
+plt.title('Objective Function for Arithmetic Mean')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+
+
+
+The next context in which we often encounter averages is when estimating treatment effects. Suppose we are interested in the Average Treatment effect on the Treated (ATT) for a single treated unit ($j = 1$) observed over two post-treatment periods ($|\mathcal{T}_{2}|=2$). Let the observed (treated) outcome be denoted by $y_{1t}(1)$ and the predicted or counterfactual outcome by $y_{1t}(0)$. The treatment effect in each period is then $\tau_t = y_{1t}(1) - y_{1t}(0)$. Suppose the observed sequence is $y_1(1) = (533, 568)$ and the counterfactual sequence is $y_{1t}(0) = (400, 446)$. The resulting difference of these (the treatment effect sequence) is $\tau = y_1(1) - y_{1t}(0) = (133, 122)$. To compute the average treatment effect on the treated across these two post-treatment periods (formally defined [later](poframe.html#def-ate) in the book), we apply the same arithmetic mean formula as before to this sequence of treatment effects. This looks like:
+
+
+\begin{align}
+&\bar{\tau}_{\text{ATT}}
+= \frac{1}{2} \sum_{t=1}^{2} \tau_t
+= \frac{1}{2}(133 + 122)
+=  \\ &(0.5 \times 133) + \left(0.5 \times 122\right)
+= 66.5 + 61
+= 127.5.
+\end{align}
+
+
+Thus, on average, the treated unit’s observed outcomes are about 127.5 units higher than what the counterfactual model predicted. Another thing we can do in Python:
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+# Observed outcomes
+y1_treated = np.array([533, 568])
+
+# Counterfactual outcomes
+y1_control = np.array([400, 446])
+
+# Treatment effect sequence
+tau = y1_treated - y1_control
+
+# Equal weights
+weights = np.full(len(tau), len(tau)**-1)
+
+# Average Treatment Effect on the Treated (ATT)
+ATT = np.average(tau, weights=weights)
+
+print(f"Treatment effects by period: {tau}")
+print(f"Average Treatment Effect on the Treated (ATT): {ATT}")
+
+
+```
+
+
+Because each value in the sequence contributes equally to the final result, the arithmetic mean can be seen as a weighted sum where each weight for the $i$-th element is $\frac{1}{n}$. In general, for a sequence $(x_1, x_2, \dots, x_n)$, the arithmetic mean can be written as
+
+$$
+\bar{x} = \sum_{i=1}^n w_i x_i, \quad w_i = \frac{1}{n} \: \forall \: i
+$$
+
+
+::: {.problem title="Mean of Small Numbers" data-link="#problem-mean-small-numbers"}
+Compute the arithmetic mean of the numbers: 4, 8, 12.  
+:::
+
+::: {.problem title="Mean of Single-Digit Values" data-link="#problem-mean-single-digit"}
+Find the arithmetic mean of the sequence: 1, 3, 5, 7, 9.  
+:::
+
+::: {.problem title="Mean of Exam Scores" data-link="#problem-mean-exam-scores"}
+A student scored 70, 75, and 80 on three tests. Compute the arithmetic mean score.  
+:::
+
+::: {.problem title="Mean of Monthly Sales" data-link="#problem-mean-monthly-sales"}
+A small shop made the following sales in dollars over 4 months: 200, 250, 300, 350. Find the average monthly sales.  
+:::
+
+::: {.problem title="Mean of Age Values" data-link="#problem-mean-age-values"}
+The ages of five friends are 20, 22, 24, 26, and 28. Compute the arithmetic mean age.  
+:::
+
+### Vectors
+
+The same idea generalizes easily to vectors. In higher dimensions, averaging is simply applying the same principle along rows or columns. We can represent the simple apple example as a row vector:
+
+$$
+\mathbf{x} =
+\begin{bmatrix}
+12 & 18
+\end{bmatrix}
+\in \mathbb{R}^{1 \times 2}.
+$$
+
+This is the same example as before, just expressed in vector form. Here, each column corresponds to a person's value. Recalling the definition of [the dot product](math.html#def-dot-product) and the idea of the average as a weighted sum, we introduce a weight vector that assigns proportional and equal weight to each person:
+
+$$
+\mathbf{w} = \tfrac{1}{2}
+\begin{bmatrix}
+1 \\
+1
+\end{bmatrix}
+= \tfrac{1}{2} \mathbf{1}_2
+\in \mathbb{R}^{2 \times 1}.
+$$
+
+Why proportional and equal? Because that is simply the definition of [the arithmetic average](averages.html#def-aravg). The same way we used $\frac{1}{2}$ for the scalar example because of the fact that there were two units, we use the same principle for the vector setting, where our units are columns. Here, $\mathbf{1}_2$ is a column vector of ones:
+
+$$
+\mathbf{1}_2 =
+\begin{bmatrix}
+1 \\
+1
+\end{bmatrix}.
+$$
+
+Multiplying by $\frac{1}{2}$ ensures that each entry has the weight $\frac{1}{n}$, just like in the scalar arithmetic mean. The average is then given by the matrix product between the data vector and the weight vector:
+
+$$
+\mathbf{x}\mathbf{w}
+=
+\begin{bmatrix}
+12 & 18
+\end{bmatrix}
+\left(\tfrac{1}{2}
+\begin{bmatrix}
+1 \\
+1
+\end{bmatrix}\right)
+=
+\tfrac{1}{2}(12 + 18)
+= 15.
+$$
+
+We get a scalar, in this case 15. We have two people (one in each column) in the vector, and we multiply every value in that column by the weight vector value, add these up, and this is the mean. The way we compute this in Python is:
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+# --- Example 1: Apples ---
+A = np.array([12, 18])
+weights_apples = np.full(len(A), len(A)**-1)
+
+# Dot Product
+mean_apples = weights_apples @ A
+
+print(f"Mean of Apples (dot product): {mean_apples}")
+```
+
+
+
+
+
+We can represent the same treatment effect example as a row vector:
+
+$$
+\boldsymbol{\tau} = 
+\begin{bmatrix}
+133 & 122
+\end{bmatrix}
+\in \mathbb{R}^{1 \times 2}.
+$$
+
+Here, each column corresponds to a time period, and the value represents the treatment effect for that period. To compute the average, we use the same equal-weight vector as before, $\tfrac{1}{2}\mathbf{1}_2$. Again, why? We have two post-treatment periods, and per the definition of the arithmetic mean, we need the weight to be equal to the number of elements that we have. So when we do this, we get:
+
+$$
+\boldsymbol{\tau}^\top
+\left(\tfrac{1}{2}\mathbf{1}_2\right)
+=
+\begin{bmatrix}
+133 & 122
+\end{bmatrix}
+\cdot
+\left(\tfrac{1}{2}
+\begin{bmatrix}
+1 \\ 1
+\end{bmatrix}\right)
+=
+\begin{bmatrix}
+133 \times 0.5 & 122 \times 0.5
+\end{bmatrix}
+=
+\begin{bmatrix}
+66.5 & 61
+\end{bmatrix}.
+$$
+
+Summing the entries gives:
+
+$$
+\mathbf{1}_2^\top
+\begin{bmatrix}
+66.5 \\ 61
+\end{bmatrix}
+= 66.5 + 61 = 127.5.
+$$
+
+The average treatment effect across the two periods is $127.5$, the same number as before. Thus, arithmetic averaging is simply taking a weighted sum where each weight is the reciprocal of the number of entries. 
+
+This can also be done with both examples using Python:
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+# --- Example 2: ATT ---
+y1_treated = np.array([533, 568])
+y1_control = np.array([400, 446])
+tau = y1_treated - y1_control
+
+weights_tau = np.full(len(tau), len(tau)**-1)
+ATT = weights_tau @ tau  # same as np.dot(weights_tau, tau) or np.mean(y1_treated - y1_control)
+
+print(f"Treatment effects by period: {tau}")
+print(f"Average Treatment Effect on the Treated (dot product): {ATT}")
+
+
+```
+
+
+Of course the above example is pedagogical. The real way we'd do this in code/a project is:
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+y1_treated = np.array([533, 568])
+y1_control = np.array([400, 446])
+
+print(np.mean(y1_treated - y1_control))
+```
+
+
+
+::: {.problem title="Vector Mean of Small Numbers" data-link="#problem-vector-mean-small-numbers"}
+Represent the sequence $[3, 6, 9]$ as a vector and compute the arithmetic mean using equal weights.  
+:::
+
+::: {.problem title="Vector Mean of Test Scores" data-link="#problem-vector-mean-test-scores"}
+A student scored $[65, 70, 75, 80]$ on four tests. Represent these as a vector and compute the arithmetic mean using equal weights.  
+:::
+
+::: {.problem title="Vector Mean of Daily Steps" data-link="#problem-vector-mean-steps"}
+Your daily steps for a week are $[5000, 6000, 5500, 7000, 6500, 6000, 5800]$. Represent this as a vector and compute the arithmetic mean with equal weights.  
+:::
+
+::: {.problem title="Vector Mean of Monthly Sales" data-link="#problem-vector-mean-sales"}
+A store’s sales for three months are $[1200, 1500, 1300]$. Represent this as a vector and compute the average using equal weights.  
+:::
+
+::: {.problem title="Vector Mean of Heights" data-link="#problem-vector-mean-heights"}
+The heights (in cm) of four people are $[160, 165, 170, 175]$. Represent these as a vector and compute the arithmetic mean using equal weights.  
+:::
+
+
+
+### Matrices
+
+Let’s extend the idea to multiple time periods. Suppose today you have 12 apples and tomorrow 30, while your friend has 18 today and 22 tomorrow. We can represent this as a matrix:
+
+$$
+\mathbf{Y} =
+\begin{bmatrix}
+12 & 18 \\ 
+30 & 22
+\end{bmatrix} 
+\in \mathbb{R}^{2 \times 2}.
+$$
+
+Each row corresponds to a time period, and each column corresponds to a person. To find the average number of apples per time period, we multiply $\mathbf{Y}$ by the weight vector 
+
+$$
+\mathbf{w} = 
+\begin{bmatrix}
+1/2 \\
+1/2
+\end{bmatrix}.
+$$
+
+The result is a column vector, where each entry is the average across people for that time period:
+
+$$
+\bar{\mathbf{x}} = \mathbf{Y w}
+=
+\begin{bmatrix}
+12 & 18 \\ 
+30 & 22
+\end{bmatrix} 
+\begin{bmatrix} 1/2 \\ 1/2 \end{bmatrix} 
+=
+\begin{bmatrix} 15 \\ 26 \end{bmatrix}.
+$$
+
+Thus, the first entry $15$ is the average for today, and the second entry $26$ is the average for tomorrow. In Python, we'd do:
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+# --- Apples Example ---
+Y = np.array([[12, 18],
+              [30, 22]])
+
+w_units = np.full((Y.shape[1], 1), Y.shape[1]**-1)  # column weights (for people)
+avg_by_time = Y @ w_units       # average across people for each time period
+
+print("Average apples per time period:")
+print(avg_by_time)
+```
+
+
+Suppose we have two treated units over two post-treatment periods. Let the predicted outcomes and observed outcomes be:
+
+$$
+\hat{\mathbf{Y}} = 
+\begin{bmatrix}
+400 & 380 \\
+446 & 420
+\end{bmatrix}, \quad
+\mathbf{Y} =
+\begin{bmatrix}
+533 & 490 \\
+568 & 510
+\end{bmatrix}.
+$$
+
+Here, each row corresponds to a post-treatment period, and each column corresponds to a treated unit. The treatment effects are the differences between the observed outcomes and their predicted outcomes:
+
+$$
+\boldsymbol{\tau} = \mathbf{Y} - \hat{\mathbf{Y}}.
+$$
+
+We typically are concerned with the average treatment effect on the treated units, where we average first across units (columns) and then across time periods. To do this, we have weights for each unit (that is, the number of columns) **and** for each particular time point,
+
+$$
+\mathbf{w}_\text{units} =
+\begin{bmatrix} 1/2 \\ 1/2 \end{bmatrix}, \quad
+\mathbf{w}_\text{time} =
+\begin{bmatrix} 1/2 \\ 1/2 \end{bmatrix}.
+$$
+
+This is simply a generalization of th rules we've been developing so far, where units get weight  when we average across them, and extending that to the setting where time periods also get weight defined by their length. So, unlike where we have one treated unit and one predicted series, this generalizes very nicely to the setting where we have multiple treated units too:
+
+$$
+\text{ATT} = \mathbf{w}_\text{time}^\top \, \boldsymbol{\tau} \, \mathbf{w}_\text{units} 
+= \mathbf{w}_\text{time}^\top (\mathbf{Y} - \hat{\mathbf{Y}}) \mathbf{w}_\text{units}.
+$$
+
+We start with
+
+$$
+\text{ATT} = 
+\begin{bmatrix} 1/2 & 1/2 \end{bmatrix}
+\begin{bmatrix}
+133 & 110 \\
+122 & 90
+\end{bmatrix}
+\begin{bmatrix} 1/2 \\ 1/2 \end{bmatrix}.
+$$
+
+The first step is to multiply the weight vector on the left (the time vector) by the matrix of treatment effects:
+
+$$
+\begin{bmatrix} 1/2 & 1/2 \end{bmatrix}
+\begin{bmatrix}
+133 & 110 \\
+122 & 90
+\end{bmatrix}
+=
+\begin{bmatrix}
+\frac{1}{2} \cdot 133 + \frac{1}{2} \cdot 122 &
+\frac{1}{2} \cdot 110 + \frac{1}{2} \cdot 90
+\end{bmatrix}
+=
+\begin{bmatrix}
+127.5 & 100
+\end{bmatrix}.
+$$
+
+Okay now this one is easy. Now we just multiply the resulting row vector by the column weight vector, or the average of the ATTs between each unit:
+
+$$
+\begin{bmatrix} 127.5 & 100 \end{bmatrix}
+\begin{bmatrix} 1/2 \\ 1/2 \end{bmatrix}
+= 127.5 \cdot 1/2 + 100 \cdot 1/2
+= 63.75 + 50
+= 113.75.
+$$
+
+Again in `NumPy`, we'd do
+
+```{python}
+
+
+# --- Treatment Effect Example (2 treated units, 2 periods) ---
+
+# Predicted and observed outcomes
+Y_hat = np.array([[400, 380],
+                  [446, 420]])
+Y_obs = np.array([[533, 490],
+                  [568, 510]])
+
+# Treatment effects matrix
+tau = Y_obs - Y_hat
+
+# Infer dimensions automatically
+n_time, n_units = tau.shape
+
+# Weight vectors inferred from shape
+w_time = np.full((1, n_time), n_time**-1)   # row vector for time
+w_units = np.full((n_units, 1), n_units**-1)  # column vector for units
+
+# Compute ATT via matrix multiplication
+ATT = w_time @ tau @ w_units
+
+print("Treatment effect matrix (tau):")
+print(tau)
+print()
+print(f"Average Treatment Effect: {ATT.item()}")
+```
+
+
+Averaging is just a form of a dot product that we take across sequences/vectors and matrices. In regression and synthetic control methods, this same idea extends from scalars to matrices. Suppose $\mathbf{y}_1 \in \mathbb{R}^{T}$ is a target time series and $\mathbf{Y}_0 \in \mathbb{R}^{T \times J}$ is a matrix whose columns contain $J$ potential control series. The goal is to approximate $\mathbf{y}_1$ using a weighted combination of the columns of $\mathbf{Y}_0$. We can express this as minimizing the squared error
+
+$$
+f(\mathbf{w}) = \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2
+= \sum_{t=1}^{T} \left( y_{1t} - \sum_{j=1}^{J} w_j Y_{0,tj} \right)^2.
+$$
+
+The solution $\mathbf{w}$ gives the weights that produce the best-fitting linear combination of vectors in the least-squares sense. The mean, variance, and mean squared error are therefore all instances of a common idea: each is defined by minimizing the total squared deviation from a reference point. The mean is the minimizer, the variance is the minimized value of the objective, and the mean squared error is the same idea applied to predictions or reconstructions rather than to raw data. Understanding how averaging arises from this optimization perspective provides a unified way to interpret many methods in statistics, including regression and synthetic control, as procedures that compute structured weighted averages.
+
+
+
+
+::: {.problem title="Matrix Representation of Student Scores" data-link="#problem-student-matrix"}
+Two students take two exams. Their scores are:
+
+|        | Akiko | Tsumugi |
+| ------ | ----- | --- |
+| Exam 1 | 80    | 70  |
+| Exam 2 | 90    | 85  |
+
+Represent this as a matrix and compute the average score per exam. Then, compute the average score per student instead.
+:::
+
+
+
+::: {.problem title="Matrix of Daily Temperatures" data-link="#problem-matrix-daily-temperatures"}
+The temperatures (°C) in two cities over three days are:
+
+|       | City A | City B |
+|-------|--------|--------|
+| Day 1 | 20     | 25     |
+| Day 2 | 22     | 28     |
+| Day 3 | 21     | 26     |
+
+Represent this as a matrix and compute:
+1. The average temperature per day.
+2. The average temperature per city.
+:::
+
+::: {.problem title="Matrix of Weekly Sales" data-link="#problem-matrix-weekly-sales"}
+A store tracks sales for two products over four weeks:
+
+|       | Product X | Product Y |
+|-------|-----------|-----------|
+| Week 1| 100       | 120       |
+| Week 2| 110       | 130       |
+| Week 3| 90        | 140       |
+| Week 4| 105       | 125       |
+
+Represent this as a matrix. Compute:
+1. Average sales per week.
+2. Average sales per product.
+:::
+
+::: {.problem title="Matrix of Monthly Rainfall" data-link="#problem-matrix-rainfall"}
+Monthly rainfall (mm) for two cities over three months:
+
+|       | City X | City Y |
+|-------|--------|--------|
+| Jan   | 50     | 60     |
+| Feb   | 45     | 55     |
+| Mar   | 55     | 65     |
+
+Represent this as a matrix. Compute:
+1. Average rainfall per month.
+2. Average rainfall per city.
+:::
+
+::: {.problem title="Matrix of Machine Outputs" data-link="#problem-matrix-machine-outputs"}
+Two machines produce units per day for three days:
+
+|        | Machine 1 | Machine 2 |
+|--------|-----------|-----------|
+| Day 1  | 200       | 220       |
+| Day 2  | 210       | 230       |
+| Day 3  | 205       | 225       |
+
+Represent this as a matrix. Compute:
+1. Average output per day.
+2. Average output per machine.
+:::
+
+
+
+
+## What Are We Weighting For? Introducing Weighted Averages
+
+Averages allow us compare units (whether people, firms, or countries) across time or groups. This is the reason economists use them so much. In the treatment effect example we just did, we can compare the average treatment effect for one unit to that of another unit. However so far there is a detail I have omitted: we have so far taken it as an article of faith that the weight vector should be $\frac{1}{n}$. But why should this be? In other words, does it have to always be true that $n$ needs to be the length of the columns or rows? Well, no! As it turns out, the weights can even vary across units and time periods! However, the moment we leave the special case where the weights are the reciprocal of the size of the entries, now the choice of weights matters. For comparison purposes, not all units should get the same weight.
+
+
+Consider a simple example: you earn \$60k/year. Your friend earns \$70k/year. The arithmetic mean is:
+
+$$
+\mathbf{x} = \begin{bmatrix} 60000 & 70000 \end{bmatrix}, \quad
+\mathbf{w} = \begin{bmatrix} \frac{1}{2} \\[1mm] \frac{1}{2} \end{bmatrix},
+$$
+
+which evaluates to:
+
+
+$$
+\bar{x} = \mathbf{x} \mathbf{w} = 0.5 \cdot 60000 + 0.5 \cdot 70000 = 65000 \text{ / year}.
+$$
+
+Now suppose Mansa Musa joins, earning \$107 billion/year. Mansa Musa's income must be treated equally to you two. So, now the average becomes:  
+
+$$
+\mathbf{x} = \begin{bmatrix} 60000 & 70000 & 1.07\times 10^{11} \end{bmatrix}, \quad
+\mathbf{w} = \begin{bmatrix} \frac{1}{3} \\[1mm] \frac{1}{3} \\[1mm] \frac{1}{3} \end{bmatrix},
+$$
+
+$$
+\bar{x} = 0.33\cdot 60000 + 0.33\cdot 70000 + 0.33\cdot 1.07\times 10^{11} \approx 35.7 \text{ B / year}.
+$$
+
+In Python, the way we'd compute this is:
+
+```{python}
+#| echo: True
+
+import numpy as np
+
+# --- Example 1: Two friends ---
+x1 = np.array([60000, 70000])
+w1 = np.full((len(x1), 1), 1 / len(x1))
+
+mean_equal = x1 @ w1
+
+print(f"Average income: ${mean_equal.item():,.0f}\n")
+
+# --- Example 2: Adding Mansa Musa ---
+x2 = np.array([60000, 70000, 1.07e11])
+w2 = np.full((len(x2), 1), 1 / len(x2))
+
+mean_equal_big = x2 @ w2
+
+print(f"Average income: ${mean_equal_big.item():,.2f}")
+```
+
+
+
+Clearly, the average is dominated by this extreme outlier, giving a value that is no longer representative of the original group. If the bartender next day bragged to his investors about earning 50k that night and wanted to expand his business, they would say something like: "It is not that you earned 50k organically, a mega-wealthy king was in town and happened to be there that night, that is not a typical night for you. If we looked at your pre-Mansa period, this is almost certainly an outlier relative to your own previous growth as well as the growth of you local competitors." 
+
+They would say what we know by simple intuition: on nights where wealthy people are patrons, earnings will very likely be anomalous with respect to other normal nights and cannot be used for  decision-making. In other words, if we want a meaningful "bar average," Mansa as an individual should likely get much less weight (if any) than the other patrons. The arithmetic mean assumes equal and proportional contribution from each unit, which may not be appropriate for meaningful comparisons.
+
+
+This leads us to weighted averages. Recall the idea of the weight that I have been referring to, $\frac{1}{n}$. This is essentially the fraction that we scale the original data by for the weighted sum. In this case, the weight is proportional to the size of the number of units we have at hand. Of course, you may now be asking "Well, are other kinds of averages possible? Are we just left with the arithmetic mean?" As it turns out, yes and no respectively. The weight is a mere convention of arithmetic means; there is no law of nature or script from the Heavens that says the weight for each element must be $1/n$ Practically, we can assign weights however we like. So, instead of treating Mansa as equal to you two, or treating the bar that gets Mansa similar to other bars, we can give each person/bar a weight $w_i \in [0,1]$. 
+
+
+::: {#def-aravg}
+## Weighted Average
+
+For a sequence of numbers $(x_1, x_2, \dots, x_n) \in \mathbb{R}^n$ and a vector of weights $\mathbf{w} = (w_1, w_2, \dots, w_n) \in \mathbb{R}^n$, the weighted average is defined as:
+
+$$
+\mathbf{x}^\top \mathbf{w}= \sum_{i=1}^{n} w_i x_i
+$$
+
+The classical arithmetic mean is a special case where all weights are equal to $1/n$.
+:::
+
+When we think about the weights $\frac{1}{w_i}$, it is best to think about it as a decision variable that decides how much an individual/unit counts in the average. Now reconsider the average with this in mind: with a weighted average, Mansa can get a tiny weight (if any), and you and your friend get larger weights, giving a more reasonable "average bar income." If we assign Mansa weight 0 and you and your friend weight 0.5 each, we obtain:
+
+$$
+\mathbf{w} = \begin{bmatrix} 0.5 \\[1mm] 0.5 \\[1mm] 0 \end{bmatrix}, \quad
+\bar{x} = \mathbf{x} \mathbf{w} = 0.5 \cdot 60000 + 0.5 \cdot 70000 = 65000 \,\text{/year}.
+$$
+
+Now the average reflects the typical case, making it a useful comparison for "regular" units. In Python, the way we'd do this is:
+
+
+```{python}
+
+#| echo: True
+
+import numpy as np
+
+# Incomes: You, Friend, Mansa Musa
+x = np.array([60000, 70000, 1.07e11])
+
+# Assign weights
+w = np.array([0.5, 0.5, 0])
+
+# Compute weighted average
+weighted_mean = x @ w
+
+print(f"Weighted average: ${weighted_mean:,.0f}.")
+
+```
+
+
+Now suppose the weight vector is:
+
+$$
+\mathbf{w} = \begin{bmatrix} 0.15 \\[1mm] 0.85 \\[1mm] 0 \end{bmatrix}.
+$$
+
+The weighted average is computed as:
+
+$$
+\bar{x}_{\text{weighted}} = 0.15 \cdot 60000 + 0.85 \cdot 70000 + 0 \cdot 1.07 \times 10^{11} = 68500
+$$
+
+So the weighted average income is \$68,500/year. We can see that this is closer to your friend's income compared to the case where you both shared equal weight, and certainly very different from the setting where Mansa counts at all.
+
+
+
+```{python}
+#| echo: True
+#| 
+import numpy as np
+
+x = np.array([60000, 70000, 1.07e11])
+w = np.array([0.15, 0.85, 0]).reshape(-1, 1)
+
+weighted_mean = x @ w
+print(f"Weighted average income: ${weighted_mean.item():,.0f}")
+```
+
+
+Now, consider a panel data version of the above bar example, where now we are interested in comparing one bar to ten other bars:
+
+```{python}
+
+#| echo: False
+
+import numpy as np
+import matplotlib.pyplot as plt
+from style import set_book_style
+set_book_style()  # optional styling if you have it
+
+np.random.seed(42)
+
+# --- Setup ---
+T = 100  # time periods (nights)
+N = 10   # number of bars
+
+# Common factor process
+time_trend = np.linspace(10000, 15000, T)
+common_shock = np.random.normal(0, 2000, T)
+factor = time_trend + common_shock
+
+# Each bar has its own idiosyncratic component
+idiosyncratic = np.random.normal(0, 3000, (T, N))
+
+# Generate baseline incomes
+Y = factor[:, None] + idiosyncratic
+
+# Add "Mansa Musa night" for bar 0
+Y_mansa = Y.copy()
+Y_mansa[-1, 0] += 50000
+
+# --- Compute averages ---
+# Standard mean across all bars (with Mansa)
+mean_with_mansa = np.mean(Y_mansa, axis=1)
+
+# Weighted mean excluding Mansa Musa (bar 0 weight = 0)
+weights = np.ones(N)
+weights[0] = 0  # zero weight for Mansa
+weights /= weights.sum()  # normalize so sum = 1
+mean_without_mansa = Y_mansa @ weights
+
+# --- Plot ---
+plt.figure(figsize=(10, 6))
+
+# Donor bars in thin grey
+for j in range(1, N):
+    plt.plot(range(T), Y_mansa[:, j], color="grey", alpha=0.6, lw=1)
+
+# Treated unit in black
+plt.plot(range(T), Y_mansa[:, 0], color="black", lw=2.5, label="Treated Bar (Mansa Musa Night)")
+
+# Averages
+plt.plot(range(T), mean_with_mansa, color="red", lw=2, linestyle="--", label="Mean Including Mansa")
+plt.plot(range(T), mean_without_mansa, color="blue", lw=2, linestyle="--", label="Mean Excluding Mansa")
+
+plt.title("Simulated Bar Incomes with Weighted Means")
+plt.xlabel("Night")
+plt.ylabel("Income ($)")
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+Here, we can see the the average where the Mansa bar is included pulls the average upwards to roughly 20,000 at the end of the time series. In applied work, group level averages appear all the time, where we compare a single set of units to the mean of a larger group. This idea is also frequent in recent news articles where comparisons are made. Examples like [crime rates](https://www.pbs.org/newshour/politics/trump-deploys-national-guard-to-memphis-calling-it-a-replica-of-his-crackdown-on-washington), [healthcare spending](https://www.cnn.com/2025/03/07/politics/medicaid-cuts-republican-districts-analysis), and [gasoline prices](https://calmatters.org/commentary/2024/10/political-theater-californias-gasoline-prices/) compare a unit to a larger mean to make inferences from them. 
+
+::: {.problem title="Impact of an Outlier on the Mean" data-link="#problem-outlier-mean"}
+One of your friends suddenly receives a lottery prize of \$5 million. Compute the new arithmetic mean. Comment on how representative this new mean is of the original group.
+:::
+
+
+::: {.problem title="Weighted Averages" data-link="#problem-weighted-averages"}
+Suppose you want some of the first three students to have more influence than the last one. Assign an arbitrary set of weights and compute the weighted average. Explain the difference with the simple average.
+:::
+
+::: {.problem title="Weighted Averages, Applied"  data-link="#problem-weighted-applied"}
+From [this problem](averages.html#problem-student-matrix), assign Akiko weight 0.6 and Tsumugi weight 0.4 for the average score for each exam. Comment on how the result changes.
+:::
+
+::: {.problem title="Limitations of the Arithmetic Mean" data-link="#problem-mean-limitations"}
+Explain why simply taking the arithmetic mean can be misleading. Give a real-life example.
+:::
+
+
+## Conclusion
+
+In this chapter, we have explored averages in their simplest forms—scalars, vectors, and matrices—and introduced the notion of weighted averages. The key takeaway is that averages are tools for comparison, but their usefulness depends entirely on the weights we assign. In real-world applications, we rarely know the "correct" weights in advance.
+
+Sometimes, people have told me in the context of [my blog](https://jgreathouse9.github.io/docs/) have suggested that much of this content, especially around synthetic controls, would be easier to digest if all technical language were removed. While this might be true for a general audience, it misunderstands who my blog/this book is written for. The primary audience is not business stakeholders, but 1) the employees and practitioners who use data to generate empirical insights for businesses and 2) graduate students who wish to have a good understanding of SCM.
+
+With this in mind, I want to underscore how crucial the idea of averaging is for a data practitioner who seeks to use SCM. At some point, correct explanations cannot be fully conveyed without mathematical formality. Averages are so central to the next chapters that a thorough understanding is essential to grasping and applying the ideas presented. Soon, we will explore how to generate weights in order to construct meaningful comparisons. This, however, is impossible without a firm grasp of averages. Understanding them is not just an academic exercise: averaging forms the foundation for most comparisons in econometrics, and SCM is no exception.
+
+
+
+::: {.problem title="Mean as Minimizer of Squared Error" data-link="#problem-mean-minimizer-squared-error"}
+Consider the numbers $x = [4, 7, 10, 6]$.  
+
+1. Compute the arithmetic mean $\bar{x}$.  
+2. Verify that $\bar{x}$ minimizes the sum of squared deviations by computing $\sum_{i=1}^{4} (x_i - \mu)^2$ for $\mu = 5, 6.75, 8$.
+:::
+
+::: {.problem title="Variance as Average Squared Deviation" data-link="#problem-variance-average-squared-deviation"}
+Using the same numbers $x = [4, 7, 10, 6]$:  
+
+1. Compute the total squared deviation from the mean.  
+2. Compute the variance (average squared deviation).  
+3. Interpret the variance: does it indicate the data are spread out or tightly clustered around the mean?
+:::
+
+::: {.problem title="Mean Squared Error for Predictions" data-link="#problem-mse-predictions"}
+A model predicts values $[12, 15, 14, 16]$ while the observed values are $[13, 14, 16, 15]$.  
+
+1. Compute the error for each observation.  
+2. Compute the squared error for each observation.  
+3. Compute the mean squared error (MSE).  
+4. Interpret the MSE in terms of prediction accuracy.
+:::
+
+::: {.problem title="Weighted Average in Vector Form" data-link="#problem-weighted-average-vector"}
+Suppose we have a vector of observations $\mathbf{y} = [3, 5, 8]$ and a uniform weight vector $\mathbf{w} = [1/3, 1/3, 1/3]^\top$.  
+
+1. Compute the weighted average using the dot product $\mathbf{y} \cdot \mathbf{w}$.  
+2. Compute the total squared deviation of $\mathbf{y}$ from this weighted average.
+:::
+
+::: {.problem title="Vectorized MSE in Regression" data-link="#problem-vectorized-mse"}
+Let $\mathbf{y}_1 = [5, 7, 6]$ be observed outcomes, and let $\mathbf{Y}_0 = 
+\begin{bmatrix} 4 & 6 \\ 6 & 8 \\ 5 & 7 \end{bmatrix}$ be two predictor vectors.  
+If the weight vector is $\mathbf{w} = [0.4, 0.6]^\top$:  
+
+1. Compute the predicted values $\mathbf{Y}_0 \mathbf{w}$.  
+2. Compute the residual vector $\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}$.  
+3. Compute the Mean Squared Error (MSE) using the formula $\frac{1}{n} \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2$.
+:::
+

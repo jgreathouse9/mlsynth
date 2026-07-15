@@ -1,0 +1,54 @@
+# Introduction
+
+Hey, I'm Jared, a PHD candidate studying public policy at Georgia State University. I work in econometrics for policy analysis. Welcome to *Foundations of the Synthetic Control Method* (SCM). This book is a practical guide to mastering SCM, directed at graduate students and industry scientists seeking an intuitive yet rigorous understanding of this transformative method for policy and geolift analysis (the study of location-based impacts in marketing, using holdout studies).
+
+## Why I Wrote This Book?
+
+While excellent articles on SCM exist, they often skip critical details that cannot fit in a single paper. This book bridges that gap, offering a clear, hands-on introduction to SCM's mechanics and applications without overwhelming readers with advanced theory.
+
+I remember reading in masters school articles/book chapters [@stoffelbauer_scm; @nguyen_scm] that said things like
+
+> In many real-world cases, however, we actually find ourselves more interested in understanding a causal effect rather than correlations. Part of the reason is that causal effects are more robust because they do not suffer as much from model drift, and they are a great tool for supporting data-driven decisions. This article is about one such method, called the synthetic control method (SCM). In short, its main idea is to use a synthetic control group instead of a randomized control group, which is what is typically done in A/B testing. As a result, SCM is significantly easier to apply in various use cases.
+
+or
+
+> The Synthetic Control Method (SCM) is a powerful causal inference tool used when only one treated unit exists, and researchers must construct a synthetic comparison group from a donor pool of untreated units.
+
+These definitions only confused me. Both of them used the word "sythethic" in the definition. Other articles would simply present what I now know to be the dot product or the convex optimization formula, say a few words about it, and move on. Almost no resource, that I could find, bothered to start from the barebones first principles and walk through what was meant as a concept by a "fake unit" or a "weighted average" or how it differed from a regular average. So, this book has a plain quest: explain the synthetic control method to students and working professionals who may use it for their own tasks.
+
+## Who This Book Is For
+
+This book is for graduate students and practitioners in economics, social sciences, or related fields who want to apply SCM in practice. No prior SCM experience is needed, but readers should be comfortable with algebra, causal reasoning, and basic econometrics such as regression analysis. This book is not an introduction to Python, general causal inference, or advanced math like linear algebra. Readers who wish for more details about these basics should consult dedicated resources (e.g., [Gilbert Strang's Linear Algebra](https://math.mit.edu/~gs/linearalgebra/ila6/indexila6.html), the [numerous](https://mixtape.scunning.com/) [open](https://theeffectbook.net/) [source](https://matheusfacure.github.io/python-causality-handbook/landing-page.html) [texts](https://miguelhernan.org/whatifbook) on causal inference, or [the list](https://github.com/pamoroso/free-python-books) of free Python books that exist). It does not cover advanced SCM extensions (e.g., matrix completion methods or cutting-edge research), which require deeper mathematical grounding beyond this introductory scope.
+
+## Personal Reflection
+
+### Historical & Methodological Context
+
+Given the advent of the computing advances of the 20th century, economics, public policy/political science, and related fields developed an increasing reliance on computing methods in academic and industrial research. Part of this transition involved a more careful concern with causal impact estimation methods. Sometimes called [the credibility revolution](https://muse.jhu.edu/book/84639), social scientists of all varieties began to ask questions such as "What was the effect of Policy $X$ on Outcome $Y$?"
+
+In the early 1990s and 2000s, methods such as propensity score matching, difference-in-differences, instrumental variable regression models, and others became important weapons in the toolkit of empirical scientists. Especially after the mid twenty-teens, the SCM (developed by Alberto Abadie and his advisor Javier Gardeazabal) was formalized in articles published in *Journal of the American Statistical Association* and *American Journal of Political Science*.
+
+### My Journey with SCM
+
+My journey with the SCM began in 2021. I had just become a PHD student of public policy at Georgia State University, and then the Georgia Institute of Technology. The COVID-19 pandemic had begun only a year and a few months earlier. Young and aspiring economists, computer scientists, and policy scholars rushed to use SCMs to evaluate the effect of public policy interventions on COVID-19 cases, vaccination outcomes, and other outcomes of interest.
+
+Throughout my undergraduate years, I had heard about how SCM was a kind of generalization of the difference-in-differences method (another design one could write several books on). However, the reasoning for this to me was very arcane. Furthermore, the math behind SCM intimidated me; I was a starting level PHD student with little background in calculus or real analysis. Either way, these questions burnt at me from within, and I sought to develop a better understanding of SCM for my own work. This is the book I wish I had learning the method years ago, coming from a very non-technical background.
+
+## Structure of the Book
+
+The book is organized into two parts:
+
+1. *Foundations & Prerequisites*: Covers comparative case studies, mathematics, and weighted averages. Explains SCM setup, weight derivation, covariates, and computational implementation including inference about the estimated treatment effect.
+
+2. *Applications & End-to-End Workflow*: Guides readers through research design, donor selection, and presenting results with full case studies.
+
+
+
+
+
+
+
+
+
+
+
