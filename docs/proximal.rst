@@ -815,15 +815,232 @@ group exists. It pairs naturally with a conformal prediction interval
 for the per-period effect (``spsc_conformal=True``), valid even with a
 short post-period.
 
-Estimation. Because there are typically far fewer instruments than
-donors, :math:`\boldsymbol{\gamma}` is estimated by a ridge-regularized
-GMM (penalty selected by leave-one-out cross-validation), and the ATT is
-the mean post-period gap with a GMM sandwich (HAC) standard error. Two
-variants handle trends: SPSC-NoDT uses the raw outcome as the
-instrument, while SPSC-DT first residualizes the treated outcome
-against a cubic B-spline time trend -- essential when the series is
-non-stationary (the analogue of the time-varying estimating function in
-:math:`\Psi_{\text{pre}}`).
+Assumptions and identification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+SPSC reconstructs the treated unit's missing untreated trajectory
+:math:`y^N_{1t}` over the post-period from the donor outcomes
+:math:`\mathbf{W}_t \in \mathbb{R}^{N_0}` and the treated series' own
+pre-period history. Five conditions carry the identification -- the first
+two constrain the design, the last three the bridge.
+
+Assumption 1 (consistency; paper Assumption 2.1). The observed outcome
+equals the untreated potential outcome before the intervention and the
+treated one after: :math:`y_{1t} = y^N_{1t}` for :math:`t \in \mathcal{T}_1`
+and :math:`y_{1t} = y^I_{1t}` for :math:`t \in \mathcal{T}_2`, and each
+donor's observed series is its own realized outcome.
+
+*Remark.* This is the link between the potential-outcome notation above and
+the data, and it carries no anticipation: the treated unit is on its
+:math:`y^N_{1t}` path throughout the pre-period, which is what makes those
+periods usable to learn the bridge.
+
+Assumption 2 (no interference on the donors; paper Assumption 2.2). The
+donor outcomes are unchanged by the treated unit's treatment,
+:math:`\mathbf{W}_t^{(0)} = \mathbf{W}_t^{(1)}` for all :math:`t`. The
+donors are valid negative controls -- moved by the latent confounder but
+not downstream of the treatment.
+
+*Remark.* Classical SC and SPSC share this assumption, but SPSC leans on it
+harder: not merely that donors are untreated, but that no channel carries
+the treated unit's treatment to them. It is exactly why insulated
+employment sectors (or a no-lockdown destination's travel demand) are
+admissible donors for the Hawaii border closure while downstream tourism
+series are not. If a donor were itself moved by the policy, the bridge
+learned on the pre-period would no longer reconstruct :math:`y^N_{1t}` after
+it.
+
+Assumption 3 (relevance; paper Assumption 3.1). The bridge is relevant:
+:math:`h^\star(\mathbf{W}_t)` is not mean-independent of the treated unit's
+untreated outcome -- the donors carry the latent factor that drives
+:math:`y^N_{1t}`, so the pre-period comovement between :math:`\mathbf{W}_t`
+and :math:`y^N_{1t}` is rich enough to pin down
+:math:`\boldsymbol{\gamma}`.
+
+*Remark.* Relevance is SPSC's analogue of a strong first stage. When the
+donors barely comove with the treated series in the pre-period, the weight
+vector is only loosely determined and the post-period reconstruction
+inherits that slack -- the practical symptom is a pre-period fit whose
+root-mean-square error is comparable to the treated series' own standard
+deviation. This is the identification condition, not the inference one: no
+volume of post-period data repairs an irrelevant proxy.
+
+Assumption 4 (synthetic-control bridge; paper Assumption 3.2). There is a
+weight vector :math:`\boldsymbol{\gamma}^\star` and a linear bridge
+:math:`h^\star(\mathbf{W}_t) = \mathbf{W}_t^\top \boldsymbol{\gamma}^\star`
+solving the reverse measurement-error equation
+
+.. math::
+
+   \mathbf{W}_t^\top \boldsymbol{\gamma}^\star
+     = y^N_{1t} + \bar{\varepsilon}_t,
+   \qquad \mathbb{E}[\bar{\varepsilon}_t \mid y^N_{1t}] = 0,
+   \qquad t \in \mathcal{T}_1.
+
+*Remark.* The regression runs backwards relative to classical SC: the
+donors are the error-prone measurement and the treated unit's own untreated
+outcome is the clean signal. Because the measurement error
+:math:`\bar{\varepsilon}_t` is mean-independent of that signal, the treated
+series is itself a valid instrument -- the whole reason a single proxy type
+suffices. A rich outcome basis :math:`\phi(\cdot)` (the ``spsc_basis_degree``
+sieve) relaxes the linearity of :math:`h^\star` by spanning a larger slice
+of the latent factor.
+
+Assumption 5 (weakly dependent errors; paper Assumption 3.3). The error
+process :math:`\bar{\varepsilon}_t`, and the post-period gap, is mean-zero
+and weakly dependent with a finite long-run variance obeying a central
+limit theorem.
+
+*Remark.* This is the regularity behind the sandwich standard error below.
+It permits serial correlation and non-stationary levels, asking only that
+the errors around the bridge -- not the levels themselves -- be well
+behaved, which is why a HAC middle is used rather than an i.i.d. one.
+
+Under Assumptions 1--4 the bridge is identified from the pre-period alone,
+and its post-period mean identifies the counterfactual.
+
+Theorem 1 (instrumented moment; paper Theorem 3.1). For every pre-period
+:math:`t \in \mathcal{T}_1`,
+
+.. math::
+
+   \mathbb{E}\!\left[\phi(y_{1t})\,\bigl(y_{1t}
+     - \mathbf{W}_t^\top \boldsymbol{\gamma}^\star\bigr)\right] = 0,
+
+so :math:`\boldsymbol{\gamma}^\star` solves an instrumental-variables fit of
+the treated outcome on the donors with the treated series' own basis
+:math:`\phi(y_{1t})` as the instrument. Equivalently
+:math:`\mathbb{E}[h^\star(\mathbf{W}_t) \mid y_{1t}] = y_{1t}` on the
+pre-period.
+
+Theorem 2 (counterfactual and ATT; paper Theorem 3.2). Because the bridge
+is conditionally unbiased for :math:`y^N_{1t}`, its post-period mean recovers
+the missing untreated mean,
+:math:`\mathbb{E}[y^N_{1t}] = \mathbb{E}[\mathbf{W}_t^\top
+\boldsymbol{\gamma}^\star]`, so the per-period and average effects are
+identified as
+
+.. math::
+
+   \tau^\star_t = \mathbb{E}\bigl[y_{1t}
+     - \mathbf{W}_t^\top \boldsymbol{\gamma}^\star\bigr],\quad
+   t \in \mathcal{T}_2,
+   \qquad
+   \tau^\star = \frac{1}{T - T_0}\sum_{t \in \mathcal{T}_2}
+     \tau^\star_t.
+
+The donor combination :math:`\mathbf{W}_t^\top
+\widehat{\boldsymbol{\gamma}}` is the reported synthetic control, and its
+gap against the treated series is the estimated effect path.
+
+Estimation: ridge-regularized GMM
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The sample analogue of Theorem 1 stacks the pre-period estimating function
+
+.. math::
+
+   \Phi_{\text{pre}}(\boldsymbol{\gamma})
+     = \frac{1}{T_0}\sum_{t \in \mathcal{T}_1}
+       \phi(y_{1t})\bigl(y_{1t}
+       - \mathbf{W}_t^\top \boldsymbol{\gamma}\bigr),
+
+and solves :math:`\Phi_{\text{pre}}(\widehat{\boldsymbol{\gamma}}) = 0` in
+the GMM sense. Because the instrument set :math:`\phi(y_{1t})` is small
+relative to the donor count, the moment system is often near-singular, so
+:math:`\boldsymbol{\gamma}` is estimated by a ridge-penalized GMM
+
+.. math::
+
+   \widehat{\boldsymbol{\gamma}}
+     = \operatorname*{arg\,min}_{\boldsymbol{\gamma}}\;
+       \Phi_{\text{pre}}(\boldsymbol{\gamma})^\top
+       \mathbf{\Omega}\,\Phi_{\text{pre}}(\boldsymbol{\gamma})
+       + \kappa\,\lVert \boldsymbol{\gamma} \rVert_2^2,
+
+with the penalty :math:`\kappa` chosen by leave-one-out cross-validation
+over the pre-period; in the exactly- or under-identified linear case this
+collapses to the minimum-norm solution of the moment equations.
+
+Two variants handle trends. SPSC-DT (the default here, ``spsc_detrend=True``)
+first residualizes the treated series against a time trend
+:math:`\mathbf{D}_t` -- a cubic B-spline (``spsc_detrend_basis="bspline"``
+with ``spsc_spline_df`` degrees of freedom) or a polynomial
+(``"poly"``, ``spsc_detrend_degree``) -- and forms the estimating function
+:math:`\Psi_{\text{pre}}` on the de-trended series; SPSC-NoDT uses the raw
+outcome. De-trending is what keeps the moment valid when the levels are
+non-stationary, since only the errors around the bridge need be stationary
+(Assumption 5). The ATT then follows Theorem 2 as the mean post-period gap,
+
+.. math::
+
+   \widehat{\tau} = \frac{1}{T - T_0}\sum_{t \in \mathcal{T}_2}
+     \bigl(y_{1t} - \mathbf{W}_t^\top \widehat{\boldsymbol{\gamma}}\bigr).
+
+A polynomial-in-time effect basis (``spsc_att_degree``) replaces the
+constant effect with a path :math:`\tau(t;\boldsymbol{\beta}) =
+\beta_0 + \beta_1 t + \dots`, and the headline ATT becomes the average of
+that fitted path.
+
+Theorem 3 (asymptotic normality; paper Theorem 3.3). Under Assumptions
+1--5 with a full-rank moment Jacobian,
+
+.. math::
+
+   \sqrt{T}\,\bigl(\widehat{\boldsymbol{\gamma}}
+     - \boldsymbol{\gamma}^\star\bigr)
+     \;\xrightarrow{d}\;
+     \mathcal{N}\!\bigl(\mathbf{0},\,\mathbf{\Sigma}^\star\bigr),
+   \qquad
+   \mathbf{\Sigma}^\star
+     = \mathbf{\Sigma}_1^\star\,\mathbf{\Sigma}_2^\star\,
+       \mathbf{\Sigma}_1^{\star\top},
+
+a GMM sandwich whose middle :math:`\mathbf{\Sigma}_2^\star` is the long-run
+variance of the moments. mlsynth estimates it with a Bartlett-HAC covariance,
+propagates it to :math:`\widehat{\tau}` by the delta method, and returns the
+result as ``res.spsc.att_se`` (and, with an effect basis, the per-period
+``effect_path_se``). These are the GMM delta standard errors; the conformal
+interval below is an alternative that does not lean on this asymptotic
+normality.
+
+Conformal prediction intervals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The sandwich standard error is asymptotic and, being built on the pre-period
+fit, understates the risk of extrapolating a weak bridge into the
+post-period. Park and Tchetgen Tchetgen therefore give a finite-sample
+prediction interval by conformal inference (their Section 3.5), which
+mlsynth exposes with ``spsc_conformal=True``.
+
+Fix a post-period :math:`s \in \mathcal{T}_2` and a candidate value
+:math:`\xi` for its effect :math:`\tau_s`. Impute the treated unit's
+untreated outcome under that hypothesis, refit the bridge on the augmented
+sample, and collect the residuals :math:`\widehat{v}_t` -- the pre-period fit
+residuals together with the hypothesized post-period residual
+:math:`\widehat{v}_s(\xi)`. Under exchangeability of those residuals, the
+rank of the target residual is a valid conformal p-value,
+
+.. math::
+
+   p_s(\xi) = \frac{1}{T_0 + 1}
+     \sum_{t \in \mathcal{T}_1 \cup \{s\}}
+       \mathbf{1}\!\left\{\,\lvert \widehat{v}_t \rvert
+       \ge \lvert \widehat{v}_s(\xi) \rvert\,\right\},
+
+and inverting the test over a grid of :math:`\xi` gives the
+:math:`(1-\alpha)` prediction interval
+
+.. math::
+
+   \mathcal{C}_{1-\alpha}(s)
+     = \bigl\{\, \xi : p_s(\xi) > \alpha \,\bigr\}.
+
+The interval is the set of per-period effects that the pre-period residual
+distribution cannot reject at level :math:`\alpha`. It is valid in finite
+samples under exchangeability and needs neither Theorem 3's normality nor a
+long post-period -- which is what makes it the right report when the bridge
+is only weakly identified.
 
 Select it with ``methods=["SPSC"]``. Unlike PI/PIS/PIPost it needs no
 proxy variables at all -- just the treated series and the donor pool:
@@ -945,14 +1162,195 @@ They give three estimands:
 The DR form is consistent if either :math:`h` or :math:`q` is
 correctly specified -- not necessarily both. ``PIPW`` exposes the
 weighting-only estimator (no outcome model at all); the outcome-only form
-is the existing ``PI``.
+is the existing ``PI``. The rest of this section makes that guarantee
+precise: the conditions each bridge needs, the two identification
+theorems, and the stacked-GMM inference.
 
-Estimation. Each is a just-identified GMM (``alpha`` by IV, ``beta`` by
-a small nonlinear solve, the means in closed form), so the parameters solve
-the moment equations exactly and the ATT standard error is the GMM sandwich
-with a Bartlett-HAC middle. ``DR`` returns the outcome-bridge synthetic
-control as its counterfactual; ``PIPW``, being a pure weighting estimator,
-has no imputed trajectory (its ``counterfactual`` is ``NaN``).
+Assumptions and identification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Write :math:`\boldsymbol{\lambda}_t` for the unobserved confounder (the
+latent factor), :math:`\mathbf{W}_t` for the donor outcomes that build the
+outcome model, and :math:`\mathbf{Z}_t` for the supplemental proxies that
+drive the weighting model. Following the reference, let :math:`t_- \in
+\mathcal{T}_1` denote a generic pre-period and :math:`t_+ \in \mathcal{T}_2`
+a generic post-period. Two assumptions are structural (they say what a valid
+proxy is); three govern how the confounder moves across the intervention.
+
+Assumption 1 (proxy exclusion; paper Condition 1). For every pre-period,
+the supplemental proxy is independent of the outcome and the donors given
+the confounder,
+:math:`\mathbf{Z}_{t_-} \perp\!\!\!\perp (y^N_{1t_-}, \mathbf{W}_{t_-}) \mid
+\boldsymbol{\lambda}_{t_-}`, and the donors :math:`\mathbf{W}_t` are not
+causally moved by the treatment.
+
+*Remark.* This is the negative-control exclusion restriction that makes
+:math:`\mathbf{Z}_t` a valid instrument: it may reach the treated outcome
+only through the shared confounder, never directly. It is the panel
+analogue of an instrument's exclusion, and it is why both the proxies and
+the donors must be free of any causal path from the treatment.
+
+Assumption 2 (outcome bridge exists; paper Condition 2). There is a
+function :math:`h^\star : \mathcal{W} \to \mathbb{R}` matching the treated
+unit's untreated outcome in expectation given the confounder,
+:math:`\mathbb{E}[h^\star(\mathbf{W}_t) \mid \boldsymbol{\lambda}_t]
+= \mathbb{E}[y^N_{1t} \mid \boldsymbol{\lambda}_t]` for all :math:`t`.
+
+*Remark.* :math:`h^\star` is the outcome confounding bridge -- the
+transformation of the donors that reconstructs the missing untreated
+trajectory. Classical SC is the special case where it is the linear donor
+average; the proximal framework allows it to be nonlinear. Under
+Assumption 1 it solves the pre-period IV moment
+:math:`\mathbb{E}[\,y_{1t_-} - h^\star(\mathbf{W}_{t_-}) \mid
+\mathbf{Z}_{t_-}\,] = 0`, which is exactly the PI fit, and its post-period
+mean gives the outcome-only estimand
+:math:`\tau = \mathbb{E}_{\text{post}}[y_{1t} - h^\star(\mathbf{W}_t)]`.
+
+Assumption 3 (stationary outcome--proxy law; paper Condition 3). The joint
+conditional distribution of :math:`(y^N_{1t}, \mathbf{W}_t)` given
+:math:`\boldsymbol{\lambda}_t` is the same at every :math:`t`.
+
+*Remark.* Once the confounder is drawn, the untreated outcome and the
+donors are generated the same way before and after the intervention. This
+is the invariance that lets a pre-period fit transport into the
+post-period, and it bakes in no-interference: the treatment does not change
+how :math:`\mathbf{W}_t` is produced from :math:`\boldsymbol{\lambda}_t`.
+
+Assumption 4 (post-treatment confounder stationarity; paper Condition 4).
+The marginal distribution of :math:`\boldsymbol{\lambda}_t` is identical
+across post-treatment periods :math:`t \in \mathcal{T}_2`.
+
+*Remark.* There is a single post-intervention regime -- it holds under
+stationarity after treatment. Together with Assumption 3 it isolates the
+confounding to one instantaneous shift at :math:`T_0`, which is precisely
+what the weighting bridge has to undo. When the post-period is long and the
+series trends, this is the assumption most at risk, and the reference
+recommends de-trending first.
+
+Assumption 5 (treatment bridge / covariate shift; paper Condition 5). The
+post-treatment confounder law is dominated by the pre-treatment one, and
+there is a function :math:`q^\star : \mathcal{Z} \to \mathbb{R}` encoding
+the density ratio,
+:math:`\mathbb{E}[q^\star(\mathbf{Z}_{t_-}) \mid \boldsymbol{\lambda}_{t_-}
+= u] = \mathrm{d}P_{\boldsymbol{\lambda},\,\text{post}} /
+\mathrm{d}P_{\boldsymbol{\lambda},\,\text{pre}}(u)`.
+
+*Remark.* :math:`q^\star` is the treatment confounding bridge -- a
+covariate-shift weight that tilts the pre-period confounder distribution
+onto the post-period one. Because treatment timing leaves a propensity
+score undefined here, this likelihood ratio is proximal inference's stand-in
+for it. It solves the covariate-shift moment
+:math:`\mathbb{E}[q^\star(\mathbf{Z}_{t_-})\,g(\mathbf{W}_{t_-})]
+= \mathbb{E}[g(\mathbf{W}_{t_+})]` for any :math:`g` -- the population
+version of the empirical balance condition
+:math:`\mathbb{E}_{\text{pre}}[q(\mathbf{Z})(1, \mathbf{W})] =
+\mathbb{E}_{\text{post}}[(1, \mathbf{W})]` stated above.
+
+The two bridges give two separate identifying formulas, and then a combined
+one that needs only one of them.
+
+Theorem 1 (weighting identification; paper Theorem 1). Under Assumptions
+1 and 3--5, the missing post-period untreated mean is a pre-period
+reweighting,
+:math:`\mathbb{E}[y^N_{1t_+}] = \mathbb{E}[q^\star(\mathbf{Z}_{t_-})\,
+y_{1t_-}]`, so
+
+.. math::
+
+   \tau = \mathbb{E}_{\text{post}}[y_{1t}]
+     - \mathbb{E}_{\text{pre}}[q^\star(\mathbf{Z})\,y_{1t}].
+
+This is the PIPW estimand -- it identifies the ATT with no outcome model at
+all, purely by reweighting the pre-period to match the post-period
+confounder distribution.
+
+Theorem 2 (doubly robust identification; paper Theorem 2). For any
+square-integrable :math:`h` and :math:`q`, under Assumptions 1, 3 and 4,
+
+.. math::
+
+   \tau = \mathbb{E}\bigl[\,y_{1t_+}
+     - q(\mathbf{Z}_{t_-})\{y_{1t_-} - h(\mathbf{W}_{t_-})\}
+     - h(\mathbf{W}_{t_+})\,\bigr]
+
+holds if *either* (i) Assumption 2 holds and :math:`h = h^\star`, *or*
+(ii) Assumption 5 holds and :math:`q = q^\star`. Only one of the two
+bridges need be correct.
+
+*Remark.* The bracket is a Neyman-orthogonal combination of the outcome and
+weighting formulas: the pre-period correction
+:math:`q(\mathbf{Z}_{t_-})\{y_{1t_-} - h(\mathbf{W}_{t_-})\}` annihilates
+the error in whichever bridge is wrong. If :math:`h` is right the correction
+has mean zero; if :math:`q` is right it repairs a biased :math:`h`. This is
+the panel-data analogue of the augmented inverse-probability-weighting
+estimator, and it is what "doubly robust" names.
+
+Estimation, inference, and double robustness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both bridges take parametric forms -- the linear outcome bridge
+:math:`h(\mathbf{W}_t) = (1, \mathbf{W}_t)^\top \boldsymbol{\alpha}` (the
+classical-SC form, optionally simplex-constrained) and the log-linear weight
+:math:`q(\mathbf{Z}_t) = \exp\{(1, \mathbf{Z}_t)^\top \boldsymbol{\beta}\}`
+-- and the ATT is a parameter :math:`\tau = \varphi_{\boldsymbol{\lambda}}`
+(a constant by default). The estimands stack into one GMM system over
+:math:`\boldsymbol{\theta} = (\boldsymbol{\alpha}, \boldsymbol{\beta},
+\boldsymbol{\lambda}, \dots)`: the pre-period IV moment
+:math:`\mathbb{E}[\{y_{1t_-} - h(\mathbf{W}_{t_-})\}\,g_Z(\mathbf{Z}_{t_-})]
+= 0` fixes :math:`\boldsymbol{\alpha}`, the covariate-shift moment
+:math:`\mathbb{E}[q(\mathbf{Z}_{t_-})\,g_W(\mathbf{W}_{t_-})]
+= \mathbb{E}[g_W(\mathbf{W}_{t_+})]` fixes :math:`\boldsymbol{\beta}`, and
+the estimand equation fixes :math:`\boldsymbol{\lambda}`. In mlsynth's ``DR``
+and ``PIPW`` the proxies are matched one-to-one to the donors, so the system
+is just-identified and solves exactly (``alpha`` by IV, ``beta`` by a small
+nonlinear solve, the means in closed form); ``DR-OID`` below is the
+over-identified form.
+
+Identification of the GMM (paper Condition 6) needs a unique
+:math:`\boldsymbol{\theta}_\infty` solving the population moments with at
+least one bridge correctly specified --
+:math:`h_{\boldsymbol{\alpha}_\infty} = h^\star` or
+:math:`q_{\boldsymbol{\beta}_\infty} = q^\star`. Under it Theorem 2 gives
+:math:`\varphi_{\boldsymbol{\lambda}_\infty} = \tau`.
+
+Theorem 3 (asymptotic normality; paper Theorem 3). As :math:`T \to \infty`
+with :math:`T_0 / T \to \rho \in (0,1)`, the GMM estimator is consistent for
+:math:`\boldsymbol{\theta}_\infty` and
+
+.. math::
+
+   \sqrt{T}\,\bigl(\widehat{\boldsymbol{\theta}}
+     - \boldsymbol{\theta}_\infty\bigr)
+     \;\xrightarrow{d}\;
+     \mathcal{N}\!\bigl(\mathbf{0},\,
+       \mathbf{A}^{-1}\mathbf{B}\,\mathbf{A}^{-1}\bigr),
+   \qquad \mathbf{A} = \mathbf{R}^\top \mathbf{\Omega}\,\mathbf{R},
+
+with :math:`\mathbf{R}` the mean moment Jacobian at
+:math:`\boldsymbol{\theta}_\infty` and :math:`\mathbf{B}` built from the
+long-run variance of the moments. The ATT variance is the sub-block that the
+estimand's position :math:`\mathbf{\Pi}` picks out of the sandwich, carried
+to :math:`\tau` by the delta method,
+
+.. math::
+
+   \sqrt{T}\,\bigl(\varphi_{\widehat{\boldsymbol{\lambda}}}
+     - \varphi_{\boldsymbol{\lambda}_\infty}\bigr)
+     \;\xrightarrow{d}\;
+     \mathcal{N}\!\bigl(0,\;
+       \dot{\varphi}^\top \mathbf{\Pi}^\top \mathbf{A}^{-1}\mathbf{B}\,
+       \mathbf{A}^{-1} \mathbf{\Pi}\,\dot{\varphi}\bigr).
+
+mlsynth estimates the middle with a Bartlett-HAC covariance and returns the
+Wald result on ``res.dr.att_se`` (and ``res.pipw.att_se``).
+
+*Remark.* The double robustness of Theorem 2 carries into inference: the
+estimator is consistent and asymptotically normal, and the Wald interval
+attains near-nominal coverage, whenever at least one bridge is correct --
+the misspecified-``h`` check in the example below shows ``PI`` collapsing
+while ``DR`` holds. ``DR`` reports the outcome-bridge synthetic control as
+its counterfactual; ``PIPW``, a pure weighting estimator, imputes no
+trajectory (its ``counterfactual`` is ``NaN``).
 
 Both consume the same inputs as ``PI`` -- donors ``W`` and the donor
 proxies ``Z`` -- so just add them to ``methods``. The block below is a
