@@ -29,7 +29,7 @@ _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
     BFSC, BSCM, BVSS, CFM, CLUSTERSC, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
-    MCNNM, MSQRT, NSC, PDA, PROPSC, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
+    MCNNM, MSQRT, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
 )
@@ -130,6 +130,12 @@ OBSERVATIONAL = [
                  id="SPILLSYNTH"),
     pytest.param(DPSC, {"epsilon1": 50.0, "epsilon2": 50.0, "n_draws": 20, "seed": 0},
                  id="DPSC"),
+    # PROXIMAL is a dispatcher (like TSSC): the headline variant -- the first
+    # requested method -- is lifted into the standardized sub-models. SPSC needs
+    # no proxies, so it is the cleanest headline for the generic panel.
+    pytest.param(PROXIMAL, {"methods": ["SPSC"],
+                            "donors": ["u01", "u02", "u03", "u04", "u05"]},
+                 id="PROXIMAL"),
 ]
 
 if _HAS_NUMPYRO:  # BFSC needs the ``[bayes]`` extra; skip the whole param without it

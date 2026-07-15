@@ -408,8 +408,8 @@ def compare_estimators(
         res = est.fit() if hasattr(est, "fit") else est
         ts = getattr(res, "time_series", None)
         # Standard EffectResult path (canonical band on time_series) with a
-        # fallback to the flat accessors dispatcher results expose
-        # (PROXIMAL / SPILLSYNTH have no standardized time_series).
+        # fallback to the flat accessors for any result that still lacks a
+        # standardized time_series sub-model.
         if ts is not None and getattr(ts, "counterfactual_outcome", None) is not None:
             cf = ts.counterfactual_outcome
             time = getattr(ts, "time_periods", None)
