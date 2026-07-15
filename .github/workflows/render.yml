@@ -2,7 +2,7 @@ name: Render Private Book
 
 on:
   push:
-    branches: [main]
+    branches: [book]
 
 jobs:
   build:
