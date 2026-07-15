@@ -270,6 +270,7 @@ headline numbers.
    bscm
    bfsc
    mtgp
+   bpscs
    clustersc
    mlsc
    fscm

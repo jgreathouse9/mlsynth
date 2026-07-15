@@ -506,6 +506,13 @@ References
     Annals of Applied Statistics 17(2):985-1016, 2023.
     DOI: https://doi.org/10.1214/22-AOAS1654
 
+.. [BPSCS2026]
+    Fernández-Morales, Esteban, Oganisian, Arman, and Lee, Youjin.
+    *"Bayesian shrinkage priors for penalized synthetic control estimators in the presence of spillovers."*
+    Biometrics 82(2):ujag054, 2026.
+    DOI: https://doi.org/10.1093/biomtc/ujag054
+    Reference code: https://github.com/estfernan/penalized-sc-spillovers
+
 .. [BomzeSparseQP] Bomze, Immanuel M., Peng, Bo, Qiu, Yuzhou, and Yıldırım, E. Alper.
     *"On Tractable Convex Relaxations of Standard Quadratic Optimization Problems under Sparsity Constraints."*
     arXiv:2310.04340, 2023. https://arxiv.org/abs/2310.04340

@@ -28,7 +28,7 @@ import pytest
 _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
-    BFSC, BSCM, BVSS, CFM, CLUSTERSC, CSCIPCA, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
+    BFSC, BPSCS, BSCM, BVSS, CFM, CLUSTERSC, CSCIPCA, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     MCNNM, MSQRT, MTGP, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
@@ -51,11 +51,16 @@ def _make_panel(n_units=6, T=30, T0=20, seed=0, rho=0.6):
     for i in range(n_units):
         load = rng.standard_normal()
         Y[:, i] = 10.0 + load * common + rng.standard_normal(T) * 0.4
+    coords = rng.uniform(0, 1, size=(n_units, 2)); coords[0] = [0.0, 0.0]
     rows = []
     for i in range(n_units):
         for t in range(T):
             rows.append({"unitid": f"u{i:02d}", "time": t, "y": Y[t, i],
-                         "treat": int(i == 0 and t >= T0)})
+                         "treat": int(i == 0 and t >= T0),
+                         # per-unit spatial coords + a baseline covariate (BPSCS;
+                         # ignored by every other estimator, which use only y/treat)
+                         "lat": float(coords[i, 0]), "lon": float(coords[i, 1]),
+                         "cov1": float(coords[i].sum())})
     return pd.DataFrame(rows)
 
 
@@ -190,6 +195,12 @@ if _HAS_NUMPYRO:  # BFSC/MTGP need the ``[bayes]`` extra; skip the params withou
     OBSERVATIONAL.append(
         pytest.param(MTGP, {"n_factors": 2, "n_warmup": 50, "n_samples": 50,
                             "n_chains": 1, "seed": 0}, id="MTGP")
+    )
+    OBSERVATIONAL.append(
+        pytest.param(BPSCS, {"covariates": ["cov1"], "coords": ["lat", "lon"],
+                            "n_warmup": 80, "n_samples": 80, "n_chains": 1,
+                            "target_accept": 0.9, "max_tree_depth": 8, "seed": 0},
+                     id="BPSCS")
     )
 
 

@@ -59,6 +59,7 @@ from .estimators.bvss import BVSS
 from .estimators.bscm import BSCM
 from .estimators.bfsc import BFSC
 from .estimators.mtgp import MTGP
+from .estimators.bpscs import BPSCS
 from .estimators.mlsc import MLSC
 from .estimators.seq_sdid import SequentialSDID
 from .estimators.ppscm import PPSCM
@@ -134,7 +135,7 @@ __all__ = [
     "SPCD",
     "TASC",
     "CMBSTS",
-    "SBC", "BVSS", "BSCM", "BFSC", "MTGP",
+    "SBC", "BVSS", "BSCM", "BFSC", "MTGP", "BPSCS",
     "MLSC",
     "MSQRT",
     "SSC",
