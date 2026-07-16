@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,72 +29,16 @@ jobs:
       - name: Install TinyTeX
         run: quarto install tinytex --no-prompt
 
-      # ---------------------------------------------------------------
-      # Debug Step: Render did.qmd separately to isolate failing block
-      # ---------------------------------------------------------------
-      - name: Debug render did.qmd alone (markdown output)
-        run: |
-          echo "=== DEBUG: Rendering did.qmd alone ==="
-          quarto render did.qmd --to markdown --log-level=debug
-        continue-on-error: true
+      - name: Render Quarto book (HTML + PDF)
+        run: quarto render
 
-      # ---------------------------------------------------------------
-      # Main render with detailed logs (NO --debug to avoid bug)
-      # ---------------------------------------------------------------
-      - name: Render Quarto project (debug logging)
-        id: render
-        env:
-          QUARTO_LOG_LEVEL: debug
-        run: |
-          echo "=== Starting Quarto render with debug logs ==="
-          quarto render --log-level=debug
-        continue-on-error: true
-
-      # ---------------------------------------------------------------
-      # Commit logs + TeX files on failure
-      # ---------------------------------------------------------------
-      - name: Commit logs and TeX files if render failed
-        if: failure() || steps.render.outcome == 'failure'
-        run: |
-          echo "Render failed — committing log and TeX files..."
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Add log and TeX files (root + _book)
-          if compgen -G "*.log" > /dev/null; then
-            git add *.log
-          fi
-          if compgen -G "*.tex" > /dev/null; then
-            git add *.tex
-          fi
-          if compgen -G "_book/*.log" > /dev/null; then
-            git add _book/*.log
-          fi
-          if compgen -G "_book/*.tex" > /dev/null; then
-            git add _book/*.tex
-          fi
-
-          # Commit only if there are staged changes
-          if ! git diff --cached --quiet; then
-            git commit -m "Add build logs and TeX after failed render ($(date -u +"%Y-%m-%d %H:%M:%S UTC"))"
-            git push
-          else
-            echo "No log or TeX files found to commit."
-          fi
-
-      # ---------------------------------------------------------------
-      # Commit rendered book on success
-      # ---------------------------------------------------------------
-      - name: Commit rendered output if successful
-        if: success() && steps.render.outcome == 'success'
-        run: |
-          echo "Render succeeded — committing rendered output..."
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "Auto-render book on push"
-            git push
-          else
-            echo "No rendered changes to commit."
-          fi
+      # Rendered output (_book/) is gitignored, so publish it as a downloadable
+      # artifact instead of committing it back. Runs even on failure so partial
+      # output is available for debugging.
+      - name: Upload rendered book (PDF + HTML site)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: book
+          path: _book/
+          if-no-files-found: warn
