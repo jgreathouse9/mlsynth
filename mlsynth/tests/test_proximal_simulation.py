@@ -6,11 +6,13 @@ import pytest
 
 from mlsynth.utils.proximal_helpers.simulation import (
     DRSimSample,
+    PIOIDSimSample,
     ProxSurrogateSimSample,
     SPSCSimSample,
     _ar1_noise,
     _ifem_factor,
     simulate_dr_proximal_normal,
+    simulate_pioid_linear,
     simulate_proximal_surrogates,
     simulate_spsc_ifem,
 )
@@ -193,6 +195,85 @@ class TestSimulateProximalSurrogates:
     def test_invalid_inputs_raise(self, kwargs):
         with pytest.raises(ValueError):
             simulate_proximal_surrogates(seed=0, **kwargs)
+
+
+class TestSimulatePioidLinear:
+    def test_default_shapes_and_fields(self):
+        s = simulate_pioid_linear(seed=0)
+        assert isinstance(s, PIOIDSimSample)
+        T = 2 * 80
+        assert s.y.shape == (T,)
+        # n_units=7 -> 6 controls: n_Z=3 proxies, n_W=3 donors
+        assert s.donor_outcomes.shape == (T, 3)
+        assert s.donor_proxies.shape == (T, 3)
+        assert s.T0 == 80
+        assert s.true_att == 2.0
+        assert s.n_units == 7
+
+    def test_custom_dimensions(self):
+        s = simulate_pioid_linear(n_units=11, t0=30, seed=1)
+        # 10 controls: n_Z=5 proxies, n_W=5 donors; T = 2 * t0
+        assert s.y.shape == (60,)
+        assert s.donor_proxies.shape == (60, 5)
+        assert s.donor_outcomes.shape == (60, 5)
+        assert s.T0 == 30 and s.n_units == 11
+
+    def test_smallest_grid(self):
+        # n_units=5 -> 4 controls: n_Z=2, n_W=2 (the reference grid's floor)
+        s = simulate_pioid_linear(n_units=5, t0=30, seed=2)
+        assert s.donor_proxies.shape == (60, 2)
+        assert s.donor_outcomes.shape == (60, 2)
+
+    def test_true_att_override_shifts_post(self):
+        s0 = simulate_pioid_linear(true_att=0.0, seed=3)
+        s5 = simulate_pioid_linear(true_att=5.0, seed=3)
+        # the effect is added only to the treated series' post-period; the pre
+        # period and the donor / proxy blocks are untouched
+        np.testing.assert_allclose(s5.y[: s5.T0], s0.y[: s0.T0])
+        np.testing.assert_allclose(s5.y[s5.T0:], s0.y[s0.T0:] + 5.0)
+        np.testing.assert_array_equal(s5.donor_outcomes, s0.donor_outcomes)
+        np.testing.assert_array_equal(s5.donor_proxies, s0.donor_proxies)
+
+    def test_nonstationary_factor_trends(self):
+        # the 0.5*log(t) trend makes the untreated level drift up over time
+        s = simulate_pioid_linear(dist_lambda="nonstationary", t0=200, seed=4)
+        pre = s.y[: s.T0]
+        assert pre[-50:].mean() > pre[:50].mean()
+
+    def test_ar_errors_differ_from_iid(self):
+        kw = dict(n_units=7, t0=80, seed=5)
+        ar = simulate_pioid_linear(dist_epsilon="AR", **kw).y
+        iid = simulate_pioid_linear(dist_epsilon="iid", **kw).y
+        assert not np.allclose(ar, iid)
+
+    def test_constrained_vs_unconstrained_loading(self):
+        # the treated loading level differs (1.0 vs 1.5), so the treated series
+        # differs while the donor / proxy blocks (which never use U_0) match
+        c = simulate_pioid_linear(u_setting="constrained", seed=6)
+        u = simulate_pioid_linear(u_setting="unconstrained", seed=6)
+        np.testing.assert_array_equal(c.donor_outcomes, u.donor_outcomes)
+        assert not np.allclose(c.y, u.y)
+
+    def test_seed_is_deterministic(self):
+        a = simulate_pioid_linear(seed=7).y
+        b = simulate_pioid_linear(seed=7).y
+        np.testing.assert_array_equal(a, b)
+
+    def test_rng_takes_precedence_over_seed(self):
+        rng = np.random.default_rng(5)
+        s = simulate_pioid_linear(n_units=11, rng=rng, seed=999)
+        assert s.donor_outcomes.shape[1] == 5
+
+    @pytest.mark.parametrize("kwargs", [
+        {"n_units": 4},           # below the minimum
+        {"n_units": 6},           # even -> non-conforming loading
+        {"t0": 0},                # empty pre-period
+        {"dist_lambda": "bogus"},
+        {"dist_epsilon": "bogus"},
+    ])
+    def test_invalid_inputs_raise(self, kwargs):
+        with pytest.raises(ValueError):
+            simulate_pioid_linear(seed=0, **kwargs)
 
 
 class TestAr1Noise:
