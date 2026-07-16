@@ -1,3 +1,10 @@
+---
+# This chapter's code is self-contained (numpy / matplotlib / scmbook only, no
+# mlsynth), so it runs even while the project default is execute.eval: false.
+execute:
+  eval: true
+---
+
 # Averages
 
 ::: {.epigraph}
@@ -115,6 +122,10 @@ which we call the population variance. The variance measures how far the data te
 Okay, so we now have our definition. Now let's apply this to the other objects we already know about, scalars, vectors, and matrices.
 
 ### Scalars
+
+::: {.definition title="Scalar"}
+A *scalar* is a single number — a lone magnitude with no direction or arrangement, an element of $\mathbb{R}$. The count of apples you own, one state's cigarette sales in a single year, or the weight $\tfrac{1}{n}$ are all scalars.
+:::
 
 For the simplest case, we can simply apply the [arithmetic mean](averages.html#def-aravg) to scalars. Suppose you have 12 apples and your friend has 18. Denote this sequence as  $A = (12, 18) \in \mathbb{N}^2$. There are two elements in this sequence. Because the length of the sequence is 2, our weight is $\frac{1}{2}$. The way to compute the arithmetic average is 
 
@@ -250,6 +261,10 @@ The ages of five friends are 20, 22, 24, 26, and 28. Compute the arithmetic mean
 :::
 
 ### Vectors
+
+::: {.definition title="Vector"}
+A *vector* is an ordered list of scalars, written as a row $\begin{bmatrix} x_1 & \cdots & x_n \end{bmatrix}$ or a column, and living in $\mathbb{R}^n$, where $n$ is its length. Order matters: the $i$-th entry has a fixed meaning. In this book a vector usually collects one unit's outcomes — a single state's cigarette sales across every year, say — so that each entry is a different time period.
+:::
 
 The same idea generalizes easily to vectors. In higher dimensions, averaging is simply applying the same principle along rows or columns. We can represent the simple apple example as a row vector:
 
@@ -438,6 +453,10 @@ The heights (in cm) of four people are $[160, 165, 170, 175]$. Represent these a
 
 ### Matrices
 
+::: {.definition title="Matrix"}
+A *matrix* is a rectangular grid of scalars arranged in rows and columns, an element of $\mathbb{R}^{m \times n}$ with $m$ rows and $n$ columns. Stacking several units' outcome vectors side by side gives a matrix; throughout this book we take rows to index time periods and columns to index units, so a panel of data is exactly a matrix.
+:::
+
 Let’s extend the idea to multiple time periods. Suppose today you have 12 apples and tomorrow 30, while your friend has 18 today and 22 tomorrow. We can represent this as a matrix:
 
 $$
@@ -452,7 +471,7 @@ $$
 Each row corresponds to a time period, and each column corresponds to a person. 
 
 ::: {.definition title="Matrix--vector product"}
-A *matrix* is a rectangular grid of numbers; here rows are time periods, columns are units. The *matrix--vector product* $\mathbf{Y}\mathbf{w}$ takes the dot product of each row of $\mathbf{Y}$ with $\mathbf{w}$, one number per row — so weighting the columns by $\mathbf{w}$ averages across units, one time period at a time.
+The *matrix--vector product* $\mathbf{Y}\mathbf{w}$ takes the dot product of each row of $\mathbf{Y}$ with $\mathbf{w}$, one number per row — so weighting the columns by $\mathbf{w}$ averages across units, one time period at a time.
 :::
 
 To find the average number of apples per time period, we multiply $\mathbf{Y}$ by the weight vector 
