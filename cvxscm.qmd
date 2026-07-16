@@ -36,7 +36,7 @@ must lie within [the convex hull](math.html#def-convex-hull) of the donor outcom
 #| label: fig-donor-1d
 #| fig-cap: "Convex Hull in Single Dimension"
 
-from style import set_book_style
+from scmbook.style import set_book_style
 set_book_style()
 
 import numpy as np
@@ -120,7 +120,7 @@ We can see that the space of predictions is a combination of the control units. 
 #| label: fig-donor-span
 #| fig-cap: "Convex Hull of Donor Pool"
 
-from style import set_book_style
+from scmbook.style import set_book_style
 set_book_style()
 
 import cvxpy as cp
@@ -491,7 +491,7 @@ import pandas as pd
 from mlsynth.utils.datautils import dataprep
 from IPython.display import display
 from mlsynth.utils.estutils import Opt
-from style import set_book_style
+from scmbook.style import set_book_style
 set_book_style()
 import numpy as np
 
