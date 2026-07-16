@@ -444,6 +444,17 @@ div.proof a.proof-link { color: #000000; }            // black
 div.problem a.problem-link { color: #007acc; }        // blue
 div.definition a.definition-link { color: #2e7d32; }  // green
 
+/* Definition and proof blocks carry an id prefix (def-, .proof) that Quarto
+   also numbers natively, so the injected assumptions.js label and Quarto's
+   native theorem/proof title would both appear. Hide the native title and let
+   the injected label (which carries the chapter numbering and the box title)
+   stand alone. Lemma and corollary blocks are numbered natively only, so their
+   titles are left untouched. */
+div.definition .theorem-title,
+div.proof .proof-title {
+  display: none;
+}
+
 /* Proof [RESULT] links */
 div.proof a.statement-link {
   text-decoration: none;

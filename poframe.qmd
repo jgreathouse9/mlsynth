@@ -5,7 +5,7 @@
 > — Solana Imani Rowe
 :::
 
-This chapter introduces the potential outcomes framework—the cornerstone of causal inference—and connects it to the comparative case study framework that underlies SCM [@designtrump]. Together, they provide a formal way to think about causality when experiments are infeasible. In principle, causal inference is about constructing another universe: one where what did happen, did not happen. The goal is to use observable data and statistical structure to make that alternate universe as realistic and plausible as possible. Note that this chapter cannot cover all of the basics-- there is already a very mature body of work that treats this in more detail. Because I do not wish to reinvent wheels, I refer readers to much more thorough texts such as Cunningham’s *Mixtape*, Huntington-Klein’s *The Effect*, and Facure’s *Causal Inference for the Brave and True* [@cunningham2021mixtape; @huntington-klein2025effect; @facure2022brave]. The mathematical foundation introduced in the previous chapter now becomes essential. It allows us to express these ideas formally, to see why counterfactual reconstruction is even possible, and to understand the role of similarity between units. We begin by defining the key ideas behind potential outcomes, clarifying why causal effects are unobservable for any individual unit, and introducing the notation and modeling ideas that makes these concepts precise.
+This chapter introduces the potential outcomes framework—the cornerstone of causal inference—and connects it to the comparative case study framework that underlies SCM [@designtrump]. Together, they provide a formal way to think about causality when experiments are infeasible. In principle, causal inference is about constructing another universe: one where what did happen, did not happen. The goal is to use observable data and statistical structure to make that alternate universe as realistic and plausible as possible. Note that this chapter cannot cover all of the basics-- there is already a very mature body of work that treats this in more detail. Because I do not wish to reinvent wheels, I refer readers to much more thorough texts such as Cunningham’s *Mixtape*, Huntington-Klein’s *The Effect*, and Facure’s *Causal Inference for the Brave and True* [@cunningham2021mixtape; @huntington-klein2025effect; @facure2022brave]. The mathematical foundation introduced in the previous chapter now becomes essential. It allows us to express these ideas formally, to see why counterfactual reconstruction is even possible, and to understand the role of similarity between units. We begin by defining the key ideas behind potential outcomes, clarifying why causal effects are unobservable for any individual unit, and introducing the notation and modeling ideas that make these concepts precise.
 
 We then turn to the comparative case study framework, which shows how researchers and practitioners attempt to approximate those missing outcomes in practice. When policymakers, marketers, or data scientists evaluate an intervention—be it a policy reform, a new advertising campaign, or an infrastructure project—they face the same profound challenge: we only ever observe one version of history. Randomized experiments, while ideal, are often impossible, unethical, or prohibitively expensive. The comparative case study approach provides a structured way to reason about "what would have happened otherwise," using other units or regions as stand-ins for the unobserved counterfactual. At the end of this chapter, we will connect this logic to real examples—such as the case of West Germany’s reunification.
 
@@ -15,23 +15,37 @@ Academic and business scientists face a fundamental challenge: for any given uni
 $$
 y_{jt} = d_j y_{jt}(1) + (1 - d_j) y_{jt}(0),
 $$
-where $d_j \in \{0,1\}$ indicates treatment status. The key algebraic fact here formalizes the intuition above: given that a treatment happens, the untreated outcomes $y_{jt}(0)$ go away. Given that the treatment has not yet been enacted, we do not see $y_{jt}(1)$, or the treated outcomes.  Another key way of expressing this is
+where $d_j \in \{0,1\}$ indicates treatment status. The key algebraic fact here formalizes the intuition above: given that a treatment happens, the untreated outcomes $y_{jt}(0)$ go away. Given that the treatment has not yet been enacted, we do not see $y_{jt}(1)$, or the treated outcomes.
+
+Writing $y_{jt} = y_{jt}(d_j)$ so casually already smuggles in an assumption, and it is worth stating plainly, since the rest of the book leans on it.
+
+::: {#assump-sutva .assumption title="Stable Unit Treatment Value Assumption" data-link="poframe.html#assump-sutva"}
+Two conditions hold. First, *no interference*: the treatment assigned to one unit does not affect any other unit's potential outcomes, so $y_{jt}$ depends only on unit $j$'s own treatment status $d_j$. Second, *no hidden variation in treatment*: there is a single, well-defined version of the treatment, so the symbols $y_{jt}(1)$ and $y_{jt}(0)$ are unambiguous. Under both, the observed outcome equals the potential outcome for the treatment actually received, $y_{jt} = y_{jt}(d_j)$.
+:::
+
+Interference is exactly the failure we return to at the end of this chapter under the heading of spillovers; for now we assume it away. Another way of writing out what we observe, unit by unit and period by period, is
 
 $$
 y_{jt} =
 \begin{cases}
-y_{jt}(1)=f_j(t), & t\in\mathcal{T}_1, \ j \in \mathcal{N},\\
-y_{jt}(1)=f_j(t), & t\in\mathcal{T}_2,\ j\in\mathcal{N}_0,\\
-y_{jt}(1)=f_j(t)+\tau_{jt}, & t\in\mathcal{T}_2,\ j\in\mathcal{N}_1 \\
-y_{jt}(0)=f_j(t), & t\in\mathcal{T}_2,\ j\in\mathcal{N}_1
+y_{jt}(0)=f_j(t), & t\in\mathcal{T}_1, \ j \in \mathcal{N},\\
+y_{jt}(0)=f_j(t), & t\in\mathcal{T}_2,\ j\in\mathcal{N}_0,\\
+y_{jt}(1)=f_j(t)+\tau_{jt}, & t\in\mathcal{T}_2,\ j\in\mathcal{N}_1, \\
+y_{jt}(0)=f_j(t), & t\in\mathcal{T}_2,\ j\in\mathcal{N}_1 \; (\text{unobserved}),
 \end{cases}
 $$
 
-where $f_j(t)$ represents the *generic outcome-generating process* in the absence of treatment, and $\tau_{jt}$ is the *treatment effect*, potentially varying across time and units. The algebra of this suggests that we can recover the potential outcome by having an estimate of $y_{jt}(0) \:\: \forall \,\, t \in \mathcal{T}_{2}$. Given some estimate for $y_{jt}(0)$, we the may compute the treatment effect of the policy or intervention. Since individual causal effects are unobservable, we often estimate average effects across units or time. Define:
+where $f_j(t)$ represents the *generic outcome-generating process* in the absence of treatment, and $\tau_{jt}$ is the *treatment effect*, potentially varying across time and units. The first two rows are untreated potential outcomes we get to see (everyone before treatment, and the controls throughout); the third row is the treated unit's realized outcome after treatment; the fourth is the one quantity we never observe — the treated unit's untreated path in the post-period, which is precisely the counterfactual to reconstruct.
 
-::: {#def-ate}
-## Average Treatment Effect
+The first row asserts something we should also name: before treatment, even the units destined for treatment sit at their untreated outcome $f_j(t)$. That is not automatic — a firm might change behavior in anticipation of a policy it knows is coming.
 
+::: {#assump-noanticipation .assumption title="No Anticipation" data-link="poframe.html#assump-noanticipation"}
+Treated units do not respond to the intervention before it occurs. For $j \in \mathcal{N}_1$ and $t \in \mathcal{T}_1$, the pre-treatment outcome equals the untreated potential outcome, $y_{jt} = y_{jt}(0) = f_j(t)$; equivalently $\tau_{jt} = 0$ for every $t \in \mathcal{T}_1$.
+:::
+
+No anticipation is what lets the pre-treatment period stand as a clean record of the treated unit's untreated process — the object every comparative method uses the donors to reconstruct. The algebra above suggests that we can recover the effect by forming an estimate of $y_{jt}(0)$ for all $t \in \mathcal{T}_{2}$. Given some estimate of $y_{jt}(0)$, we may compute the treatment effect of the policy or intervention. Since individual causal effects are unobservable, we often estimate average effects across units or time. Define:
+
+::: {#def-ate .definition title="Average Treatment Effect"}
 The Average Treatment Effect (ATE) measures the expected difference in potential outcomes if all units were treated versus if none were treated:
 
 $$
@@ -39,24 +53,20 @@ $$
 $$
 :::
 
-::: {#def-att}
-## Average Treatment Effect on the Treated
-
+::: {#def-att .definition title="Average Treatment Effect on the Treated"}
 The Average Treatment Effect on the Treated (ATT) measures the expected treatment effect *for those units that actually received the treatment*:
 
 $$
-\text{ATT} = \mathbb{E}[\,y_{jt}(1) - y_{jt}(0)\mid d = 1\,],
+\text{ATT} = \mathbb{E}[\,y_{jt}(1) - y_{jt}(0)\mid d = 1\,].
 $$
 :::
 
 
 
-These averages rely on comparing treated and untreated units, assuming we can approximate the counterfactual. Practically, however, these hold only in expectation. We ususally work with the in-sample analogs of these:
+These averages rely on comparing treated and untreated units, assuming we can approximate the counterfactual. Practically, however, these hold only in expectation. We usually work with the in-sample analogs of these:
 
 
-::: {#def-hat-ate}
-## Average Treatment Effect
-
+::: {#def-hat-ate .definition title="Sample Average Treatment Effect"}
 The sample analog of the ATE is the difference in the average observed outcomes between treated and untreated units:
 
 $$
@@ -73,9 +83,7 @@ $$
 $$
 :::
 
-::: {#def-hat-att}
-## Average Treatment Effect on the Treated
-
+::: {#def-hat-att .definition title="Sample Average Treatment Effect on the Treated"}
 The sample analog of the ATT focuses on treated units, using untreated units to approximate their counterfactual outcomes:
 
 $$
@@ -128,7 +136,7 @@ If you're anything like me, you're asking what the heck this means practically, 
 | Donor B     | 0.80                  | 0.55                |
 | Donor C     | 0.60                  | 0.70                |
 
-Each column represents a *time-invariant latent component* that affects all periods. Units differ, however, in how much they are influenced by each factor (or, *load* on each factor*. For example, the treated unit loads relatively heavily on Geography (1.20) but moderately on Culture (0.50), while Donor C loads more on Culture (0.70) than on Geography (0.60).
+Each column represents a *time-invariant latent component* that affects all periods. Units differ, however, in how much they are influenced by each factor (or, *load* on each factor). For example, the treated unit loads relatively heavily on Geography (1.20) but moderately on Culture (0.50), while Donor C loads more on Culture (0.70) than on Geography (0.60).
 
 At each time period, the common factors $\boldsymbol{\lambda}_t$ capture *time-varying shocks* that influence all units simultaneously, such as national economic trends, policy changes, or global events. For example, over four periods:
 
@@ -299,9 +307,7 @@ Oftentimes, we assume that the treated unit's factor loadings may be approximate
 
 Much of the synthetic control literature can be interpreted through the lens of factor models and related data-generating processes. While this is not a book on econometric theory, sometimes I will algebraically manipulate the factor model to show how thinking about it carefully allows us to consider the problem of causal impact estimation in a more refined manner. The following result, @lem-lfm, seeks to convey the utility of the factor model as a basis for making comparisons. This demonstration underlies the rest of the book, as it explains why, in principle, comparative case studies are possible.
 
-::: {#lem-lfm}
-
-## Reconstruction of Treated Outcomes
+::: {#lem-lfm .lemma title="Reconstruction of Treated Outcomes"}
 
 Suppose the untreated outcomes follow the [linear factor model](poframe.html#assump-lfm). Denote the treated unit's factor loading as well as the matrix of donor factor loadings as
 
@@ -368,7 +374,7 @@ with $\mathbf{y}_1 = (y_{11}(0), \dots, y_{1T}(0))^\top \in \mathbb{R}^T$, $\bol
 
 :::
 
-::: {#cor-lfm}
+::: {#cor-lfm .corollary title="Common Factors Are Not Separately Identified"}
 
 Notice that the common factors $\boldsymbol{\lambda}_t$ do not explicitly appear in the lemma. There are two reasons for this. First, the common factors are *unobserved*, so we cannot directly use or adjust for them. Second, by definition, common factors affect all units in the same way at each time $t$, so they do not help distinguish the treated unit from the donors. Any linear combination of donor outcomes automatically carries the same influence of the common factors, meaning that these shared shocks cancel out when forming a weighted approximation of the treated unit’s outcomes. The variation we can exploit for comparison comes entirely from the unit-specific loadings $\boldsymbol{\mu}_j$ and the idiosyncratic errors $\varepsilon_{jt}$, which differ across units.
 
@@ -377,6 +383,8 @@ Notice that the common factors $\boldsymbol{\lambda}_t$ do not explicitly appear
 The linear factor model provides a powerful lens for interpreting comparative case studies. In the potential outcomes framework, the challenge was that the counterfactual outcome $y_{1t}(0)$ is unobserved. The factor model tells us why it might nevertheless be *reconstructable* as an estimate: if units share a common latent structure — that is, if their outcomes depend on a set of unobserved but shared factors $\boldsymbol{\lambda}_t$ — then the treated unit’s trajectory before intervention can be expressed as a combination of the donor trajectories.
 
 If the treated unit’s factor loadings $\boldsymbol{\mu}_1$ can be approximated by an affine combination of the donors’ loadings, the donors already encode information about how the treated unit would have responded to each common factor. Consequently, the untreated potential outcome of the treated unit, $y_{1t}(0)$, can be reconstructed as a weighted combination of donor outcomes. This is the formal justification behind comparative case studies.
+
+There is a subtlety worth dwelling on, because we will meet it again in difference-in-differences. The [linear factor model](poframe.html#assump-lfm) and [the affine loading assumption](poframe.html#assump-afffact) are stated over the pre-treatment periods $\mathcal{T}_1$, where we can see the treated unit's untreated outcomes and check how well a weighted blend of donors reproduces them. But @lem-lfm is used to fill in $y_{1t}(0)$ for $t \in \mathcal{T}_2$, the post-treatment periods, where the treated unit's untreated path is never observed. That step quietly assumes the factor structure — and the treated unit's affine relationship to the donor loadings — carry over unchanged after the intervention. Nothing in the pre-treatment data can confirm this: a close pre-treatment fit is necessary but not sufficient. It is the synthetic control counterpart of the untestable half of the parallel trends assumption we develop in the next chapter — in both designs, the pre-period is where we check the model and the post-period is where we must extrapolate it on faith.
 
 
 
@@ -402,7 +410,7 @@ What does it imply about the relationship between the treated unit and the donor
 :::
 
 ::: {.problem title="Reconstruction of Treated Outcomes" data-link="#problem-reconstruction"}
-Based on [this Lemma](poframe.html#assump-afffact), write the treated unit’s outcome vector as a linear combination of donor outcomes plus an intercept and residual. Explain intuitively what each component represents.
+Based on [this Lemma](poframe.html#lem-lfm), write the treated unit’s outcome vector as a linear combination of donor outcomes plus an intercept and residual. Explain intuitively what each component represents.
 :::
 
 
@@ -540,7 +548,7 @@ In short, the principle is the same as in policy evaluation or the study of viol
 
 Even when the treated unit and a plausible set of comparison units are clearly identified, important design questions remain for researchers conducting quantitative case studies. Selecting which units to include is only part of the challenge; deciding how many units to use, and how to combine them, is equally consequential. Using too few units risks anchoring a counterfactual on idiosyncratic examples that happen to look similar by chance (such as, units that are only incidentally similar where other comparison units would be better). Using too many comparison units may blur distinctions and dilute meaningful resemblance between the treated unit and the comparison units.
 
-A similar tension arises when analysts incorporate additional information beyond the main outcome of interest, such as auxilary covariates that capture relevant background characteristics. For example, if we are the data science unit of a hotel chain, we may wish to include temperature in our analyses because it can be a proxy for seasonality. Including covariates can improve comparability, but they also introduce new decisions: which variables matter most (and what would it mean in principle for them to matter most?). Furthermore, how many auxilary covariates should we use? In policy analysis, for instance, should unemployment, education, and industrial structure all be treated as equally important predictors of economic growth? In marketing, should store size, regional demographics, and past sales volatility all receive comparable emphasis when identifying holdout regions? Each of these choices shapes the resulting counterfactual.
+A similar tension arises when analysts incorporate additional information beyond the main outcome of interest, such as auxiliary covariates that capture relevant background characteristics. For example, if we are the data science unit of a hotel chain, we may wish to include temperature in our analyses because it can be a proxy for seasonality. Including covariates can improve comparability, but they also introduce new decisions: which variables matter most (and what would it mean in principle for them to matter most?). Furthermore, how many auxiliary covariates should we use? In policy analysis, for instance, should unemployment, education, and industrial structure all be treated as equally important predictors of economic growth? In marketing, should store size, regional demographics, and past sales volatility all receive comparable emphasis when identifying holdout regions? Each of these choices shapes the resulting counterfactual.
 
 The difficulties do not stop there. A core assumption of the comparative case framework is that the treated and comparison units evolve independently—that there are no spillovers or cross-unit effects. Yet in many real settings, this assumption is fragile. Policy interventions can influence neighboring jurisdictions through migration, trade, or imitation. Marketing campaigns may spill over across geographic boundaries as customers travel, communicate, or respond to national media. When such spillovers occur, the comparison units no longer represent what would have happened without the intervention; they themselves are partly treated. Recognizing, diagnosing, and mitigating these influences is one of the most subtle and important tasks in applied comparative analysis.
 
