@@ -3,7 +3,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const blockTypes = [
     {selector: 'div.assumption', label: 'Assumption', linkClass: 'assumption-link'},
     {selector: 'div.proof', label: 'Proof', linkClass: 'proof-link'},
-    {selector: 'div.problem', label: 'Problem', linkClass: 'problem-link'}
+    {selector: 'div.problem', label: 'Problem', linkClass: 'problem-link'},
+    {selector: 'div.definition', label: 'Definition', linkClass: 'definition-link'}
   ];
 
   blockTypes.forEach(({selector, label, linkClass}) => {

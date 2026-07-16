@@ -10,14 +10,26 @@ An average is one of the first summary statistics we learn—often in elementary
 
 ## Averaging in Statistics
 
-Averages arise naturally when we try to find a single value that best represents a collection of numbers. In the old days, Egyptians and Babylonians used averages to summarize construction and financial matters. In modern times, we use averages to summarize things like test grades, incomes, and other variables we care about.  To formalize this, suppose we have a sequence of data points $(x_1, x_2, \ldots, x_n)$ of length $n$. We want to choose a single number $\mu$ that is as close as possible to all of them. Here, $\mu$ is a placeholder variable representing a potential candidate for the ‘best’ summary value; we will later find that the minimizing value, denoted $\bar{x}$, is the arithmetic mean. Because we seek a single number as close as possible to all values, this becomes our first example of an optimization problem—minimizing a function with respect to a variable. Recalling the definition of [an objective function](math.html#def-objective-function), let our observed values be $x_i$ and the number that "is as close as possible to all the values" be the Greek letter $\mu$ (m-yoo). Because we are looking for the value that minimizes the distance, we can write $x_i - \mu$ as a shorthand for this deviation. To minimize the total deviation across all points, we sum over each element of the sequence $i$: $\sum_{i=1}^{n} (x_i - \mu)$. Finally, to penalize values of $\mu$ that are further away from the observed data, we square each term. This gives us the optimization problem:
+Averages arise naturally when we try to find a single value that best represents a collection of numbers. In the old days, Egyptians and Babylonians used averages to summarize construction and financial matters. In modern times, we use averages to summarize things like test grades, incomes, and other variables we care about.  To formalize this, suppose we have a sequence of data points $(x_1, x_2, \ldots, x_n)$ of length $n$. We want to choose a single number $\mu$ that is as close as possible to all of them. Here, $\mu$ is a placeholder variable representing a potential candidate for the ‘best’ summary value; we will later find that the minimizing value, denoted $\bar{x}$, is the arithmetic mean. Because we seek a single number as close as possible to all values, this becomes our first example of an optimization problem—minimizing a function with respect to a variable. Recalling the definition of an *objective function*, let our observed values be $x_i$ and the number that "is as close as possible to all the values" be the Greek letter $\mu$ (m-yoo). Because we are looking for the value that minimizes the distance, we can write $x_i - \mu$ as a shorthand for this deviation. To minimize the total deviation across all points, we sum over each element of the sequence $i$: $\sum_{i=1}^{n} (x_i - \mu)$. Finally, to penalize values of $\mu$ that are further away from the observed data, we square each term. This gives us the optimization problem:
+
+
+
+::: {.definition title="Objective function"}
+A *scalar-valued* function of a choice variable that we minimize (or maximize). We write the choice variable under the operator: $\min_{\mu} f(\mu)$ reads "search over $\mu$ for the value that makes $f$ smallest."
+:::
 
 $$
 \min_{\mu} \sum_{i=1}^{n} (x_i - \mu)^2.
 $$
 
 
-This function is [convex](math.html#def-convex-function) and differentiable. We can optimize this function by taking the derivative with respect to $\mu$. We begin by applying the [chain rule](math.html#def-chain-rule) term by term. For each term $(x_i - \mu)^2$, there are two parts to consider: the outer function and the inner function. The outer function is $f(u) = u^2$, where $u = x_i - \mu$. Its derivative (by the [power rule](math.html#def-power-rule)) is
+This function is *convex* and differentiable. We can optimize this function by taking the derivative with respect to $\mu$. We begin by applying the **chain rule** term by term. 
+
+::: {.definition title="The power and chain rules"}
+The **power rule** differentiates a power: $\frac{\mathrm{d}}{\mathrm{d}u}\,u^{k} = k\,u^{k-1}$. The **chain rule** differentiates a function of a function: if $g$ depends on $u$ and $u$ depends on $\mu$, then $\frac{\mathrm{d}g}{\mathrm{d}\mu} = \frac{\mathrm{d}g}{\mathrm{d}u}\cdot\frac{\mathrm{d}u}{\mathrm{d}\mu}$ — outer derivative times inner.
+:::
+
+For each term $(x_i - \mu)^2$, there are two parts to consider: the outer function and the inner function. The outer function is $f(u) = u^2$, where $u = x_i - \mu$. Its derivative (by the **power rule**) is
 
 $$
 \frac{\mathrm{d}}{\mathrm{d}u} u^2 = 2u = 2(x_i - \mu)
@@ -78,11 +90,8 @@ $$
 $$
 
 
-::: {#def-aravg}
-##  Arithmetic Average 
-
-For some $(x_1, x_2, \dots, x_n) \in \mathbb{R}^n$, the arithmetic average is: $\bar{x} = \frac{1}{n} \sum_{i=1}^n x_i$ where $n$ is the length of the sequence and $\frac{1}{n}$ is the weight.
-
+::: {.definition title="Arithmetic average"}
+For some $(x_1, x_2, \dots, x_n) \in \mathbb{R}^n$, the arithmetic average is $\bar{x} = \frac{1}{n} \sum_{i=1}^n x_i$, where $n$ is the length of the sequence and $\frac{1}{n}$ is the weight.
 :::
 
 Thus, the value of $\mu$ that minimizes the total squared deviation is the arithmetic mean of the data. The arithmetic mean is thus not an arbitrary formula: it is the unique value that minimizes the total squared distance between itself and the data. 
@@ -257,7 +266,13 @@ $$
 \in \mathbb{R}^{1 \times 2}.
 $$
 
-This is the same example as before, just expressed in vector form. Here, each column corresponds to a person's value. Recalling the definition of [the dot product](math.html#def-dot-product) and the idea of the average as a weighted sum, we introduce a weight vector that assigns proportional and equal weight to each person:
+This is the same example as before, just expressed in vector form. Here, each column corresponds to a person's value. 
+
+::: {.definition title="Dot product"}
+For a row vector $\mathbf{a}$ and a column vector $\mathbf{b}$ of the same length, the *dot product* multiplies them entry by entry and sums the results, $\mathbf{a}\mathbf{b} = \sum_i a_i b_i$. It turns "multiply each value by a weight and add them up" — an average — into a single product.
+:::
+
+Using the *dot product* and the idea of the average as a weighted sum, we introduce a weight vector that assigns proportional and equal weight to each person:
 
 $$
 \mathbf{w} = \tfrac{1}{2}
@@ -269,7 +284,7 @@ $$
 \in \mathbb{R}^{2 \times 1}.
 $$
 
-Why proportional and equal? Because that is simply the definition of [the arithmetic average](averages.html#def-aravg). The same way we used $\frac{1}{2}$ for the scalar example because of the fact that there were two units, we use the same principle for the vector setting, where our units are columns. Here, $\mathbf{1}_2$ is a column vector of ones:
+Why proportional and equal? Because that is simply the definition of the arithmetic average. The same way we used $\frac{1}{2}$ for the scalar example because of the fact that there were two units, we use the same principle for the vector setting, where our units are columns. Here, $\mathbf{1}_2$ is a column vector of ones:
 
 $$
 \mathbf{1}_2 =
@@ -439,7 +454,13 @@ $$
 \in \mathbb{R}^{2 \times 2}.
 $$
 
-Each row corresponds to a time period, and each column corresponds to a person. To find the average number of apples per time period, we multiply $\mathbf{Y}$ by the weight vector 
+Each row corresponds to a time period, and each column corresponds to a person. 
+
+::: {.definition title="Matrix--vector product"}
+A *matrix* is a rectangular grid of numbers; here rows are time periods, columns are units. The *matrix--vector product* $\mathbf{Y}\mathbf{w}$ takes the dot product of each row of $\mathbf{Y}$ with $\mathbf{w}$, one number per row — so weighting the columns by $\mathbf{w}$ averages across units, one time period at a time.
+:::
+
+To find the average number of apples per time period, we multiply $\mathbf{Y}$ by the weight vector 
 
 $$
 \mathbf{w} = 

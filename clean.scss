@@ -366,18 +366,19 @@ $link-blue-hover: #0055CC; // color when hovering
 
 // ---------- Counters ----------
 body {
-  counter-reset: chapter 0 assumption 0 proof 0 problem 0;
+  counter-reset: chapter 0 assumption 0 proof 0 problem 0 definition 0;
 }
 
 h1 {
   counter-increment: chapter;
-  counter-reset: assumption proof problem; /* restart numbering per chapter */
+  counter-reset: assumption proof problem definition; /* restart numbering per chapter */
 }
 
 // ---------- Base Blocks ----------
 div.assumption,
 div.proof,
-div.problem {
+div.problem,
+div.definition {
   margin: 1em 0;
   font-style: normal;
   padding: 0.5em 1em;
@@ -400,11 +401,17 @@ div.problem {
   background-color: #f9f9f9;
 }
 
+div.definition {
+  border-left: 4px solid #2e7d32;     // green for definitions
+  background-color: #f6fff6;          // subtle green tint
+}
+
 // ---------- Paragraph Behavior ----------
 /* Only the first paragraph starts inline (LaTeX style) */
 div.assumption p:first-of-type,
 div.proof p:first-of-type,
-div.problem p:first-of-type {
+div.problem p:first-of-type,
+div.definition p:first-of-type {
   display: inline;
   margin-top: 0;
 }
@@ -412,7 +419,8 @@ div.problem p:first-of-type {
 /* Later paragraphs are full width with spacing */
 div.assumption p + p,
 div.proof p + p,
-div.problem p + p {
+div.problem p + p,
+div.definition p + p {
   display: block;
   margin-top: 0.75em;
   margin-bottom: 0.75em;
@@ -422,7 +430,8 @@ div.problem p + p {
 // ---------- Injected Link Styles ----------
 div.assumption a.assumption-link,
 div.proof a.proof-link,
-div.problem a.problem-link {
+div.problem a.problem-link,
+div.definition a.definition-link {
   display: inline-block;
   font-weight: 600;
   text-decoration: none;
@@ -433,6 +442,7 @@ div.problem a.problem-link {
 div.assumption a.assumption-link { color: #008080; }  // teal
 div.proof a.proof-link { color: #000000; }            // black
 div.problem a.problem-link { color: #007acc; }        // blue
+div.definition a.definition-link { color: #2e7d32; }  // green
 
 /* Proof [RESULT] links */
 div.proof a.statement-link {

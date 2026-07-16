@@ -22,5 +22,16 @@ function Div(el)
     end
     table.insert(blocks, pandoc.RawBlock('latex', '\\end{problem}'))
     return blocks
+
+  elseif el.classes:includes("definition") then
+    local blocks = {pandoc.RawBlock('latex', '\\begin{definition}')}
+    if title ~= "" then
+      table.insert(blocks, pandoc.RawBlock('latex', '\\textbf{' .. title .. '}\\\\'))
+    end
+    for _, b in ipairs(el.content) do
+      table.insert(blocks, b)
+    end
+    table.insert(blocks, pandoc.RawBlock('latex', '\\end{definition}'))
+    return blocks
   end
 end
