@@ -1,10 +1,13 @@
 project:
   type: book
 
-# Cache computed cells so a render only re-executes chapters whose code changed.
-# (Populates _freeze/ on the first successful render; commit _freeze/ once the
-# chapter code is rebuilt against current mlsynth.)
+# Code execution is OFF for now (eval: false): chapters render as prose, math,
+# and code *listings* without running against the soon-to-be-deprecated mlsynth
+# API -- so the book builds while the code layer is fixed separately. Flip eval
+# back to true (or delete the line) once the chapter code is rebuilt; freeze then
+# caches results so renders only re-execute changed chapters.
 execute:
+  eval: false
   freeze: auto
 
 book:
