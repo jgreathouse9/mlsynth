@@ -27,13 +27,15 @@ book:
         - poframe.qmd
         - did.qmd
         - ols.qmd
-        - regols.qmd
         - cvxscm.qmd
-        - validation.qmd
 
-    - part: "Applications"
+    - part: "Further Topics"
       chapters:
-        - donorselect.qmd
+        - regols.qmd            # Penalized SC -- moved out of the core ladder
+        # Parked for now (renamed to *.qmd.hold so Quarto skips them; contents
+        # preserved -- restore by renaming back to *.qmd and re-listing here):
+        # - validation.qmd      # Ch. 10 -- Validation & inference
+        # - donorselect.qmd     # Ch. 11 -- Control-group selection
         # future chapters:
         # - staggered.qmd
         # - spillovers.qmd
