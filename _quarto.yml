@@ -1,6 +1,12 @@
 project:
   type: book
 
+# Cache computed cells so a render only re-executes chapters whose code changed.
+# (Populates _freeze/ on the first successful render; commit _freeze/ once the
+# chapter code is rebuilt against current mlsynth.)
+execute:
+  freeze: auto
+
 book:
   title: "Foundations of the Synthetic Control Method"
   author: "Jared Greathouse"

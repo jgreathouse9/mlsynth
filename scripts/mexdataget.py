@@ -146,7 +146,7 @@ def get_elcrimen_data(year_start=None, year_end=None):
 # --- Get base dataset ---
 df = get_elcrimen_data(year_start=1990, year_end=2025)
 
-df.to_csv("MexicanHomicideData.csv", index=False)
+df.to_csv("data/MexicanHomicideData.csv", index=False)
 
 
 

@@ -385,7 +385,7 @@ First let's consider the weights produced by FSCM and FDID.
 
 ```{python}
 from IPython.display import display
-from helpers import preprocess_hotel_prices
+from scmbook.helpers import preprocess_hotel_prices
 from mlsynth import FDID, FSCM
 import pandas as pd
 
@@ -468,7 +468,7 @@ The FSCM results show that Mediterranean donors dominate the synthetic control, 
 
 import pandas as pd
 from IPython.display import display
-from helpers import preprocess_hotel_prices
+from scmbook.helpers import preprocess_hotel_prices
 from mlsynth import FDID, FSCM
 
 data_url = 'https://raw.githubusercontent.com/jgreathouse9/GSUmetricspolicy/refs/heads/main/data/RawData/HotelPricesRaw.csv'

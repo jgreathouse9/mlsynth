@@ -51,10 +51,10 @@ with placebos filtered to those matching the treated unit's pre-treatment RMSE f
 ```{python}
 #| echo: false
 
-from style import set_book_style
+from scmbook.style import set_book_style
 set_book_style()
 
-from helpers import plot_placebo
+from scmbook.helpers import plot_placebo
 import pandas as pd
 from mlsynth.utils.datautils import dataprep
 
@@ -103,7 +103,7 @@ The justification for this approach rests on its ability to detect model fragili
 ```{python}
 #| echo: false
 
-from helpers import in_time_placebos
+from scmbook.helpers import in_time_placebos
 import pandas as pd
 from mlsynth.utils.datautils import dataprep
 from mlsynth.utils.estutils import Opt
@@ -179,7 +179,7 @@ Furthermore, the LTO method increases power. Empirical results from the Californ
 
 ```{python}
 
-from helpers import lto_scm_inference
+from scmbook.helpers import lto_scm_inference
 from mlsynth.utils.datautils import dataprep
 import pandas as pd
 from IPython.display import display, Markdown
@@ -263,7 +263,7 @@ where $q_{1-\alpha}$ is the $(1-\alpha)$ quantile of the absolute pre-treatment 
 
 #| echo: False
 
-from helpers import block_permutation_inference
+from scmbook.helpers import block_permutation_inference
 import pandas as pd
 import numpy as np
 from mlsynth.utils.datautils import dataprep
@@ -413,7 +413,7 @@ is then reported alongside these bands.
 
 #| echo: False
 
-from helpers import subsampling_inference, subsampling_inference_timewise
+from scmbook.helpers import subsampling_inference, subsampling_inference_timewise
 import pandas as pd
 from mlsynth.utils.datautils import dataprep
 
@@ -576,7 +576,7 @@ where $t_{1-\alpha/2, \, K-1}$ is the $(1-\alpha/2)$ quantile of the $t$-distrib
 import numpy as np
 import pandas as pd
 from mlsynth.utils.datautils import dataprep
-from helpers import debiased_ttest_scm
+from scmbook.helpers import debiased_ttest_scm
 
 url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
 data = pd.read_csv(url)

@@ -39,7 +39,7 @@ Okay, so the goal is to solve for a vector of weights using this program, where 
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from style import set_book_style
+from scmbook.style import set_book_style
 set_book_style()
 
 # --- Load data ---
@@ -177,7 +177,7 @@ Now consider this setting from @fig-mexsd:
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from style import set_book_style
+from scmbook.style import set_book_style
 set_book_style()
 
 # --- Load data ---
