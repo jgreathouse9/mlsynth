@@ -4,6 +4,9 @@ on:
   push:
     branches: [book]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,9 +35,26 @@ jobs:
       - name: Render Quarto book (HTML + PDF)
         run: quarto render
 
-      # Rendered output (_book/) is gitignored, so publish it as a downloadable
-      # artifact instead of committing it back. Runs even on failure so partial
-      # output is available for debugging.
+      # Copy the rendered PDF out of the gitignored _book/ and commit it to the
+      # branch so it is viewable directly in the repo. Pushed with GITHUB_TOKEN,
+      # which does not re-trigger this workflow (no render loop).
+      - name: Commit book.pdf to the branch
+        if: success()
+        run: |
+          pdf="$(ls _book/*.pdf | head -1)"
+          echo "Rendered PDF: $pdf"
+          cp "$pdf" book.pdf
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f book.pdf
+          if git diff --cached --quiet; then
+            echo "book.pdf unchanged; nothing to commit."
+          else
+            git commit -m "Auto-build book.pdf [skip ci]"
+            git push origin HEAD:book
+          fi
+
+      # Also publish the full render (PDF + HTML site) as a downloadable artifact.
       - name: Upload rendered book (PDF + HTML site)
         if: always()
         uses: actions/upload-artifact@v4
