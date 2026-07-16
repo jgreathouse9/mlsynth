@@ -110,11 +110,6 @@ $$
 
 which we call the population variance. The variance measures how far the data tend to fall from their best-fitting constant value. We use squared deviations because they produce a smooth, differentiable, and convex objective that penalizes larger errors more heavily. Note that the absolute deviations, instead of the squared deviations, would return the median, not the mean.  The cost of squaring the residuals is that variance is expressed in squared units; taking the square root restores the original units and gives the standard deviation. When variance is estimated from a sample rather than the entire population, the denominator is typically replaced by $n - 1$ to obtain an unbiased estimator.
 
-### So What?
-
-Now, you may be saying "Hey Jared, this is overkill. Why bother doing all of this for something as simple as an average?" The derivation shows us that the average is the solution to an optimization problem. That single insight connects simple statistics to the machinery of modern econometrics. Variance, standard deviation, mean squared error, regression coefficients, and the synthetic control weights are all built on the same principle: finding a number/set of numbers that minimizes some measure of error. The arithmetic mean is the simplest, most familiar instance of this principle. Every estimator in this book is an application of averaging, and this fact will become crucial in later chapters when we take more sophisticated averages.
-
-
 ## Kinds of Arithmetic Averages
 
 Okay, so we now have our definition. Now let's apply this to the other objects we already know about, scalars, vectors, and matrices.
@@ -922,6 +917,8 @@ Explain why simply taking the arithmetic mean can be misleading. Give a real-lif
 ## Conclusion
 
 In this chapter, we have explored averages in their simplest forms—scalars, vectors, and matrices—and introduced the notion of weighted averages. The key takeaway is that averages are tools for comparison, but their usefulness depends entirely on the weights we assign. In real-world applications, we rarely know the "correct" weights in advance.
+
+You may be thinking this was overkill—why bother with an optimization derivation for something as simple as an average? Because the derivation shows that the average is the solution to an optimization problem, and that single insight connects simple statistics to the machinery of modern econometrics. Variance, standard deviation, mean squared error, regression coefficients, and the synthetic control weights are all built on the same principle: finding a number, or a set of numbers, that minimizes some measure of error. The arithmetic mean is just the simplest, most familiar instance of it.
 
 Sometimes, people have told me in the context of [my blog](https://jgreathouse9.github.io/docs/) have suggested that much of this content, especially around synthetic controls, would be easier to digest if all technical language were removed. While this might be true for a general audience, it misunderstands who my blog/this book is written for. The primary audience is not business stakeholders, but 1) the employees and practitioners who use data to generate empirical insights for businesses and 2) graduate students who wish to have a good understanding of SCM.
 
