@@ -253,7 +253,7 @@ $$
 $$
 :::
 
-The two assumptions differ only in their range: the Parallel Trends Assumption quantifies over all periods $\mathcal{T}_1 \cup \mathcal{T}_2$, whereas the Parallel Pre-Trends Assumption restricts attention to the pre-treatment periods $\mathcal{T}_1$. Parallel pre-trends is therefore a *testable implication* of parallel trends, not the identifying assumption itself — it is necessary but not sufficient. Pre-treatment differences can look perfectly constant and yet the trends may still diverge after treatment for reasons that have nothing to do with the intervention. When the pre-trend condition holds, and assuming additionally no anticipation and SUTVA (see @DIDmodern for more), we generally treat the DID estimator as unbiased. But this remains a judgment about the unobserved post-period, extrapolated from the pre-period, rather than something the data can ever confirm.
+The two assumptions differ only in their range: the Parallel Trends Assumption quantifies over all periods $\mathcal{T}_1 \cup \mathcal{T}_2$, whereas the Parallel Pre-Trends Assumption restricts attention to the pre-treatment periods $\mathcal{T}_1$. Parallel pre-trends is therefore a *testable implication* of parallel trends, not the identifying assumption itself — it is necessary but not sufficient. @Li2022augmented put the split cleanly: parallel trends divides into a testable part, that the assumption at least holds in the pretreatment period, and a nontestable part, that the same relationship between treated and control units carries into the posttreatment period, when the counterfactual is unobserved. Pre-treatment differences can look perfectly constant and yet the trends may still diverge after treatment for reasons that have nothing to do with the intervention. When the pre-trend condition holds, and assuming additionally no anticipation and SUTVA (see @DIDmodern for more), we generally treat the DID estimator as unbiased. But this remains a judgment about the unobserved post-period, extrapolated from the pre-period, rather than something the data can ever confirm.
 
 
 ::: {.problem title="Parallel Trends Assumption" data-link="#problem-parallel-trends"}
@@ -340,19 +340,35 @@ plt.ylabel('Cigarette Sales Per Capita')
 plt.legend()
 plt.show()
 ```
-We can see here that the scalar-adjusted control group average does not appear parallel to California. The counterfactual is dissimilar to California for the first five years of the dataset in that it undershoots California's values, and for the rest of the pre-treatment period, it has higher per capita smoking than California. Why might this be? The answer lies in the Law of Large Numbers and the interplay of small $N$ and large $T$. With only a few control units, the donor mean $\bar{y}_{0t}$ is highly sensitive to idiosyncratic deviations and unit-specific effects in each control state. Formally, the variance of the control mean is
+We can see here that the scalar-adjusted control group average does not appear parallel to California. The counterfactual is dissimilar to California for the first five years of the dataset in that it undershoots California's values, and for the rest of the pre-treatment period, it has higher per capita smoking than California. Why might this be? A tempting answer is sampling noise: with only a handful of controls the donor mean $\bar{y}_{0t}$ is a volatile average. That is part of the story, but it is not the part that governs whether parallel trends holds. To see the difference, return to the [linear factor model](poframe.html#assump-lfm) for untreated outcomes and ask what the DID counterfactual actually leaves behind.
 
+::: {#lem-did-loadings .lemma title="When DID recovers the counterfactual"}
+Suppose untreated outcomes follow the linear factor model
 $$
-\text{Var}\Big(\frac{1}{N_0} \sum_{j=1}^{N_0} y_{jt}\Big) = \frac{1}{N_0^2} \sum_{j=1}^{N_0} \text{Var}(y_{jt}),
+y_{jt}(0) = a_j + \mathbf{b}_j^\top \mathbf{f}_t + u_{jt}, \qquad \mathbb{E}[u_{jt}] = 0,
 $$
+with common factors $\mathbf{f}_t$ and unit-specific loadings $\mathbf{b}_j$. Let $\bar{\mathbf{b}}_0 = N_0^{-1} \sum_{j \in \mathcal{N}_0} \mathbf{b}_j$ be the average loading of the donor pool and $\bar{\mathbf{f}} = T_0^{-1} \sum_{t \in \mathcal{T}_1} \mathbf{f}_t$ the pre-period average of the factors. Then the DID counterfactual $\hat{y}_{1t}(0) = \bar{y}_{0t} + \beta^\ast$ has expected error
+$$
+\mathbb{E}\bigl[y_{1t}(0) - \hat{y}_{1t}(0)\bigr] = (\mathbf{b}_1 - \bar{\mathbf{b}}_0)^\top (\mathbf{f}_t - \bar{\mathbf{f}}).
+$$
+Consequently the Parallel Trends Assumption holds — and DID is unbiased for the ATT — if and only if the treated unit's loading equals the donor pool's average loading, $\mathbf{b}_1 = \bar{\mathbf{b}}_0$ (or the factors do not move over the window).
+:::
 
-so smaller $N_0$ directly increases the volatility of the average. Over many pre-treatment periods (large $T$), these idiosyncratic shocks accumulate, making the pre-treatment trajectory of the control average unstable and less likely to satisfy the Parallel Trends Assumption (PTA). Put another way, parallel trends assumes any systematic variation over time is common across units (i.e., the common tiem effect of the factor model), and, beyond this common variation, any remaining variation in outcomes is zero-mean and idiosyncratic. That is, the estimator effectively assumes that we can ignore unit-specific effects and focus on trends. This holds only in expectation, and relies on having either a sufficient number of "good" control units in a small sample or a large number of controls so that outliers do not dominate the donor mean.   In the small $N$, large $T$ setting, this is less likely to hold. With few control units, idiosyncratic shocks are more influential.
+The two-way fixed effects model of the [previous section](did.html#assump-twfe) is the special case in which every unit shares the same loading, so $\mathbf{b}_1 = \bar{\mathbf{b}}_0$ holds automatically and DID is exact. The lemma says DID needs much less than that — only that the treated unit's exposure to the common factors match the donor pool's *average* exposure — but it does need that, and equal weighting is what pins the requirement to the average.
+
+The expected error isolates the failure mode. The systematic term $(\mathbf{b}_1 - \bar{\mathbf{b}}_0)^\top (\mathbf{f}_t - \bar{\mathbf{f}})$ is a *bias*: it is nonzero exactly when the treated unit loads on the common factors differently from the average donor, and it does not shrink as the panel lengthens. No quantity of pre-treatment data repairs a donor pool whose average factor exposure differs from the treated unit's — this is the violation of parallel trends. Separately, the idiosyncratic term $u_{1t} - \bar{u}_{0t}$ that the expectation averages away is a *variance*: pooling few noisy controls is unstable, and this piece does shrink with the donor count,
+$$
+\text{Var}\Big(\frac{1}{N_0} \sum_{j \in \mathcal{N}_0} u_{jt}\Big) = \frac{1}{N_0^2} \sum_{j \in \mathcal{N}_0} \text{Var}(u_{jt}).
+$$
+The small-$N_0$ concern, then, is really about this second, variance term; parallel trends itself is a statement about the first.
+
+@Li2022augmented make this bias--variance split precise for exactly this class of estimators. Writing the mean squared error as $\text{MSE}(\hat{\Delta}) = \text{Bias}^2(\hat{\Delta}) + \text{Var}(\hat{\Delta})$, they show through a factor-model study that when treated and control units share the same loadings — the homogeneous case $\mathbf{b}_1 = \bar{\mathbf{b}}_0$ — DID's bias is negligible and it is in fact the *most efficient* of the standard estimators: imposing equal weights that sum to one is not a handicap but a variance-reducing restriction, and superfluous flexibility comes at a cost. When the treated unit's loading instead falls outside, or merely differs from, the donor pool's, DID's error becomes bias-dominated and its MSE the largest among the methods they compare. The Proposition 99 picture is this second regime: California's smoking trajectory does not load on the underlying factors the way the average donor state does, so equal weighting cannot align the two, and the gap in @fig-did-cali is systematic rather than noise.
 
 
-This becomes even clearer when we experiment with different control units. Here, we compare California to Kentucky, NC, and both jointly, using a DID model for each state individually as well as jointly. These results are presented in @fig-did-calikent. For example, Kentucky’s cigarette consumption exhibits persistent idiosyncratic dynamics—its high baseline smoking rates and tobacco-based economy create predictable deviations that are correlated with pre-treatment outcomes. Similarly, NC displays systematic differences from California that violate the martingale property. As a result, even after demeaning by the donor mean, the control units’ evolution is not mean-independent of their pre-treatment shocks. 
+This becomes even clearer when we experiment with different control units, since changing the donor pool changes its average loading $\bar{\mathbf{b}}_0$ and hence the systematic term in @lem-did-loadings. Here, we compare California to Kentucky, NC, and both jointly, using a DID model for each state individually as well as jointly. These results are presented in @fig-did-calikent. Kentucky's cigarette consumption loads on the common factors quite differently from California—its high baseline smoking rates and tobacco-based economy give it a factor exposure far from California's—so $\mathbf{b}_1 - \bar{\mathbf{b}}_0$ is large and the counterfactual tilts systematically. North Carolina differs from California in the same structural way. Demeaning removes the level gap $a_1 - \bar{a}_0$, but it cannot remove a difference in loadings; that mismatch is precisely what survives the intercept adjustment.
 
 
-Practically, these violations are evident when we compare the ATT estimates. Using all controls, the naive DID yields an ATT of roughly $-27$. Using Kentucky alone yields $-29$, NC alone yields $-34$, and the Kentucky + NC combination gives $-32.36$. Small $N$ exacerbates the issue because the law of large numbers cannot stabilize the average across control units. This provides a concrete illustration of why PTA may not hold in real-world, small-$N$ applications like Proposition 99.
+Practically, these violations are evident when we compare the ATT estimates. Using all controls, the naive DID yields an ATT of roughly $-27$. Using Kentucky alone yields $-29$, NC alone yields $-34$, and the Kentucky + NC combination gives $-32.36$. That the estimate swings this much with the choice of donor is the bias term at work: each pool has a different average loading, so each implies a different systematic gap, and with few controls no single pool sits close to California's factor exposure. This is a concrete illustration of why parallel trends may fail in real-world, small-$N$ applications like Proposition 99 — and, per @Li2022augmented, why more flexible weighting schemes than DID's equal weights can be worth the added variance when the donor pool is heterogeneous.
 
 ```{python}
 #| label: fig-did-calikent
@@ -651,6 +667,32 @@ $$
 \bar{\mathbf{y}}_{c,\mathcal{N}_0} = \bar{\mathbf{y}}_{\mathcal{N}_0} - \bar{m}_{\mathcal{N}_0} \, \mathbf{1}_{T_0}.
 $$
 
+:::
+
+
+::: {.proof title="When DID recovers the counterfactual" data-link="did.html#proof-did-loadings" data-target="did.html#lem-did-loadings"}
+
+Write donor-pool averages as $\bar{a}_0 = N_0^{-1} \sum_{j \in \mathcal{N}_0} a_j$ and $\bar{u}_{0t} = N_0^{-1} \sum_{j \in \mathcal{N}_0} u_{jt}$. Averaging the factor model across the donor pool gives
+$$
+\bar{y}_{0t} = \bar{a}_0 + \bar{\mathbf{b}}_0^\top \mathbf{f}_t + \bar{u}_{0t},
+$$
+so the gap between the treated unit and the donor mean is
+$$
+y_{1t}(0) - \bar{y}_{0t} = (a_1 - \bar{a}_0) + (\mathbf{b}_1 - \bar{\mathbf{b}}_0)^\top \mathbf{f}_t + (u_{1t} - \bar{u}_{0t}).
+$$
+The DID intercept is the pre-period average of this gap over $\mathcal{T}_1$,
+$$
+\beta^\ast = (a_1 - \bar{a}_0) + (\mathbf{b}_1 - \bar{\mathbf{b}}_0)^\top \bar{\mathbf{f}} + (\bar{u}_1 - \bar{\bar{u}}_0),
+$$
+with $\bar{u}_1 = T_0^{-1} \sum_{t \in \mathcal{T}_1} u_{1t}$ and $\bar{\bar{u}}_0 = T_0^{-1} \sum_{t \in \mathcal{T}_1} \bar{u}_{0t}$. Subtracting the counterfactual $\hat{y}_{1t}(0) = \bar{y}_{0t} + \beta^\ast$ from $y_{1t}(0)$, the intercept difference $a_1 - \bar{a}_0$ cancels and
+$$
+y_{1t}(0) - \hat{y}_{1t}(0) = (\mathbf{b}_1 - \bar{\mathbf{b}}_0)^\top (\mathbf{f}_t - \bar{\mathbf{f}}) + (u_{1t} - \bar{u}_{0t}) - (\bar{u}_1 - \bar{\bar{u}}_0).
+$$
+Taking expectations and using $\mathbb{E}[u_{jt}] = 0$ leaves the systematic term
+$$
+\mathbb{E}\bigl[y_{1t}(0) - \hat{y}_{1t}(0)\bigr] = (\mathbf{b}_1 - \bar{\mathbf{b}}_0)^\top (\mathbf{f}_t - \bar{\mathbf{f}}),
+$$
+which vanishes for every $t$ if and only if $\mathbf{b}_1 = \bar{\mathbf{b}}_0$ or $\mathbf{f}_t = \bar{\mathbf{f}}$ for all $t$.
 :::
 
 
