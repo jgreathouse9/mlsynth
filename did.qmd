@@ -232,28 +232,28 @@ $$
 
 :::
 
-Even if the treated and control units hae different levels, the demeaning removes these level differences. DID relies on the Parallel Trends Assumption (PTA), which states that, in expectation, the difference between treated and control units would remain constant over time in the absence of treatment:
+Even if the treated and control units have different levels, the demeaning removes these level differences. DID relies on the Parallel Trends Assumption (PTA), which states that, in the absence of treatment, the expected difference between the treated unit and the control group would remain constant over time — across *every* period, pre-treatment and post-treatment alike:
 
 ::: {#def-pta .definition title="Parallel Trends Assumption"}
 In the absence of treatment,
 $$
-\mathbb{E}[y_{1t}(0) - \bar{y}_{0t}(0)] = \mathbb{E}[y_{1t'}(0) - \bar{y}_{0t'}(0)], \qquad \forall t, t' \in \mathcal{T}_1.
+\mathbb{E}[y_{1t}(0) - \bar{y}_{0t}(0)] = \mathbb{E}[y_{1t'}(0) - \bar{y}_{0t'}(0)], \qquad \forall \, t, t' \in \mathcal{T}_1 \cup \mathcal{T}_2.
 $$
 :::
 
-Under this assumption, subtracting pre-treatment differences correctly removes all systematic level effects, so any post-treatment divergence can be interpreted as a causal effect of treatment. However, we cannot test for the [Parallel Trends Assumption](did.html#def-pta) globally, as the counterfactual is never observed to the researcher. Thus, econometricians resort to a version of PTA that we may observe,
+The range of the quantifier is the whole point. The equality must hold for all periods, including the post-treatment periods $\mathcal{T}_2$, where the treated unit's untreated outcome $y_{1t}(0)$ is precisely the counterfactual we are trying to recover. This is what makes DID identify a causal effect: it is the parallel movement of $y_{1t}(0)$ and $\bar{y}_{0t}(0)$ *after* treatment that lets us read post-treatment divergence as the treatment's doing. It is also why the assumption is fundamentally untestable — the post-treatment $y_{1t}(0)$ is never observed, so we can never check the very periods that do the identifying work.
 
-::: {#def-ppta}
+It is worth being clear about how this relates to the additive [two-way fixed effects model](did.html#assump-twfe). If every unit shares the same time effect $\lambda_t$, their untreated outcomes move in lockstep and parallel trends holds automatically. But the additive model is stronger than DID actually needs: identification requires only that trends be parallel *on average*, in the sense of the expectation above, not that outcomes follow a literal additive structure with well-behaved idiosyncratic errors. Parallel trends is the primitive assumption; the two-way fixed effects model is merely a convenient sufficient condition for it.
 
-## Parallel Pre-Trends Assumption
+Because the Parallel Trends Assumption cannot be checked, econometricians fall back on the pre-treatment analogue, which we *can* inspect:
 
+::: {#def-ppta .definition title="Parallel Pre-Trends Assumption"}
 $$
-\mathbb{E}\Big[y_{1t}(0) - N_{0}^{-1} \sum_{j \in \mathcal{N}_0} y_{jt}(0)\Big] = \beta, \quad \forall t \in \mathcal{T}_{1}.
+\mathbb{E}\Big[y_{1t}(0) - N_{0}^{-1} \sum_{j \in \mathcal{N}_0} y_{jt}(0)\Big] = \beta, \quad \forall \, t \in \mathcal{T}_{1}.
 $$
 :::
 
-
-if the expectation holds in the pre-intervention period, we generally think that the DID estimator is unbiased (assuming, additionally, no anticipation and SUTVA hold; see @DIDmodern for more).
+The two assumptions differ only in their range: the Parallel Trends Assumption quantifies over all periods $\mathcal{T}_1 \cup \mathcal{T}_2$, whereas the Parallel Pre-Trends Assumption restricts attention to the pre-treatment periods $\mathcal{T}_1$. Parallel pre-trends is therefore a *testable implication* of parallel trends, not the identifying assumption itself — it is necessary but not sufficient. Pre-treatment differences can look perfectly constant and yet the trends may still diverge after treatment for reasons that have nothing to do with the intervention. When the pre-trend condition holds, and assuming additionally no anticipation and SUTVA (see @DIDmodern for more), we generally treat the DID estimator as unbiased. But this remains a judgment about the unobserved post-period, extrapolated from the pre-period, rather than something the data can ever confirm.
 
 
 ::: {.problem title="Parallel Trends Assumption" data-link="#problem-parallel-trends"}
@@ -267,7 +267,7 @@ Explain how the DID estimator, as discussed above, constructs the counterfactual
 
 ## Parallel Trends in Small $N$ Settings
 
-DID is usually framed in the large $N$, small $T$ framework [@DIDmodern]. In cases of small $N$, the parallel pre-trends assumption can be less likely to hold. To illustrate, consider the canonical paper on SCM by @Abadie2010, which studies the impact of California's Anti-Tobacco Campaign, Proposition 99, on cigarette sales per capita. Enacted in 1989, Prop 99 attempted to reduce smoking via a statewide public health campaign. In the original dataset, the authors had 38 control states to work with from 1970 to 2000. Using the estimator described above, we will use Python to estimate the DID design for the effect of Prop 99 on tobacco consumption. To follow along, you'll need the `dataprep` helper from my mlsynth code, which may be installed like
+DID is often *applied* in settings with many units and few time periods [@DIDmodern], but the identification argument itself asks only for at least one treated and one control group observed before and after treatment — the "large $N$" setting is a common use case, not a requirement. In cases of small $N$, the parallel pre-trends assumption can be less likely to hold. To illustrate, consider the canonical paper on SCM by @Abadie2010, which studies the impact of California's Anti-Tobacco Campaign, Proposition 99, on cigarette sales per capita. Enacted in 1989, Prop 99 attempted to reduce smoking via a statewide public health campaign. In the original dataset, the authors had 38 control states to work with from 1970 to 2000. Using the estimator described above, we will use Python to estimate the DID design for the effect of Prop 99 on tobacco consumption. To follow along, you'll need the `dataprep` helper from my mlsynth code, which may be installed like
 
 
 ```{shell}
