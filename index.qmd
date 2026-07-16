@@ -1,6 +1,8 @@
 # Introduction
 
-Hey, I'm Jared, a PHD candidate studying public policy at Georgia State University. I work in econometrics for policy analysis. Welcome to *Foundations of the Synthetic Control Method* (SCM). This book is a practical guide to mastering SCM, directed at graduate students and industry scientists seeking an intuitive yet rigorous understanding of this transformative method for policy and geolift analysis (the study of location-based impacts in marketing, using holdout studies).
+Hey, I'm Jared, a PhD candidate studying public policy at Georgia State University. I work in econometrics for policy analysis. Welcome to *Foundations of the Synthetic Control Method* (SCM). This book is a practical guide to mastering SCM, directed at graduate students and industry scientists seeking an intuitive yet rigorous understanding of this transformative method for policy and geolift analysis (the study of location-based impacts in marketing, using holdout studies).
+
+One idea runs through every chapter: a synthetic control is just a carefully chosen weighted average. We build it up slowly — from a plain mean, to regression, to the convex synthetic control — so that nothing ever arrives as a formula you are asked to accept on faith.
 
 ## Why I Wrote This Book?
 
@@ -14,11 +16,13 @@ or
 
 > The Synthetic Control Method (SCM) is a powerful causal inference tool used when only one treated unit exists, and researchers must construct a synthetic comparison group from a donor pool of untreated units.
 
-These definitions only confused me. Both of them used the word "sythethic" in the definition. Other articles would simply present what I now know to be the dot product or the convex optimization formula, say a few words about it, and move on. Almost no resource, that I could find, bothered to start from the barebones first principles and walk through what was meant as a concept by a "fake unit" or a "weighted average" or how it differed from a regular average. So, this book has a plain quest: explain the synthetic control method to students and working professionals who may use it for their own tasks.
+These definitions only confused me. Both of them used the word "synthetic" in the definition. Other articles would simply present what I now know to be the dot product or the convex optimization formula, say a few words about it, and move on. Almost no resource, that I could find, bothered to start from the barebones first principles and walk through what was meant as a concept by a "fake unit" or a "weighted average" or how it differed from a regular average. So, this book has a plain quest: explain the synthetic control method to students and working professionals who may use it for their own tasks.
 
 ## Who This Book Is For
 
-This book is for graduate students and practitioners in economics, social sciences, or related fields who want to apply SCM in practice. No prior SCM experience is needed, but readers should be comfortable with algebra, causal reasoning, and basic econometrics such as regression analysis. This book is not an introduction to Python, general causal inference, or advanced math like linear algebra. Readers who wish for more details about these basics should consult dedicated resources (e.g., [Gilbert Strang's Linear Algebra](https://math.mit.edu/~gs/linearalgebra/ila6/indexila6.html), the [numerous](https://mixtape.scunning.com/) [open](https://theeffectbook.net/) [source](https://matheusfacure.github.io/python-causality-handbook/landing-page.html) [texts](https://miguelhernan.org/whatifbook) on causal inference, or [the list](https://github.com/pamoroso/free-python-books) of free Python books that exist). It does not cover advanced SCM extensions (e.g., matrix completion methods or cutting-edge research), which require deeper mathematical grounding beyond this introductory scope.
+This book is for graduate students and practitioners in economics, social sciences, or related fields who want to apply SCM in practice. No prior SCM experience is needed, but readers should be comfortable with algebra, causal reasoning, and basic econometrics such as regression analysis. You do not need linear algebra or calculus going in: the book builds the specific math it uses — vectors, dot products, matrices, a derivative here and there — from scratch, at the moment each idea is first needed, rather than front-loading it in a chapter you have to survive before the payoff. If you want a full course in those subjects, the standard references are excellent (e.g., [Gilbert Strang's Linear Algebra](https://math.mit.edu/~gs/linearalgebra/ila6/indexila6.html) for the linear algebra, the [numerous](https://mixtape.scunning.com/) [open](https://theeffectbook.net/) [source](https://matheusfacure.github.io/python-causality-handbook/landing-page.html) [texts](https://miguelhernan.org/whatifbook) on causal inference, or [the list](https://github.com/pamoroso/free-python-books) of free Python books).
+
+This is the master's volume. It deliberately stops short of the advanced extensions — proximal inference, matrix completion, staggered adoption, and the heavier asymptotic theory — which are the subject of a planned second, more technical volume. Where those methods matter, the closing chapter points to them; it does not develop them here.
 
 ## Personal Reflection
 
@@ -26,21 +30,25 @@ This book is for graduate students and practitioners in economics, social scienc
 
 Given the advent of the computing advances of the 20th century, economics, public policy/political science, and related fields developed an increasing reliance on computing methods in academic and industrial research. Part of this transition involved a more careful concern with causal impact estimation methods. Sometimes called [the credibility revolution](https://muse.jhu.edu/book/84639), social scientists of all varieties began to ask questions such as "What was the effect of Policy $X$ on Outcome $Y$?"
 
-In the early 1990s and 2000s, methods such as propensity score matching, difference-in-differences, instrumental variable regression models, and others became important weapons in the toolkit of empirical scientists. Especially after the mid twenty-teens, the SCM (developed by Alberto Abadie and his advisor Javier Gardeazabal) was formalized in articles published in *Journal of the American Statistical Association* and *American Journal of Political Science*.
+In the early 1990s and 2000s, methods such as propensity score matching, difference-in-differences, instrumental variable regression models, and others became important weapons in the toolkit of empirical scientists. Across the 2000s and 2010s, the SCM — developed by Alberto Abadie and his advisor Javier Gardeazabal — was formalized in articles published in *Journal of the American Statistical Association* and *American Journal of Political Science*.
 
 ### My Journey with SCM
 
-My journey with the SCM began in 2021. I had just become a PHD student of public policy at Georgia State University, and then the Georgia Institute of Technology. The COVID-19 pandemic had begun only a year and a few months earlier. Young and aspiring economists, computer scientists, and policy scholars rushed to use SCMs to evaluate the effect of public policy interventions on COVID-19 cases, vaccination outcomes, and other outcomes of interest.
+My journey with the SCM began in 2021. I had just become a PhD student of public policy at Georgia State University, and then the Georgia Institute of Technology. The COVID-19 pandemic had begun only a year and a few months earlier. Young and aspiring economists, computer scientists, and policy scholars rushed to use SCMs to evaluate the effect of public policy interventions on COVID-19 cases, vaccination outcomes, and other outcomes of interest.
 
-Throughout my undergraduate years, I had heard about how SCM was a kind of generalization of the difference-in-differences method (another design one could write several books on). However, the reasoning for this to me was very arcane. Furthermore, the math behind SCM intimidated me; I was a starting level PHD student with little background in calculus or real analysis. Either way, these questions burnt at me from within, and I sought to develop a better understanding of SCM for my own work. This is the book I wish I had learning the method years ago, coming from a very non-technical background.
+Throughout my undergraduate years, I had heard about how SCM was a kind of generalization of the difference-in-differences method (another design one could write several books on). However, the reasoning for this to me was very arcane. Furthermore, the math behind SCM intimidated me; I was a starting-level PhD student with little background in calculus or real analysis. Either way, these questions burnt at me from within, and I sought to develop a better understanding of SCM for my own work. This is the book I wish I had learning the method years ago, coming from a very non-technical background.
 
 ## Structure of the Book
 
-The book is organized into two parts:
+The book has one organizing idea: we build the counterfactual — the synthetic control — one rung at a time, each method motivated by the limits of the one before it. It is organized in three parts.
 
-1. *Foundations & Prerequisites*: Covers comparative case studies, mathematics, and weighted averages. Explains SCM setup, weight derivation, covariates, and computational implementation including inference about the estimated treatment effect.
+1. *Foundations.* The mathematical vocabulary you will actually use, introduced as it comes up, and the central insight that every estimator in the book is a structured weighted average.
 
-2. *Applications & End-to-End Workflow*: Guides readers through research design, donor selection, and presenting results with full case studies.
+2. *Estimation and inference.* The ladder itself: from the potential-outcomes framing and the plain control-group mean, through least squares and penalized regression, up to the convex synthetic control — and then how to validate an estimate and attach uncertainty to it.
+
+3. *Applications.* How to choose a donor pool, a full end-to-end study, and a short closing survey of what lies beyond this volume — proximal methods, matrix completion, staggered designs — as signposts to the second book rather than a treatment of them.
+
+Each section ends with problems to work, and every method is demonstrated in [`mlsynth`](https://github.com/jgreathouse9/mlsynth), the companion Python library, so you can run everything as you read.
 
 
 
