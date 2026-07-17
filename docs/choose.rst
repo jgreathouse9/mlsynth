@@ -387,7 +387,10 @@ observation noise?
   model that returns a full posterior credible band on the counterfactual and
   prunes surplus factors with a horseshoe+ prior; needs the ``[bayes]`` extra).
   (For micro panels with observed time-varying *confounders* and autoregressive
-  outcomes, :doc:`dscar` is a different paradigm -- see the remark below.)
+  outcomes, :doc:`dscar` is a different paradigm -- see the remark below.) If you
+  also observe many time-varying *covariates* and want them to identify the
+  counterfactual, :doc:`cscipca` instruments the factor loadings with the
+  covariates -- see the remark below.
 
 *FMA versus BFSC -- frequentist or Bayesian factor SC.* Both fit the untreated
 outcome with a latent-factor model rather than a donor weighting, so both handle
@@ -404,6 +407,19 @@ must commit to. Prefer :doc:`fma` when you want a fast, dependency-free point
 estimate with bootstrap intervals; prefer :doc:`bfsc` when you want a full
 posterior band and would rather not fix the number of factors, and you can take
 on the ``[bayes]`` (NumPyro) dependency.
+
+*Factor SC with covariate-instrumented loadings.* :doc:`cscipca` (Wang, 2024)
+is the factor estimator to reach for when you observe many time-varying
+covariates that plausibly drive the outcome. Instead of learning a free loading
+for each unit from its outcome history, it projects the loadings onto the
+covariates (instrumented principal component analysis), so the covariates -- not
+a convex-hull condition -- carry the counterfactual, and the treated unit may
+sit well outside the donor range. Its edge over an outcome-only factor model
+(:doc:`fma`, :doc:`cfm`) appears precisely when the covariates are informative
+and only partially observed, and vanishes when every relevant covariate is
+already in hand. It needs at least as many covariates as factors and a
+pre-period longer than covariates-times-factors, and reports a per-period
+moving-block conformal band. With no covariates, use :doc:`fma` or :doc:`cfm`.
 
 *Which Bayesian synthetic control?* Three estimators are Bayesian, and they
 split on what carries the prior. :doc:`bscm` and :doc:`bvss` put a shrinkage /

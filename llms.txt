@@ -30,6 +30,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CFM** — Causal Factor Model (Bai & Wang 2026) estimator.  (config: CFMConfig)
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)
+- **CSCIPCA** — Counterfactual and Synthetic Control with Instrumented PCA (Wang 2024).  (config: CSCIPCAConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
 - **CounterfactualComparison** — Result of :func:`compare_counterfactuals`.
 - **DPSC** — Differentially private synthetic control estimator.  (config: DPSCConfig)
