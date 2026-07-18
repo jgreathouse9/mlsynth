@@ -69,7 +69,13 @@ def solve_gamma(Y: np.ndarray, X: np.ndarray, F: np.ndarray, K: int) -> np.ndarr
     # denom[(l,k),(m,j)] = sum_t (sum_i X_itl X_itm) F_kt F_jt
     G = np.einsum("itl,itm->tlm", X, X, optimize=True)          # (T, L, L)
     denom = np.einsum("tlm,kt,jt->lkmj", G, F, F, optimize=True).reshape(L * K, L * K)
-    gamma = np.linalg.solve(denom, numer)
+    # Least squares, not a plain solve: collinear covariates (e.g. log GDP,
+    # log GDP-per-capita and log population) make ``denom`` rank-deficient, so a
+    # direct inverse is singular. The counterfactual (X Gamma) F is invariant to
+    # which Gamma is picked among the equivalent ones, so the minimum-norm
+    # lstsq solution gives the same fit robustly (matching the reference's
+    # ``_mldivide``).
+    gamma, *_ = np.linalg.lstsq(denom, numer, rcond=None)
     return gamma.reshape(L, K)
 
 
@@ -90,10 +96,16 @@ def solve_factors(Y: np.ndarray, X: np.ndarray, gamma: np.ndarray) -> np.ndarray
     np.ndarray
         Estimated factors, shape ``(K, T)``.
     """
+    T = X.shape[1]
     XG = np.einsum("itl,lk->itk", X, gamma, optimize=True)      # (N, T, K)
     denom = np.einsum("itk,itj->tkj", XG, XG, optimize=True)    # (T, K, K)
     numer = np.einsum("itk,it->tk", XG, Y, optimize=True)       # (T, K)
-    F = np.linalg.solve(denom, numer[..., None])[..., 0]        # (T, K)
+    # Per-period least squares (matching the reference): a rank-deficient
+    # per-period system -- possible under collinear covariates -- would make a
+    # direct solve singular, so use the minimum-norm lstsq solution.
+    F = np.empty((T, XG.shape[2]))
+    for t in range(T):
+        F[t], *_ = np.linalg.lstsq(denom[t], numer[t], rcond=None)
     return F.T                                                   # (K, T)
 
 
