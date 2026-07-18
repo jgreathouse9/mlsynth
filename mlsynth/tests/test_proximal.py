@@ -96,6 +96,111 @@ def _validate_method_fit(fit: ProximalMethodFit, name: str, T: int) -> None:
     assert isinstance(fit.donor_weights, dict)
 
 
+# --- Two-family result contract (EffectResult conformance) ---
+
+def test_proximal_result_is_effect_result(sample_proximal_data: pd.DataFrame) -> None:
+    """PROXIMAL returns an EffectResult and lifts the headline (first-requested)
+    variant into the standardized sub-models, exactly like the TSSC dispatcher.
+    """
+    from mlsynth.config_models import (
+        BaseEstimatorResults, EffectResult, MlsynthResult,
+    )
+
+    res = PROXIMAL(_base(
+        sample_proximal_data, methods=["PI", "SPSC"],
+        vars={"donorproxies": ["DonorProxyVar1"]})).fit()
+
+    assert isinstance(res, MlsynthResult)
+    assert isinstance(res, BaseEstimatorResults)
+    assert isinstance(res, EffectResult)
+
+    # Standardized sub-models, populated from the headline variant (PI).
+    assert res.effects is not None and res.effects.att is not None
+    assert res.time_series is not None
+    assert res.time_series.counterfactual_outcome is not None
+    assert res.weights is not None
+    assert res.method_details is not None and res.method_details.method_name == "PI"
+
+    # Flat read-contract agrees with the headline fit and the lifted sub-model.
+    assert isinstance(res.att, float)
+    assert res.att == pytest.approx(res.effects.att)
+    assert res.att == pytest.approx(res.pi.att)
+    ci = res.att_ci
+    assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])
+
+
+def test_proximal_sub_method_results_per_variant(sample_proximal_data: pd.DataFrame) -> None:
+    """Every run variant is promoted to its own EffectResult under
+    ``sub_method_results`` so cross-method tooling can consume any of them.
+    """
+    from mlsynth.config_models import EffectResult
+
+    res = PROXIMAL(_base(
+        sample_proximal_data, methods=["PI", "SPSC"],
+        vars={"donorproxies": ["DonorProxyVar1"]})).fit()
+
+    sub = res.sub_method_results
+    assert set(sub) == {"PI", "SPSC"}
+    for name, sr in sub.items():
+        assert isinstance(sr, EffectResult)
+        assert sr.method_details.method_name == name
+        assert sr.effects.att == pytest.approx(res.methods[name].att)
+        assert sr.att == pytest.approx(res.methods[name].att)
+
+
+def test_proximal_spsc_conformal_rides_in_inference_details(
+    sample_proximal_data: pd.DataFrame,
+) -> None:
+    """SPSC's per-period conformal (effect) band is surfaced under
+    ``inference.details``, not mis-typed as a counterfactual band.
+    """
+    res = PROXIMAL(_base(
+        sample_proximal_data, methods=["SPSC"],
+        spsc_conformal=True)).fit()
+    assert res.inference is not None
+    assert res.inference.details is not None
+    assert set(res.inference.details) >= {"periods", "lower", "upper"}
+    # It is an effect band, so it must NOT populate the counterfactual band.
+    assert not res.time_series.has_prediction_interval
+
+
+def test_proximal_pioid_band_maps_to_time_series(
+    sample_proximal_data: pd.DataFrame,
+) -> None:
+    """PIOID's genuine counterfactual band flows into the standardized
+    ``time_series`` per-period band fields.
+    """
+    res = PROXIMAL(_base(
+        sample_proximal_data, methods=["PIOID"],
+        outcome_instruments=[4, 5], pioid_band=True)).fit()
+    ts = res.time_series
+    assert ts.has_prediction_interval
+    assert ts.counterfactual_lower is not None and ts.counterfactual_upper is not None
+    assert ts.prediction_interval_kind is not None
+
+
+def test_proximal_empty_result_is_valid_effect_result() -> None:
+    """A container with no run variant stays a valid (empty) EffectResult
+    rather than fabricating sub-models.
+    """
+    from mlsynth.config_models import EffectResult
+    from mlsynth.utils.proximal_helpers.structures import PROXIMALInputs
+
+    inputs = PROXIMALInputs(
+        y=np.linspace(1.0, 3.0, 6),
+        donor_outcomes=np.zeros((6, 2)),
+        donor_proxies=None,
+        surrogate_outcomes=None,
+        surrogate_proxies=None,
+        T=6, T0=3, bandwidth=1,
+        time_labels=np.arange(6), treated_unit_name="t", donor_names=["d0", "d1"],
+    )
+    res = PROXIMALResults(inputs=inputs, pi=None, pis=None, pipost=None)
+    assert isinstance(res, EffectResult)
+    assert res.effects is None  # no primary -> nothing lifted
+    assert res.sub_method_results is None
+
+
 # --- Method selection: exactly what's asked runs ---
 
 def test_proximal_pi_only(sample_proximal_data: pd.DataFrame) -> None:
