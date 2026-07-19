@@ -91,6 +91,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/dsc
    replications/microsynth
    replications/cfm
+   replications/cscipca
 
 .. _replications-canonical:
 

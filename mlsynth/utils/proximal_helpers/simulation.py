@@ -73,6 +73,8 @@ __all__ = [
     "simulate_dr_proximal_normal",
     "ProxSurrogateSimSample",
     "simulate_proximal_surrogates",
+    "PIOIDSimSample",
+    "simulate_pioid_linear",
 ]
 
 _RHO = 0.5            # latent-factor serial dependence
@@ -493,4 +495,158 @@ def simulate_proximal_surrogates(
         true_att=float(np.mean(effect)),
         n_donor_factors=F,
         n_surrogate_factors=K,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shi et al. (2026, JASA) over-identified proximal inference: linear IFEM DGP
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PIOIDSimSample:
+    """One draw from the Shi et al. (2026) linear interactive-fixed-effects DGP.
+
+    Faithful port of ``run_sim_linear_est.R`` in the authors' reference repo
+    (``github.com/KenLi93/proximal_sc_manuscript``, ``simulation/``),
+    accompanying Shi, Li, Yu, Miao, Kuchibhotla, Hu & Tchetgen Tchetgen (2026),
+    *"Theory for Identification and Inference with Synthetic Controls: A Proximal
+    Causal Inference Framework"* (JASA).
+
+    One treated unit and ``n_units - 1`` controls are generated from a linear
+    factor model ``Y_it = U_i' lambda_t + eps_it``. Half the controls are the
+    treatment proxies ``Z`` and half the donor outcomes ``W``; ``W`` and ``Z``
+    share the (diagonal) loading structure but carry *independent* idiosyncratic
+    noise, so a naive regression of ``Y`` on ``W`` is biased by measurement
+    error while the proximal estimator (mlsynth ``PIOID``), which instruments
+    ``W`` with ``Z``, is consistent. The treated unit carries a constant
+    post-period effect ``true_att`` (the paper's ``true.beta = 2``).
+
+    Attributes
+    ----------
+    y : np.ndarray
+        Treated outcome, shape ``(T,)`` (post-period carries ``true_att``).
+    donor_outcomes : np.ndarray
+        Donor outcomes ``W``, shape ``(T, n_W)`` -- the outcome-bridge donors.
+    donor_proxies : np.ndarray
+        Treatment proxies ``Z``, shape ``(T, n_Z)`` -- the instruments.
+    T0 : int
+        Number of pre-treatment periods (``= t0``; ``T = 2 * t0``).
+    true_att : float
+        The constant post-period treatment effect (``2.0`` in the paper).
+    n_units : int
+        Total units (``1 + n_W + n_Z``).
+    """
+
+    y: np.ndarray
+    donor_outcomes: np.ndarray
+    donor_proxies: np.ndarray
+    T0: int
+    true_att: float
+    n_units: int
+
+
+def simulate_pioid_linear(
+    n_units: int = 7,
+    t0: int = 80,
+    true_att: float = 2.0,
+    sd: float = 1.5,
+    dist_lambda: str = "stationary",
+    u_setting: str = "unconstrained",
+    dist_epsilon: str = "iid",
+    ar_phi: float = 0.1,
+    rng: Optional[np.random.Generator] = None,
+    seed: Optional[int] = None,
+) -> PIOIDSimSample:
+    r"""Draw one sample from the Shi et al. (2026) linear IFEM DGP.
+
+    Port of ``run_sim_linear_est.R`` (``KenLi93/proximal_sc_manuscript``). The
+    paper's defaults are ``true.beta = 2``, ``mysd = 1.5`` and ``t = 2 * t0``
+    (equal pre/post). The number of latent factors is ``floor((n_units-1)/2)``;
+    the treated loading is a constant row (``U_0 = 1`` constrained, ``1.5``
+    unconstrained) and the donor/proxy loadings are the shared diagonal matrix
+    ``diag(sum(e)/e)`` with ``e = (2, 1, ..., 1)``.
+
+    Parameters
+    ----------
+    n_units : int, default 7
+        Total units; the paper's grid uses ``{5, 7, 11}``.
+    t0 : int, default 80
+        Pre-period length; the paper's grid uses ``{30, 80, 140, 200}``.
+    true_att : float, default 2.0
+        Constant post-period effect (the paper's ``true.beta``).
+    sd : float, default 1.5
+        Idiosyncratic error scale for ``dist_epsilon="iid"``.
+    dist_lambda : {"stationary", "nonstationary"}
+        Stationary ``N(0.5, 0.5^2)`` factors, or a ``0.5 log(t)`` trend plus
+        ``N(0, 0.5^2)``.
+    u_setting : {"unconstrained", "constrained"}
+        Treated-unit loading level (``1.5`` vs ``1``); unconstrained places the
+        treated unit further outside the donor span (sharper naive-SC bias).
+    dist_epsilon : {"iid", "AR"}
+        i.i.d. ``N(0, sd^2)`` errors, or a stationary AR(1) with coefficient
+        ``ar_phi`` and unit-variance innovations.
+    ar_phi : float, default 0.1
+        AR(1) coefficient when ``dist_epsilon="AR"``.
+    rng, seed
+        Generator (takes precedence) or seed.
+
+    Returns
+    -------
+    PIOIDSimSample
+        Treated outcome, ``W`` / ``Z`` blocks, ``T0``, and the truth.
+    """
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    if n_units < 5:
+        raise ValueError("n_units must be at least 5.")
+    if n_units % 2 == 0:
+        # The donor block width n_W = ceil(n_ctrl/2) must equal the factor count
+        # n_lam = floor(n_ctrl/2) for the shared diagonal loading to conform;
+        # that holds only for an even control count, i.e. an odd n_units. The
+        # reference grid is {5, 7, 11}.
+        raise ValueError("n_units must be odd (reference grid {5, 7, 11}).")
+    if t0 < 1:
+        raise ValueError("t0 must be positive.")
+
+    T = 2 * t0
+    n_ctrl = n_units - 1
+    n_Z = n_ctrl // 2
+    n_W = n_ctrl - n_Z
+    n_lam = (n_units - 1) // 2
+
+    if dist_lambda == "stationary":
+        lam = rng.normal(0.5, 0.5, size=(T, n_lam))
+    elif dist_lambda == "nonstationary":
+        lam = 0.5 * np.log(np.arange(1, T + 1))[:, None] + rng.normal(0.0, 0.5, size=(T, n_lam))
+    else:
+        raise ValueError("dist_lambda must be 'stationary' or 'nonstationary'.")
+
+    U_0 = 1.0 if u_setting == "constrained" else 1.5
+    ele = np.array([2.0] + [1.0] * (n_W - 1))
+    U_mat = np.diag(ele.sum() / ele)                       # (n_W, n_W) = (n_lam, n_lam)
+    U = np.vstack([np.full((1, n_W), U_0), U_mat, U_mat])  # (n_units, n_lam)
+
+    if dist_epsilon == "iid":
+        eps = rng.normal(0.0, sd, size=(n_units, T))
+    elif dist_epsilon == "AR":
+        innov = rng.standard_normal((n_units, T + 200))
+        eps_full = np.zeros_like(innov)
+        for t in range(1, T + 200):
+            eps_full[:, t] = ar_phi * eps_full[:, t - 1] + innov[:, t]
+        eps = eps_full[:, 200:]                            # drop burn-in
+    else:
+        raise ValueError("dist_epsilon must be 'iid' or 'AR'.")
+
+    Yall = U @ lam.T + eps                                 # (n_units, T)
+    X = (np.arange(T) >= t0).astype(float)
+    y = Yall[0] + true_att * X
+    Z = Yall[1:1 + n_Z].T                                  # (T, n_Z)
+    W = Yall[1 + n_Z:1 + n_Z + n_W].T                      # (T, n_W)
+    return PIOIDSimSample(
+        y=y,
+        donor_outcomes=W,
+        donor_proxies=Z,
+        T0=t0,
+        true_att=float(true_att),
+        n_units=int(n_units),
     )

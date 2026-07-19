@@ -15,6 +15,8 @@ CASES = {
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
+    "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)
+    "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs authors' synthdid R (Prop 99)
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
@@ -79,6 +81,7 @@ CASES = {
     "mlsc_bottmer": "benchmarks.cases.mlsc_bottmer",          # cross-val vs Bottmer's mlSC_estimator (skips if absent)
     "proximal_panic1907": "benchmarks.cases.proximal_panic1907",  # cross-val vs freshtaste/proximal (Panic 1907 Table 3)
     "proximal_germany_oid": "benchmarks.cases.proximal_germany_oid",  # cross-val vs authors' manuscript code (Shi et al. 2026 JASA): over-identified PI (PIOID) on German reunification, ATT + GMM CI value-for-value
+    "proximal_oid_mc": "benchmarks.cases.proximal_oid_mc",    # Path B: PIOID recovery + coverage + beats naive SC under error-in-variables donors (Shi et al. 2026 linear DGP; M=15k array core + full-.fit() equivalence guard)
     "spsc_ifem_mc": "benchmarks.cases.spsc_ifem_mc",          # Path B: SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
     "spsc_prop99": "benchmarks.cases.spsc_prop99",            # Path A/X: SPSC California (Prop 99) linear effect path vs qkrcks0218/SPSC
     "spsc_panic": "benchmarks.cases.spsc_panic",              # Path A/X: SPSC averaged-treated Panic of 1907 vs qkrcks0218/SPSC

@@ -28,7 +28,7 @@ import pytest
 _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
-    BFSC, BSCM, BVSS, CFM, CLUSTERSC, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
+    BFSC, BSCM, BVSS, CFM, CLUSTERSC, CSCIPCA, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
     MCNNM, MSQRT, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
@@ -80,6 +80,25 @@ def _make_compositional_panel(n_units=6, T=8, T0=5, n_treated=2, K=3, seed=1):
     return pd.DataFrame(rows)
 
 
+def _make_cscipca_panel(n_units=8, T=30, T0=20, L=3, K=2, seed=2):
+    """Instrumented-PCA panel with L covariate columns; unit 0 treated."""
+    rng = np.random.default_rng(seed)
+    F = rng.standard_normal((K, T))
+    X = rng.standard_normal((n_units, T, L))
+    Gamma = rng.uniform(-0.3, 0.3, (L, K))
+    Y = np.einsum("itl,lk,kt->it", X, Gamma, F) + 0.1 * rng.standard_normal((n_units, T))
+    Y[0, T0:] += 2.0
+    rows = []
+    for i in range(n_units):
+        for t in range(T):
+            row = {"unitid": f"u{i:02d}", "time": t, "y": float(Y[i, t]),
+                   "treat": int(i == 0 and t >= T0)}
+            for l in range(L):
+                row[f"x{l}"] = float(X[i, t, l])
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
 @pytest.fixture(scope="module")
 def panel_df():
     return _make_panel()
@@ -118,6 +137,9 @@ OBSERVATIONAL = [
     pytest.param(NSC, {"a": 0.0, "b": 0.0}, id="NSC"),
     pytest.param(FMA, {}, id="FMA"),
     pytest.param(CFM, {"n_factors": 1}, id="CFM"),
+    pytest.param(CSCIPCA, {"df": _make_cscipca_panel(),
+                           "covariates": ["x0", "x1", "x2"], "n_factors": 2,
+                           "inference": False}, id="CSCIPCA"),
     pytest.param(SDID, {}, id="SDID"),
     pytest.param(SequentialSDID, {"n_bootstrap": 20, "seed": 0}, id="SequentialSDID"),
     pytest.param(SSC, {}, id="SSC"),

@@ -7,6 +7,7 @@ except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
 from .estimators.tssc import TSSC ## Check
 from .estimators.fma import FMA ## Check
 from .estimators.cfm import CFM ## Check
+from .estimators.cscipca import CSCIPCA ## Check
 from .estimators.pda import PDA ## Check
 from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
@@ -106,6 +107,7 @@ __all__ = [
     "TSSC",
     "FMA",
     "CFM",
+    "CSCIPCA",
     "PDA",
     "FDID",
     "CLUSTERSC",
