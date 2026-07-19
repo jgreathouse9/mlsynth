@@ -131,6 +131,99 @@ def estimate_pi_overid(
     return counterfactual, alpha, se_tau
 
 
+def overid_j_test(
+    outcome_vector: np.ndarray,
+    design_matrix: np.ndarray,
+    instrument_matrix: np.ndarray,
+    num_pre_treatment_periods: int,
+    hac_truncation_lag: int,
+) -> Tuple[float, int, float]:
+    """Hansen (1982) J-test of the PIOID over-identifying restrictions.
+
+    PIOID identifies the outcome bridge from the pre-period moment conditions
+    ``E[U_t(omega)] = 0`` for ``t <= T0``, with
+    ``U_t(omega) = Z_t (Y_t - W_t' omega)`` (Shi et al. 2026, eq. 8): ``d =
+    n_instruments`` moments for ``p = n_donors`` weights. When ``d > p`` the
+    bridge is over-identified and the excess ``d - p`` restrictions are testable.
+    Under the null that every instrument is a valid proximal control (relevance
+    holds and the exclusion restriction ``E[Z_t epsilon_t] = 0`` is satisfied),
+
+    .. math::
+
+        J = T_0\\, \\bar m(\\hat\\omega)' \\hat S^{-1} \\bar m(\\hat\\omega)
+          \\;\\xrightarrow{d}\\; \\chi^2_{d-p},
+
+    where ``\\bar m(omega) = T0^{-1} Z_p'(Y_p - W_p omega)`` is the sample
+    moment, ``\\hat S`` is the Bartlett-HAC long-run covariance of the
+    per-period moments, and ``\\hat\\omega`` is the efficient two-step GMM
+    estimate under ``\\hat S^{-1}``. A small p-value is evidence that the
+    proximal identifying assumptions fail for at least one instrument -- a
+    specification / falsification check on proxy validity.
+
+    The test is defined only in the over-identified case; when ``d <= p`` (just-
+    or under-identified) there are no excess restrictions and ``(nan, 0, nan)``
+    is returned. ``nan`` is also returned if the HAC covariance or the GMM
+    projection is numerically singular.
+
+    Parameters
+    ----------
+    outcome_vector : np.ndarray
+        Treated outcome, shape ``(total_periods,)``.
+    design_matrix : np.ndarray
+        Donor outcomes ``W``, shape ``(total_periods, n_donors)``.
+    instrument_matrix : np.ndarray
+        Instrument-unit outcomes ``Z``, shape ``(total_periods, n_instruments)``.
+    num_pre_treatment_periods : int
+        Number of pre-treatment periods ``T0`` (the moments hold pre-treatment).
+    hac_truncation_lag : int
+        Bartlett/Newey-West bandwidth for the long-run moment covariance.
+
+    Returns
+    -------
+    j_stat : float
+        The J-statistic (``nan`` if not over-identified or numerically singular).
+    df : int
+        Degrees of freedom ``d - p`` (``0`` when not over-identified).
+    p_value : float
+        Upper-tail chi-square p-value (``nan`` if ``j_stat`` is ``nan``).
+    """
+    from scipy.stats import chi2
+
+    W = np.asarray(design_matrix, dtype=float)
+    Z = np.asarray(instrument_matrix, dtype=float)
+    Y = np.asarray(outcome_vector, dtype=float).ravel()
+    T0 = int(num_pre_treatment_periods)
+    Wp, Zp, Yp = W[:T0], Z[:T0], Y[:T0]
+    d, p = Zp.shape[1], Wp.shape[1]
+    df = d - p
+    if df <= 0:
+        return float("nan"), max(df, 0), float("nan")
+
+    WZ = Wp.T @ Zp                                # (p, d)
+    ZY = Zp.T @ Yp                                # (d,)
+    try:
+        # Preliminary one-step (identity-weight) estimate = the reported bridge.
+        alpha1 = np.linalg.solve(WZ @ WZ.T, WZ @ ZY)
+    except np.linalg.LinAlgError:  # pragma: no cover - defensive: rank-deficient W'Z
+        return float("nan"), df, float("nan")
+
+    g = Zp * (Yp - Wp @ alpha1)[:, None]         # (T0, d) per-period moments
+    S = hac(g, hac_truncation_lag)               # (d, d) long-run covariance
+    try:
+        S_inv = np.linalg.inv(S)
+        # Efficient two-step GMM estimate under S^{-1}.
+        A = WZ @ S_inv @ WZ.T                     # (p, p)
+        alpha2 = np.linalg.solve(A, WZ @ S_inv @ ZY)
+    except np.linalg.LinAlgError:  # pragma: no cover - defensive: singular moment cov
+        return float("nan"), df, float("nan")
+
+    m_bar = (Zp.T @ (Yp - Wp @ alpha2)) / T0     # (d,) sample moment
+    j_stat = float(T0 * (m_bar @ S_inv @ m_bar))
+    if not np.isfinite(j_stat) or j_stat < 0:  # pragma: no cover - defensive: non-finite J
+        return float("nan"), df, float("nan")
+    return j_stat, df, float(chi2.sf(j_stat, df))
+
+
 def _overid_joint_cov(
     Y: np.ndarray,
     W: np.ndarray,

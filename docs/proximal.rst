@@ -563,6 +563,55 @@ permutation-based constrained inference. The related conformal machinery for the
 single-proxy method (SPSC, [SPSC]_) and the doubly-robust proximal control
 ([DRProx]_) lives in the same package.
 
+Over-identification test (PIOID)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When the outcome bridge is instrumented by more proxies than donors
+(:math:`d = ` number of instruments :math:`>` :math:`p = ` number of donors)
+the ``PIOID`` GMM is over-identified: the pre-period moment conditions
+:math:`\mathbb{E}[U_t(\boldsymbol{\omega})] = 0`,
+:math:`U_t(\boldsymbol{\omega}) = Z_t\,(y_{1t} - W_t^\top \boldsymbol{\omega})`
+for :math:`t \le T_0` (Shi et al. [ProxSCM]_, eq. 8), impose :math:`d - p` more
+restrictions than parameters. Those excess restrictions are testable, and the
+Hansen ([Hansen1982]_) J-statistic tests them:
+
+.. math::
+
+   J = T_0\, \bar m(\widehat{\boldsymbol{\omega}})^\top \widehat S^{-1}
+       \bar m(\widehat{\boldsymbol{\omega}})
+     \;\xrightarrow{d}\; \chi^2_{d-p},
+
+where :math:`\bar m(\boldsymbol{\omega}) = T_0^{-1} \sum_{t \le T_0}
+U_t(\boldsymbol{\omega})` is the sample moment, :math:`\widehat S` is the
+Bartlett-HAC long-run covariance of the per-period moments, and
+:math:`\widehat{\boldsymbol{\omega}}` is the efficient two-step GMM estimate
+under :math:`\widehat S^{-1}`. Under the null every instrument is a valid
+proximal control -- relevant and satisfying the exclusion restriction
+:math:`\mathbb{E}[Z_t \epsilon_t] = 0`. A small p-value is evidence that the
+proximal identifying assumptions fail for at least one instrument, so the test
+is a falsification / specification check on proxy validity, the over-identified
+counterpart to the pre-period placebo the paper runs.
+
+The test is reported by default (``pioid_overid_test=True``) whenever the fit is
+unconstrained and strictly over-identified; it is left unset for the just-
+identified case (:math:`d = p`, no excess restrictions) and the constrained
+(cPI / ``pioid_simplex``) fit. The outputs sit on the PIOID fit as
+``overid_j_stat``, ``overid_j_df`` (:math:`= d - p`) and ``overid_j_pvalue``.
+
+The J-test carries its own moment bandwidth, ``pioid_overid_hac_lag``, separate
+from the ATT standard error's ``pioid_hac_lag``. The two objects want different
+bandwidths: the standard error uses a wide bandwidth (default :math:`10`) for
+conservative coverage, but the J-test wants one matched to the actual dependence
+of the moments. A bandwidth of :math:`0` -- the default -- is exactly calibrated
+under the paper's classical setting of independent errors, giving near-nominal
+size and the best power; a wide bandwidth over-smooths the moment covariance and
+pulls the test toward conservatism (loss of power). Raise it only to match
+genuine serial correlation in the moments. On the authors' own linear
+interactive-fixed-effects simulation (``shixu0830/SyntheticControl``), extended
+to over-identification, the default-bandwidth test has near-nominal size under
+valid proxies and clear power against an exclusion-violating proxy; see
+``benchmarks/cases/pioid_overid_jtest.py``.
+
 Assumptions
 -----------
 
@@ -1620,6 +1669,16 @@ Replication Status
    solver-invariant). This complements the
    just-identified PI cross-validation (``freshtaste/proximal``, Panic 1907) on a
    second dataset with the paper's own distinct-instrument-set configuration.
+
+   PIOID over-identification test (Path B) -- size and power. The Hansen J-test
+   of the over-identifying restrictions is validated on the authors' own linear
+   interactive-fixed-effects DGP (`shixu0830/SyntheticControl
+   <https://github.com/shixu0830/SyntheticControl>`_, ``generate.U`` /
+   ``run.one``), whose runs are just-identified and which is here extended with
+   extra valid proxies to exercise the excess restrictions. The durable case
+   ``pioid_overid_jtest`` confirms near-nominal size under valid proxies and
+   clear power against an exclusion-violating proxy, with the estimator
+   recovering ``true.beta = 2``.
 
    Per the project's replication contract
    (``agents/agents_estimators.md``), PROXIMAL is considered validated on

@@ -55,6 +55,8 @@ def prepare_proximal_inputs(
     pioid_band: bool = False,
     pioid_band_method: str = "gmm",
     pioid_band_level: float = 0.90,
+    pioid_overid_test: bool = True,
+    pioid_overid_hac_lag: int = 0,
 ) -> PROXIMALInputs:
     """Pivot a long panel into the typed inputs the PROXIMAL pipeline expects.
 
@@ -174,4 +176,6 @@ def prepare_proximal_inputs(
         pioid_band=pioid_band,
         pioid_band_method=pioid_band_method,
         pioid_band_level=pioid_band_level,
+        pioid_overid_test=pioid_overid_test,
+        pioid_overid_hac_lag=pioid_overid_hac_lag,
     )

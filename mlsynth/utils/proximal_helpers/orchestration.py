@@ -84,6 +84,18 @@ def _run_pioid(inputs: PROXIMALInputs) -> ProximalMethodFit:
         simplex=inputs.pioid_simplex,
     )
     fit = _build_fit(PIOID, inputs, cf, inputs.y - cf, se, alpha)
+    # Over-identification (Hansen J) test: a proxy-validity falsification check on
+    # the pre-period moments Z_t(Y_t - W_t omega). Only meaningful for the
+    # unconstrained GMM fit when strictly over-identified (more instruments than
+    # donors); its own bandwidth (default 0) is separate from the ATT-SE lag.
+    if inputs.pioid_overid_test and not inputs.pioid_simplex:
+        from .pi.overid import overid_j_test
+        j_stat, j_df, j_p = overid_j_test(
+            inputs.y, inputs.donor_outcomes, inputs.outcome_instruments,
+            inputs.T0, inputs.pioid_overid_hac_lag)
+        if j_df > 0:
+            fit = replace(fit, overid_j_stat=float(j_stat), overid_j_df=int(j_df),
+                          overid_j_pvalue=float(j_p))
     # Optional per-period counterfactual band (Shi et al. 2026 Section 3.2), for
     # the unconstrained GMM fit only (the simplex/cPI fit is inference-by-
     # permutation, no GMM band). Pre-period entries are left NaN.
