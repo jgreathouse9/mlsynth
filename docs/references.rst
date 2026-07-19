@@ -190,6 +190,14 @@ References
     Authors' replication code: https://github.com/KenLi93/proximal_sc_manuscript
 
 
+.. [Hansen1982]
+
+    Hansen, Lars Peter.
+    "Large Sample Properties of Generalized Method of Moments Estimators."
+    *Econometrica* 50, no. 4 (1982): 1029-1054.
+    DOI: https://doi.org/10.2307/1912775
+
+
 .. [ShiNegControl]
 
     Shi, Xu, Wang Miao, Jennifer C. Nelson, and Eric J. Tchetgen Tchetgen.

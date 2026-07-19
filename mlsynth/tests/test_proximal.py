@@ -179,6 +179,129 @@ def test_proximal_pioid_band_maps_to_time_series(
     assert ts.prediction_interval_kind is not None
 
 
+# --- PIOID over-identification (Hansen J) test ---------------------------------
+#
+# Validated against the authors' own linear interactive-fixed-effects DGP
+# (shixu0830/SyntheticControl, Simulation/myfunctions_LinearSetting.R): log-trend
+# factors ``log(1:t) + N(0, sd)``, identity control loadings, treated loads
+# all-ones, true.beta = 2. Their sim is just-identified (n.Z = n.W); we keep the
+# same factor/loading/error structure and add extra proxies to exercise the
+# over-identifying restrictions, and contaminate one proxy for the power check.
+
+def _authors_arrays(rng, m=3, n_proxy=6, t0=100, sd=1.0, dist="iid", ar=0.1, bad=0.0):
+    """One draw of the authors' linear IFEM setting -> (Y, W, Z, T0)."""
+    t = 2 * t0
+    lam = np.column_stack(
+        [np.log(np.arange(1, t + 1)) + rng.normal(0, sd, t) for _ in range(m)])
+
+    def err():
+        if dist == "iid":
+            return rng.normal(0, sd, t)
+        e = np.empty(t); e[0] = rng.normal()
+        for k in range(1, t):
+            e[k] = ar * e[k - 1] + rng.normal()
+        return e
+
+    eps_Y = err()
+    Y = lam.sum(axis=1) + eps_Y + 2.0 * (np.arange(t) >= t0)   # true.beta = 2
+    W = np.column_stack([lam[:, j] + err() for j in range(m)])
+    Z = np.column_stack(
+        [lam[:, i % m] + err() + (bad * eps_Y if i == 0 else 0.0)
+         for i in range(n_proxy)])
+    return Y, W, Z, t0
+
+
+def _authors_panel(m=2, n_proxy=4, t0=60, seed=0, bad=0.0):
+    """Same DGP as a long panel + (donor ids, instrument ids) for PROXIMAL."""
+    rng = np.random.default_rng(seed)
+    Y, W, Z, T0 = _authors_arrays(rng, m=m, n_proxy=n_proxy, t0=t0, bad=bad)
+    t = 2 * t0
+    cols = {"trt": Y}
+    for j in range(m):
+        cols[f"w{j}"] = W[:, j]
+    for j in range(n_proxy):
+        cols[f"z{j}"] = Z[:, j]
+    rows = [{"unit": u, "time": k, "y": s[k], "treat": int(u == "trt" and k >= T0)}
+            for u, s in cols.items() for k in range(t)]
+    return (pd.DataFrame(rows), [f"w{j}" for j in range(m)],
+            [f"z{j}" for j in range(n_proxy)])
+
+
+def _rej_rate(bad, n=250, seed=0, hac_lag=0, dist="iid"):
+    from mlsynth.utils.proximal_helpers.pi.overid import overid_j_test
+    rng = np.random.default_rng(seed)
+    pvals = np.array([
+        overid_j_test(*_authors_arrays(rng, dist=dist, bad=bad), hac_lag)[2]
+        for _ in range(n)])
+    return float(np.mean(pvals < 0.05)), float(np.nanmean(pvals))
+
+
+class TestPIOIDOveridJTest:
+    def test_df_equals_excess_moments(self) -> None:
+        from mlsynth.utils.proximal_helpers.pi.overid import overid_j_test
+        rng = np.random.default_rng(0)
+        Y, W, Z, T0 = _authors_arrays(rng, m=3, n_proxy=6)
+        J, df, p = overid_j_test(Y, W, Z, T0, 0)
+        assert df == 6 - 3                      # n_instruments - n_donors
+        assert np.isfinite(J) and 0.0 <= p <= 1.0
+
+    def test_just_identified_returns_nan(self) -> None:
+        from mlsynth.utils.proximal_helpers.pi.overid import overid_j_test
+        rng = np.random.default_rng(0)
+        Y, W, Z, T0 = _authors_arrays(rng, m=3, n_proxy=3)   # d == p
+        J, df, p = overid_j_test(Y, W, Z, T0, 0)
+        assert df == 0 and np.isnan(J) and np.isnan(p)
+
+    def test_size_controlled_valid_proxies(self) -> None:
+        # Valid over-identified proxies: rejection near nominal, p-values roughly
+        # uniform (mean ~ 0.5). lag 0 is the authors' classical i.i.d. setting.
+        rej, mean_p = _rej_rate(bad=0.0, seed=1)
+        assert rej < 0.15                       # not over-rejecting (true ~0.05)
+        assert mean_p > 0.35                     # p-values not piled near 0
+
+    def test_power_against_invalid_proxy(self) -> None:
+        # One proxy correlated with the treated error (exclusion violation).
+        rej, _ = _rej_rate(bad=1.5, seed=2)
+        assert rej > 0.45                        # clearly rejects (true ~0.75)
+
+    def test_size_controlled_under_ar_errors(self) -> None:
+        rej, _ = _rej_rate(bad=0.0, seed=3, dist="AR")
+        assert rej < 0.15
+
+    def test_pioid_surfaces_overid_j_test(self) -> None:
+        df, donors, instr = _authors_panel(m=2, n_proxy=4, seed=5)
+        res = PROXIMAL(_base(
+            df, outcome="y", treat="treat", unitid="unit", time="time",
+            donors=donors, methods=["PIOID"], outcome_instruments=instr)).fit()
+        p = res.pioid
+        assert p.overid_j_df == 4 - 2
+        assert np.isfinite(p.overid_j_stat) and 0.0 <= p.overid_j_pvalue <= 1.0
+
+    def test_just_identified_fit_has_no_j_test(self) -> None:
+        df, donors, instr = _authors_panel(m=2, n_proxy=2, seed=6)   # d == p
+        res = PROXIMAL(_base(
+            df, outcome="y", treat="treat", unitid="unit", time="time",
+            donors=donors, methods=["PIOID"], outcome_instruments=instr)).fit()
+        assert res.pioid.overid_j_stat is None
+        assert res.pioid.overid_j_df is None
+
+    def test_overid_test_toggle_off(self) -> None:
+        df, donors, instr = _authors_panel(m=2, n_proxy=4, seed=7)
+        res = PROXIMAL(_base(
+            df, outcome="y", treat="treat", unitid="unit", time="time",
+            donors=donors, methods=["PIOID"], outcome_instruments=instr,
+            pioid_overid_test=False)).fit()
+        assert res.pioid.overid_j_stat is None
+
+    def test_simplex_fit_has_no_j_test(self) -> None:
+        df, donors, instr = _authors_panel(m=2, n_proxy=4, seed=8)
+        res = PROXIMAL(_base(
+            df, outcome="y", treat="treat", unitid="unit", time="time",
+            donors=donors, methods=["PIOID"], outcome_instruments=instr,
+            pioid_simplex=True)).fit()
+        assert res.pioid.overid_j_stat is None
+
+
 def test_proximal_empty_result_is_valid_effect_result() -> None:
     """A container with no run variant stays a valid (empty) EffectResult
     rather than fabricating sub-models.

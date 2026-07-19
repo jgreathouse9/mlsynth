@@ -136,6 +136,8 @@ class PROXIMALInputs:
     pioid_band: bool = False
     pioid_band_method: str = "gmm"
     pioid_band_level: float = 0.90
+    pioid_overid_test: bool = True
+    pioid_overid_hac_lag: int = 0
 
     @property
     def has_surrogates(self) -> bool:
@@ -199,6 +201,12 @@ class ProximalMethodFit:
     counterfactual_upper: Optional[np.ndarray] = None
     band_level: Optional[float] = None
     band_kind: Optional[str] = None                     # e.g. "gmm" / "conformal"
+    # PIOID over-identification (Hansen J) test: proxy-validity falsification.
+    # Populated only for the unconstrained, strictly over-identified GMM fit
+    # (more instruments than donors); None otherwise.
+    overid_j_stat: Optional[float] = None
+    overid_j_df: Optional[int] = None
+    overid_j_pvalue: Optional[float] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
