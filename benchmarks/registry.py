@@ -19,6 +19,7 @@ CASES = {
     "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)
     "medsc_prop99": "benchmarks.cases.medsc_prop99",    # Path A: Mellace-Pasquini 2022 Prop99 mediation, cross-world direct effect (1995/2000 = -16.8/-18.0) + negative growing indirect price channel
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs authors' synthdid R (Prop 99)
+    "sdid_ddd_hpv": "benchmarks.cases.sdid_ddd_hpv",    # Path A: SDID synthetic triple difference (Zhuang 2024) on Virginia HPV mandate (Feldman-Semprini 2026); SC-DDD +1.559 / naive SC-DD +0.252 vs Stata sdid
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "spsydid_lawa_diff": "benchmarks.cases.spsydid_lawa_diff",  # differential cross-val vs authors' functions_ssdid on the real Arizona LAWA CPS panel (SpSyDiD.fit() ATT + spillover agree to solver tolerance under canonical convention)

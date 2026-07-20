@@ -34,6 +34,12 @@ slices, plus a larger raw-state pool:
 | `prop99_packsales.csv`, `prop99_with_dc.csv` | a *larger* state pool, `cigsale` only (`with_dc` adds DC) | SI / SpillSynth / TASC cases |
 | `prop99_mediation.csv` | 51-state balanced panel (all 50 states + DC), `cigsale` + `price` (tax-inclusive average cost per pack), from the CDC / Orzechowski-Walker Tax Burden on Tobacco file; carries the seven high-tax states the curated pool drops, so the mediator-matched (cross-world) pool can span California's post-treatment price | MEDSC Prop 99 mediation replication |
 
+## Virginia HPV vaccine mandate — Feldman & Semprini (2026)
+
+| File | What it is | Used by |
+|---|---|---|
+| `hpv_cervical_ddd.csv` | 39-state × 17-year (2003–2019) panel of age-adjusted cervical-cancer incidence (`cervix_adj`) by 5-year `age` band (20–24 + 30–49), from public NPCR/SEER via the authors' repo `jsemprini/Virginia_HPVmandate_causal`; the `age` dimension is the subgroup for the synthetic triple difference (20–24 exposed, older bands control) | SDID synthetic-triple-difference (SC-DDD) replication |
+
 ## German reunification — Abadie, Diamond & Hainmueller (2015)
 
 The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depths:

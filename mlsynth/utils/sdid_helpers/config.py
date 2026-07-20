@@ -6,10 +6,11 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
+from ...exceptions import MlsynthConfigError
 
 
 class SDIDConfig(BaseEstimatorConfig):
@@ -19,6 +20,11 @@ class SDIDConfig(BaseEstimatorConfig):
     with the event-study aggregation of Ciccia (2024, arXiv:2407.09565).
     Inherits the standard ``df`` / ``outcome`` / ``treat`` / ``unitid`` /
     ``time`` panel-data interface from :class:`BaseEstimatorConfig`.
+
+    Setting ``subgroup`` switches on the synthetic triple-difference (SC-DDD)
+    mode of Zhuang (2024, arXiv:2409.12353): the outcome is demeaned by the
+    non-target subgroup within each treatment-group-by-time cell, reducing the
+    triple difference to a difference-in-differences that SDID then estimates.
     """
 
     vce: Literal["placebo", "jackknife", "bootstrap", "noinference"] = Field(
@@ -59,3 +65,50 @@ class SDIDConfig(BaseEstimatorConfig):
             "pre-period. The point estimate and inference are unaffected either way."
         ),
     )
+    subgroup: Optional[str] = Field(
+        default=None,
+        description=(
+            "Synthetic triple-difference (SC-DDD) mode, Zhuang (2024, "
+            "arXiv:2409.12353). Column naming a within-unit subgroup dimension "
+            "(e.g. an age band). When set, the outcome is demeaned by the "
+            "non-target subgroup within each treatment-group-by-time cell -- "
+            "reducing the triple difference to a difference-in-differences -- and "
+            "SDID is run on the transformed outcome over the target subgroup. "
+            "Requires ``target_subgroup``. None (default) -> ordinary SDID."
+        ),
+    )
+    target_subgroup: Optional[Any] = Field(
+        default=None,
+        description=(
+            "SC-DDD mode: the value of the ``subgroup`` column identifying the "
+            "policy-exposed (target) subgroup whose effect is estimated; all "
+            "other subgroup values are the non-target controls that are demeaned "
+            "out. Required when ``subgroup`` is set."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _check_ddd(self) -> "SDIDConfig":
+        if self.subgroup is None:
+            if self.target_subgroup is not None:
+                raise MlsynthConfigError(
+                    "target_subgroup is set but subgroup is not; provide both to "
+                    "enable SC-DDD mode, or neither for ordinary SDID.")
+            return self
+        if self.subgroup not in self.df.columns:
+            raise MlsynthConfigError(
+                f"subgroup column '{self.subgroup}' is not in df.")
+        if self.target_subgroup is None:
+            raise MlsynthConfigError(
+                "SC-DDD mode requires target_subgroup (the exposed subgroup value) "
+                "when subgroup is set.")
+        col = self.df[self.subgroup]
+        if not (col == self.target_subgroup).any():
+            raise MlsynthConfigError(
+                f"target_subgroup {self.target_subgroup!r} does not appear in "
+                f"column '{self.subgroup}'.")
+        if (col != self.target_subgroup).sum() == 0:
+            raise MlsynthConfigError(
+                f"column '{self.subgroup}' has no non-target rows to demean by; "
+                "SC-DDD needs at least one non-target subgroup value.")
+        return self

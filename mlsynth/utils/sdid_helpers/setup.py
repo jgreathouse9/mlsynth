@@ -19,6 +19,91 @@ from ..datautils import balance, dataprep
 from .structures import SDIDInputs
 
 
+def apply_ddd_transform(
+    df: pd.DataFrame,
+    outcome: str,
+    treat: str,
+    unitid: str,
+    time: str,
+    subgroup: str,
+    target_subgroup: Any,
+):
+    """Zhuang (2024) triple-difference-to-DID transform for SC-DDD mode.
+
+    Demeans the outcome by the non-target subgroup within each
+    treatment-group-by-time cell and returns a reduced ``(unit, time)`` panel
+    over the target subgroup, ready for the ordinary SDID pipeline.
+
+    For each row the transformed outcome is
+
+    .. math::
+
+        W_{it} = Y_{it} - \\bar Y_{\\text{non-target},\\, g(i),\\, t},
+
+    where :math:`g(i)` is the unit's treatment-group indicator (1 if the unit is
+    ever treated, 0 otherwise) and :math:`\\bar Y_{\\text{non-target}, g, t}` is
+    the mean outcome over the non-target subgroup rows in that
+    group-by-time cell (Zhuang 2024, eq. 10-12). A difference-in-differences on
+    :math:`W` over the target subgroup identifies the triple-difference effect,
+    so SDID applied to :math:`W` yields the synthetic triple difference.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Long panel with a ``subgroup`` column (unit x subgroup x time).
+    outcome, treat, unitid, time : str
+        Column names. ``outcome`` must be numeric.
+    subgroup : str
+        Column naming the within-unit subgroup dimension.
+    target_subgroup : Any
+        Value of ``subgroup`` identifying the policy-exposed subgroup.
+
+    Returns
+    -------
+    (pd.DataFrame, str)
+        The reduced ``(unitid, time, treat, <outcome>__ddd)`` panel over the
+        target subgroup, and the transformed-outcome column name.
+
+    Raises
+    ------
+    MlsynthDataError
+        If the outcome is non-numeric, a treatment-group-by-time cell has no
+        non-target rows to demean by, or the target subgroup is not unique per
+        ``(unit, time)``.
+    """
+    d = df.copy()
+    y = pd.to_numeric(d[outcome], errors="coerce")
+    if y.isna().any():
+        raise MlsynthDataError(
+            f"SC-DDD: outcome '{outcome}' has non-numeric or missing values; "
+            "the demeaning transform needs a numeric outcome.")
+    d[outcome] = y.to_numpy()
+
+    # Treatment-group indicator g(i): 1 for units ever treated, else 0.
+    d["_ddd_grp"] = (d.groupby(unitid)[treat].transform("max") > 0).astype(int)
+
+    non_target = d[d[subgroup] != target_subgroup]
+    nt_mean = (non_target.groupby(["_ddd_grp", time])[outcome].mean()
+               .rename("_ddd_nt").reset_index())
+    d = d.merge(nt_mean, on=["_ddd_grp", time], how="left")
+
+    target = d[d[subgroup] == target_subgroup].copy()
+    if target.duplicated([unitid, time]).any():
+        raise MlsynthDataError(
+            f"SC-DDD: target subgroup {target_subgroup!r} is not unique per "
+            f"({unitid}, {time}); each unit-time must have a single target row.")
+    if target["_ddd_nt"].isna().any():
+        raise MlsynthDataError(
+            "SC-DDD: some treatment-group-by-time cells have no non-target rows "
+            "to demean by; the transform is undefined there.")
+
+    new_outcome = f"{outcome}__ddd"
+    target[new_outcome] = target[outcome] - target["_ddd_nt"]
+    reduced = (target[[unitid, time, treat, new_outcome]]
+               .sort_values([unitid, time]).reset_index(drop=True))
+    return reduced, new_outcome
+
+
 def prepare_sdid_inputs(
     df: pd.DataFrame,
     outcome: str,

@@ -525,6 +525,73 @@ Helper Modules
    :members:
    :undoc-members:
 
+Synthetic triple difference (SC-DDD)
+------------------------------------
+
+Sometimes a plain difference across states is not enough. The treatment may
+also be defined by a subgroup: in Virginia's 2008 HPV vaccine mandate, only the
+adolescents who later aged into the 20-24 band were exposed, while older age
+bands in the same state were not. A triple difference (DDD) compares the treated
+state to control states and, within each state, the exposed subgroup to the
+unexposed one. When parallel trends is doubtful across all three dimensions
+(state, time, and subgroup), one wants the synthetic-control machinery applied
+to that triple difference. This is the synthetic triple difference of Zhuang
+([Zhuang2024]_).
+
+The idea is a change of variable that reduces the triple difference to a
+difference-in-differences. For each unit in the exposed (target) subgroup, the
+outcome is demeaned by the non-target subgroup within the same
+treatment-group-by-time cell,
+
+.. math::
+
+   W_{it} = Y_{it} - \bar Y_{\text{non-target},\, g(i),\, t},
+
+where :math:`g(i)` is the unit's treatment-group indicator (1 if the unit is
+ever treated, 0 otherwise) and :math:`\bar Y_{\text{non-target},\,g,\,t}` is the
+mean outcome over the non-target subgroup rows in that group-by-time cell
+(Zhuang 2024, following Olden and Møen 2022, who show a triple difference needs
+only one parallel-trends assumption). A difference-in-differences on :math:`W`
+recovers the triple-difference effect, so running SDID on :math:`W` over the
+target subgroup gives the synthetic triple difference -- the counterfactual is a
+weighted combination of control states rather than a parallel-trends
+extrapolation.
+
+To switch this on, pass ``subgroup`` (the column naming the subgroup dimension)
+and ``target_subgroup`` (the exposed value). The panel is then
+``unit x subgroup x time``; SDID computes :math:`W` and collapses to the usual
+``unit x time`` panel over the target subgroup. Everything else -- unit and time
+weights, placebo inference, the event study -- is unchanged, and
+``method_details.method_name`` reports ``"SDID-DDD"``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SDID
+
+   # Virginia HPV mandate: age 20-24 is the exposed subgroup, older bands are
+   # the within-state controls; Virginia treated from 2016 (Feldman & Semprini).
+   df = pd.read_csv(
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/hpv_cervical_ddd.csv"
+   )
+   df["treated"] = ((df["state"] == "Virginia") & (df["year"] >= 2016)
+                    & (df["age"] == "20-24")).astype(int)
+
+   res = SDID({
+       "df": df, "outcome": "cervix_adj", "treat": "treated",
+       "unitid": "state", "time": "year",
+       "subgroup": "age", "target_subgroup": "20-24",
+       "display_graphs": False,
+   }).fit()
+   res.effects.att                       # +1.559 (SC-DDD)
+
+Reach for the SC-DDD mode when the exposure has a within-unit subgroup structure
+and you distrust parallel trends across the extra dimension; keep the ordinary
+SDID (no ``subgroup``) when the treated/control split across units is all you
+need. The transform needs at least one non-target subgroup value in every
+treatment-group-by-time cell to demean by.
+
 Example
 -------
 
@@ -626,3 +693,11 @@ Difference-in-Differences Estimators." `arXiv:2407.09565
 
 Clarke, D., Pailanir, D., Athey, S., & Imbens, G. (2023). "Synthetic
 difference in differences estimation." arXiv preprint.
+
+.. [Zhuang2024] Zhuang, C. C. (2024). "A Way to Synthetic Triple
+   Difference." `arXiv:2409.12353 <https://arxiv.org/abs/2409.12353>`_.
+   The synthetic triple-difference construction behind SDID's ``subgroup``
+   / SC-DDD mode; applied to Virginia's HPV vaccine mandate by Feldman &
+   Semprini (2026), *Journal of Cancer Policy* 49:100777, whose SC-DDD
+   estimate (+1.559) mlsynth reproduces
+   (``benchmarks/cases/sdid_ddd_hpv.py``; see :doc:`replications/sdid`).

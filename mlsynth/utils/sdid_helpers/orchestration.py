@@ -24,7 +24,7 @@ from ...config_models import (
     WeightsResults,
 )
 from .event_study import estimate_event_study_sdid
-from .setup import prepare_sdid_inputs
+from .setup import apply_ddd_transform, prepare_sdid_inputs
 from .structures import (
     SDIDCohort,
     SDIDEventEffect,
@@ -119,7 +119,8 @@ def _donor_weight_map(inputs: SDIDInputs, cohorts: Dict[int, SDIDCohort]):
 
 
 def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any],
-                     intercept_adjust: bool = False) -> SDIDResults:
+                     intercept_adjust: bool = False,
+                     method_name: str = "SDID") -> SDIDResults:
     """Wrap the raw dict from ``estimate_event_study_sdid`` into typed objects."""
 
     # Pooled event-study estimator (Equation 6).
@@ -219,7 +220,7 @@ def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any],
             summary_stats={"constraint": "SDID unit + time weights (per cohort)"}),
         fit_diagnostics=FitDiagnosticsResults(rmse_pre=pre_rmse),
         inference=std_inference,
-        method_details=MethodDetailsResults(method_name="SDID", is_recommended=True),
+        method_details=MethodDetailsResults(method_name=method_name, is_recommended=True),
     )
 
 
@@ -233,8 +234,23 @@ def run_sdid(
     seed: int = 1400,
     vce: str = "placebo",
     intercept_adjust: bool = False,
+    subgroup=None,
+    target_subgroup=None,
 ) -> SDIDResults:
-    """End-to-end SDID pipeline producing a typed ``SDIDResults`` object."""
+    """End-to-end SDID pipeline producing a typed ``SDIDResults`` object.
+
+    When ``subgroup`` is given, the outcome is first transformed by the Zhuang
+    (2024) triple-difference-to-DID demeaning (:func:`apply_ddd_transform`) and
+    SDID is run on the transformed outcome over the target subgroup -- the
+    synthetic triple difference (SC-DDD).
+    """
+
+    method_name = "SDID"
+    if subgroup is not None:
+        df, outcome = apply_ddd_transform(
+            df=df, outcome=outcome, treat=treat, unitid=unitid, time=time,
+            subgroup=subgroup, target_subgroup=target_subgroup)
+        method_name = "SDID-DDD"
 
     inputs = prepare_sdid_inputs(
         df=df, outcome=outcome, treat=treat, unitid=unitid, time=time
@@ -246,4 +262,5 @@ def run_sdid(
         vce=vce,
     )
     return assemble_results(inputs=inputs, raw=raw,
-                            intercept_adjust=intercept_adjust)
+                            intercept_adjust=intercept_adjust,
+                            method_name=method_name)

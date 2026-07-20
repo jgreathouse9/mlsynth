@@ -1,0 +1,3316 @@
+state,year,age,cervix_adj
+Alabama,2003,20-24,0.0
+Alabama,2004,20-24,2.44
+Alabama,2005,20-24,0.61
+Alabama,2006,20-24,1.23
+Alabama,2007,20-24,0.61
+Alabama,2008,20-24,0.0
+Alabama,2009,20-24,3.01
+Alabama,2010,20-24,1.77
+Alabama,2011,20-24,1.15
+Alabama,2012,20-24,2.25
+Alabama,2013,20-24,1.12
+Alabama,2014,20-24,0.56
+Alabama,2015,20-24,0.58
+Alabama,2016,20-24,1.78
+Alabama,2017,20-24,0.6
+Alabama,2018,20-24,0.61
+Alabama,2019,20-24,0.61
+Alabama,2003,30-34,12.42
+Alabama,2004,30-34,13.15
+Alabama,2005,30-34,14.05
+Alabama,2006,30-34,10.92
+Alabama,2007,30-34,12.36
+Alabama,2008,30-34,13.66
+Alabama,2009,30-34,16.12
+Alabama,2010,30-34,11.82
+Alabama,2011,30-34,12.89
+Alabama,2012,30-34,12.13
+Alabama,2013,30-34,11.42
+Alabama,2014,30-34,13.92
+Alabama,2015,30-34,13.34
+Alabama,2016,30-34,17.81
+Alabama,2017,30-34,14.65
+Alabama,2018,30-34,10.75
+Alabama,2019,30-34,16.16
+Alabama,2003,35-39,12.54
+Alabama,2004,35-39,18.61
+Alabama,2005,35-39,16.82
+Alabama,2006,35-39,14.0
+Alabama,2007,35-39,23.26
+Alabama,2008,35-39,12.5
+Alabama,2009,35-39,14.42
+Alabama,2010,35-39,19.16
+Alabama,2011,35-39,16.43
+Alabama,2012,35-39,21.21
+Alabama,2013,35-39,15.92
+Alabama,2014,35-39,12.5
+Alabama,2015,35-39,14.28
+Alabama,2016,35-39,21.69
+Alabama,2017,35-39,24.01
+Alabama,2018,35-39,11.27
+Alabama,2019,35-39,19.92
+Alabama,2003,40-44,17.08
+Alabama,2004,40-44,14.87
+Alabama,2005,40-44,14.43
+Alabama,2006,40-44,16.39
+Alabama,2007,40-44,20.97
+Alabama,2008,40-44,22.11
+Alabama,2009,40-44,15.67
+Alabama,2010,40-44,11.34
+Alabama,2011,40-44,16.81
+Alabama,2012,40-44,17.89
+Alabama,2013,40-44,13.53
+Alabama,2014,40-44,21.71
+Alabama,2015,40-44,24.67
+Alabama,2016,40-44,20.21
+Alabama,2017,40-44,21.72
+Alabama,2018,40-44,21.74
+Alabama,2019,40-44,26.12
+Alabama,2003,45-49,17.3
+Alabama,2004,45-49,13.11
+Alabama,2005,45-49,13.01
+Alabama,2006,45-49,14.51
+Alabama,2007,45-49,15.1
+Alabama,2008,45-49,15.12
+Alabama,2009,45-49,17.42
+Alabama,2010,45-49,13.57
+Alabama,2011,45-49,13.88
+Alabama,2012,45-49,23.77
+Alabama,2013,45-49,16.46
+Alabama,2014,45-49,19.94
+Alabama,2015,45-49,18.81
+Alabama,2016,45-49,19.83
+Alabama,2017,45-49,14.73
+Alabama,2018,45-49,12.24
+Alabama,2019,45-49,18.49
+Arizona,2003,20-24,3.57
+Arizona,2004,20-24,1.01
+Arizona,2005,20-24,0.0
+Arizona,2006,20-24,1.49
+Arizona,2007,20-24,0.0
+Arizona,2008,20-24,0.96
+Arizona,2009,20-24,1.9
+Arizona,2010,20-24,1.4
+Arizona,2011,20-24,1.35
+Arizona,2012,20-24,1.31
+Arizona,2013,20-24,1.3
+Arizona,2014,20-24,1.29
+Arizona,2015,20-24,0.0
+Arizona,2016,20-24,0.88
+Arizona,2017,20-24,0.0
+Arizona,2018,20-24,0.0
+Arizona,2019,20-24,0.0
+Arizona,2003,30-34,9.06
+Arizona,2004,30-34,13.23
+Arizona,2005,30-34,14.13
+Arizona,2006,30-34,13.47
+Arizona,2007,30-34,9.73
+Arizona,2008,30-34,10.1
+Arizona,2009,30-34,8.43
+Arizona,2010,30-34,9.26
+Arizona,2011,30-34,5.76
+Arizona,2012,30-34,9.01
+Arizona,2013,30-34,8.89
+Arizona,2014,30-34,9.28
+Arizona,2015,30-34,7.89
+Arizona,2016,30-34,11.09
+Arizona,2017,30-34,8.76
+Arizona,2018,30-34,12.78
+Arizona,2019,30-34,9.34
+Arizona,2003,35-39,18.18
+Arizona,2004,35-39,17.09
+Arizona,2005,35-39,15.08
+Arizona,2006,35-39,17.0
+Arizona,2007,35-39,14.12
+Arizona,2008,35-39,12.04
+Arizona,2009,35-39,15.92
+Arizona,2010,35-39,11.73
+Arizona,2011,35-39,11.99
+Arizona,2012,35-39,14.51
+Arizona,2013,35-39,11.95
+Arizona,2014,35-39,7.89
+Arizona,2015,35-39,14.08
+Arizona,2016,35-39,11.86
+Arizona,2017,35-39,15.81
+Arizona,2018,35-39,10.49
+Arizona,2019,35-39,12.58
+Arizona,2003,40-44,16.48
+Arizona,2004,40-44,11.78
+Arizona,2005,40-44,14.51
+Arizona,2006,40-44,17.87
+Arizona,2007,40-44,16.59
+Arizona,2008,40-44,10.35
+Arizona,2009,40-44,15.45
+Arizona,2010,40-44,16.87
+Arizona,2011,40-44,16.57
+Arizona,2012,40-44,15.92
+Arizona,2013,40-44,12.55
+Arizona,2014,40-44,13.56
+Arizona,2015,40-44,19.06
+Arizona,2016,40-44,14.84
+Arizona,2017,40-44,9.87
+Arizona,2018,40-44,13.7
+Arizona,2019,40-44,14.95
+Arizona,2003,45-49,8.51
+Arizona,2004,45-49,17.61
+Arizona,2005,45-49,14.45
+Arizona,2006,45-49,15.41
+Arizona,2007,45-49,15.11
+Arizona,2008,45-49,15.44
+Arizona,2009,45-49,13.95
+Arizona,2010,45-49,13.57
+Arizona,2011,45-49,11.49
+Arizona,2012,45-49,15.13
+Arizona,2013,45-49,14.37
+Arizona,2014,45-49,13.99
+Arizona,2015,45-49,18.31
+Arizona,2016,45-49,11.6
+Arizona,2017,45-49,11.46
+Arizona,2018,45-49,9.5
+Arizona,2019,45-49,14.68
+Arkansas,2003,20-24,1.02
+Arkansas,2004,20-24,0.0
+Arkansas,2005,20-24,2.06
+Arkansas,2006,20-24,0.0
+Arkansas,2007,20-24,0.0
+Arkansas,2008,20-24,2.07
+Arkansas,2009,20-24,1.02
+Arkansas,2010,20-24,0.0
+Arkansas,2011,20-24,2.92
+Arkansas,2012,20-24,0.96
+Arkansas,2013,20-24,1.91
+Arkansas,2014,20-24,0.0
+Arkansas,2015,20-24,0.0
+Arkansas,2016,20-24,0.0
+Arkansas,2017,20-24,0.0
+Arkansas,2018,20-24,2.05
+Arkansas,2019,20-24,1.03
+Arkansas,2003,30-34,21.53
+Arkansas,2004,30-34,13.66
+Arkansas,2005,30-34,17.2
+Arkansas,2006,30-34,16.22
+Arkansas,2007,30-34,17.46
+Arkansas,2008,30-34,25.25
+Arkansas,2009,30-34,16.78
+Arkansas,2010,30-34,22.83
+Arkansas,2011,30-34,8.51
+Arkansas,2012,30-34,15.76
+Arkansas,2013,30-34,18.78
+Arkansas,2014,30-34,17.72
+Arkansas,2015,30-34,18.87
+Arkansas,2016,30-34,10.54
+Arkansas,2017,30-34,11.62
+Arkansas,2018,30-34,13.75
+Arkansas,2019,30-34,12.57
+Arkansas,2003,35-39,18.36
+Arkansas,2004,35-39,22.15
+Arkansas,2005,35-39,21.15
+Arkansas,2006,35-39,18.57
+Arkansas,2007,35-39,16.21
+Arkansas,2008,35-39,21.5
+Arkansas,2009,35-39,23.69
+Arkansas,2010,35-39,19.6
+Arkansas,2011,35-39,9.99
+Arkansas,2012,35-39,13.45
+Arkansas,2013,35-39,15.63
+Arkansas,2014,35-39,21.06
+Arkansas,2015,35-39,15.25
+Arkansas,2016,35-39,16.0
+Arkansas,2017,35-39,7.38
+Arkansas,2018,35-39,17.75
+Arkansas,2019,35-39,9.35
+Arkansas,2003,40-44,18.76
+Arkansas,2004,40-44,22.53
+Arkansas,2005,40-44,19.69
+Arkansas,2006,40-44,16.99
+Arkansas,2007,40-44,23.5
+Arkansas,2008,40-44,21.07
+Arkansas,2009,40-44,20.6
+Arkansas,2010,40-44,26.21
+Arkansas,2011,40-44,18.29
+Arkansas,2012,40-44,26.65
+Arkansas,2013,40-44,22.37
+Arkansas,2014,40-44,22.57
+Arkansas,2015,40-44,19.63
+Arkansas,2016,40-44,17.9
+Arkansas,2017,40-44,20.25
+Arkansas,2018,40-44,20.23
+Arkansas,2019,40-44,22.29
+Arkansas,2003,45-49,15.15
+Arkansas,2004,45-49,22.09
+Arkansas,2005,45-49,17.84
+Arkansas,2006,45-49,20.5
+Arkansas,2007,45-49,17.57
+Arkansas,2008,45-49,16.42
+Arkansas,2009,45-49,22.97
+Arkansas,2010,45-49,21.21
+Arkansas,2011,45-49,22.8
+Arkansas,2012,45-49,22.49
+Arkansas,2013,45-49,16.92
+Arkansas,2014,45-49,19.65
+Arkansas,2015,45-49,23.15
+Arkansas,2016,45-49,18.51
+Arkansas,2017,45-49,14.05
+Arkansas,2018,45-49,25.88
+Arkansas,2019,45-49,22.76
+California,2003,20-24,0.8
+California,2004,20-24,1.11
+California,2005,20-24,1.74
+California,2006,20-24,1.51
+California,2007,20-24,1.66
+California,2008,20-24,1.48
+California,2009,20-24,1.3
+California,2010,20-24,1.27
+California,2011,20-24,0.87
+California,2012,20-24,0.86
+California,2013,20-24,0.85
+California,2014,20-24,0.93
+California,2015,20-24,0.8
+California,2016,20-24,1.04
+California,2017,20-24,0.38
+California,2018,20-24,0.61
+California,2019,20-24,0.24
+California,2003,30-34,9.86
+California,2004,30-34,10.78
+California,2005,30-34,10.13
+California,2006,30-34,9.96
+California,2007,30-34,9.8
+California,2008,30-34,13.43
+California,2009,30-34,8.57
+California,2010,30-34,9.81
+California,2011,30-34,9.24
+California,2012,30-34,11.56
+California,2013,30-34,8.3
+California,2014,30-34,9.05
+California,2015,30-34,8.82
+California,2016,30-34,10.4
+California,2017,30-34,12.08
+California,2018,30-34,10.63
+California,2019,30-34,11.75
+California,2003,35-39,11.46
+California,2004,35-39,13.26
+California,2005,35-39,15.35
+California,2006,35-39,14.59
+California,2007,35-39,14.2
+California,2008,35-39,14.6
+California,2009,35-39,13.77
+California,2010,35-39,12.44
+California,2011,35-39,11.38
+California,2012,35-39,13.4
+California,2013,35-39,12.08
+California,2014,35-39,11.67
+California,2015,35-39,12.41
+California,2016,35-39,13.85
+California,2017,35-39,13.46
+California,2018,35-39,14.79
+California,2019,35-39,13.21
+California,2003,40-44,17.48
+California,2004,40-44,15.05
+California,2005,40-44,14.32
+California,2006,40-44,17.55
+California,2007,40-44,16.92
+California,2008,40-44,14.71
+California,2009,40-44,14.56
+California,2010,40-44,15.4
+California,2011,40-44,13.71
+California,2012,40-44,14.36
+California,2013,40-44,13.57
+California,2014,40-44,12.33
+California,2015,40-44,15.2
+California,2016,40-44,14.97
+California,2017,40-44,13.76
+California,2018,40-44,14.34
+California,2019,40-44,14.88
+California,2003,45-49,15.14
+California,2004,45-49,14.01
+California,2005,45-49,14.25
+California,2006,45-49,12.76
+California,2007,45-49,17.06
+California,2008,45-49,14.59
+California,2009,45-49,14.04
+California,2010,45-49,14.14
+California,2011,45-49,14.58
+California,2012,45-49,13.11
+California,2013,45-49,12.58
+California,2014,45-49,13.15
+California,2015,45-49,13.78
+California,2016,45-49,12.96
+California,2017,45-49,12.73
+California,2018,45-49,14.94
+California,2019,45-49,14.8
+Colorado,2003,20-24,2.5
+Colorado,2004,20-24,1.24
+Colorado,2005,20-24,1.85
+Colorado,2006,20-24,1.83
+Colorado,2007,20-24,2.45
+Colorado,2008,20-24,1.22
+Colorado,2009,20-24,2.42
+Colorado,2010,20-24,2.39
+Colorado,2011,20-24,1.76
+Colorado,2012,20-24,0.58
+Colorado,2013,20-24,0.57
+Colorado,2014,20-24,0.56
+Colorado,2015,20-24,0.0
+Colorado,2016,20-24,1.12
+Colorado,2017,20-24,0.56
+Colorado,2018,20-24,0.56
+Colorado,2019,20-24,0.0
+Colorado,2003,30-34,10.12
+Colorado,2004,30-34,6.63
+Colorado,2005,30-34,9.21
+Colorado,2006,30-34,9.94
+Colorado,2007,30-34,9.25
+Colorado,2008,30-34,12.11
+Colorado,2009,30-34,7.7
+Colorado,2010,30-34,5.76
+Colorado,2011,30-34,6.14
+Colorado,2012,30-34,7.05
+Colorado,2013,30-34,7.4
+Colorado,2014,30-34,12.94
+Colorado,2015,30-34,10.61
+Colorado,2016,30-34,6.42
+Colorado,2017,30-34,9.24
+Colorado,2018,30-34,8.59
+Colorado,2019,30-34,9.36
+Colorado,2003,35-39,8.45
+Colorado,2004,35-39,15.33
+Colorado,2005,35-39,13.34
+Colorado,2006,35-39,17.78
+Colorado,2007,35-39,11.01
+Colorado,2008,35-39,10.91
+Colorado,2009,35-39,16.75
+Colorado,2010,35-39,13.47
+Colorado,2011,35-39,8.92
+Colorado,2012,35-39,10.05
+Colorado,2013,35-39,8.13
+Colorado,2014,35-39,10.2
+Colorado,2015,35-39,12.03
+Colorado,2016,35-39,11.07
+Colorado,2017,35-39,11.25
+Colorado,2018,35-39,11.42
+Colorado,2019,35-39,11.2
+Colorado,2003,40-44,11.16
+Colorado,2004,40-44,12.35
+Colorado,2005,40-44,9.81
+Colorado,2006,40-44,16.22
+Colorado,2007,40-44,16.66
+Colorado,2008,40-44,7.62
+Colorado,2009,40-44,10.04
+Colorado,2010,40-44,14.03
+Colorado,2011,40-44,13.75
+Colorado,2012,40-44,9.05
+Colorado,2013,40-44,12.96
+Colorado,2014,40-44,12.5
+Colorado,2015,40-44,11.45
+Colorado,2016,40-44,13.31
+Colorado,2017,40-44,15.56
+Colorado,2018,40-44,15.24
+Colorado,2019,40-44,9.93
+Colorado,2003,45-49,12.2
+Colorado,2004,45-49,11.57
+Colorado,2005,45-49,14.07
+Colorado,2006,45-49,13.33
+Colorado,2007,45-49,11.65
+Colorado,2008,45-49,10.04
+Colorado,2009,45-49,9.0
+Colorado,2010,45-49,10.25
+Colorado,2011,45-49,8.36
+Colorado,2012,45-49,9.74
+Colorado,2013,45-49,10.52
+Colorado,2014,45-49,11.2
+Colorado,2015,45-49,12.21
+Colorado,2016,45-49,14.21
+Colorado,2017,45-49,11.22
+Colorado,2018,45-49,10.65
+Colorado,2019,45-49,9.62
+Connecticut,2003,20-24,1.03
+Connecticut,2004,20-24,5.05
+Connecticut,2005,20-24,2.95
+Connecticut,2006,20-24,0.0
+Connecticut,2007,20-24,1.89
+Connecticut,2008,20-24,0.94
+Connecticut,2009,20-24,0.91
+Connecticut,2010,20-24,1.8
+Connecticut,2011,20-24,0.9
+Connecticut,2012,20-24,0.89
+Connecticut,2013,20-24,0.88
+Connecticut,2014,20-24,0.0
+Connecticut,2015,20-24,1.69
+Connecticut,2016,20-24,0.0
+Connecticut,2017,20-24,0.0
+Connecticut,2018,20-24,0.0
+Connecticut,2019,20-24,0.0
+Connecticut,2003,30-34,7.52
+Connecticut,2004,30-34,13.93
+Connecticut,2005,30-34,10.97
+Connecticut,2006,30-34,9.5
+Connecticut,2007,30-34,4.85
+Connecticut,2008,30-34,4.88
+Connecticut,2009,30-34,10.6
+Connecticut,2010,30-34,11.48
+Connecticut,2011,30-34,8.46
+Connecticut,2012,30-34,13.84
+Connecticut,2013,30-34,11.85
+Connecticut,2014,30-34,8.18
+Connecticut,2015,30-34,9.07
+Connecticut,2016,30-34,7.21
+Connecticut,2017,30-34,9.0
+Connecticut,2018,30-34,11.6
+Connecticut,2019,30-34,9.83
+Connecticut,2003,35-39,7.91
+Connecticut,2004,35-39,13.36
+Connecticut,2005,35-39,9.84
+Connecticut,2006,35-39,7.72
+Connecticut,2007,35-39,13.4
+Connecticut,2008,35-39,13.8
+Connecticut,2009,35-39,10.16
+Connecticut,2010,35-39,10.66
+Connecticut,2011,35-39,12.96
+Connecticut,2012,35-39,9.41
+Connecticut,2013,35-39,19.87
+Connecticut,2014,35-39,9.39
+Connecticut,2015,35-39,9.27
+Connecticut,2016,35-39,16.44
+Connecticut,2017,35-39,7.22
+Connecticut,2018,35-39,9.78
+Connecticut,2019,35-39,13.25
+Connecticut,2003,40-44,13.25
+Connecticut,2004,40-44,8.6
+Connecticut,2005,40-44,8.03
+Connecticut,2006,40-44,9.51
+Connecticut,2007,40-44,16.02
+Connecticut,2008,40-44,7.12
+Connecticut,2009,40-44,10.98
+Connecticut,2010,40-44,10.47
+Connecticut,2011,40-44,17.48
+Connecticut,2012,40-44,16.36
+Connecticut,2013,40-44,14.5
+Connecticut,2014,40-44,11.75
+Connecticut,2015,40-44,12.31
+Connecticut,2016,40-44,15.6
+Connecticut,2017,40-44,8.4
+Connecticut,2018,40-44,8.44
+Connecticut,2019,40-44,6.5
+Connecticut,2003,45-49,11.29
+Connecticut,2004,45-49,6.23
+Connecticut,2005,45-49,12.21
+Connecticut,2006,45-49,9.37
+Connecticut,2007,45-49,10.0
+Connecticut,2008,45-49,6.67
+Connecticut,2009,45-49,8.65
+Connecticut,2010,45-49,10.05
+Connecticut,2011,45-49,11.6
+Connecticut,2012,45-49,11.16
+Connecticut,2013,45-49,10.02
+Connecticut,2014,45-49,12.55
+Connecticut,2015,45-49,9.83
+Connecticut,2016,45-49,5.41
+Connecticut,2017,45-49,6.33
+Connecticut,2018,45-49,11.4
+Connecticut,2019,45-49,5.94
+Florida,2003,20-24,0.94
+Florida,2004,20-24,2.36
+Florida,2005,20-24,1.95
+Florida,2006,20-24,1.22
+Florida,2007,20-24,1.55
+Florida,2008,20-24,1.87
+Florida,2009,20-24,1.18
+Florida,2010,20-24,0.49
+Florida,2011,20-24,1.27
+Florida,2012,20-24,1.56
+Florida,2013,20-24,2.02
+Florida,2014,20-24,1.87
+Florida,2015,20-24,1.11
+Florida,2016,20-24,1.13
+Florida,2017,20-24,0.49
+Florida,2018,20-24,1.14
+Florida,2019,20-24,0.16
+Florida,2003,30-34,15.1
+Florida,2004,30-34,10.57
+Florida,2005,30-34,13.84
+Florida,2006,30-34,11.33
+Florida,2007,30-34,9.08
+Florida,2008,30-34,13.35
+Florida,2009,30-34,9.54
+Florida,2010,30-34,11.47
+Florida,2011,30-34,11.2
+Florida,2012,30-34,9.88
+Florida,2013,30-34,10.5
+Florida,2014,30-34,10.91
+Florida,2015,30-34,12.92
+Florida,2016,30-34,14.82
+Florida,2017,30-34,10.43
+Florida,2018,30-34,13.57
+Florida,2019,30-34,11.65
+Florida,2003,35-39,15.89
+Florida,2004,35-39,18.91
+Florida,2005,35-39,15.01
+Florida,2006,35-39,18.55
+Florida,2007,35-39,17.55
+Florida,2008,35-39,18.01
+Florida,2009,35-39,20.1
+Florida,2010,35-39,13.89
+Florida,2011,35-39,17.55
+Florida,2012,35-39,15.02
+Florida,2013,35-39,15.27
+Florida,2014,35-39,14.87
+Florida,2015,35-39,16.76
+Florida,2016,35-39,18.59
+Florida,2017,35-39,14.17
+Florida,2018,35-39,17.32
+Florida,2019,35-39,17.76
+Florida,2003,40-44,20.8
+Florida,2004,40-44,17.36
+Florida,2005,40-44,19.63
+Florida,2006,40-44,21.79
+Florida,2007,40-44,17.31
+Florida,2008,40-44,17.45
+Florida,2009,40-44,20.48
+Florida,2010,40-44,17.48
+Florida,2011,40-44,19.26
+Florida,2012,40-44,17.89
+Florida,2013,40-44,16.77
+Florida,2014,40-44,16.35
+Florida,2015,40-44,18.87
+Florida,2016,40-44,20.53
+Florida,2017,40-44,18.39
+Florida,2018,40-44,16.16
+Florida,2019,40-44,21.15
+Florida,2003,45-49,17.71
+Florida,2004,45-49,17.6
+Florida,2005,45-49,22.07
+Florida,2006,45-49,17.4
+Florida,2007,45-49,19.95
+Florida,2008,45-49,17.64
+Florida,2009,45-49,20.71
+Florida,2010,45-49,17.08
+Florida,2011,45-49,16.8
+Florida,2012,45-49,16.2
+Florida,2013,45-49,16.83
+Florida,2014,45-49,17.91
+Florida,2015,45-49,17.89
+Florida,2016,45-49,16.69
+Florida,2017,45-49,18.86
+Florida,2018,45-49,17.92
+Florida,2019,45-49,17.11
+Georgia,2003,20-24,2.54
+Georgia,2004,20-24,1.57
+Georgia,2005,20-24,0.95
+Georgia,2006,20-24,0.94
+Georgia,2007,20-24,1.86
+Georgia,2008,20-24,1.23
+Georgia,2009,20-24,1.21
+Georgia,2010,20-24,0.89
+Georgia,2011,20-24,1.45
+Georgia,2012,20-24,1.97
+Georgia,2013,20-24,0.28
+Georgia,2014,20-24,1.68
+Georgia,2015,20-24,0.0
+Georgia,2016,20-24,0.57
+Georgia,2017,20-24,0.57
+Georgia,2018,20-24,0.0
+Georgia,2019,20-24,0.86
+Georgia,2003,30-34,12.34
+Georgia,2004,30-34,11.85
+Georgia,2005,30-34,12.56
+Georgia,2006,30-34,10.31
+Georgia,2007,30-34,11.56
+Georgia,2008,30-34,9.72
+Georgia,2009,30-34,13.23
+Georgia,2010,30-34,10.63
+Georgia,2011,30-34,9.88
+Georgia,2012,30-34,10.65
+Georgia,2013,30-34,10.29
+Georgia,2014,30-34,10.83
+Georgia,2015,30-34,11.11
+Georgia,2016,30-34,10.48
+Georgia,2017,30-34,16.32
+Georgia,2018,30-34,9.47
+Georgia,2019,30-34,16.33
+Georgia,2003,35-39,16.02
+Georgia,2004,35-39,12.94
+Georgia,2005,35-39,14.28
+Georgia,2006,35-39,13.87
+Georgia,2007,35-39,17.45
+Georgia,2008,35-39,15.88
+Georgia,2009,35-39,16.01
+Georgia,2010,35-39,13.51
+Georgia,2011,35-39,13.64
+Georgia,2012,35-39,16.78
+Georgia,2013,35-39,10.64
+Georgia,2014,35-39,14.66
+Georgia,2015,35-39,14.12
+Georgia,2016,35-39,15.75
+Georgia,2017,35-39,15.5
+Georgia,2018,35-39,12.01
+Georgia,2019,35-39,16.8
+Georgia,2003,40-44,18.78
+Georgia,2004,40-44,13.47
+Georgia,2005,40-44,13.57
+Georgia,2006,40-44,15.73
+Georgia,2007,40-44,15.47
+Georgia,2008,40-44,15.03
+Georgia,2009,40-44,15.74
+Georgia,2010,40-44,13.18
+Georgia,2011,40-44,14.91
+Georgia,2012,40-44,14.76
+Georgia,2013,40-44,16.08
+Georgia,2014,40-44,17.3
+Georgia,2015,40-44,16.7
+Georgia,2016,40-44,16.52
+Georgia,2017,40-44,17.25
+Georgia,2018,40-44,16.98
+Georgia,2019,40-44,19.37
+Georgia,2003,45-49,14.52
+Georgia,2004,45-49,14.52
+Georgia,2005,45-49,14.71
+Georgia,2006,45-49,15.48
+Georgia,2007,45-49,12.92
+Georgia,2008,45-49,16.03
+Georgia,2009,45-49,11.98
+Georgia,2010,45-49,12.98
+Georgia,2011,45-49,11.19
+Georgia,2012,45-49,15.2
+Georgia,2013,45-49,12.9
+Georgia,2014,45-49,15.29
+Georgia,2015,45-49,13.79
+Georgia,2016,45-49,11.59
+Georgia,2017,45-49,10.89
+Georgia,2018,45-49,17.31
+Georgia,2019,45-49,13.57
+Idaho,2003,20-24,3.95
+Idaho,2004,20-24,1.94
+Idaho,2005,20-24,1.92
+Idaho,2006,20-24,0.0
+Idaho,2007,20-24,0.0
+Idaho,2008,20-24,1.88
+Idaho,2009,20-24,0.0
+Idaho,2010,20-24,0.0
+Idaho,2011,20-24,0.0
+Idaho,2012,20-24,0.0
+Idaho,2013,20-24,1.81
+Idaho,2014,20-24,3.66
+Idaho,2015,20-24,1.86
+Idaho,2016,20-24,0.0
+Idaho,2017,20-24,1.83
+Idaho,2018,20-24,0.0
+Idaho,2019,20-24,1.77
+Idaho,2003,30-34,6.94
+Idaho,2004,30-34,4.6
+Idaho,2005,30-34,11.33
+Idaho,2006,30-34,13.5
+Idaho,2007,30-34,6.5
+Idaho,2008,30-34,12.76
+Idaho,2009,30-34,8.2
+Idaho,2010,30-34,3.98
+Idaho,2011,30-34,5.84
+Idaho,2012,30-34,7.71
+Idaho,2013,30-34,5.69
+Idaho,2014,30-34,7.54
+Idaho,2015,30-34,7.5
+Idaho,2016,30-34,11.13
+Idaho,2017,30-34,9.11
+Idaho,2018,30-34,12.59
+Idaho,2019,30-34,13.99
+Idaho,2003,35-39,16.04
+Idaho,2004,35-39,13.77
+Idaho,2005,35-39,13.49
+Idaho,2006,35-39,17.34
+Idaho,2007,35-39,4.24
+Idaho,2008,35-39,10.42
+Idaho,2009,35-39,4.17
+Idaho,2010,35-39,25.23
+Idaho,2011,35-39,16.94
+Idaho,2012,35-39,16.75
+Idaho,2013,35-39,18.42
+Idaho,2014,35-39,13.9
+Idaho,2015,35-39,11.57
+Idaho,2016,35-39,27.81
+Idaho,2017,35-39,21.47
+Idaho,2018,35-39,13.91
+Idaho,2019,35-39,8.49
+Idaho,2003,40-44,6.04
+Idaho,2004,40-44,10.04
+Idaho,2005,40-44,10.1
+Idaho,2006,40-44,12.27
+Idaho,2007,40-44,6.22
+Idaho,2008,40-44,12.72
+Idaho,2009,40-44,6.42
+Idaho,2010,40-44,8.52
+Idaho,2011,40-44,12.56
+Idaho,2012,40-44,10.37
+Idaho,2013,40-44,8.27
+Idaho,2014,40-44,12.4
+Idaho,2015,40-44,8.27
+Idaho,2016,40-44,12.36
+Idaho,2017,40-44,8.03
+Idaho,2018,40-44,21.18
+Idaho,2019,40-44,22.16
+Idaho,2003,45-49,14.12
+Idaho,2004,45-49,13.97
+Idaho,2005,45-49,15.65
+Idaho,2006,45-49,22.97
+Idaho,2007,45-49,13.3
+Idaho,2008,45-49,1.9
+Idaho,2009,45-49,7.59
+Idaho,2010,45-49,17.4
+Idaho,2011,45-49,17.96
+Idaho,2012,45-49,6.17
+Idaho,2013,45-49,6.34
+Idaho,2014,45-49,10.64
+Idaho,2015,45-49,10.56
+Idaho,2016,45-49,18.51
+Idaho,2017,45-49,22.15
+Idaho,2018,45-49,15.86
+Idaho,2019,45-49,11.82
+Illinois,2003,20-24,1.38
+Illinois,2004,20-24,0.46
+Illinois,2005,20-24,1.84
+Illinois,2006,20-24,0.93
+Illinois,2007,20-24,1.4
+Illinois,2008,20-24,0.47
+Illinois,2009,20-24,0.7
+Illinois,2010,20-24,0.69
+Illinois,2011,20-24,1.15
+Illinois,2012,20-24,0.68
+Illinois,2013,20-24,0.45
+Illinois,2014,20-24,0.67
+Illinois,2015,20-24,0.91
+Illinois,2016,20-24,0.92
+Illinois,2017,20-24,0.47
+Illinois,2018,20-24,0.72
+Illinois,2019,20-24,1.22
+Illinois,2003,30-34,10.15
+Illinois,2004,30-34,8.99
+Illinois,2005,30-34,10.6
+Illinois,2006,30-34,11.34
+Illinois,2007,30-34,11.17
+Illinois,2008,30-34,10.91
+Illinois,2009,30-34,10.31
+Illinois,2010,30-34,8.53
+Illinois,2011,30-34,6.35
+Illinois,2012,30-34,6.5
+Illinois,2013,30-34,7.54
+Illinois,2014,30-34,10.87
+Illinois,2015,30-34,10.07
+Illinois,2016,30-34,10.38
+Illinois,2017,30-34,10.04
+Illinois,2018,30-34,9.68
+Illinois,2019,30-34,12.04
+Illinois,2003,35-39,17.11
+Illinois,2004,35-39,14.86
+Illinois,2005,35-39,15.22
+Illinois,2006,35-39,13.39
+Illinois,2007,35-39,13.39
+Illinois,2008,35-39,13.75
+Illinois,2009,35-39,12.82
+Illinois,2010,35-39,11.7
+Illinois,2011,35-39,12.71
+Illinois,2012,35-39,10.4
+Illinois,2013,35-39,11.09
+Illinois,2014,35-39,13.87
+Illinois,2015,35-39,12.26
+Illinois,2016,35-39,13.05
+Illinois,2017,35-39,11.34
+Illinois,2018,35-39,10.59
+Illinois,2019,35-39,15.0
+Illinois,2003,40-44,16.62
+Illinois,2004,40-44,13.54
+Illinois,2005,40-44,13.99
+Illinois,2006,40-44,15.44
+Illinois,2007,40-44,13.46
+Illinois,2008,40-44,19.34
+Illinois,2009,40-44,13.17
+Illinois,2010,40-44,14.63
+Illinois,2011,40-44,15.67
+Illinois,2012,40-44,14.79
+Illinois,2013,40-44,12.41
+Illinois,2014,40-44,17.77
+Illinois,2015,40-44,13.9
+Illinois,2016,40-44,16.79
+Illinois,2017,40-44,13.25
+Illinois,2018,40-44,15.03
+Illinois,2019,40-44,12.96
+Illinois,2003,45-49,16.05
+Illinois,2004,45-49,15.65
+Illinois,2005,45-49,14.85
+Illinois,2006,45-49,16.37
+Illinois,2007,45-49,14.75
+Illinois,2008,45-49,18.98
+Illinois,2009,45-49,17.83
+Illinois,2010,45-49,13.48
+Illinois,2011,45-49,16.43
+Illinois,2012,45-49,13.07
+Illinois,2013,45-49,15.22
+Illinois,2014,45-49,14.87
+Illinois,2015,45-49,15.25
+Illinois,2016,45-49,14.3
+Illinois,2017,45-49,11.09
+Illinois,2018,45-49,14.84
+Illinois,2019,45-49,13.42
+Indiana,2003,20-24,2.24
+Indiana,2004,20-24,1.34
+Indiana,2005,20-24,2.7
+Indiana,2006,20-24,0.0
+Indiana,2007,20-24,2.27
+Indiana,2008,20-24,1.36
+Indiana,2009,20-24,0.0
+Indiana,2010,20-24,0.89
+Indiana,2011,20-24,0.0
+Indiana,2012,20-24,0.85
+Indiana,2013,20-24,1.26
+Indiana,2014,20-24,1.26
+Indiana,2015,20-24,0.0
+Indiana,2016,20-24,0.43
+Indiana,2017,20-24,0.0
+Indiana,2018,20-24,0.0
+Indiana,2019,20-24,0.0
+Indiana,2003,30-34,13.39
+Indiana,2004,30-34,16.94
+Indiana,2005,30-34,7.88
+Indiana,2006,30-34,11.61
+Indiana,2007,30-34,10.69
+Indiana,2008,30-34,9.1
+Indiana,2009,30-34,9.5
+Indiana,2010,30-34,9.81
+Indiana,2011,30-34,13.01
+Indiana,2012,30-34,11.94
+Indiana,2013,30-34,12.27
+Indiana,2014,30-34,11.82
+Indiana,2015,30-34,13.32
+Indiana,2016,30-34,13.35
+Indiana,2017,30-34,11.48
+Indiana,2018,30-34,12.85
+Indiana,2019,30-34,18.3
+Indiana,2003,35-39,15.03
+Indiana,2004,35-39,17.34
+Indiana,2005,35-39,16.53
+Indiana,2006,35-39,13.56
+Indiana,2007,35-39,15.86
+Indiana,2008,35-39,10.77
+Indiana,2009,35-39,15.63
+Indiana,2010,35-39,11.59
+Indiana,2011,35-39,10.9
+Indiana,2012,35-39,12.02
+Indiana,2013,35-39,14.49
+Indiana,2014,35-39,11.35
+Indiana,2015,35-39,16.03
+Indiana,2016,35-39,15.25
+Indiana,2017,35-39,16.0
+Indiana,2018,35-39,14.39
+Indiana,2019,35-39,15.27
+Indiana,2003,40-44,15.65
+Indiana,2004,40-44,14.47
+Indiana,2005,40-44,12.57
+Indiana,2006,40-44,14.61
+Indiana,2007,40-44,13.68
+Indiana,2008,40-44,11.81
+Indiana,2009,40-44,17.32
+Indiana,2010,40-44,16.05
+Indiana,2011,40-44,13.11
+Indiana,2012,40-44,17.33
+Indiana,2013,40-44,17.39
+Indiana,2014,40-44,16.63
+Indiana,2015,40-44,19.38
+Indiana,2016,40-44,18.92
+Indiana,2017,40-44,16.55
+Indiana,2018,40-44,17.97
+Indiana,2019,40-44,20.65
+Indiana,2003,45-49,11.5
+Indiana,2004,45-49,13.9
+Indiana,2005,45-49,16.63
+Indiana,2006,45-49,18.48
+Indiana,2007,45-49,13.56
+Indiana,2008,45-49,13.64
+Indiana,2009,45-49,16.56
+Indiana,2010,45-49,16.39
+Indiana,2011,45-49,16.46
+Indiana,2012,45-49,13.83
+Indiana,2013,45-49,12.41
+Indiana,2014,45-49,16.54
+Indiana,2015,45-49,16.25
+Indiana,2016,45-49,19.45
+Indiana,2017,45-49,17.56
+Indiana,2018,45-49,19.03
+Indiana,2019,45-49,22.56
+Iowa,2003,20-24,0.0
+Iowa,2004,20-24,0.0
+Iowa,2005,20-24,2.78
+Iowa,2006,20-24,0.0
+Iowa,2007,20-24,0.0
+Iowa,2008,20-24,0.0
+Iowa,2009,20-24,2.89
+Iowa,2010,20-24,0.96
+Iowa,2011,20-24,3.77
+Iowa,2012,20-24,1.84
+Iowa,2013,20-24,0.0
+Iowa,2014,20-24,0.89
+Iowa,2015,20-24,0.89
+Iowa,2016,20-24,0.0
+Iowa,2017,20-24,0.91
+Iowa,2018,20-24,0.0
+Iowa,2019,20-24,0.92
+Iowa,2003,30-34,9.94
+Iowa,2004,30-34,10.13
+Iowa,2005,30-34,11.36
+Iowa,2006,30-34,10.46
+Iowa,2007,30-34,11.65
+Iowa,2008,30-34,13.8
+Iowa,2009,30-34,11.27
+Iowa,2010,30-34,15.32
+Iowa,2011,30-34,9.55
+Iowa,2012,30-34,10.39
+Iowa,2013,30-34,6.14
+Iowa,2014,30-34,14.23
+Iowa,2015,30-34,3.05
+Iowa,2016,30-34,13.32
+Iowa,2017,30-34,12.48
+Iowa,2018,30-34,16.84
+Iowa,2019,30-34,14.77
+Iowa,2003,35-39,17.8
+Iowa,2004,35-39,7.55
+Iowa,2005,35-39,19.69
+Iowa,2006,35-39,9.76
+Iowa,2007,35-39,12.02
+Iowa,2008,35-39,18.79
+Iowa,2009,35-39,12.46
+Iowa,2010,35-39,16.06
+Iowa,2011,35-39,15.23
+Iowa,2012,35-39,14.0
+Iowa,2013,35-39,11.38
+Iowa,2014,35-39,21.02
+Iowa,2015,35-39,10.73
+Iowa,2016,35-39,19.77
+Iowa,2017,35-39,17.24
+Iowa,2018,35-39,15.99
+Iowa,2019,35-39,13.91
+Iowa,2003,40-44,11.56
+Iowa,2004,40-44,17.92
+Iowa,2005,40-44,11.05
+Iowa,2006,40-44,11.49
+Iowa,2007,40-44,8.96
+Iowa,2008,40-44,9.33
+Iowa,2009,40-44,9.6
+Iowa,2010,40-44,7.56
+Iowa,2011,40-44,13.98
+Iowa,2012,40-44,17.33
+Iowa,2013,40-44,8.76
+Iowa,2014,40-44,27.91
+Iowa,2015,40-44,17.03
+Iowa,2016,40-44,8.12
+Iowa,2017,40-44,13.89
+Iowa,2018,40-44,17.03
+Iowa,2019,40-44,19.86
+Iowa,2003,45-49,14.51
+Iowa,2004,45-49,5.41
+Iowa,2005,45-49,4.46
+Iowa,2006,45-49,13.28
+Iowa,2007,45-49,14.2
+Iowa,2008,45-49,15.22
+Iowa,2009,45-49,9.02
+Iowa,2010,45-49,13.91
+Iowa,2011,45-49,16.41
+Iowa,2012,45-49,14.07
+Iowa,2013,45-49,12.5
+Iowa,2014,45-49,18.19
+Iowa,2015,45-49,14.07
+Iowa,2016,45-49,11.89
+Iowa,2017,45-49,20.68
+Iowa,2018,45-49,15.46
+Iowa,2019,45-49,15.76
+Kansas,2003,20-24,0.0
+Kansas,2004,20-24,0.0
+Kansas,2005,20-24,0.0
+Kansas,2006,20-24,0.98
+Kansas,2007,20-24,1.0
+Kansas,2008,20-24,0.0
+Kansas,2009,20-24,2.02
+Kansas,2010,20-24,1.01
+Kansas,2011,20-24,1.0
+Kansas,2012,20-24,0.98
+Kansas,2013,20-24,0.96
+Kansas,2014,20-24,1.92
+Kansas,2015,20-24,0.95
+Kansas,2016,20-24,0.0
+Kansas,2017,20-24,0.98
+Kansas,2018,20-24,1.96
+Kansas,2019,20-24,0.99
+Kansas,2003,30-34,7.99
+Kansas,2004,30-34,19.61
+Kansas,2005,30-34,11.72
+Kansas,2006,30-34,10.81
+Kansas,2007,30-34,11.94
+Kansas,2008,30-34,1.19
+Kansas,2009,30-34,8.08
+Kansas,2010,30-34,15.69
+Kansas,2011,30-34,7.65
+Kansas,2012,30-34,10.7
+Kansas,2013,30-34,9.46
+Kansas,2014,30-34,13.52
+Kansas,2015,30-34,11.42
+Kansas,2016,30-34,9.37
+Kansas,2017,30-34,10.58
+Kansas,2018,30-34,13.94
+Kansas,2019,30-34,15.21
+Kansas,2003,35-39,17.76
+Kansas,2004,35-39,14.94
+Kansas,2005,35-39,16.22
+Kansas,2006,35-39,9.18
+Kansas,2007,35-39,16.07
+Kansas,2008,35-39,17.17
+Kansas,2009,35-39,12.8
+Kansas,2010,35-39,17.64
+Kansas,2011,35-39,16.71
+Kansas,2012,35-39,16.69
+Kansas,2013,35-39,17.65
+Kansas,2014,35-39,17.32
+Kansas,2015,35-39,22.49
+Kansas,2016,35-39,9.86
+Kansas,2017,35-39,11.86
+Kansas,2018,35-39,18.98
+Kansas,2019,35-39,21.94
+Kansas,2003,40-44,16.0
+Kansas,2004,40-44,12.39
+Kansas,2005,40-44,13.72
+Kansas,2006,40-44,16.39
+Kansas,2007,40-44,11.72
+Kansas,2008,40-44,15.65
+Kansas,2009,40-44,19.5
+Kansas,2010,40-44,20.79
+Kansas,2011,40-44,13.81
+Kansas,2012,40-44,13.83
+Kansas,2013,40-44,16.25
+Kansas,2014,40-44,20.08
+Kansas,2015,40-44,24.08
+Kansas,2016,40-44,19.6
+Kansas,2017,40-44,17.1
+Kansas,2018,40-44,25.36
+Kansas,2019,40-44,17.75
+Kansas,2003,45-49,14.55
+Kansas,2004,45-49,16.39
+Kansas,2005,45-49,21.03
+Kansas,2006,45-49,6.65
+Kansas,2007,45-49,9.51
+Kansas,2008,45-49,13.4
+Kansas,2009,45-49,13.51
+Kansas,2010,45-49,14.88
+Kansas,2011,45-49,13.47
+Kansas,2012,45-49,14.09
+Kansas,2013,45-49,14.77
+Kansas,2014,45-49,12.91
+Kansas,2015,45-49,16.62
+Kansas,2016,45-49,10.68
+Kansas,2017,45-49,15.46
+Kansas,2018,45-49,14.35
+Kansas,2019,45-49,9.73
+Kentucky,2003,20-24,2.01
+Kentucky,2004,20-24,2.68
+Kentucky,2005,20-24,0.0
+Kentucky,2006,20-24,1.4
+Kentucky,2007,20-24,1.41
+Kentucky,2008,20-24,0.71
+Kentucky,2009,20-24,2.12
+Kentucky,2010,20-24,2.08
+Kentucky,2011,20-24,2.01
+Kentucky,2012,20-24,1.97
+Kentucky,2013,20-24,1.94
+Kentucky,2014,20-24,1.3
+Kentucky,2015,20-24,2.0
+Kentucky,2016,20-24,0.68
+Kentucky,2017,20-24,0.69
+Kentucky,2018,20-24,0.7
+Kentucky,2019,20-24,0.7
+Kentucky,2003,30-34,12.57
+Kentucky,2004,30-34,16.98
+Kentucky,2005,30-34,12.93
+Kentucky,2006,30-34,11.1
+Kentucky,2007,30-34,8.98
+Kentucky,2008,30-34,8.93
+Kentucky,2009,30-34,13.23
+Kentucky,2010,30-34,9.31
+Kentucky,2011,30-34,12.66
+Kentucky,2012,30-34,17.49
+Kentucky,2013,30-34,11.15
+Kentucky,2014,30-34,15.44
+Kentucky,2015,30-34,17.84
+Kentucky,2016,30-34,13.74
+Kentucky,2017,30-34,16.75
+Kentucky,2018,30-34,14.66
+Kentucky,2019,30-34,14.43
+Kentucky,2003,35-39,19.33
+Kentucky,2004,35-39,17.08
+Kentucky,2005,35-39,15.22
+Kentucky,2006,35-39,21.89
+Kentucky,2007,35-39,19.82
+Kentucky,2008,35-39,15.11
+Kentucky,2009,35-39,20.23
+Kentucky,2010,35-39,17.03
+Kentucky,2011,35-39,15.99
+Kentucky,2012,35-39,17.62
+Kentucky,2013,35-39,15.4
+Kentucky,2014,35-39,19.65
+Kentucky,2015,35-39,17.17
+Kentucky,2016,35-39,25.35
+Kentucky,2017,35-39,26.62
+Kentucky,2018,35-39,11.86
+Kentucky,2019,35-39,16.1
+Kentucky,2003,40-44,16.55
+Kentucky,2004,40-44,20.28
+Kentucky,2005,40-44,16.73
+Kentucky,2006,40-44,16.39
+Kentucky,2007,40-44,20.06
+Kentucky,2008,40-44,21.17
+Kentucky,2009,40-44,19.0
+Kentucky,2010,40-44,19.21
+Kentucky,2011,40-44,19.01
+Kentucky,2012,40-44,18.32
+Kentucky,2013,40-44,17.79
+Kentucky,2014,40-44,13.24
+Kentucky,2015,40-44,20.6
+Kentucky,2016,40-44,21.19
+Kentucky,2017,40-44,21.38
+Kentucky,2018,40-44,19.13
+Kentucky,2019,40-44,23.34
+Kentucky,2003,45-49,11.28
+Kentucky,2004,45-49,16.12
+Kentucky,2005,45-49,15.95
+Kentucky,2006,45-49,12.73
+Kentucky,2007,45-49,9.08
+Kentucky,2008,45-49,13.96
+Kentucky,2009,45-49,14.59
+Kentucky,2010,45-49,14.09
+Kentucky,2011,45-49,10.04
+Kentucky,2012,45-49,20.02
+Kentucky,2013,45-49,16.58
+Kentucky,2014,45-49,22.47
+Kentucky,2015,45-49,18.65
+Kentucky,2016,45-49,24.05
+Kentucky,2017,45-49,23.32
+Kentucky,2018,45-49,19.41
+Kentucky,2019,45-49,21.82
+Louisiana,2003,20-24,1.66
+Louisiana,2004,20-24,3.3
+Louisiana,2005,20-24,3.48
+Louisiana,2006,20-24,3.66
+Louisiana,2007,20-24,0.6
+Louisiana,2008,20-24,2.4
+Louisiana,2009,20-24,2.98
+Louisiana,2010,20-24,1.76
+Louisiana,2011,20-24,2.29
+Louisiana,2012,20-24,2.27
+Louisiana,2013,20-24,2.27
+Louisiana,2014,20-24,0.58
+Louisiana,2015,20-24,0.6
+Louisiana,2016,20-24,0.62
+Louisiana,2017,20-24,1.93
+Louisiana,2018,20-24,0.0
+Louisiana,2019,20-24,0.0
+Louisiana,2003,30-34,17.85
+Louisiana,2004,30-34,14.11
+Louisiana,2005,30-34,17.23
+Louisiana,2006,30-34,18.36
+Louisiana,2007,30-34,15.14
+Louisiana,2008,30-34,8.12
+Louisiana,2009,30-34,13.42
+Louisiana,2010,30-34,12.09
+Louisiana,2011,30-34,11.68
+Louisiana,2012,30-34,8.84
+Louisiana,2013,30-34,8.62
+Louisiana,2014,30-34,16.37
+Louisiana,2015,30-34,17.45
+Louisiana,2016,30-34,9.62
+Louisiana,2017,30-34,14.01
+Louisiana,2018,30-34,13.55
+Louisiana,2019,30-34,12.91
+Louisiana,2003,35-39,13.12
+Louisiana,2004,35-39,15.43
+Louisiana,2005,35-39,14.92
+Louisiana,2006,35-39,13.32
+Louisiana,2007,35-39,18.21
+Louisiana,2008,35-39,16.93
+Louisiana,2009,35-39,17.85
+Louisiana,2010,35-39,16.57
+Louisiana,2011,35-39,17.52
+Louisiana,2012,35-39,13.78
+Louisiana,2013,35-39,18.55
+Louisiana,2014,35-39,15.29
+Louisiana,2015,35-39,17.48
+Louisiana,2016,35-39,19.55
+Louisiana,2017,35-39,17.87
+Louisiana,2018,35-39,20.68
+Louisiana,2019,35-39,16.75
+Louisiana,2003,40-44,20.26
+Louisiana,2004,40-44,13.01
+Louisiana,2005,40-44,19.22
+Louisiana,2006,40-44,20.18
+Louisiana,2007,40-44,14.84
+Louisiana,2008,40-44,20.54
+Louisiana,2009,40-44,15.61
+Louisiana,2010,40-44,20.56
+Louisiana,2011,40-44,25.28
+Louisiana,2012,40-44,19.24
+Louisiana,2013,40-44,16.68
+Louisiana,2014,40-44,21.91
+Louisiana,2015,40-44,20.21
+Louisiana,2016,40-44,20.56
+Louisiana,2017,40-44,21.3
+Louisiana,2018,40-44,24.01
+Louisiana,2019,40-44,20.68
+Louisiana,2003,45-49,16.27
+Louisiana,2004,45-49,20.14
+Louisiana,2005,45-49,18.87
+Louisiana,2006,45-49,19.16
+Louisiana,2007,45-49,14.9
+Louisiana,2008,45-49,19.0
+Louisiana,2009,45-49,16.07
+Louisiana,2010,45-49,16.93
+Louisiana,2011,45-49,12.44
+Louisiana,2012,45-49,10.9
+Louisiana,2013,45-49,14.5
+Louisiana,2014,45-49,18.34
+Louisiana,2015,45-49,21.38
+Louisiana,2016,45-49,13.82
+Louisiana,2017,45-49,19.55
+Louisiana,2018,45-49,12.08
+Louisiana,2019,45-49,15.24
+Maryland,2003,20-24,1.71
+Maryland,2004,20-24,2.81
+Maryland,2005,20-24,1.66
+Maryland,2006,20-24,3.29
+Maryland,2007,20-24,0.0
+Maryland,2008,20-24,0.54
+Maryland,2009,20-24,0.53
+Maryland,2010,20-24,0.51
+Maryland,2011,20-24,2.55
+Maryland,2012,20-24,0.0
+Maryland,2013,20-24,1.02
+Maryland,2014,20-24,1.01
+Maryland,2015,20-24,0.0
+Maryland,2016,20-24,1.05
+Maryland,2017,20-24,1.59
+Maryland,2018,20-24,0.0
+Maryland,2019,20-24,0.0
+Maryland,2003,30-34,10.92
+Maryland,2004,30-34,12.28
+Maryland,2005,30-34,9.52
+Maryland,2006,30-34,6.55
+Maryland,2007,30-34,12.79
+Maryland,2008,30-34,6.64
+Maryland,2009,30-34,12.45
+Maryland,2010,30-34,6.82
+Maryland,2011,30-34,4.58
+Maryland,2012,30-34,3.96
+Maryland,2013,30-34,5.32
+Maryland,2014,30-34,4.77
+Maryland,2015,30-34,7.56
+Maryland,2016,30-34,7.07
+Maryland,2017,30-34,6.55
+Maryland,2018,30-34,10.7
+Maryland,2019,30-34,12.03
+Maryland,2003,35-39,12.75
+Maryland,2004,35-39,9.5
+Maryland,2005,35-39,11.05
+Maryland,2006,35-39,12.57
+Maryland,2007,35-39,11.36
+Maryland,2008,35-39,13.09
+Maryland,2009,35-39,11.01
+Maryland,2010,35-39,13.34
+Maryland,2011,35-39,13.72
+Maryland,2012,35-39,8.5
+Maryland,2013,35-39,11.07
+Maryland,2014,35-39,7.75
+Maryland,2015,35-39,5.54
+Maryland,2016,35-39,17.14
+Maryland,2017,35-39,12.44
+Maryland,2018,35-39,13.59
+Maryland,2019,35-39,14.81
+Maryland,2003,40-44,13.23
+Maryland,2004,40-44,12.7
+Maryland,2005,40-44,14.01
+Maryland,2006,40-44,13.42
+Maryland,2007,40-44,10.32
+Maryland,2008,40-44,7.07
+Maryland,2009,40-44,16.84
+Maryland,2010,40-44,15.22
+Maryland,2011,40-44,12.47
+Maryland,2012,40-44,12.57
+Maryland,2013,40-44,10.93
+Maryland,2014,40-44,12.21
+Maryland,2015,40-44,12.03
+Maryland,2016,40-44,11.38
+Maryland,2017,40-44,12.54
+Maryland,2018,40-44,10.41
+Maryland,2019,40-44,10.76
+Maryland,2003,45-49,15.09
+Maryland,2004,45-49,11.34
+Maryland,2005,45-49,12.44
+Maryland,2006,45-49,5.5
+Maryland,2007,45-49,11.36
+Maryland,2008,45-49,12.6
+Maryland,2009,45-49,12.07
+Maryland,2010,45-49,15.88
+Maryland,2011,45-49,15.26
+Maryland,2012,45-49,14.23
+Maryland,2013,45-49,12.78
+Maryland,2014,45-49,11.76
+Maryland,2015,45-49,16.51
+Maryland,2016,45-49,9.68
+Maryland,2017,45-49,13.05
+Maryland,2018,45-49,6.68
+Maryland,2019,45-49,10.3
+Massachusetts,2003,20-24,1.39
+Massachusetts,2004,20-24,1.39
+Massachusetts,2005,20-24,1.38
+Massachusetts,2006,20-24,1.35
+Massachusetts,2007,20-24,0.88
+Massachusetts,2008,20-24,0.87
+Massachusetts,2009,20-24,0.42
+Massachusetts,2010,20-24,0.42
+Massachusetts,2011,20-24,0.42
+Massachusetts,2012,20-24,0.83
+Massachusetts,2013,20-24,0.0
+Massachusetts,2014,20-24,1.22
+Massachusetts,2015,20-24,0.0
+Massachusetts,2016,20-24,0.81
+Massachusetts,2017,20-24,0.0
+Massachusetts,2018,20-24,0.81
+Massachusetts,2019,20-24,0.41
+Massachusetts,2003,30-34,5.57
+Massachusetts,2004,30-34,11.64
+Massachusetts,2005,30-34,9.41
+Massachusetts,2006,30-34,9.3
+Massachusetts,2007,30-34,5.96
+Massachusetts,2008,30-34,6.47
+Massachusetts,2009,30-34,9.33
+Massachusetts,2010,30-34,9.2
+Massachusetts,2011,30-34,6.12
+Massachusetts,2012,30-34,3.67
+Massachusetts,2013,30-34,7.61
+Massachusetts,2014,30-34,7.47
+Massachusetts,2015,30-34,8.2
+Massachusetts,2016,30-34,8.45
+Massachusetts,2017,30-34,9.92
+Massachusetts,2018,30-34,5.27
+Massachusetts,2019,30-34,6.0
+Massachusetts,2003,35-39,7.4
+Massachusetts,2004,35-39,13.3
+Massachusetts,2005,35-39,10.28
+Massachusetts,2006,35-39,11.3
+Massachusetts,2007,35-39,7.72
+Massachusetts,2008,35-39,6.61
+Massachusetts,2009,35-39,7.72
+Massachusetts,2010,35-39,10.8
+Massachusetts,2011,35-39,5.82
+Massachusetts,2012,35-39,11.28
+Massachusetts,2013,35-39,7.8
+Massachusetts,2014,35-39,8.15
+Massachusetts,2015,35-39,9.41
+Massachusetts,2016,35-39,14.75
+Massachusetts,2017,35-39,9.9
+Massachusetts,2018,35-39,11.48
+Massachusetts,2019,35-39,10.01
+Massachusetts,2003,40-44,12.62
+Massachusetts,2004,40-44,11.92
+Massachusetts,2005,40-44,10.95
+Massachusetts,2006,40-44,8.46
+Massachusetts,2007,40-44,10.61
+Massachusetts,2008,40-44,8.41
+Massachusetts,2009,40-44,7.82
+Massachusetts,2010,40-44,11.27
+Massachusetts,2011,40-44,8.4
+Massachusetts,2012,40-44,8.52
+Massachusetts,2013,40-44,11.74
+Massachusetts,2014,40-44,12.03
+Massachusetts,2015,40-44,10.56
+Massachusetts,2016,40-44,7.11
+Massachusetts,2017,40-44,5.76
+Massachusetts,2018,40-44,13.43
+Massachusetts,2019,40-44,9.5
+Massachusetts,2003,45-49,7.51
+Massachusetts,2004,45-49,7.79
+Massachusetts,2005,45-49,8.85
+Massachusetts,2006,45-49,9.54
+Massachusetts,2007,45-49,9.91
+Massachusetts,2008,45-49,15.2
+Massachusetts,2009,45-49,9.45
+Massachusetts,2010,45-49,7.6
+Massachusetts,2011,45-49,8.85
+Massachusetts,2012,45-49,8.59
+Massachusetts,2013,45-49,7.95
+Massachusetts,2014,45-49,10.57
+Massachusetts,2015,45-49,8.23
+Massachusetts,2016,45-49,9.54
+Massachusetts,2017,45-49,8.85
+Massachusetts,2018,45-49,8.62
+Massachusetts,2019,45-49,6.66
+Michigan,2003,20-24,2.63
+Michigan,2004,20-24,2.92
+Michigan,2005,20-24,1.47
+Michigan,2006,20-24,1.79
+Michigan,2007,20-24,2.12
+Michigan,2008,20-24,2.44
+Michigan,2009,20-24,1.83
+Michigan,2010,20-24,0.6
+Michigan,2011,20-24,0.87
+Michigan,2012,20-24,0.56
+Michigan,2013,20-24,1.38
+Michigan,2014,20-24,1.65
+Michigan,2015,20-24,1.4
+Michigan,2016,20-24,0.86
+Michigan,2017,20-24,0.29
+Michigan,2018,20-24,0.59
+Michigan,2019,20-24,0.9
+Michigan,2003,30-34,12.71
+Michigan,2004,30-34,11.58
+Michigan,2005,30-34,14.8
+Michigan,2006,30-34,11.38
+Michigan,2007,30-34,13.88
+Michigan,2008,30-34,12.1
+Michigan,2009,30-34,11.12
+Michigan,2010,30-34,9.33
+Michigan,2011,30-34,9.19
+Michigan,2012,30-34,10.45
+Michigan,2013,30-34,7.7
+Michigan,2014,30-34,9.72
+Michigan,2015,30-34,10.11
+Michigan,2016,30-34,9.09
+Michigan,2017,30-34,9.75
+Michigan,2018,30-34,11.01
+Michigan,2019,30-34,11.79
+Michigan,2003,35-39,13.51
+Michigan,2004,35-39,12.2
+Michigan,2005,35-39,12.06
+Michigan,2006,35-39,14.41
+Michigan,2007,35-39,17.87
+Michigan,2008,35-39,14.16
+Michigan,2009,35-39,19.07
+Michigan,2010,35-39,14.69
+Michigan,2011,35-39,15.35
+Michigan,2012,35-39,13.24
+Michigan,2013,35-39,11.55
+Michigan,2014,35-39,11.12
+Michigan,2015,35-39,13.02
+Michigan,2016,35-39,13.8
+Michigan,2017,35-39,17.25
+Michigan,2018,35-39,17.1
+Michigan,2019,35-39,10.2
+Michigan,2003,40-44,13.76
+Michigan,2004,40-44,12.63
+Michigan,2005,40-44,13.17
+Michigan,2006,40-44,14.9
+Michigan,2007,40-44,17.02
+Michigan,2008,40-44,13.09
+Michigan,2009,40-44,15.91
+Michigan,2010,40-44,12.56
+Michigan,2011,40-44,14.96
+Michigan,2012,40-44,12.4
+Michigan,2013,40-44,16.62
+Michigan,2014,40-44,11.99
+Michigan,2015,40-44,14.73
+Michigan,2016,40-44,16.36
+Michigan,2017,40-44,15.28
+Michigan,2018,40-44,16.36
+Michigan,2019,40-44,13.13
+Michigan,2003,45-49,12.62
+Michigan,2004,45-49,10.5
+Michigan,2005,45-49,12.45
+Michigan,2006,45-49,12.46
+Michigan,2007,45-49,13.91
+Michigan,2008,45-49,14.16
+Michigan,2009,45-49,10.43
+Michigan,2010,45-49,13.88
+Michigan,2011,45-49,11.81
+Michigan,2012,45-49,9.89
+Michigan,2013,45-49,13.71
+Michigan,2014,45-49,12.01
+Michigan,2015,45-49,14.27
+Michigan,2016,45-49,13.65
+Michigan,2017,45-49,10.71
+Michigan,2018,45-49,14.93
+Michigan,2019,45-49,12.76
+Minnesota,2003,20-24,0.58
+Minnesota,2004,20-24,0.57
+Minnesota,2005,20-24,1.67
+Minnesota,2006,20-24,0.55
+Minnesota,2007,20-24,2.8
+Minnesota,2008,20-24,1.69
+Minnesota,2009,20-24,0.0
+Minnesota,2010,20-24,0.57
+Minnesota,2011,20-24,0.58
+Minnesota,2012,20-24,1.15
+Minnesota,2013,20-24,1.13
+Minnesota,2014,20-24,0.0
+Minnesota,2015,20-24,0.56
+Minnesota,2016,20-24,0.0
+Minnesota,2017,20-24,1.12
+Minnesota,2018,20-24,0.0
+Minnesota,2019,20-24,0.57
+Minnesota,2003,30-34,11.76
+Minnesota,2004,30-34,10.86
+Minnesota,2005,30-34,8.03
+Minnesota,2006,30-34,8.82
+Minnesota,2007,30-34,8.79
+Minnesota,2008,30-34,12.98
+Minnesota,2009,30-34,13.89
+Minnesota,2010,30-34,5.89
+Minnesota,2011,30-34,7.37
+Minnesota,2012,30-34,7.7
+Minnesota,2013,30-34,8.58
+Minnesota,2014,30-34,5.81
+Minnesota,2015,30-34,8.4
+Minnesota,2016,30-34,8.91
+Minnesota,2017,30-34,9.98
+Minnesota,2018,30-34,6.85
+Minnesota,2019,30-34,12.15
+Minnesota,2003,35-39,13.61
+Minnesota,2004,35-39,6.15
+Minnesota,2005,35-39,6.81
+Minnesota,2006,35-39,8.54
+Minnesota,2007,35-39,9.8
+Minnesota,2008,35-39,13.52
+Minnesota,2009,35-39,14.5
+Minnesota,2010,35-39,9.91
+Minnesota,2011,35-39,8.23
+Minnesota,2012,35-39,11.38
+Minnesota,2013,35-39,11.74
+Minnesota,2014,35-39,6.02
+Minnesota,2015,35-39,15.14
+Minnesota,2016,35-39,12.86
+Minnesota,2017,35-39,9.69
+Minnesota,2018,35-39,7.34
+Minnesota,2019,35-39,9.27
+Minnesota,2003,40-44,9.52
+Minnesota,2004,40-44,10.57
+Minnesota,2005,40-44,9.82
+Minnesota,2006,40-44,12.67
+Minnesota,2007,40-44,8.41
+Minnesota,2008,40-44,10.4
+Minnesota,2009,40-44,10.67
+Minnesota,2010,40-44,16.55
+Minnesota,2011,40-44,13.16
+Minnesota,2012,40-44,8.12
+Minnesota,2013,40-44,9.45
+Minnesota,2014,40-44,7.86
+Minnesota,2015,40-44,15.48
+Minnesota,2016,40-44,14.57
+Minnesota,2017,40-44,15.76
+Minnesota,2018,40-44,11.09
+Minnesota,2019,40-44,8.96
+Minnesota,2003,45-49,12.79
+Minnesota,2004,45-49,11.05
+Minnesota,2005,45-49,13.8
+Minnesota,2006,45-49,10.64
+Minnesota,2007,45-49,12.5
+Minnesota,2008,45-49,7.21
+Minnesota,2009,45-49,8.74
+Minnesota,2010,45-49,9.43
+Minnesota,2011,45-49,8.21
+Minnesota,2012,45-49,10.11
+Minnesota,2013,45-49,5.52
+Minnesota,2014,45-49,10.22
+Minnesota,2015,45-49,12.11
+Minnesota,2016,45-49,10.42
+Minnesota,2017,45-49,8.19
+Minnesota,2018,45-49,10.72
+Minnesota,2019,45-49,12.19
+Mississippi,2003,20-24,1.78
+Mississippi,2004,20-24,1.77
+Mississippi,2005,20-24,2.74
+Mississippi,2006,20-24,0.93
+Mississippi,2007,20-24,0.95
+Mississippi,2008,20-24,1.91
+Mississippi,2009,20-24,5.73
+Mississippi,2010,20-24,1.88
+Mississippi,2011,20-24,0.91
+Mississippi,2012,20-24,0.89
+Mississippi,2013,20-24,0.0
+Mississippi,2014,20-24,0.89
+Mississippi,2015,20-24,3.65
+Mississippi,2016,20-24,0.94
+Mississippi,2017,20-24,1.93
+Mississippi,2018,20-24,0.99
+Mississippi,2019,20-24,1.0
+Mississippi,2003,30-34,11.22
+Mississippi,2004,30-34,14.37
+Mississippi,2005,30-34,13.75
+Mississippi,2006,30-34,19.4
+Mississippi,2007,30-34,6.52
+Mississippi,2008,30-34,9.77
+Mississippi,2009,30-34,5.33
+Mississippi,2010,30-34,11.44
+Mississippi,2011,30-34,13.29
+Mississippi,2012,30-34,16.2
+Mississippi,2013,30-34,12.07
+Mississippi,2014,30-34,13.17
+Mississippi,2015,30-34,12.3
+Mississippi,2016,30-34,15.56
+Mississippi,2017,30-34,14.76
+Mississippi,2018,30-34,11.73
+Mississippi,2019,30-34,13.78
+Mississippi,2003,35-39,16.12
+Mississippi,2004,35-39,17.5
+Mississippi,2005,35-39,19.92
+Mississippi,2006,35-39,19.65
+Mississippi,2007,35-39,16.35
+Mississippi,2008,35-39,19.32
+Mississippi,2009,35-39,15.44
+Mississippi,2010,35-39,18.84
+Mississippi,2011,35-39,10.73
+Mississippi,2012,35-39,18.43
+Mississippi,2013,35-39,15.18
+Mississippi,2014,35-39,13.94
+Mississippi,2015,35-39,14.78
+Mississippi,2016,35-39,17.68
+Mississippi,2017,35-39,19.59
+Mississippi,2018,35-39,11.32
+Mississippi,2019,35-39,16.54
+Mississippi,2003,40-44,10.93
+Mississippi,2004,40-44,15.52
+Mississippi,2005,40-44,15.92
+Mississippi,2006,40-44,19.99
+Mississippi,2007,40-44,12.73
+Mississippi,2008,40-44,19.16
+Mississippi,2009,40-44,11.36
+Mississippi,2010,40-44,26.02
+Mississippi,2011,40-44,24.72
+Mississippi,2012,40-44,18.45
+Mississippi,2013,40-44,12.34
+Mississippi,2014,40-44,23.97
+Mississippi,2015,40-44,23.34
+Mississippi,2016,40-44,19.57
+Mississippi,2017,40-44,22.04
+Mississippi,2018,40-44,18.78
+Mississippi,2019,40-44,19.69
+Mississippi,2003,45-49,12.24
+Mississippi,2004,45-49,11.14
+Mississippi,2005,45-49,12.06
+Mississippi,2006,45-49,16.49
+Mississippi,2007,45-49,13.78
+Mississippi,2008,45-49,16.53
+Mississippi,2009,45-49,21.27
+Mississippi,2010,45-49,12.2
+Mississippi,2011,45-49,24.15
+Mississippi,2012,45-49,20.94
+Mississippi,2013,45-49,12.31
+Mississippi,2014,45-49,22.12
+Mississippi,2015,45-49,13.82
+Mississippi,2016,45-49,20.02
+Mississippi,2017,45-49,16.76
+Mississippi,2018,45-49,10.53
+Mississippi,2019,45-49,21.33
+Missouri,2003,20-24,1.47
+Missouri,2004,20-24,0.97
+Missouri,2005,20-24,2.41
+Missouri,2006,20-24,2.43
+Missouri,2007,20-24,0.98
+Missouri,2008,20-24,0.49
+Missouri,2009,20-24,0.98
+Missouri,2010,20-24,1.45
+Missouri,2011,20-24,1.91
+Missouri,2012,20-24,1.88
+Missouri,2013,20-24,1.4
+Missouri,2014,20-24,0.94
+Missouri,2015,20-24,0.95
+Missouri,2016,20-24,1.46
+Missouri,2017,20-24,0.0
+Missouri,2018,20-24,1.51
+Missouri,2019,20-24,0.51
+Missouri,2003,30-34,13.22
+Missouri,2004,30-34,16.1
+Missouri,2005,30-34,9.85
+Missouri,2006,30-34,11.81
+Missouri,2007,30-34,15.8
+Missouri,2008,30-34,15.76
+Missouri,2009,30-34,12.66
+Missouri,2010,30-34,9.61
+Missouri,2011,30-34,14.57
+Missouri,2012,30-34,19.41
+Missouri,2013,30-34,13.03
+Missouri,2014,30-34,11.95
+Missouri,2015,30-34,13.48
+Missouri,2016,30-34,11.5
+Missouri,2017,30-34,11.03
+Missouri,2018,30-34,15.6
+Missouri,2019,30-34,16.97
+Missouri,2003,35-39,14.04
+Missouri,2004,35-39,11.91
+Missouri,2005,35-39,13.11
+Missouri,2006,35-39,9.37
+Missouri,2007,35-39,16.65
+Missouri,2008,35-39,12.06
+Missouri,2009,35-39,14.88
+Missouri,2010,35-39,17.95
+Missouri,2011,35-39,8.95
+Missouri,2012,35-39,20.31
+Missouri,2013,35-39,11.78
+Missouri,2014,35-39,16.58
+Missouri,2015,35-39,17.78
+Missouri,2016,35-39,15.72
+Missouri,2017,35-39,12.82
+Missouri,2018,35-39,12.08
+Missouri,2019,35-39,18.43
+Missouri,2003,40-44,13.62
+Missouri,2004,40-44,15.44
+Missouri,2005,40-44,18.41
+Missouri,2006,40-44,16.69
+Missouri,2007,40-44,13.92
+Missouri,2008,40-44,16.96
+Missouri,2009,40-44,19.59
+Missouri,2010,40-44,15.13
+Missouri,2011,40-44,20.28
+Missouri,2012,40-44,19.85
+Missouri,2013,40-44,16.35
+Missouri,2014,40-44,16.09
+Missouri,2015,40-44,17.01
+Missouri,2016,40-44,19.23
+Missouri,2017,40-44,15.37
+Missouri,2018,40-44,14.12
+Missouri,2019,40-44,17.77
+Missouri,2003,45-49,14.2
+Missouri,2004,45-49,12.2
+Missouri,2005,45-49,13.77
+Missouri,2006,45-49,16.62
+Missouri,2007,45-49,17.92
+Missouri,2008,45-49,14.0
+Missouri,2009,45-49,13.17
+Missouri,2010,45-49,12.1
+Missouri,2011,45-49,10.26
+Missouri,2012,45-49,16.51
+Missouri,2013,45-49,18.21
+Missouri,2014,45-49,16.75
+Missouri,2015,45-49,15.92
+Missouri,2016,45-49,18.48
+Missouri,2017,45-49,15.89
+Missouri,2018,45-49,18.18
+Missouri,2019,45-49,20.12
+Nebraska,2003,20-24,1.58
+Nebraska,2004,20-24,1.55
+Nebraska,2005,20-24,1.52
+Nebraska,2006,20-24,1.52
+Nebraska,2007,20-24,1.55
+Nebraska,2008,20-24,0.0
+Nebraska,2009,20-24,3.17
+Nebraska,2010,20-24,1.59
+Nebraska,2011,20-24,3.17
+Nebraska,2012,20-24,3.12
+Nebraska,2013,20-24,0.0
+Nebraska,2014,20-24,1.5
+Nebraska,2015,20-24,0.0
+Nebraska,2016,20-24,0.0
+Nebraska,2017,20-24,0.0
+Nebraska,2018,20-24,0.0
+Nebraska,2019,20-24,1.52
+Nebraska,2003,30-34,19.72
+Nebraska,2004,30-34,12.61
+Nebraska,2005,30-34,10.79
+Nebraska,2006,30-34,5.46
+Nebraska,2007,30-34,10.94
+Nebraska,2008,30-34,10.89
+Nebraska,2009,30-34,10.66
+Nebraska,2010,30-34,10.43
+Nebraska,2011,30-34,6.72
+Nebraska,2012,30-34,11.41
+Nebraska,2013,30-34,4.76
+Nebraska,2014,30-34,18.83
+Nebraska,2015,30-34,10.95
+Nebraska,2016,30-34,9.36
+Nebraska,2017,30-34,14.2
+Nebraska,2018,30-34,15.98
+Nebraska,2019,30-34,8.09
+Nebraska,2003,35-39,19.42
+Nebraska,2004,35-39,12.68
+Nebraska,2005,35-39,18.34
+Nebraska,2006,35-39,10.92
+Nebraska,2007,35-39,18.15
+Nebraska,2008,35-39,12.73
+Nebraska,2009,35-39,25.72
+Nebraska,2010,35-39,11.06
+Nebraska,2011,35-39,9.28
+Nebraska,2012,35-39,14.8
+Nebraska,2013,35-39,12.67
+Nebraska,2014,35-39,12.39
+Nebraska,2015,35-39,13.71
+Nebraska,2016,35-39,13.25
+Nebraska,2017,35-39,20.9
+Nebraska,2018,35-39,9.39
+Nebraska,2019,35-39,18.54
+Nebraska,2003,40-44,13.5
+Nebraska,2004,40-44,13.62
+Nebraska,2005,40-44,18.74
+Nebraska,2006,40-44,13.06
+Nebraska,2007,40-44,28.96
+Nebraska,2008,40-44,8.86
+Nebraska,2009,40-44,21.79
+Nebraska,2010,40-44,22.0
+Nebraska,2011,40-44,18.22
+Nebraska,2012,40-44,14.46
+Nebraska,2013,40-44,16.31
+Nebraska,2014,40-44,18.24
+Nebraska,2015,40-44,18.37
+Nebraska,2016,40-44,9.26
+Nebraska,2017,40-44,18.46
+Nebraska,2018,40-44,14.47
+Nebraska,2019,40-44,26.58
+Nebraska,2003,45-49,10.8
+Nebraska,2004,45-49,7.68
+Nebraska,2005,45-49,9.1
+Nebraska,2006,45-49,7.51
+Nebraska,2007,45-49,5.98
+Nebraska,2008,45-49,13.61
+Nebraska,2009,45-49,12.17
+Nebraska,2010,45-49,7.84
+Nebraska,2011,45-49,18.0
+Nebraska,2012,45-49,13.65
+Nebraska,2013,45-49,15.97
+Nebraska,2014,45-49,23.76
+Nebraska,2015,45-49,18.46
+Nebraska,2016,45-49,9.2
+Nebraska,2017,45-49,25.61
+Nebraska,2018,45-49,7.34
+Nebraska,2019,45-49,20.32
+Nevada,2003,20-24,0.0
+Nevada,2004,20-24,0.0
+Nevada,2005,20-24,1.27
+Nevada,2006,20-24,0.0
+Nevada,2007,20-24,0.0
+Nevada,2008,20-24,1.17
+Nevada,2009,20-24,2.34
+Nevada,2010,20-24,0.0
+Nevada,2011,20-24,1.13
+Nevada,2012,20-24,0.0
+Nevada,2013,20-24,1.11
+Nevada,2014,20-24,1.11
+Nevada,2015,20-24,2.25
+Nevada,2016,20-24,2.29
+Nevada,2017,20-24,0.0
+Nevada,2018,20-24,1.15
+Nevada,2019,20-24,0.0
+Nevada,2003,30-34,14.48
+Nevada,2004,30-34,10.61
+Nevada,2005,30-34,16.39
+Nevada,2006,30-34,4.64
+Nevada,2007,30-34,6.82
+Nevada,2008,30-34,12.24
+Nevada,2009,30-34,9.82
+Nevada,2010,30-34,5.37
+Nevada,2011,30-34,7.46
+Nevada,2012,30-34,13.64
+Nevada,2013,30-34,18.59
+Nevada,2014,30-34,9.14
+Nevada,2015,30-34,15.97
+Nevada,2016,30-34,12.82
+Nevada,2017,30-34,10.7
+Nevada,2018,30-34,9.53
+Nevada,2019,30-34,6.45
+Nevada,2003,35-39,18.13
+Nevada,2004,35-39,14.24
+Nevada,2005,35-39,14.95
+Nevada,2006,35-39,15.35
+Nevada,2007,35-39,15.93
+Nevada,2008,35-39,12.6
+Nevada,2009,35-39,10.52
+Nevada,2010,35-39,17.18
+Nevada,2011,35-39,12.15
+Nevada,2012,35-39,11.1
+Nevada,2013,35-39,15.52
+Nevada,2014,35-39,17.51
+Nevada,2015,35-39,20.23
+Nevada,2016,35-39,25.8
+Nevada,2017,35-39,22.0
+Nevada,2018,35-39,14.52
+Nevada,2019,35-39,13.21
+Nevada,2003,40-44,22.52
+Nevada,2004,40-44,10.23
+Nevada,2005,40-44,22.16
+Nevada,2006,40-44,15.33
+Nevada,2007,40-44,15.24
+Nevada,2008,40-44,19.44
+Nevada,2009,40-44,10.89
+Nevada,2010,40-44,20.55
+Nevada,2011,40-44,6.41
+Nevada,2012,40-44,15.83
+Nevada,2013,40-44,16.87
+Nevada,2014,40-44,15.85
+Nevada,2015,40-44,18.14
+Nevada,2016,40-44,21.61
+Nevada,2017,40-44,25.81
+Nevada,2018,40-44,15.91
+Nevada,2019,40-44,19.76
+Nevada,2003,45-49,13.71
+Nevada,2004,45-49,16.85
+Nevada,2005,45-49,22.11
+Nevada,2006,45-49,20.16
+Nevada,2007,45-49,12.04
+Nevada,2008,45-49,12.96
+Nevada,2009,45-49,11.69
+Nevada,2010,45-49,7.44
+Nevada,2011,45-49,7.54
+Nevada,2012,45-49,15.18
+Nevada,2013,45-49,13.12
+Nevada,2014,45-49,15.34
+Nevada,2015,45-49,21.57
+Nevada,2016,45-49,15.72
+Nevada,2017,45-49,12.34
+Nevada,2018,45-49,20.35
+Nevada,2019,45-49,12.17
+New Jersey,2003,20-24,2.86
+New Jersey,2004,20-24,0.81
+New Jersey,2005,20-24,2.02
+New Jersey,2006,20-24,0.8
+New Jersey,2007,20-24,0.4
+New Jersey,2008,20-24,0.79
+New Jersey,2009,20-24,0.78
+New Jersey,2010,20-24,1.14
+New Jersey,2011,20-24,0.0
+New Jersey,2012,20-24,1.11
+New Jersey,2013,20-24,0.36
+New Jersey,2014,20-24,0.0
+New Jersey,2015,20-24,0.35
+New Jersey,2016,20-24,0.35
+New Jersey,2017,20-24,1.07
+New Jersey,2018,20-24,1.08
+New Jersey,2019,20-24,0.36
+New Jersey,2003,30-34,11.63
+New Jersey,2004,30-34,13.61
+New Jersey,2005,30-34,10.02
+New Jersey,2006,30-34,10.0
+New Jersey,2007,30-34,14.87
+New Jersey,2008,30-34,10.88
+New Jersey,2009,30-34,10.07
+New Jersey,2010,30-34,7.44
+New Jersey,2011,30-34,9.08
+New Jersey,2012,30-34,5.54
+New Jersey,2013,30-34,8.6
+New Jersey,2014,30-34,8.59
+New Jersey,2015,30-34,8.61
+New Jersey,2016,30-34,8.92
+New Jersey,2017,30-34,12.67
+New Jersey,2018,30-34,10.59
+New Jersey,2019,30-34,8.81
+New Jersey,2003,35-39,15.15
+New Jersey,2004,35-39,14.12
+New Jersey,2005,35-39,12.58
+New Jersey,2006,35-39,13.68
+New Jersey,2007,35-39,13.67
+New Jersey,2008,35-39,15.29
+New Jersey,2009,35-39,13.71
+New Jersey,2010,35-39,12.45
+New Jersey,2011,35-39,11.06
+New Jersey,2012,35-39,11.16
+New Jersey,2013,35-39,11.86
+New Jersey,2014,35-39,11.75
+New Jersey,2015,35-39,12.97
+New Jersey,2016,35-39,13.82
+New Jersey,2017,35-39,8.98
+New Jersey,2018,35-39,12.18
+New Jersey,2019,35-39,11.48
+New Jersey,2003,40-44,16.24
+New Jersey,2004,40-44,16.48
+New Jersey,2005,40-44,16.36
+New Jersey,2006,40-44,19.93
+New Jersey,2007,40-44,13.28
+New Jersey,2008,40-44,15.06
+New Jersey,2009,40-44,16.95
+New Jersey,2010,40-44,14.79
+New Jersey,2011,40-44,14.57
+New Jersey,2012,40-44,12.92
+New Jersey,2013,40-44,14.74
+New Jersey,2014,40-44,12.53
+New Jersey,2015,40-44,13.55
+New Jersey,2016,40-44,12.58
+New Jersey,2017,40-44,16.47
+New Jersey,2018,40-44,18.85
+New Jersey,2019,40-44,11.88
+New Jersey,2003,45-49,17.88
+New Jersey,2004,45-49,19.48
+New Jersey,2005,45-49,16.91
+New Jersey,2006,45-49,20.62
+New Jersey,2007,45-49,14.74
+New Jersey,2008,45-49,13.33
+New Jersey,2009,45-49,17.17
+New Jersey,2010,45-49,13.91
+New Jersey,2011,45-49,14.62
+New Jersey,2012,45-49,11.69
+New Jersey,2013,45-49,10.48
+New Jersey,2014,45-49,12.21
+New Jersey,2015,45-49,15.99
+New Jersey,2016,45-49,13.98
+New Jersey,2017,45-49,12.95
+New Jersey,2018,45-49,11.32
+New Jersey,2019,45-49,13.21
+New Mexico,2003,20-24,4.48
+New Mexico,2004,20-24,1.46
+New Mexico,2005,20-24,0.0
+New Mexico,2006,20-24,4.38
+New Mexico,2007,20-24,2.92
+New Mexico,2008,20-24,2.92
+New Mexico,2009,20-24,1.45
+New Mexico,2010,20-24,1.43
+New Mexico,2011,20-24,4.18
+New Mexico,2012,20-24,5.46
+New Mexico,2013,20-24,5.46
+New Mexico,2014,20-24,2.77
+New Mexico,2015,20-24,2.77
+New Mexico,2016,20-24,0.0
+New Mexico,2017,20-24,0.0
+New Mexico,2018,20-24,1.49
+New Mexico,2019,20-24,1.49
+New Mexico,2003,30-34,5.09
+New Mexico,2004,30-34,11.91
+New Mexico,2005,30-34,8.62
+New Mexico,2006,30-34,12.04
+New Mexico,2007,30-34,6.85
+New Mexico,2008,30-34,6.72
+New Mexico,2009,30-34,4.92
+New Mexico,2010,30-34,11.03
+New Mexico,2011,30-34,7.67
+New Mexico,2012,30-34,10.54
+New Mexico,2013,30-34,11.85
+New Mexico,2014,30-34,8.83
+New Mexico,2015,30-34,16.17
+New Mexico,2016,30-34,20.54
+New Mexico,2017,30-34,8.88
+New Mexico,2018,30-34,22.35
+New Mexico,2019,30-34,16.38
+New Mexico,2003,35-39,12.68
+New Mexico,2004,35-39,19.44
+New Mexico,2005,35-39,24.39
+New Mexico,2006,35-39,14.56
+New Mexico,2007,35-39,15.97
+New Mexico,2008,35-39,12.78
+New Mexico,2009,35-39,12.81
+New Mexico,2010,35-39,17.79
+New Mexico,2011,35-39,14.77
+New Mexico,2012,35-39,4.95
+New Mexico,2013,35-39,13.24
+New Mexico,2014,35-39,16.39
+New Mexico,2015,35-39,17.72
+New Mexico,2016,35-39,29.92
+New Mexico,2017,35-39,10.8
+New Mexico,2018,35-39,21.16
+New Mexico,2019,35-39,13.37
+New Mexico,2003,40-44,16.46
+New Mexico,2004,40-44,11.02
+New Mexico,2005,40-44,26.55
+New Mexico,2006,40-44,12.9
+New Mexico,2007,40-44,13.34
+New Mexico,2008,40-44,18.47
+New Mexico,2009,40-44,11.04
+New Mexico,2010,40-44,12.7
+New Mexico,2011,40-44,23.7
+New Mexico,2012,40-44,12.7
+New Mexico,2013,40-44,12.77
+New Mexico,2014,40-44,24.48
+New Mexico,2015,40-44,16.61
+New Mexico,2016,40-44,20.31
+New Mexico,2017,40-44,13.65
+New Mexico,2018,40-44,11.89
+New Mexico,2019,40-44,13.37
+New Mexico,2003,45-49,12.68
+New Mexico,2004,45-49,13.91
+New Mexico,2005,45-49,12.29
+New Mexico,2006,45-49,9.38
+New Mexico,2007,45-49,8.05
+New Mexico,2008,45-49,20.03
+New Mexico,2009,45-49,16.17
+New Mexico,2010,45-49,9.61
+New Mexico,2011,45-49,15.73
+New Mexico,2012,45-49,10.43
+New Mexico,2013,45-49,10.88
+New Mexico,2014,45-49,19.27
+New Mexico,2015,45-49,16.36
+New Mexico,2016,45-49,14.72
+New Mexico,2017,45-49,11.46
+New Mexico,2018,45-49,24.72
+New Mexico,2019,45-49,16.73
+New York,2003,20-24,0.93
+New York,2004,20-24,1.85
+New York,2005,20-24,1.54
+New York,2006,20-24,1.53
+New York,2007,20-24,0.6
+New York,2008,20-24,1.19
+New York,2009,20-24,1.45
+New York,2010,20-24,1.57
+New York,2011,20-24,1.55
+New York,2012,20-24,0.84
+New York,2013,20-24,1.26
+New York,2014,20-24,0.84
+New York,2015,20-24,0.71
+New York,2016,20-24,0.72
+New York,2017,20-24,0.74
+New York,2018,20-24,0.45
+New York,2019,20-24,0.15
+New York,2003,30-34,9.7
+New York,2004,30-34,8.55
+New York,2005,30-34,10.59
+New York,2006,30-34,9.53
+New York,2007,30-34,9.58
+New York,2008,30-34,8.4
+New York,2009,30-34,7.8
+New York,2010,30-34,9.34
+New York,2011,30-34,8.08
+New York,2012,30-34,6.31
+New York,2013,30-34,9.21
+New York,2014,30-34,8.26
+New York,2015,30-34,7.79
+New York,2016,30-34,7.73
+New York,2017,30-34,8.8
+New York,2018,30-34,9.56
+New York,2019,30-34,9.75
+New York,2003,35-39,15.88
+New York,2004,35-39,12.5
+New York,2005,35-39,13.72
+New York,2006,35-39,13.07
+New York,2007,35-39,12.91
+New York,2008,35-39,13.66
+New York,2009,35-39,10.99
+New York,2010,35-39,13.18
+New York,2011,35-39,10.74
+New York,2012,35-39,12.36
+New York,2013,35-39,13.39
+New York,2014,35-39,12.58
+New York,2015,35-39,10.68
+New York,2016,35-39,13.6
+New York,2017,35-39,12.84
+New York,2018,35-39,12.25
+New York,2019,35-39,13.24
+New York,2003,40-44,17.55
+New York,2004,40-44,10.51
+New York,2005,40-44,18.35
+New York,2006,40-44,14.88
+New York,2007,40-44,15.37
+New York,2008,40-44,14.77
+New York,2009,40-44,15.16
+New York,2010,40-44,15.33
+New York,2011,40-44,11.88
+New York,2012,40-44,14.07
+New York,2013,40-44,15.23
+New York,2014,40-44,10.55
+New York,2015,40-44,14.77
+New York,2016,40-44,12.45
+New York,2017,40-44,13.22
+New York,2018,40-44,12.57
+New York,2019,40-44,13.46
+New York,2003,45-49,13.85
+New York,2004,45-49,16.91
+New York,2005,45-49,15.25
+New York,2006,45-49,13.52
+New York,2007,45-49,17.26
+New York,2008,45-49,14.61
+New York,2009,45-49,13.12
+New York,2010,45-49,15.24
+New York,2011,45-49,15.68
+New York,2012,45-49,13.59
+New York,2013,45-49,11.63
+New York,2014,45-49,14.18
+New York,2015,45-49,15.5
+New York,2016,45-49,14.46
+New York,2017,45-49,16.19
+New York,2018,45-49,10.79
+New York,2019,45-49,13.76
+North Carolina,2003,20-24,0.69
+North Carolina,2004,20-24,1.73
+North Carolina,2005,20-24,1.71
+North Carolina,2006,20-24,1.0
+North Carolina,2007,20-24,1.64
+North Carolina,2008,20-24,0.96
+North Carolina,2009,20-24,0.31
+North Carolina,2010,20-24,1.22
+North Carolina,2011,20-24,0.9
+North Carolina,2012,20-24,1.19
+North Carolina,2013,20-24,0.29
+North Carolina,2014,20-24,0.0
+North Carolina,2015,20-24,0.9
+North Carolina,2016,20-24,0.6
+North Carolina,2017,20-24,0.3
+North Carolina,2018,20-24,1.21
+North Carolina,2019,20-24,0.0
+North Carolina,2003,30-34,8.89
+North Carolina,2004,30-34,13.1
+North Carolina,2005,30-34,11.31
+North Carolina,2006,30-34,9.52
+North Carolina,2007,30-34,12.48
+North Carolina,2008,30-34,10.04
+North Carolina,2009,30-34,11.48
+North Carolina,2010,30-34,9.19
+North Carolina,2011,30-34,11.28
+North Carolina,2012,30-34,12.44
+North Carolina,2013,30-34,11.73
+North Carolina,2014,30-34,11.42
+North Carolina,2015,30-34,10.51
+North Carolina,2016,30-34,8.9
+North Carolina,2017,30-34,10.03
+North Carolina,2018,30-34,11.39
+North Carolina,2019,30-34,10.78
+North Carolina,2003,35-39,14.46
+North Carolina,2004,35-39,16.51
+North Carolina,2005,35-39,13.8
+North Carolina,2006,35-39,12.13
+North Carolina,2007,35-39,15.65
+North Carolina,2008,35-39,12.28
+North Carolina,2009,35-39,12.35
+North Carolina,2010,35-39,11.71
+North Carolina,2011,35-39,15.52
+North Carolina,2012,35-39,11.95
+North Carolina,2013,35-39,13.25
+North Carolina,2014,35-39,14.11
+North Carolina,2015,35-39,12.1
+North Carolina,2016,35-39,16.47
+North Carolina,2017,35-39,11.75
+North Carolina,2018,35-39,13.13
+North Carolina,2019,35-39,12.16
+North Carolina,2003,40-44,13.08
+North Carolina,2004,40-44,15.6
+North Carolina,2005,40-44,11.69
+North Carolina,2006,40-44,18.48
+North Carolina,2007,40-44,11.13
+North Carolina,2008,40-44,13.25
+North Carolina,2009,40-44,14.83
+North Carolina,2010,40-44,10.32
+North Carolina,2011,40-44,13.3
+North Carolina,2012,40-44,14.61
+North Carolina,2013,40-44,13.47
+North Carolina,2014,40-44,16.25
+North Carolina,2015,40-44,16.01
+North Carolina,2016,40-44,17.74
+North Carolina,2017,40-44,12.95
+North Carolina,2018,40-44,14.78
+North Carolina,2019,40-44,11.91
+North Carolina,2003,45-49,12.53
+North Carolina,2004,45-49,13.56
+North Carolina,2005,45-49,17.15
+North Carolina,2006,45-49,11.77
+North Carolina,2007,45-49,10.67
+North Carolina,2008,45-49,12.21
+North Carolina,2009,45-49,9.81
+North Carolina,2010,45-49,12.05
+North Carolina,2011,45-49,13.36
+North Carolina,2012,45-49,12.67
+North Carolina,2013,45-49,9.94
+North Carolina,2014,45-49,17.44
+North Carolina,2015,45-49,11.44
+North Carolina,2016,45-49,10.62
+North Carolina,2017,45-49,10.52
+North Carolina,2018,45-49,9.94
+North Carolina,2019,45-49,12.91
+Ohio,2003,20-24,2.56
+Ohio,2004,20-24,1.29
+Ohio,2005,20-24,1.05
+Ohio,2006,20-24,0.8
+Ohio,2007,20-24,0.8
+Ohio,2008,20-24,1.34
+Ohio,2009,20-24,1.33
+Ohio,2010,20-24,0.53
+Ohio,2011,20-24,2.07
+Ohio,2012,20-24,0.76
+Ohio,2013,20-24,1.26
+Ohio,2014,20-24,1.27
+Ohio,2015,20-24,0.51
+Ohio,2016,20-24,1.05
+Ohio,2017,20-24,0.53
+Ohio,2018,20-24,0.54
+Ohio,2019,20-24,0.54
+Ohio,2003,30-34,15.51
+Ohio,2004,30-34,15.15
+Ohio,2005,30-34,12.05
+Ohio,2006,30-34,10.81
+Ohio,2007,30-34,7.15
+Ohio,2008,30-34,8.33
+Ohio,2009,30-34,14.31
+Ohio,2010,30-34,8.61
+Ohio,2011,30-34,7.33
+Ohio,2012,30-34,10.31
+Ohio,2013,30-34,9.92
+Ohio,2014,30-34,12.36
+Ohio,2015,30-34,11.81
+Ohio,2016,30-34,11.77
+Ohio,2017,30-34,15.01
+Ohio,2018,30-34,12.44
+Ohio,2019,30-34,11.13
+Ohio,2003,35-39,13.09
+Ohio,2004,35-39,11.4
+Ohio,2005,35-39,13.87
+Ohio,2006,35-39,18.72
+Ohio,2007,35-39,15.75
+Ohio,2008,35-39,16.01
+Ohio,2009,35-39,16.46
+Ohio,2010,35-39,15.88
+Ohio,2011,35-39,16.52
+Ohio,2012,35-39,11.81
+Ohio,2013,35-39,14.16
+Ohio,2014,35-39,13.98
+Ohio,2015,35-39,13.74
+Ohio,2016,35-39,14.29
+Ohio,2017,35-39,13.49
+Ohio,2018,35-39,12.5
+Ohio,2019,35-39,15.96
+Ohio,2003,40-44,14.02
+Ohio,2004,40-44,13.57
+Ohio,2005,40-44,13.86
+Ohio,2006,40-44,18.8
+Ohio,2007,40-44,15.53
+Ohio,2008,40-44,12.28
+Ohio,2009,40-44,16.21
+Ohio,2010,40-44,12.52
+Ohio,2011,40-44,18.18
+Ohio,2012,40-44,12.03
+Ohio,2013,40-44,16.17
+Ohio,2014,40-44,13.03
+Ohio,2015,40-44,20.69
+Ohio,2016,40-44,20.33
+Ohio,2017,40-44,18.0
+Ohio,2018,40-44,17.09
+Ohio,2019,40-44,13.1
+Ohio,2003,45-49,13.28
+Ohio,2004,45-49,12.7
+Ohio,2005,45-49,18.75
+Ohio,2006,45-49,14.33
+Ohio,2007,45-49,14.7
+Ohio,2008,45-49,16.5
+Ohio,2009,45-49,16.09
+Ohio,2010,45-49,9.26
+Ohio,2011,45-49,15.79
+Ohio,2012,45-49,17.3
+Ohio,2013,45-49,12.5
+Ohio,2014,45-49,15.17
+Ohio,2015,45-49,12.96
+Ohio,2016,45-49,15.53
+Ohio,2017,45-49,14.02
+Ohio,2018,45-49,12.87
+Ohio,2019,45-49,16.22
+Oklahoma,2003,20-24,3.02
+Oklahoma,2004,20-24,0.75
+Oklahoma,2005,20-24,1.5
+Oklahoma,2006,20-24,3.77
+Oklahoma,2007,20-24,3.05
+Oklahoma,2008,20-24,3.07
+Oklahoma,2009,20-24,1.53
+Oklahoma,2010,20-24,3.78
+Oklahoma,2011,20-24,0.74
+Oklahoma,2012,20-24,0.72
+Oklahoma,2013,20-24,1.42
+Oklahoma,2014,20-24,0.71
+Oklahoma,2015,20-24,0.0
+Oklahoma,2016,20-24,0.0
+Oklahoma,2017,20-24,3.81
+Oklahoma,2018,20-24,1.53
+Oklahoma,2019,20-24,0.76
+Oklahoma,2003,30-34,14.16
+Oklahoma,2004,30-34,15.16
+Oklahoma,2005,30-34,11.67
+Oklahoma,2006,30-34,12.72
+Oklahoma,2007,30-34,13.64
+Oklahoma,2008,30-34,20.68
+Oklahoma,2009,30-34,17.4
+Oklahoma,2010,30-34,21.83
+Oklahoma,2011,30-34,13.04
+Oklahoma,2012,30-34,13.49
+Oklahoma,2013,30-34,18.41
+Oklahoma,2014,30-34,18.92
+Oklahoma,2015,30-34,16.58
+Oklahoma,2016,30-34,14.33
+Oklahoma,2017,30-34,15.34
+Oklahoma,2018,30-34,17.82
+Oklahoma,2019,30-34,11.57
+Oklahoma,2003,35-39,18.39
+Oklahoma,2004,35-39,13.58
+Oklahoma,2005,35-39,12.69
+Oklahoma,2006,35-39,17.79
+Oklahoma,2007,35-39,20.98
+Oklahoma,2008,35-39,18.24
+Oklahoma,2009,35-39,23.41
+Oklahoma,2010,35-39,19.99
+Oklahoma,2011,35-39,23.77
+Oklahoma,2012,35-39,8.8
+Oklahoma,2013,35-39,22.64
+Oklahoma,2014,35-39,21.33
+Oklahoma,2015,35-39,14.91
+Oklahoma,2016,35-39,18.58
+Oklahoma,2017,35-39,11.84
+Oklahoma,2018,35-39,22.3
+Oklahoma,2019,35-39,21.28
+Oklahoma,2003,40-44,21.82
+Oklahoma,2004,40-44,15.94
+Oklahoma,2005,40-44,19.42
+Oklahoma,2006,40-44,22.48
+Oklahoma,2007,40-44,15.81
+Oklahoma,2008,40-44,20.67
+Oklahoma,2009,40-44,21.19
+Oklahoma,2010,40-44,20.23
+Oklahoma,2011,40-44,16.44
+Oklahoma,2012,40-44,22.28
+Oklahoma,2013,40-44,21.34
+Oklahoma,2014,40-44,19.74
+Oklahoma,2015,40-44,16.43
+Oklahoma,2016,40-44,14.93
+Oklahoma,2017,40-44,22.98
+Oklahoma,2018,40-44,21.97
+Oklahoma,2019,40-44,24.14
+Oklahoma,2003,45-49,16.96
+Oklahoma,2004,45-49,13.76
+Oklahoma,2005,45-49,12.1
+Oklahoma,2006,45-49,25.41
+Oklahoma,2007,45-49,18.69
+Oklahoma,2008,45-49,15.74
+Oklahoma,2009,45-49,12.74
+Oklahoma,2010,45-49,13.02
+Oklahoma,2011,45-49,17.54
+Oklahoma,2012,45-49,16.57
+Oklahoma,2013,45-49,15.46
+Oklahoma,2014,45-49,16.77
+Oklahoma,2015,45-49,22.14
+Oklahoma,2016,45-49,25.35
+Oklahoma,2017,45-49,12.15
+Oklahoma,2018,45-49,20.84
+Oklahoma,2019,45-49,26.21
+Oregon,2003,20-24,1.62
+Oregon,2004,20-24,2.44
+Oregon,2005,20-24,0.81
+Oregon,2006,20-24,0.0
+Oregon,2007,20-24,0.81
+Oregon,2008,20-24,0.0
+Oregon,2009,20-24,0.0
+Oregon,2010,20-24,0.0
+Oregon,2011,20-24,0.78
+Oregon,2012,20-24,1.53
+Oregon,2013,20-24,1.53
+Oregon,2014,20-24,0.0
+Oregon,2015,20-24,0.77
+Oregon,2016,20-24,1.54
+Oregon,2017,20-24,0.0
+Oregon,2018,20-24,0.0
+Oregon,2019,20-24,0.0
+Oregon,2003,30-34,12.48
+Oregon,2004,30-34,6.73
+Oregon,2005,30-34,8.49
+Oregon,2006,30-34,8.52
+Oregon,2007,30-34,16.8
+Oregon,2008,30-34,10.69
+Oregon,2009,30-34,12.78
+Oregon,2010,30-34,7.78
+Oregon,2011,30-34,11.38
+Oregon,2012,30-34,11.14
+Oregon,2013,30-34,5.13
+Oregon,2014,30-34,7.97
+Oregon,2015,30-34,10.03
+Oregon,2016,30-34,8.4
+Oregon,2017,30-34,11.13
+Oregon,2018,30-34,13.11
+Oregon,2019,30-34,8.15
+Oregon,2003,35-39,12.72
+Oregon,2004,35-39,8.56
+Oregon,2005,35-39,6.69
+Oregon,2006,35-39,17.08
+Oregon,2007,35-39,15.21
+Oregon,2008,35-39,19.07
+Oregon,2009,35-39,18.42
+Oregon,2010,35-39,17.88
+Oregon,2011,35-39,9.81
+Oregon,2012,35-39,12.14
+Oregon,2013,35-39,12.72
+Oregon,2014,35-39,10.08
+Oregon,2015,35-39,17.23
+Oregon,2016,35-39,9.36
+Oregon,2017,35-39,11.84
+Oregon,2018,35-39,12.29
+Oregon,2019,35-39,10.1
+Oregon,2003,40-44,11.2
+Oregon,2004,40-44,12.1
+Oregon,2005,40-44,13.12
+Oregon,2006,40-44,11.8
+Oregon,2007,40-44,16.91
+Oregon,2008,40-44,17.2
+Oregon,2009,40-44,15.64
+Oregon,2010,40-44,11.37
+Oregon,2011,40-44,15.9
+Oregon,2012,40-44,16.53
+Oregon,2013,40-44,14.17
+Oregon,2014,40-44,22.16
+Oregon,2015,40-44,18.29
+Oregon,2016,40-44,17.46
+Oregon,2017,40-44,18.71
+Oregon,2018,40-44,16.8
+Oregon,2019,40-44,16.4
+Oregon,2003,45-49,9.97
+Oregon,2004,45-49,7.93
+Oregon,2005,45-49,10.1
+Oregon,2006,45-49,9.37
+Oregon,2007,45-49,11.62
+Oregon,2008,45-49,16.88
+Oregon,2009,45-49,15.6
+Oregon,2010,45-49,9.12
+Oregon,2011,45-49,15.65
+Oregon,2012,45-49,12.06
+Oregon,2013,45-49,14.77
+Oregon,2014,45-49,11.5
+Oregon,2015,45-49,16.07
+Oregon,2016,45-49,12.49
+Oregon,2017,45-49,12.32
+Oregon,2018,45-49,13.03
+Oregon,2019,45-49,15.45
+Pennsylvania,2003,20-24,1.0
+Pennsylvania,2004,20-24,0.75
+Pennsylvania,2005,20-24,1.99
+Pennsylvania,2006,20-24,1.72
+Pennsylvania,2007,20-24,0.49
+Pennsylvania,2008,20-24,0.72
+Pennsylvania,2009,20-24,1.65
+Pennsylvania,2010,20-24,1.15
+Pennsylvania,2011,20-24,1.59
+Pennsylvania,2012,20-24,2.27
+Pennsylvania,2013,20-24,1.37
+Pennsylvania,2014,20-24,0.92
+Pennsylvania,2015,20-24,0.71
+Pennsylvania,2016,20-24,0.96
+Pennsylvania,2017,20-24,1.22
+Pennsylvania,2018,20-24,0.75
+Pennsylvania,2019,20-24,0.76
+Pennsylvania,2003,30-34,14.48
+Pennsylvania,2004,30-34,14.43
+Pennsylvania,2005,30-34,10.89
+Pennsylvania,2006,30-34,12.69
+Pennsylvania,2007,30-34,14.58
+Pennsylvania,2008,30-34,12.17
+Pennsylvania,2009,30-34,10.56
+Pennsylvania,2010,30-34,8.17
+Pennsylvania,2011,30-34,11.4
+Pennsylvania,2012,30-34,11.18
+Pennsylvania,2013,30-34,9.46
+Pennsylvania,2014,30-34,9.62
+Pennsylvania,2015,30-34,11.56
+Pennsylvania,2016,30-34,9.18
+Pennsylvania,2017,30-34,12.25
+Pennsylvania,2018,30-34,11.8
+Pennsylvania,2019,30-34,8.49
+Pennsylvania,2003,35-39,12.92
+Pennsylvania,2004,35-39,10.93
+Pennsylvania,2005,35-39,17.27
+Pennsylvania,2006,35-39,12.36
+Pennsylvania,2007,35-39,15.89
+Pennsylvania,2008,35-39,14.04
+Pennsylvania,2009,35-39,14.72
+Pennsylvania,2010,35-39,11.29
+Pennsylvania,2011,35-39,14.17
+Pennsylvania,2012,35-39,14.64
+Pennsylvania,2013,35-39,9.1
+Pennsylvania,2014,35-39,10.91
+Pennsylvania,2015,35-39,10.96
+Pennsylvania,2016,35-39,16.46
+Pennsylvania,2017,35-39,14.57
+Pennsylvania,2018,35-39,9.54
+Pennsylvania,2019,35-39,13.4
+Pennsylvania,2003,40-44,14.3
+Pennsylvania,2004,40-44,15.5
+Pennsylvania,2005,40-44,15.35
+Pennsylvania,2006,40-44,15.3
+Pennsylvania,2007,40-44,16.56
+Pennsylvania,2008,40-44,12.3
+Pennsylvania,2009,40-44,15.36
+Pennsylvania,2010,40-44,14.69
+Pennsylvania,2011,40-44,18.28
+Pennsylvania,2012,40-44,15.93
+Pennsylvania,2013,40-44,13.14
+Pennsylvania,2014,40-44,14.29
+Pennsylvania,2015,40-44,16.38
+Pennsylvania,2016,40-44,15.14
+Pennsylvania,2017,40-44,13.99
+Pennsylvania,2018,40-44,13.66
+Pennsylvania,2019,40-44,14.32
+Pennsylvania,2003,45-49,13.23
+Pennsylvania,2004,45-49,12.85
+Pennsylvania,2005,45-49,13.95
+Pennsylvania,2006,45-49,12.68
+Pennsylvania,2007,45-49,15.35
+Pennsylvania,2008,45-49,12.1
+Pennsylvania,2009,45-49,13.86
+Pennsylvania,2010,45-49,11.38
+Pennsylvania,2011,45-49,13.36
+Pennsylvania,2012,45-49,12.85
+Pennsylvania,2013,45-49,13.87
+Pennsylvania,2014,45-49,14.48
+Pennsylvania,2015,45-49,12.62
+Pennsylvania,2016,45-49,13.9
+Pennsylvania,2017,45-49,14.38
+Pennsylvania,2018,45-49,13.23
+Pennsylvania,2019,45-49,13.62
+South Carolina,2003,20-24,1.34
+South Carolina,2004,20-24,1.32
+South Carolina,2005,20-24,0.66
+South Carolina,2006,20-24,0.66
+South Carolina,2007,20-24,0.65
+South Carolina,2008,20-24,1.91
+South Carolina,2009,20-24,0.62
+South Carolina,2010,20-24,1.82
+South Carolina,2011,20-24,1.18
+South Carolina,2012,20-24,1.16
+South Carolina,2013,20-24,0.58
+South Carolina,2014,20-24,1.17
+South Carolina,2015,20-24,1.2
+South Carolina,2016,20-24,0.0
+South Carolina,2017,20-24,1.26
+South Carolina,2018,20-24,0.64
+South Carolina,2019,20-24,0.64
+South Carolina,2003,30-34,12.51
+South Carolina,2004,30-34,14.05
+South Carolina,2005,30-34,13.56
+South Carolina,2006,30-34,8.73
+South Carolina,2007,30-34,13.79
+South Carolina,2008,30-34,10.02
+South Carolina,2009,30-34,12.67
+South Carolina,2010,30-34,9.61
+South Carolina,2011,30-34,8.74
+South Carolina,2012,30-34,4.64
+South Carolina,2013,30-34,14.36
+South Carolina,2014,30-34,7.76
+South Carolina,2015,30-34,10.31
+South Carolina,2016,30-34,10.22
+South Carolina,2017,30-34,15.84
+South Carolina,2018,30-34,13.09
+South Carolina,2019,30-34,12.67
+South Carolina,2003,35-39,15.22
+South Carolina,2004,35-39,16.89
+South Carolina,2005,35-39,11.49
+South Carolina,2006,35-39,15.33
+South Carolina,2007,35-39,16.39
+South Carolina,2008,35-39,15.59
+South Carolina,2009,35-39,22.2
+South Carolina,2010,35-39,20.7
+South Carolina,2011,35-39,19.32
+South Carolina,2012,35-39,17.39
+South Carolina,2013,35-39,11.8
+South Carolina,2014,35-39,11.63
+South Carolina,2015,35-39,11.37
+South Carolina,2016,35-39,14.28
+South Carolina,2017,35-39,21.57
+South Carolina,2018,35-39,13.05
+South Carolina,2019,35-39,15.33
+South Carolina,2003,40-44,15.47
+South Carolina,2004,40-44,11.6
+South Carolina,2005,40-44,15.93
+South Carolina,2006,40-44,16.59
+South Carolina,2007,40-44,13.67
+South Carolina,2008,40-44,13.83
+South Carolina,2009,40-44,20.47
+South Carolina,2010,40-44,16.73
+South Carolina,2011,40-44,14.69
+South Carolina,2012,40-44,13.99
+South Carolina,2013,40-44,20.35
+South Carolina,2014,40-44,14.11
+South Carolina,2015,40-44,16.92
+South Carolina,2016,40-44,14.67
+South Carolina,2017,40-44,14.06
+South Carolina,2018,40-44,16.62
+South Carolina,2019,40-44,13.75
+South Carolina,2003,45-49,13.21
+South Carolina,2004,45-49,15.55
+South Carolina,2005,45-49,14.7
+South Carolina,2006,45-49,22.27
+South Carolina,2007,45-49,14.92
+South Carolina,2008,45-49,15.97
+South Carolina,2009,45-49,19.23
+South Carolina,2010,45-49,16.41
+South Carolina,2011,45-49,10.72
+South Carolina,2012,45-49,12.74
+South Carolina,2013,45-49,11.14
+South Carolina,2014,45-49,18.3
+South Carolina,2015,45-49,18.93
+South Carolina,2016,45-49,15.6
+South Carolina,2017,45-49,13.58
+South Carolina,2018,45-49,16.6
+South Carolina,2019,45-49,19.18
+Tennessee,2003,20-24,1.45
+Tennessee,2004,20-24,2.92
+Tennessee,2005,20-24,1.46
+Tennessee,2006,20-24,1.48
+Tennessee,2007,20-24,1.95
+Tennessee,2008,20-24,0.97
+Tennessee,2009,20-24,3.8
+Tennessee,2010,20-24,0.47
+Tennessee,2011,20-24,1.36
+Tennessee,2012,20-24,1.32
+Tennessee,2013,20-24,0.44
+Tennessee,2014,20-24,1.31
+Tennessee,2015,20-24,0.88
+Tennessee,2016,20-24,0.9
+Tennessee,2017,20-24,0.91
+Tennessee,2018,20-24,0.45
+Tennessee,2019,20-24,0.91
+Tennessee,2003,30-34,12.04
+Tennessee,2004,30-34,10.73
+Tennessee,2005,30-34,10.39
+Tennessee,2006,30-34,15.69
+Tennessee,2007,30-34,9.18
+Tennessee,2008,30-34,14.16
+Tennessee,2009,30-34,11.37
+Tennessee,2010,30-34,12.64
+Tennessee,2011,30-34,11.9
+Tennessee,2012,30-34,10.33
+Tennessee,2013,30-34,8.37
+Tennessee,2014,30-34,11.56
+Tennessee,2015,30-34,14.8
+Tennessee,2016,30-34,10.11
+Tennessee,2017,30-34,12.75
+Tennessee,2018,30-34,12.98
+Tennessee,2019,30-34,9.6
+Tennessee,2003,35-39,12.05
+Tennessee,2004,35-39,19.45
+Tennessee,2005,35-39,16.65
+Tennessee,2006,35-39,16.79
+Tennessee,2007,35-39,14.7
+Tennessee,2008,35-39,18.28
+Tennessee,2009,35-39,21.68
+Tennessee,2010,35-39,19.78
+Tennessee,2011,35-39,15.53
+Tennessee,2012,35-39,17.64
+Tennessee,2013,35-39,19.12
+Tennessee,2014,35-39,16.0
+Tennessee,2015,35-39,17.16
+Tennessee,2016,35-39,15.38
+Tennessee,2017,35-39,7.79
+Tennessee,2018,35-39,17.62
+Tennessee,2019,35-39,12.56
+Tennessee,2003,40-44,12.93
+Tennessee,2004,40-44,16.28
+Tennessee,2005,40-44,21.89
+Tennessee,2006,40-44,15.97
+Tennessee,2007,40-44,14.06
+Tennessee,2008,40-44,12.53
+Tennessee,2009,40-44,21.48
+Tennessee,2010,40-44,18.81
+Tennessee,2011,40-44,16.27
+Tennessee,2012,40-44,12.11
+Tennessee,2013,40-44,20.18
+Tennessee,2014,40-44,15.45
+Tennessee,2015,40-44,10.66
+Tennessee,2016,40-44,14.83
+Tennessee,2017,40-44,14.45
+Tennessee,2018,40-44,21.1
+Tennessee,2019,40-44,15.14
+Tennessee,2003,45-49,18.98
+Tennessee,2004,45-49,15.31
+Tennessee,2005,45-49,13.39
+Tennessee,2006,45-49,13.61
+Tennessee,2007,45-49,14.39
+Tennessee,2008,45-49,19.31
+Tennessee,2009,45-49,12.93
+Tennessee,2010,45-49,11.74
+Tennessee,2011,45-49,16.66
+Tennessee,2012,45-49,17.46
+Tennessee,2013,45-49,17.9
+Tennessee,2014,45-49,20.07
+Tennessee,2015,45-49,16.88
+Tennessee,2016,45-49,18.85
+Tennessee,2017,45-49,11.12
+Tennessee,2018,45-49,15.51
+Tennessee,2019,45-49,16.55
+Texas,2003,20-24,1.45
+Texas,2004,20-24,1.67
+Texas,2005,20-24,2.97
+Texas,2006,20-24,2.11
+Texas,2007,20-24,1.87
+Texas,2008,20-24,2.44
+Texas,2009,20-24,2.63
+Texas,2010,20-24,2.36
+Texas,2011,20-24,1.65
+Texas,2012,20-24,1.93
+Texas,2013,20-24,1.79
+Texas,2014,20-24,1.56
+Texas,2015,20-24,1.14
+Texas,2016,20-24,1.36
+Texas,2017,20-24,1.47
+Texas,2018,20-24,0.74
+Texas,2019,20-24,0.63
+Texas,2003,30-34,13.01
+Texas,2004,30-34,13.21
+Texas,2005,30-34,15.56
+Texas,2006,30-34,13.58
+Texas,2007,30-34,12.88
+Texas,2008,30-34,13.34
+Texas,2009,30-34,12.8
+Texas,2010,30-34,14.5
+Texas,2011,30-34,11.71
+Texas,2012,30-34,13.47
+Texas,2013,30-34,12.75
+Texas,2014,30-34,13.4
+Texas,2015,30-34,13.5
+Texas,2016,30-34,13.92
+Texas,2017,30-34,13.31
+Texas,2018,30-34,15.69
+Texas,2019,30-34,17.02
+Texas,2003,35-39,20.04
+Texas,2004,35-39,14.9
+Texas,2005,35-39,16.83
+Texas,2006,35-39,17.2
+Texas,2007,35-39,17.06
+Texas,2008,35-39,14.69
+Texas,2009,35-39,16.13
+Texas,2010,35-39,15.9
+Texas,2011,35-39,16.15
+Texas,2012,35-39,15.87
+Texas,2013,35-39,13.73
+Texas,2014,35-39,16.91
+Texas,2015,35-39,17.08
+Texas,2016,35-39,18.57
+Texas,2017,35-39,18.94
+Texas,2018,35-39,19.0
+Texas,2019,35-39,19.93
+Texas,2003,40-44,19.91
+Texas,2004,40-44,18.91
+Texas,2005,40-44,19.32
+Texas,2006,40-44,17.39
+Texas,2007,40-44,18.87
+Texas,2008,40-44,17.74
+Texas,2009,40-44,18.57
+Texas,2010,40-44,19.24
+Texas,2011,40-44,18.49
+Texas,2012,40-44,17.4
+Texas,2013,40-44,19.71
+Texas,2014,40-44,19.77
+Texas,2015,40-44,18.43
+Texas,2016,40-44,19.96
+Texas,2017,40-44,19.34
+Texas,2018,40-44,20.17
+Texas,2019,40-44,20.95
+Texas,2003,45-49,19.58
+Texas,2004,45-49,18.68
+Texas,2005,45-49,16.94
+Texas,2006,45-49,14.82
+Texas,2007,45-49,17.99
+Texas,2008,45-49,18.56
+Texas,2009,45-49,16.39
+Texas,2010,45-49,17.54
+Texas,2011,45-49,17.65
+Texas,2012,45-49,16.93
+Texas,2013,45-49,15.37
+Texas,2014,45-49,16.2
+Texas,2015,45-49,16.85
+Texas,2016,45-49,18.05
+Texas,2017,45-49,16.37
+Texas,2018,45-49,18.33
+Texas,2019,45-49,19.09
+Utah,2003,20-24,0.83
+Utah,2004,20-24,0.84
+Utah,2005,20-24,0.0
+Utah,2006,20-24,2.59
+Utah,2007,20-24,0.0
+Utah,2008,20-24,0.88
+Utah,2009,20-24,1.77
+Utah,2010,20-24,0.88
+Utah,2011,20-24,0.85
+Utah,2012,20-24,0.0
+Utah,2013,20-24,0.82
+Utah,2014,20-24,0.81
+Utah,2015,20-24,0.81
+Utah,2016,20-24,0.81
+Utah,2017,20-24,0.8
+Utah,2018,20-24,1.58
+Utah,2019,20-24,0.77
+Utah,2003,30-34,8.73
+Utah,2004,30-34,6.05
+Utah,2005,30-34,6.98
+Utah,2006,30-34,4.54
+Utah,2007,30-34,7.56
+Utah,2008,30-34,6.11
+Utah,2009,30-34,5.84
+Utah,2010,30-34,12.21
+Utah,2011,30-34,2.74
+Utah,2012,30-34,6.32
+Utah,2013,30-34,4.49
+Utah,2014,30-34,2.7
+Utah,2015,30-34,5.47
+Utah,2016,30-34,10.06
+Utah,2017,30-34,7.38
+Utah,2018,30-34,7.4
+Utah,2019,30-34,11.9
+Utah,2003,35-39,7.14
+Utah,2004,35-39,8.53
+Utah,2005,35-39,10.96
+Utah,2006,35-39,10.45
+Utah,2007,35-39,9.99
+Utah,2008,35-39,2.41
+Utah,2009,35-39,9.36
+Utah,2010,35-39,9.07
+Utah,2011,35-39,8.84
+Utah,2012,35-39,11.65
+Utah,2013,35-39,6.07
+Utah,2014,35-39,6.8
+Utah,2015,35-39,8.4
+Utah,2016,35-39,12.62
+Utah,2017,35-39,9.69
+Utah,2018,35-39,8.7
+Utah,2019,35-39,9.56
+Utah,2003,40-44,9.25
+Utah,2004,40-44,23.81
+Utah,2005,40-44,17.41
+Utah,2006,40-44,14.92
+Utah,2007,40-44,10.91
+Utah,2008,40-44,8.21
+Utah,2009,40-44,10.84
+Utah,2010,40-44,10.5
+Utah,2011,40-44,12.6
+Utah,2012,40-44,8.55
+Utah,2013,40-44,15.42
+Utah,2014,40-44,11.59
+Utah,2015,40-44,10.19
+Utah,2016,40-44,7.68
+Utah,2017,40-44,7.33
+Utah,2018,40-44,11.93
+Utah,2019,40-44,3.8
+Utah,2003,45-49,8.32
+Utah,2004,45-49,5.47
+Utah,2005,45-49,5.36
+Utah,2006,45-49,11.78
+Utah,2007,45-49,7.79
+Utah,2008,45-49,16.68
+Utah,2009,45-49,7.68
+Utah,2010,45-49,9.08
+Utah,2011,45-49,13.24
+Utah,2012,45-49,9.41
+Utah,2013,45-49,10.88
+Utah,2014,45-49,9.43
+Utah,2015,45-49,11.78
+Utah,2016,45-49,8.79
+Utah,2017,45-49,13.32
+Utah,2018,45-49,12.9
+Utah,2019,45-49,10.3
+Virginia,2003,20-24,2.38
+Virginia,2004,20-24,1.15
+Virginia,2005,20-24,1.13
+Virginia,2006,20-24,0.37
+Virginia,2007,20-24,1.1
+Virginia,2008,20-24,1.1
+Virginia,2009,20-24,0.36
+Virginia,2010,20-24,0.72
+Virginia,2011,20-24,1.42
+Virginia,2012,20-24,2.81
+Virginia,2013,20-24,0.0
+Virginia,2014,20-24,1.05
+Virginia,2015,20-24,0.35
+Virginia,2016,20-24,0.0
+Virginia,2017,20-24,0.72
+Virginia,2018,20-24,0.36
+Virginia,2019,20-24,0.73
+Virginia,2003,30-34,8.52
+Virginia,2004,30-34,10.52
+Virginia,2005,30-34,9.58
+Virginia,2006,30-34,10.61
+Virginia,2007,30-34,7.53
+Virginia,2008,30-34,9.05
+Virginia,2009,30-34,9.3
+Virginia,2010,30-34,9.76
+Virginia,2011,30-34,6.92
+Virginia,2012,30-34,6.4
+Virginia,2013,30-34,7.67
+Virginia,2014,30-34,10.01
+Virginia,2015,30-34,8.97
+Virginia,2016,30-34,8.59
+Virginia,2017,30-34,7.89
+Virginia,2018,30-34,7.2
+Virginia,2019,30-34,8.49
+Virginia,2003,35-39,9.29
+Virginia,2004,35-39,7.01
+Virginia,2005,35-39,14.51
+Virginia,2006,35-39,13.38
+Virginia,2007,35-39,10.61
+Virginia,2008,35-39,13.19
+Virginia,2009,35-39,11.59
+Virginia,2010,35-39,10.35
+Virginia,2011,35-39,11.75
+Virginia,2012,35-39,9.87
+Virginia,2013,35-39,15.07
+Virginia,2014,35-39,11.49
+Virginia,2015,35-39,11.6
+Virginia,2016,35-39,9.57
+Virginia,2017,35-39,6.97
+Virginia,2018,35-39,11.3
+Virginia,2019,35-39,14.26
+Virginia,2003,40-44,13.21
+Virginia,2004,40-44,11.49
+Virginia,2005,40-44,12.77
+Virginia,2006,40-44,13.6
+Virginia,2007,40-44,14.5
+Virginia,2008,40-44,12.82
+Virginia,2009,40-44,11.34
+Virginia,2010,40-44,9.7
+Virginia,2011,40-44,12.07
+Virginia,2012,40-44,14.83
+Virginia,2013,40-44,9.05
+Virginia,2014,40-44,13.47
+Virginia,2015,40-44,11.98
+Virginia,2016,40-44,11.95
+Virginia,2017,40-44,11.67
+Virginia,2018,40-44,14.6
+Virginia,2019,40-44,10.33
+Virginia,2003,45-49,9.57
+Virginia,2004,45-49,10.02
+Virginia,2005,45-49,11.18
+Virginia,2006,45-49,10.7
+Virginia,2007,45-49,9.33
+Virginia,2008,45-49,12.15
+Virginia,2009,45-49,11.72
+Virginia,2010,45-49,12.68
+Virginia,2011,45-49,9.34
+Virginia,2012,45-49,10.16
+Virginia,2013,45-49,10.08
+Virginia,2014,45-49,15.14
+Virginia,2015,45-49,11.13
+Virginia,2016,45-49,15.26
+Virginia,2017,45-49,12.52
+Virginia,2018,45-49,11.27
+Virginia,2019,45-49,9.33
+Washington,2003,20-24,2.8
+Washington,2004,20-24,3.7
+Washington,2005,20-24,2.77
+Washington,2006,20-24,2.76
+Washington,2007,20-24,0.92
+Washington,2008,20-24,0.91
+Washington,2009,20-24,0.9
+Washington,2010,20-24,2.23
+Washington,2011,20-24,1.73
+Washington,2012,20-24,0.43
+Washington,2013,20-24,0.85
+Washington,2014,20-24,0.42
+Washington,2015,20-24,1.71
+Washington,2016,20-24,0.43
+Washington,2017,20-24,0.0
+Washington,2018,20-24,0.44
+Washington,2019,20-24,0.87
+Washington,2003,30-34,14.95
+Washington,2004,30-34,11.36
+Washington,2005,30-34,13.11
+Washington,2006,30-34,11.77
+Washington,2007,30-34,9.74
+Washington,2008,30-34,9.98
+Washington,2009,30-34,7.81
+Washington,2010,30-34,6.22
+Washington,2011,30-34,10.32
+Washington,2012,30-34,7.11
+Washington,2013,30-34,8.6
+Washington,2014,30-34,9.6
+Washington,2015,30-34,9.0
+Washington,2016,30-34,10.67
+Washington,2017,30-34,12.32
+Washington,2018,30-34,9.86
+Washington,2019,30-34,11.03
+Washington,2003,35-39,11.73
+Washington,2004,35-39,15.95
+Washington,2005,35-39,13.53
+Washington,2006,35-39,18.12
+Washington,2007,35-39,13.13
+Washington,2008,35-39,10.11
+Washington,2009,35-39,15.09
+Washington,2010,35-39,9.96
+Washington,2011,35-39,15.64
+Washington,2012,35-39,8.7
+Washington,2013,35-39,13.06
+Washington,2014,35-39,18.03
+Washington,2015,35-39,15.29
+Washington,2016,35-39,10.18
+Washington,2017,35-39,10.16
+Washington,2018,35-39,13.62
+Washington,2019,35-39,12.9
+Washington,2003,40-44,10.56
+Washington,2004,40-44,10.57
+Washington,2005,40-44,14.0
+Washington,2006,40-44,13.04
+Washington,2007,40-44,14.18
+Washington,2008,40-44,13.18
+Washington,2009,40-44,21.28
+Washington,2010,40-44,16.23
+Washington,2011,40-44,10.78
+Washington,2012,40-44,14.18
+Washington,2013,40-44,16.45
+Washington,2014,40-44,15.35
+Washington,2015,40-44,15.99
+Washington,2016,40-44,12.97
+Washington,2017,40-44,15.44
+Washington,2018,40-44,11.67
+Washington,2019,40-44,17.69
+Washington,2003,45-49,12.76
+Washington,2004,45-49,8.16
+Washington,2005,45-49,11.36
+Washington,2006,45-49,14.86
+Washington,2007,45-49,9.22
+Washington,2008,45-49,14.46
+Washington,2009,45-49,11.66
+Washington,2010,45-49,15.09
+Washington,2011,45-49,13.83
+Washington,2012,45-49,12.02
+Washington,2013,45-49,10.55
+Washington,2014,45-49,13.3
+Washington,2015,45-49,11.82
+Washington,2016,45-49,10.28
+Washington,2017,45-49,13.16
+Washington,2018,45-49,18.72
+Washington,2019,45-49,14.22
+West Virginia,2003,20-24,3.23
+West Virginia,2004,20-24,0.0
+West Virginia,2005,20-24,5.04
+West Virginia,2006,20-24,5.14
+West Virginia,2007,20-24,0.0
+West Virginia,2008,20-24,0.0
+West Virginia,2009,20-24,3.53
+West Virginia,2010,20-24,1.73
+West Virginia,2011,20-24,3.33
+West Virginia,2012,20-24,3.25
+West Virginia,2013,20-24,0.0
+West Virginia,2014,20-24,1.62
+West Virginia,2015,20-24,1.68
+West Virginia,2016,20-24,1.75
+West Virginia,2017,20-24,0.0
+West Virginia,2018,20-24,0.0
+West Virginia,2019,20-24,1.87
+West Virginia,2003,30-34,12.03
+West Virginia,2004,30-34,13.93
+West Virginia,2005,30-34,14.11
+West Virginia,2006,30-34,12.76
+West Virginia,2007,30-34,18.55
+West Virginia,2008,30-34,9.29
+West Virginia,2009,30-34,14.67
+West Virginia,2010,30-34,21.58
+West Virginia,2011,30-34,16.02
+West Virginia,2012,30-34,12.48
+West Virginia,2013,30-34,17.96
+West Virginia,2014,30-34,11.0
+West Virginia,2015,30-34,9.43
+West Virginia,2016,30-34,17.38
+West Virginia,2017,30-34,21.75
+West Virginia,2018,30-34,22.18
+West Virginia,2019,30-34,16.02
+West Virginia,2003,35-39,18.33
+West Virginia,2004,35-39,20.39
+West Virginia,2005,35-39,20.61
+West Virginia,2006,35-39,15.26
+West Virginia,2007,35-39,10.13
+West Virginia,2008,35-39,23.55
+West Virginia,2009,35-39,23.95
+West Virginia,2010,35-39,20.8
+West Virginia,2011,35-39,23.18
+West Virginia,2012,35-39,14.44
+West Virginia,2013,35-39,14.51
+West Virginia,2014,35-39,18.11
+West Virginia,2015,35-39,16.17
+West Virginia,2016,35-39,26.9
+West Virginia,2017,35-39,27.22
+West Virginia,2018,35-39,20.16
+West Virginia,2019,35-39,11.28
+West Virginia,2003,40-44,20.4
+West Virginia,2004,40-44,19.31
+West Virginia,2005,40-44,18.2
+West Virginia,2006,40-44,28.06
+West Virginia,2007,40-44,20.71
+West Virginia,2008,40-44,29.41
+West Virginia,2009,40-44,19.95
+West Virginia,2010,40-44,28.46
+West Virginia,2011,40-44,18.25
+West Virginia,2012,40-44,23.22
+West Virginia,2013,40-44,18.38
+West Virginia,2014,40-44,11.88
+West Virginia,2015,40-44,20.91
+West Virginia,2016,40-44,18.06
+West Virginia,2017,40-44,18.4
+West Virginia,2018,40-44,14.86
+West Virginia,2019,40-44,14.83
+West Virginia,2003,45-49,11.07
+West Virginia,2004,45-49,23.46
+West Virginia,2005,45-49,23.62
+West Virginia,2006,45-49,13.98
+West Virginia,2007,45-49,18.54
+West Virginia,2008,45-49,18.84
+West Virginia,2009,45-49,22.11
+West Virginia,2010,45-49,16.45
+West Virginia,2011,45-49,16.97
+West Virginia,2012,45-49,23.78
+West Virginia,2013,45-49,14.74
+West Virginia,2014,45-49,25.27
+West Virginia,2015,45-49,17.02
+West Virginia,2016,45-49,18.66
+West Virginia,2017,45-49,17.05
+West Virginia,2018,45-49,24.1
+West Virginia,2019,45-49,14.04
+Wisconsin,2003,20-24,0.0
+Wisconsin,2004,20-24,0.52
+Wisconsin,2005,20-24,2.56
+Wisconsin,2006,20-24,0.0
+Wisconsin,2007,20-24,1.03
+Wisconsin,2008,20-24,1.56
+Wisconsin,2009,20-24,2.1
+Wisconsin,2010,20-24,2.11
+Wisconsin,2011,20-24,0.53
+Wisconsin,2012,20-24,3.62
+Wisconsin,2013,20-24,0.0
+Wisconsin,2014,20-24,0.5
+Wisconsin,2015,20-24,0.5
+Wisconsin,2016,20-24,0.0
+Wisconsin,2017,20-24,1.52
+Wisconsin,2018,20-24,0.51
+Wisconsin,2019,20-24,0.0
+Wisconsin,2003,30-34,10.66
+Wisconsin,2004,30-34,14.31
+Wisconsin,2005,30-34,9.32
+Wisconsin,2006,30-34,6.6
+Wisconsin,2007,30-34,7.86
+Wisconsin,2008,30-34,7.81
+Wisconsin,2009,30-34,8.29
+Wisconsin,2010,30-34,13.36
+Wisconsin,2011,30-34,9.62
+Wisconsin,2012,30-34,12.76
+Wisconsin,2013,30-34,10.38
+Wisconsin,2014,30-34,9.75
+Wisconsin,2015,30-34,14.67
+Wisconsin,2016,30-34,9.81
+Wisconsin,2017,30-34,12.12
+Wisconsin,2018,30-34,10.04
+Wisconsin,2019,30-34,11.8
+Wisconsin,2003,35-39,9.13
+Wisconsin,2004,35-39,17.26
+Wisconsin,2005,35-39,13.87
+Wisconsin,2006,35-39,12.92
+Wisconsin,2007,35-39,12.58
+Wisconsin,2008,35-39,10.64
+Wisconsin,2009,35-39,12.64
+Wisconsin,2010,35-39,8.26
+Wisconsin,2011,35-39,10.94
+Wisconsin,2012,35-39,8.54
+Wisconsin,2013,35-39,12.06
+Wisconsin,2014,35-39,11.23
+Wisconsin,2015,35-39,13.26
+Wisconsin,2016,35-39,15.73
+Wisconsin,2017,35-39,12.1
+Wisconsin,2018,35-39,10.79
+Wisconsin,2019,35-39,11.22
+Wisconsin,2003,40-44,11.17
+Wisconsin,2004,40-44,8.98
+Wisconsin,2005,40-44,10.52
+Wisconsin,2006,40-44,8.96
+Wisconsin,2007,40-44,8.26
+Wisconsin,2008,40-44,7.55
+Wisconsin,2009,40-44,11.44
+Wisconsin,2010,40-44,13.3
+Wisconsin,2011,40-44,9.14
+Wisconsin,2012,40-44,10.43
+Wisconsin,2013,40-44,8.98
+Wisconsin,2014,40-44,11.51
+Wisconsin,2015,40-44,15.98
+Wisconsin,2016,40-44,15.85
+Wisconsin,2017,40-44,10.97
+Wisconsin,2018,40-44,14.44
+Wisconsin,2019,40-44,15.33
+Wisconsin,2003,45-49,11.79
+Wisconsin,2004,45-49,11.6
+Wisconsin,2005,45-49,7.76
+Wisconsin,2006,45-49,8.52
+Wisconsin,2007,45-49,11.16
+Wisconsin,2008,45-49,8.49
+Wisconsin,2009,45-49,9.0
+Wisconsin,2010,45-49,13.31
+Wisconsin,2011,45-49,11.38
+Wisconsin,2012,45-49,9.8
+Wisconsin,2013,45-49,11.18
+Wisconsin,2014,45-49,7.9
+Wisconsin,2015,45-49,9.69
+Wisconsin,2016,45-49,14.72
+Wisconsin,2017,45-49,10.01
+Wisconsin,2018,45-49,10.23
+Wisconsin,2019,45-49,11.06

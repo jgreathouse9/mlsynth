@@ -719,6 +719,14 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
 * Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
   staggered missingness natively).
+* Exposure defined by a within-unit *subgroup* (a triple difference), and you
+  distrust parallel trends across that third dimension -- :doc:`sdid` in its
+  synthetic triple-difference mode (``subgroup`` / ``target_subgroup``; Zhuang
+  2024). It demeans the outcome by the non-target subgroup within each
+  treatment-group-by-time cell, reducing the DDD to a DID, then runs SDID on the
+  exposed subgroup -- so the counterfactual is a weighted combination of control
+  units rather than a parallel-trends extrapolation across states *and* subgroups.
+  Reach for it when, e.g., only one age band in a state is policy-exposed.
 
 *Which staggered synthetic control?* Three SC-family methods target this same
 setting on different arguments, and the choice turns on your donor pool, sample
