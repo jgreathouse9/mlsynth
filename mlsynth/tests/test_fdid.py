@@ -18,10 +18,7 @@ from mlsynth.utils.fdid_helpers import (
 from mlsynth.utils.fdid_helpers.estimation import (
     _choose_optimal_subset,
     _compute_fdid_result,
-    _r2_batch,
     _record_verbose_step,
-    _select_best_donor,
-    _update_synthetic_control,
 )
 from mlsynth.utils.fdid_helpers.inference import did_inference
 
@@ -224,23 +221,6 @@ def test_did_inference_degenerate():
 # -----------------------------
 # estimation._r2_batch
 # -----------------------------
-def test_r2_batch_basic():
-    y_c = np.array([1.0, -1.0])
-    ss_tot = np.sum(y_c ** 2)
-    X_pre = np.array([[1.0, 2.0], [-1.0, -2.0]])
-    r2 = _r2_batch(y_c, ss_tot, X_pre)
-    assert r2.shape[0] == 2
-    assert np.all(r2 <= 1.0)
-
-
-def test_r2_batch_zero_variance():
-    y_c = np.array([1.0, -1.0])
-    ss_tot = np.sum(y_c ** 2)
-    X_pre = np.ones((2, 3))
-    r2 = _r2_batch(y_c, ss_tot, X_pre)
-    assert np.all(np.isfinite(r2))
-
-
 # -----------------------------
 # estimation.did_from_mean
 # -----------------------------
@@ -272,23 +252,6 @@ def test_did_from_mean_all_zero_control():
 # -----------------------------
 # estimation forward-selection helpers
 # -----------------------------
-def test_select_best_donor_single_remaining():
-    X_pre = np.array([[1, 2], [3, 4]])
-    current_mean = np.array([1, 3])
-    y_c = np.array([0.5, -0.5])
-    ss_tot = np.sum(y_c ** 2)
-    idx, r2, r2_all = _select_best_donor(X_pre, current_mean, 1, np.array([1]), y_c, ss_tot)
-    assert idx == 1
-    assert r2 == r2_all[0]
-
-
-def test_update_synthetic_control_basic():
-    current_mean = np.array([1.0, 2.0])
-    control_outcomes = np.array([[2.0, 3.0], [4.0, 5.0]])
-    updated = _update_synthetic_control(current_mean, control_outcomes, 0, 1)
-    assert updated.shape == current_mean.shape
-
-
 def test_record_verbose_step_appends():
     intermediary = []
     donor_names = ["A", "B"]
@@ -352,6 +315,127 @@ def test_forward_did_select_name_length_mismatch():
     controls = np.array([[1, 0], [0, 1], [1, 0], [0, 1]])
     with pytest.raises(ValueError, match="donor_names length"):
         forward_did_select(treated, controls, 2, ["only_one"], verbose=False)
+
+
+# -----------------------------------------------------------------------------
+# forward_did_select: equivalence to Li's definitional algorithm
+#
+# Independent brute-force oracle transcribed cell-for-cell from the author's
+# Fun_FDID.R (recompute rowMeans over the growing selected set for every
+# candidate at every step; which.max = first-tie argmax; full N-step path; the
+# optimal donor count is which.max of the R^2 path). Any optimized rewrite of
+# forward_did_select must reproduce this exactly.
+# -----------------------------------------------------------------------------
+def _naive_forward_did(treated, X, T0):
+    """O(N^3) reference forward-selected DID (mirrors Fun_FDID.R)."""
+    T, N = X.shape
+    yp = treated[:T0]
+    Xp = X[:T0]
+    ss_tot = np.sum((yp - yp.mean()) ** 2)
+
+    def r2_of(cols):
+        mean_pre = Xp[:, cols].mean(axis=1)
+        beta = (yp - mean_pre).mean()          # DID intercept
+        yhat = beta + mean_pre
+        return 1.0 - np.sum((yp - yhat) ** 2) / ss_tot
+
+    r2s = np.array([r2_of([j]) for j in range(N)])
+    select = [int(np.argmax(r2s))]
+    R2_path = [float(r2s[select[0]])]
+    for _ in range(1, N):
+        left = [j for j in range(N) if j not in select]
+        cand_r2 = np.array([r2_of(select + [j]) for j in left])
+        best = left[int(np.argmax(cand_r2))]   # first-tie argmax
+        select.append(best)
+        R2_path.append(float(cand_r2.max()))
+    num_c = int(np.argmax(R2_path))             # optimal donor count
+    opt = select[: num_c + 1]
+
+    mean_full = X[:, opt].mean(axis=1)
+    tp, tpost = treated[:T0], treated[T0:]
+    cp, cpost = mean_full[:T0], mean_full[T0:]
+    att = (tpost.mean() - tp.mean()) - (cpost.mean() - cp.mean())
+    return opt, np.array(R2_path[: num_c + 1]), float(att)
+
+
+@pytest.mark.parametrize("seed,N,T0,T1", [
+    (0, 6, 8, 3), (1, 20, 10, 4), (2, 50, 12, 5), (3, 15, 6, 2), (4, 80, 14, 3),
+])
+def test_forward_did_matches_naive_reference(seed, N, T0, T1):
+    """Selections, R^2 path, and ATT match Li's definitional algorithm exactly."""
+    rng = np.random.default_rng(seed)
+    T = T0 + T1
+    controls = rng.standard_normal((T, N)) * 2.0 + rng.standard_normal(N)
+    treated = controls[:, :3].mean(axis=1) + 0.3 * rng.standard_normal(T) + 1.0
+    names = [f"c{j}" for j in range(N)]
+
+    got = forward_did_select(treated, controls, T0, names)["FDID"]
+    opt, r2_path, att = _naive_forward_did(treated, controls, T0)
+
+    assert got["selected_controls"] == opt                       # exact order
+    assert np.allclose(got["R2_at_each_step"], r2_path, atol=1e-9)
+    assert np.isclose(got["Effects"]["ATT"], round(att, 4), atol=1e-4)
+
+
+def test_forward_did_zero_variance_donor_matches_naive():
+    """A constant (zero-variance) donor must not crash and must match the oracle."""
+    rng = np.random.default_rng(7)
+    T0, T = 8, 11
+    controls = rng.standard_normal((T, 10)) * 1.5
+    controls[:, 4] = 3.0                                          # constant donor
+    treated = controls[:, :2].mean(axis=1) + 0.2 * rng.standard_normal(T)
+    names = [f"c{j}" for j in range(10)]
+    got = forward_did_select(treated, controls, T0, names)["FDID"]
+    opt, r2_path, att = _naive_forward_did(treated, controls, T0)
+    assert np.all(np.isfinite(got["R2_at_each_step"]))
+    assert got["selected_controls"] == opt
+    assert np.isclose(got["Effects"]["ATT"], round(att, 4), atol=1e-4)
+
+
+def test_forward_did_duplicate_donor_estimate_invariant():
+    """Exact-duplicate donors are a measure-zero tie: the *estimate* is invariant.
+
+    When two donor columns are identical, adding the second leaves the donor
+    average -- and therefore the R^2 and the ATT -- exactly unchanged, so which
+    of the tied prefixes the R^2-argmax keeps is ambiguous at the level of
+    floating-point summation order. The contract for this degenerate input is
+    the estimate (ATT, peak R^2, counterfactual), not the exact selected set:
+    the fit is identical whether or not the redundant duplicate is retained.
+    """
+    rng = np.random.default_rng(11)
+    T0, T = 6, 9
+    base = rng.standard_normal((T, 5))
+    controls = np.column_stack([base, base[:, 1]])               # col 5 duplicates col 1
+    treated = base[:, 1] + 0.1 * rng.standard_normal(T)
+    names = [f"c{j}" for j in range(controls.shape[1])]
+    got = forward_did_select(treated, controls, T0, names)["FDID"]
+    opt, r2_path, att = _naive_forward_did(treated, controls, T0)
+
+    assert np.isclose(got["Effects"]["ATT"], round(att, 4), atol=1e-9)     # estimate
+    assert np.isclose(max(got["R2_at_each_step"]), max(r2_path), atol=1e-9)
+    assert set(opt).issubset(set(got["selected_controls"]))               # only dups added
+    # the retained donors' average equals the oracle's (redundant duplicates)
+    assert np.allclose(controls[:, got["selected_controls"]].mean(axis=1),
+                       controls[:, opt].mean(axis=1))
+
+
+def test_forward_did_single_donor():
+    """N = 1 selects the lone donor."""
+    treated = np.array([1.0, 2.0, 3.0, 5.0])
+    controls = np.array([[1.0], [2.0], [3.0], [4.0]])
+    got = forward_did_select(treated, controls, 3, ["c0"])["FDID"]
+    assert got["selected_controls"] == [0]
+    assert np.all(np.isfinite(got["R2_at_each_step"]))
+
+
+def test_forward_did_constant_treated_pre_period():
+    """Zero-variance treated pre-period hits the ss_tot guard without dividing by 0."""
+    treated = np.array([5.0, 5.0, 5.0, 8.0])           # constant over the 3 pre-periods
+    rng = np.random.default_rng(3)
+    controls = rng.standard_normal((4, 4))
+    got = forward_did_select(treated, controls, 3, [f"c{j}" for j in range(4)])["FDID"]
+    assert np.all(np.isfinite(got["R2_at_each_step"]))
+    assert np.isfinite(got["Effects"]["ATT"])
 
 
 # -----------------------------
