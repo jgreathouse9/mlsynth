@@ -113,6 +113,8 @@ class SDID:
         self.seed: int = config.seed
         self.vce: str = config.vce
         self.intercept_adjust: bool = config.intercept_adjust
+        self.subgroup = config.subgroup
+        self.target_subgroup = config.target_subgroup
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -133,6 +135,8 @@ class SDID:
                 seed=self.seed,
                 vce=self.vce,
                 intercept_adjust=self.intercept_adjust,
+                subgroup=self.subgroup,
+                target_subgroup=self.target_subgroup,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
