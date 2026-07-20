@@ -23,8 +23,8 @@ from .engine import run_multisynth, predict_tau
 def per_unit_intervals(
     M: np.ndarray, tau_rel: np.ndarray, *, alpha: float,
     time_dependence: str = "iid",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Per-unit CFPT/SCPI prediction intervals for each unit's time-averaged ATT.
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per-unit CFPT/SCPI prediction intervals for each unit's effect path.
 
     The pooled bootstrap / jackknife measures variability *across* units and so
     cannot give one treated unit its own interval. This builds a per-unit band from
@@ -32,7 +32,7 @@ def per_unit_intervals(
     CFPT/SCPI machinery MSQRT uses), so PPSCM's per-unit bands are methodologically
     consistent with MSQRT's.
 
-    For unit ``k`` the band comes from its post-period effect path
+    For unit ``k`` the bands come from its post-period effect path
     ``tau_rel[k, :]`` (the CFPT ``effects``) and its pre-period residuals
     ``M[:, k]`` (the CFPT ``pre_residuals``): the residual moments set the
     sub-Gaussian scale of the counterfactual prediction error, which correctly
@@ -41,6 +41,12 @@ def per_unit_intervals(
     over-reject. The engine is called per unit (one column at a time), so units
     with different post horizons (ragged ``NaN``) are handled by trimming.
 
+    A single engine call returns the full CFPT family, so both the time-averaged
+    band (``TAUS``) and the per-period pointwise bands (``TSUS``) come out of the
+    same computation: the pointwise bands are the ``TAUS`` band's per-horizon
+    counterpart and are wider (``TAUS`` shrinks by ``sqrt(L)`` under
+    ``time_dependence="iid"``; a single period does not).
+
     Parameters
     ----------
     M : numpy.ndarray
@@ -48,20 +54,24 @@ def per_unit_intervals(
         unit). ``NaN`` entries are dropped per unit.
     tau_rel : numpy.ndarray
         Post-period relative-time effect paths, shape ``(J, H)`` (a 1-D array is a
-        single unit). Trailing ``NaN`` (past a unit's horizon) is dropped.
+        single unit). ``NaN`` (past a unit's horizon) is dropped per unit.
     alpha : float
         Total miscoverage level; the interval is ``100 * (1 - alpha)`` percent.
         Keyword-only.
     time_dependence : {"iid", "general"}, default "iid"
-        Time-averaging bound passed through to the CFPT engine. Keyword-only.
+        Time-averaging bound passed through to the CFPT engine (it affects only the
+        time-averaged band, never the per-period bands). Keyword-only.
 
     Returns
     -------
     tuple of numpy.ndarray
-        ``(ci_lower, ci_upper, p_value)``, each shape ``(J,)``: the per-unit band
-        bounds on the time-averaged ATT and a band-implied two-sided p-value (the
-        house convention ``2 * (alpha/2) ** ((point/half_width) ** 2)``, clamped to
-        ``[0, 1]``). A unit with no usable residuals yields ``NaN``.
+        ``(ci_lower, ci_upper, p_value, tau_lower, tau_upper)``. The first three
+        have shape ``(J,)``: the per-unit band bounds on the time-averaged ATT and a
+        band-implied two-sided p-value (the house convention
+        ``2 * (alpha/2) ** ((point/half_width) ** 2)``, clamped to ``[0, 1]``). The
+        last two have shape ``(J, H)`` -- the per-unit, per-period band bounds,
+        aligned with ``tau_rel`` (``NaN`` where ``tau_rel`` is ``NaN``). A unit with
+        no usable residuals yields ``NaN`` throughout.
     """
     from ..scpi_helpers import out_of_sample_intervals
 
@@ -71,14 +81,17 @@ def per_unit_intervals(
         M = M[:, None]
     if tau_rel.ndim == 1:
         tau_rel = tau_rel[None, :]
-    J = tau_rel.shape[0]
+    J, H = tau_rel.shape
     lo = np.full(J, np.nan)
     hi = np.full(J, np.nan)
     pval = np.full(J, np.nan)
+    tsu_lo = np.full((J, H), np.nan)
+    tsu_hi = np.full((J, H), np.nan)
 
     for k in range(J):
+        finite = np.isfinite(tau_rel[k, :])
         pre = M[:, k][np.isfinite(M[:, k])]
-        post = tau_rel[k, :][np.isfinite(tau_rel[k, :])]
+        post = tau_rel[k, finite]
         if pre.size == 0 or post.size == 0:  # pragma: no cover - guarded upstream
             continue
         res = out_of_sample_intervals(
@@ -93,7 +106,13 @@ def per_unit_intervals(
             pval[k] = float(min(1.0, 2.0 * (alpha / 2.0) ** ((band.point / half) ** 2)))
         else:  # pragma: no cover - degenerate zero-width band
             pval[k] = 1.0
-    return lo, hi, pval
+        # Per-period (TSUS) bands -- already computed in the same call. Place each
+        # back at the horizon it came from so the output aligns with ``tau_rel``.
+        for p, col in enumerate(np.flatnonzero(finite)):
+            pband = res.tsus[(k, p)]
+            tsu_lo[k, col] = float(pband.lower)
+            tsu_hi[k, col] = float(pband.upper)
+    return lo, hi, pval, tsu_lo, tsu_hi
 
 
 # Mammen (1993) two-point wild-bootstrap multipliers (mean 0, variance 1) --
