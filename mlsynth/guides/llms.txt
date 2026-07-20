@@ -48,6 +48,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MAREX** — Synthetic-control experimental design estimator (Abadie & Zhao 2026).  (config: MAREXConfig)
 - **MASC** — Matching and Synthetic Control estimator.  (config: MASCConfig)
 - **MCNNM** — Matrix Completion with Nuclear Norm Minimization estimator.  (config: MCNNMConfig)
+- **MEDSC** — Mediation-analysis synthetic control estimator.  (config: MEDSCConfig)
 - **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
 - **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
 - **MULTICELLGEOLIFT** — Multi-cell GeoLift: measure several treatment cells at once.

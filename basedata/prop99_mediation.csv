@@ -1,0 +1,1582 @@
+state,year,cigsale,price
+Alabama,1970,89.8,0.427
+Alabama,1971,95.4,0.423
+Alabama,1972,101.1,0.421
+Alabama,1973,102.9,0.431
+Alabama,1974,108.2,0.466
+Alabama,1975,111.7,0.504
+Alabama,1976,116.2,0.501
+Alabama,1977,117.1,0.551
+Alabama,1978,123.0,0.568
+Alabama,1979,121.4,0.606
+Alabama,1980,123.2,0.688
+Alabama,1981,119.6,0.731
+Alabama,1982,119.1,0.844
+Alabama,1983,116.3,0.908
+Alabama,1984,113.0,0.99
+Alabama,1985,114.5,1.03
+Alabama,1986,116.3,1.1
+Alabama,1987,114.0,1.144
+Alabama,1988,112.1,1.223
+Alabama,1989,105.6,1.391
+Alabama,1990,108.6,1.444
+Alabama,1991,107.9,1.722
+Alabama,1992,109.1,1.762
+Alabama,1993,108.5,1.546
+Alabama,1994,107.1,1.551
+Alabama,1995,102.6,1.583
+Alabama,1996,101.4,1.674
+Alabama,1997,104.9,1.805
+Alabama,1998,106.2,1.956
+Alabama,1999,100.7,2.707
+Alabama,2000,96.2,2.884
+Alaska,1970,121.3,0.418
+Alaska,1971,123.0,0.421
+Alaska,1972,130.0,0.42
+Alaska,1973,125.8,0.438
+Alaska,1974,130.4,0.449
+Alaska,1975,150.4,0.483
+Alaska,1976,164.8,0.515
+Alaska,1977,159.3,0.563
+Alaska,1978,143.6,0.571
+Alaska,1979,138.1,0.609
+Alaska,1980,134.0,0.635
+Alaska,1981,144.0,0.728
+Alaska,1982,148.3,0.86
+Alaska,1983,146.9,0.962
+Alaska,1984,133.6,1.027
+Alaska,1985,128.9,1.1
+Alaska,1986,126.3,1.215
+Alaska,1987,110.4,1.254
+Alaska,1988,80.0,1.394
+Alaska,1989,94.4,1.702
+Alaska,1990,100.2,2.017
+Alaska,1991,101.8,2.073
+Alaska,1992,98.5,2.191
+Alaska,1993,95.2,2.009
+Alaska,1994,94.1,2.014
+Alaska,1995,89.5,2.125
+Alaska,1996,89.9,2.144
+Alaska,1997,81.7,2.97
+Alaska,1998,78.6,3.276
+Alaska,1999,70.5,4.047
+Alaska,2000,66.0,4.397
+Arizona,1970,115.2,0.385
+Arizona,1971,109.6,0.38
+Arizona,1972,125.0,0.387
+Arizona,1973,128.3,0.392
+Arizona,1974,133.1,0.477
+Arizona,1975,121.8,0.491
+Arizona,1976,122.3,0.487
+Arizona,1977,121.7,0.536
+Arizona,1978,124.7,0.586
+Arizona,1979,124.6,0.608
+Arizona,1980,126.8,0.633
+Arizona,1981,113.8,0.733
+Arizona,1982,113.5,0.805
+Arizona,1983,111.1,0.928
+Arizona,1984,107.1,0.988
+Arizona,1985,107.1,1.067
+Arizona,1986,107.9,1.135
+Arizona,1987,106.1,1.135
+Arizona,1988,102.2,1.256
+Arizona,1989,96.8,1.302
+Arizona,1990,88.9,1.514
+Arizona,1991,81.2,1.657
+Arizona,1992,79.0,1.836
+Arizona,1993,80.3,1.621
+Arizona,1994,79.0,1.629
+Arizona,1995,77.3,2.079
+Arizona,1996,71.4,2.22
+Arizona,1997,64.6,2.31
+Arizona,1998,66.0,2.501
+Arizona,1999,61.7,3.177
+Arizona,2000,58.5,3.458
+Arkansas,1970,100.3,0.388
+Arkansas,1971,104.1,0.441
+Arkansas,1972,103.9,0.451
+Arkansas,1973,108.0,0.455
+Arkansas,1974,109.7,0.486
+Arkansas,1975,114.8,0.509
+Arkansas,1976,119.1,0.526
+Arkansas,1977,122.6,0.565
+Arkansas,1978,127.3,0.584
+Arkansas,1979,126.5,0.615
+Arkansas,1980,131.8,0.647
+Arkansas,1981,128.7,0.721
+Arkansas,1982,127.4,0.82
+Arkansas,1983,128.0,0.936
+Arkansas,1984,123.1,0.985
+Arkansas,1985,125.8,1.036
+Arkansas,1986,126.0,1.13
+Arkansas,1987,122.3,1.199
+Arkansas,1988,121.5,1.277
+Arkansas,1989,118.3,1.412
+Arkansas,1990,113.1,1.465
+Arkansas,1991,116.8,1.773
+Arkansas,1992,126.0,1.799
+Arkansas,1993,113.8,1.681
+Arkansas,1994,108.8,1.673
+Arkansas,1995,113.0,1.671
+Arkansas,1996,110.7,1.813
+Arkansas,1997,108.7,1.873
+Arkansas,1998,109.5,2.069
+Arkansas,1999,104.8,2.793
+Arkansas,2000,99.4,2.944
+California,1970,123.0,0.397
+California,1971,121.0,0.399
+California,1972,123.5,0.399
+California,1973,124.4,0.419
+California,1974,126.7,0.45
+California,1975,127.1,0.483
+California,1976,128.0,0.49
+California,1977,126.4,0.587
+California,1978,126.1,0.601
+California,1979,121.9,0.621
+California,1980,120.2,0.664
+California,1981,118.6,0.728
+California,1982,115.4,0.849
+California,1983,110.8,0.949
+California,1984,104.8,0.98
+California,1985,102.8,1.044
+California,1986,99.7,1.039
+California,1987,97.5,1.174
+California,1988,90.1,1.264
+California,1989,82.4,1.638
+California,1990,77.8,1.868
+California,1991,68.7,2.019
+California,1992,67.5,2.051
+California,1993,63.4,1.903
+California,1994,58.6,1.951
+California,1995,56.4,1.979
+California,1996,54.5,2.003
+California,1997,53.8,2.078
+California,1998,52.3,2.249
+California,1999,47.2,3.512
+California,2000,41.6,3.655
+Colorado,1970,124.8,0.311
+Colorado,1971,125.5,0.312
+Colorado,1972,134.3,0.327
+Colorado,1973,137.9,0.381
+Colorado,1974,132.8,0.417
+Colorado,1975,131.0,0.448
+Colorado,1976,134.2,0.447
+Colorado,1977,132.0,0.574
+Colorado,1978,129.2,0.528
+Colorado,1979,131.5,0.546
+Colorado,1980,131.0,0.581
+Colorado,1981,133.8,0.614
+Colorado,1982,130.5,0.733
+Colorado,1983,125.3,0.834
+Colorado,1984,119.7,0.931
+Colorado,1985,112.4,0.951
+Colorado,1986,109.9,1.086
+Colorado,1987,102.4,1.16
+Colorado,1988,94.6,1.308
+Colorado,1989,88.8,1.493
+Colorado,1990,87.4,1.457
+Colorado,1991,90.2,1.575
+Colorado,1992,88.3,1.682
+Colorado,1993,88.6,1.532
+Colorado,1994,89.1,1.642
+Colorado,1995,85.4,1.696
+Colorado,1996,83.1,1.744
+Colorado,1997,81.3,1.858
+Colorado,1998,81.2,2.042
+Colorado,1999,79.6,2.813
+Colorado,2000,73.0,2.933
+Connecticut,1970,120.0,0.455
+Connecticut,1971,117.6,0.513
+Connecticut,1972,110.8,0.506
+Connecticut,1973,109.3,0.525
+Connecticut,1974,112.4,0.545
+Connecticut,1975,110.2,0.576
+Connecticut,1976,113.4,0.584
+Connecticut,1977,117.3,0.617
+Connecticut,1978,117.5,0.644
+Connecticut,1979,117.4,0.67
+Connecticut,1980,118.0,0.801
+Connecticut,1981,116.4,0.856
+Connecticut,1982,114.7,0.956
+Connecticut,1983,114.1,1.135
+Connecticut,1984,112.5,1.186
+Connecticut,1985,111.0,1.185
+Connecticut,1986,108.5,1.227
+Connecticut,1987,109.0,1.297
+Connecticut,1988,104.8,1.42
+Connecticut,1989,100.6,1.712
+Connecticut,1990,91.5,1.695
+Connecticut,1991,86.7,1.935
+Connecticut,1992,83.6,2.023
+Connecticut,1993,79.1,2.056
+Connecticut,1994,76.6,2.054
+Connecticut,1995,79.3,2.063
+Connecticut,1996,76.0,2.085
+Connecticut,1997,75.9,2.179
+Connecticut,1998,75.5,2.365
+Connecticut,1999,73.4,3.123
+Connecticut,2000,71.4,3.192
+Delaware,1970,155.0,0.413
+Delaware,1971,161.1,0.447
+Delaware,1972,156.3,0.44
+Delaware,1973,154.7,0.442
+Delaware,1974,151.3,0.459
+Delaware,1975,147.6,0.501
+Delaware,1976,153.0,0.517
+Delaware,1977,153.3,0.587
+Delaware,1978,155.5,0.6
+Delaware,1979,150.2,0.627
+Delaware,1980,150.5,0.66
+Delaware,1981,152.6,0.741
+Delaware,1982,154.1,0.82
+Delaware,1983,149.6,0.911
+Delaware,1984,144.0,0.987
+Delaware,1985,144.5,1.052
+Delaware,1986,142.4,1.114
+Delaware,1987,141.0,1.193
+Delaware,1988,137.1,1.24
+Delaware,1989,131.7,1.4
+Delaware,1990,127.2,1.432
+Delaware,1991,118.8,1.747
+Delaware,1992,120.0,1.879
+Delaware,1993,123.8,1.525
+Delaware,1994,126.1,1.607
+Delaware,1995,127.2,1.691
+Delaware,1996,128.3,1.719
+Delaware,1997,124.1,1.792
+Delaware,1998,132.8,1.983
+Delaware,1999,139.5,2.762
+Delaware,2000,140.7,2.887
+District of Columbia,1970,200.4,0.326
+District of Columbia,1971,213.0,0.337
+District of Columbia,1972,220.6,0.345
+District of Columbia,1973,209.4,0.36
+District of Columbia,1974,182.7,0.394
+District of Columbia,1975,176.5,0.478
+District of Columbia,1976,167.7,0.519
+District of Columbia,1977,136.7,0.598
+District of Columbia,1978,130.3,0.593
+District of Columbia,1979,128.5,0.656
+District of Columbia,1980,129.7,0.69
+District of Columbia,1981,131.9,0.748
+District of Columbia,1982,132.0,0.863
+District of Columbia,1983,124.5,0.985
+District of Columbia,1984,124.6,1.004
+District of Columbia,1985,122.1,1.093
+District of Columbia,1986,117.2,1.125
+District of Columbia,1987,113.0,1.19
+District of Columbia,1988,105.4,1.359
+District of Columbia,1989,101.1,1.457
+District of Columbia,1990,84.1,1.433
+District of Columbia,1991,82.2,1.874
+District of Columbia,1992,82.6,2.121
+District of Columbia,1993,68.0,2.131
+District of Columbia,1994,54.1,2.219
+District of Columbia,1995,57.9,2.332
+District of Columbia,1996,56.0,2.304
+District of Columbia,1997,54.3,2.365
+District of Columbia,1998,50.9,2.533
+District of Columbia,1999,50.8,3.24
+District of Columbia,2000,50.2,3.554
+Florida,1970,123.6,0.438
+Florida,1971,123.0,0.468
+Florida,1972,126.0,0.474
+Florida,1973,132.6,0.481
+Florida,1974,136.0,0.517
+Florida,1975,131.9,0.559
+Florida,1976,130.3,0.559
+Florida,1977,133.1,0.663
+Florida,1978,133.4,0.665
+Florida,1979,135.4,0.698
+Florida,1980,139.0,0.728
+Florida,1981,132.8,0.79
+Florida,1982,131.8,0.905
+Florida,1983,127.6,0.993
+Florida,1984,124.7,1.042
+Florida,1985,124.2,1.138
+Florida,1986,124.7,1.208
+Florida,1987,125.1,1.305
+Florida,1988,119.5,1.398
+Florida,1989,113.8,1.501
+Florida,1990,110.1,1.748
+Florida,1991,98.2,1.87
+Florida,1992,95.9,1.937
+Florida,1993,96.8,1.716
+Florida,1994,93.6,1.733
+Florida,1995,95.4,1.798
+Florida,1996,91.8,1.827
+Florida,1997,93.0,1.918
+Florida,1998,91.7,2.156
+Florida,1999,88.2,2.863
+Florida,2000,82.5,3.023
+Georgia,1970,109.9,0.358
+Georgia,1971,115.7,0.409
+Georgia,1972,117.0,0.424
+Georgia,1973,119.8,0.424
+Georgia,1974,123.7,0.445
+Georgia,1975,122.9,0.479
+Georgia,1976,125.9,0.495
+Georgia,1977,127.9,0.547
+Georgia,1978,130.6,0.566
+Georgia,1979,131.0,0.593
+Georgia,1980,134.0,0.626
+Georgia,1981,131.7,0.678
+Georgia,1982,131.2,0.789
+Georgia,1983,128.6,0.868
+Georgia,1984,126.3,0.907
+Georgia,1985,128.8,1.001
+Georgia,1986,129.0,1.039
+Georgia,1987,129.3,1.092
+Georgia,1988,124.1,1.224
+Georgia,1989,117.1,1.323
+Georgia,1990,113.8,1.382
+Georgia,1991,109.6,1.595
+Georgia,1992,109.2,1.672
+Georgia,1993,109.2,1.478
+Georgia,1994,107.8,1.538
+Georgia,1995,100.3,1.561
+Georgia,1996,102.7,1.589
+Georgia,1997,100.6,1.687
+Georgia,1998,100.5,1.88
+Georgia,1999,97.1,2.574
+Georgia,2000,88.1,2.878
+Hawaii,1970,82.1,0.367
+Hawaii,1971,85.0,0.367
+Hawaii,1972,81.6,0.377
+Hawaii,1973,79.2,0.407
+Hawaii,1974,89.3,0.413
+Hawaii,1975,92.4,0.466
+Hawaii,1976,99.4,0.494
+Hawaii,1977,95.1,0.567
+Hawaii,1978,93.2,0.605
+Hawaii,1979,88.8,0.635
+Hawaii,1980,89.4,0.676
+Hawaii,1981,85.6,0.755
+Hawaii,1982,77.7,0.905
+Hawaii,1983,80.0,1.039
+Hawaii,1984,75.7,1.08
+Hawaii,1985,69.8,1.172
+Hawaii,1986,61.2,1.242
+Hawaii,1987,54.7,1.338
+Hawaii,1988,55.6,1.491
+Hawaii,1989,57.4,1.655
+Hawaii,1990,48.9,1.635
+Hawaii,1991,54.7,2.049
+Hawaii,1992,51.3,2.263
+Hawaii,1993,52.4,2.151
+Hawaii,1994,44.2,2.286
+Hawaii,1995,45.7,2.311
+Hawaii,1996,51.6,2.428
+Hawaii,1997,49.1,2.603
+Hawaii,1998,35.5,3.017
+Hawaii,1999,32.5,3.733
+Hawaii,2000,31.9,4.051
+Idaho,1970,102.4,0.336
+Idaho,1971,108.5,0.337
+Idaho,1972,126.1,0.363
+Idaho,1973,121.8,0.38
+Idaho,1974,125.6,0.403
+Idaho,1975,123.3,0.425
+Idaho,1976,125.1,0.456
+Idaho,1977,125.0,0.515
+Idaho,1978,122.8,0.554
+Idaho,1979,117.5,0.564
+Idaho,1980,115.2,0.592
+Idaho,1981,114.1,0.676
+Idaho,1982,111.5,0.765
+Idaho,1983,111.3,0.885
+Idaho,1984,103.6,0.976
+Idaho,1985,100.7,0.999
+Idaho,1986,96.7,1.071
+Idaho,1987,95.0,1.219
+Idaho,1988,84.5,1.336
+Idaho,1989,78.4,1.413
+Idaho,1990,90.1,1.444
+Idaho,1991,85.4,1.672
+Idaho,1992,85.1,1.712
+Idaho,1993,86.7,1.505
+Idaho,1994,93.0,1.635
+Idaho,1995,78.2,1.765
+Idaho,1996,73.6,1.844
+Idaho,1997,75.0,1.871
+Idaho,1998,78.9,2.107
+Idaho,1999,75.1,2.759
+Idaho,2000,66.9,2.911
+Illinois,1970,124.8,0.414
+Illinois,1971,125.6,0.419
+Illinois,1972,126.6,0.41
+Illinois,1973,124.4,0.419
+Illinois,1974,131.9,0.452
+Illinois,1975,131.8,0.484
+Illinois,1976,134.4,0.494
+Illinois,1977,134.0,0.546
+Illinois,1978,136.7,0.568
+Illinois,1979,135.3,0.6
+Illinois,1980,135.2,0.631
+Illinois,1981,133.0,0.696
+Illinois,1982,130.7,0.808
+Illinois,1983,127.9,0.896
+Illinois,1984,124.0,0.967
+Illinois,1985,121.6,1.084
+Illinois,1986,118.2,1.162
+Illinois,1987,109.5,1.241
+Illinois,1988,107.6,1.327
+Illinois,1989,104.6,1.473
+Illinois,1990,94.1,1.54
+Illinois,1991,96.1,1.798
+Illinois,1992,94.8,1.875
+Illinois,1993,94.6,1.821
+Illinois,1994,85.7,1.852
+Illinois,1995,84.3,1.887
+Illinois,1996,81.8,1.987
+Illinois,1997,79.6,2.023
+Illinois,1998,80.3,2.405
+Illinois,1999,72.2,3.127
+Illinois,2000,70.0,3.238
+Indiana,1970,134.6,0.322
+Indiana,1971,139.3,0.325
+Indiana,1972,149.2,0.329
+Indiana,1973,156.0,0.345
+Indiana,1974,159.6,0.367
+Indiana,1975,162.4,0.387
+Indiana,1976,166.6,0.406
+Indiana,1977,173.0,0.5
+Indiana,1978,150.9,0.525
+Indiana,1979,148.9,0.537
+Indiana,1980,146.9,0.583
+Indiana,1981,148.5,0.651
+Indiana,1982,147.7,0.757
+Indiana,1983,143.0,0.852
+Indiana,1984,137.8,0.888
+Indiana,1985,135.3,0.936
+Indiana,1986,137.6,1.001
+Indiana,1987,134.0,1.093
+Indiana,1988,134.0,1.19
+Indiana,1989,132.5,1.308
+Indiana,1990,128.3,1.358
+Indiana,1991,127.2,1.535
+Indiana,1992,128.2,1.575
+Indiana,1993,126.8,1.466
+Indiana,1994,128.2,1.463
+Indiana,1995,135.4,1.478
+Indiana,1996,135.1,1.563
+Indiana,1997,135.3,1.668
+Indiana,1998,135.9,1.9
+Indiana,1999,133.3,2.602
+Indiana,2000,125.5,2.704
+Iowa,1970,108.5,0.385
+Iowa,1971,108.4,0.419
+Iowa,1972,109.4,0.419
+Iowa,1973,110.6,0.432
+Iowa,1974,116.1,0.454
+Iowa,1975,120.5,0.478
+Iowa,1976,124.4,0.494
+Iowa,1977,125.5,0.546
+Iowa,1978,127.1,0.564
+Iowa,1979,124.2,0.588
+Iowa,1980,124.6,0.614
+Iowa,1981,132.9,0.728
+Iowa,1982,116.2,0.84
+Iowa,1983,115.6,0.933
+Iowa,1984,111.2,0.995
+Iowa,1985,109.4,1.048
+Iowa,1986,104.1,1.171
+Iowa,1987,101.1,1.242
+Iowa,1988,100.2,1.451
+Iowa,1989,94.4,1.496
+Iowa,1990,95.4,1.554
+Iowa,1991,97.1,1.785
+Iowa,1992,95.2,1.897
+Iowa,1993,92.5,1.714
+Iowa,1994,93.4,1.79
+Iowa,1995,93.0,1.838
+Iowa,1996,94.0,1.893
+Iowa,1997,93.9,1.938
+Iowa,1998,94.0,2.13
+Iowa,1999,91.7,2.863
+Iowa,2000,88.9,2.994
+Kansas,1970,114.0,0.389
+Kansas,1971,102.8,0.388
+Kansas,1972,111.0,0.393
+Kansas,1973,115.2,0.402
+Kansas,1974,118.6,0.427
+Kansas,1975,123.4,0.466
+Kansas,1976,127.7,0.481
+Kansas,1977,127.9,0.526
+Kansas,1978,127.1,0.548
+Kansas,1979,126.4,0.583
+Kansas,1980,127.1,0.598
+Kansas,1981,132.0,0.651
+Kansas,1982,130.9,0.77
+Kansas,1983,127.6,0.91
+Kansas,1984,121.7,0.975
+Kansas,1985,115.7,1.03
+Kansas,1986,109.4,1.145
+Kansas,1987,105.2,1.239
+Kansas,1988,103.2,1.365
+Kansas,1989,96.5,1.458
+Kansas,1990,94.3,1.457
+Kansas,1991,91.8,1.742
+Kansas,1992,90.0,1.742
+Kansas,1993,89.9,1.596
+Kansas,1994,89.1,1.657
+Kansas,1995,90.1,1.677
+Kansas,1996,88.7,1.713
+Kansas,1997,89.2,1.843
+Kansas,1998,87.6,2.07
+Kansas,1999,83.3,2.712
+Kansas,2000,79.8,2.941
+Kentucky,1970,155.8,0.301
+Kentucky,1971,163.5,0.306
+Kentucky,1972,179.4,0.306
+Kentucky,1973,201.9,0.315
+Kentucky,1974,212.4,0.333
+Kentucky,1975,223.0,0.36
+Kentucky,1976,230.9,0.369
+Kentucky,1977,229.4,0.414
+Kentucky,1978,224.7,0.434
+Kentucky,1979,214.9,0.463
+Kentucky,1980,215.3,0.494
+Kentucky,1981,209.7,0.563
+Kentucky,1982,210.6,0.664
+Kentucky,1983,201.1,0.754
+Kentucky,1984,183.2,0.793
+Kentucky,1985,182.4,0.854
+Kentucky,1986,179.8,0.905
+Kentucky,1987,171.2,0.944
+Kentucky,1988,173.2,1.038
+Kentucky,1989,171.6,1.156
+Kentucky,1990,182.5,1.205
+Kentucky,1991,170.8,1.358
+Kentucky,1992,167.6,1.454
+Kentucky,1993,167.6,1.328
+Kentucky,1994,170.2,1.348
+Kentucky,1995,175.3,1.398
+Kentucky,1996,179.0,1.456
+Kentucky,1997,186.8,1.557
+Kentucky,1998,171.3,1.792
+Kentucky,1999,165.3,2.434
+Kentucky,2000,156.2,2.586
+Louisiana,1970,115.9,0.393
+Louisiana,1971,119.8,0.4
+Louisiana,1972,125.3,0.399
+Louisiana,1973,126.7,0.416
+Louisiana,1974,129.9,0.443
+Louisiana,1975,133.6,0.481
+Louisiana,1976,139.6,0.489
+Louisiana,1977,140.0,0.542
+Louisiana,1978,142.7,0.571
+Louisiana,1979,140.1,0.6
+Louisiana,1980,143.8,0.626
+Louisiana,1981,144.0,0.703
+Louisiana,1982,143.9,0.807
+Louisiana,1983,133.7,0.907
+Louisiana,1984,128.9,1.03
+Louisiana,1985,125.0,1.051
+Louisiana,1986,121.2,1.178
+Louisiana,1987,116.5,1.204
+Louisiana,1988,110.9,1.307
+Louisiana,1989,103.6,1.434
+Louisiana,1990,101.5,1.496
+Louisiana,1991,107.2,1.781
+Louisiana,1992,108.5,1.805
+Louisiana,1993,106.2,1.574
+Louisiana,1994,105.3,1.558
+Louisiana,1995,105.7,1.653
+Louisiana,1996,106.8,1.669
+Louisiana,1997,105.3,1.859
+Louisiana,1998,103.2,2.08
+Louisiana,1999,101.0,2.812
+Louisiana,2000,104.3,2.951
+Maine,1970,128.5,0.388
+Maine,1971,133.2,0.415
+Maine,1972,136.5,0.41
+Maine,1973,138.0,0.418
+Maine,1974,142.1,0.467
+Maine,1975,140.7,0.499
+Maine,1976,144.9,0.509
+Maine,1977,145.6,0.55
+Maine,1978,143.9,0.545
+Maine,1979,138.5,0.59
+Maine,1980,141.2,0.629
+Maine,1981,138.9,0.697
+Maine,1982,139.5,0.808
+Maine,1983,135.4,0.937
+Maine,1984,135.5,0.981
+Maine,1985,127.9,1.127
+Maine,1986,119.0,1.212
+Maine,1987,125.0,1.29
+Maine,1988,125.0,1.444
+Maine,1989,122.4,1.601
+Maine,1990,117.5,1.589
+Maine,1991,116.1,1.877
+Maine,1992,114.7,1.926
+Maine,1993,108.5,1.783
+Maine,1994,101.6,1.849
+Maine,1995,102.3,1.869
+Maine,1996,100.0,1.902
+Maine,1997,101.1,2.196
+Maine,1998,94.5,2.678
+Maine,1999,85.5,3.305
+Maine,2000,82.9,3.532
+Maryland,1970,123.5,0.342
+Maryland,1971,126.7,0.343
+Maryland,1972,133.2,0.353
+Maryland,1973,137.3,0.358
+Maryland,1974,144.8,0.395
+Maryland,1975,146.1,0.461
+Maryland,1976,137.1,0.492
+Maryland,1977,135.7,0.521
+Maryland,1978,134.1,0.562
+Maryland,1979,131.9,0.581
+Maryland,1980,131.5,0.628
+Maryland,1981,137.1,0.654
+Maryland,1982,131.3,0.749
+Maryland,1983,128.2,0.842
+Maryland,1984,122.5,0.901
+Maryland,1985,121.9,0.933
+Maryland,1986,121.8,1.003
+Maryland,1987,119.3,1.092
+Maryland,1988,115.0,1.202
+Maryland,1989,109.0,1.315
+Maryland,1990,102.8,1.416
+Maryland,1991,97.6,1.591
+Maryland,1992,91.7,1.937
+Maryland,1993,82.6,1.733
+Maryland,1994,80.8,1.763
+Maryland,1995,77.1,1.778
+Maryland,1996,75.0,1.907
+Maryland,1997,72.7,1.973
+Maryland,1998,72.0,2.195
+Maryland,1999,71.4,3.152
+Maryland,2000,57.7,3.449
+Massachusetts,1970,124.3,0.41
+Massachusetts,1971,121.4,0.46
+Massachusetts,1972,117.9,0.46
+Massachusetts,1973,121.2,0.463
+Massachusetts,1974,124.3,0.494
+Massachusetts,1975,126.1,0.574
+Massachusetts,1976,116.9,0.573
+Massachusetts,1977,118.9,0.618
+Massachusetts,1978,120.5,0.645
+Massachusetts,1979,118.2,0.682
+Massachusetts,1980,120.5,0.708
+Massachusetts,1981,123.2,0.781
+Massachusetts,1982,122.3,0.887
+Massachusetts,1983,119.8,1.014
+Massachusetts,1984,116.0,1.083
+Massachusetts,1985,117.2,1.15
+Massachusetts,1986,115.8,1.204
+Massachusetts,1987,113.8,1.316
+Massachusetts,1988,111.7,1.486
+Massachusetts,1989,104.4,1.524
+Massachusetts,1990,99.4,1.633
+Massachusetts,1991,93.5,1.759
+Massachusetts,1992,90.5,1.806
+Massachusetts,1993,84.1,1.909
+Massachusetts,1994,77.0,2.056
+Massachusetts,1995,76.9,2.076
+Massachusetts,1996,74.6,2.446
+Massachusetts,1997,66.7,2.585
+Massachusetts,1998,63.6,2.822
+Massachusetts,1999,60.4,3.523
+Massachusetts,2000,58.3,3.843
+Michigan,1970,128.6,0.392
+Michigan,1971,126.1,0.4
+Michigan,1972,131.4,0.402
+Michigan,1973,133.7,0.411
+Michigan,1974,138.8,0.444
+Michigan,1975,136.8,0.479
+Michigan,1976,138.0,0.483
+Michigan,1977,140.3,0.54
+Michigan,1978,141.8,0.572
+Michigan,1979,140.9,0.603
+Michigan,1980,140.7,0.618
+Michigan,1981,139.5,0.68
+Michigan,1982,137.3,0.877
+Michigan,1983,128.3,0.97
+Michigan,1984,128.2,1.014
+Michigan,1985,126.6,1.06
+Michigan,1986,126.5,1.114
+Michigan,1987,122.1,1.222
+Michigan,1988,121.1,1.33
+Michigan,1989,116.6,1.439
+Michigan,1990,114.4,1.449
+Michigan,1991,110.3,1.767
+Michigan,1992,107.6,1.846
+Michigan,1993,106.5,1.634
+Michigan,1994,112.9,2.243
+Michigan,1995,82.8,2.293
+Michigan,1996,82.9,2.338
+Michigan,1997,75.6,2.43
+Michigan,1998,73.7,2.613
+Michigan,1999,81.7,3.338
+Michigan,2000,83.7,3.455
+Minnesota,1970,104.3,0.401
+Minnesota,1971,116.4,0.452
+Minnesota,1972,96.8,0.456
+Minnesota,1973,106.8,0.47
+Minnesota,1974,110.6,0.494
+Minnesota,1975,111.5,0.521
+Minnesota,1976,116.7,0.531
+Minnesota,1977,117.2,0.579
+Minnesota,1978,118.9,0.609
+Minnesota,1979,118.3,0.63
+Minnesota,1980,117.7,0.658
+Minnesota,1981,120.8,0.717
+Minnesota,1982,119.4,0.873
+Minnesota,1983,113.2,0.992
+Minnesota,1984,110.8,1.015
+Minnesota,1985,113.0,1.163
+Minnesota,1986,104.8,1.201
+Minnesota,1987,108.8,1.417
+Minnesota,1988,94.1,1.525
+Minnesota,1989,92.3,1.623
+Minnesota,1990,90.7,1.739
+Minnesota,1991,86.2,1.977
+Minnesota,1992,83.8,2.156
+Minnesota,1993,81.6,1.961
+Minnesota,1994,83.4,2.022
+Minnesota,1995,84.1,2.086
+Minnesota,1996,81.7,2.168
+Minnesota,1997,84.1,2.2
+Minnesota,1998,83.2,2.274
+Minnesota,1999,80.7,3.036
+Minnesota,2000,76.0,3.188
+Mississippi,1970,93.4,0.375
+Mississippi,1971,105.4,0.374
+Mississippi,1972,112.1,0.373
+Mississippi,1973,115.0,0.414
+Mississippi,1974,117.1,0.43
+Mississippi,1975,116.8,0.464
+Mississippi,1976,120.9,0.488
+Mississippi,1977,122.1,0.536
+Mississippi,1978,124.9,0.565
+Mississippi,1979,123.9,0.597
+Mississippi,1980,127.0,0.63
+Mississippi,1981,125.3,0.692
+Mississippi,1982,125.8,0.786
+Mississippi,1983,122.3,0.89
+Mississippi,1984,116.4,0.984
+Mississippi,1985,115.3,1.06
+Mississippi,1986,113.2,1.158
+Mississippi,1987,110.0,1.226
+Mississippi,1988,109.0,1.258
+Mississippi,1989,108.3,1.399
+Mississippi,1990,101.8,1.427
+Mississippi,1991,105.6,1.608
+Mississippi,1992,103.9,1.778
+Mississippi,1993,105.4,1.569
+Mississippi,1994,106.0,1.539
+Mississippi,1995,107.5,1.612
+Mississippi,1996,106.9,1.686
+Mississippi,1997,106.3,1.758
+Mississippi,1998,107.0,1.995
+Mississippi,1999,103.9,2.72
+Mississippi,2000,97.2,2.8
+Missouri,1970,121.3,0.368
+Missouri,1971,127.6,0.377
+Missouri,1972,130.0,0.377
+Missouri,1973,132.1,0.38
+Missouri,1974,135.4,0.435
+Missouri,1975,135.6,0.447
+Missouri,1976,139.5,0.459
+Missouri,1977,140.8,0.499
+Missouri,1978,141.8,0.522
+Missouri,1979,140.2,0.573
+Missouri,1980,142.1,0.599
+Missouri,1981,140.5,0.647
+Missouri,1982,139.7,0.748
+Missouri,1983,134.1,0.848
+Missouri,1984,130.0,0.937
+Missouri,1985,129.2,1.019
+Missouri,1986,128.8,1.085
+Missouri,1987,128.7,1.146
+Missouri,1988,127.4,1.189
+Missouri,1989,122.8,1.291
+Missouri,1990,119.1,1.325
+Missouri,1991,119.9,1.531
+Missouri,1992,122.3,1.576
+Missouri,1993,121.6,1.468
+Missouri,1994,119.4,1.503
+Missouri,1995,124.0,1.598
+Missouri,1996,124.1,1.634
+Missouri,1997,120.6,1.738
+Missouri,1998,120.1,1.97
+Missouri,1999,118.0,2.588
+Missouri,2000,113.8,2.822
+Montana,1970,111.2,0.347
+Montana,1971,115.6,0.401
+Montana,1972,122.2,0.409
+Montana,1973,119.9,0.418
+Montana,1974,121.9,0.437
+Montana,1975,123.7,0.453
+Montana,1976,124.9,0.476
+Montana,1977,127.0,0.519
+Montana,1978,127.2,0.537
+Montana,1979,120.3,0.567
+Montana,1980,122.0,0.604
+Montana,1981,121.1,0.657
+Montana,1982,122.4,0.772
+Montana,1983,113.7,0.913
+Montana,1984,110.1,0.955
+Montana,1985,103.6,1.02
+Montana,1986,97.8,1.062
+Montana,1987,91.7,1.153
+Montana,1988,87.1,1.23
+Montana,1989,86.2,1.404
+Montana,1990,84.7,1.436
+Montana,1991,82.9,1.635
+Montana,1992,86.6,1.794
+Montana,1993,86.0,1.513
+Montana,1994,88.2,1.554
+Montana,1995,90.5,1.568
+Montana,1996,87.3,1.649
+Montana,1997,88.9,1.754
+Montana,1998,89.1,1.963
+Montana,1999,82.6,2.607
+Montana,2000,75.5,2.71
+Nebraska,1970,108.1,0.347
+Nebraska,1971,108.6,0.411
+Nebraska,1972,104.9,0.412
+Nebraska,1973,106.6,0.42
+Nebraska,1974,110.5,0.446
+Nebraska,1975,114.1,0.468
+Nebraska,1976,118.1,0.481
+Nebraska,1977,117.7,0.536
+Nebraska,1978,117.4,0.554
+Nebraska,1979,116.1,0.595
+Nebraska,1980,116.3,0.609
+Nebraska,1981,117.0,0.697
+Nebraska,1982,117.1,0.837
+Nebraska,1983,110.8,0.948
+Nebraska,1984,107.7,0.958
+Nebraska,1985,105.1,1.04
+Nebraska,1986,103.1,1.137
+Nebraska,1987,101.3,1.233
+Nebraska,1988,92.9,1.393
+Nebraska,1989,93.8,1.434
+Nebraska,1990,89.9,1.522
+Nebraska,1991,92.4,1.695
+Nebraska,1992,90.6,1.772
+Nebraska,1993,91.1,1.696
+Nebraska,1994,85.9,1.707
+Nebraska,1995,88.5,1.755
+Nebraska,1996,86.2,1.848
+Nebraska,1997,85.5,1.946
+Nebraska,1998,79.7,2.146
+Nebraska,1999,86.8,2.883
+Nebraska,2000,77.6,3.095
+Nevada,1970,189.5,0.44
+Nevada,1971,190.5,0.406
+Nevada,1972,198.6,0.403
+Nevada,1973,201.5,0.419
+Nevada,1974,204.7,0.445
+Nevada,1975,205.2,0.449
+Nevada,1976,201.4,0.493
+Nevada,1977,190.8,0.543
+Nevada,1978,187.0,0.571
+Nevada,1979,183.3,0.631
+Nevada,1980,177.7,0.633
+Nevada,1981,171.9,0.716
+Nevada,1982,165.1,0.819
+Nevada,1983,159.2,0.998
+Nevada,1984,136.6,1.093
+Nevada,1985,146.7,1.066
+Nevada,1986,142.6,1.14
+Nevada,1987,147.7,1.296
+Nevada,1988,141.9,1.456
+Nevada,1989,137.9,1.737
+Nevada,1990,137.3,1.863
+Nevada,1991,115.5,1.938
+Nevada,1992,110.0,1.968
+Nevada,1993,108.1,1.903
+Nevada,1994,105.2,1.904
+Nevada,1995,100.9,1.95
+Nevada,1996,99.0,1.985
+Nevada,1997,95.6,2.006
+Nevada,1998,102.4,2.258
+Nevada,1999,103.9,3.035
+Nevada,2000,93.2,3.184
+New Hampshire,1970,265.7,0.341
+New Hampshire,1971,278.0,0.361
+New Hampshire,1972,296.2,0.369
+New Hampshire,1973,279.0,0.379
+New Hampshire,1974,269.8,0.408
+New Hampshire,1975,269.1,0.439
+New Hampshire,1976,290.5,0.45
+New Hampshire,1977,278.8,0.497
+New Hampshire,1978,269.6,0.532
+New Hampshire,1979,254.6,0.553
+New Hampshire,1980,247.8,0.584
+New Hampshire,1981,245.4,0.67
+New Hampshire,1982,239.8,0.747
+New Hampshire,1983,232.9,0.905
+New Hampshire,1984,215.1,0.892
+New Hampshire,1985,201.1,1.0
+New Hampshire,1986,195.9,1.02
+New Hampshire,1987,195.1,1.135
+New Hampshire,1988,180.4,1.259
+New Hampshire,1989,172.9,1.359
+New Hampshire,1990,152.4,1.539
+New Hampshire,1991,144.8,1.644
+New Hampshire,1992,143.7,1.811
+New Hampshire,1993,148.9,1.578
+New Hampshire,1994,153.8,1.639
+New Hampshire,1995,158.5,1.686
+New Hampshire,1996,158.0,1.766
+New Hampshire,1997,174.4,1.97
+New Hampshire,1998,173.8,2.228
+New Hampshire,1999,171.7,3.139
+New Hampshire,2000,147.3,3.215
+New Jersey,1970,120.7,0.417
+New Jersey,1971,125.1,0.421
+New Jersey,1972,128.4,0.489
+New Jersey,1973,120.2,0.502
+New Jersey,1974,121.4,0.528
+New Jersey,1975,122.3,0.536
+New Jersey,1976,122.4,0.569
+New Jersey,1977,122.8,0.619
+New Jersey,1978,123.9,0.635
+New Jersey,1979,123.8,0.664
+New Jersey,1980,124.3,0.687
+New Jersey,1981,127.9,0.762
+New Jersey,1982,126.3,0.921
+New Jersey,1983,121.3,1.011
+New Jersey,1984,117.8,1.047
+New Jersey,1985,116.9,1.145
+New Jersey,1986,115.5,1.196
+New Jersey,1987,111.6,1.318
+New Jersey,1988,107.8,1.395
+New Jersey,1989,103.0,1.493
+New Jersey,1990,98.6,1.804
+New Jersey,1991,86.7,1.911
+New Jersey,1992,86.6,2.054
+New Jersey,1993,82.9,1.829
+New Jersey,1994,81.6,1.878
+New Jersey,1995,81.0,1.943
+New Jersey,1996,79.1,1.946
+New Jersey,1997,77.0,2.083
+New Jersey,1998,72.6,2.732
+New Jersey,1999,63.6,3.397
+New Jersey,2000,60.1,3.637
+New Mexico,1970,90.0,0.417
+New Mexico,1971,92.6,0.421
+New Mexico,1972,99.3,0.418
+New Mexico,1973,98.9,0.437
+New Mexico,1974,100.3,0.463
+New Mexico,1975,103.1,0.495
+New Mexico,1976,102.4,0.516
+New Mexico,1977,102.4,0.56
+New Mexico,1978,103.1,0.576
+New Mexico,1979,101.0,0.626
+New Mexico,1980,102.7,0.63
+New Mexico,1981,103.0,0.694
+New Mexico,1982,97.5,0.796
+New Mexico,1983,96.3,0.902
+New Mexico,1984,88.9,0.955
+New Mexico,1985,88.0,1.012
+New Mexico,1986,88.2,1.102
+New Mexico,1987,82.3,1.137
+New Mexico,1988,77.7,1.272
+New Mexico,1989,74.4,1.336
+New Mexico,1990,70.8,1.469
+New Mexico,1991,69.9,1.654
+New Mexico,1992,71.4,1.722
+New Mexico,1993,69.0,1.584
+New Mexico,1994,68.2,1.635
+New Mexico,1995,67.0,1.708
+New Mexico,1996,65.7,1.76
+New Mexico,1997,61.8,1.838
+New Mexico,1998,62.6,2.018
+New Mexico,1999,59.7,2.798
+New Mexico,2000,53.8,2.916
+New York,1970,119.0,0.417
+New York,1971,123.3,0.427
+New York,1972,119.9,0.458
+New York,1973,118.7,0.474
+New York,1974,121.6,0.515
+New York,1975,123.9,0.542
+New York,1976,124.6,0.538
+New York,1977,125.5,0.595
+New York,1978,126.4,0.611
+New York,1979,124.4,0.644
+New York,1980,127.6,0.659
+New York,1981,130.1,0.725
+New York,1982,128.5,0.831
+New York,1983,124.6,1.008
+New York,1984,119.3,1.062
+New York,1985,115.9,1.112
+New York,1986,114.0,1.17
+New York,1987,108.9,1.259
+New York,1988,106.2,1.367
+New York,1989,100.1,1.674
+New York,1990,93.7,1.804
+New York,1991,86.4,1.985
+New York,1992,82.4,2.038
+New York,1993,78.2,2.077
+New York,1994,71.6,2.121
+New York,1995,70.5,2.142
+New York,1996,65.9,2.225
+New York,1997,64.5,2.293
+New York,1998,64.9,2.536
+New York,1999,62.9,3.268
+New York,2000,57.8,3.985
+North Carolina,1970,172.4,0.294
+North Carolina,1971,187.6,0.287
+North Carolina,1972,214.1,0.289
+North Carolina,1973,226.5,0.301
+North Carolina,1974,227.3,0.329
+North Carolina,1975,226.0,0.358
+North Carolina,1976,230.2,0.366
+North Carolina,1977,217.0,0.418
+North Carolina,1978,205.5,0.437
+North Carolina,1979,197.3,0.473
+North Carolina,1980,187.8,0.5
+North Carolina,1981,179.3,0.555
+North Carolina,1982,179.0,0.66
+North Carolina,1983,169.7,0.75
+North Carolina,1984,160.6,0.789
+North Carolina,1985,156.3,0.837
+North Carolina,1986,154.4,0.906
+North Carolina,1987,150.5,0.96
+North Carolina,1988,146.0,1.076
+North Carolina,1989,139.3,1.164
+North Carolina,1990,133.7,1.266
+North Carolina,1991,132.7,1.45
+North Carolina,1992,128.8,1.535
+North Carolina,1993,129.7,1.359
+North Carolina,1994,112.7,1.423
+North Carolina,1995,124.9,1.456
+North Carolina,1996,129.7,1.52
+North Carolina,1997,125.6,1.676
+North Carolina,1998,126.0,1.868
+North Carolina,1999,113.1,2.573
+North Carolina,2000,109.0,2.767
+North Dakota,1970,93.8,0.389
+North Dakota,1971,98.5,0.389
+North Dakota,1972,103.8,0.394
+North Dakota,1973,108.7,0.399
+North Dakota,1974,110.5,0.426
+North Dakota,1975,117.9,0.459
+North Dakota,1976,125.4,0.474
+North Dakota,1977,122.2,0.532
+North Dakota,1978,121.9,0.55
+North Dakota,1979,121.3,0.596
+North Dakota,1980,123.7,0.62
+North Dakota,1981,125.7,0.678
+North Dakota,1982,126.8,0.779
+North Dakota,1983,119.6,0.944
+North Dakota,1984,109.4,1.006
+North Dakota,1985,103.2,1.042
+North Dakota,1986,99.8,1.103
+North Dakota,1987,92.3,1.233
+North Dakota,1988,87.1,1.359
+North Dakota,1989,84.1,1.443
+North Dakota,1990,77.1,1.598
+North Dakota,1991,85.2,1.683
+North Dakota,1992,74.4,1.776
+North Dakota,1993,83.0,1.801
+North Dakota,1994,81.0,1.795
+North Dakota,1995,80.6,1.827
+North Dakota,1996,80.8,1.941
+North Dakota,1997,77.5,2.052
+North Dakota,1998,79.1,2.236
+North Dakota,1999,74.7,2.975
+North Dakota,2000,72.5,3.069
+Ohio,1970,121.6,0.381
+Ohio,1971,124.6,0.384
+Ohio,1972,124.4,0.42
+Ohio,1973,120.5,0.429
+Ohio,1974,122.1,0.46
+Ohio,1975,122.5,0.485
+Ohio,1976,124.6,0.498
+Ohio,1977,127.3,0.539
+Ohio,1978,131.3,0.563
+Ohio,1979,130.9,0.587
+Ohio,1980,133.5,0.614
+Ohio,1981,132.8,0.683
+Ohio,1982,134.0,0.825
+Ohio,1983,130.0,0.892
+Ohio,1984,127.1,0.922
+Ohio,1985,126.7,0.981
+Ohio,1986,126.3,1.022
+Ohio,1987,124.6,1.084
+Ohio,1988,122.4,1.205
+Ohio,1989,118.6,1.354
+Ohio,1990,115.5,1.398
+Ohio,1991,113.2,1.596
+Ohio,1992,112.3,1.625
+Ohio,1993,108.9,1.512
+Ohio,1994,108.6,1.556
+Ohio,1995,111.7,1.597
+Ohio,1996,107.6,1.668
+Ohio,1997,108.6,1.729
+Ohio,1998,106.4,1.932
+Ohio,1999,104.0,2.654
+Ohio,2000,99.9,2.793
+Oklahoma,1970,108.4,0.398
+Oklahoma,1971,115.4,0.398
+Oklahoma,1972,121.7,0.404
+Oklahoma,1973,124.1,0.41
+Oklahoma,1974,130.5,0.436
+Oklahoma,1975,132.9,0.464
+Oklahoma,1976,138.6,0.479
+Oklahoma,1977,140.4,0.531
+Oklahoma,1978,143.6,0.555
+Oklahoma,1979,141.6,0.629
+Oklahoma,1980,141.6,0.658
+Oklahoma,1981,143.7,0.717
+Oklahoma,1982,147.0,0.839
+Oklahoma,1983,140.0,0.933
+Oklahoma,1984,128.1,0.951
+Oklahoma,1985,124.2,1.046
+Oklahoma,1986,119.9,1.144
+Oklahoma,1987,113.1,1.226
+Oklahoma,1988,103.6,1.334
+Oklahoma,1989,97.5,1.461
+Oklahoma,1990,88.4,1.491
+Oklahoma,1991,87.8,1.706
+Oklahoma,1992,86.3,1.824
+Oklahoma,1993,86.2,1.634
+Oklahoma,1994,104.8,1.611
+Oklahoma,1995,109.5,1.627
+Oklahoma,1996,110.8,1.72
+Oklahoma,1997,111.8,1.836
+Oklahoma,1998,112.2,2.034
+Oklahoma,1999,111.4,2.726
+Oklahoma,2000,108.9,2.904
+Oregon,1970,157.0,0.29
+Oregon,1971,157.9,0.305
+Oregon,1972,160.4,0.351
+Oregon,1973,155.3,0.366
+Oregon,1974,155.8,0.394
+Oregon,1975,154.4,0.424
+Oregon,1976,156.5,0.444
+Oregon,1977,155.6,0.507
+Oregon,1978,156.3,0.519
+Oregon,1979,150.7,0.54
+Oregon,1980,146.5,0.569
+Oregon,1981,143.1,0.624
+Oregon,1982,135.3,0.82
+Oregon,1983,124.6,0.965
+Oregon,1984,118.0,0.975
+Oregon,1985,118.6,1.047
+Oregon,1986,112.0,1.171
+Oregon,1987,108.9,1.308
+Oregon,1988,108.2,1.45
+Oregon,1989,106.6,1.569
+Oregon,1990,102.5,1.601
+Oregon,1991,100.1,1.772
+Oregon,1992,101.6,1.919
+Oregon,1993,98.7,1.784
+Oregon,1994,96.6,1.896
+Oregon,1995,94.6,1.908
+Oregon,1996,94.3,1.976
+Oregon,1997,89.5,2.341
+Oregon,1998,84.2,2.583
+Oregon,1999,79.9,3.242
+Oregon,2000,72.0,3.456
+Pennsylvania,1970,107.3,0.447
+Pennsylvania,1971,106.3,0.447
+Pennsylvania,1972,109.0,0.449
+Pennsylvania,1973,110.7,0.466
+Pennsylvania,1974,114.2,0.498
+Pennsylvania,1975,114.6,0.523
+Pennsylvania,1976,118.8,0.533
+Pennsylvania,1977,120.1,0.574
+Pennsylvania,1978,122.3,0.606
+Pennsylvania,1979,122.6,0.613
+Pennsylvania,1980,124.0,0.648
+Pennsylvania,1981,125.2,0.698
+Pennsylvania,1982,123.3,0.817
+Pennsylvania,1983,125.3,0.977
+Pennsylvania,1984,115.3,1.001
+Pennsylvania,1985,115.8,1.049
+Pennsylvania,1986,113.9,1.1
+Pennsylvania,1987,110.6,1.123
+Pennsylvania,1988,107.6,1.228
+Pennsylvania,1989,107.1,1.337
+Pennsylvania,1990,101.3,1.441
+Pennsylvania,1991,102.5,1.762
+Pennsylvania,1992,96.2,1.838
+Pennsylvania,1993,94.7,1.581
+Pennsylvania,1994,95.4,1.617
+Pennsylvania,1995,95.4,1.694
+Pennsylvania,1996,93.3,1.765
+Pennsylvania,1997,92.9,1.909
+Pennsylvania,1998,92.1,2.05
+Pennsylvania,1999,91.1,2.801
+Pennsylvania,2000,87.9,2.919
+Rhode Island,1970,123.9,0.402
+Rhode Island,1971,123.2,0.416
+Rhode Island,1972,134.4,0.406
+Rhode Island,1973,142.0,0.413
+Rhode Island,1974,146.1,0.443
+Rhode Island,1975,154.7,0.522
+Rhode Island,1976,150.2,0.523
+Rhode Island,1977,148.8,0.563
+Rhode Island,1978,146.8,0.587
+Rhode Island,1979,145.8,0.6
+Rhode Island,1980,149.3,0.645
+Rhode Island,1981,151.2,0.716
+Rhode Island,1982,146.3,0.84
+Rhode Island,1983,135.8,0.948
+Rhode Island,1984,136.9,1.003
+Rhode Island,1985,133.4,1.018
+Rhode Island,1986,136.3,1.135
+Rhode Island,1987,124.4,1.215
+Rhode Island,1988,138.0,1.348
+Rhode Island,1989,120.8,1.509
+Rhode Island,1990,101.4,1.703
+Rhode Island,1991,103.6,1.9
+Rhode Island,1992,100.1,1.979
+Rhode Island,1993,94.1,1.689
+Rhode Island,1994,91.9,2.096
+Rhode Island,1995,90.8,2.149
+Rhode Island,1996,87.5,2.17
+Rhode Island,1997,90.0,2.322
+Rhode Island,1998,88.7,2.517
+Rhode Island,1999,86.9,3.229
+Rhode Island,2000,83.1,3.382
+South Carolina,1970,103.6,0.343
+South Carolina,1971,115.0,0.341
+South Carolina,1972,118.7,0.335
+South Carolina,1973,125.5,0.352
+South Carolina,1974,129.7,0.381
+South Carolina,1975,130.5,0.41
+South Carolina,1976,136.8,0.422
+South Carolina,1977,137.2,0.492
+South Carolina,1978,140.4,0.502
+South Carolina,1979,135.7,0.523
+South Carolina,1980,138.3,0.547
+South Carolina,1981,136.1,0.619
+South Carolina,1982,136.0,0.724
+South Carolina,1983,131.1,0.813
+South Carolina,1984,127.0,0.83
+South Carolina,1985,125.4,0.887
+South Carolina,1986,126.6,0.953
+South Carolina,1987,126.6,0.999
+South Carolina,1988,124.4,1.119
+South Carolina,1989,122.4,1.252
+South Carolina,1990,118.6,1.29
+South Carolina,1991,121.5,1.519
+South Carolina,1992,112.9,1.645
+South Carolina,1993,115.2,1.391
+South Carolina,1994,112.2,1.4
+South Carolina,1995,109.2,1.495
+South Carolina,1996,102.9,1.539
+South Carolina,1997,124.5,1.653
+South Carolina,1998,126.9,1.796
+South Carolina,1999,109.4,2.553
+South Carolina,2000,103.9,2.783
+South Dakota,1970,92.7,0.385
+South Dakota,1971,96.7,0.391
+South Dakota,1972,103.0,0.396
+South Dakota,1973,103.5,0.404
+South Dakota,1974,108.4,0.428
+South Dakota,1975,113.5,0.45
+South Dakota,1976,116.7,0.464
+South Dakota,1977,115.6,0.532
+South Dakota,1978,116.9,0.541
+South Dakota,1979,117.4,0.588
+South Dakota,1980,114.7,0.623
+South Dakota,1981,115.7,0.68
+South Dakota,1982,113.0,0.788
+South Dakota,1983,109.8,0.898
+South Dakota,1984,105.7,0.923
+South Dakota,1985,104.4,1.085
+South Dakota,1986,97.0,1.137
+South Dakota,1987,95.8,1.247
+South Dakota,1988,91.9,1.301
+South Dakota,1989,87.4,1.389
+South Dakota,1990,88.3,1.503
+South Dakota,1991,91.8,1.63
+South Dakota,1992,93.0,1.803
+South Dakota,1993,91.6,1.544
+South Dakota,1994,94.8,1.621
+South Dakota,1995,98.6,1.712
+South Dakota,1996,92.3,1.817
+South Dakota,1997,88.8,1.928
+South Dakota,1998,88.3,2.079
+South Dakota,1999,83.5,2.729
+South Dakota,2000,75.1,3.04
+Tennessee,1970,99.8,0.416
+Tennessee,1971,106.3,0.416
+Tennessee,1972,111.5,0.408
+Tennessee,1973,109.7,0.425
+Tennessee,1974,114.8,0.453
+Tennessee,1975,117.4,0.483
+Tennessee,1976,121.7,0.496
+Tennessee,1977,124.6,0.548
+Tennessee,1978,127.3,0.573
+Tennessee,1979,127.2,0.603
+Tennessee,1980,130.4,0.637
+Tennessee,1981,129.1,0.683
+Tennessee,1982,131.4,0.791
+Tennessee,1983,129.0,0.883
+Tennessee,1984,125.1,0.925
+Tennessee,1985,128.7,0.988
+Tennessee,1986,107.9,1.035
+Tennessee,1987,130.6,1.121
+Tennessee,1988,125.3,1.215
+Tennessee,1989,124.7,1.35
+Tennessee,1990,121.8,1.374
+Tennessee,1991,120.6,1.639
+Tennessee,1992,121.0,1.702
+Tennessee,1993,120.8,1.503
+Tennessee,1994,118.8,1.53
+Tennessee,1995,125.4,1.559
+Tennessee,1996,119.2,1.611
+Tennessee,1997,118.9,1.677
+Tennessee,1998,119.7,1.895
+Tennessee,1999,115.8,2.612
+Tennessee,2000,108.7,2.815
+Texas,1970,106.4,0.42
+Texas,1971,108.9,0.469
+Texas,1972,108.6,0.464
+Texas,1973,110.4,0.475
+Texas,1974,114.7,0.506
+Texas,1975,116.0,0.533
+Texas,1976,121.4,0.533
+Texas,1977,124.2,0.591
+Texas,1978,126.6,0.622
+Texas,1979,126.4,0.637
+Texas,1980,129.7,0.669
+Texas,1981,129.0,0.738
+Texas,1982,131.2,0.841
+Texas,1983,126.4,0.938
+Texas,1984,117.2,1.021
+Texas,1985,115.9,1.055
+Texas,1986,113.7,1.144
+Texas,1987,105.8,1.28
+Texas,1988,96.5,1.37
+Texas,1989,94.5,1.457
+Texas,1990,85.6,1.736
+Texas,1991,79.6,1.86
+Texas,1992,77.2,2.046
+Texas,1993,81.3,1.777
+Texas,1994,78.8,1.85
+Texas,1995,75.2,1.884
+Texas,1996,74.6,1.898
+Texas,1997,72.6,2.018
+Texas,1998,73.2,2.25
+Texas,1999,67.8,2.923
+Texas,2000,69.3,3.112
+Utah,1970,65.5,0.366
+Utah,1971,67.7,0.372
+Utah,1972,71.3,0.365
+Utah,1973,72.7,0.378
+Utah,1974,75.6,0.405
+Utah,1975,75.8,0.434
+Utah,1976,77.9,0.447
+Utah,1977,78.9,0.495
+Utah,1978,79.6,0.537
+Utah,1979,79.1,0.572
+Utah,1980,74.8,0.627
+Utah,1981,77.6,0.681
+Utah,1982,73.6,0.82
+Utah,1983,69.0,0.953
+Utah,1984,66.3,1.046
+Utah,1985,66.5,1.035
+Utah,1986,64.4,1.086
+Utah,1987,67.7,1.229
+Utah,1988,55.0,1.356
+Utah,1989,57.0,1.519
+Utah,1990,53.4,1.671
+Utah,1991,53.5,1.701
+Utah,1992,55.0,1.801
+Utah,1993,56.2,1.604
+Utah,1994,55.8,1.688
+Utah,1995,52.0,1.749
+Utah,1996,54.0,1.862
+Utah,1997,57.0,2.227
+Utah,1998,42.3,2.437
+Utah,1999,43.9,3.129
+Utah,2000,40.7,3.312
+Vermont,1970,122.6,0.395
+Vermont,1971,124.4,0.4
+Vermont,1972,138.0,0.398
+Vermont,1973,146.8,0.413
+Vermont,1974,151.8,0.418
+Vermont,1975,155.5,0.471
+Vermont,1976,171.1,0.47
+Vermont,1977,169.4,0.525
+Vermont,1978,162.4,0.548
+Vermont,1979,160.9,0.589
+Vermont,1980,161.6,0.61
+Vermont,1981,163.8,0.668
+Vermont,1982,162.3,0.77
+Vermont,1983,153.8,0.906
+Vermont,1984,144.3,0.955
+Vermont,1985,144.5,1.049
+Vermont,1986,131.2,1.138
+Vermont,1987,128.3,1.237
+Vermont,1988,128.7,1.297
+Vermont,1989,120.9,1.437
+Vermont,1990,124.3,1.501
+Vermont,1991,120.9,1.68
+Vermont,1992,126.5,1.738
+Vermont,1993,117.2,1.596
+Vermont,1994,120.3,1.601
+Vermont,1995,123.2,1.964
+Vermont,1996,102.5,2.019
+Vermont,1997,97.7,2.139
+Vermont,1998,97.0,2.337
+Vermont,1999,94.1,3.011
+Vermont,2000,88.9,3.232
+Virginia,1970,124.3,0.302
+Virginia,1971,128.4,0.299
+Virginia,1972,137.0,0.301
+Virginia,1973,143.1,0.313
+Virginia,1974,149.6,0.336
+Virginia,1975,152.7,0.379
+Virginia,1976,158.1,0.384
+Virginia,1977,157.7,0.428
+Virginia,1978,155.9,0.458
+Virginia,1979,151.8,0.485
+Virginia,1980,148.9,0.518
+Virginia,1981,149.9,0.564
+Virginia,1982,147.4,0.688
+Virginia,1983,144.7,0.76
+Virginia,1984,136.8,0.836
+Virginia,1985,134.6,0.913
+Virginia,1986,135.8,0.946
+Virginia,1987,133.0,1.021
+Virginia,1988,129.5,1.094
+Virginia,1989,122.5,1.286
+Virginia,1990,118.9,1.365
+Virginia,1991,109.1,1.579
+Virginia,1992,108.2,1.657
+Virginia,1993,105.4,1.565
+Virginia,1994,106.2,1.575
+Virginia,1995,106.7,1.596
+Virginia,1996,104.6,1.596
+Virginia,1997,108.0,1.622
+Virginia,1998,105.6,1.837
+Virginia,1999,102.1,2.528
+Virginia,2000,96.7,2.754
+Washington,1970,96.7,0.403
+Washington,1971,97.0,0.461
+Washington,1972,88.5,0.459
+Washington,1973,91.0,0.469
+Washington,1974,98.6,0.49
+Washington,1975,99.5,0.53
+Washington,1976,100.3,0.537
+Washington,1977,99.3,0.586
+Washington,1978,101.3,0.616
+Washington,1979,101.4,0.638
+Washington,1980,101.4,0.666
+Washington,1981,112.7,0.803
+Washington,1982,106.6,0.931
+Washington,1983,102.4,1.059
+Washington,1984,96.2,1.144
+Washington,1985,96.5,1.257
+Washington,1986,94.2,1.342
+Washington,1987,91.3,1.414
+Washington,1988,88.2,1.506
+Washington,1989,86.1,1.675
+Washington,1990,83.4,1.774
+Washington,1991,78.7,1.992
+Washington,1992,81.1,2.023
+Washington,1993,79.4,2.198
+Washington,1994,72.6,2.258
+Washington,1995,67.4,2.468
+Washington,1996,58.1,2.651
+Washington,1997,55.6,2.726
+Washington,1998,56.4,2.867
+Washington,1999,55.1,3.598
+Washington,2000,52.8,3.816
+West Virginia,1970,114.5,0.416
+West Virginia,1971,111.5,0.413
+West Virginia,1972,117.5,0.399
+West Virginia,1973,116.6,0.42
+West Virginia,1974,119.9,0.452
+West Virginia,1975,123.2,0.484
+West Virginia,1976,129.7,0.489
+West Virginia,1977,133.9,0.539
+West Virginia,1978,131.6,0.624
+West Virginia,1979,122.1,0.643
+West Virginia,1980,122.3,0.662
+West Virginia,1981,120.5,0.751
+West Virginia,1982,119.8,0.882
+West Virginia,1983,115.7,0.972
+West Virginia,1984,111.9,1.032
+West Virginia,1985,109.1,1.041
+West Virginia,1986,112.1,1.128
+West Virginia,1987,107.5,1.222
+West Virginia,1988,109.1,1.312
+West Virginia,1989,104.0,1.429
+West Virginia,1990,104.1,1.441
+West Virginia,1991,100.1,1.582
+West Virginia,1992,98.0,1.662
+West Virginia,1993,111.0,1.501
+West Virginia,1994,104.2,1.568
+West Virginia,1995,115.8,1.573
+West Virginia,1996,112.7,1.609
+West Virginia,1997,114.5,1.711
+West Virginia,1998,114.6,1.924
+West Virginia,1999,112.4,2.537
+West Virginia,2000,107.9,2.758
+Wisconsin,1970,106.4,0.402
+Wisconsin,1971,105.4,0.403
+Wisconsin,1972,108.8,0.426
+Wisconsin,1973,109.5,0.439
+Wisconsin,1974,111.8,0.466
+Wisconsin,1975,113.5,0.513
+Wisconsin,1976,115.4,0.521
+Wisconsin,1977,117.2,0.571
+Wisconsin,1978,116.7,0.587
+Wisconsin,1979,117.1,0.612
+Wisconsin,1980,117.6,0.649
+Wisconsin,1981,119.9,0.75
+Wisconsin,1982,115.6,0.92
+Wisconsin,1983,106.3,1.008
+Wisconsin,1984,105.6,1.068
+Wisconsin,1985,107.0,1.108
+Wisconsin,1986,105.4,1.163
+Wisconsin,1987,106.0,1.286
+Wisconsin,1988,102.6,1.383
+Wisconsin,1989,100.3,1.511
+Wisconsin,1990,94.1,1.586
+Wisconsin,1991,95.5,1.765
+Wisconsin,1992,96.2,1.955
+Wisconsin,1993,91.2,1.786
+Wisconsin,1994,91.8,1.88
+Wisconsin,1995,93.5,2.005
+Wisconsin,1996,92.1,2.007
+Wisconsin,1997,91.9,2.108
+Wisconsin,1998,88.7,2.435
+Wisconsin,1999,84.4,3.128
+Wisconsin,2000,80.1,3.304
+Wyoming,1970,132.2,0.344
+Wyoming,1971,131.7,0.344
+Wyoming,1972,140.0,0.344
+Wyoming,1973,141.2,0.358
+Wyoming,1974,145.8,0.386
+Wyoming,1975,160.7,0.426
+Wyoming,1976,161.5,0.434
+Wyoming,1977,160.4,0.498
+Wyoming,1978,160.3,0.517
+Wyoming,1979,168.6,0.553
+Wyoming,1980,158.1,0.559
+Wyoming,1981,163.1,0.643
+Wyoming,1982,157.7,0.71
+Wyoming,1983,141.2,0.817
+Wyoming,1984,128.9,0.874
+Wyoming,1985,125.7,0.978
+Wyoming,1986,124.8,1.027
+Wyoming,1987,110.4,1.129
+Wyoming,1988,114.3,1.186
+Wyoming,1989,111.4,1.295
+Wyoming,1990,96.9,1.27
+Wyoming,1991,109.1,1.551
+Wyoming,1992,110.8,1.669
+Wyoming,1993,108.4,1.474
+Wyoming,1994,111.2,1.53
+Wyoming,1995,115.0,1.625
+Wyoming,1996,110.3,1.641
+Wyoming,1997,108.8,1.688
+Wyoming,1998,102.9,1.896
+Wyoming,1999,104.8,2.671
+Wyoming,2000,90.5,2.912

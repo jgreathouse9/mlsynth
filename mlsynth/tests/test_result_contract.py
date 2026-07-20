@@ -28,7 +28,7 @@ import pytest
 _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
-    BFSC, BSCM, BVSS, CFM, CLUSTERSC, CSCIPCA, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC,
+    BFSC, BSCM, BVSS, CFM, CLUSTERSC, CSCIPCA, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     MCNNM, MSQRT, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
@@ -99,6 +99,26 @@ def _make_cscipca_panel(n_units=8, T=30, T0=20, L=3, K=2, seed=2):
     return pd.DataFrame(rows)
 
 
+def _make_medsc_panel(n_units=8, T=24, T0=16, seed=3):
+    """Panel with an outcome plus a mediator column; unit 0 treated."""
+    rng = np.random.default_rng(seed)
+    common = np.zeros(T)
+    for t in range(1, T):
+        common[t] = 0.6 * common[t - 1] + rng.standard_normal()
+    rows = []
+    for i in range(n_units):
+        load = rng.standard_normal()
+        med = 1.0 + 0.05 * i + 0.02 * np.arange(T) + 0.05 * rng.standard_normal(T)
+        y = 10.0 + load * common - 2.0 * med + rng.standard_normal(T) * 0.3
+        treated = i == 0
+        for t in range(T):
+            yy = y[t] - 3.0 if (treated and t >= T0) else y[t]
+            rows.append({"unitid": f"u{i:02d}", "time": t, "y": float(yy),
+                         "price": float(med[t]),
+                         "treat": int(treated and t >= T0)})
+    return pd.DataFrame(rows)
+
+
 @pytest.fixture(scope="module")
 def panel_df():
     return _make_panel()
@@ -140,6 +160,8 @@ OBSERVATIONAL = [
     pytest.param(CSCIPCA, {"df": _make_cscipca_panel(),
                            "covariates": ["x0", "x1", "x2"], "n_factors": 2,
                            "inference": False}, id="CSCIPCA"),
+    pytest.param(MEDSC, {"df": _make_medsc_panel(), "mediator": "price",
+                         "inference": False}, id="MEDSC"),
     pytest.param(SDID, {}, id="SDID"),
     pytest.param(SequentialSDID, {"n_bootstrap": 20, "seed": 0}, id="SequentialSDID"),
     pytest.param(SSC, {}, id="SSC"),
