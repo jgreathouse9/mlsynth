@@ -158,6 +158,12 @@ class PPSCMUnitFit:
     tau : np.ndarray
         Relative-time effect path (length ``n_leads``); ``NaN`` past this unit's
         observed horizon.
+    tau_lower, tau_upper : np.ndarray or None
+        Per-period (pointwise) CFPT/SCPI prediction band for the effect path,
+        aligned with ``tau`` (length ``n_leads``, ``NaN`` past the horizon); the
+        per-horizon counterpart of ``ci_lower`` / ``ci_upper`` and wider than them
+        (the time average shrinks by ``sqrt(L)``, a single period does not).
+        ``None`` when inference is off.
     pre_imbalance : np.ndarray
         The pre-treatment imbalance vector (front-padded to the balance window)
         whose weighted RMS is ``prefit_rmspe``; the per-period in-sample residual.
@@ -181,6 +187,10 @@ class PPSCMUnitFit:
     ci_lower: Optional[float] = None
     ci_upper: Optional[float] = None
     p_value: Optional[float] = None
+    # Per-period (pointwise) CFPT/SCPI band, aligned with ``tau``. None when
+    # inference is off. See ``per_unit_intervals`` in ``inference.py``.
+    tau_lower: Optional[np.ndarray] = None
+    tau_upper: Optional[np.ndarray] = None
 
 
 class PPSCMResults(_BaseEstimatorResults):
