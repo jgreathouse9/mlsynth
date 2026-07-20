@@ -24,30 +24,6 @@ import numpy as np
 from .inference import did_inference
 
 
-def _r2_batch(y_c: np.ndarray, ss_tot: float, X_pre: np.ndarray) -> np.ndarray:
-    """Pre-treatment R^2 of each candidate donor average vs the treated unit.
-
-    Parameters
-    ----------
-    y_c : np.ndarray
-        Centred treated pre-treatment vector (``y - mean(y)``).
-    ss_tot : float
-        Total sum of squares of ``y_c``.
-    X_pre : np.ndarray
-        Candidate pre-treatment vectors, shape ``(T0, N)``.
-
-    Returns
-    -------
-    np.ndarray
-        R^2 for each candidate, shape ``(N,)``.
-    """
-    X_mean = X_pre.mean(axis=0)
-    ss_X = np.sum((X_pre - X_mean) ** 2, axis=0)
-    cross = np.dot(y_c, X_pre - X_mean)
-    ss_res = ss_tot + ss_X - 2.0 * cross
-    return 1.0 - ss_res / ss_tot
-
-
 def did_from_mean(
     treated: np.ndarray, mean_ctrl: np.ndarray, pre_periods: int
 ) -> Dict[str, Any]:
@@ -120,32 +96,6 @@ def did_from_mean(
             ),
         },
     }
-
-
-def _select_best_donor(
-    X_pre: np.ndarray,
-    current_mean_pre: np.ndarray,
-    k: int,
-    remaining_idx: np.ndarray,
-    y_c: np.ndarray,
-    ss_tot: float,
-) -> Tuple[int, float, np.ndarray]:
-    """Pick the remaining donor whose addition maximises pre-period R^2."""
-    candidates = X_pre[:, remaining_idx]
-    new_means = (current_mean_pre[:, None] * k + candidates) / (k + 1)
-    r2_cand = _r2_batch(y_c, ss_tot, new_means)
-    best_pos = int(np.nanargmax(r2_cand))
-    best_idx = int(remaining_idx[best_pos])
-    best_r2 = float(r2_cand[best_pos])
-    return best_idx, best_r2, r2_cand
-
-
-def _update_synthetic_control(
-    current_mean: np.ndarray, control_outcomes: np.ndarray, best_idx: int, k: int
-) -> np.ndarray:
-    """Incrementally fold a newly selected donor into the running average."""
-    diff = control_outcomes[:, best_idx] - current_mean
-    return current_mean + diff / (k + 1)
 
 
 def _record_verbose_step(
@@ -259,50 +209,58 @@ def forward_did_select(
     mean_all = control_outcomes.mean(axis=1)
     did_all = did_from_mean(treated_outcome, mean_all, T0)
 
-    current_mean = np.zeros(T, dtype=float)
-    remaining_mask = np.ones(N, dtype=bool)
+    # --- constants precomputed once (independent of the selection step) ---
+    # Adding donor j to k already-selected donors gives the candidate average
+    # (S + x_j) / (k + 1). The DID R^2 depends only on the *centred* donors, so
+    # centre once and cache each donor's squared norm ``q`` and its cross-product
+    # with the treated ``p``. Then a step costs one matvec against the centred
+    # running sum ``S_c`` -- O(N.T0) per step, O(N^2.T0) overall (versus the
+    # reference's O(N^3.T0)), with identical selections.
+    x_c = X_pre - X_pre.mean(axis=0)              # (T0, N) centred donors
+    q = np.einsum("tj,tj->j", x_c, x_c)           # ||x_c_j||^2
+    p = x_c.T @ y_c                               # y_c . x_c_j
+
+    S_c = np.zeros(T0, dtype=float)               # centred running sum of selected
+    Sc2 = 0.0                                     # ||S_c||^2
+    ySc = 0.0                                     # y_c . S_c
+    run_sum_pre = np.zeros(T0, dtype=float)       # uncentred running sum (verbose)
+
     selected: List[int] = []
     R2_path = np.empty(N, dtype=float)
+    remaining_mask = np.ones(N, dtype=bool)
     intermediary_results = [] if verbose else None
 
     for it in range(N):
         k = len(selected)
-        remaining_idx = np.where(remaining_mask)[0]
-        if len(remaining_idx) == 0:
-            break
+        c = 1.0 / (k + 1)
+        dots = x_c.T @ S_c                        # (N,) one matvec
+        ss_X = c * c * (Sc2 + 2.0 * dots + q)
+        cross = c * (ySc + p)
+        r2_all = 1.0 - (ss_tot + ss_X - 2.0 * cross) / ss_tot
+        # never re-select an already-chosen donor (first-tie argmax over the rest)
+        r2_all[~remaining_mask] = -np.inf
 
-        best_idx, best_r2, r2_cand = _select_best_donor(
-            X_pre=X_pre,
-            current_mean_pre=current_mean[:T0],
-            k=k,
-            remaining_idx=remaining_idx,
-            y_c=y_c,
-            ss_tot=ss_tot,
-        )
+        best_idx = int(np.nanargmax(r2_all))
+        best_r2 = float(r2_all[best_idx])
 
-        current_mean = _update_synthetic_control(
-            current_mean=current_mean,
-            control_outcomes=control_outcomes,
-            best_idx=best_idx,
-            k=k,
-        )
+        if verbose:
+            remaining_idx = np.where(remaining_mask)[0]
+            _record_verbose_step(
+                intermediary_results=intermediary_results,
+                it=it, best_idx=best_idx, best_r2=best_r2,
+                r2_cand=r2_all[remaining_idx],
+                selected=selected + [best_idx], donor_names=donor_names,
+                current_mean_pre=(run_sum_pre + X_pre[:, best_idx]) / (k + 1), k=k,
+            )
 
         selected.append(best_idx)
         R2_path[it] = best_r2
         remaining_mask[best_idx] = False
-
-        if verbose:
-            _record_verbose_step(
-                intermediary_results=intermediary_results,
-                it=it,
-                best_idx=best_idx,
-                best_r2=best_r2,
-                r2_cand=r2_cand,
-                selected=selected,
-                donor_names=donor_names,
-                current_mean_pre=current_mean[:T0],
-                k=k,
-            )
+        # fold the selected donor into the running sums (O(T0))
+        Sc2 += 2.0 * dots[best_idx] + q[best_idx]
+        ySc += p[best_idx]
+        S_c = S_c + x_c[:, best_idx]
+        run_sum_pre = run_sum_pre + X_pre[:, best_idx]
 
     optimal_idxs, R2_path = _choose_optimal_subset(selected, R2_path)
 
