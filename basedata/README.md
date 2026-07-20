@@ -32,6 +32,7 @@ slices, plus a larger raw-state pool:
 | `california_panel.csv` | `cigsale` + `retprice` + `state_id` | SpillSynth doc example |
 | `california_W_matrix.csv`, `california_w_vector.csv` | adjacency / weight vectors | SpillSynth spatial example |
 | `prop99_packsales.csv`, `prop99_with_dc.csv` | a *larger* state pool, `cigsale` only (`with_dc` adds DC) | SI / SpillSynth / TASC cases |
+| `prop99_mediation.csv` | 51-state balanced panel (all 50 states + DC), `cigsale` + `price` (tax-inclusive average cost per pack), from the CDC / Orzechowski-Walker Tax Burden on Tobacco file; carries the seven high-tax states the curated pool drops, so the mediator-matched (cross-world) pool can span California's post-treatment price | MEDSC Prop 99 mediation replication |
 
 ## German reunification — Abadie, Diamond & Hainmueller (2015)
 

@@ -378,6 +378,27 @@ the business cycle and the trend is the treated unit's own; prefer :doc:`hsc`
 when you are unsure whether the nonstationarity is shared or idiosyncratic and
 want the data to decide.
 
+Q1.3b · Do you want the mechanism -- how much of the effect runs through one
+observed channel (a mediator)?
+
+* No -- next question.
+* Yes -- :doc:`medsc` (mediation-analysis synthetic control).
+
+*Decomposing the effect into channels -- MEDSC.* Everything else in Part 1
+targets the total effect. :doc:`medsc` (Mellace and Pasquini, 2022) goes one
+step further when you also observe a mediator -- a channel variable the
+intervention moves and that in turn moves the outcome (for Proposition 99, the
+retail price of cigarettes). It splits the synthetic-control effect into a
+direct effect and an indirect effect that runs through the mediator, by building
+a second, cross-world synthetic control that matches not only the treated unit's
+pre-treatment outcome path but also its post-treatment mediator path; the gap
+between the two controls is the channel. Reach for it only when the mechanism is
+the question and the "treatment moves mediator moves outcome" ordering is
+credible; for the total effect alone, a plain :doc:`vanillasc` is simpler. It
+needs a donor pool wide enough to bracket the treated unit's post-treatment
+mediator values -- so it exposes two donor pools, the wider one for the direct
+fit.
+
 Q1.4 · Are there persistent latent factors / time-varying dynamics / heavy
 observation noise?
 
@@ -850,6 +871,8 @@ A reverse lookup: the symptom, and the method named for it.
      - :doc:`iscm`, :doc:`nsc`, :doc:`rescm`, :doc:`pda`
    * - Nonstationary / spurious-trend matching
      - :doc:`sbc`, :doc:`hsc`
+   * - Decompose the effect through a mediator (mechanism)
+     - :doc:`medsc`
    * - Time-varying dynamics / persistent factors / noise
      - :doc:`tasc`, :doc:`fma`, :doc:`bfsc`, :doc:`dscar`
    * - Nonlinear outcome surface

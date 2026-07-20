@@ -17,6 +17,7 @@ CASES = {
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)
     "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)
+    "medsc_prop99": "benchmarks.cases.medsc_prop99",    # Path A: Mellace-Pasquini 2022 Prop99 mediation, cross-world direct effect (1995/2000 = -16.8/-18.0) + negative growing indirect price channel
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs authors' synthdid R (Prop 99)
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo

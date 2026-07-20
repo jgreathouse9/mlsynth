@@ -92,6 +92,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/microsynth
    replications/cfm
    replications/cscipca
+   replications/medsc
 
 .. _replications-canonical:
 

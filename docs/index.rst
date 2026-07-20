@@ -233,6 +233,7 @@ headline numbers.
 
    sbc
    hsc
+   medsc
 
 .. toctree::
    :hidden:
