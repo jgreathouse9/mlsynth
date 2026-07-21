@@ -32,12 +32,13 @@ The `mlsynth` estimators (`VanillaSC`, `CLUSTERSC`) run at render time via
 ## Rendering
 
 Pushing to the `claude/basc-review-westgermany` branch triggers
-`.github/workflows/render-basc-review.yml`, which installs `mlsynth`, renders the
-`.qmd` to a self-contained HTML, and uploads it as a workflow artifact
-(`basc-westgermany-review`).
+`.github/workflows/render-basc-review.yml`, which installs `mlsynth` and TinyTeX,
+renders the `.qmd` to a self-contained HTML and a PDF, and uploads both as a
+workflow artifact (`basc-westgermany-review`).
 
 Locally: `quarto render review/basc_westgermany/basc_westgermany_review.qmd`
-(needs `mlsynth` installed: `pip install -e .`).
+(needs `mlsynth` installed: `pip install -e .`; the PDF also needs a LaTeX engine,
+e.g. `quarto install tinytex`). Add `--to html` or `--to pdf` for a single format.
 
 ## Regenerating the BASC data
 
