@@ -211,7 +211,7 @@ full_bq = pd.concat([tb, basc_bq], ignore_index=True).sort_values("In-sample RMS
 Markdown(full_bq.round(3).to_markdown(index=False))
 ```
 
-The pattern is the same, only sharper. Every standard estimator — including `FDID`, which is not a synthetic control — fits the pre-1975 path several times more tightly than BASC: its in-sample RMSE (~0.61) is roughly 7x `VanillaSC` (0.084) and 8x `FDID` (0.076), and lengthening the chain from 5000 to 20000 barely moves it (0.622 to 0.610). The consequence for the effect estimate is stark. The standard toolkit agrees on an ATT of about −0.7 to −0.9 — the ~10% GDP loss Abadie and Gardeazabal report and that the literature cites — whereas BASC returns roughly −3.2, three to four times larger. Because BASC cannot track the pre-1975 series, its synthetic Basque sits well above the observed path, and most of that estimated "effect" is the pre-treatment miss carried forward, not the intervention.
+The pattern is the same, only sharper. Every standard estimator — including `FDID`, which is not a synthetic control — fits the pre-1975 path several times more tightly than BASC: its in-sample RMSE (~0.61) is roughly 7x `VanillaSC` (0.084) and 8x `FDID` (0.076), and lengthening the chain from 5000 to 20000 barely moves it (0.622 to 0.610). The consequence for the effect estimate is stark. The standard toolkit agrees on an ATT of about -0.7 to -0.9 — the ~10% GDP loss Abadie and Gardeazabal report and that the literature cites — whereas BASC returns roughly -3.2, three to four times larger. Because BASC cannot track the pre-1975 series, its synthetic Basque sits well above the observed path, and most of that estimated "effect" is the pre-treatment miss carried forward, not the intervention.
 
 ## Bottom line
 
@@ -219,7 +219,7 @@ To be clear: I recognize that in-sample fit is not the sole determining factor i
 
 However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. This holds even on the original, un-normalized per-capita GDP scale the authors adopt in the revision — the very data on which they report the same substantive conclusions. On that data, BASC has an in-sample RMSE that is ~2–3x that of `VanillaSC` and worse than the robust `CLUSTERSC` estimators — indeed worse than a forward-selected difference-in-differences (`FDID`), which is not even a synthetic control — on top of the fact that it excludes the canonical Austria. The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
 
-Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly −390 to −700 across chain lengths) is neither stable nor close to the −1300 to −2000 that the standard estimators agree on. The same pattern recurs on the Basque Country, and more sharply: BASC fits ~7x looser than the whole toolkit and returns an ATT (~−3.2) three to four times the ~10% loss the standard estimators and the original Abadie–Gardeazabal study agree on — so this is not an artifact of one dataset. BASC is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
+Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly -390 to -700 across chain lengths) is neither stable nor close to the -1300 to -2000 that the standard estimators agree on. The same pattern recurs on the Basque Country, and more sharply: BASC fits ~7x looser than the whole toolkit and returns an ATT (~-3.2) three to four times the ~10% loss the standard estimators and the original Abadie–Gardeazabal study agree on — so this is not an artifact of one dataset. BASC is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
 
 ## Reproducibility: the offline BASC chains
 
@@ -227,8 +227,8 @@ Most BASC rows are regenerated at render time from saved posterior counterfactua
 (West Germany 500/500 and 2000/2000). The remaining rows come from single offline
 chains whose posterior paths are not stored or plotted — only their summary numbers
 are reported: West Germany 25000/25000 (in-sample RMSE 195.516, post-1990 ATT
-−389.799), and the Basque Country 5000/5000 and 20000/20000 (RMSE 0.622 / 0.610,
-ATT −3.212 / −3.138). The exact script and the data each reads are given below so
+-389.799), and the Basque Country 5000/5000 and 20000/20000 (RMSE 0.622 / 0.610,
+ATT -3.212 / -3.138). The exact script and the data each reads are given below so
 they can be reproduced against a known state of this repository.
 
 ```{python}
@@ -244,7 +244,7 @@ Markdown(f"Reproduced against `mlsynth` at commit `{_git('rev-parse', '--short',
          f"({_git('log', '-1', '--format=%ci')}).")
 ```
 
-Every run uses the authors' own sampler (`safe_chol` … `run_basc_chain` from
+Every run uses the authors' own sampler (`safe_chol` ... `run_basc_chain` from
 `github.com/sll-lee/paper-BASC`, sourced as `basc_funcs.R`), and is identical to
 `scripts/basc_run.R` except for the inputs, the treatment index, and the chain
 length. The West Germany 25000/25000 run is shown below (not executed); the Basque
