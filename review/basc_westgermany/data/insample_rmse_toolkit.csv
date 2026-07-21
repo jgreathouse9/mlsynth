@@ -1,0 +1,7 @@
+method,in_sample_rmse,n_donors
+VanillaSC (outcome-only),60.8,7
+"VanillaSC (malo, covariates)",60.8,7
+"VanillaSC (mscmt, ADH 2015 spec)",101.9,6
+CLUSTERSC (RPCA-SC),88.6,4
+CLUSTERSC (PCR/RSC),98.0,11
+Uniform weights (1/16),1289.3,16
