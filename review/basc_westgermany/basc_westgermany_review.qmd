@@ -11,6 +11,14 @@ format:
     fig-height: 5.2
     embed-resources: true
     theme: cosmo
+  pdf:
+    toc: true
+    toc-depth: 2
+    fig-width: 8
+    fig-height: 4.6
+    pdf-engine: pdflatex
+    geometry: margin=1in
+    colorlinks: true
 execute:
   echo: false
   warning: false
@@ -23,6 +31,7 @@ import os, warnings
 warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
+from IPython.display import Markdown
 
 def _find_up(name, start, hops=6):
     d = os.path.abspath(start)
@@ -124,14 +133,14 @@ basc_rows = pd.DataFrame([
     {"Method": "BASC (500 / 500 MCMC)",   "In-sample RMSE": 186.2,               "ATT": np.nan},
 ])
 full = pd.concat([tbl, basc_rows], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
-full.round(1)
+Markdown(full.round(1).to_markdown(index=False))
 ```
 
 Lower is better. Every standard-toolkit estimator — including the *robust*
 `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit —
 attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE
 (~169) is roughly 2.8x the plain `VanillaSC` fit (60.8) and ~1.7–1.9x the
-`CLUSTERSC` fit (88.6 / 98.0). Giving BASC 4x the MCMC iterations (500 → 2000)
+`CLUSTERSC` fit (88.6 / 98.0). Giving BASC 4x the MCMC iterations (500 to 2000)
 moved its RMSE only from 186 to ~169, so this is not a burn-in artifact. For
 reference, *uniform* (1/16) donor weights fit ~21x worse (RMSE ~1289).
 
@@ -190,7 +199,9 @@ wide_w["BASC (2000/2000)"] = basc_w.set_index("donor")["weight"]
 wide_w = wide_w.fillna(0.0).round(3)
 wide_w = wide_w.loc[(wide_w > 0.01).any(axis=1)]
 o = ["Austria", "USA", "Japan", "Switzerland", "Netherlands", "Italy", "Greece", "France", "Norway"]
-wide_w.reindex([x for x in o if x in wide_w.index] + [x for x in wide_w.index if x not in o])
+tw = wide_w.reindex([x for x in o if x in wide_w.index] + [x for x in wide_w.index if x not in o])
+tw.index.name = "Donor"
+Markdown(tw.to_markdown())
 ```
 
 Every standard-SCM path — outcome-only, the `malo` global optimum, the `mscmt`
@@ -210,7 +221,7 @@ BASC does not: its in-sample RMSE is ~2–3x that of `VanillaSC` and worse than 
 robust `CLUSTERSC` estimators, and it excludes the canonical Austria/USA donors.
 BASC is Bayesian, so some in-sample-fit sacrifice from its donor-selection and GP
 priors is expected — but the paper presents it as a synthetic control and claims
-competitiveness, its GP flexibility term is inactive here (mean |f| ≈ 0.4 over
+competitiveness, its GP flexibility term is inactive here (mean $|f| \approx 0.4$ over
 the pre-period), and no direct in-sample-fit comparison against the standard
 toolkit is provided.
 
