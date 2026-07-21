@@ -6,6 +6,7 @@ format:
     toc: true
     toc-depth: 2
     code-fold: true
+    code-tools: true
     fig-width: 9
     fig-height: 5.2
     embed-resources: true
@@ -17,84 +18,147 @@ jupyter: python3
 ---
 
 ```{python}
-import os
-import numpy as np
-import pandas as pd
+#| label: setup
+import os, warnings
+warnings.filterwarnings("ignore")
+import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 
-DATA = "data"   # Quarto executes chunks with the .qmd's directory as cwd
+def _find_up(name, start, hops=6):
+    d = os.path.abspath(start)
+    for _ in range(hops):
+        if os.path.exists(os.path.join(d, name)):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
 
-toolkit_cf = pd.read_csv(os.path.join(DATA, "toolkit_counterfactuals.csv"))
-rmse = pd.read_csv(os.path.join(DATA, "insample_rmse_toolkit.csv"))
-weights = pd.read_csv(os.path.join(DATA, "weights_comparison.csv"), index_col=0)
-basc_cf = pd.read_csv(os.path.join(DATA, "basc_counterfactual.csv"))
-basc_w = pd.read_csv(os.path.join(DATA, "basc_weights.csv"))
-with open(os.path.join(DATA, "basc_insample_rmse.txt")) as fh:
-    basc_rmse = float(fh.read().strip())
+ROOT = _find_up("basedata", os.getcwd())
+BASE = os.path.join(ROOT, "basedata")
+DATA = os.getcwd() if os.path.exists(os.path.join(os.getcwd(), "data", "basc_weights.csv")) \
+    else os.path.join(ROOT, "review", "basc_westgermany")
+DATA = os.path.join(DATA, "data")
 ```
 
 ## The question
 
-Bayesian Adaptive Synthetic Control (BASC; Bayesian Donor Set Selection in
-Synthetic Controls) is presented as a competitive-or-superior synthetic-control
-estimator. Because the entire credibility of a synthetic control rests on how
-well it reproduces the treated unit *before* the intervention, a minimum bar for
-any such claim is a pre-treatment fit comparable to the standard toolkit.
+Bayesian Adaptive Synthetic Control (BASC; *Bayesian Donor Set Selection in
+Synthetic Controls*) is presented as a competitive-or-superior synthetic-control
+estimator. Because the credibility of any synthetic control rests on how well it
+reproduces the treated unit *before* the intervention, a minimum bar for such a
+claim is a pre-treatment fit comparable to the standard toolkit.
 
 This note compares BASC's in-sample (pre-1990) fit on West Germany against
-`mlsynth`'s own estimators on the exact same data (the Abadie et al. 2015
-`repgermany` panel, original per-capita GDP scale): `VanillaSC` (the textbook
-Abadie estimator, outcome-only and with the ADH covariate spec via two bilevel
-solvers) and `CLUSTERSC` (the robust low-rank RPCA-SC / RSC family).
+`mlsynth`'s own estimators on the identical data (the Abadie, Diamond &
+Hainmueller 2015 `repgermany` panel, original per-capita GDP scale), assembled
+with `mlsynth`'s `compare_estimators` utility. The `mlsynth` analyses run at
+render time; BASC is precomputed (its Gibbs sampler runs from the authors' R,
+`github.com/sll-lee/paper-BASC`).
+
+## Specifications
+
+Standard SCM is run two ways. Outcome-only matches the pre-1990 GDP path. The
+covariate specification is the canonical Abadie et al. (2015) predictor set:
+
+- GDP per capita, inflation rate, trade openness, industry share — averaged
+  **1981–1990**;
+- investment rate and schooling — averaged **1980–1985**.
+
+fit via two bilevel solvers: `backend="malo"` (the Malo et al. 2024 global
+corner optimum) and `backend="mscmt"` (MSCMT's nested differential-evolution
+search). The robust family is `CLUSTERSC` (RPCA-SC and PCR/RSC).
+
+```{python}
+#| label: compare
+#| echo: true
+#| code-fold: false
+from mlsynth import VanillaSC, CLUSTERSC, compare_estimators
+
+# --- ADH 2015 West Germany covariate specification ---
+COVS = ["gdp_avg", "infrate", "trade", "industry", "schooling", "invest80"]
+WINDOWS = {"gdp_avg": (1981, 1990), "infrate": (1981, 1990), "trade": (1981, 1990),
+           "industry": (1981, 1990), "schooling": (1980, 1985), "invest80": (1980, 1985)}
+FIT_WINDOW = (1960, 1989)          # outcome-matching (pre-treatment) window
+
+raw = pd.read_stata(os.path.join(BASE, "repgermany.dta"))
+d = raw[["country", "year", "gdp", "infrate", "trade", "industry", "schooling", "invest80"]].copy()
+d["gdp_avg"] = d["gdp"]             # GDP per capita as an averaged predictor
+d["treat"] = ((d.country == "West Germany") & (d.year >= 1990)).astype(int)
+
+base = dict(df=d, outcome="gdp", treat="treat", unitid="country", time="year",
+            display_graphs=False)
+cov = dict(covariates=COVS, covariate_windows=WINDOWS, fit_window=FIT_WINDOW, seed=0)
+
+# One panel, several specifications -> compare_estimators does the rest
+cmp = compare_estimators({
+    "VanillaSC (outcome-only)":    VanillaSC({**base}),
+    "VanillaSC (malo, ADH cov)":   VanillaSC({**base, "backend": "malo",  **cov}),
+    "VanillaSC (mscmt, ADH cov)":  VanillaSC({**base, "backend": "mscmt", **cov}),
+    "CLUSTERSC (RPCA-SC)":         CLUSTERSC({**base, "method": "rpca", "rpca_method": "PCP"}),
+    "CLUSTERSC (PCR/RSC)":         CLUSTERSC({**base, "method": "PCR"}),
+}, show_bands=False)
+
+# uniform-weight diagnostic (what a naive equal-weighted "SC" would fit)
+wide = d.pivot(index="year", columns="country", values="gdp"); pre = wide.index < 1990
+order = [c for c in wide.columns if c != "West Germany"]; X = wide[order].to_numpy()
+obs_pre = wide["West Germany"].to_numpy()[pre]
+uniform_rmse = float(np.sqrt(np.mean((obs_pre - X[pre] @ np.full(len(order), 1/len(order)))**2)))
+```
+
+```{python}
+#| label: load-basc
+basc_cf = pd.read_csv(os.path.join(DATA, "basc_counterfactual.csv"))
+basc_w = pd.read_csv(os.path.join(DATA, "basc_weights.csv"))
+basc_rmse = float(open(os.path.join(DATA, "basc_insample_rmse.txt")).read().strip())
+n_basc = int((basc_w["weight"] > 0.01).sum())
+```
 
 ## In-sample (pre-1990) RMSE by method
 
 ```{python}
-tbl = rmse.copy()
-basc = pd.DataFrame([
-    {"method": "BASC (2000 burn-in / 2000 sampling)", "in_sample_rmse": round(basc_rmse, 1),
-     "n_donors": int((basc_w["weight"] > 0.01).sum())},
-    {"method": "BASC (500 / 500)", "in_sample_rmse": 186.2,
-     "n_donors": int((basc_w["weight"] > 0.01).sum())},
+#| label: tbl-rmse
+tbl = (cmp.summary.rename(columns={"pre_rmse": "In-sample RMSE", "att": "ATT"})
+       .reset_index().rename(columns={"method": "Method"}))
+tbl = tbl[["Method", "In-sample RMSE", "ATT"]]
+basc_rows = pd.DataFrame([
+    {"Method": "BASC (2000 / 2000 MCMC)", "In-sample RMSE": round(basc_rmse, 1), "ATT": np.nan},
+    {"Method": "BASC (500 / 500 MCMC)",   "In-sample RMSE": 186.2,               "ATT": np.nan},
 ])
-full = pd.concat([tbl, basc], ignore_index=True).sort_values("in_sample_rmse")
-full = full[full.method != "Uniform weights (1/16)"]
-full.columns = ["Method", "In-sample RMSE", "# donors"]
-full.reset_index(drop=True)
+full = pd.concat([tbl, basc_rows], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
+full.round(1)
 ```
 
 Lower is better. Every standard-toolkit estimator — including the *robust*
-CLUSTERSC methods, which deliberately denoise rather than chase in-sample fit —
+`CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit —
 attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE
-(~169) is roughly 2.8x the plain `VanillaSC` fit (60.8) and ~1.7-1.9x the
-CLUSTERSC fit (88.6 / 98.0). Giving BASC 4x the MCMC iterations (500 -> 2000)
-moved its RMSE only from 186 to ~169, so this is not a burn-in artifact.
+(~169) is roughly 2.8x the plain `VanillaSC` fit (60.8) and ~1.7–1.9x the
+`CLUSTERSC` fit (88.6 / 98.0). Giving BASC 4x the MCMC iterations (500 → 2000)
+moved its RMSE only from 186 to ~169, so this is not a burn-in artifact. For
+reference, *uniform* (1/16) donor weights fit ~21x worse (RMSE ~1289).
 
 ## Observed vs synthetic West Germany
 
 ```{python}
+#| label: fig-paths
 fig, ax = plt.subplots()
-yr = toolkit_cf["year"].to_numpy()
-ax.axvspan(yr.min(), 1990, color="0.92", zorder=0, label="pre-treatment (fit) window")
-ax.plot(yr, toolkit_cf["observed"], color="black", lw=2.4, label="West Germany (observed)")
-ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2, ls="-", label="BASC")
-ax.plot(yr, toolkit_cf["vanillasc_outcome"], color="#1f77b4", lw=1.7, ls="--", label="VanillaSC (outcome-only)")
-ax.plot(yr, toolkit_cf["vanillasc_mscmt"], color="#2ca02c", lw=1.7, ls="--", label="VanillaSC (mscmt, ADH spec)")
-ax.plot(yr, toolkit_cf["clustersc_rpca"], color="#9467bd", lw=1.7, ls=":", label="CLUSTERSC (RPCA-SC)")
+cmp.plot(ax=ax)                                   # mlsynth methods + observed
+ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2.2,
+        label="BASC", zorder=5)
+ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
 ax.axvline(1990, color="grey", ls=":", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
 ax.set_title("West Germany: observed vs synthetic counterfactuals")
+ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
 ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
 plt.tight_layout(); plt.show()
 ```
 
-The gap of interest is in the shaded pre-1990 window: the standard estimators
-track observed West Germany closely, while BASC visibly departs from it before
-treatment — the signature of a worse synthetic control.
+The gap of interest is inside the shaded pre-1990 window: the standard
+estimators track observed West Germany closely, while BASC departs from it
+*before* treatment — the signature of a worse synthetic control.
 
 ## BASC counterfactual with its 95% credible band
 
 ```{python}
+#| label: fig-basc-ci
 fig, ax = plt.subplots()
 ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
 ax.fill_between(basc_cf["year"], basc_cf["lo95"], basc_cf["hi95"], color="#d62728", alpha=0.15, label="BASC 95% CI")
@@ -107,46 +171,55 @@ ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
 plt.tight_layout(); plt.show()
 ```
 
-## Donor weights: standard SCM is sparse and Austria-led; uniform is impossible
+## Donor weights: standard SCM is sparse and Austria-led
 
 ```{python}
-bw = basc_w.set_index("donor")["weight"].round(3)
-comp = weights.copy()
-comp["BASC (2000/2000)"] = bw
-comp = comp.loc[(comp > 0.01).any(axis=1)]
-order = ["Austria", "USA", "Japan", "Switzerland", "Netherlands", "Italy", "Greece", "France", "Norway"]
-comp = comp.reindex([d for d in order if d in comp.index] + [d for d in comp.index if d not in order])
-comp.round(3)
+#| label: fig-weights
+fig, ax = plt.subplots(figsize=(9, 4.2))
+cmp.plot_weights(ax=ax)                           # cmp.weights, now populated
+ax.set_title("Donor weights by standard-SCM specification")
+plt.tight_layout(); plt.show()
 ```
 
-Every standard-SCM path — outcome-only, the Malo global-optimum solver, the
-MSCMT nested-DE search with the exact ADH 2015 predictor spec, and the published
-ADH 2015 weights — concentrates on a handful of donors led by Austria. A
-*uniform* weight vector (1/16 each) is unreachable by the Abadie quadratic
-program and fits the pre-period ~21x worse (RMSE 1289 vs 61), so it cannot be the
-output of "standard SCM" on this data. BASC itself selects a sparse set
-(Switzerland / Japan / Italy) but notably assigns near-zero weight to **Austria
-and the USA** — the two donors every standard analysis identifies as most
-important — which is why its pre-treatment fit is worse.
+```{python}
+#| label: tbl-weights
+wide_w = cmp.weights.pivot(index="donor", columns="method", values="weight").fillna(0.0)
+wide_w["ADH 2015 (published)"] = pd.Series(
+    {"Austria": 0.42, "USA": 0.22, "Japan": 0.16, "Switzerland": 0.11, "Netherlands": 0.09})
+wide_w["BASC (2000/2000)"] = basc_w.set_index("donor")["weight"]
+wide_w = wide_w.fillna(0.0).round(3)
+wide_w = wide_w.loc[(wide_w > 0.01).any(axis=1)]
+o = ["Austria", "USA", "Japan", "Switzerland", "Netherlands", "Italy", "Greece", "France", "Norway"]
+wide_w.reindex([x for x in o if x in wide_w.index] + [x for x in wide_w.index if x not in o])
+```
+
+Every standard-SCM path — outcome-only, the `malo` global optimum, the `mscmt`
+nested-DE search with the exact ADH covariate spec, and the published ADH 2015
+weights — concentrates on a handful of donors led by Austria. A *uniform* vector
+is unreachable by the Abadie quadratic program and fits ~21x worse, so it cannot
+be the output of "standard SCM." BASC selects a sparse set (Switzerland / Japan /
+Italy) but assigns near-zero weight to **Austria and the USA** — the two donors
+every standard analysis identifies as most important — which is why its
+pre-treatment fit is worse.
 
 ## Bottom line
 
 A method that claims synthetic-control superiority should at least match the
 standard toolkit's pre-treatment fit. On the authors' own West Germany data,
-BASC does not: its in-sample RMSE is ~2-3x that of `VanillaSC` and worse than the
+BASC does not: its in-sample RMSE is ~2–3x that of `VanillaSC` and worse than the
 robust `CLUSTERSC` estimators, and it excludes the canonical Austria/USA donors.
 BASC is Bayesian, so some in-sample-fit sacrifice from its donor-selection and GP
 priors is expected — but the paper presents it as a synthetic control and claims
-competitiveness, the GP flexibility term is inactive here (mean |f| ~ 0.4 over
+competitiveness, its GP flexibility term is inactive here (mean |f| ≈ 0.4 over
 the pre-period), and no direct in-sample-fit comparison against the standard
 toolkit is provided.
 
 ---
 
 ::: {.callout-note appearance="minimal"}
-Data generated by `scripts/gen_toolkit.py` (mlsynth `VanillaSC` / `CLUSTERSC`)
-and the BASC sampler run at 500/500 and 2000/2000 on the authors'
-`BASC_realdata.R` (github.com/sll-lee/paper-BASC), original per-capita GDP scale.
-Panel: Abadie, Diamond & Hainmueller (2015), *Comparative Politics and the
-Synthetic Control Method*.
+`mlsynth` analyses (`VanillaSC`, `CLUSTERSC`, assembled with `compare_estimators`)
+run at render time on `basedata/repgermany.dta`. BASC results are precomputed by
+`scripts/basc_run.R` on the authors' sampler (`github.com/sll-lee/paper-BASC`),
+original per-capita GDP scale. Panel: Abadie, Diamond & Hainmueller (2015),
+*Comparative Politics and the Synthetic Control Method*.
 :::
