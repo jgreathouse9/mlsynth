@@ -63,13 +63,14 @@ def _fast_pivot(
     su = np.argsort(np.asarray(u_uniq), kind="stable")        # match pivot's sorted axes
     st = np.argsort(np.asarray(t_uniq), kind="stable")
     # ``pivot`` returns a C-contiguous values block; match its memory *layout*,
-    # not just its values. pandas stores a homogeneous 2-D frame column-major,
-    # so a frame built directly would be F-contiguous -- and a value-equal but
-    # F-contiguous array changes BLAS reduction order, perturbing float-sensitive
-    # downstream code (e.g. a seeded MCMC) at ~1e-16. Building the transpose
-    # (units x time, C-order) and transposing the frame makes the column-major
-    # block present as a C-contiguous (time x units) ``.to_numpy()`` identical to
-    # ``pivot``'s.
+    # not just its values. A value-equal but F-contiguous array changes BLAS
+    # reduction order, perturbing float-sensitive downstream code (e.g. a seeded
+    # MCMC) at ~1e-16. Building the transpose (units x time, C-order) and
+    # transposing the frame makes pandas present it as a C-contiguous
+    # (time x units) ``.to_numpy()`` on most pandas versions -- but the exact
+    # ``.to_numpy()`` layout of a transposed frame is version-dependent, so the
+    # C-contiguity is *verified* (and enforced) by :func:`_wide_pivot`, which
+    # falls back to ``df.pivot`` if this frame does not reproduce it.
     ordered = np.ascontiguousarray(wide[np.ix_(st, su)].T)    # (n_u, n_t), C-order
     return pd.DataFrame(
         ordered,
@@ -83,9 +84,20 @@ def _wide_pivot(
 ) -> pd.DataFrame:
     """``df.pivot(index=index, columns=columns, values=values)`` with an O(n)
     fast path (:func:`_fast_pivot`) for balanced/unique panels, falling back to
-    the pandas pivot otherwise (which also raises on duplicate keys)."""
+    the pandas pivot otherwise (which also raises on duplicate keys).
+
+    The fast path is used only when it reproduces ``df.pivot``'s C-contiguous
+    ``.to_numpy()`` layout -- not just its values. The layout that a transposed
+    frame materialises to is pandas-version-dependent (C on pandas >= 3.10's
+    newer builds, F on some older 3.x), and a value-equal but F-contiguous array
+    changes BLAS reduction order enough to flip a seeded MCMC's collapsed CI
+    bound at ~1e-17. Checking ``.to_numpy()`` is a cheap block view (no copy), so
+    the guard is essentially free; when it fails we defer to ``df.pivot``, which
+    is reliably C-contiguous, keeping the output byte- and layout-identical on
+    every pandas version.
+    """
     fast = _fast_pivot(df, index, columns, values)
-    if fast is not None:
+    if fast is not None and fast.to_numpy().flags["C_CONTIGUOUS"]:
         return fast
     return df.pivot(index=index, columns=columns, values=values)
 

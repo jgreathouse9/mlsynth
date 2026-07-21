@@ -596,3 +596,28 @@ def test_wide_pivot_matches_pivot_memory_layout():
     assert np.array_equal(got, exp)
     assert got.flags["C_CONTIGUOUS"] == exp.flags["C_CONTIGUOUS"] is True
     assert got.tobytes() == exp.tobytes()
+
+
+def test_wide_pivot_falls_back_when_fast_path_layout_differs(monkeypatch):
+    """If the fast frame materialises F-contiguous (pandas-version-dependent, as
+    on the CI's 3.10 build), _wide_pivot must fall back to df.pivot so the output
+    stays C-contiguous and byte-identical -- never leak the F layout downstream.
+    """
+    import mlsynth.utils.datautils as du
+
+    df = _long(6, 30, seed=0)
+    exp = df.pivot(index="time", columns="unit", values="y")
+    _real_fast_pivot = du._fast_pivot                        # capture before patching
+
+    def _f_contiguous_fast(d, index, columns, values):
+        # value-identical to the real fast path but F-contiguous .to_numpy()
+        frame = _real_fast_pivot(d, index, columns, values)
+        return pd.DataFrame(
+            np.asfortranarray(frame.to_numpy()),
+            index=frame.index, columns=frame.columns)
+
+    monkeypatch.setattr(du, "_fast_pivot", _f_contiguous_fast)
+    got = du._wide_pivot(df, index="time", columns="unit", values="y")
+    assert got.equals(exp)                                   # correct values
+    assert got.to_numpy().flags["C_CONTIGUOUS"] is True      # fell back to pivot
+    assert got.to_numpy().tobytes() == exp.to_numpy().tobytes()
