@@ -59,13 +59,13 @@ Standard SCM (s-SCM, per the paper) is run two ways. Outcome-only matches the pr
   **1981–1990**;
 - investment rate and schooling — averaged **1980–1985**.
 
-We estimate the fit via two bilevel solvers: `backend="malo"` (the Malo et al. 2024 optimum) and `backend="mscmt"` (MSCMT's nested differential-evolution search). The robust family is `CLUSTERSC` (RPCA-SC and PCR/RSC).
+We estimate the fit via two bilevel solvers: `backend="malo"` (the Malo et al. 2024 optimum) and `backend="mscmt"` (MSCMT's nested differential-evolution search). The robust family is `CLUSTERSC` (RPCA-SC and PCR/RSC). As a benchmark outside the SCM family entirely, we also include `FDID`, the forward-selected difference-in-differences estimator of Li (2024).
 
 ```{python}
 #| label: compare
 #| echo: true
 #| code-fold: false
-from mlsynth import VanillaSC, CLUSTERSC, compare_estimators
+from mlsynth import VanillaSC, CLUSTERSC, FDID, compare_estimators
 
 # --- ADH 2015 West Germany covariate specification ---
 COVS = ["gdp_avg", "infrate", "trade", "industry", "schooling", "invest80"]
@@ -89,6 +89,7 @@ cmp = compare_estimators({
     "VanillaSC (mscmt, ADH cov)":  VanillaSC({**base, "backend": "mscmt", **cov}),
     "CLUSTERSC (RPCA-SC)":         CLUSTERSC({**base, "method": "rpca", "rpca_method": "PCP"}),
     "CLUSTERSC (PCR/RSC)":         CLUSTERSC({**base, "method": "PCR"}),
+    "FDID (Forward DID)":          FDID({**base}),
 }, show_bands=False)
 
 # uniform-weight diagnostic (what a naive equal-weighted "SC" would fit)
@@ -124,15 +125,20 @@ def _basc_rmse_att(cf):
 
 rmse_2000, att_2000 = _basc_rmse_att(basc_cf)
 rmse_500,  att_500  = _basc_rmse_att(basc_cf500)
+# 25000/25000: reported from a single long offline chain (seed 200). Its posterior
+# counterfactual is not stored or plotted; the exact script and the commit that
+# produced these two numbers are in the reproducibility appendix at the end.
+rmse_25k, att_25k = 195.516, -389.799
 basc_rows = pd.DataFrame([
-    {"Method": "BASC (2000 / 2000 MCMC)", "In-sample RMSE": rmse_2000, "ATT": att_2000},
-    {"Method": "BASC (500 / 500 MCMC)",   "In-sample RMSE": rmse_500,  "ATT": att_500},
+    {"Method": "BASC (25000 / 25000 MCMC)", "In-sample RMSE": rmse_25k,  "ATT": att_25k},
+    {"Method": "BASC (2000 / 2000 MCMC)",   "In-sample RMSE": rmse_2000, "ATT": att_2000},
+    {"Method": "BASC (500 / 500 MCMC)",     "In-sample RMSE": rmse_500,  "ATT": att_500},
 ])
 full = pd.concat([tbl, basc_rows], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
 Markdown(full.round(1).to_markdown(index=False))
 ```
 
-Quite generally, lower in-sample RMSE is better. Every comparison estimator — including the *robust* `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit, attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE (~169) is roughly 2.8x the plain `VanillaSC` fit (60.8) and ~1.7–1.9x the `CLUSTERSC` fit (88.6 / 98.0). Giving BASC 4x the MCMC iterations (500 to 2000) moved its RMSE only from 186 to ~169. For reference, *uniform* (1/16) donor weights (essentially what the authors call s-SCM in their table 7 column number 4) fit ~21x worse (RMSE ~1289).
+Quite generally, lower in-sample RMSE is better. Every comparison estimator — including the *robust* `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit, attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE sits in a ~170–195 band across the three chain lengths (500/500, 2000/2000, 25000/25000) — roughly 3x the plain `VanillaSC` fit (60.8), and about twice the `CLUSTERSC` (88.6 / 98.0) and `FDID` (83.4) fits. Lengthening the MCMC does not close the gap; if anything the best-mixed 25000/25000 chain fits worst, so the shortfall is not a burn-in or short-chain artifact. For reference, *uniform* (1/16) donor weights (essentially what the authors call s-SCM in their table 7 column number 4) fit ~21x worse (RMSE ~1289).
 
 ## Observed vs synthetic West Germany
 
@@ -177,4 +183,70 @@ While the reported results from BASC appear to be roughly consistent with my rep
 
 To be clear: I recognize that in-sample fit is not the sole determining factor in the validity of a novel SCM. For example, in the original Robust SC and Robust PCA SC papers by Amjad and Bayani respectively, the authors remark that their denoising solutions are desirable because they attain similar results as the original method without the need to match on predictors. As we can see here, these results hold even though PCR, clustered PCR/RPCA SC attain slightly worse in-sample fit compared to the baseline model from ADH 2015.
 
-However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. This holds even on the original, un-normalized per-capita GDP scale the authors adopt in the revision — the very data on which they report the same substantive conclusions. On that data, BASC has an in-sample RMSE that is ~2–3x that of `VanillaSC` and worse than the robust `CLUSTERSC` estimators, on top of the fact that it excludes the canonical Austria. The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
+However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. This holds even on the original, un-normalized per-capita GDP scale the authors adopt in the revision — the very data on which they report the same substantive conclusions. On that data, BASC has an in-sample RMSE that is ~2–3x that of `VanillaSC` and worse than the robust `CLUSTERSC` estimators — indeed worse than a forward-selected difference-in-differences (`FDID`), which is not even a synthetic control — on top of the fact that it excludes the canonical Austria. The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
+
+Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly −390 to −700 across chain lengths) is neither stable nor close to the −1300 to −2000 that the standard estimators agree on. It is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
+
+## Reproducibility: the 25000/25000 run
+
+The 500/500 and 2000/2000 rows are regenerated at render time from their saved
+posterior counterfactuals. The 25000/25000 row instead comes from a single long
+offline chain: its posterior path is not stored or plotted — only the two summary
+numbers are reported (in-sample RMSE 195.516, post-1990 ATT −389.799). The exact
+script and the data it reads are given below so the result can be reproduced
+against a known state of this repository.
+
+```{python}
+#| label: stamp
+#| echo: false
+import subprocess
+def _git(*a):
+    try:
+        return subprocess.run(["git", *a], capture_output=True, text=True, cwd=ROOT).stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+Markdown(f"Reproduced against `mlsynth` at commit `{_git('rev-parse', '--short', 'HEAD')}` "
+         f"({_git('log', '-1', '--format=%ci')}).")
+```
+
+The chain uses the authors' own sampler (`safe_chol` … `run_basc_chain` from
+`github.com/sll-lee/paper-BASC`, sourced as `basc_funcs.R`) on the West Germany
+outcome and 16-donor matrix exported from `basedata/repgermany.dta`. It is
+identical to `scripts/basc_run.R` except for the chain length, and is shown here,
+not executed.
+
+```r
+# BASC on West Germany, 25000 burn-in + 25000 sampling (single chain, seed 200).
+#   -> in-sample (pre-1990) RMSE = 195.516,  post-1990 ATT = -389.799
+suppressMessages(library(MASS))
+rinvgamma <- function(n, shape, scale) 1 / rgamma(n, shape = shape, rate = scale)
+rtmvnorm <- function(n, mean, sigma, upper, ...) {   # q=1, diagonal, upper-truncated
+  sdv <- sqrt(diag(as.matrix(sigma))); qd <- length(mean); out <- numeric(qd)
+  for (i in seq_len(qd)) {
+    p <- pnorm((upper[i] - mean[i]) / sdv[i])
+    out[i] <- mean[i] + sdv[i] * qnorm(runif(1, 0, max(p, 1e-12)))
+  }
+  matrix(out, nrow = 1)
+}
+rdist <- function(x1, x2 = NULL) {
+  x1 <- as.matrix(x1); if (is.null(x2)) x2 <- x1 else x2 <- as.matrix(x2)
+  outer(seq_len(nrow(x1)), seq_len(nrow(x2)),
+        Vectorize(function(i, j) sqrt(sum((x1[i, ] - x2[j, ])^2))))
+}
+source("basc_funcs.R")                        # authors' safe_chol .. run_basc_chain
+
+y  <- as.numeric(read.csv("y.csv", header = FALSE)[, 1])    # West Germany GDP (44)
+x  <- as.matrix(read.csv("x.csv", header = FALSE))          # 16 donors x 44 years
+vt <- seq_len(length(y)); Dt <- as.integer(vt >= 31)        # treatment from 1990
+j <- ncol(x); t <- length(vt); N <- 25000; nburn <- 25000   # (paper uses 500000/500000)
+
+chain <- run_basc_chain(seed = 200, y = y, x = x, vt = vt, Dt = Dt, N = N, nburn = nburn, q = 1)
+
+g <- chain$gamma.sample; u <- chain$u.sample
+beta <- matrix(0, N, j); for (i in 1:N) beta[i, ] <- (g[i, ] * u[i, ]) / sum(g[i, ] * u[i, ])
+y.samp <- matrix(0, N, t)
+for (i in 1:N) y.samp[i, ] <- as.numeric(x %*% beta[i, ] + chain$f.sample[i, ])
+cf <- colMeans(y.samp); pre <- vt < 31; post <- vt >= 31
+cat(sprintf("in-sample RMSE = %.3f   post-1990 ATT = %.3f\n",
+            sqrt(mean((y[pre] - cf[pre])^2)), mean(y[post] - cf[post])))
+```
