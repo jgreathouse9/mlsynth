@@ -27,6 +27,7 @@ from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.counterfactual_compare import (
     CounterfactualComparison,
     compare_counterfactuals,
+    compare_estimators,
     plot_counterfactual_comparison,
 )
 
@@ -35,7 +36,7 @@ from mlsynth.utils.counterfactual_compare import (
 # Fixtures: build real standardized results so the extraction path is exercised
 # --------------------------------------------------------------------------- #
 def _result(cf, *, time=None, observed=None, att=None, pre_rmse=None,
-            band=None):
+            band=None, weights=None):
     """A minimal but real BaseEstimatorResults for the comparison helper."""
     ts = TimeSeriesResults(
         counterfactual_outcome=np.asarray(cf, dtype=float),
@@ -52,6 +53,8 @@ def _result(cf, *, time=None, observed=None, att=None, pre_rmse=None,
                          else FitDiagnosticsResults(rmse_pre=pre_rmse)),
         time_series=ts,
         inference=inf,
+        weights=(None if weights is None
+                 else WeightsResults(donor_weights=weights)),
     )
 
 
@@ -87,6 +90,42 @@ def test_summary_reads_stored_att_and_pre_rmse(two_results):
     assert cmp.summary.loc["alpha", "att"] == pytest.approx(-0.7)
     assert cmp.summary.loc["beta", "att"] == pytest.approx(-1.05)
     assert cmp.summary.loc["alpha", "pre_rmse"] == pytest.approx(0.10)
+
+
+def test_compare_counterfactuals_extracts_donor_weights():
+    """Real results carrying donor weights populate the ``weights`` frame."""
+    time = [2000, 2001]
+    a = _result([1.0, 2.0], time=time, weights={"d1": 0.6, "d2": 0.4})
+    cmp = compare_counterfactuals({"A": a})
+    piv = cmp.weights.pivot(index="donor", columns="method", values="weight")
+    assert piv.loc["d1", "A"] == pytest.approx(0.6)
+    assert piv.loc["d2", "A"] == pytest.approx(0.4)
+
+
+def test_compare_estimators_extracts_donor_weights():
+    """compare_estimators must carry each result's donor weights into
+    ``cmp.weights``.
+
+    Regression: the intermediate per-estimator spec it built omitted the donor
+    weights, so ``cmp.weights`` came back empty (and ``plot_weights`` had nothing
+    to draw) even when every method exposed ``donor_weights``.
+    """
+    time = [2000, 2001, 2002]
+    a = _result([1.0, 2.0, 3.0], time=time, observed=[1.0, 2.0, 3.0],
+                att=-0.5, pre_rmse=0.1, weights={"d1": 0.7, "d2": 0.3})
+    b = _result([1.1, 2.1, 3.1], time=time, observed=[1.0, 2.0, 3.0],
+                att=-0.6, pre_rmse=0.2, weights={"d1": 0.4, "d3": 0.6})
+    cmp = compare_estimators({"A": a, "B": b}, show_bands=False)
+    assert not cmp.weights.empty
+    piv = cmp.weights.pivot(index="donor", columns="method",
+                            values="weight").fillna(0.0)
+    assert piv.loc["d1", "A"] == pytest.approx(0.7)
+    assert piv.loc["d2", "A"] == pytest.approx(0.3)
+    assert piv.loc["d1", "B"] == pytest.approx(0.4)
+    assert piv.loc["d3", "B"] == pytest.approx(0.6)
+    ax = cmp.plot_weights()          # now has data to draw
+    assert ax is not None
+    plt.close("all")
 
 
 def test_curves_carry_band_only_where_present(two_results):

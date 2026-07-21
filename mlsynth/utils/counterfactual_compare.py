@@ -447,6 +447,9 @@ def compare_estimators(
             "att": getattr(res, "att", None),
             "pre_rmse": getattr(res, "pre_rmse", None),
             "observed": obs,
+            # Carry donor weights through so ``cmp.weights`` / ``plot_weights``
+            # work; the flat accessor delegates to ``result.weights.donor_weights``.
+            "weights": getattr(res, "donor_weights", None),
         }
         if show_bands and band is not None and band[0] is not None:
             spec["lower"] = band[0]
