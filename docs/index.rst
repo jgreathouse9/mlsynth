@@ -269,6 +269,8 @@ headline numbers.
    bvss
    bscm
    bfsc
+   mtgp
+   bpscs
    clustersc
    mlsc
    fscm

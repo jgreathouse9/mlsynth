@@ -25,6 +25,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 
 - **BEAST** — Immunized doubly-robust synthetic control estimator.  (config: BEASTConfig)
 - **BFSC** — Bayesian Factor Synthetic Control (Pinkney 2021).  (config: BFSCConfig)
+- **BPSCS** — Bayesian Penalized Synthetic Control under Spillovers (Fernandez-Morales et al. 2026).  (config: BPSCSConfig)
 - **BSCM** — Bayesian Synthetic Control Methods (Kim, Lee & Gupta 2020).  (config: BSCMConfig)
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
 - **CFM** — Causal Factor Model (Bai & Wang 2026) estimator.  (config: CFMConfig)
@@ -51,6 +52,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MEDSC** — Mediation-analysis synthetic control estimator.  (config: MEDSCConfig)
 - **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
 - **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
+- **MTGP** — Multitask Gaussian Process synthetic control (Ben-Michael et al. 2023).  (config: MTGPConfig)
 - **MULTICELLGEOLIFT** — Multi-cell GeoLift: measure several treatment cells at once.
 - **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
 - **MicroSynth** — User-level balancing synthetic control estimator.  (config: MicroSynthConfig)

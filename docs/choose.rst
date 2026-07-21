@@ -78,7 +78,7 @@ At a glance
    ─────────────────────────────────────────────────────────────────
    Start:  FDID   (or VanillaSC for the textbook simplex SC; TSSC for a pre-trends test)
      ↓ then escalate ONLY if one of these is true:
-   Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · SPOTSYNTH (unknown which) · ISCM (outside hull)
+   Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · BPSCS (spatial, unknown which) · SPOTSYNTH (unknown which) · ISCM (outside hull)
    Nonstationary / spurious trend?      ─► SBC · HSC
    Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA · BFSC (Bayesian, credible band)
    Nonlinear outcome surface?           ─► NSC
@@ -243,6 +243,11 @@ Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
 * No -- next question.
 * Yes, spatial with a known weight matrix W -- :doc:`spsydid`.
 * Yes, an enumerable per-unit spillover set -- :doc:`spillsynth`.
+* Yes, spatial but you do *not* know which donors are contaminated -- you have
+  per-unit coordinates and covariates and are willing to assume spillover risk
+  grows with proximity -- :doc:`bpscs`, a Bayesian SC that *down-weights* (rather
+  than excludes) likely-contaminated neighbours via a distance-and-covariate
+  shrinkage prior, and returns a full posterior band (needs the ``[bayes]`` extra).
 * You don't know which donors are contaminated (a large pool, no a-priori
   validity knowledge, or a suspiciously-good-match donor) -- :doc:`spotsynth`,
   which screens each donor by a pre-intervention forecast test and excludes the
@@ -283,11 +288,19 @@ percent in synthetic West Germany -- ``method="iscm"`` (Di Stefano and Mellace,
 2024; also :doc:`iscm`) *keeps* those donors and nets out their intervention
 effects through a small system of equations; Melnychuk's (2024) simulation study
 finds iSCM the most accurate of the family, with his ``method="iterative"``
-waterfall a close, simpler-to-implement second. In short: unknown affected set ->
-``spotsynth``; spatial -> :doc:`spsydid` (robust direct effect) or ``sar``
-(Bayesian, small samples); specifiable structure with everyone possibly hit ->
-``cd``; spillover of interest with clean donors -> ``grossi``; affected donors
-too good to drop -> ``iscm`` (or ``iterative`` for simplicity).
+waterfall a close, simpler-to-implement second. A different tack when you have
+per-unit coordinates and covariates but *cannot* name the contaminated donors:
+:doc:`bpscs` (Fernández-Morales et al., 2026) assumes only that spillover risk
+grows with proximity and *softly down-weights* likely-affected neighbours through
+a Bayesian shrinkage prior whose scale blends spatial distance and covariate
+similarity -- it keeps every donor (no hard exclusion) and returns a full
+posterior band, at the cost of the ``[bayes]`` (NumPyro) dependency. In short:
+unknown affected set -> ``spotsynth``; spatial with known W -> :doc:`spsydid`
+(robust direct effect) or ``sar`` (Bayesian, small samples); spatial but the
+affected set is unknown and you have coordinates -> :doc:`bpscs` (distance-based
+shrinkage); specifiable structure with everyone possibly hit -> ``cd``; spillover
+of interest with clean donors -> ``grossi``; affected donors too good to drop ->
+``iscm`` (or ``iterative`` for simplicity).
 
 Q1.2 · Is the treated unit outside the donors' convex hull even without
 spillovers (a true outlier)?
@@ -404,9 +417,12 @@ observation noise?
 
 * No -- next question.
 * Yes -- :doc:`tasc` (time-aware state-space model), :doc:`fma` (PC factors
-  with a residual-bootstrap test), or :doc:`bfsc` (a Bayesian latent-factor
+  with a residual-bootstrap test), :doc:`bfsc` (a Bayesian latent-factor
   model that returns a full posterior credible band on the counterfactual and
-  prunes surplus factors with a horseshoe+ prior; needs the ``[bayes]`` extra).
+  prunes surplus factors with a horseshoe+ prior; needs the ``[bayes]`` extra),
+  or :doc:`mtgp` (a Bayesian factor model whose factors are *smooth in time* --
+  a Gaussian-process prior -- so the counterfactual band widens the further the
+  post-period extrapolates; also needs the ``[bayes]`` extra).
   (For micro panels with observed time-varying *confounders* and autoregressive
   outcomes, :doc:`dscar` is a different paradigm -- see the remark below.) If you
   also observe many time-varying *covariates* and want them to identify the
@@ -442,14 +458,24 @@ already in hand. It needs at least as many covariates as factors and a
 pre-period longer than covariates-times-factors, and reports a per-period
 moving-block conformal band. With no covariates, use :doc:`fma` or :doc:`cfm`.
 
-*Which Bayesian synthetic control?* Three estimators are Bayesian, and they
+*Which Bayesian synthetic control?* Five estimators are Bayesian, and they
 split on what carries the prior. :doc:`bscm` and :doc:`bvss` put a shrinkage /
 selection prior on the *donor weights* (both pure-numpy, both report donor
 weights) -- reach for them, at Q1.2 or Q1.6, when you want interpretable weights
-with a credible interval. :doc:`bfsc` puts the prior on a *latent-factor model*
-of the outcome and reports a counterfactual band with no donor weights -- reach
-for it, here, when a shared factor structure rather than a weighted average of
-donors is the right model.
+with a credible interval. :doc:`bfsc` and :doc:`mtgp` put the prior on a
+*latent-factor model* of the outcome and report a counterfactual band with no
+donor weights -- reach for them when a shared factor structure rather than a
+weighted average of donors is the right model. The two factor models differ in
+one thing: :doc:`bfsc` leaves the factors unconstrained over time, while
+:doc:`mtgp` puts a Gaussian-process (squared-exponential) prior on them, so its
+factor paths are smooth and its post-period band grows with extrapolation
+distance. Prefer :doc:`mtgp` when the untreated series are smooth trends and you
+want that widening band; prefer :doc:`bfsc` when the shared structure is best
+left unconstrained. The fifth, :doc:`bpscs`, puts the prior on *donor
+coefficients* but scales it by an external covariate-and-distance utility --
+reach for it, at Q1.1, when the concern is spatial spillover contaminating the
+donor pool and you want close-by donors down-weighted rather than trusted or
+dropped.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
@@ -882,7 +908,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Decompose the effect through a mediator (mechanism)
      - :doc:`medsc`
    * - Time-varying dynamics / persistent factors / noise
-     - :doc:`tasc`, :doc:`fma`, :doc:`bfsc`, :doc:`dscar`
+     - :doc:`tasc`, :doc:`fma`, :doc:`bfsc`, :doc:`mtgp`, :doc:`dscar`
    * - Nonlinear outcome surface
      - :doc:`nsc`
    * - Donor pool large vs pre-period (N ≳ T0)
