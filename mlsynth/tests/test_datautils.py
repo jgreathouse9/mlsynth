@@ -496,3 +496,128 @@ def test_geoex_dataprep_post_col_nan_raises():
     df.loc[df['time'] == 3, 'post'] = np.nan
     with pytest.raises(MlsynthDataError, match="defined for every"):
         geoex_dataprep(df, 'unit', 'time', 'outcome', post_col='post')
+
+
+# === _wide_pivot: O(n) fast path for unique-key panels (equivalence to df.pivot) ===
+from mlsynth.utils.datautils import _wide_pivot
+
+
+def _long(n_units, n_times, seed=0, dtype=float, shuffle=True):
+    rng = np.random.default_rng(seed)
+    units = np.repeat(np.arange(n_units), n_times)
+    times = np.tile(np.arange(n_times), n_units)
+    vals = rng.standard_normal(n_units * n_times)
+    if dtype is int:
+        vals = (vals > 0).astype(int)
+    df = pd.DataFrame({"unit": units, "time": times, "y": vals})
+    if shuffle:
+        df = df.sample(frac=1.0, random_state=seed + 1).reset_index(drop=True)
+    return df
+
+
+@pytest.mark.parametrize("nu,nt,seed", [(6, 5, 0), (1, 8, 1), (8, 1, 2), (40, 12, 3)])
+def test_wide_pivot_equivalence_float(nu, nt, seed):
+    df = _long(nu, nt, seed)
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)
+    assert got.index.name == exp.index.name and got.columns.name == exp.columns.name
+
+
+def test_wide_pivot_preserves_int_dtype():
+    df = _long(6, 5, dtype=int)
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)
+    assert got.values.dtype == exp.values.dtype  # int stays int on a complete grid
+
+
+def test_wide_pivot_string_labels():
+    df = pd.DataFrame({
+        "unit": ["Bravo", "Alpha", "Charlie"] * 3,
+        "time": np.repeat([2001, 2002, 2003], 3),
+        "y": np.arange(9.0),
+    }).sample(frac=1.0, random_state=5).reset_index(drop=True)
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)                    # columns sorted lexically like pivot
+
+
+def test_wide_pivot_incomplete_grid_matches_pivot():
+    df = _long(6, 5, seed=7)
+    df = df.drop(index=df.index[:3]).reset_index(drop=True)   # punch a few holes
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)                    # holes -> NaN, float, like pivot
+
+
+def test_wide_pivot_duplicate_keys_fall_back_and_raise():
+    df = _long(4, 4)
+    df = pd.concat([df, df.iloc[[0]]], ignore_index=True)     # duplicate (unit,time)
+    with pytest.raises(ValueError):                          # same as df.pivot
+        _wide_pivot(df, index="time", columns="unit", values="y")
+
+
+def test_wide_pivot_matches_on_nan_key():
+    df = _long(5, 4, seed=9)
+    df.loc[0, "unit"] = np.nan                                # NaN key -> fall back
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)
+
+
+def test_wide_pivot_empty_frame_falls_back():
+    df = pd.DataFrame({"unit": [], "time": [], "y": []})
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)
+
+
+def test_wide_pivot_sparse_grid_falls_back():
+    # many distinct units/times but few rows -> grid >> n: fast path bails, pivot used
+    rng = np.random.default_rng(0)
+    units = np.arange(200)
+    times = np.arange(200)
+    df = pd.DataFrame({"unit": units, "time": times, "y": rng.standard_normal(200)})
+    got = _wide_pivot(df, index="time", columns="unit", values="y")
+    exp = df.pivot(index="time", columns="unit", values="y")
+    assert got.equals(exp)
+
+
+def test_wide_pivot_matches_pivot_memory_layout():
+    """Fast path must match df.pivot's C-contiguity, not just its values.
+
+    A value-identical but F-contiguous array changes BLAS reduction order and
+    perturbs float-sensitive downstream code (e.g. seeded MCMC) at ~1e-16.
+    """
+    df = _long(6, 30, seed=0)
+    got = _wide_pivot(df, index="time", columns="unit", values="y").to_numpy()
+    exp = df.pivot(index="time", columns="unit", values="y").to_numpy()
+    assert np.array_equal(got, exp)
+    assert got.flags["C_CONTIGUOUS"] == exp.flags["C_CONTIGUOUS"] is True
+    assert got.tobytes() == exp.tobytes()
+
+
+def test_wide_pivot_falls_back_when_fast_path_layout_differs(monkeypatch):
+    """If the fast frame materialises F-contiguous (pandas-version-dependent, as
+    on the CI's 3.10 build), _wide_pivot must fall back to df.pivot so the output
+    stays C-contiguous and byte-identical -- never leak the F layout downstream.
+    """
+    import mlsynth.utils.datautils as du
+
+    df = _long(6, 30, seed=0)
+    exp = df.pivot(index="time", columns="unit", values="y")
+    _real_fast_pivot = du._fast_pivot                        # capture before patching
+
+    def _f_contiguous_fast(d, index, columns, values):
+        # value-identical to the real fast path but F-contiguous .to_numpy()
+        frame = _real_fast_pivot(d, index, columns, values)
+        return pd.DataFrame(
+            np.asfortranarray(frame.to_numpy()),
+            index=frame.index, columns=frame.columns)
+
+    monkeypatch.setattr(du, "_fast_pivot", _f_contiguous_fast)
+    got = du._wide_pivot(df, index="time", columns="unit", values="y")
+    assert got.equals(exp)                                   # correct values
+    assert got.to_numpy().flags["C_CONTIGUOUS"] is True      # fell back to pivot
+    assert got.to_numpy().tobytes() == exp.to_numpy().tobytes()

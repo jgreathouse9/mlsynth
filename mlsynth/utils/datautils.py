@@ -27,6 +27,81 @@ KEY_DONOR_PROXIES = "donorproxies"
 KEY_SURROGATE_VARS = "surrogatevars"
 
 
+def _fast_pivot(
+    df: pd.DataFrame, index: str, columns: str, values: str
+) -> Optional[pd.DataFrame]:
+    """O(n) equivalent of ``df.pivot`` for panels with unique (index, columns) keys.
+
+    ``pandas.DataFrame.pivot`` is general (it sorts and, at wide output shapes,
+    carries heavy per-column overhead). The panels ``dataprep`` works on are
+    balanced units x time grids with unique keys, where the wide frame can be
+    built by a single hash-``factorize`` + scatter -- several times faster and
+    byte-identical to ``pivot`` (same sorted labels, index/column names, and
+    dtype). Returns ``None`` (so the caller falls back to ``df.pivot``) when the
+    fast path does not apply: empty input, missing (NaN) keys, a grid too sparse
+    to be worth materialising, or duplicate (index, columns) pairs -- which
+    ``pivot`` itself rejects.
+    """
+    n = len(df)
+    if n == 0:
+        return None
+    u_codes, u_uniq = pd.factorize(df[columns], sort=False)   # O(n) hash, no sort
+    t_codes, t_uniq = pd.factorize(df[index], sort=False)
+    if (u_codes < 0).any() or (t_codes < 0).any():            # NaN key -> pandas
+        return None
+    n_u, n_t = len(u_uniq), len(t_uniq)
+    grid = n_u * n_t
+    if grid > 2 * n:                     # too sparse: not worth it / avoid huge alloc
+        return None
+    lin = t_codes.astype(np.int64) * n_u + u_codes
+    if np.bincount(lin, minlength=grid).max() > 1:            # duplicate key -> pandas
+        return None
+    vals = df[values].to_numpy()
+    wide = (np.empty((n_t, n_u), dtype=vals.dtype) if n == grid
+            else np.full((n_t, n_u), np.nan))
+    wide.reshape(-1)[lin] = vals
+    su = np.argsort(np.asarray(u_uniq), kind="stable")        # match pivot's sorted axes
+    st = np.argsort(np.asarray(t_uniq), kind="stable")
+    # ``pivot`` returns a C-contiguous values block; match its memory *layout*,
+    # not just its values. A value-equal but F-contiguous array changes BLAS
+    # reduction order, perturbing float-sensitive downstream code (e.g. a seeded
+    # MCMC) at ~1e-16. Building the transpose (units x time, C-order) and
+    # transposing the frame makes pandas present it as a C-contiguous
+    # (time x units) ``.to_numpy()`` on most pandas versions -- but the exact
+    # ``.to_numpy()`` layout of a transposed frame is version-dependent, so the
+    # C-contiguity is *verified* (and enforced) by :func:`_wide_pivot`, which
+    # falls back to ``df.pivot`` if this frame does not reproduce it.
+    ordered = np.ascontiguousarray(wide[np.ix_(st, su)].T)    # (n_u, n_t), C-order
+    return pd.DataFrame(
+        ordered,
+        index=pd.Index(np.asarray(u_uniq)[su], name=columns),
+        columns=pd.Index(np.asarray(t_uniq)[st], name=index),
+    ).T
+
+
+def _wide_pivot(
+    df: pd.DataFrame, index: str, columns: str, values: str
+) -> pd.DataFrame:
+    """``df.pivot(index=index, columns=columns, values=values)`` with an O(n)
+    fast path (:func:`_fast_pivot`) for balanced/unique panels, falling back to
+    the pandas pivot otherwise (which also raises on duplicate keys).
+
+    The fast path is used only when it reproduces ``df.pivot``'s C-contiguous
+    ``.to_numpy()`` layout -- not just its values. The layout that a transposed
+    frame materialises to is pandas-version-dependent (C on pandas >= 3.10's
+    newer builds, F on some older 3.x), and a value-equal but F-contiguous array
+    changes BLAS reduction order enough to flip a seeded MCMC's collapsed CI
+    bound at ~1e-17. Checking ``.to_numpy()`` is a cheap block view (no copy), so
+    the guard is essentially free; when it fails we defer to ``df.pivot``, which
+    is reliably C-contiguous, keeping the output byte- and layout-identical on
+    every pandas version.
+    """
+    fast = _fast_pivot(df, index, columns, values)
+    if fast is not None and fast.to_numpy().flags["C_CONTIGUOUS"]:
+        return fast
+    return df.pivot(index=index, columns=columns, values=values)
+
+
 def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     """Analyze a treatment matrix to determine treatment timings and unit counts.
 
@@ -222,8 +297,8 @@ def build_covariate_matrix(
     for cov in covariates:
         if cov not in df.columns:
             raise MlsynthDataError(f"covariate {cov!r} not present in df.columns")
-        pivot = df.pivot(index=time_period_column_name,
-                         columns=unit_id_column_name, values=cov)
+        pivot = _wide_pivot(df, index=time_period_column_name,
+                            columns=unit_id_column_name, values=cov)
         if aggregation == "pre_mean":
             if pre_periods <= 0:
                 raise MlsynthDataError(
@@ -346,7 +421,8 @@ def dataprep(
         - If ``covariate_aggregation`` is unknown.
     """
     # Pivot the treatment indicator column to a wide format (time x units).
-    treatment_matrix_wide = df.pivot(
+    treatment_matrix_wide = _wide_pivot(
+        df,
         index=time_period_column_name,
         columns=unit_id_column_name,
         values=treatment_indicator_column_name,
@@ -361,7 +437,8 @@ def dataprep(
         total_periods_for_unit = treatment_analysis_results[KEY_TOTAL_PERIODS]
         treated_unit_column_index = treatment_analysis_results[KEY_TREATED_INDEX]
 
-        outcome_matrix_wide = df.pivot(
+        outcome_matrix_wide = _wide_pivot(
+            df,
             index=time_period_column_name,
             columns=unit_id_column_name,
             values=outcome_column_name,
@@ -447,12 +524,14 @@ def dataprep(
 
     # ─── Multiple treated units (cohort mode) ──────────────────────────
     else:
-        outcome_matrix_wide = df.pivot(
+        outcome_matrix_wide = _wide_pivot(
+            df,
             index=time_period_column_name,
             columns=unit_id_column_name,
             values=outcome_column_name,
         )
-        treatment_matrix_wide_multi = df.pivot(
+        treatment_matrix_wide_multi = _wide_pivot(
+            df,
             index=time_period_column_name,
             columns=unit_id_column_name,
             values=treatment_indicator_column_name,
@@ -633,7 +712,8 @@ def geoex_dataprep(
     # pivot below is guaranteed rectangular and gap-free.
     balance(df, unit_id_column_name, time_period_column_name)
 
-    outcome_matrix_wide = df.pivot(
+    outcome_matrix_wide = _wide_pivot(
+        df,
         index=time_period_column_name,
         columns=unit_id_column_name,
         values=outcome_column_name,
@@ -923,15 +1003,19 @@ def proxy_dataprep(
     # 2. Pivot the table: time periods as index, surrogate units as columns,
     #    and values from the column specified by `proxy_variable_column_names_map[KEY_DONOR_PROXIES][0]`.
     #    Assumes `KEY_DONOR_PROXIES` list contains exactly one column name.
-    surrogate_data_wide_df = df[df[unit_id_column_name].isin(surrogate_units)].pivot(
-        index=time_period_column_name, columns=unit_id_column_name, values=proxy_variable_column_names_map[KEY_DONOR_PROXIES][0]
+    surrogate_data_wide_df = _wide_pivot(
+        df[df[unit_id_column_name].isin(surrogate_units)],
+        index=time_period_column_name, columns=unit_id_column_name,
+        values=proxy_variable_column_names_map[KEY_DONOR_PROXIES][0],
     )
     surrogate_matrix = surrogate_data_wide_df.to_numpy() # Convert to NumPy array.
 
     # Construct the surrogate-proxy matrix (Z1).
     # Similar logic as above, but uses the variable specified by `proxy_variable_column_names_map[KEY_SURROGATE_VARS][0]`.
-    surrogate_proxy_data_wide_df = df[df[unit_id_column_name].isin(surrogate_units)].pivot(
-        index=time_period_column_name, columns=unit_id_column_name, values=proxy_variable_column_names_map[KEY_SURROGATE_VARS][0]
+    surrogate_proxy_data_wide_df = _wide_pivot(
+        df[df[unit_id_column_name].isin(surrogate_units)],
+        index=time_period_column_name, columns=unit_id_column_name,
+        values=proxy_variable_column_names_map[KEY_SURROGATE_VARS][0],
     )
     surrogate_proxy_matrix = surrogate_proxy_data_wide_df.to_numpy() # Convert to NumPy array.
 
