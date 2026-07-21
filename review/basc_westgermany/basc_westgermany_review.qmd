@@ -179,22 +179,57 @@ My other main concern with this manuscript is that uniform solution for standard
 
 While the reported results from BASC appear to be roughly consistent with my replication, my concern is that the result of BASC is consistently imprecise compared to its comparison methods, making the advantages of BASC over RSC/RPCA-SC unclear (in the empirical comparisons).
 
+## A second canonical case: the Basque Country
+
+To check that the West Germany result is not a quirk of one dataset, I repeat the exercise on the other canonical synthetic-control application: Abadie and Gardeazabal's (2003) study of ETA terrorism in the Basque Country (`basedata/basque_data.csv` — 17 Spanish regions, real GDP per capita, 1955–1997, treatment dated 1975). The comparison is outcome-only: each method matches the pre-1975 Basque GDP path using the other regions as donors, exactly as BASC does, so the in-sample RMSE is a clean, like-for-like measure of pre-treatment fit.
+
+```{python}
+#| label: compare-basque
+#| echo: true
+#| code-fold: false
+basq = pd.read_csv(os.path.join(BASE, "basque_data.csv"))
+bq = dict(df=basq, outcome="gdpcap", treat="terrorism", unitid="regionname",
+          time="year", display_graphs=False)                  # treat=1 for Basque from 1975
+cmp_bq = compare_estimators({
+    "VanillaSC (outcome-only)": VanillaSC({**bq}),
+    "CLUSTERSC (RPCA-SC)":      CLUSTERSC({**bq, "method": "rpca", "rpca_method": "PCP"}),
+    "CLUSTERSC (PCR/RSC)":      CLUSTERSC({**bq, "method": "PCR"}),
+    "FDID (Forward DID)":       FDID({**bq}),
+}, show_bands=False)
+```
+
+```{python}
+#| label: tbl-basque
+tb = (cmp_bq.summary.rename(columns={"pre_rmse": "In-sample RMSE", "att": "ATT"})
+      .reset_index().rename(columns={"method": "Method"}))[["Method", "In-sample RMSE", "ATT"]]
+# BASC on Basque: offline chains (seed 200, treatment 1975) -- see the reproducibility appendix
+basc_bq = pd.DataFrame([
+    {"Method": "BASC (20000 / 20000 MCMC)", "In-sample RMSE": 0.6099, "ATT": -3.1382},
+    {"Method": "BASC (5000 / 5000 MCMC)",   "In-sample RMSE": 0.6221, "ATT": -3.2118},
+])
+full_bq = pd.concat([tb, basc_bq], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
+Markdown(full_bq.round(3).to_markdown(index=False))
+```
+
+The pattern is the same, only sharper. Every standard estimator — including `FDID`, which is not a synthetic control — fits the pre-1975 path several times more tightly than BASC: its in-sample RMSE (~0.61) is roughly 7x `VanillaSC` (0.084) and 8x `FDID` (0.076), and lengthening the chain from 5000 to 20000 barely moves it (0.622 to 0.610). The consequence for the effect estimate is stark. The standard toolkit agrees on an ATT of about −0.7 to −0.9 — the ~10% GDP loss Abadie and Gardeazabal report and that the literature cites — whereas BASC returns roughly −3.2, three to four times larger. Because BASC cannot track the pre-1975 series, its synthetic Basque sits well above the observed path, and most of that estimated "effect" is the pre-treatment miss carried forward, not the intervention.
+
 ## Bottom line
 
 To be clear: I recognize that in-sample fit is not the sole determining factor in the validity of a novel SCM. For example, in the original Robust SC and Robust PCA SC papers by Amjad and Bayani respectively, the authors remark that their denoising solutions are desirable because they attain similar results as the original method without the need to match on predictors. As we can see here, these results hold even though PCR, clustered PCR/RPCA SC attain slightly worse in-sample fit compared to the baseline model from ADH 2015.
 
 However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. This holds even on the original, un-normalized per-capita GDP scale the authors adopt in the revision — the very data on which they report the same substantive conclusions. On that data, BASC has an in-sample RMSE that is ~2–3x that of `VanillaSC` and worse than the robust `CLUSTERSC` estimators — indeed worse than a forward-selected difference-in-differences (`FDID`), which is not even a synthetic control — on top of the fact that it excludes the canonical Austria. The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
 
-Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly −390 to −700 across chain lengths) is neither stable nor close to the −1300 to −2000 that the standard estimators agree on. It is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
+Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly −390 to −700 across chain lengths) is neither stable nor close to the −1300 to −2000 that the standard estimators agree on. The same pattern recurs on the Basque Country, and more sharply: BASC fits ~7x looser than the whole toolkit and returns an ATT (~−3.2) three to four times the ~10% loss the standard estimators and the original Abadie–Gardeazabal study agree on — so this is not an artifact of one dataset. BASC is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
 
-## Reproducibility: the 25000/25000 run
+## Reproducibility: the offline BASC chains
 
-The 500/500 and 2000/2000 rows are regenerated at render time from their saved
-posterior counterfactuals. The 25000/25000 row instead comes from a single long
-offline chain: its posterior path is not stored or plotted — only the two summary
-numbers are reported (in-sample RMSE 195.516, post-1990 ATT −389.799). The exact
-script and the data it reads are given below so the result can be reproduced
-against a known state of this repository.
+Most BASC rows are regenerated at render time from saved posterior counterfactuals
+(West Germany 500/500 and 2000/2000). The remaining rows come from single offline
+chains whose posterior paths are not stored or plotted — only their summary numbers
+are reported: West Germany 25000/25000 (in-sample RMSE 195.516, post-1990 ATT
+−389.799), and the Basque Country 5000/5000 and 20000/20000 (RMSE 0.622 / 0.610,
+ATT −3.212 / −3.138). The exact script and the data each reads are given below so
+they can be reproduced against a known state of this repository.
 
 ```{python}
 #| label: stamp
@@ -209,11 +244,11 @@ Markdown(f"Reproduced against `mlsynth` at commit `{_git('rev-parse', '--short',
          f"({_git('log', '-1', '--format=%ci')}).")
 ```
 
-The chain uses the authors' own sampler (`safe_chol` … `run_basc_chain` from
-`github.com/sll-lee/paper-BASC`, sourced as `basc_funcs.R`) on the West Germany
-outcome and 16-donor matrix exported from `basedata/repgermany.dta`. It is
-identical to `scripts/basc_run.R` except for the chain length, and is shown here,
-not executed.
+Every run uses the authors' own sampler (`safe_chol` … `run_basc_chain` from
+`github.com/sll-lee/paper-BASC`, sourced as `basc_funcs.R`), and is identical to
+`scripts/basc_run.R` except for the inputs, the treatment index, and the chain
+length. The West Germany 25000/25000 run is shown below (not executed); the Basque
+runs use the same script with the substitutions noted after it.
 
 ```r
 # BASC on West Germany, 25000 burn-in + 25000 sampling (single chain, seed 200).
@@ -250,3 +285,8 @@ cf <- colMeans(y.samp); pre <- vt < 31; post <- vt >= 31
 cat(sprintf("in-sample RMSE = %.3f   post-1990 ATT = %.3f\n",
             sqrt(mean((y[pre] - cf[pre])^2)), mean(y[post] - cf[post])))
 ```
+
+The Basque rows use the same script with `y` and `x` exported from
+`basedata/basque_data.csv` (the Basque Country as the treated unit, the 16 other
+regions as donors), the treatment index changed to `Dt <- as.integer(vt >= 21)`
+(year 1975), and `N = nburn` set to 5000 and 20000.
