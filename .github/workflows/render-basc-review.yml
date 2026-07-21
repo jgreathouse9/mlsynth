@@ -29,7 +29,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install render dependencies
-        run: python -m pip install --upgrade pip jupyter pandas matplotlib
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .          # mlsynth (VanillaSC / CLUSTERSC / compare_estimators)
+          python -m pip install jupyter matplotlib
 
       - name: Render review
         run: quarto render review/basc_westgermany/basc_westgermany_review.qmd --to html
