@@ -10,7 +10,7 @@
 #      (safe_chol .. run_basc_chain) as `basc_funcs.R`
 #   3. export the West Germany outcome y (44), donor matrix x (44x16, year x
 #      donor) and donor names from data/repgermany.dta
-#   4. set N/nburn below and run.
+#   4. run; it saves the 500/500 and 2000/2000 posterior counterfactuals.
 suppressMessages(library(MASS))
 rinvgamma <- function(n, shape, scale) 1 / rgamma(n, shape = shape, rate = scale)
 rtmvnorm <- function(n, mean, sigma, upper, ...) {   # q=1, diagonal, upper-truncated
@@ -33,19 +33,30 @@ x  <- as.matrix(read.csv("x.csv", header = FALSE)); colnames(x) <- NULL
 donor_names <- readLines("donors.csv")
 years <- 1960:2003
 vt <- seq_len(length(y)); Dt <- as.integer(vt >= 31); j <- ncol(x); t <- length(vt)
-N <- 2000; nburn <- 2000                     # (paper uses 500000/500000)
+pre <- vt < 31; post <- vt >= 31
 
-invisible(capture.output(
-  chain <- run_basc_chain(seed = 200, y = y, x = x, vt = vt, Dt = Dt, N = N, nburn = nburn, q = 1)
-))
-g <- chain$gamma.sample; u <- chain$u.sample
-beta <- matrix(0, N, j); for (i in 1:N) beta[i, ] <- (g[i, ] * u[i, ]) / sum(g[i, ] * u[i, ])
-y.samp <- matrix(0, N, t)
-for (i in 1:N) y.samp[i, ] <- as.numeric(x %*% beta[i, ] + chain$f.sample[i, ])
-ci <- apply(y.samp, 2, quantile, probs = c(0.025, 0.5, 0.975)); cf <- colMeans(y.samp)
-pre <- vt < 31
-cat(sprintf("BASC %d/%d in-sample RMSE = %.3f\n", nburn, N, sqrt(mean((y[pre] - cf[pre])^2))))
-write.csv(data.frame(year = years, observed = y, synthetic = cf, lo95 = ci[1, ], hi95 = ci[3, ]),
-          "../data/basc_counterfactual.csv", row.names = FALSE)
-write.csv(data.frame(donor = donor_names, weight = colMeans(beta), incl_prob = colMeans(g)),
-          "../data/basc_weights.csv", row.names = FALSE)
+# Both MCMC lengths (paper uses 500000/500000). Save each posterior counterfactual
+# so the review table can read RMSE and post-1990 ATT for both without hardcoding;
+# donor weights are saved once (from the longer 2000/2000 chain).
+settings <- list(
+  list(N = 500,  nburn = 500,  cf = "../data/basc_counterfactual_500.csv", weights = FALSE),
+  list(N = 2000, nburn = 2000, cf = "../data/basc_counterfactual.csv",     weights = TRUE)
+)
+for (s in settings) {
+  invisible(capture.output(
+    chain <- run_basc_chain(seed = 200, y = y, x = x, vt = vt, Dt = Dt,
+                            N = s$N, nburn = s$nburn, q = 1)
+  ))
+  g <- chain$gamma.sample; u <- chain$u.sample
+  beta <- matrix(0, s$N, j); for (i in 1:s$N) beta[i, ] <- (g[i, ] * u[i, ]) / sum(g[i, ] * u[i, ])
+  y.samp <- matrix(0, s$N, t)
+  for (i in 1:s$N) y.samp[i, ] <- as.numeric(x %*% beta[i, ] + chain$f.sample[i, ])
+  ci <- apply(y.samp, 2, quantile, probs = c(0.025, 0.5, 0.975)); cf <- colMeans(y.samp)
+  rmse <- sqrt(mean((y[pre] - cf[pre])^2)); att <- mean(y[post] - cf[post])
+  cat(sprintf("BASC %d/%d  in-sample RMSE = %.3f  post-1990 ATT = %.3f\n", s$nburn, s$N, rmse, att))
+  write.csv(data.frame(year = years, observed = y, synthetic = cf, lo95 = ci[1, ], hi95 = ci[3, ]),
+            s$cf, row.names = FALSE)
+  if (s$weights)
+    write.csv(data.frame(donor = donor_names, weight = colMeans(beta), incl_prob = colMeans(g)),
+              "../data/basc_weights.csv", row.names = FALSE)
+}

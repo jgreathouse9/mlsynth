@@ -101,10 +101,9 @@ uniform_rmse = float(np.sqrt(np.mean((obs_pre - X[pre] @ np.full(len(order), 1/l
 
 ```{python}
 #| label: load-basc
-basc_cf = pd.read_csv(os.path.join(DATA, "basc_counterfactual.csv"))
+basc_cf = pd.read_csv(os.path.join(DATA, "basc_counterfactual.csv"))        # 2000/2000
+basc_cf500 = pd.read_csv(os.path.join(DATA, "basc_counterfactual_500.csv")) # 500/500
 basc_w = pd.read_csv(os.path.join(DATA, "basc_weights.csv"))
-basc_rmse = float(open(os.path.join(DATA, "basc_insample_rmse.txt")).read().strip())
-n_basc = int((basc_w["weight"] > 0.01).sum())
 ```
 
 ## In-sample (pre-1990) RMSE by method
@@ -114,12 +113,20 @@ n_basc = int((basc_w["weight"] > 0.01).sum())
 tbl = (cmp.summary.rename(columns={"pre_rmse": "In-sample RMSE", "att": "ATT"})
        .reset_index().rename(columns={"method": "Method"}))
 tbl = tbl[["Method", "In-sample RMSE", "ATT"]]
-# BASC post-1990 ATT: mean(observed - synthetic), same convention as cmp.summary
-_post = basc_cf["year"] >= 1990
-basc_att = float((basc_cf.loc[_post, "observed"] - basc_cf.loc[_post, "synthetic"]).mean())
+
+# BASC in-sample RMSE and post-1990 ATT from each saved posterior counterfactual
+# (ATT = mean(observed - synthetic) over 1990+, the same convention as cmp.summary).
+def _basc_rmse_att(cf):
+    pre, post = cf["year"] < 1990, cf["year"] >= 1990
+    rmse = float(np.sqrt(np.mean((cf.loc[pre, "observed"] - cf.loc[pre, "synthetic"]) ** 2)))
+    att = float((cf.loc[post, "observed"] - cf.loc[post, "synthetic"]).mean())
+    return rmse, att
+
+rmse_2000, att_2000 = _basc_rmse_att(basc_cf)
+rmse_500,  att_500  = _basc_rmse_att(basc_cf500)
 basc_rows = pd.DataFrame([
-    {"Method": "BASC (2000 / 2000 MCMC)", "In-sample RMSE": round(basc_rmse, 1), "ATT": basc_att},
-    {"Method": "BASC (500 / 500 MCMC)",   "In-sample RMSE": 186.2,               "ATT": np.nan},
+    {"Method": "BASC (2000 / 2000 MCMC)", "In-sample RMSE": rmse_2000, "ATT": att_2000},
+    {"Method": "BASC (500 / 500 MCMC)",   "In-sample RMSE": rmse_500,  "ATT": att_500},
 ])
 full = pd.concat([tbl, basc_rows], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
 Markdown(full.round(1).to_markdown(index=False))
