@@ -28,6 +28,10 @@ jupyter: python3
 #| label: setup
 import os, warnings
 warnings.filterwarnings("ignore")
+# MVBBSC (the live B-MV row) draws 4 NUTS chains via NumPyro; give JAX four host
+# devices so they run in parallel on a single-CPU renderer (set before any JAX import).
+os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
+os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=4")
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 from IPython.display import Markdown
@@ -65,7 +69,7 @@ We estimate the fit via two bilevel solvers: `backend="malo"` (the Malo et al. 2
 #| label: compare
 #| echo: true
 #| code-fold: false
-from mlsynth import VanillaSC, CLUSTERSC, FDID, compare_estimators
+from mlsynth import VanillaSC, CLUSTERSC, FDID, MVBBSC, compare_estimators
 
 # --- ADH 2015 West Germany covariate specification ---
 COVS = ["gdp_avg", "infrate", "trade", "industry", "schooling", "invest80"]
@@ -90,6 +94,12 @@ cmp = compare_estimators({
     "CLUSTERSC (RPCA-SC)":         CLUSTERSC({**base, "method": "rpca", "rpca_method": "PCP"}),
     "CLUSTERSC (PCR/RSC)":         CLUSTERSC({**base, "method": "PCR"}),
     "FDID (Forward DID)":          FDID({**base}),
+    # B-MV, live: mlsynth's MVBBSC -- a NumPyro clean-room port of the Martinez &
+    # Vives-i-Bastida (2024) model (written from the paper, not bsynth's code), i.e.
+    # bsynth's predictor_match=FALSE. Rendered here so its agreement with the offline
+    # bsynth row below is reproducible at render, not just asserted.
+    "B-MV (MVBBSC, clean-room)":   MVBBSC({**base, "n_warmup": 500, "n_samples": 500,
+                                           "n_chains": 4, "seed": 0}),
 }, show_bands=False)
 
 # uniform-weight diagnostic (what a naive equal-weighted "SC" would fit)
@@ -148,7 +158,7 @@ Markdown(full.round(1).to_markdown(index=False))
 
 Quite generally, lower in-sample RMSE is better. Every comparison estimator — including the *robust* `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit, attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE sits in a ~170–195 band across the three chain lengths (500/500, 2000/2000, 25000/25000) — roughly 3x the plain `VanillaSC` fit (60.8), and about twice the `CLUSTERSC` (88.6 / 98.0) and `FDID` (83.4) fits. Lengthening the MCMC does not close the gap; if anything the best-mixed 25000/25000 chain fits worst, so the shortfall is not a burn-in or short-chain artifact. For reference, *uniform* (1/16) donor weights fit ~21x worse (RMSE ~1289) — a point the Table 7 discussion below returns to.
 
-The most telling row is B-MV, the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024) — the model BASC is built on, before the donor-selection layer is added. Run with the authors' cited `bsynth` package in its standard outcome-only mode (`predictor_match = FALSE`) on this same panel, B-MV fits the pre-1990 path at RMSE 62.2, essentially tying `VanillaSC` (60.8), and returns a post-1990 ATT of about -2075, squarely in the standard-toolkit range. BASC is B-MV plus the donor-selection indicators, and it fits roughly 3x worse (RMSE ~170-195). So the paper's own contribution — Bayesian donor selection — is what degrades the fit; the Bayesian framework it extends fits West Germany as tightly as standard SCM. It also differs from the paper's reported B-MV: the text (p.44) gives a post-1990 ATT of -218, whereas the actual `bsynth` output on the original per-capita scale is about -2075 — nearly ten times larger. And this is not a quirk of one package: a second, independent clean-room implementation of the same method — `mlsynth`'s `MVBBSC`, a NumPyro port of the Martinez and Vives-i-Bastida model written from the paper rather than from `bsynth`'s code — reproduces the `bsynth` output on this exact panel to Monte-Carlo error (pre-1990 RMSE 62.2 vs 62.2; post-1990 ATT -2078 vs -2075), and its 95% credible bands agree with `bsynth`'s year by year to within a few percent. So on the original outcome data the authors say they use, two implementations of B-MV built independently of each other agree with one another and disagree with the paper's table. On these numbers, BASC's own -434 is close to the reported B-MV but far from the one both packages return, and the authors' statement that BASC's counterfactual "remains similar to that obtained from the Bayesian SCM benchmark" holds against the reported figure but not the reproduced one. Reconciling the reported B-MV with what the method actually returns is for the authors to do.
+The most telling row is B-MV, the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024) — the model BASC is built on, before the donor-selection layer is added. Run with the authors' cited `bsynth` package in its standard outcome-only mode (`predictor_match = FALSE`) on this same panel, B-MV fits the pre-1990 path at RMSE 62.2, essentially tying `VanillaSC` (60.8), and returns a post-1990 ATT of about -2075, squarely in the standard-toolkit range. BASC is B-MV plus the donor-selection indicators, and it fits roughly 3x worse (RMSE ~170-195). So the paper's own contribution — Bayesian donor selection — is what degrades the fit; the Bayesian framework it extends fits West Germany as tightly as standard SCM. It also differs from the paper's reported B-MV: the text (p.44) gives a post-1990 ATT of -218, whereas the actual `bsynth` output on the original per-capita scale is about -2075 — nearly ten times larger. And this is not a quirk of one package: a second, independent clean-room implementation of the same method — `mlsynth`'s `MVBBSC`, a NumPyro port of the Martinez and Vives-i-Bastida model written from the paper rather than from `bsynth`'s code, and rendered live as the B-MV (MVBBSC) row above — reproduces the `bsynth` output on this exact panel to Monte-Carlo error (pre-1990 RMSE ~62 for both; post-1990 ATT about -2078 vs -2075), and its 95% credible bands agree with `bsynth`'s year by year to within a few percent. So on the original outcome data the authors say they use, two implementations of B-MV built independently of each other agree with one another and disagree with the paper's table. On these numbers, BASC's own -434 is close to the reported B-MV but far from the one both packages return, and the authors' statement that BASC's counterfactual "remains similar to that obtained from the Bayesian SCM benchmark" holds against the reported figure but not the reproduced one. Reconciling the reported B-MV with what the method actually returns is for the authors to do.
 
 ## Observed vs synthetic West Germany
 
