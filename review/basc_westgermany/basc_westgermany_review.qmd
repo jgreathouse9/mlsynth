@@ -105,6 +105,7 @@ uniform_rmse = float(np.sqrt(np.mean((obs_pre - X[pre] @ np.full(len(order), 1/l
 basc_cf = pd.read_csv(os.path.join(DATA, "basc_counterfactual.csv"))        # 2000/2000
 basc_cf500 = pd.read_csv(os.path.join(DATA, "basc_counterfactual_500.csv")) # 500/500
 basc_w = pd.read_csv(os.path.join(DATA, "basc_weights.csv"))
+bmv_cf = pd.read_csv(os.path.join(DATA, "bmv_counterfactual.csv"))          # B-MV via bsynth
 ```
 
 ## In-sample (pre-1990) RMSE by method
@@ -134,11 +135,20 @@ basc_rows = pd.DataFrame([
     {"Method": "BASC (2000 / 2000 MCMC)",   "In-sample RMSE": rmse_2000, "ATT": att_2000},
     {"Method": "BASC (500 / 500 MCMC)",     "In-sample RMSE": rmse_500,  "ATT": att_500},
 ])
-full = pd.concat([tbl, basc_rows], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
+# B-MV: the Martinez & Vives-i-Bastida (2024) Bayesian SCM that BASC extends, computed
+# offline with the authors' cited bsynth package (predictor_match=FALSE) on this panel;
+# see the reproducibility appendix. Its saved counterfactual drives this row.
+rmse_bmv, att_bmv = _basc_rmse_att(bmv_cf)
+bmv_row = pd.DataFrame([
+    {"Method": "B-MV (bsynth, Bayesian SCM)", "In-sample RMSE": rmse_bmv, "ATT": att_bmv},
+])
+full = pd.concat([tbl, bmv_row, basc_rows], ignore_index=True).sort_values("In-sample RMSE").reset_index(drop=True)
 Markdown(full.round(1).to_markdown(index=False))
 ```
 
 Quite generally, lower in-sample RMSE is better. Every comparison estimator — including the *robust* `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit, attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE sits in a ~170–195 band across the three chain lengths (500/500, 2000/2000, 25000/25000) — roughly 3x the plain `VanillaSC` fit (60.8), and about twice the `CLUSTERSC` (88.6 / 98.0) and `FDID` (83.4) fits. Lengthening the MCMC does not close the gap; if anything the best-mixed 25000/25000 chain fits worst, so the shortfall is not a burn-in or short-chain artifact. For reference, *uniform* (1/16) donor weights fit ~21x worse (RMSE ~1289) — a point the Table 7 discussion below returns to.
+
+The most telling row is B-MV, the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024) — the model BASC is built on, before the donor-selection layer is added. Run with the authors' cited `bsynth` package in its standard outcome-only mode (`predictor_match = FALSE`) on this same panel, B-MV fits the pre-1990 path at RMSE 62.2, essentially tying `VanillaSC` (60.8), and returns a post-1990 ATT of about -2075, squarely in the standard-toolkit range. BASC is B-MV plus the donor-selection indicators, and it fits roughly 3x worse (RMSE ~170-195). So the paper's own contribution — Bayesian donor selection — is what degrades the fit; the Bayesian framework it extends fits West Germany as tightly as standard SCM. This is also far from the paper's reported B-MV (a post-1990 ATT of -218, p.44): the actual `bsynth` output on the original per-capita scale is about -2075, so the reported benchmark understates B-MV by nearly an order of magnitude, which is what makes BASC's own -434 look "comparable." It is likewise hard to reconcile with the authors' statement that BASC's counterfactual "remains similar to that obtained from the Bayesian SCM benchmark" — the real benchmark's effect is three to five times BASC's.
 
 ## Observed vs synthetic West Germany
 
@@ -227,14 +237,14 @@ However, it is not my belief that BASC attains comparable in-sample fit compared
 
 Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly -390 to -700 across chain lengths) is neither stable nor close to the -1300 to -2000 that the standard estimators agree on. BASC is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
 
-## Reproducibility: the 25000/25000 run
+## Reproducibility: the offline benchmarks
 
-The 500/500 and 2000/2000 rows are regenerated at render time from their saved
-posterior counterfactuals. The 25000/25000 row instead comes from a single long
-offline chain: its posterior path is not stored or plotted — only the two summary
-numbers are reported (in-sample RMSE 195.516, post-1990 ATT -389.799). The exact
-script and the data it reads are given below so the result can be reproduced
-against a known state of this repository.
+The toolkit rows run at render time. The BASC 500/500 and 2000/2000 rows and the
+B-MV row are regenerated at render time from saved posterior counterfactuals; the
+BASC 25000/25000 row is a single long offline chain reported as a bare pair of
+numbers (in-sample RMSE 195.516, post-1990 ATT -389.799). The scripts and data
+behind the offline pieces are given below so each can be reproduced against a
+known state of this repository.
 
 ```{python}
 #| label: stamp
@@ -290,3 +300,17 @@ cf <- colMeans(y.samp); pre <- vt < 31; post <- vt >= 31
 cat(sprintf("in-sample RMSE = %.3f   post-1990 ATT = %.3f\n",
             sqrt(mean((y[pre] - cf[pre])^2)), mean(y[post] - cf[post])))
 ```
+
+The B-MV counterfactual (`data/bmv_counterfactual.csv`) is the Martinez and
+Vives-i-Bastida (2024) Bayesian SCM computed with the authors' cited `bsynth`
+package (Ignacio Martinez's implementation, `github.com/ignacio82/bsynth`), built
+from source and run as
+
+```r
+bayesianSynth$new(data = repgermany, time = year, id = country, treated = D,
+                  outcome = gdp, ci_width = 0.95, predictor_match = FALSE)$fit(cores = 4)
+```
+
+on the `repgermany` panel (`D = 1` for West Germany from 1990) — the same
+outcome-only configuration as bsynth's own West Germany example. Its posterior-mean
+counterfactual gives pre-1990 RMSE 62.2 and post-1990 ATT -2075.
