@@ -47,6 +47,55 @@ def select_pi_bands(pointwise, simultaneous, choice):
         return pointwise, simultaneous, "Prediction interval"
     return pointwise, None, "Prediction interval"
 
+
+def _coerce_time_axis(times):
+    """Parse date-like time labels to datetimes so Matplotlib uses a *date* axis
+    (with an auto-thinning date locator) instead of a *categorical* one, which
+    draws a tick per label -- illegible for, say, weekly dates over several
+    years. Returns ``(values_for_plot, is_datetime)``; numeric labels (e.g. year
+    integers) and un-parseable strings are returned unchanged with
+    ``is_datetime=False``."""
+    arr = np.asarray(times)
+    if np.issubdtype(arr.dtype, np.datetime64):
+        return arr, True
+    if arr.dtype == object or arr.dtype.kind in ("U", "S"):
+        try:
+            import pandas as pd
+            return pd.to_datetime(arr).to_numpy(), True
+        except Exception:                       # not date-like -> leave categorical
+            return arr, False
+    return arr, False
+
+
+def _coerce_time_scalar(value, is_datetime):
+    """Coerce a single time (e.g. an intervention marker) onto the same datetime
+    axis, so vertical markers land on the right date."""
+    if not is_datetime or value is None:
+        return value
+    try:
+        import pandas as pd
+        return pd.to_datetime(value).to_numpy()
+    except Exception:                           # pragma: no cover - marker stays as-is
+        return value
+
+
+def _style_time_axis(ax, is_datetime, n_ticks):
+    """Keep the x-axis legible when there are many periods: a date locator with
+    concise labels for datetime axes, thinning for dense numeric axes, and
+    rotated labels once the tick count grows."""
+    import matplotlib.pyplot as plt
+
+    if is_datetime:
+        import matplotlib.dates as mdates
+        loc = mdates.AutoDateLocator(minticks=4, maxticks=9)
+        ax.xaxis.set_major_locator(loc)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
+    elif n_ticks > 16:
+        ax.xaxis.set_major_locator(plt.MaxNLocator(nbins=10))
+    if n_ticks > 16 and not is_datetime:
+        ax.tick_params(axis="x", labelrotation=30)
+
+
 #: Preferred display font; falls back through the ``font.sans-serif`` chain
 #: below if it is not installed. Override by reassigning before plotting.
 MLSYNTH_FONT = "Inter"
@@ -271,7 +320,8 @@ class Plotter:
         if ax is None:
             _, ax = plt.subplots(figsize=self.figsize)
 
-        times = np.asarray(times)
+        times, _is_dt = _coerce_time_axis(times)
+        intervention = _coerce_time_scalar(intervention, _is_dt)
         ax.plot(times, np.asarray(observed).reshape(-1),
                 color=self.treated_color, linewidth=self.treated_linewidth,
                 linestyle=self.treated_linestyle, label=f"Treated ({treated_label})")
@@ -303,6 +353,7 @@ class Plotter:
         ax.set_ylabel(outcome)
         ax.set_title(title)
         ax.legend()  # frame styling comes from the active rcParams
+        _style_time_axis(ax, _is_dt, len(times))
         return ax
 
     def gap(
@@ -331,7 +382,8 @@ class Plotter:
 
         if ax is None:
             _, ax = plt.subplots(figsize=self.figsize)
-        times = np.asarray(times)
+        times, _is_dt = _coerce_time_axis(times)
+        intervention = _coerce_time_scalar(intervention, _is_dt)
         line_color = color or self.counterfactual_colors[0]
         if interval is not None:
             lower = np.asarray(interval[0], dtype=float).reshape(-1)
@@ -350,6 +402,7 @@ class Plotter:
         ax.set_ylabel(outcome or "Treated - counterfactual")
         ax.set_title(title)
         ax.legend()
+        _style_time_axis(ax, _is_dt, len(times))
         return ax
 
     def event_study(
