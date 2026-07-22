@@ -1,0 +1,11 @@
+# case: mtgp_california
+# generated_at: 2026-07-22T09:38:54Z
+# mlsynth_version: 1.0.0
+# estimator: MTGP
+# config: {"n_chains": 4, "n_factors": 5, "n_samples": 1000, "n_warmup": 1000, "seed": 0}
+# reference_impl: replication-package Stan (via Rscript + rstan)
+# reference_version: Ben-Michael et al. 2023 AOAS normal.stan (live)
+quantity,mlsynth,reference,abs_diff
+"ATT (post-2007 mean, per 100k)",-1.05,-1.02,0.03
+lengthscale_f (posterior mean),0.657,0.674,0.017
+pre-period RMSE,0.125,0.13,0.005
