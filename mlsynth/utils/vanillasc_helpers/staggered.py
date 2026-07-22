@@ -387,6 +387,13 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
 
     inference = _aggregate_att_interval(unit_fits, overall_att, config) if do_scpi else None
 
+    # scpi-scplotMulti-style figures (per-unit series facets + event-time
+    # aggregate effect). Honours display_graphs / save like the single-treated
+    # path; a no-op otherwise.
+    if config.display_graphs or config.save:
+        from .staggered_plotter import plot_staggered
+        plot_staggered(config, unit_fits, event_study, event_study_intervals)
+
     return BaseEstimatorResults(
         effects=EffectsResults(
             att=None if np.isnan(overall_att) else overall_att,
