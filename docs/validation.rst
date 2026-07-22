@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **62 cross-validation checks** against original
-implementations across **36 estimators** -- 28 reproduce the reference to display precision, 21 to
+Coverage: **63 cross-validation checks** against original
+implementations across **37 estimators** -- 28 reproduce the reference to display precision, 22 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -85,6 +85,10 @@ Summary
      - 1
      - 1 close
      - 0.03
+   * - :ref:`MVBBSC <val-mvbbsc>`
+     - 1
+     - 1 tight
+     - 20
    * - :ref:`MicroSynth <val-microsynth>`
      - 1
      - 1 tight
@@ -505,6 +509,28 @@ MTGP
      - 0.03
      - close
      - `mtgp_california <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/mtgp_california.py>`__
+
+.. _val-mvbbsc:
+
+MVBBSC
+------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - `R package bsynth (bayesianSynth, predictor_match=FALSE, live run) <https://github.com/ignacio82/bsynth>`__
+     - ``german_reunification.csv`` (f431666efbf3…)
+     - 4
+     - 20
+     - tight
+     - `mvbbsc_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/mvbbsc_germany.py>`__
 
 .. _val-microsynth:
 

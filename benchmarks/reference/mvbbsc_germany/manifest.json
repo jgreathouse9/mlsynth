@@ -1,0 +1,9 @@
+{
+  "case": "mvbbsc_germany",
+  "title": "MVBBSC West-German reunification vs the bsynth R package (outcome-only model)",
+  "paper": "Martinez & Vives-i-Bastida (2024), 'Bayesian and Frequentist Inference for Synthetic Controls', arXiv:2206.01779; Abadie, Diamond & Hainmueller (2015) for the German reunification data",
+  "reference_impl": "R package bsynth (bayesianSynth, predictor_match=FALSE, live run)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/mvbbsc_germany/reference.R",
+  "data": ["basedata/german_reunification.csv"]
+}
