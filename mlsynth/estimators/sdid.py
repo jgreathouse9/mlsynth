@@ -16,7 +16,7 @@ Proposition 99) and staggered-adoption designs with multiple cohorts.
 Output is a typed :class:`mlsynth.utils.sdid_helpers.structures.SDIDResults`
 object that exposes:
 
-    * ``inference.att`` / ``inference.se`` / ``inference.ci`` / ``inference.p_value``
+    * ``effects.att`` / ``inference.se`` / ``inference.ci`` / ``inference.p_value``
         the overall ATT and its placebo-based inference (Ciccia 2024 Eq. 7);
     * ``event_study.tau`` / ``event_study.se`` / ``event_study.ci`` / ``event_study.event_times``
         the pooled event-study estimator (Ciccia 2024 Eq. 6);
@@ -89,7 +89,7 @@ class SDID:
     ...     "unitid": "state", "time": "year", "B": 200,
     ...     "display_graphs": False,
     ... }).fit()
-    >>> res.inference.att                                                   # doctest: +SKIP
+    >>> res.att                                                             # doctest: +SKIP
     -14.485...
     """
 
