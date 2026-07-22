@@ -311,6 +311,8 @@ class Plotter:
         gap: np.ndarray,
         *,
         intervention: Optional[Any] = None,
+        interval: Optional[Sequence[np.ndarray]] = None,
+        interval_label: str = "Prediction interval",
         outcome: str = "",
         time: str = "",
         title: str = "Estimated gap",
@@ -321,15 +323,24 @@ class Plotter:
 
         Draws the gap series against a horizontal zero line and an optional
         vertical intervention marker -- the standard companion to the
-        observed-vs-counterfactual panel.
+        observed-vs-counterfactual panel. Pass ``interval`` as a
+        ``(lower, upper)`` pair (each shape ``(T,)``) to shade a prediction
+        interval around the gap; ``NaN`` entries are left unshaded.
         """
         import matplotlib.pyplot as plt
 
         if ax is None:
             _, ax = plt.subplots(figsize=self.figsize)
         times = np.asarray(times)
+        line_color = color or self.counterfactual_colors[0]
+        if interval is not None:
+            lower = np.asarray(interval[0], dtype=float).reshape(-1)
+            upper = np.asarray(interval[1], dtype=float).reshape(-1)
+            ax.fill_between(times, lower, upper, where=~np.isnan(lower),
+                            color=line_color, alpha=0.18, linewidth=0,
+                            label=interval_label)
         ax.plot(times, np.asarray(gap).reshape(-1),
-                color=color or self.counterfactual_colors[0],
+                color=line_color,
                 linewidth=self.counterfactual_linewidth, label="Gap")
         ax.axhline(0.0, color="black", linewidth=0.8)
         if intervention is not None:
