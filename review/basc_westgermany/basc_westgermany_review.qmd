@@ -28,6 +28,10 @@ jupyter: python3
 #| label: setup
 import os, warnings
 warnings.filterwarnings("ignore")
+# MVBBSC (B-MV) draws 4 NUTS chains via NumPyro; give JAX four host devices so the
+# chains run in parallel on a single-CPU renderer (set before any JAX import).
+os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
+os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=4")
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 from IPython.display import Markdown
@@ -61,11 +65,13 @@ Standard SCM (s-SCM, per the paper) is run two ways. Outcome-only matches the pr
 
 We estimate the fit via two bilevel solvers: `backend="malo"` (the Malo et al. 2024 optimum) and `backend="mscmt"` (MSCMT's nested differential-evolution search). The robust family is `CLUSTERSC` (RPCA-SC and PCR/RSC). As a benchmark outside the SCM family entirely, we also include `FDID`, the forward-selected difference-in-differences estimator of Li (2024).
 
+Most importantly, we include the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024) — the method BASC extends — via `mlsynth`'s `MVBBSC`. This is a NumPyro port of their outcome-only model (a uniform-Dirichlet prior on the simplex weights, a half-normal idiosyncratic scale, and a Gaussian likelihood on the pre-period-standardized series), i.e. `bsynth` run with `predictor_match = FALSE`, the configuration in the package author's own [German re-unification example](https://book.martinez.fyi/bsynth.html). It runs at render time like the rest, so B-MV needs no offline artifact; a fresh NUTS fit reproduces the `bsynth` posterior (pre-1990 RMSE ~62, ATT ~-2075), which in turn matches the -7.5% Martinez and Vives-i-Bastida report for West Germany in their own paper.
+
 ```{python}
 #| label: compare
 #| echo: true
 #| code-fold: false
-from mlsynth import VanillaSC, CLUSTERSC, FDID, compare_estimators
+from mlsynth import VanillaSC, CLUSTERSC, FDID, MVBBSC, compare_estimators
 
 # --- ADH 2015 West Germany covariate specification ---
 COVS = ["gdp_avg", "infrate", "trade", "industry", "schooling", "invest80"]
@@ -90,6 +96,12 @@ cmp = compare_estimators({
     "CLUSTERSC (RPCA-SC)":         CLUSTERSC({**base, "method": "rpca", "rpca_method": "PCP"}),
     "CLUSTERSC (PCR/RSC)":         CLUSTERSC({**base, "method": "PCR"}),
     "FDID (Forward DID)":          FDID({**base}),
+    # B-MV: the Martinez & Vives-i-Bastida (2024) Bayesian SCM that BASC extends,
+    # via mlsynth's native MVBBSC -- the outcome-only model (uniform-Dirichlet
+    # simplex weights, HalfNormal scale, standardized series), i.e. bsynth's
+    # `predictor_match = FALSE`. A NUTS fit reproduces the bsynth posterior.
+    "B-MV (MVBBSC, Bayesian SCM)": MVBBSC({**base, "n_warmup": 500, "n_samples": 500,
+                                           "n_chains": 4, "seed": 0}),
 }, show_bands=False)
 
 # uniform-weight diagnostic (what a naive equal-weighted "SC" would fit)
@@ -138,7 +150,17 @@ full = pd.concat([tbl, basc_rows], ignore_index=True).sort_values("In-sample RMS
 Markdown(full.round(1).to_markdown(index=False))
 ```
 
-Quite generally, lower in-sample RMSE is better. Every comparison estimator — including the *robust* `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit, attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE sits in a ~170–195 band across the three chain lengths (500/500, 2000/2000, 25000/25000) — roughly 3x the plain `VanillaSC` fit (60.8), and about twice the `CLUSTERSC` (88.6 / 98.0) and `FDID` (83.4) fits. Lengthening the MCMC does not close the gap; if anything the best-mixed 25000/25000 chain fits worst, so the shortfall is not a burn-in or short-chain artifact. For reference, *uniform* (1/16) donor weights fit ~21x worse (RMSE ~1289) — a point the Table 7 discussion below returns to.
+Quite generally, lower in-sample RMSE is better. Every comparison estimator — including the *robust* `CLUSTERSC` methods, which deliberately denoise rather than chase in-sample fit, and the Bayesian `MVBBSC` (B-MV) — attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE sits in a ~170–195 band across the three chain lengths (500/500, 2000/2000, 25000/25000) — roughly 3x the plain `VanillaSC` fit (60.8), and about twice the `CLUSTERSC` (88.6 / 98.0) and `FDID` (83.4) fits. Lengthening the MCMC does not close the gap; if anything the best-mixed 25000/25000 chain fits worst, so the shortfall is not a burn-in or short-chain artifact. For reference, *uniform* (1/16) donor weights fit ~21x worse (RMSE ~1289) — a point the Table 7 discussion below returns to.
+
+The row that matters most is B-MV. `MVBBSC` is the Martinez and Vives-i-Bastida (2024) Bayesian synthetic control — the model BASC is built on, before the donor-selection layer is added — and it fits the pre-1990 path at about 62, essentially tying `VanillaSC` (60.8) and landing squarely in the standard-toolkit range. BASC is that same Bayesian framework *plus* the Gamma–Bernoulli donor-selection indicators (and a Gaussian process), and it fits roughly 3x worse. The Bayesian scaffold reaches 62 with or without a GP — `MVBBSC` omits it and the full `bsynth` model adds it, and both land at ~62 — so the one component that changes between the row at 62 and the rows at 170–195 is BASC's hard donor selection replacing B-MV's soft Dirichlet weights. A GP can only tighten a fit; the donor-selection layer, which is the paper's contribution, is what degrades it. The Bayesian scaffold BASC extends already reproduces West Germany as tightly as standard SCM.
+
+## The reported B-MV does not reproduce
+
+The B-MV row above is not just an `mlsynth` reimplementation. Martinez and Vives-i-Bastida apply their own method to exactly this panel (Section 4.1 and Figure 4 of arXiv:2206.01779): they report that West Germany "is best replicated by a combination [of] the United States and Austria," with a posterior-mean effect of -7.5% (95% credible interval [-9%, -6%]), matching the frequentist 8%. The `MVBBSC` fit above (RMSE ~62, ATT ~-2075, i.e. ~-7.5% of the level) reproduces that published effect and pre-treatment fit, and the `bsynth` call is the one in the package author's own book, `predictor_match = FALSE`; there is no documented way of running the method that yields something else.
+
+That is the difficulty for the paper's Table 7, which reports B-MV with near-uniform weights (Switzerland 0.40, Japan 0.21, the rest 0.01–0.06) and a post-1990 ATT of -218 — off from the method's own published West Germany number by nearly a factor of ten, and on a donor set that discards the United States and Austria that both standard SCM and B-MV independently select. The paper's claim that BASC's counterfactual "remains similar to that obtained from the Bayesian SCM benchmark" holds against this reported -218 but not against the -2075 the method actually returns; BASC's own effect (-434 in the paper) is close to the former and far from the latter.
+
+This matters because pre-treatment fit is not my idiosyncratic yardstick — it is the standard the Bayesian-SCM lineage sets for itself. The `bsynth` author opens the method's documentation with it: "The credibility of a synthetic control estimator hinges on how well it can track the trajectory of the outcome variable for the treated unit before the intervention," and, in the pitfalls, "if your synthetic control doesn't accurately replicate the treated unit's pre-treatment behavior, don't use it. It's as simple as that." BASC sits at RMSE 170–195 where its own parent method sits at 62.
 
 ## Observed vs synthetic West Germany
 
@@ -223,7 +245,9 @@ While the reported results from BASC appear to be roughly consistent with my rep
 
 To be clear: I recognize that in-sample fit is not the sole determining factor in the validity of a novel SCM. For example, in the original Robust SC and Robust PCA SC papers by Amjad and Bayani respectively, the authors remark that their denoising solutions are desirable because they attain similar results as the original method without the need to match on predictors. As we can see here, these results hold even though PCR, clustered PCR/RPCA SC attain slightly worse in-sample fit compared to the baseline model from ADH 2015.
 
-However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. This holds even on the original, un-normalized per-capita GDP scale the authors adopt in the revision — the very data on which they report the same substantive conclusions. On that data, BASC has an in-sample RMSE that is ~2–3x that of `VanillaSC` and worse than the robust `CLUSTERSC` estimators — indeed worse than a forward-selected difference-in-differences (`FDID`), which is not even a synthetic control — on top of the fact that it excludes the canonical Austria. The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
+However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. This holds even on the original, un-normalized per-capita GDP scale the authors adopt in the revision — the very data on which they report the same substantive conclusions. On that data, BASC has an in-sample RMSE that is ~2–3x that of `VanillaSC`, worse than the robust `CLUSTERSC` estimators, and — most tellingly — ~3x the Bayesian SCM (B-MV) it is built on, which itself ties `VanillaSC`; it is beaten even by a forward-selected difference-in-differences (`FDID`), which is not a synthetic control at all. It also discards the United States and Austria that standard SCM and B-MV both select. The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
+
+Two of the paper's reported West Germany baselines are, separately, not reproducible with their standard implementations. The Table 7 standard-SCM weights fit the pre-treatment path worse than uniform (and imply an effect of the wrong sign); and the Bayesian SCM benchmark, run with the authors' own cited `bsynth` model on the stated data and scale, fits at RMSE ~62 with an ATT near -2075 — the -7.5% the method's authors themselves publish — not the near-uniform weights and -218 reported. These are discrepancies between the paper as written and what the corresponding tools produce; the reconciliation is for the authors.
 
 Taken together, the picture is consistent: BASC does not compete with the standard toolkit on in-sample fit — it does not even match a forward-selected difference-in-differences — and that lack of fit appears to feed through to the estimated effect, whose magnitude (roughly -390 to -700 across chain lengths) is neither stable nor close to the -1300 to -2000 that the standard estimators agree on. BASC is also markedly more expensive to compute (an MCMC sampler against one-shot convex solves). What remains is a method that performs well in theory and in the paper's Monte Carlo, but whose empirical usefulness — at least as presented here — has not been demonstrated.
 

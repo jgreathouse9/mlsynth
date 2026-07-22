@@ -33,7 +33,7 @@ jobs:
       - name: Install render dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .          # mlsynth (VanillaSC / CLUSTERSC / compare_estimators)
+          python -m pip install -e ".[bayes]"  # mlsynth + NumPyro (MVBBSC / B-MV runs at render time)
           python -m pip install jupyter matplotlib tabulate   # tabulate: DataFrame.to_markdown for cross-format tables
 
       - name: Install TinyTeX (LaTeX engine for the PDF)
