@@ -65,7 +65,7 @@ Standard SCM (s-SCM, per the paper) is run from `mlsynth` in two ways. Method on
 - GDP per capita, inflation rate, trade openness, industry share — averaged **1981–1990**;
 - investment rate and schooling — averaged **1980–1985**.
 
-We estimate the fit via two bilevel solvers: `backend="malo"` (the Malo et al. 2024 optimum) and `backend="mscmt"` (MSCMT's nested differential-evolution search). The robust family is `CLUSTERSC` (RPCA-SC and PCR/RSC). As a benchmark outside the SCM family entirely, we also include `FDID`, the forward-selected difference-in-differences estimator of Li (2024).
+We estimate the fit via two bilevel solvers: `backend="malo"` and `backend="mscmt"` (MSCMT's nested differential-evolution search). The robust family is `CLUSTERSC` (RPCA-SC and PCR/RSC). As a benchmark outside the SCM family entirely, we also include `FDID`, the forward-selected difference-in-differences estimator of Li (2024).
 
 ```{python}
 #| label: compare
@@ -96,11 +96,7 @@ cmp = compare_estimators({
     "CLUSTERSC (RPCA-SC)":         CLUSTERSC({**base, "method": "rpca", "rpca_method": "PCP"}),
     "CLUSTERSC (PCR/RSC)":         CLUSTERSC({**base, "method": "PCR"}),
     "FDID (Forward DID)":          FDID({**base}),
-    # B-MV, live: mlsynth's MVBBSC -- a NumPyro clean-room port of the Martinez &
-    # Vives-i-Bastida (2024) model (written from the paper, not bsynth's code), i.e.
-    # bsynth's predictor_match=FALSE. Rendered here so its agreement with the offline
-    # bsynth row below is reproducible at render, not just asserted.
-    "B-MV (MVBBSC, clean-room)":   MVBBSC({**base, "n_warmup": 500, "n_samples": 500,
+    "B-MV (MVBBSC, mlsynth)":   MVBBSC({**base, "n_warmup": 500, "n_samples": 500,
                                            "n_chains": 4, "seed": 0}),
 }, show_bands=False)
 
@@ -147,9 +143,6 @@ basc_rows = pd.DataFrame([
     {"Method": "BASC (2000 / 2000 MCMC)",   "In-sample RMSE": rmse_2000, "ATT": att_2000},
     {"Method": "BASC (500 / 500 MCMC)",     "In-sample RMSE": rmse_500,  "ATT": att_500},
 ])
-# B-MV: the Martinez & Vives-i-Bastida (2024) Bayesian SCM that BASC extends, computed
-# offline with the authors' cited bsynth package (predictor_match=FALSE) on this panel;
-# see the reproducibility appendix. Its saved counterfactual drives this row.
 rmse_bmv, att_bmv = _basc_rmse_att(bmv_cf)
 bmv_row = pd.DataFrame([
     {"Method": "B-MV (bsynth, Bayesian SCM)", "In-sample RMSE": rmse_bmv, "ATT": att_bmv},
@@ -163,8 +156,6 @@ Every comparison estimator attains a materially tighter pre-treatment fit than B
 The most telling row is B-MV, the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024). This is the model BASC is built on, before the donor-selection layer is added. Run the original `bsynth` package in its standard outcome-only mode (`predictor_match = FALSE`) on this same panel, B-MV fits the pre-1990 path at RMSE 62.2. `mlsynth`'s `MVBBSC` is a NumPyro re-implementation of the Martinez and Vives-i-Bastida model written from the paper, not from `bsynth`'s code, so it is an independent check rather than a translation. It reproduces the `bsynth` output on this exact panel to Monte-Carlo error (pre-1990 RMSE ~62; post-1990 ATT about -2078 vs -2075), and its 95% credible bands agree with `bsynth`'s year by year almost identically. So both the original `R` package and the `mlsynth` port tie `VanillaSC`'s pre-1990 RMSE (~62 vs 60.8) and return a post-1990 ATT of about -2075.
 
 The paper however reports different numbers. According to the BASC paper, the text (p.32) gives B-MV a post-1990 ATT of -218, whereas the actual `bsynth` output on the original per-capita scale is about -2075 — nearly ten times larger. So on the original outcome data the authors say they use, two implementations of B-MV built independently of each other agree with one another and disagree with the paper's reported figure. For whatever reason, the number that is returned in the original R package and `mlsynth` implementations differ from the paper. Reconciling the reported B-MV with what the method actually returns is for the authors to do.
-
-## Observed vs synthetic West Germany
 
 ```{python}
 #| label: fig-paths
@@ -180,9 +171,7 @@ ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
 plt.tight_layout(); plt.show()
 ```
 
-The gap of interest is inside the shaded pre-1990 window: the standard estimators track observed West Germany closely, while BASC departs from it *before* treatment (at least, using the RMSE as a guide).
-
-## BASC counterfactual with its 95% credible band
+Here is the full plot of the BASC.
 
 ```{python}
 #| label: fig-basc-ci
@@ -230,17 +219,17 @@ def dot_fit(wdict):
 rmse_s, att_s = dot_fit(s_scm)
 rmse_u, att_u = dot_fit({n: 1 / 16 for n in names7})
 Markdown(pd.DataFrame({
-    "Weight vector": ["s-SCM (Table 7)", "uniform (1/16)", "VanillaSC (an actual SCM)"],
+    "Weight vector": ["s-SCM (Table 7)", "uniform (1/16)", "VanillaSC"],
     "pre-1990 RMSE": [rmse_s, rmse_u, 60.8],
     "post-1990 ATT": [att_s, att_u, -1297.5],
 }).to_markdown(index=False))
 ```
 
-Two things follow, using only the authors' own weights. First, the s-SCM column fits the pre-1990 path at an RMSE near 1,925. This is worse than uniform weights (about 1,289), and roughly 30 times greater than the actual synthetic control (about 61, reported above). A weight vector that loses to uniform is therefore not the standard-SCM solution, whatever produced it. Second, those same weights imply a post-1990 ATT near +2,900, with West Germany above its synthetic, while the paper's text (p.32) reports an s-SCM ATT of -159. So, aside from the fact that the optimal weight vector is incorrect, their weights also do not even agree with the sign of their own reported effect. So, even if we ignore `mlsynth`'s `VanillaSC`, the Table 7 s-SCM column and the reported s-SCM effect cannot be computed from the same estimator.
+Two things follow, using only the authors' own weights. First, the s-SCM column fits the pre-1990 path at an RMSE near 1,925. This is worse than uniform weights (about 1,289), and roughly 30 times greater than the actual synthetic control (about 61, reported above). A weight vector that loses to uniform is therefore not the standard-SCM solution, whatever produced it. Second, those same weights imply a post-1990 ATT near +2,900, with West Germany above its synthetic, while the paper's text (p.32) reports an s-SCM ATT of -159. So, aside from the fact that the optimal weight vector is incorrect, their own reported weights in the table also do not agree with the sign of their own reported effect. So, even if we ignore `mlsynth`'s `VanillaSC`, the Table 7 s-SCM column and the reported s-SCM effect cannot be computed from the same estimator, and I would like an explanation why this is.
 
 ## Bottom line
 
-So, given these concerns, I am afraid that for us to continue reviewing this, the authors github page needs to be updated. **Not just** with their own BASC code, but with everything that went into producing these results. That is, we must be able to verify the importing of the data, the cleaning process that was done, the exact runs of fPCA-SC/ClusterSC they used, the exact code they used to produce B-MV, the exact solver they used to produce the s-SCM weight vector in Table 7. Beyond, the authors must report not just the ATT, but the in-sample RMSE that each method produces, so that their claims may be directly checked against the syntax they used.
+In my opinion, in order for us to continue reviewing this, the authors github page needs to be updated. **Not just** with their own BASC code, but with everything that went into producing these results. That is, we must be able to verify the importing of the data, the cleaning process that was done, the exact runs of fPCA-SC/ClusterSC they used, the exact code they used to produce B-MV, the exact solver they used to produce the s-SCM weight vector in Table 7. Beyond, the authors must report not just the ATT, but the in-sample RMSE that each method produces, so that their claims may be directly checked against the syntax they used.
 
 To be clear: I recognize that in-sample fit is not the sole determining factor in the validity of a novel SCM. For example, in the original Robust SC and Robust PCA SC papers by Amjad and Bayani respectively, the authors remark that their denoising solutions are desirable because they attain similar results as the original method without the need to match on predictors. As we can see here, these results hold even though PCR, clustered PCR/RPCA SC attain slightly worse in-sample fit compared to the baseline model from ADH 2015. However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. BASC does not even compete with the Forward DID method (a uniformly weighted subset of controls plus an intercept). The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
 
