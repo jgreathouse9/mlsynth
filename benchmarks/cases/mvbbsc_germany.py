@@ -30,12 +30,23 @@ import numpy as np
 import pandas as pd
 
 from benchmarks.compare import BenchmarkSkipped
+from benchmarks.reference import reference_value
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..", "basedata",
                      "german_reunification.csv")
 
+# The one MVBBSC call shared by run() and comparison(): the authors' outcome-only
+# model, four NUTS chains, fixed seed so a run is reproducible up to MCMC error.
+_MLSYNTH_KW = {
+    "outcome": "gdp", "treat": "treat", "unitid": "country", "time": "year",
+    "n_warmup": 500, "n_samples": 500, "n_chains": 4,
+    "seed": 0, "display_graphs": False,
+}
 
-def run() -> dict:
+
+def _fit():
+    """Fit MVBBSC on the German reunification panel. Skips gracefully when
+    NumPyro (the ``[bayes]`` optional dependency) is absent."""
     try:
         import numpyro  # noqa: F401
     except ImportError as exc:  # optional dependency -> graceful skip
@@ -50,13 +61,11 @@ def run() -> dict:
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = MVBBSC({
-            "df": d, "outcome": "gdp", "treat": "treat",
-            "unitid": "country", "time": "year",
-            "n_warmup": 500, "n_samples": 500, "n_chains": 4,
-            "seed": 0, "display_graphs": False,
-        }).fit()
+        return MVBBSC({"df": d, **_MLSYNTH_KW}).fit()
 
+
+def run() -> dict:
+    res = _fit()
     ts = res.time_series
     yr = np.asarray(ts.time_periods)
     gap = np.asarray(ts.estimated_gap)
@@ -69,6 +78,50 @@ def run() -> dict:
         "pre_rmse": float(res.fit_diagnostics.rmse_pre),
         "ci_excludes_zero": float(res.inference.ci_upper < 0.0),
         "max_rhat": float(res.weights.summary_stats["max_rhat"]),
+    }
+
+
+def _mlsynth_summaries(res) -> dict:
+    """The four posterior summaries cross-validated against bsynth: the pre-1990
+    in-sample RMSE, the mean post-1990 ATT, and the mean 95% credible-band width
+    in the pre- and post-treatment windows (the band is ``counterfactual_upper``
+    minus ``counterfactual_lower`` period by period)."""
+    inf = res.inference_detail
+    width = np.asarray(inf.counterfactual_upper) - np.asarray(inf.counterfactual_lower)
+    T0 = res.inputs.T0
+    return {
+        "pre_rmse": float(res.fit_diagnostics.rmse_pre),
+        "mean_att": float(res.att),
+        "band_width_pre": float(np.mean(width[:T0])),
+        "band_width_post": float(np.mean(width[T0:])),
+    }
+
+
+def comparison() -> dict:
+    """mlsynth MVBBSC vs the authors' ``bsynth`` package on the German
+    reunification panel, posterior summary by posterior summary. Both fit the
+    identical outcome-only model (``predictor_match = FALSE``, ``ci_width =
+    0.95``); the reference numbers are the live captured bsynth run under
+    ``benchmarks/reference/mvbbsc_germany/``. Agreement is to Monte-Carlo error
+    between two independent NUTS runs."""
+    m = _mlsynth_summaries(_fit())
+    pairs = [
+        ("pre_1990_RMSE", "pre_rmse"),
+        ("mean_post_ATT", "mean_att"),
+        ("band_width_pre_1990", "band_width_pre"),
+        ("band_width_post_1990", "band_width_post"),
+    ]
+    rows = [{"quantity": q, "mlsynth": round(float(m[k]), 4),
+             "reference": round(reference_value("mvbbsc_germany", k), 4)}
+            for q, k in pairs]
+    cfg = {k: v for k, v in _MLSYNTH_KW.items() if k != "display_graphs"}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "MVBBSC", "config": cfg},
+        "reference": {
+            "impl": "R package bsynth (bayesianSynth, predictor_match=FALSE, live run)",
+            "version": "Martinez & Vives-i-Bastida (2024), bsynth @ 22d960f (arXiv:2206.01779)",
+        },
     }
 
 

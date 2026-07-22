@@ -53,6 +53,8 @@ KNOWN_REFS = {
         "https://github.com/qkrcks0218/SPSC",
     "R package scinference (sc.cf t-test, live run, captured)":
         "https://github.com/kwuthrich/scinference",
+    "R package bsynth (bayesianSynth, predictor_match=FALSE, live run)":
+        "https://github.com/ignacio82/bsynth",
 }
 
 

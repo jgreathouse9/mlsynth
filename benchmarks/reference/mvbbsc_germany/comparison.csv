@@ -1,0 +1,12 @@
+# case: mvbbsc_germany
+# generated_at: 2026-07-22T14:13:19Z
+# mlsynth_version: 1.0.0
+# estimator: MVBBSC
+# config: {"n_chains": 4, "n_samples": 500, "n_warmup": 500, "outcome": "gdp", "seed": 0, "time": "year", "treat": "treat", "unitid": "country"}
+# reference_impl: R package bsynth (bayesianSynth, predictor_match=FALSE, live run)
+# reference_version: Martinez & Vives-i-Bastida (2024), bsynth @ 22d960f (arXiv:2206.01779)
+quantity,mlsynth,reference,abs_diff
+pre_1990_RMSE,62.1413,61.957,0.1843
+mean_post_ATT,-2081.7395,-2064.6491,17.0904
+band_width_pre_1990,297.1453,296.6106,0.5347
+band_width_post_1990,1123.3491,1143.1831,19.834

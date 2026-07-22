@@ -1,0 +1,9 @@
+{
+  "values": {
+    "pre_rmse": 61.956967,
+    "mean_att": -2064.64914,
+    "band_width_pre": 296.610554,
+    "band_width_post": 1143.183056
+  },
+  "weights": {}
+}
