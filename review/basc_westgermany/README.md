@@ -19,11 +19,22 @@ standard analysis — and ADH 2015 — identifies as most important.
 
     basc_westgermany_review.qmd    # the Quarto report (renders from data/ only)
     data/                          # pre-computed CSVs (no heavy deps to render)
+      counterfactuals.csv          #   every counterfactual in the report, by year
       basc_counterfactual.csv      #   BASC posterior path + 95% CI (2000/2000)
+      basc_counterfactual_500.csv  #   BASC posterior path + 95% CI (500/500)
+      bmv_counterfactual.csv       #   B-MV (bsynth) posterior path + 95% CI
       basc_weights.csv             #   BASC posterior donor weights
       basc_insample_rmse.txt       #   BASC 2000/2000 in-sample RMSE
     scripts/
       basc_run.R                   # regenerate the BASC CSVs (see header)
+
+`data/counterfactuals.csv` is a single transparency table: one row per year
+(1960–2003) with the treatment indicator, observed West Germany, and every
+counterfactual that goes into the report — the seven render-time `mlsynth` fits
+(VanillaSC ×3, CLUSTERSC ×2, FDID, MVBBSC/B-MV), the offline `bsynth` and BASC
+(500/500, 2000/2000) posterior paths, and the two dot-product weight vectors
+(the Table 7 s-SCM weights and uniform 1/16). The BASC 25000/25000 chain is not
+included: only its two summary numbers were saved, not a posterior path.
 
 The `mlsynth` estimators (`VanillaSC`, `CLUSTERSC`) run at render time via
 `compare_estimators` on `basedata/repgermany.dta` — only BASC is precomputed
