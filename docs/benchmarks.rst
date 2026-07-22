@@ -227,6 +227,8 @@ Cross-validation against reference implementations
      - vs R microsynth panel method (Seattle DMI)
    * - ``mlsc_bottmer``
      - vs Bottmer's mlSC_estimator (skips if absent)
+   * - ``mvbbsc_germany``
+     - vs authors' bsynth R package (rstan): posterior counterfactual + credible bands + ATT, West Germany reunification (Martinez & Vives-i-Bastida)
    * - ``nsc_prop99``
      - vs Tian's NSC.R (Prop 99 Table 2)
    * - ``ppscm_paglayan``

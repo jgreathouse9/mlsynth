@@ -29,7 +29,7 @@ _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
     BFSC, BPSCS, BSCM, BVSS, CFM, CLUSTERSC, CSCIPCA, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
-    MCNNM, MSQRT, MTGP, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
+    MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
 )
@@ -195,6 +195,10 @@ if _HAS_NUMPYRO:  # BFSC/MTGP need the ``[bayes]`` extra; skip the params withou
     OBSERVATIONAL.append(
         pytest.param(MTGP, {"n_factors": 2, "n_warmup": 50, "n_samples": 50,
                             "n_chains": 1, "seed": 0}, id="MTGP")
+    )
+    OBSERVATIONAL.append(
+        pytest.param(MVBBSC, {"n_warmup": 50, "n_samples": 50,
+                              "n_chains": 1, "seed": 0}, id="MVBBSC")
     )
     OBSERVATIONAL.append(
         pytest.param(BPSCS, {"covariates": ["cov1"], "coords": ["lat", "lon"],

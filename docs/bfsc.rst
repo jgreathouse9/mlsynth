@@ -37,10 +37,14 @@ Do not use BFSC when:
 The Bayesian SC family
 ----------------------
 
-mlsynth carries three Bayesian synthetic-control estimators; they differ in
+mlsynth carries several Bayesian synthetic-control estimators; they differ in
 what they place a prior on, and BFSC is the one that models the outcome rather
 than the weights.
 
+* :doc:`mvbbsc` (Martinez and Vives-i-Bastida) -- a uniform prior over the hard
+  simplex, standardized internally, with a Bernstein-von Mises guarantee that
+  makes the credible interval a valid confidence interval; NUTS through the
+  ``[bayes]`` optional dependency, and it reports donor weights.
 * :doc:`bscm` (Kim, Lee and Gupta) -- shrinkage (horseshoe or spike-and-slab)
   on unconstrained donor weights; a pure-numpy Gibbs sampler, and it reports
   donor weights.
@@ -51,9 +55,9 @@ than the weights.
   weighting; NUTS through the ``[bayes]`` optional dependency, and it reports a
   counterfactual credible band and no donor weights.
 
-Reach for a weighting prior (:doc:`bscm`, :doc:`bvss`) when you want
-interpretable donor weights; reach for BFSC when a shared factor structure --
-not a weighted average of donors -- is the right model for the untreated
+Reach for a weighting prior (:doc:`mvbbsc`, :doc:`bscm`, :doc:`bvss`) when you
+want interpretable donor weights; reach for BFSC when a shared factor structure
+-- not a weighted average of donors -- is the right model for the untreated
 outcome.
 
 Notation

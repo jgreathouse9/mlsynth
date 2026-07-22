@@ -458,24 +458,31 @@ already in hand. It needs at least as many covariates as factors and a
 pre-period longer than covariates-times-factors, and reports a per-period
 moving-block conformal band. With no covariates, use :doc:`fma` or :doc:`cfm`.
 
-*Which Bayesian synthetic control?* Five estimators are Bayesian, and they
-split on what carries the prior. :doc:`bscm` and :doc:`bvss` put a shrinkage /
-selection prior on the *donor weights* (both pure-numpy, both report donor
-weights) -- reach for them, at Q1.2 or Q1.6, when you want interpretable weights
-with a credible interval. :doc:`bfsc` and :doc:`mtgp` put the prior on a
-*latent-factor model* of the outcome and report a counterfactual band with no
-donor weights -- reach for them when a shared factor structure rather than a
-weighted average of donors is the right model. The two factor models differ in
-one thing: :doc:`bfsc` leaves the factors unconstrained over time, while
-:doc:`mtgp` puts a Gaussian-process (squared-exponential) prior on them, so its
-factor paths are smooth and its post-period band grows with extrapolation
-distance. Prefer :doc:`mtgp` when the untreated series are smooth trends and you
-want that widening band; prefer :doc:`bfsc` when the shared structure is best
-left unconstrained. The fifth, :doc:`bpscs`, puts the prior on *donor
-coefficients* but scales it by an external covariate-and-distance utility --
-reach for it, at Q1.1, when the concern is spatial spillover contaminating the
-donor pool and you want close-by donors down-weighted rather than trusted or
-dropped.
+*Which Bayesian synthetic control?* Six estimators are Bayesian, and they
+split on what carries the prior. :doc:`mvbbsc`, :doc:`bscm`, and :doc:`bvss`
+put a prior on the *donor weights* and all report donor weights -- reach for
+them, at Q1.2 or Q1.6, when you want interpretable weights with a credible
+interval. They differ in the constraint: :doc:`mvbbsc` (Martinez and
+Vives-i-Bastida) keeps the *hard simplex* with a uniform prior, standardizes
+internally so the fit is unit-free, and carries a Bernstein-von Mises guarantee
+that makes its credible interval a valid confidence interval -- the choice when
+the treated unit is inside the donors' hull and you want principled inference on
+the classical convex-combination model; :doc:`bscm` drops the simplex for
+shrinkage (horseshoe or spike-and-slab) on *unconstrained* weights; :doc:`bvss`
+keeps a *soft* simplex and adds spike-and-slab donor selection with inclusion
+probabilities. :doc:`bfsc` and :doc:`mtgp` put the prior on a *latent-factor
+model* of the outcome and report a counterfactual band with no donor weights --
+reach for them when a shared factor structure rather than a weighted average of
+donors is the right model. The two factor models differ in one thing:
+:doc:`bfsc` leaves the factors unconstrained over time, while :doc:`mtgp` puts a
+Gaussian-process (squared-exponential) prior on them, so its factor paths are
+smooth and its post-period band grows with extrapolation distance. Prefer
+:doc:`mtgp` when the untreated series are smooth trends and you want that
+widening band; prefer :doc:`bfsc` when the shared structure is best left
+unconstrained. The sixth, :doc:`bpscs`, puts the prior on *donor coefficients*
+but scales it by an external covariate-and-distance utility -- reach for it, at
+Q1.1, when the concern is spatial spillover contaminating the donor pool and you
+want close-by donors down-weighted rather than trusted or dropped.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
