@@ -500,6 +500,12 @@ References
     DOI: https://doi.org/10.1177/0022243720936230
     Reference code: https://github.com/clarencejlee/bscm
 
+.. [MVBBSC2024]
+    Martinez, Ignacio, and Vives-i-Bastida, Jaume.
+    *"Bayesian and Frequentist Inference for Synthetic Controls."*
+    arXiv:2206.01779, 2024.
+    Reference code: https://github.com/ignacio82/bsynth
+
 .. [MTGP2023]
     Ben-Michael, Eli, Arbour, David, Feller, Avi, Franks, Alexander, and Raphael, Steven.
     *"Estimating the effects of a California gun control program with multitask Gaussian processes."*

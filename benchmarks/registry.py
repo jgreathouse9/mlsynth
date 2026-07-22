@@ -65,6 +65,7 @@ CASES = {
     "bvss_watches": "benchmarks.cases.bvss_watches",              # cross-val vs authors' own two-coordinate Gibbs (Xu-Zhou 2025) on China anti-corruption watches, p>n: engine exact + posterior ATT within MC error
     "bfsc_germany": "benchmarks.cases.bfsc_germany",                # cross-val vs author appendix Stan (corr 0.999999) + Path A: West Germany reunification (Pinkney 2021)
     "bfsc_prop99": "benchmarks.cases.bfsc_prop99",                  # cross-val vs author appendix Stan run LIVE via rstan (Prop 99, California 1989) -- needs [bayes] + rstan
+    "mvbbsc_germany": "benchmarks.cases.mvbbsc_germany",            # cross-val vs authors' bsynth package (rstan) + Path A: West Germany reunification (Martinez & Vives-i-Bastida 2024)
     "mtgp_california": "benchmarks.cases.mtgp_california",          # cross-val vs replication-package Stan run LIVE via rstan (California APPS, homicide rates 1997-2018, treated 2007) -- needs [bayes] + rstan
     "bpscs_synthetic": "benchmarks.cases.bpscs_synthetic",           # self-contained: BPSCS effect recovery + distance-based shrinkage on a simulated spatial-spillover panel (GPL reference not shipped) -- needs [bayes]
     "mscmt_basque": "benchmarks.cases.mscmt_basque",          # cross-val vs R MSCMT: AG Basque, fit_window=(1960,1969)

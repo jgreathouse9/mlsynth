@@ -58,6 +58,7 @@ from .estimators.sbc import SBC
 from .estimators.bvss import BVSS
 from .estimators.bscm import BSCM
 from .estimators.bfsc import BFSC
+from .estimators.mvbbsc import MVBBSC
 from .estimators.mtgp import MTGP
 from .estimators.bpscs import BPSCS
 from .estimators.mlsc import MLSC
@@ -135,7 +136,7 @@ __all__ = [
     "SPCD",
     "TASC",
     "CMBSTS",
-    "SBC", "BVSS", "BSCM", "BFSC", "MTGP", "BPSCS",
+    "SBC", "BVSS", "BSCM", "BFSC", "MVBBSC", "MTGP", "BPSCS",
     "MLSC",
     "MSQRT",
     "SSC",
