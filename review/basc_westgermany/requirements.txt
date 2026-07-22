@@ -1,0 +1,13 @@
+# Extra dependencies for rendering this review, beyond base mlsynth.
+#
+# The repo-wide paper_render.yml workflow installs only `pip install -e .`
+# (base mlsynth) and then `pip install -r` any requirements.txt one level
+# below the .qmd. This report needs two things on top of base mlsynth:
+#   - numpyro (which pulls in JAX): powers the live B-MV row via mlsynth's
+#     MVBBSC estimator (mlsynth[bayes]).
+#   - tabulate: backs pandas.DataFrame.to_markdown for the cross-format tables.
+#
+# The dedicated render-basc-review.yml installs the same set via
+# `pip install -e ".[bayes]"` plus jupyter/matplotlib/tabulate.
+numpyro
+tabulate
