@@ -40,7 +40,7 @@ The panel ships as ``basedata/smoking_data.csv`` with a ready-made
                "outcome": "cigsale", "treat": "treat",
                "unitid": "state", "time": "year",
                "display_graphs": False}).fit()
-   res.inference.att        # -15.605
+   res.att                  # -15.605
 
 mlsynth returns :math:`\widehat{\mathrm{ATT}} = -15.605`, matching the
 AER headline (-15.6) and the ``synthdid`` value (-15.604).

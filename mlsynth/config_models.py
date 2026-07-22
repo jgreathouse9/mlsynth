@@ -1,4 +1,4 @@
-from typing import List, Optional, Any, Dict, Union, Literal
+from typing import List, Optional, Any, Dict, Tuple, Union, Literal
 import pandas as pd
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -320,6 +320,18 @@ class InferenceResults(BaseModel):
     confidence_level: Optional[float] = Field(default=None, description="Confidence level used for the CI (e.g., 0.95 for 95%).")
     method: Optional[str] = Field(default=None, description="Method used for inference (e.g., 'placebo', 'conformal', 'asymptotic').")
     details: Optional[Any] = Field(default=None, description="More detailed inference results, e.g., full prediction interval arrays for conformal methods.")
+
+    @property
+    def se(self) -> Optional[float]:
+        """Short read-only alias for :attr:`standard_error` (the documented
+        ``res.inference.se`` accessor)."""
+        return self.standard_error
+
+    @property
+    def ci(self) -> Tuple[Optional[float], Optional[float]]:
+        """Read-only ``(lower, upper)`` view of :attr:`ci_lower` /
+        :attr:`ci_upper`, so ``res.inference.ci[0]`` / ``[1]`` resolve."""
+        return (self.ci_lower, self.ci_upper)
 
     class Config:
         arbitrary_types_allowed = True
