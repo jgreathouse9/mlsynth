@@ -1,0 +1,52 @@
+name: Render BASC West Germany review
+
+# Renders the review Quarto document to a self-contained HTML and a PDF on every
+# push to the review branch, and uploads both as a downloadable workflow artifact.
+on:
+  push:
+    branches: [claude/basc-review-westgermany]
+    paths:
+      - "review/basc_westgermany/**"
+      - ".github/workflows/render-basc-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: "1.7.8"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install render dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .          # mlsynth (VanillaSC / CLUSTERSC / compare_estimators)
+          python -m pip install jupyter matplotlib tabulate   # tabulate: DataFrame.to_markdown for cross-format tables
+
+      - name: Install TinyTeX (LaTeX engine for the PDF)
+        run: quarto install tinytex
+
+      - name: Render review (self-contained HTML + PDF)
+        run: quarto render review/basc_westgermany/basc_westgermany_review.qmd
+
+      - name: Upload rendered review (HTML + PDF)
+        uses: actions/upload-artifact@v4
+        with:
+          name: basc-westgermany-review
+          path: |
+            review/basc_westgermany/basc_westgermany_review.html
+            review/basc_westgermany/basc_westgermany_review.pdf
+          if-no-files-found: error
