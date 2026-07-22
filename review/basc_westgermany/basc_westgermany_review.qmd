@@ -227,6 +227,38 @@ Markdown(pd.DataFrame({
 
 Two things follow, using only the authors' own weights. First, the s-SCM column fits the pre-1990 path at an RMSE near 1,925. This is worse than uniform weights (about 1,289), and roughly 30 times greater than the actual synthetic control (about 61, reported above). A weight vector that loses to uniform is therefore not the standard-SCM solution, whatever produced it. Second, those same weights imply a post-1990 ATT near +2,900, with West Germany above its synthetic, while the paper's text (p.32) reports an s-SCM ATT of -159. So, aside from the fact that the optimal weight vector is incorrect, their own reported weights in the table also do not agree with the sign of their own reported effect. So, even if we ignore `mlsynth`'s `VanillaSC`, the Table 7 s-SCM column and the reported s-SCM effect cannot be computed from the same estimator, and I would like an explanation why this is.
 
+The picture makes it unmistakable. Drawn on the same axes, a correctly solved standard SCM (`VanillaSC`) and the Bayesian SCM the paper builds on (`MVBBSC`) are indistinguishable from observed West Germany through the pre-1990 window, while the counterfactual implied by the Table 7 s-SCM weights sits well below it the entire time.
+
+```{python}
+#| label: fig-three-scm
+#| fig-cap: "West Germany: observed versus a correctly solved standard SCM (VanillaSC), the Bayesian SCM the paper builds on (mlsynth's MVBBSC), and the counterfactual implied by the paper's own Table 7 s-SCM weights. The two correctly computed fits are indistinguishable from observed West Germany across the pre-1990 window (shaded); the Table 7 weights sit below it the entire pre-period, so their implied post-1990 effect comes out positive -- the wrong sign."
+def _curve(label):
+    s = cmp.curves[cmp.curves["method"] == label].sort_values("period")
+    return s["period"].to_numpy(dtype=float), s["counterfactual"].to_numpy(dtype=float)
+
+yr_v, cf_vsc = _curve("VanillaSC (outcome-only)")
+yr_m, cf_mvb = _curve("B-MV (MVBBSC, mlsynth)")
+cf_t7 = D7 @ np.array([s_scm[n] for n in names7])          # Table 7 weights . donor matrix
+
+wg  = d[d.country == "West Germany"].sort_values("year")
+yrs = wg["year"].to_numpy(dtype=float); obs = wg["gdp"].to_numpy(dtype=float)
+_pre = yrs < 1990
+_rmse = lambda cf: float(np.sqrt(np.mean((obs[_pre] - cf[_pre]) ** 2)))
+
+fig, ax = plt.subplots()
+ax.axvspan(yrs.min(), 1990, color="0.92", zorder=0)
+ax.axvline(1990, color="grey", ls=":", lw=1)
+ax.plot(yrs,  obs,    color="black",   lw=2.6, label="West Germany (observed)", zorder=6)
+ax.plot(yr_v, cf_vsc, color="#1f77b4", lw=2.0, label=f"Standard SCM (VanillaSC), pre-RMSE {_rmse(cf_vsc):.0f}", zorder=5)
+ax.plot(yr_m, cf_mvb, color="#2ca02c", lw=2.0, label=f"B-MV (mlsynth MVBBSC), pre-RMSE {_rmse(cf_mvb):.0f}", zorder=5)
+ax.plot(yrs,  cf_t7,  color="#d62728", lw=2.2, ls="--", label=f"Table 7 s-SCM weights, pre-RMSE {_rmse(cf_t7):.0f}", zorder=4)
+ax.set_title("West Germany: observed vs. three standard-SCM counterfactuals")
+ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
+ax.set_xlim(yrs.min(), yrs.max())
+ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
+plt.tight_layout(); plt.show()
+```
+
 ## Bottom line
 
 In my opinion, in order for us to continue reviewing this, the authors github page needs to be updated. **Not just** with their own BASC code, but with everything that went into producing these results. That is, we must be able to verify the importing of the data, the cleaning process that was done, the exact runs of fPCA-SC/ClusterSC they used, the exact code they used to produce B-MV, the exact solver they used to produce the s-SCM weight vector in Table 7. Beyond, the authors must report not just the ATT, but the in-sample RMSE that each method produces, so that their claims may be directly checked against the syntax they used.
