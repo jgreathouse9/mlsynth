@@ -1,0 +1,16 @@
+{
+  "tool": "Ferman (2021) Table 1 (published) + clean-room solve.QP identity draw",
+  "targets_source": "Ferman, B. (2021), JASA 116(536):1764-1772, Table 1 (p. 1771), transcribed",
+  "targets_crosscheck": "aggregated the authors' supplementary results.csv (40,000 rows = 5,000 reps x 8 (J,T0) cells); reproduces every Table 1 SC cell to <= 0.001. Supplement referenced, not redistributed.",
+  "identity_draw": "factor-model DGP (Ferman main.R) at NumPy seed 12345, J=10, T0=20; weights from R solve.QP algorithm (Goldfarb-Idnani) via quadprog 0.1.13 == aux.R synth_control_est",
+  "python": "3.11",
+  "packages": {
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "cvxpy": "1.9.2",
+    "quadprog": "0.1.13 (build-time only; not used by the case)"
+  },
+  "os": "Linux-6.18.5 x86_64, glibc 2.39",
+  "mlsynth_git_sha": "89ff838056160ca5c867e7b37f9940d5f8de7f96",
+  "notes": "mlsynth's outcome-only VanillaSC (BilevelSCM('outcome-only')) reproduces the identity-draw solve.QP weights to 6.6e-11 and is bit-identical to a full VanillaSC.fit(). The Monte-Carlo cells run mlsynth's own solver over the paper's grid (200 reps/cell, seed 47)."
+}

@@ -1,0 +1,9 @@
+{
+  "case": "ferman_manyperiods",
+  "title": "SC with many periods and many controls -- factor-structure recovery (Ferman 2021, JASA Table 1)",
+  "paper": "Ferman, B. (2021), 'On the Properties of the Synthetic Control Estimator with Many Periods and Many Controls', Journal of the American Statistical Association 116(536):1764-1772, doi:10.1080/01621459.2021.1965613",
+  "reference_impl": "Ferman (2021) Table 1 (p. 1771), SC columns 1-4 + OLS-unconstrained se(alpha) row (columns 5-8); the paper's own Monte Carlo (main.R/aux.R, solve.QP), cross-checked against the authors' supplementary results.csv (5,000 reps x 8 cells)",
+  "path_type": "Path B (Monte Carlo)",
+  "command": "python benchmarks/run_benchmarks.py --case ferman_manyperiods",
+  "data": "none (self-contained factor-model simulation; DGP ported from Ferman main.R)"
+}
