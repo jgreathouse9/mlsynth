@@ -1,6 +1,6 @@
 """compare_estimators: fit several observational estimators and overlay them.
 
-The design side has ``compare_methods`` (fit SYNDES/GEOLIFT/... on one panel and
+The design side has ``compare_methods`` (fit SYNDES/LEXSCM/... on one panel and
 compare); this is its observational twin. ``compare_estimators`` fits each
 estimator you hand it (fully configured), reads each one's counterfactual and
 canonical per-period band off the standardized contract, and returns the existing

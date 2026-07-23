@@ -562,7 +562,7 @@ Forced-in and forbidden markets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Two hard market lists complete the treatment-criteria vocabulary, matching SYNDES
-and GeoLift. ``to_be_treated`` pins specified markets into the treated set: every
+and MAREX. ``to_be_treated`` pins specified markets into the treated set: every
 candidate :math:`m`-tuple the search considers must contain them, which is useful
 when a market is decided in advance (a client insists on testing it) and the
 design only has to choose the rest around it. ``not_to_be_treated`` does the

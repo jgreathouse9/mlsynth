@@ -1,12 +1,13 @@
 """Cross-estimator design comparison on a common fit-vs-power plane.
 
-GEOLIFT and SYNDES differ in their optimisers but share a grammar: each emits a
-design that reduces to a unit-level contrast ``c = w_treated - w_control`` (both
-sides summing to one) over the same panel. From ``c`` two comparable numbers
-follow -- the pre-period fit RMSE ``sqrt(mean((Y_pre @ c)**2))`` and, by
-injecting a known effect at a fixed horizon, a minimum detectable effect.
+The design estimators (SYNDES, LEXSCM, MAREX) differ in their optimisers but
+share a grammar: each emits a design that reduces to a unit-level contrast
+``c = w_treated - w_control`` (both sides summing to one) over the same panel.
+From ``c`` two comparable numbers follow -- the pre-period fit RMSE
+``sqrt(mean((Y_pre @ c)**2))`` and, by injecting a known effect at a fixed
+horizon, a minimum detectable effect.
 
-Scoring every design from either method through one shared simulation harness --
+Scoring every design from any method through one shared simulation harness --
 same horizon, same effect grid, same moving-block permutation null, same
 baseline -- puts them on identical axes, so the per-method Pareto frontiers can
 be overlaid and compared directly. This is the point of the module: the frontier
@@ -36,7 +37,7 @@ class DesignSpec:
     Parameters
     ----------
     method : str
-        Originating method, e.g. ``"SYNDES"`` or ``"GEOLIFT"``.
+        Originating method, e.g. ``"SYNDES"`` or ``"LEXSCM"``.
     label : str
         Human-readable design label (shown on the plot).
     contrast : dict
@@ -48,7 +49,7 @@ class DesignSpec:
     oos_rmse : float, optional
         Out-of-sample (holdout) contrast RMSE of the design, when it was
         selected by SYNDES's holdout selector. ``None`` for in-sample SYNDES
-        designs and for GEOLIFT (which has no holdout notion).
+        designs and for methods without a holdout notion.
     """
 
     method: str
@@ -135,7 +136,7 @@ def compare_pareto(
     ----------
     specs : sequence of DesignSpec
         Designs to compare (typically from :func:`from_syndes` and
-        :func:`from_geolift`, run on the same panel).
+        :func:`from_lexscm`, run on the same panel).
     Ywide : pd.DataFrame
         Outcome panel, rows = time, columns = unit labels (the canonical order
         every contrast is aligned to).
@@ -145,8 +146,8 @@ def compare_pareto(
         Post-period horizon for the MDE simulation.
     effects_pct : sequence of float, optional
         Ascending grid of effect sizes as a percent of the treated baseline.
-        Defaults to ``0.25 .. 30`` in 0.25 steps -- the common grid both methods
-        are simulated over.
+        Defaults to ``0.25 .. 30`` in 0.25 steps -- the common grid every method
+        is simulated over.
     alpha, power_target : float
         Two-sided significance level and target power.
 
@@ -219,32 +220,12 @@ def from_syndes(res) -> List[DesignSpec]:
     return [_spec(d, list(np.asarray(d.selected_unit_labels)), "S1")]
 
 
-def from_geolift(res) -> List[DesignSpec]:
-    """Build DesignSpecs from a fitted GEOLIFT result (its candidate designs).
-
-    The treated side is the equal-weighted (``1/K``) average of the selected
-    markets, matching SYNDES's normalised treated weights, so both methods'
-    contrasts share the ``sum(w_treated) = 1`` convention.
-    """
-    specs: List[DesignSpec] = []
-    for cand in res.search.candidates:
-        treated = sorted(cand.candidate)
-        K = len(treated)
-        contrast: Dict[Any, float] = {u: 1.0 / K for u in treated}
-        for u, w in cand.weights.donor_weights.items():
-            contrast[u] = contrast.get(u, 0.0) - float(w)
-        specs.append(DesignSpec(
-            "GEOLIFT", f"G:{'+'.join(map(str, treated))}", contrast, treated,
-        ))
-    return specs
-
-
 def from_lexscm(res) -> List[DesignSpec]:
     """Build DesignSpecs from a fitted LEXSCM result (its candidate search).
 
     The cross-method contrast is ``w_treated - w_control``; the treated side
-    sums to ``+1`` and the control side to ``-1`` -- the same convention as
-    :func:`from_syndes` / :func:`from_geolift`.
+    sums to ``+1`` and the control side to ``-1`` -- the same convention as the
+    other adapters.
 
     Weights are taken from the candidate's full-precision dicts
     (``treated_weight_dict_full`` / ``control_weight_dict_full``), so both sides
@@ -316,14 +297,10 @@ def from_marex(res) -> List[DesignSpec]:
 _SYNDES_DEFAULTS: Dict[str, Any] = dict(
     mode="two_way_global", gap_limit=0.05, time_limit=20.0, run_inference=False,
 )
-_GEOLIFT_DEFAULTS: Dict[str, Any] = dict(
-    effect_sizes=[0.0, 0.1], lookback_window=1, how="mean",
-    fixed_effects=True, ns=200, seed=0, display_graphs=False,
-)
 _LEXSCM_DEFAULTS: Dict[str, Any] = dict(display_graph=False, verbose=False)
 
-# The geographic-design constraint vocabulary, identical across all four method
-# configs (SYNDES / GEOLIFT / LEXSCM / MAREX). ``compare_methods`` routes a single
+# The geographic-design constraint vocabulary, identical across the method
+# configs (SYNDES / LEXSCM / MAREX). ``compare_methods`` routes a single
 # ``constraints`` dict of these to every requested method, so a constraint binds
 # the comparison uniformly instead of having to be hand-coded per method.
 _GEO_CONSTRAINT_KEYS = frozenset({
@@ -346,7 +323,7 @@ class DesignComparison:
         One row per design across all requested methods, with ``method``,
         ``label``, ``treated``, ``fit_rmse``, ``mde_pct`` (at ``horizon``), and a
         per-method ``pareto`` flag -- the dataframe form of the comparison.
-    syndes, geolift, lexscm, marex : optional
+    syndes, lexscm, marex : optional
         The underlying fitted results (``None`` for any method not requested),
         kept for inspection.
     specs : list of DesignSpec
@@ -357,7 +334,6 @@ class DesignComparison:
 
     table: pd.DataFrame
     syndes: Any = None
-    geolift: Any = None
     lexscm: Any = None
     marex: Any = None
     specs: List[DesignSpec] = field(default_factory=list)
@@ -382,15 +358,14 @@ def compare_methods(
     alpha: float = 0.10,
     power_target: float = 0.80,
     effects_pct: Optional[Sequence[float]] = None,
-    methods: Sequence[str] = ("SYNDES", "GEOLIFT"),
+    methods: Sequence[str] = ("SYNDES", "LEXSCM"),
     constraints: Optional[Dict[str, Any]] = None,
     syndes_holdout_frac: Optional[float] = 0.3,
     syndes_options: Optional[Dict[str, Any]] = None,
-    geolift_options: Optional[Dict[str, Any]] = None,
     lexscm_options: Optional[Dict[str, Any]] = None,
     marex_options: Optional[Dict[str, Any]] = None,
 ) -> DesignComparison:
-    """Fit SYNDES, GEOLIFT, LEXSCM, and/or MAREX on one panel and compare them.
+    """Fit SYNDES, LEXSCM, and/or MAREX on one panel and compare them.
 
     A one-call wrapper around the adapters + :func:`compare_pareto`: it fits each
     requested method on the same data with the same treated-set size and post
@@ -404,7 +379,7 @@ def compare_methods(
     outcome, unitid, time : str
         Column names.
     treated_size : int
-        Number of treated units (SYNDES ``K`` and GEOLIFT ``treatment_size``).
+        Number of treated units (e.g. SYNDES ``K``, LEXSCM ``m``, MAREX ``m_eq``).
     horizon : int, default 5
         Post-period horizon for the simulated MDE.
     post_col : str, optional
@@ -417,13 +392,13 @@ def compare_methods(
         Significance level and target power for the MDE.
     effects_pct : sequence of float, optional
         Common effect grid (percent of baseline) for the MDE simulation.
-    methods : sequence of str, default ``("SYNDES", "GEOLIFT")``
-        Which methods to fit and compare. Any of ``"SYNDES"``, ``"GEOLIFT"``,
-        ``"LEXSCM"``, ``"MAREX"``.
+    methods : sequence of str, default ``("SYNDES", "LEXSCM")``
+        Which methods to fit and compare. Any of ``"SYNDES"``, ``"LEXSCM"``,
+        ``"MAREX"``.
     constraints : dict, optional
         Geographic-design constraints applied uniformly to *every* requested
-        method, so a constraint binds the whole comparison (all four methods now
-        honour the same vocabulary). Any of ``to_be_treated`` /
+        method, so a constraint binds the whole comparison (all methods honour
+        the same vocabulary). Any of ``to_be_treated`` /
         ``not_to_be_treated`` (forced-in / forbidden markets), ``cluster_col``
         (no two treated markets from one cluster), ``adjacency`` +
         ``spillover_threshold`` (no two bordering markets treated), ``stratum_col``
@@ -439,7 +414,7 @@ def compare_methods(
         selection (``oos_rmse`` is ``NaN``). Ignored when ``top_K < 2`` (a pool
         is required to validate). An explicit ``holdout_frac`` in
         ``syndes_options`` overrides this.
-    syndes_options, geolift_options, lexscm_options, marex_options : dict, optional
+    syndes_options, lexscm_options, marex_options : dict, optional
         Per-method overrides merged over the defaults (e.g.
         ``{"time_limit": 20.0}`` to give SYNDES a larger budget, or
         ``{"top_K": 8}`` to widen LEXSCM's search). For LEXSCM, ``treated_size``
@@ -456,17 +431,16 @@ def compare_methods(
         ``.table`` (dataframe form) and ``.plot()`` (plot form).
     """
     methods = tuple(methods)
-    unknown = set(methods) - {"SYNDES", "GEOLIFT", "LEXSCM", "MAREX"}
+    unknown = set(methods) - {"SYNDES", "LEXSCM", "MAREX"}
     if unknown:
         raise ValueError(f"Unknown method(s): {sorted(unknown)}; "
-                         "expected any of 'SYNDES', 'GEOLIFT', 'LEXSCM', "
-                         "'MAREX'.")
+                         "expected any of 'SYNDES', 'LEXSCM', 'MAREX'.")
     if not methods:
         raise ValueError("methods must name at least one estimator.")
 
     # Geographic constraints are routed uniformly to every requested method (the
-    # config field names are identical across the four), so a constraint binds the
-    # whole comparison rather than one method. Per-method options still override.
+    # config field names are identical across the methods), so a constraint binds
+    # the whole comparison rather than one method. Per-method options still override.
     constraints = dict(constraints or {})
     unknown_c = set(constraints) - _GEO_CONSTRAINT_KEYS
     if unknown_c:
@@ -495,7 +469,7 @@ def compare_methods(
 
     common = dict(df=df, outcome=outcome, unitid=unitid, time=time,
                   post_col=post_col)
-    syn = gl = lex = mar = None
+    syn = lex = mar = None
     specs: List[DesignSpec] = []
 
     if "SYNDES" in methods:
@@ -519,14 +493,6 @@ def compare_methods(
         sk.update(syn_over)
         syn = SYNDES(sk).fit()
         specs += from_syndes(syn)
-
-    if "GEOLIFT" in methods:
-        from ..estimators.geolift import GEOLIFT
-        gk = {**_GEOLIFT_DEFAULTS, **common, "treatment_size": treated_size,
-              "durations": [n_post_resolved], "alpha": alpha,
-              **constraints, **(geolift_options or {})}
-        gl = GEOLIFT(gk).fit()
-        specs += from_geolift(gl)
 
     if "LEXSCM" in methods:
         from ..estimators.lexscm import LEXSCM
@@ -569,7 +535,7 @@ def compare_methods(
         syn_sorted = table[syn_mask].sort_values("oos_rmse", kind="stable")
         table = pd.concat([syn_sorted, table[~syn_mask]], ignore_index=True)
 
-    return DesignComparison(table=table, syndes=syn, geolift=gl, lexscm=lex,
+    return DesignComparison(table=table, syndes=syn, lexscm=lex,
                             marex=mar, specs=specs, horizon=horizon)
 
 
@@ -582,8 +548,8 @@ def plot_compare_pareto(frame: pd.DataFrame, ax=None):
 
     from .plotting import mlsynth_style
 
-    _METHOD_COLORS = {"SYNDES": "blue", "GEOLIFT": "red"}
-    _palette = ("green", "purple", "orange", "brown")
+    _METHOD_COLORS = {"SYNDES": "blue", "LEXSCM": "red", "MAREX": "green"}
+    _palette = ("purple", "orange", "brown", "olive")
 
     def _draw(ax):
         for k, (method, sub) in enumerate(frame.groupby("method")):
@@ -598,7 +564,7 @@ def plot_compare_pareto(frame: pd.DataFrame, ax=None):
                     label=f"{method} frontier", zorder=3)
         ax.set_xlabel("pre-period RMSE (treated vs weighted control)")
         ax.set_ylabel("simulated MDE %  (lower is better)")
-        ax.set_title("GEOLIFT vs SYNDES: fit vs power at a common horizon")
+        ax.set_title("Design methods: fit vs power at a common horizon")
         ax.legend()
         return ax
 

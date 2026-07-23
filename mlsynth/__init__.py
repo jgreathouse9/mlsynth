@@ -41,7 +41,6 @@ from .utils.design_compare import (
     DesignSpec,
     compare_methods,
     compare_pareto,
-    from_geolift,
     from_syndes,
     plot_compare_pareto,
 )
@@ -81,8 +80,6 @@ from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
 from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
-from .estimators.geolift import GEOLIFT
-from .estimators.multicellgeolift import MULTICELLGEOLIFT
 from .estimators.rolldid import ROLLDID
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
@@ -104,8 +101,6 @@ __all__ = [
     "plot_mde_bars",
     "plot_power_curves",
     "plot_detectability",
-    "GEOLIFT",
-    "MULTICELLGEOLIFT",
     "ROLLDID",
     "HSC",
     "TSSC",
@@ -164,7 +159,6 @@ __all__ = [
     "plot_counterfactual_comparison",
     "compare_pareto",
     "from_syndes",
-    "from_geolift",
     "plot_compare_pareto",
     "DSC",
     "SpSyDiD",

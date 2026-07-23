@@ -75,7 +75,7 @@ inst ebenmichael/augsynth  7a90ea48877fae7925a72cb50bc03a315bc7c042 augsynth  # 
 Rscript -e 'suppressMessages(library(augsynth)); cat("augsynth", as.character(packageVersion("augsynth")), "OK\n")'
 ```
 
-The pinned reference set used by the augsynth cross-checks (PPSCM, GeoLift):
+The pinned reference set used by the augsynth cross-checks (PPSCM, ASCM):
 
 | package    | version  | commit                                     | source              |
 |------------|----------|--------------------------------------------|---------------------|

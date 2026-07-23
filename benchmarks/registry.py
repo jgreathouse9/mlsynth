@@ -124,13 +124,7 @@ CASES = {
     "dsc_dube": "benchmarks.cases.dsc_dube",                  # Path A: DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
-    "geolift_walkthrough": "benchmarks.cases.geolift",  # cross-val vs GeoLift/augsynth: GeoLift_Walkthrough full summary, base + ridge-augmented (ATT/lift/incremental/L2/scaled-L2/%improve/bias/weights/conformal)
-    "geolift_augsynth_ref": "benchmarks.cases.geolift_augsynth_ref",  # cross-val vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
     "pensynth_prop99": "benchmarks.cases.pensynth_prop99",  # cross-val vs LIVE pensynth wsoll1 (Rscript+LowRankQP) on Prop 99 penalized SC (skips if absent)
-    "geolift_cpic": "benchmarks.cases.geolift_cpic",  # cross-val vs GeoLiftMarketSelection: CPIC investment value-for-value
-    "geolift_marketselection": "benchmarks.cases.geolift_marketselection",  # cross-val vs GeoLiftMarketSelection: pooled N=2-5 BestMarkets top-5 ranking (rank/investment/MDE/abs_lift_in_zero)
-    "geolift_marketselection_ref": "benchmarks.cases.geolift_marketselection_ref",  # cross-val vs LIVE GeoLiftMarketSelection (Rscript): BestMarkets top-5 (skips if absent)
-    "geolift_multicell": "benchmarks.cases.geolift_multicell",  # cross-val vs augsynth: multi-cell per-cell ATT + donor exclusion
     "microsynth_seattle": "benchmarks.cases.microsynth_seattle",  # cross-val vs R microsynth panel method (Seattle DMI)
     "scpi_staggered": "benchmarks.cases.scpi_staggered",  # cross-val vs scpi: staggered point estimates (Germany)
     "scpi_staggered_pi": "benchmarks.cases.scpi_staggered_pi",  # cross-val vs scpi: staggered TSUA prediction intervals (Germany)

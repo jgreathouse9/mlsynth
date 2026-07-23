@@ -1,9 +1,9 @@
 """compare_methods routes geographic constraints to every requested method.
 
-All four design methods (SYNDES / GEOLIFT / LEXSCM / MAREX) now honour the same
-constraint vocabulary, so ``compare_methods(constraints=...)`` applies one
-constraint set uniformly and the resulting candidate designs -- whichever method
-produced them -- respect it. These tests pin that routing test-first.
+All design methods (SYNDES / LEXSCM / MAREX) honour the same constraint
+vocabulary, so ``compare_methods(constraints=...)`` applies one constraint set
+uniformly and the resulting candidate designs -- whichever method produced them
+-- respect it. These tests pin that routing test-first.
 """
 from __future__ import annotations
 
@@ -17,11 +17,10 @@ import pytest
 
 from mlsynth.utils.design_compare import compare_methods
 
-_ALL = ("SYNDES", "GEOLIFT", "LEXSCM", "MAREX")
-# keep the MIQP / lexicographic budgets small so the four-method fits stay quick
+_ALL = ("SYNDES", "LEXSCM", "MAREX")
+# keep the MIQP / lexicographic budgets small so the three-method fits stay quick
 _OPTS = dict(
     syndes_options={"time_limit": 3.0, "gap_limit": 0.2},
-    geolift_options={"ns": 80},
     lexscm_options={"top_K": 4, "top_P": 3, "n_sims": 30, "max_shortlist": 4},
     marex_options={"solver": "SCIP"},
 )
@@ -48,7 +47,7 @@ def test_constraints_unknown_key_raises():
     df, n_post = _panel()
     with pytest.raises(ValueError, match="constraint"):
         compare_methods(df, outcome="Y", unitid="unit", time="time",
-                        treated_size=2, n_post=n_post, methods=("GEOLIFT",),
+                        treated_size=2, n_post=n_post, methods=("SYNDES",),
                         constraints={"not_a_real_constraint": 1})
 
 

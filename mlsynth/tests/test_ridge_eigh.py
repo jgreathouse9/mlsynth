@@ -1,4 +1,4 @@
-"""TDD for the eigendecomposition-based ridge path used in GEOLIFT's ridge CV.
+"""TDD for the eigendecomposition-based ridge path used in the ridge CV.
 
 Background
 ----------
@@ -7,7 +7,7 @@ Background
     W_ridge(lambda) = M @ inv(B B^T + lambda I) @ B,   M = A - B W,
 
 inverting an ``m x m`` matrix for *every* lambda. In ``cross_validate`` this is
-called once per (fold, lambda), so the inversion dominates the GEOLIFT design
+called once per (fold, lambda), so the inversion dominates the long-panel design
 (profiling: ``numpy.linalg.inv`` is the top self-time line, one call per
 ``solve_ridge``).
 
@@ -124,7 +124,7 @@ class TestRidgePathParity:
 
 
 class TestRidgePathSvdDual:
-    # Long panels (periods m >> donors J) are the GEOLIFT regime; the path uses
+    # Long panels (periods m >> donors J) are the long-panel regime; the path uses
     # the economy SVD of B (the dual) instead of the m x m eigh there. Must still
     # equal the per-lambda inv solve.
     @pytest.mark.parametrize("m,J", [(80, 35), (90, 37), (120, 40), (50, 10)])

@@ -84,6 +84,6 @@ The remaining files back a single estimator's replication each — e.g.
 (`china_ppi_long.csv`), `dube_minwage.parquet` (Distributional SC),
 `brexit_long.parquet` (PDA Brexit), `state_unemployment.parquet` (SpSyDiD),
 `seattledmi.parquet` (MicroSynth), `kansas_*` (ASCM), `markets/` (the DMA
-contiguity map + metadata for the SYNDES / GEOLIFT / MAREX / LEXSCM geographic
+contiguity map + metadata for the SYNDES / MAREX / LEXSCM geographic
 designs). See each estimator's `docs/replications/<name>.rst` and the
 `benchmarks/cases/<name>.py` that consumes it.

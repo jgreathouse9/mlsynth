@@ -2,7 +2,7 @@
 
 SYNDES selects the treated set by a mixed-integer program over a binary
 assignment vector ``D`` (length ``N``, in ``unit_index`` order). The same
-restriction vocabulary GEOLIFT and LEXSCM expose by *filtering* enumerated
+restriction vocabulary LEXSCM exposes by *filtering* enumerated
 candidate sets maps, for a MIP, to linear constraints on ``D``:
 
 * ``to_be_treated``      -> ``D_i = 1``         (force a unit into the treated set)
@@ -23,10 +23,10 @@ This module translates the label-based config into an index-level
 bundle into cvxpy constraints (:func:`apply_restrictions`). The conflict graph is
 built by the shared :func:`mlsynth.utils.fast_scm_helpers.conflict.build_conflict_matrix`
 (the same one LEXSCM uses), aligned to the ``unit_index``; cluster / stratum /
-size attributes are read with GEOLIFT's
-:func:`~mlsynth.utils.geolift_helpers.marketselect.helpers.constraints.unit_attribute_map`
-and :func:`~...eligible_by_size`, so the vocabulary is identical across the
-three estimators.
+size attributes are read with
+:func:`~mlsynth.utils.syndes_helpers.eligibility.unit_attribute_map`
+and :func:`~mlsynth.utils.syndes_helpers.eligibility.eligible_by_size`, so the
+vocabulary is identical across LEXSCM and SYNDES.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..fast_scm_helpers.conflict import build_conflict_matrix
-from ..geolift_helpers.marketselect.helpers.constraints import (
+from .eligibility import (
     eligible_by_size,
     unit_attribute_map,
 )

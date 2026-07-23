@@ -53,7 +53,6 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         linf_prop99.py              # Path A: dense L-inf weighting vs sparse SC (Prop 99)
         linf_sim.py                 # Path B: L-inf beats SC in dense DGPs (Wang-Xing-Ye Table 4)
         ascm_kansas.py              # cross-val: ridge-ASCM ladder vs augsynth (Kansas)
-        geolift.py                  # cross-val: GeoLift_Walkthrough realized report vs GeoLift/augsynth
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         clone_linfinitysc.py # pin + clone BioAlgs/LinfinitySC (no packaging -> not vendored)
@@ -103,10 +102,9 @@ pip install git+https://github.com/PanJi-0/scmrelax.git                # rescm_r
 
 The R cross-checks (`masc_basque`, `microsynth_seattle`, `nsc_prop99`,
 `pensynth_prop99`, `pda_luxurywatch`, `scmo_concatenated_mc`, `siv_syria_mc`,
-`cwz_*`, and the `geolift_*` cases) need a full R toolchain. In an environment
+and the `cwz_*` cases) need a full R toolchain. In an environment
 where CRAN is blocked, install it with apt + the pinned GitHub-mirror scripts:
-`R/install_augsynth.sh`, `R/install_pensynth.sh`, and `R/install_geolift.sh`
-(the last bakes the heavy `Boom -> bsts -> GeoLift` chain). The end-to-end
+`R/install_augsynth.sh` and `R/install_pensynth.sh`. The end-to-end
 provisioning recipe — network probe, PPA fix, install order, and the gotchas —
 lives in [`agents/agents_benchmarking.md`](../agents/agents_benchmarking.md)
 under "Provisioning and running the full reference stack".

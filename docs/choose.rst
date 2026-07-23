@@ -104,7 +104,7 @@ At a glance
    Care only about the ATT (effect on the treated)? ─► SYNDES · SPCD · weakly-targeted MAREX
    Care about the ATE (population effect)?           ─► MAREX · LEXSCM
    Geo roll-out — every unit treated or control, no pure donors? ─► PANGEO (supergeo)
-   Geo lift test — pick which markets to treat under a budget?    ─► GEOLIFT · MULTICELLGEOLIFT (multi-cell)
+   Geo lift test — pick which markets to treat under a budget?    ─► SYNDES · LEXSCM · MAREX
 
 
 Gate 0 — Identification pre-screen
@@ -821,10 +821,11 @@ relative to randomization and (their Theorem 1) shifts structure from unobserved
 loadings into observed covariates. Vives-i-Bastida (2022) extends that framework
 to multiple outcomes and adds the minimum-detectable-effect machinery and
 practical exclusion / fairness constraints that :doc:`lexscm` uses to optimise
-validity first and power second. The two geo-rollout members -- :doc:`pangeo`
-(no unit left untreated, trajectory-matched supergeos) and :doc:`geolift` /
-:doc:`multicellgeolift` (market selection under a budget) -- are the
-applied-marketing specialisations; the questions below route to each.
+validity first and power second. The geo-rollout member -- :doc:`pangeo`
+(no unit left untreated, trajectory-matched supergeos) -- is the
+applied-marketing specialisation for a full roll-out; market selection under a
+budget is handled by the ATT/ATE designs above (:doc:`syndes`, :doc:`lexscm`,
+:doc:`marex`). The questions below route to each.
 
 Q3.1 · Do you only care about the ATT (the effect on the treated units)?
 
@@ -851,11 +852,14 @@ left over -- as in a geo roll-out?
 Q3.4 · Are you planning a marketing geo-lift test -- pick which markets to treat
 so the untreated markets form a clean control, often under a budget?
 
-* Yes, one treatment cell -- :doc:`geolift` selects the treated markets and
-  reports the design's power / minimum detectable lift.
-* Yes, several treatment cells (e.g. testing more than one creative or spend
-  level at once) -- :doc:`multicellgeolift` extends the selection to multiple
-  cells simultaneously.
+* Yes -- market selection under a budget is handled by the design methods above:
+  :doc:`syndes` selects an exactly-:math:`K` treated set that minimises the ATT
+  estimator's MSE, and :doc:`lexscm` / :doc:`marex` add explicit power /
+  minimum-detectable-effect reports and budget / cost constraints when only a
+  subset of markets is eligible.
+* Several treatment cells at once (e.g. testing more than one creative or spend
+  level) -- run a separate design per cell via :doc:`marex`'s ``cluster`` or
+  :doc:`syndes`'s ``arm``.
 
 Q3.5 · Designing across groups (regions / arms / strata)? Three mechanisms look
 similar but are distinct -- pick by what you want, not by the word "group":
@@ -866,11 +870,11 @@ similar but are distinct -- pick by what you want, not by the word "group":
   study.
 * *One* design representative of *every* group (coverage): the stratum quota
   ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` -- one shared donor
-  pool, one estimand. Honoured by all four design methods; in MAREX it can also
+  pool, one estimand. Honoured by all three design methods; in MAREX it can also
   be expressed as the per-cluster cardinality when each region is its own design.
 * *One* design with geographic / forcing limits: the restriction suite (force
   in/out, border conflict, cluster, coverage quota, size band) is honoured by all
-  four design methods -- SYNDES, GEOLIFT, LEXSCM, and MAREX -- so a constraint
+  three design methods -- SYNDES, LEXSCM, and MAREX -- so a constraint
   binds whichever method (or comparison) you run.
 
 A constraint cannot turn one design into K designs, so ``cluster`` / ``arm`` are
@@ -952,7 +956,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Designing a geo roll-out (no pure donors)
      - :doc:`pangeo`
    * - Designing a geo-lift test (pick markets, one or many cells)
-     - :doc:`geolift`, :doc:`multicellgeolift`
+     - :doc:`syndes`, :doc:`lexscm`, :doc:`marex`
 
 When in doubt, fit two or three of the candidate methods and compare the
 counterfactuals and ATTs. Disagreement is itself diagnostic: it usually means

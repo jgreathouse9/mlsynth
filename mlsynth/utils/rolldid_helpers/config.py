@@ -1,6 +1,6 @@
 """Configuration for the rolling-transformation DiD estimator (ROLLDID).
 
-Co-located with the helper package (mirrors the MAREX / lexscm / geolift
+Co-located with the helper package (mirrors the MAREX / lexscm
 layout). Inherits :class:`BaseEstimatorConfig` (df / outcome / treat / unitid /
 time + panel validation) and adds the rolling-DiD knobs.
 """

@@ -284,7 +284,7 @@ class SYNDESConfig(BaseMAREXConfig):
         description="Maximum number of designs in results.recommendation.shortlist.",
     )
     # ---- design restrictions (geography / clustering / size / forcing) ----
-    # Same vocabulary as GEOLIFT/LEXSCM; translated to linear constraints on the
+    # Same vocabulary as LEXSCM; translated to linear constraints on the
     # MIP assignment vector D. Not supported with mode='two_way_global_annealed'
     # (no MIP) or an 'arm' column (restrictions are global, not per-arm).
     to_be_treated: Optional[List] = Field(

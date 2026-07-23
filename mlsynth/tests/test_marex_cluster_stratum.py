@@ -2,7 +2,7 @@
 
 MAREX already honours forced/forbidden lists, adjacency, size bands and donor
 exclusion (see ``test_marex_restrictions.py``). The two remaining items in the
-SYNDES/GeoLift constraint vocabulary are:
+SYNDES constraint vocabulary are:
 
 * ``cluster_col`` -- at most one treated market per cluster value (a no-two-from-
   one-cluster rule, distinct from MAREX's ``cluster`` design grouping), and

@@ -835,7 +835,7 @@ Design restrictions (geography, clustering, size, forcing)
 ----------------------------------------------------------
 
 Because SYNDES selects the treated set by a MIP over a binary assignment vector
-:math:`D`, the geographic and clustering restrictions GEOLIFT and LEXSCM expose
+:math:`D`, the geographic and clustering restrictions LEXSCM and MAREX expose
 become linear constraints on :math:`D` -- the same vocabulary, enforced exactly
 rather than by filtering enumerated candidates:
 
@@ -1112,8 +1112,8 @@ cost or higher power, then read the chosen entry's ``control_group`` and
 ``design`` weights to deploy it. ``top_K=1`` (default) is unchanged -- only the
 optimum is returned and ``results.pool`` is ``None``.
 
-The example below imports a subset of the GeoLift pre-test panel (the same
-40-market data the :doc:`geolift` page uses) and returns a five-design menu:
+The example below imports a subset of the GeoLift pre-test panel (a public
+40-market marketing dataset) and returns a five-design menu:
 
 .. code-block:: python
 
@@ -1373,10 +1373,10 @@ starred (x-axis: the pre-period RMSE). Panel B can also be drawn on its own with
 :func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`. Both render in
 the in-house mlsynth plot style.
 
-Comparing designs across methods (GEOLIFT vs SYNDES)
+Comparing designs across methods (SYNDES vs LEXSCM)
 ----------------------------------------------------
 
-SYNDES and :doc:`GEOLIFT <geolift>` use different optimisers but share a grammar:
+SYNDES and :doc:`lexscm` use different optimisers but share a grammar:
 each emits a design that reduces to a unit-level contrast
 :math:`\mathbf{c} = \mathbf{w}_{\text{treated}} - \mathbf{w}_{\text{control}}`
 (both sides summing to one) over the same panel. From :math:`\mathbf{c}` two
@@ -1398,7 +1398,7 @@ the alternative, and the power at :math:`\tau` is the share of that shifted null
 clearing the two-sided critical value.
 
 The example fixes the horizon at five post-periods and overlays both frontiers on
-the full native GeoLift ``GeoLift_Test`` panel (all 40 markets):
+a 40-market marketing panel (all 40 markets):
 
 :func:`~mlsynth.compare_methods` is the one-call wrapper: feed it the common
 options (panel, treated-set size, horizon, post window) plus any per-method
@@ -1410,7 +1410,7 @@ returning the comparison in dataframe (``.table``) and plot (``.plot()``) form.
    import pandas as pd
    from mlsynth import compare_methods
 
-   df = pd.read_csv(                                       # full native GeoLift_Test panel
+   df = pd.read_csv(                                       # 40-market marketing panel
        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
        "refs/heads/main/basedata/geolift_test_data.csv"
    )                                                       # all 40 markets
@@ -1418,7 +1418,9 @@ returning the comparison in dataframe (``.table``) and plot (``.plot()``) form.
    cmp = compare_methods(
        df, outcome="Y", unitid="location", time="date",
        treated_size=3, horizon=5, n_post=5, top_K=6,       # only five post-periods
+       methods=("SYNDES", "LEXSCM"),
        syndes_options={"gap_limit": 0.05, "time_limit": 20.0},  # ~2 min for SYNDES
+       lexscm_options={"top_K": 4, "top_P": 3, "n_sims": 40, "max_shortlist": 4},
    )
    print(cmp.table[["method", "label", "fit_rmse", "mde_pct", "pareto"]])
    cmp.plot()                                              # overlaid frontiers
@@ -1426,9 +1428,9 @@ returning the comparison in dataframe (``.table``) and plot (``.plot()``) form.
 ``cmp.table`` has one row per design scored on the shared plane (``fit_rmse``,
 ``mde_pct`` at horizon five) with a per-method ``pareto`` flag, and ``cmp.plot()``
 overlays the two frontiers so you can read directly which method's designs
-dominate, and where. ``cmp.syndes`` and ``cmp.geolift`` keep the underlying fits
+dominate, and where. ``cmp.syndes`` and ``cmp.lexscm`` keep the underlying fits
 for further inspection. To do it by hand instead -- fit each method yourself and
-pass the designs through :func:`~mlsynth.from_syndes` / :func:`~mlsynth.from_geolift`
+pass the designs through :func:`~mlsynth.from_syndes` / :func:`~mlsynth.from_lexscm`
 into :func:`~mlsynth.compare_pareto` -- see those functions.
 
 Verification
@@ -1601,7 +1603,7 @@ Pareto recommendation -- the composite-score selector that builds
    :members:
    :undoc-members:
 
-Cross-method comparison -- score GEOLIFT and SYNDES designs on one shared
+Cross-method comparison -- score SYNDES and LEXSCM designs on one shared
 fit-vs-power plane:
 
 .. automodule:: mlsynth.utils.design_compare

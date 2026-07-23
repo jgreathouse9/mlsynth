@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Install the augsynth reference for benchmarks/cases/geolift_augsynth_ref.py.
+# Install the augsynth reference used by the augsynth-based cross-checks
+# (e.g. benchmarks/cases/ppscm_paglayan.py).
 #
-# GeoLift's GeoLift() is augsynth's ridge Augmented SCM with fixed effects under
-# the hood, so the GeoLift cross-check only needs augsynth -- NOT the heavy
-# GeoLift -> MarketMatching -> bsts -> Boom chain. Verified on Ubuntu + R 4.3.x
+# These cross-checks need only augsynth's ridge Augmented SCM -- NOT the heavy
+# MarketMatching -> bsts -> Boom chain. Verified on Ubuntu + R 4.3.x
 # in a sandbox where CRAN is blocked but apt and GitHub are open: apt for the
 # prebuilt majority, compile the non-apt leaves from the GitHub cran mirror.
 #
 # COMMIT-PINNED (frozen 2026-06-12) so the bit-for-bit cross-check runs the SAME
 # reference code every time -- augsynth's master is active dev, and an unpinned
-# tip is exactly the version drift that made GeoLift's vignette ATT (155.556) go
-# stale. To refresh the reference, bump the SHAs below and re-pin the expected
-# numbers in benchmarks/cases/geolift_augsynth_ref.py.
+# tip is exactly the version drift that makes a pinned vignette ATT go stale.
+# To refresh the reference, bump the SHAs below and re-pin the expected numbers
+# in the relevant benchmarks/cases/*.py.
 #
 #   augsynth   0.2.0     7a90ea48877fae7925a72cb50bc03a315bc7c042  (ebenmichael/augsynth)
 #   osqp       1.0.0     260dc73e1e3d07ccb7dbff85b62eaaf483672394  (cran/osqp)
