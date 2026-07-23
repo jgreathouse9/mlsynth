@@ -142,7 +142,7 @@ def run() -> dict:
             dense_cum_reldiff.append(reldiff)
             dense_smds.append(smd)          # well-conditioned: exact balance
         if key in ("Central/Total/allcrime", "Eastern/Outdoor/person"):
-            pins[f"{key}/att"] = float(res.att_value)
+            pins[f"{key}/att"] = float(res.att)
             pins[f"{key}/ess"] = float(res.design.ess)
 
     out = {
