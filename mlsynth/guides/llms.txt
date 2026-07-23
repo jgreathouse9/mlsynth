@@ -32,6 +32,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)
 - **CSCIPCA** — Counterfactual and Synthetic Control with Instrumented PCA (Wang 2024).  (config: CSCIPCAConfig)
+- **CSCM** — Flexible count synthetic control estimator (Bonander 2021).  (config: CSCMConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
 - **CounterfactualComparison** — Result of :func:`compare_counterfactuals`.
 - **DPSC** — Differentially private synthetic control estimator.  (config: DPSCConfig)

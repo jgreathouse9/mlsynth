@@ -64,6 +64,7 @@ from .estimators.bpscs import BPSCS
 from .estimators.mlsc import MLSC
 from .estimators.seq_sdid import SequentialSDID
 from .estimators.ppscm import PPSCM
+from .estimators.cscm import CSCM
 from .estimators.sparse_sc import SparseSC
 from .estimators.microsynth import MicroSynth
 from .estimators.siv import SIV
@@ -144,6 +145,7 @@ __all__ = [
     "SPOTSYNTH",
     "SequentialSDID",
     "PPSCM",
+    "CSCM",
     "SparseSC",
     "MicroSynth",
     "SIV",
