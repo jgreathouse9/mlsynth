@@ -59,6 +59,36 @@ def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
     return np.asarray(w.value).ravel()
 
 
+def split_conformal_quantile(residuals, alpha: float = 0.05) -> float:
+    r"""Split-conformal prediction-band half-width (Chernozhukov, Wuthrich & Zhu 2021).
+
+    Returns ``q``, the constant half-width of the symmetric prediction band
+    ``counterfactual +/- q``: the ``ceil((n+1)(1-alpha))``-th order statistic of
+    the absolute pre-period residuals (gaps). Under exchangeability of the
+    residuals this band has finite-sample :math:`(1-\alpha)` coverage. When
+    ``n < ceil(1/alpha) - 1`` the required order statistic does not exist and
+    ``q`` is ``+inf`` (an uninformative band).
+
+    This is the constant-width "split" construction used by R ``Synth``'s
+    ``synth_inference(method = "conformal")`` (Hainmueller's j-hai/Synth), as
+    distinct from the test-inversion conformal band (which widens over the
+    post-period).
+
+    Parameters
+    ----------
+    residuals : array-like
+        Pre-treatment gaps (treated minus synthetic), one per pre-period.
+    alpha : float
+        Miscoverage level in ``(0, 1)``; the band targets ``1 - alpha`` coverage.
+    """
+    r = np.sort(np.abs(np.asarray(residuals, dtype=float)))
+    n = r.size
+    if n == 0:
+        return float("inf")
+    k = int(np.ceil((n + 1) * (1.0 - alpha)))
+    return float(r[k - 1]) if k <= n else float("inf")
+
+
 def debiased_sc_ttest(
     y: np.ndarray,
     Y0: np.ndarray,
