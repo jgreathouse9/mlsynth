@@ -8,7 +8,13 @@ runnable R replication package: eight ``microsynth`` scripts + panels). ``MicroS
 JSS v97i02). This case cross-checks the two implementations on the study's four
 treated police districts x two panels (total / outdoor) x four headline outcomes
 (all-crime / person / property / shooting) -- 32 micro-synthetic control models,
-each a 7,000-8,000 block x 54-124 period panel.
+each a 7,000-8,000 block x 54-124 period panel. Under the full-trajectory match
+this cross-check uses (config A, below), four of the 32 -- the Eastern and
+Western shooting panels, the sparsest (a few dozen events over 62 pre-periods
+and ~7,600 blocks) -- error out inside R ``microsynth`` itself
+(``missing value where TRUE/FALSE needed``); mlsynth fits all four. (The authors'
+published tables used the lighter aggregate match ``match.out.min``, which R does
+fit.) The cross-check therefore covers the 28 models R can fit under config A.
 
 What is and isn't identified (the headline finding)
 ---------------------------------------------------
@@ -36,9 +42,9 @@ identifies and *quantifies* the under-identified gap rather than asserting it
 away:
 
 * dense outcomes (all-crime / person / property): the cumulative counterfactual
-  level agrees with R to ~1-2%;
-* the sparse outcome (shooting: ~50-230 events over the whole treated area and
-  window) diverges more (~10-15% cumulative), the largest under-identification;
+  level agrees with R to ~0.5% (median) / ~1.8% (max);
+* the sparse outcome (shooting, of the four panels R can fit): diverges to
+  ~12% cumulative, the largest under-identification;
 * the per-period allocation of a fixed cumulative wanders most (the two solvers
   split the cumulative differently period to period).
 
@@ -202,16 +208,31 @@ def comparison() -> dict:
 #     under-identification -- asserted to sit in a band, NOT at zero, so a
 #     regression that accidentally tightened or blew up the gap would trip it.
 EXPECTED: dict = {
-    # --- identified quantities: mlsynth == R exactly (data-invariant) ---
+    # --- identified quantities: mlsynth == R exactly ---
+    # Treated totals are pure data; weights sum to the treated count; covariate
+    # balance is machine-exact on every cross-validated model. Tight guards.
     "treated_total_max_abs_diff_vs_R": (0.0, 1e-6),
     "weight_sum_max_dev": (0.0, 1e-6),
-    "dense_covariate_max_smd": (0.0, 5e-3),
+    "dense_covariate_max_smd": (0.0, 1e-4),
+    "shooting_covariate_max_smd": (0.0, 1e-4),
+    # --- cross-validation of the cumulative counterfactual LEVEL ---
+    # Dense outcomes agree to ~0.5% (median) / ~1.8% (max) over the two solvers'
+    # spread on the aggregate-identified level. The band brackets that spread and
+    # any ridge-QP iterate drift, but trips if a regression collapsed the gap to
+    # zero or blew it past a few percent.
+    "dense_cum_control_max_reldiff_vs_R": (0.018, 0.010),
+    "dense_cum_control_median_reldiff_vs_R": (0.005, 0.005),
+    # --- documented under-identification (shooting): a band, NOT ~0 ---
+    # The sparse outcome is where the unidentified counterfactual bites hardest.
+    # Asserting it sits near ~12% (not at 0) is the point of the case.
+    "shooting_cum_control_max_reldiff_vs_R": (0.118, 0.050),
     # --- deterministic mlsynth descriptors (regression guards) ---
-    "Central/Total/allcrime/att": (15.3489, 5e-2),
-    "Central/Total/allcrime/ess": (710.91, 5.0),
-    # NOTE: the cross-validation + documented-divergence tolerances
-    # (dense_cum_control_max/median_reldiff_vs_R, shooting_cum_control_max_reldiff_vs_R,
-    # shooting_covariate_max_smd, Eastern/Outdoor/person/{att,ess}, n_models) are
-    # appended once the full 32-model config-A R capture completes and reference.json
-    # covers all districts.
+    "Central/Total/allcrime/att": (15.35, 0.5),
+    "Central/Total/allcrime/ess": (710.9, 25.0),
+    "Eastern/Outdoor/person/att": (6.97, 0.5),
+    "Eastern/Outdoor/person/ess": (1397.2, 30.0),
+    # 28 of the 32 models: the 4 sparsest shooting panels (Eastern/Western)
+    # exceed R microsynth's own numerical tolerance and error out; mlsynth fits
+    # them, but they are outside the cross-validated reference set.
+    "n_models": (28, 0),
 }

@@ -76,6 +76,12 @@ write_fit <- function(df) {
   .wrote_header <<- TRUE
 }
 
+# NB: under config A (full-trajectory match.out) the Eastern and Western
+# *shooting* panels -- the sparsest, a few dozen events over 62 pre-periods --
+# abort inside microsynth with "missing value where TRUE/FALSE needed". The
+# tryCatch in the loop below records the failure and moves on; the config-A
+# reference therefore covers 28 of the 32 models. Config B (match.out.min) fits
+# all 32 (the authors' published tables use it).
 run_one <- function(dat, outcome, pre, npost, config) {
   # config "A": full-trajectory match.out; "B": paper's aggregate match.out.min
   common <- list(dat, idvar = "masterid", timevar = "timeperiod", intvar = "intvar",

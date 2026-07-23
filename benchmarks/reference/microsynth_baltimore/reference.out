@@ -1,0 +1,35 @@
+microsynth version: 2.0.51 
+done Central       Total   allcrime  cfg=A (54 periods)
+done Central       Total   person    cfg=A (54 periods)
+done Central       Total   property  cfg=A (54 periods)
+done Central       Total   shooting  cfg=A (54 periods)
+done Central       Outdoor allcrime  cfg=A (54 periods)
+done Central       Outdoor person    cfg=A (54 periods)
+done Central       Outdoor property  cfg=A (54 periods)
+done Central       Outdoor shooting  cfg=A (54 periods)
+done Eastern       Total   allcrime  cfg=A (124 periods)
+done Eastern       Total   person    cfg=A (124 periods)
+done Eastern       Total   property  cfg=A (124 periods)
+ERROR Eastern Total shooting A : missing value where TRUE/FALSE needed 
+done Eastern       Outdoor allcrime  cfg=A (124 periods)
+done Eastern       Outdoor person    cfg=A (124 periods)
+done Eastern       Outdoor property  cfg=A (124 periods)
+ERROR Eastern Outdoor shooting A : missing value where TRUE/FALSE needed 
+done Southwestern  Total   allcrime  cfg=A (84 periods)
+done Southwestern  Total   person    cfg=A (84 periods)
+done Southwestern  Total   property  cfg=A (84 periods)
+done Southwestern  Total   shooting  cfg=A (84 periods)
+done Southwestern  Outdoor allcrime  cfg=A (84 periods)
+done Southwestern  Outdoor person    cfg=A (84 periods)
+done Southwestern  Outdoor property  cfg=A (84 periods)
+done Southwestern  Outdoor shooting  cfg=A (84 periods)
+done Western       Total   allcrime  cfg=A (124 periods)
+done Western       Total   person    cfg=A (124 periods)
+done Western       Total   property  cfg=A (124 periods)
+ERROR Western Total shooting A : missing value where TRUE/FALSE needed 
+done Western       Outdoor allcrime  cfg=A (124 periods)
+done Western       Outdoor person    cfg=A (124 periods)
+done Western       Outdoor property  cfg=A (124 periods)
+ERROR Western Outdoor shooting A : missing value where TRUE/FALSE needed 
+There were 36 warnings (use warnings() to see them)
+wrote reference -> benchmarks/reference/microsynth_baltimore/ref_configA.csv 

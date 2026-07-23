@@ -1,7 +1,7 @@
 .. _replication-microsynth-baltimore:
 
 MicroSynth — Baltimore crime information centers (Lawrence et al. 2026)
-======================================================================
+=======================================================================
 
 :Estimator: :doc:`../microsynth` — :class:`mlsynth.MicroSynth`
    (``weight_method="panel"``)
@@ -14,7 +14,8 @@ MicroSynth — Baltimore crime information centers (Lawrence et al. 2026)
 :Replication type: cross-validation against the authors' reference tool
    (R ``microsynth``), input scenario 3 (full runnable replication package).
 :Status: identified quantities reproduced exactly; the under-identified
-   counterfactual quantified.
+   counterfactual quantified (28 of 32 models — R aborts on the 4 sparsest
+   shooting panels under this match).
 
 Why this case exists
 --------------------
@@ -80,10 +81,10 @@ So this case cross-validates what the data identifies and measures the rest:
      - exact
      - identified
    * - Cumulative counterfactual, dense outcomes
-     - agree to ``~1–2%``
+     - agree to ``~0.5%`` median, ``~1.8%`` max
      - well-identified in aggregate
    * - Cumulative counterfactual, shootings
-     - differ ``~10–15%``
+     - differ ``~12%``
      - sparse; largest under-identification
    * - Per-period counterfactual
      - differ most
@@ -94,6 +95,17 @@ you that with this many controls and this few binding totals, the counterfactual
 level is aggregate-identified but its period-by-period shape, and its level for
 rare outcomes, are not. mlsynth's ridge makes the reported estimate a
 well-defined function of the data; R's is whatever the solver returns.
+
+The cross-check covers 28 of the 32 models. Under the full-trajectory match this
+check uses, the other four — the Eastern and Western shooting panels, the
+sparsest in the study (a few dozen events spread over 62 pre-periods and ~7,600
+blocks) — abort inside R ``microsynth`` with ``missing value where TRUE/FALSE
+needed`` before returning any weights. mlsynth fits all four (its ridge QP is not
+tripped by the degeneracy), so the reference set is bounded by what R can
+produce, not by what mlsynth can. The study's own tables report these four,
+because the authors matched the outcome only in aggregate (``match.out.min``),
+a lighter constraint R can fit; matching the full pre-period trajectory is what
+tips these panels over R's numerical edge.
 
 A dividend: a typo in the published appendix
 --------------------------------------------
