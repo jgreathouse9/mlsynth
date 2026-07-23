@@ -1,0 +1,11 @@
+{
+ "case": "synth_jhai_prop99",
+ "title": "VanillaSC vs j-hai/Synth (Prop 99 + split-conformal)",
+ "paper": "Abadie, Diamond & Hainmueller (2010) JASA 105(490); R Synth (Hainmueller, j-hai/Synth 1.2.0)",
+ "reference_impl": "R Synth j-hai/Synth 1.2.0 (synth + synth_inference)",
+ "path_type": "cross-validation",
+ "command": "Rscript benchmarks/R/synth_jhai_prop99.R basedata/augmented_cali_long.csv benchmarks/reference/synth_jhai_prop99",
+ "data": [
+  "basedata/augmented_cali_long.csv"
+ ]
+}
