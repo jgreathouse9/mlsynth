@@ -1,0 +1,11 @@
+{
+  "case": "secession_scm",
+  "title": "Lost-autonomy triggers & secessionism: VanillaSC reproduces the paper's SCM finding (Catalonia 2010, Faroe 1994)",
+  "paper": "Schulte, Scantamburlo & Ackren (2026), 'Lost autonomy triggers and the rise of secessionism', European Political Science Review 18:175-193, DOI 10.1017/S175577392510026X",
+  "reference_impl": "authors' replication: SyntheticControlMethods Python package (Synth, pen='auto', n_optim=100, covariate predictors) -- published synthetic series shipped in the bundle",
+  "path_type": "Path A (paper's empirical finding on the authors' data) + tracks the authors' published synthetic series",
+  "data": [
+    "basedata/secession_autonomy.csv"
+  ],
+  "data_source": "authors' Replication_files/dataset.xlsx (13 European autonomous regions, 1975-2021; compiled from public sources: Regional Authority Index, V-Dem, GDP/unemployment)"
+}

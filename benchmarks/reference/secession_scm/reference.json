@@ -1,0 +1,9 @@
+{
+  "values": {
+    "cat_paper_pre_rmse": 2.853587,
+    "cat_paper_att": 23.872233,
+    "far_paper_pre_rmse": 5.051909,
+    "far_paper_att": 26.770818
+  },
+  "weights": {}
+}
