@@ -15,6 +15,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ...config_models import BaseEstimatorConfig
 
+# Recognized string values for ``VanillaSCConfig.inference`` (besides the bools
+# ``True`` -> in-space placebo and ``False`` -> disabled). Kept as the single
+# source of truth so an unknown/misspelled value fails loudly at config time
+# rather than silently returning no inference.
+VALID_INFERENCE_METHODS = frozenset(
+    {"placebo", "scpi", "conformal", "lto", "ttest", "eiv", "none"}
+)
+
 
 class StaggeredSCMSpec(BaseModel):
     """Covariate (multi-feature) matching spec for staggered VanillaSC.
@@ -209,6 +217,27 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "2025 debiased SC t-test for the ATT), 'eiv' (Hirshberg 2021 "
                     "error-in-variables normal/t prediction intervals), or False.",
     )
+    @field_validator("inference")
+    @classmethod
+    def _validate_inference(cls, v):
+        """Reject unknown ``inference`` values so a typo never silently
+        disables inference; normalize strings to lower case."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            low = v.strip().lower()
+            if low not in VALID_INFERENCE_METHODS:
+                raise ValueError(
+                    f"inference={v!r} is not a recognized inference method. "
+                    f"Use a bool (True -> in-space placebo, False -> off) or one "
+                    f"of: {', '.join(sorted(VALID_INFERENCE_METHODS))}."
+                )
+            return low
+        raise ValueError(
+            "inference must be a bool or one of "
+            f"{', '.join(sorted(VALID_INFERENCE_METHODS))}."
+        )
+
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
         description="Level (placebo confidence / SCPI alpha1 = alpha2).",

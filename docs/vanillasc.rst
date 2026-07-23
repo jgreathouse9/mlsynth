@@ -240,6 +240,24 @@ Inference
 
 Five inference modes are available via ``inference=``:
 
+Each mode returns one kind of output, and the fit always tells you which.
+``"placebo"``, ``"lto"`` and ``"ttest"`` are tests: they return a p-value (the
+t-test also returns an ATT confidence interval). ``"conformal"``, ``"scpi"`` and
+``"eiv"`` are prediction intervals: they return the per-period counterfactual
+bands on ``res.time_series`` (``counterfactual_lower`` / ``counterfactual_upper``)
+and the gap intervals in ``res.inference.details``. In every case
+``res.inference.method`` names the procedure that produced the numbers, so a band
+or p-value is never anonymous.
+
+Two guards keep the choice unambiguous rather than surprising. An unrecognized
+``inference=`` value raises ``MlsynthConfigError`` listing the valid ones, so a
+typo such as ``inference="scpii"`` fails loudly instead of silently disabling
+inference. And a valid mode that cannot be computed on the given panel -- for
+example ``inference="placebo"`` with a single donor, which admits no placebo
+distribution -- emits a warning and returns an ``InferenceResults`` whose
+``method`` states that it was not computed, and why, instead of a silent
+``None``. Only ``inference=False`` returns no inference object.
+
 ``"placebo"`` (default, ``inference=True``)
     Abadie's in-space placebo test: the synthetic control is refit treating
     each donor as pseudo-treated, and the treated unit's post/pre RMSPE ratio

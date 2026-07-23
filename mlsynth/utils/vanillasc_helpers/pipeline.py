@@ -503,6 +503,31 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Never leave a requested-but-uncomputable inference as a silent ``None``: a
+    # valid mode whose preconditions were not met (too few donors, no
+    # post-periods) returns an explanatory ``InferenceResults`` plus a warning,
+    # so the caller is never surprised by a missing band or p-value. ``"none"``
+    # (``inference=False``) is an explicit opt-out and stays ``None``.
+    if inference is None and mode != "none":
+        if not gap[pre:].size:
+            reason = "there are no post-treatment periods"
+        elif mode == "placebo":
+            reason = f"in-space placebo needs >=2 donors (this panel has {J})"
+        elif mode == "lto":
+            reason = f"leave-two-out needs >=3 donors (this panel has {J})"
+        else:  # pragma: no cover - band/ttest modes only skip on empty post window
+            reason = "its preconditions were not met on this panel"
+        warnings.warn(
+            f"VanillaSC inference={mode!r} was requested but not computed: "
+            f"{reason}. No band or p-value is available.",
+            UserWarning, stacklevel=2,
+        )
+        inference = InferenceResults(
+            confidence_level=1.0 - config.alpha,
+            method=f"{mode} (requested but not computed: {reason})",
+            details={"requested": mode, "computed": False, "reason": reason},
+        )
+
     weights = make_weights_results(
         res.donor_weights,
         constraint=("simplex (non-negative, sum to 1)"),
