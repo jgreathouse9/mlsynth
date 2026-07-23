@@ -63,6 +63,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/synth_jhai_prop99
    replications/ibex
    replications/secession
+   replications/ferman
    replications/ascm_kansas
    replications/pensynth
    replications/sparse_sc

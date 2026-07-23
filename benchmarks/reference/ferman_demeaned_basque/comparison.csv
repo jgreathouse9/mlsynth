@@ -1,0 +1,14 @@
+# case: ferman_demeaned_basque
+# generated_at: 2026-07-23T22:37:35Z
+# mlsynth_version: 1.0.0
+# estimator: TSSC
+# config: {"outcome": "gdpcap", "time": "year", "treat": "treat", "treat_year": 1975, "unitid": "regionname"}
+# reference_impl: authors' _aux.R :: synth_control_est_demean (quadprog QP, live via Rscript)
+# reference_version: Ferman & Pinto (2021), Quantitative Economics 12:1197-1221
+quantity,mlsynth,reference,abs_diff
+Cataluna weight,0.5605,0.5605,0.0
+Rioja weight,0.2792,0.2792,0.0
+Asturias weight,0.1064,0.1064,0.0
+Madrid weight,0.0539,0.0539,0.0
+free intercept,0.5922,0.5922,0.0
+ATT (GDP per capita),-0.797,-0.7966,0.0004

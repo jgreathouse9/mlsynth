@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-07-23T14:00:00Z",
+  "git_sha": "89ff838056160ca5c867e7b37f9940d5f8de7f96",
+  "platform": "Linux-6.18.5-fc-v15-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/ferman_demeaned_basque/reference.R basedata/basque_data.csv",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "data": [
+    {
+      "path": "basedata/basque_data.csv",
+      "sha256": "54dfc49971c96d809072c98d5f951ac3e20b50935756f1190b0f0b4ee79ef39c"
+    }
+  ]
+}
