@@ -84,6 +84,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/scd
    replications/rolldid
    replications/ppscm
+   replications/cscm
    replications/snn
    replications/syndes
    replications/spcd

@@ -597,6 +597,7 @@ _RELOCATED_CONFIGS = {
     "SparseSCConfig": "mlsynth.utils.sparse_sc_helpers.config",
     "MicroSynthConfig": "mlsynth.utils.microsynth_helpers.config",
     "PPSCMConfig": "mlsynth.utils.ppscm_helpers.config",
+    "CSCMConfig": "mlsynth.utils.cscm_helpers.config",
     "SequentialSDIDConfig": "mlsynth.utils.seq_sdid_helpers.config",
     "SHCConfig": "mlsynth.utils.shc_helpers.config",
     "MLSCConfig": "mlsynth.utils.mlsc_helpers.config",
