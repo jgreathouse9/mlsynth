@@ -94,6 +94,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/marex
    replications/dsc
    replications/microsynth
+   replications/microsynth_baltimore
    replications/cfm
    replications/cscipca
    replications/medsc

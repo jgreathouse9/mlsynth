@@ -1,0 +1,23 @@
+{
+  "tool": "R microsynth (Robbins, Saunders & Kilmer 2017)",
+  "r_version": "4.3.3",
+  "packages": {
+    "microsynth": "2.0.51",
+    "LowRankQP": "1.0.6",
+    "nanoparquet": "0.5.1"
+  },
+  "os": "Ubuntu 24.04.4 LTS",
+  "mlsynth_git_sha": "396d3a9fe1e9562af00a2d75d356d68923729fde",
+  "config": "A = match.out=c(outcome) (full pre-period trajectory) + match.covar=cov.var; perm=0, use.survey=FALSE -- identical constraint set to mlsynth MicroSynth(weight_method='panel', outcome_lag_periods=full pre-window)",
+  "install_route": "git clone github.com/cran/{LowRankQP,microsynth,nanoparquet} + R CMD INSTALL (codeload proxy-gated; git clone allowed -- see install_propsdid.sh)",
+  "data_sha256": {
+    "BCIC_Central_All Crime.parquet": "3f02208dc1851f9c73282ed73cb622fc07a491f789f9d529abf1f365617d6057",
+    "BCIC_Central_Outside Crime.parquet": "871152b09a16466ac4398d0dddc0f4dfeffb3148067e1f9540c3b3a238412e3e",
+    "BCIC_Eastern_All Crime.parquet": "bf9e75de224d41b63da5e815448de5de82c15558e10624a981aee6c95fd43978",
+    "BCIC_Eastern_Outside Crime.parquet": "f7cb590b7544a64e272db43e0ca71e35e61f19421bf0c0ab23b770e1b5b189c6",
+    "BCIC_Southwestern_All Crime.parquet": "8d7431a5655c950f5321f669d4655f7e276944f8c2112d1ae43a86bec9f344c7",
+    "BCIC_Southwestern_Outside Crime.parquet": "b6f95df0f01415179dd6f95effa727b939965423c6a43401cfd7f78c1fbd8ab4",
+    "BCIC_Western_All Crime.parquet": "1d73366e1277074e286c2eedb99f182a25b91f502fe49ac115dd46868b8e28c6",
+    "BCIC_Western_Outside Crime.parquet": "1aee1e53ad86a326186281b1577c186e2055169537c64db138b8ffc86aa9bab5"
+  }
+}

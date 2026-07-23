@@ -1,0 +1,18 @@
+{
+  "case": "microsynth_baltimore",
+  "title": "MicroSynth panel method vs R microsynth (Baltimore BCIC, Lawrence et al. 2026)",
+  "paper": "Lawrence, Peterson & March (2026), J. Criminal Justice 102:102572, doi:10.1016/j.jcrimjus.2025.102572",
+  "reference_impl": "R microsynth 2.0.51 (Robbins, Saunders & Kilmer 2017), config A = full-trajectory match.out (identical constraints to mlsynth)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/R/microsynth_baltimore.R basedata/bcic_baltimore benchmarks/reference/microsynth_baltimore/ref_configA.csv A",
+  "data": [
+    "basedata/bcic_baltimore/BCIC_Central_All Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Central_Outside Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Eastern_All Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Eastern_Outside Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Southwestern_All Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Southwestern_Outside Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Western_All Crime.parquet",
+    "basedata/bcic_baltimore/BCIC_Western_Outside Crime.parquet"
+  ]
+}
