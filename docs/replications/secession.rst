@@ -92,9 +92,10 @@ fit trades a little of that for predictor balance and regularisation. When
 mlsynth is put on the same regularised footing (``backend="penalized"`` or
 ``"mscmt"`` with the paper's covariates) it lands right around the authors' fit.
 
-Because the cross-package agreement is approximate, this case is a Path-A finding
-replication rather than a tight cross-validation, and it is not listed on the
-value-for-value :doc:`../validation` dashboard.
+Because the cross-package agreement is approximate, this case appears on the
+:doc:`../validation` dashboard as a ``documented`` row -- an honest cross-package
+comparison (same finding, different SC engine, about fifteen percent apart on the
+ATT) rather than a value-for-value ``exact`` or ``tight`` match.
 
 Verification
 ------------

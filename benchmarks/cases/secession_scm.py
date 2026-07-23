@@ -24,9 +24,10 @@ mlsynth's synthetic tracks the authors' published series with correlation ~0.92
 post-trigger secessionist surge in both regions (mlsynth ATT +28 / +24 vs the
 paper's +24 / +27). mlsynth's outcome-only pre-treatment fit is a touch tighter
 than the authors' penalized fit in both cases. This case pins the reproducible
-(deterministic) mlsynth quantities and the correlation with the authors' output;
-it is a Path-A finding replication, not a tight cross-validation, so it is not on
-the value-for-value dashboard.
+(deterministic) mlsynth quantities and the correlation with the authors' output,
+and reports the mlsynth-vs-authors comparison on the validation dashboard as a
+``documented`` row -- an honest cross-package comparison (same finding, different
+SC engine, ~15% apart on the ATT), not a value-for-value match.
 
 Provenance: Schulte, Scantamburlo & Ackren (2026) EPSR, DOI
 10.1017/S175577392510026X; data and published synthetic series from the authors'
@@ -109,6 +110,38 @@ def run() -> dict:
         # Catalonia is the extreme case under the in-space RMSPE-ratio placebo
         "cat_placebo_p": cat["placebo_p"],
         "cat_top_south_tyrol": float(cat["top_donor"] == "South Tyrol"),
+    }
+
+
+def comparison() -> dict:
+    """mlsynth ``VanillaSC`` (outcome-only) vs the authors' published
+    ``SyntheticControlMethods`` synthetic on the two treated regions. Both reach
+    the paper's finding -- a large post-trigger secessionist surge -- but the
+    reference is a different engine (``Synth``, ``pen="auto"`` + covariates, one
+    hundred random restarts), so this is an honest cross-package comparison
+    (same finding, ~15% apart on the ATT), a ``documented`` match rather than a
+    value-for-value one. The reference numbers are captured from the authors'
+    replication files under ``benchmarks/reference/secession_scm/``."""
+    cat = _summary("Catalonia", 2010)
+    far = _summary("Faroe Islands", 1994)
+    rows = [
+        {"quantity": "Catalonia — post-2010 ATT (surge)", "mlsynth": round(cat["att"], 3),
+         "reference": round(_REF["cat_paper_att"], 3)},
+        {"quantity": "Faroe Islands — post-1994 ATT (surge)", "mlsynth": round(far["att"], 3),
+         "reference": round(_REF["far_paper_att"], 3)},
+        {"quantity": "Catalonia — pre-2010 fit RMSE", "mlsynth": round(cat["pre_rmse"], 3),
+         "reference": round(_REF["cat_paper_pre_rmse"], 3)},
+        {"quantity": "Faroe Islands — pre-1994 fit RMSE", "mlsynth": round(far["pre_rmse"], 3),
+         "reference": round(_REF["far_paper_pre_rmse"], 3)},
+    ]
+    cfg = {k: v for k, v in _MLSYNTH_KW.items() if k != "display_graphs"}
+    return {
+        "rows": rows,
+        "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
+        "reference": {
+            "impl": "authors' replication: SyntheticControlMethods (Synth, pen='auto' + covariates)",
+            "version": "Schulte, Scantamburlo & Ackren (2026) EPSR, DOI 10.1017/S175577392510026X",
+        },
     }
 
 

@@ -1,0 +1,12 @@
+# case: secession_scm
+# generated_at: 2026-07-23T12:54:17Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "outcome-only", "inference": "placebo", "outcome": "av_sec1_all", "seed": 123, "time": "year", "treat": "treat", "unitid": "region_name"}
+# reference_impl: authors' replication: SyntheticControlMethods (Synth, pen='auto' + covariates)
+# reference_version: Schulte, Scantamburlo & Ackren (2026) EPSR, DOI 10.1017/S175577392510026X
+quantity,mlsynth,reference,abs_diff
+Catalonia — post-2010 ATT (surge),27.969,23.872,4.097
+Faroe Islands — post-1994 ATT (surge),23.898,26.771,2.873
+Catalonia — pre-2010 fit RMSE,2.664,2.854,0.19
+Faroe Islands — pre-1994 fit RMSE,4.918,5.052,0.134
