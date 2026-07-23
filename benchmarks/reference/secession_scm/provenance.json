@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-07-23T13:00:00Z",
+  "git_sha": "d885782f43c721df140969edba7a2f3d52450232",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "reference": "authors' Replication_files (SyntheticControlMethods Synth, pen='auto', seed 123, n_optim=100)",
+  "note": "mlsynth's canonical config is backend='outcome-only' (deterministic convex simplex fit); the authors' penalized+covariate Synth is a different implementation, so the agreement is close (corr ~0.75-0.92, ATT within ~15%), not value-for-value. Reproducible numbers pinned; paper synthetic series shipped for the correlation check.",
+  "data": [
+    {
+      "path": "basedata/secession_autonomy.csv",
+      "sha256": "b3509727778ebaf5c7b7869e246b950cac04e97f34c0d4a6bf2139b34c027870"
+    }
+  ]
+}

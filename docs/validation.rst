@@ -9,7 +9,7 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **62 cross-validation checks** against original
+Coverage: **63 cross-validation checks** against original
 implementations across **36 estimators** -- 27 reproduce the reference to display precision, 22 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
@@ -170,9 +170,9 @@ Summary
      - 1 documented
      - 25
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 11
-     - 5 exact · 4 tight · 2 close
-     - 0.11
+     - 12
+     - 5 exact · 4 tight · 2 close · 1 documented
+     - 4.1
 
 .. _val-beast:
 
@@ -1109,6 +1109,12 @@ VanillaSC
      - 4.3e-05
      - exact — matches to display precision
      - `scpi_staggered <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scpi_staggered.py>`__
+   * - authors' replication: SyntheticControlMethods (Synth, pen='auto' + covariates)
+     - ``secession_autonomy.csv`` (b3509727778e…)
+     - 4
+     - 4.1
+     - documented — see notes
+     - `secession_scm <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/secession_scm.py>`__
    * - `R package Synth::synth <https://CRAN.R-project.org/package=Synth>`__
      - ``california_panel.csv`` (9d6a73e21f1a…)
      - 8

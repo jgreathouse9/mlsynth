@@ -97,6 +97,8 @@ Path A — empirical replications
      - scpi covariate (multi-feature) staggered illustration, Germany (Cattaneo et al. 2025)
    * - ``scpi_germany_pi``
      - scpi single-unit CFT-2021 prediction intervals, German reunification: levels + cointegrated bands + weights
+   * - ``secession_scm``
+     - VanillaSC reproduces Schulte et al. (2026) lost-autonomy SCM: post-trigger secessionist surge, Catalonia 2010 / Faroe 1994 (tracks authors' SyntheticControlMethods synthetic)
    * - ``sparse_sc_prop99``
      - L1 predictor selection (Prop 99)
    * - ``spcd_prop99``
