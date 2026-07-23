@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **63 cross-validation checks** against original
-implementations across **37 estimators** -- 28 reproduce the reference to display precision, 22 to
+Coverage: **64 cross-validation checks** against original
+implementations across **37 estimators** -- 29 reproduce the reference to display precision, 22 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -174,8 +174,8 @@ Summary
      - 1 documented
      - 25
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 10
-     - 4 exact · 4 tight · 2 close
+     - 11
+     - 5 exact · 4 tight · 2 close
      - 0.11
 
 .. _val-beast:
@@ -1099,6 +1099,12 @@ VanillaSC
      - 0
      - exact — matches to display precision
      - `cwz_ttest <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_ttest.py>`__
+   * - mharoruiz/ibex R replication (01_functions/sc.R: limSolve::lsei simplex SC; scinference)
+     - ``ibex_day_ahead_price.csv`` (18c69704e7ee…)
+     - 6
+     - 0
+     - exact — matches to display precision
+     - `ibex_dap <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ibex_dap.py>`__
    * - Malo et al. scm.corner (SCM-Debug, live run, captured)
      - ``basque_mscmt.csv`` (3aca35dc9b55…)
      - 3

@@ -60,6 +60,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/tssc
    replications/vanillasc
    replications/vanillasc_staggered
+   replications/ibex
    replications/ascm_kansas
    replications/pensynth
    replications/sparse_sc

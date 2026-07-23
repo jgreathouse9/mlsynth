@@ -61,6 +61,8 @@ Path A — empirical replications
      - forward-selected SC (Prop 99)
    * - ``hsc_hongkong``
      - HSC HK handover
+   * - ``ibex_dap``
+     - VanillaSC vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price, weights value-for-value (Haro Ruiz-Schult-Wunder 2024)
    * - ``lexscm_walmart``
      - Walmart placebo design
    * - ``linf_prop99``

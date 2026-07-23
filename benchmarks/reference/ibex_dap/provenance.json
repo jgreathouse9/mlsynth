@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-07-23T10:30:00Z",
+  "git_sha": "4dd54386a681ce0da24559c009f3116b0390ccce",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "reference_repo": "https://github.com/mharoruiz/ibex",
+  "reference_commit": "c5371314487426e0f87bf5064ee14e2bb28a730a",
+  "reference_outputs": [
+    "03_results/sc_optimized_weights.csv",
+    "03_results/sc_series_001.csv"
+  ],
+  "note": "ibex sc_series_001.csv extends the day-ahead series to 2024-03; the shipped basedata snapshot ends 2023-12. Donor weights depend only on the identical 2015-01..2022-05 pre-period, so they match exactly; the committed-window (2022-06..2023-12) post-mean gap is captured here.",
+  "data": [
+    {
+      "path": "basedata/ibex_day_ahead_price.csv",
+      "sha256": "18c69704e7ee5af3097bd9c59ad1a0a3d4a8d24cbd970b3f5148e8282635ba2d"
+    }
+  ]
+}
