@@ -94,6 +94,35 @@ def test_end_to_end_q_equals_reference_on_fit():
     assert q == pytest.approx(_jhai_conformal_q(gap[:n_pre], 0.05))
 
 
+def test_band_spans_full_trajectory_like_r_synth():
+    # The constant split band is drawn over pre AND post (as R Synth does),
+    # unlike the post-only scpi/conformal/eiv prediction bands.
+    df = _panel(8, n_periods=32, t0=22)
+    res = VanillaSC({"df": df, "inference": "conformal_split", **_CFG}).fit()
+    lo = np.asarray(res.time_series.counterfactual_lower, dtype=float)
+    hi = np.asarray(res.time_series.counterfactual_upper, dtype=float)
+    cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
+    obs = np.asarray(res.time_series.observed_outcome, dtype=float)
+    q = res.inference.details["conformal_q"]
+    assert not np.isnan(lo).any() and not np.isnan(hi).any()   # no post-only gap
+    assert np.allclose(hi - lo, 2.0 * q)                        # constant width
+    n_pre = int(res.additional_outputs["pre_periods"])
+    assert np.allclose(lo[:n_pre], cf[:n_pre] - q)             # pre band = synth - q
+    # calibration: ~(1-alpha) of the pre-period points fall inside the band.
+    inside = ((obs[:n_pre] >= lo[:n_pre]) & (obs[:n_pre] <= hi[:n_pre])).mean()
+    assert inside >= 0.9
+
+
+def test_test_inversion_conformal_stays_post_only():
+    # Guard: the fix to conformal_split must not turn the other bands full-width.
+    df = _panel(8, n_periods=32, t0=22)
+    res = VanillaSC({"df": df, "inference": "conformal", **_CFG}).fit()
+    lo = np.asarray(res.time_series.counterfactual_lower, dtype=float)
+    n_pre = int(res.additional_outputs["pre_periods"])
+    assert np.isnan(lo[:n_pre]).all()          # test-inversion band is post-only
+    assert not np.isnan(lo[n_pre:]).any()
+
+
 def test_uninformative_band_warns():
     # 4 pre-periods < ceil(1/0.05)-1 = 19 => q = inf, band uninformative
     df = _panel(8, n_periods=6, t0=4)

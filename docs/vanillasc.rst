@@ -300,9 +300,14 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     The simpler *split*-conformal construction: a single constant half-width
     :math:`q` -- the :math:`\lceil (n+1)(1-\alpha) \rceil`-th order statistic of
     the absolute pre-period gaps -- gives the band :math:`\widehat{y}_{1t}^N \pm
-    q` at every post period. It is the same band R ``Synth`` returns from
+    q` at every period. It is the same band R ``Synth`` returns from
     ``synth_inference(method = "conformal")`` (Hainmueller's j-hai/Synth); on a
-    shared synthetic control the two agree value-for-value. Unlike the
+    shared synthetic control the two agree value-for-value. Because the width is
+    constant, the band is drawn over the *full* trajectory (pre and post), as R
+    ``Synth`` does -- the pre-period portion visualizes the calibration, with
+    about :math:`1-\alpha` of the pre-period points inside it by construction.
+    (The other modes are post-period prediction intervals and leave the
+    pre-period band empty.) Unlike the
     ``"conformal"`` test-inversion band above, its width does not grow with the
     horizon, which trades some post-period adaptivity for a one-line, assumption-
     transparent interval. When there are fewer than

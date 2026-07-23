@@ -367,28 +367,34 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # construction in R Synth's ``synth_inference(method="conformal")``
     # (Hainmueller's j-hai/Synth), distinct from the test-inversion "conformal"
     # band above, which widens over the post-period.
+    #
+    # Unlike the post-only prediction bands of the other modes, this constant
+    # band spans the FULL trajectory (pre and post), as R Synth draws it: the
+    # pre-period portion visualizes the conformal calibration -- by construction
+    # about (1-alpha) of the pre-period points lie inside ``synthetic +/- q``.
     if mode == "conformal_split" and gap[pre:].size:
         from mlsynth.utils.inferutils import split_conformal_quantile
         q = split_conformal_quantile(gap[:pre], alpha=config.alpha)
-        if not np.isfinite(q):
+        if np.isfinite(q):
+            cf_lower, cf_upper = counterfactual - q, counterfactual + q
+            pi_lower, pi_upper = gap - q, gap + q
+        else:
             warnings.warn(
                 "split-conformal band is uninformative (q=inf): need at least "
                 f"ceil(1/alpha)-1 = {int(np.ceil(1.0 / config.alpha)) - 1} "
                 f"pre-periods for finite-sample coverage at alpha={config.alpha}.",
                 UserWarning, stacklevel=2,
             )
-        cf_lower = np.full_like(y, np.nan, dtype=float)
-        cf_upper = np.full_like(y, np.nan, dtype=float)
-        cf_lower[pre:] = counterfactual[pre:] - q
-        cf_upper[pre:] = counterfactual[pre:] + q
+            cf_lower = cf_upper = np.full_like(y, np.nan, dtype=float)
+            pi_lower = pi_upper = np.full_like(gap, np.nan, dtype=float)
         inference = InferenceResults(
             confidence_level=1.0 - config.alpha,
             method="split-conformal prediction intervals (Chernozhukov-Wuthrich-Zhu 2021)",
             details={
-                "periods": list(time_labels[pre:]),
-                "tau": gap[pre:],
-                "pi_lower": gap[pre:] - q,
-                "pi_upper": gap[pre:] + q,
+                "periods": list(time_labels),
+                "tau": gap,
+                "pi_lower": pi_lower,
+                "pi_upper": pi_upper,
                 "counterfactual_lower": cf_lower,
                 "counterfactual_upper": cf_upper,
                 "conformal_q": q,
