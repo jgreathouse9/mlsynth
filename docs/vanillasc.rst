@@ -238,12 +238,13 @@ over-interpreted.
 Inference
 ---------
 
-Five inference modes are available via ``inference=``:
+Several inference modes are available via ``inference=``:
 
 Each mode returns one kind of output, and the fit always tells you which.
 ``"placebo"``, ``"lto"`` and ``"ttest"`` are tests: they return a p-value (the
-t-test also returns an ATT confidence interval). ``"conformal"``, ``"scpi"`` and
-``"eiv"`` are prediction intervals: they return the per-period counterfactual
+t-test also returns an ATT confidence interval). ``"conformal"``,
+``"conformal_split"``, ``"scpi"`` and ``"eiv"`` are prediction intervals: they
+return the per-period counterfactual
 bands on ``res.time_series`` (``counterfactual_lower`` / ``counterfactual_upper``)
 and the gap intervals in ``res.inference.details``. In every case
 ``res.inference.method`` names the procedure that produced the numbers, so a band
@@ -294,6 +295,22 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     ``res.inference.details["counterfactual_lower" / "counterfactual_upper"]``
     (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
     :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
+
+``"conformal_split"`` -- split-conformal band (Chernozhukov, Wüthrich & Zhu 2021)
+    The simpler *split*-conformal construction: a single constant half-width
+    :math:`q` -- the :math:`\lceil (n+1)(1-\alpha) \rceil`-th order statistic of
+    the absolute pre-period gaps -- gives the band :math:`\widehat{y}_{1t}^N \pm
+    q` at every post period. It is the same band R ``Synth`` returns from
+    ``synth_inference(method = "conformal")`` (Hainmueller's j-hai/Synth); on a
+    shared synthetic control the two agree value-for-value. Unlike the
+    ``"conformal"`` test-inversion band above, its width does not grow with the
+    horizon, which trades some post-period adaptivity for a one-line, assumption-
+    transparent interval. When there are fewer than
+    :math:`\lceil 1/\alpha \rceil - 1` pre-periods the order statistic does not
+    exist, :math:`q` is infinite, and a warning flags the band as uninformative.
+    Returned in the same ``res.inference.details["counterfactual_lower" /
+    "counterfactual_upper"]`` (with ``["conformal_q"]``) --
+    :func:`mlsynth.utils.inferutils.split_conformal_quantile`.
 
 ``"scpi"`` -- prediction intervals (Cattaneo, Feng & Titiunik 2021)
     Treats :math:`\tau_T` as a *predictand* (a random variable) and builds

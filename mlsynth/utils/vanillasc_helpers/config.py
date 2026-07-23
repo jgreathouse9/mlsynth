@@ -20,7 +20,8 @@ from ...config_models import BaseEstimatorConfig
 # source of truth so an unknown/misspelled value fails loudly at config time
 # rather than silently returning no inference.
 VALID_INFERENCE_METHODS = frozenset(
-    {"placebo", "scpi", "conformal", "lto", "ttest", "eiv", "none"}
+    {"placebo", "scpi", "conformal", "conformal_split", "lto", "ttest", "eiv",
+     "none"}
 )
 
 
@@ -212,7 +213,9 @@ class VanillaSCConfig(BaseEstimatorConfig):
         description="Inference: True/'placebo' (in-space placebo), 'scpi' "
                     "(Cattaneo-Feng-Titiunik prediction intervals), 'conformal' "
                     "(Chernozhukov-Wuthrich-Zhu test-inversion intervals, the "
-                    "augsynth default for ASCM), 'lto' (Lei-Sudijono leave-two-"
+                    "augsynth default for ASCM), 'conformal_split' (the "
+                    "constant-width split-conformal band, matching R Synth's "
+                    "synth_inference), 'lto' (Lei-Sudijono leave-two-"
                     "out refined placebo), 'ttest' (Chernozhukov-Wuthrich-Zhu "
                     "2025 debiased SC t-test for the ATT), 'eiv' (Hirshberg 2021 "
                     "error-in-variables normal/t prediction intervals), or False.",

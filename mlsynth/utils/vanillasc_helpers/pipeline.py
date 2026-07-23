@@ -361,6 +361,40 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Split-conformal prediction intervals (Chernozhukov, Wuthrich & Zhu 2021):
+    # the constant-width band ``counterfactual +/- q``, with ``q`` the
+    # (1-alpha) order statistic of the absolute pre-period gaps. This is the
+    # construction in R Synth's ``synth_inference(method="conformal")``
+    # (Hainmueller's j-hai/Synth), distinct from the test-inversion "conformal"
+    # band above, which widens over the post-period.
+    if mode == "conformal_split" and gap[pre:].size:
+        from mlsynth.utils.inferutils import split_conformal_quantile
+        q = split_conformal_quantile(gap[:pre], alpha=config.alpha)
+        if not np.isfinite(q):
+            warnings.warn(
+                "split-conformal band is uninformative (q=inf): need at least "
+                f"ceil(1/alpha)-1 = {int(np.ceil(1.0 / config.alpha)) - 1} "
+                f"pre-periods for finite-sample coverage at alpha={config.alpha}.",
+                UserWarning, stacklevel=2,
+            )
+        cf_lower = np.full_like(y, np.nan, dtype=float)
+        cf_upper = np.full_like(y, np.nan, dtype=float)
+        cf_lower[pre:] = counterfactual[pre:] - q
+        cf_upper[pre:] = counterfactual[pre:] + q
+        inference = InferenceResults(
+            confidence_level=1.0 - config.alpha,
+            method="split-conformal prediction intervals (Chernozhukov-Wuthrich-Zhu 2021)",
+            details={
+                "periods": list(time_labels[pre:]),
+                "tau": gap[pre:],
+                "pi_lower": gap[pre:] - q,
+                "pi_upper": gap[pre:] + q,
+                "counterfactual_lower": cf_lower,
+                "counterfactual_upper": cf_upper,
+                "conformal_q": q,
+            },
+        )
+
     # Error-in-variables normal/t prediction intervals (Hirshberg 2021).
     if mode == "eiv" and gap[pre:].size:
         from .eiv import eiv_intervals
