@@ -315,7 +315,9 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     exist, :math:`q` is infinite, and a warning flags the band as uninformative.
     Returned in the same ``res.inference.details["counterfactual_lower" /
     "counterfactual_upper"]`` (with ``["conformal_q"]``) --
-    :func:`mlsynth.utils.inferutils.split_conformal_quantile`.
+    :func:`mlsynth.utils.inferutils.split_conformal_quantile`. Cross-validated
+    value-for-value against R ``Synth``'s ``synth_inference`` on Prop 99 --
+    see :doc:`replications/synth_jhai_prop99`.
 
 ``"scpi"`` -- prediction intervals (Cattaneo, Feng & Titiunik 2021)
     Treats :math:`\tau_T` as a *predictand* (a random variable) and builds

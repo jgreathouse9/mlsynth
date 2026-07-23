@@ -138,6 +138,7 @@ CASES = {
     "beast_prop99": "benchmarks.cases.beast_prop99",  # cross-val vs authors R (jeremylhour): BEAST immunized ATT path on Prop 99 (basic covariate regime)
     "eiv_coverage_mc": "benchmarks.cases.eiv_coverage_mc",  # Path B: Hirshberg 2021 error-in-variables SC interval coverage (low-rank DGP)  # Path A: Andersson 2019 Swedish carbon tax ATT/2005-gap, malo + mscmt backends (paper predictor spec)
     "synth_prop99": "benchmarks.cases.synth_prop99",   # cross-val vs original R Synth solver (Prop 99 outcome-only); skips if R/Synth absent
+    "synth_jhai_prop99": "benchmarks.cases.synth_jhai_prop99",  # cross-val vs Hainmueller j-hai/Synth 1.2.0 (Prop 99 ADH spec): weights/ATT + split-conformal band value-for-value
     "cmbsts_vignette": "benchmarks.cases.cmbsts_vignette",  # cross-val vs R CausalMBSTS: multivariate BSTS vignette (trend+cycle)
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)

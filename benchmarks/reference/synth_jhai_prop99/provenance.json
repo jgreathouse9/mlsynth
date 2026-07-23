@@ -1,0 +1,16 @@
+{
+ "tool": "R Synth (Hainmueller j-hai/Synth)",
+ "r_version": "4.3.3",
+ "packages": {
+  "Synth": "1.2.0",
+  "kernlab": "0.9.32",
+  "optimx": "2023-10.21",
+  "rgenoud": "5.9-0.10"
+ },
+ "os": "Ubuntu 24.04.4 LTS",
+ "install_route": "git clone github.com/j-hai/Synth + R CMD INSTALL",
+ "spec": "ADH 2010: predictors loginc/p_cig/pct15-24 mean 1980-1988; special pc_beer 1984-1988 + cigsale 1975/1980/1988; ssr 1970-1988",
+ "data_sha256": {
+  "augmented_cali_long.csv": "974ae6ad6ab741d29e3ca85c57f9da33ff1baf151e3dbb4b24f53c9cba607903"
+ }
+}
