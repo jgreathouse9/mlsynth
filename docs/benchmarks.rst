@@ -241,6 +241,8 @@ Cross-validation against reference implementations
      - vs scmrelax (skips if absent)
    * - ``rsc_shen_coverage``
      - Shen CIs + coverage
+   * - ``ferman_demeaned_basque``
+     - TSSC MSCa == Ferman-Pinto (2021) demeaned SC, value-for-value vs their R quadprog (live Rscript), Basque/ETA 1975
    * - ``sdid_prop99``
      - vs authors' synthdid R (synthdid_estimate; SDID/DiD/SC on Prop 99)
    * - ``si_prop99``

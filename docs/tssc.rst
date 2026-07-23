@@ -480,6 +480,13 @@ MSE-ratio grid reproduces, with all 16 cells below 1. See the dedicated
 replication page, :doc:`replications/tssc`, for the full code, tables and
 discussion.
 
+Separately, TSSC's ``MSCa`` variant (simplex donor weights plus a free
+intercept) is exactly the *demeaned synthetic control* of Ferman & Pinto (2021).
+On the identified Basque/ETA panel it reproduces the authors' own R ``quadprog``
+program value-for-value -- cross-checked live via ``Rscript`` -- so ``MSCa``
+serves as mlsynth's demeaned SC without a separate estimator. See
+:doc:`replications/ferman`.
+
 Core API
 --------
 

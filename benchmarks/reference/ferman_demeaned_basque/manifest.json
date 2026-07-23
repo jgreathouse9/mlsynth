@@ -1,0 +1,12 @@
+{
+  "case": "ferman_demeaned_basque",
+  "title": "Ferman & Pinto (2021) demeaned SC vs mlsynth TSSC MSCa (Basque/ETA, 1975)",
+  "paper": "Ferman, B. & Pinto, C. (2021), 'Synthetic controls with imperfect pretreatment fit', Quantitative Economics 12:1197-1221",
+  "reference_impl": "authors' replication _aux.R :: synth_control_est_demean (quadprog QP: donor weights >=0 summing to 1, free intercept)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/ferman_demeaned_basque/reference.R basedata/basque_data.csv",
+  "data": [
+    "basedata/basque_data.csv"
+  ],
+  "note": "MSCa (TSSC's simplex+intercept variant) IS Ferman-Pinto's demeaned SC. Treatment 1975 is the identified regime (20 pre-periods > 16 donors); at 1970 (C>n) the demeaned-SC weights are non-unique and the two implementations legitimately diverge -- see docs."
+}

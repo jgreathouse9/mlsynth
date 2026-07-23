@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **63 cross-validation checks** against original
-implementations across **36 estimators** -- 27 reproduce the reference to display precision, 22 to
-within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **64 cross-validation checks** against original
+implementations across **37 estimators** -- 27 reproduce the reference to display precision, 23 to
+within two percent. A further 5 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -169,6 +169,10 @@ Summary
      - 1
      - 1 documented
      - 25
+   * - :ref:`TSSC <val-tssc>`
+     - 1
+     - 1 tight
+     - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
      - 12
      - 5 exact · 4 tight · 2 close · 1 documented
@@ -1040,6 +1044,28 @@ TASC
      - documented — see notes
      - `tasc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/tasc_prop99.py>`__
 
+.. _val-tssc:
+
+TSSC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - authors' _aux.R :: synth_control_est_demean (quadprog QP, live via Rscript)
+     - ``basque_data.csv`` (54dfc49971c9…)
+     - 6
+     - 0.0004
+     - tight
+     - `ferman_demeaned_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_demeaned_basque.py>`__
+
 .. _val-vanillasc:
 
 VanillaSC
@@ -1143,6 +1169,12 @@ action records them once its toolchain provisions.
      - Reference
    * - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
      - —
+   * - `cscm_viszero <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cscm_viszero.py>`__
+     - —
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
+   * - `microsynth_baltimore <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/microsynth_baltimore.py>`__
+     - R microsynth 2.0.51 (Robbins, Saunders & Kilmer 2017), config A = full-trajectory match.out (identical constraints to mlsynth)
+   * - `synth_jhai_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/synth_jhai_prop99.py>`__
+     - R Synth j-hai/Synth 1.2.0 (synth + synth_inference)
 
