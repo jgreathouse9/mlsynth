@@ -1,0 +1,13 @@
+{
+  "case": "ibex_dap",
+  "title": "Iberian exception -> day-ahead electricity price: VanillaSC vs the ibex scinference/lsei SC",
+  "paper": "Haro Ruiz, Schult & Wunder (2024), 'The effects of the Iberian exception mechanism on wholesale electricity prices and consumer inflation: a synthetic-controls approach', Applied Economics Letters; DOI 10.1080/13504851.2024.2425834",
+  "reference_impl": "mharoruiz/ibex R replication (01_functions/sc.R: limSolve::lsei simplex SC on all pre-treatment outcome lags; scinference package)",
+  "reference_commit": "c5371314487426e0f87bf5064ee14e2bb28a730a",
+  "path_type": "cross-validation",
+  "command": "git clone https://github.com/mharoruiz/ibex && Rscript main.R (PRC_STEP=.001)",
+  "data": [
+    "basedata/ibex_day_ahead_price.csv"
+  ],
+  "data_source": "OMIE day-ahead market results + Fraunhofer ISE energy-charts.info (CC BY 4.0), monthly averages, as redistributed in mharoruiz/ibex 02_data/day_ahead_price.csv"
+}

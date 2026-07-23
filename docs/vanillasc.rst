@@ -214,6 +214,16 @@ The covariate path exposes three reliable solvers via ``backend=``:
    0.034`. The lagged-outcome predictors anchor the pre-period fit and bring the
    two ``V`` searches into agreement.
 
+.. note::
+
+   The outcome-only backend is cross-validated against a published paper's own
+   replication code by the ``ibex_dap`` benchmark: on Haro Ruiz, Schult and
+   Wunder (2024)'s study of the Iberian exception mechanism, ``VanillaSC`` with
+   ``backend="outcome-only"`` reproduces the authors' ``lsei`` synthetic control
+   for the day-ahead electricity price value-for-value -- the Spain and Portugal
+   donor weights match to solver tolerance and the per-period gap agrees
+   pointwise. See :doc:`replications/ibex`.
+
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

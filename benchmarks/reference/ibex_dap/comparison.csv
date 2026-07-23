@@ -1,0 +1,14 @@
+# case: ibex_dap
+# generated_at: 2026-07-23T10:28:31Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"alpha": 0.1, "backend": "outcome-only", "outcome": "DAP", "time": "date", "treat": "treat", "unitid": "country"}
+# reference_impl: mharoruiz/ibex R replication (01_functions/sc.R: limSolve::lsei simplex SC; scinference)
+# reference_version: Haro Ruiz, Schult & Wunder (2024) Applied Economics Letters, ibex @ c5371314
+quantity,mlsynth,reference,abs_diff
+Spain — Slovenia (SI) weight,0.5259,0.5259,0.0
+Portugal — Slovenia (SI) weight,0.5163,0.5163,0.0
+Spain — donor-weight L1 distance,0.0,0.0,0.0
+Portugal — donor-weight L1 distance,0.0,0.0,0.0
+Spain — mean post ATT (Euros/MWh),-46.3572,-46.3572,0.0
+Portugal — mean post ATT (Euros/MWh),-45.469,-45.469,0.0
