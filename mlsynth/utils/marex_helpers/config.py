@@ -93,7 +93,7 @@ class MAREXConfig(BaseMAREXConfig):
     # --- geographic design restrictions ---
     # MAREX already covers region-clustering (`cluster`), stratum quotas
     # (`m_min`/`m_max`), cost/budget, and same-region donors natively. These add
-    # the remaining SYNDES/GEOLIFT capabilities as constraints on the MIP. Only
+    # the remaining SYNDES/LEXSCM capabilities as constraints on the MIP. Only
     # supported in the exact MIQP (not `relaxed=True`, whose post-hoc rounding
     # cannot guarantee them).
     to_be_treated: Optional[List] = Field(
@@ -128,7 +128,7 @@ class MAREXConfig(BaseMAREXConfig):
         description="Per-unit-constant column whose value defines an interference "
         "cluster: at most one treated market per cluster value (a no-two-from-one-"
         "cluster rule). Distinct from `cluster` (the design grouping); enforced as "
-        "conflict constraints on the treated set, the same as SYNDES/GeoLift's "
+        "conflict constraints on the treated set, the same as SYNDES's "
         "cluster_col.")
     stratum_col: Optional[str] = Field(
         default=None,

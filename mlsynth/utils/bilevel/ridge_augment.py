@@ -146,7 +146,7 @@ def solve_ridge_path(
     inverting ``B B^T + lambda I`` once per lambda. Two algebraically identical
     routes, chosen by shape so the factored matrix is the smaller one:
 
-    * ``J < m`` (the long-panel / GEOLIFT regime -- more periods than donors):
+    * ``J < m`` (the long-panel regime -- more periods than donors):
       the *dual*. With the economy SVD ``B = U diag(S) V^T`` (``r = min(m, J)``
       components),
 

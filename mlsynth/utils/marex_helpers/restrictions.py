@@ -5,7 +5,7 @@ is AZ's "region as a distinct experimental design", the per-cluster cardinality
 (``m_min`` / ``m_max``) is a stratum quota, ``costs`` / ``budget`` is AZ's cost
 bound, and the control synthetic ``v[.,k]`` is built only from cluster-``k``
 members, so donors are automatically same-region. This module adds the four
-remaining capabilities -- the same vocabulary SYNDES and GEOLIFT expose -- as
+remaining capabilities -- the same vocabulary SYNDES and LEXSCM expose -- as
 linear constraints on the design variables:
 
 * ``to_be_treated``      -> ``sum_k z[j,k] = 1``  (force unit ``j`` treated)
@@ -21,7 +21,7 @@ linear constraints on the design variables:
 The index-level bundle is the shared, estimator-agnostic
 :class:`~mlsynth.utils.syndes_helpers.restrictions.DesignRestrictions`, built by
 the shared :func:`~mlsynth.utils.syndes_helpers.restrictions.build_restrictions`
-(which reuses the LEXSCM conflict graph and the GEOLIFT attribute/size helpers,
+(which reuses the LEXSCM conflict graph and the shared attribute/size helpers,
 all aligned to the unit ``IndexSet``). Only the *applier* differs from SYNDES,
 because MAREX's selection variable is the ``(N, K)`` matrix ``z`` and its control
 synthetic is per-cluster.

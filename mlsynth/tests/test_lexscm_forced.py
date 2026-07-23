@@ -1,7 +1,7 @@
 """Forced-in / forbidden treated markets for LEXSCM.
 
 LEXSCM already honours the cluster / adjacency / stratum-quota / size-band
-constraints; the one gap versus SYNDES and GeoLift is the pair of hard market
+constraints; the one gap versus SYNDES is the pair of hard market
 lists ``to_be_treated`` (always treated) and ``not_to_be_treated`` (never
 treated, stays a donor). These tests pin that behaviour test-first, at both the
 search layer (``select_treated_designs`` with ``forced``, exact and heuristic

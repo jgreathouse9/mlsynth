@@ -1,7 +1,7 @@
 """TDD for the cross-estimator design comparison (utils/design_compare.py).
 
-GEOLIFT and SYNDES designs are scored on one shared fit-vs-power plane: fit is
-the pre-period RMSE of the contrast, power is a simulated MDE at a common
+SYNDES, LEXSCM and MAREX designs are scored on one shared fit-vs-power plane: fit
+is the pre-period RMSE of the contrast, power is a simulated MDE at a common
 horizon, both computed by the same harness so the comparison is apples-to-apples.
 """
 from __future__ import annotations
@@ -22,7 +22,6 @@ from mlsynth.utils.design_compare import (
     _pareto_mask,
     compare_methods,
     compare_pareto,
-    from_geolift,
     from_lexscm,
     from_marex,
     from_syndes,
@@ -91,13 +90,13 @@ class TestPareto:
         specs = [
             DesignSpec("SYNDES", "S1", {"a": 1.0, "b": -1.0}, ["a"]),
             DesignSpec("SYNDES", "S2", {"a": 1.0, "c": -1.0}, ["a"]),
-            DesignSpec("GEOLIFT", "G1", {"b": 1.0, "d": -1.0}, ["b"]),
+            DesignSpec("LEXSCM", "L1", {"b": 1.0, "d": -1.0}, ["b"]),
         ]
         out = compare_pareto(specs, Ywide, n_pre=15, horizon=5)
         assert set(out.columns) >= {"method", "label", "treated", "fit_rmse",
                                     "mde_pct", "pareto"}
         assert len(out) == 3
-        assert set(out["method"]) == {"SYNDES", "GEOLIFT"}
+        assert set(out["method"]) == {"SYNDES", "LEXSCM"}
         # each method has at least one Pareto-optimal design
         assert out.groupby("method")["pareto"].any().all()
         assert (out["fit_rmse"] >= 0).all()
@@ -114,7 +113,7 @@ class TestPareto:
     def test_plot_uses_supplied_axis(self):
         Ywide = self._panel()
         specs = [DesignSpec("SYNDES", "S1", {"a": 1.0, "b": -1.0}, ["a"]),
-                 DesignSpec("GEOLIFT", "G1", {"b": 1.0, "d": -1.0}, ["b"])]
+                 DesignSpec("LEXSCM", "L1", {"b": 1.0, "d": -1.0}, ["b"])]
         out = compare_pareto(specs, Ywide, n_pre=15, horizon=5)
         fig, ax = plt.subplots()
         returned = plot_compare_pareto(out, ax=ax)
@@ -169,38 +168,22 @@ class TestAdaptersIntegration:
         assert len(specs) == 1
         assert specs[0].label == "S1" and specs[0].method == "SYNDES"
 
-    def test_from_geolift_specs(self):
-        from mlsynth import GEOLIFT
-        df, T, n_post = _shared_panel()
-        res = GEOLIFT({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
-                       "treatment_size": 2, "durations": [n_post],
-                       "effect_sizes": [0.0, 0.1], "lookback_window": 1,
-                       "post_col": "post", "how": "mean", "fixed_effects": True,
-                       "alpha": 0.1, "ns": 150, "seed": 0,
-                       "display_graphs": False}).fit()
-        specs = from_geolift(res)
-        assert len(specs) == len(res.search.candidates)
-        assert all(s.method == "GEOLIFT" for s in specs)
-        for s in specs:
-            # treated side sums to +1, control side to ~ -1 -> net ~ 0
-            assert sum(s.contrast.values()) == pytest.approx(0.0, abs=1e-6)
-
     def test_cross_method_compare_and_plot(self):
-        from mlsynth import GEOLIFT, SYNDES
+        from mlsynth import LEXSCM, SYNDES
         df, T, n_post = _shared_panel()
+        df = df.copy()
+        df["cand"] = True                                # every unit eligible
         syn = SYNDES({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
                       "K": 2, "mode": "two_way_global", "post_col": "post",
                       "run_inference": False, "top_K": 4}).fit()
-        gl = GEOLIFT({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
-                      "treatment_size": 2, "durations": [n_post],
-                      "effect_sizes": [0.0, 0.1], "lookback_window": 1,
-                      "post_col": "post", "how": "mean", "fixed_effects": True,
-                      "alpha": 0.1, "ns": 150, "seed": 0,
-                      "display_graphs": False}).fit()
-        specs = from_syndes(syn) + from_geolift(gl)
+        lex = LEXSCM({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                      "candidate_col": "cand", "m": 2, "post_col": "post",
+                      "top_K": 4, "top_P": 3, "n_sims": 40,
+                      "max_shortlist": 4}).fit()
+        specs = from_syndes(syn) + from_lexscm(lex)
         Ywide = _ywide(df)
         out = compare_pareto(specs, Ywide, n_pre=T - n_post, horizon=5)
-        assert set(out["method"]) == {"SYNDES", "GEOLIFT"}
+        assert set(out["method"]) == {"SYNDES", "LEXSCM"}
         assert np.isfinite(out["fit_rmse"]).all()
         # at least one design somewhere reaches the power grid (finite MDE)
         assert np.isfinite(out["mde_pct"]).any()
@@ -214,19 +197,19 @@ class TestAdaptersIntegration:
 
 class TestCompareMethods:
     _SYN = {"time_limit": 3.0, "gap_limit": 0.2}    # keep the MIP quick in tests
-    _GL = {"ns": 120}
+    _LEX = {"top_K": 4, "top_P": 3, "n_sims": 30, "max_shortlist": 4}
 
     def test_runs_both_methods_npost(self):
         df, T, n_post = _shared_panel()
         cmp = compare_methods(
             df, outcome="Y", unitid="unit", time="time", treated_size=2,
             horizon=5, n_post=n_post, top_K=4,
-            syndes_options=self._SYN, geolift_options=self._GL,
+            syndes_options=self._SYN, lexscm_options=self._LEX,
         )
         assert isinstance(cmp, DesignComparison)
-        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT"}
+        assert set(cmp.table["method"]) == {"SYNDES", "LEXSCM"}
         assert {"fit_rmse", "mde_pct", "pareto"} <= set(cmp.table.columns)
-        assert cmp.syndes is not None and cmp.geolift is not None
+        assert cmp.syndes is not None and cmp.lexscm is not None
         assert cmp.table.groupby("method")["pareto"].any().all()
         ax = cmp.plot()
         assert ax is not None
@@ -236,7 +219,7 @@ class TestCompareMethods:
         cmp = compare_methods(
             df, outcome="Y", unitid="unit", time="time", treated_size=2,
             horizon=5, post_col="post", top_K=4,
-            syndes_options=self._SYN, geolift_options=self._GL,
+            syndes_options=self._SYN, lexscm_options=self._LEX,
         )
         assert len(cmp.table) > 0
 
@@ -248,7 +231,7 @@ class TestCompareMethods:
             syndes_options=self._SYN,
         )
         assert set(cmp.table["method"]) == {"SYNDES"}
-        assert cmp.geolift is None and cmp.syndes is not None
+        assert cmp.lexscm is None and cmp.syndes is not None
 
     def test_requires_post_or_npost(self):
         df, T, n_post = _shared_panel()
@@ -281,7 +264,7 @@ class TestCompareMethods:
         df, T, n_post = _shared_panel()
         kw = dict(outcome="Y", unitid="unit", time="time", treated_size=2,
                   horizon=5, n_post=n_post, top_K=4,
-                  syndes_options=self._SYN, geolift_options=self._GL)
+                  syndes_options=self._SYN, lexscm_options=self._LEX)
         a = compare_methods(df, **kw).table
         b = compare_methods(df, **kw).table
         pd.testing.assert_frame_equal(a, b)
@@ -294,13 +277,6 @@ class TestCompareMethods:
             compare_methods(df, outcome="Y", unitid="unit", time="time",
                             treated_size=2, n_post=n_post, methods=("SYNDES",),
                             syndes_options={"not_a_real_option": 123})
-
-    def test_geolift_options_are_forwarded(self):
-        df, T, n_post = _shared_panel()
-        with pytest.raises(MlsynthConfigError):
-            compare_methods(df, outcome="Y", unitid="unit", time="time",
-                            treated_size=2, n_post=n_post, methods=("GEOLIFT",),
-                            geolift_options={"not_a_real_option": 123})
 
 
 # ----------------------------------------------------------------------
@@ -338,20 +314,20 @@ class TestLEXSCM:
             lexscm_options=self._LEX,
         )
         assert set(cmp.table["method"]) == {"LEXSCM"}
-        assert cmp.lexscm is not None and cmp.syndes is None and cmp.geolift is None
+        assert cmp.lexscm is not None and cmp.syndes is None
         assert {"fit_rmse", "mde_pct", "pareto"} <= set(cmp.table.columns)
         assert cmp.table.groupby("method")["pareto"].any().all()
 
-    def test_compare_methods_all_three(self):
+    def test_compare_methods_syndes_and_lexscm(self):
         df, T, n_post = _shared_panel()
         cmp = compare_methods(
             df, outcome="Y", unitid="unit", time="time", treated_size=2,
             horizon=5, n_post=n_post, top_K=4,
-            methods=("SYNDES", "GEOLIFT", "LEXSCM"),
+            methods=("SYNDES", "LEXSCM"),
             syndes_options={"time_limit": 3.0, "gap_limit": 0.2},
-            geolift_options={"ns": 120}, lexscm_options=self._LEX,
+            lexscm_options=self._LEX,
         )
-        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT", "LEXSCM"}
+        assert set(cmp.table["method"]) == {"SYNDES", "LEXSCM"}
         assert np.isfinite(cmp.table["fit_rmse"]).all()
 
     def test_candidate_col_defaults_to_all_units(self):
@@ -418,12 +394,14 @@ class TestSyndesOOSRanking:
         cmp = compare_methods(
             df, outcome="Y", unitid="unit", time="time", treated_size=2,
             horizon=5, n_post=n_post, top_K=4,
-            syndes_options=self._SYN, geolift_options={"ns": 120},
+            syndes_options=self._SYN,
+            lexscm_options={"top_K": 4, "top_P": 3, "n_sims": 30,
+                            "max_shortlist": 4},
         )
-        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT"}
-        # GEOLIFT rows have no OOS notion -> NaN; SYNDES rows are populated.
-        gl = cmp.table[cmp.table["method"] == "GEOLIFT"]
-        assert gl["oos_rmse"].isna().all()
+        assert set(cmp.table["method"]) == {"SYNDES", "LEXSCM"}
+        # LEXSCM rows have no OOS notion -> NaN; SYNDES rows are populated.
+        lx = cmp.table[cmp.table["method"] == "LEXSCM"]
+        assert lx["oos_rmse"].isna().all()
 
     def test_ic_selection_via_options_does_not_conflict(self):
         # Requesting IC selection through syndes_options must suppress the
@@ -490,7 +468,7 @@ class TestMAREX:
         )
         assert set(cmp.table["method"]) == {"MAREX"}
         assert cmp.marex is not None
-        assert cmp.syndes is None and cmp.geolift is None and cmp.lexscm is None
+        assert cmp.syndes is None and cmp.lexscm is None
         assert {"fit_rmse", "mde_pct", "pareto"} <= set(cmp.table.columns)
         assert cmp.table.groupby("method")["pareto"].any().all()
         assert np.isfinite(cmp.table["fit_rmse"]).all()
@@ -510,20 +488,18 @@ class TestMAREX:
         assert set(cmp.table["method"]) == {"MAREX"}
         assert len(cmp.table) >= 1
 
-    def test_compare_methods_all_four(self):
+    def test_compare_methods_all_three(self):
         df, T, n_post = _shared_panel()
         cmp = compare_methods(
             df, outcome="Y", unitid="unit", time="time", treated_size=2,
             horizon=5, n_post=n_post, top_K=3,
-            methods=("SYNDES", "GEOLIFT", "LEXSCM", "MAREX"),
+            methods=("SYNDES", "LEXSCM", "MAREX"),
             syndes_options={"time_limit": 3.0, "gap_limit": 0.2},
-            geolift_options={"ns": 120},
             lexscm_options={"top_K": 3, "top_P": 3, "n_sims": 40,
                             "max_shortlist": 3},
             marex_options=self._MAR,
         )
-        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT", "LEXSCM",
-                                            "MAREX"}
+        assert set(cmp.table["method"]) == {"SYNDES", "LEXSCM", "MAREX"}
         assert np.isfinite(cmp.table["fit_rmse"]).all()
 
     def test_marex_options_are_forwarded(self):

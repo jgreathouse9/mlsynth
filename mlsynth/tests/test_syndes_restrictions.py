@@ -1,7 +1,7 @@
 """TDD for SYNDES design restrictions (geography / clustering / size / forcing).
 
 SYNDES selects the treated set by a MIP over a binary assignment vector ``D``.
-The GEOLIFT/LEXSCM restriction vocabulary maps to linear constraints on ``D``:
+The LEXSCM restriction vocabulary maps to linear constraints on ``D``:
 
 * ``to_be_treated``      -> ``D_i = 1``      (force a unit in)
 * ``not_to_be_treated``  -> ``D_i = 0``      (forbid treatment; stays a donor)

@@ -215,8 +215,6 @@ Walk the [decision tree](https://mlsynth.readthedocs.io/en/latest/choose.html).
 | Lexicographic Synthetic Control (validity → power) | Abadie & Zhao (2026); Vives-i-Bastida (2022) | [`LEXSCM`](https://mlsynth.readthedocs.io/en/latest/lexscm.html) |
 | [Synthetic Principal Component Design](https://arxiv.org/abs/2211.15241) | Lu, Li, Ying & Blanchet (2022), arXiv:2211.15241 | [`SPCD`](https://mlsynth.readthedocs.io/en/latest/spcd.html) |
 | Parallel-Trends Supergeo Design | `mlsynth` (PANGEO), extending Supergeo Design — Chen, Doudchenko, Jiang, Stein & Ying (2023) | [`PANGEO`](https://mlsynth.readthedocs.io/en/latest/pangeo.html) |
-| GeoLift Market Selection | mlsynth (GeoLift); conformal design — Ben-Michael, Feller & Rothstein (2021); Chernozhukov, Wüthrich & Zhu (2021) | [`GEOLIFT`](https://mlsynth.readthedocs.io/en/latest/geolift.html) |
-| Multi-cell GeoLift Analysis | mlsynth; multi-cell extension of GeoLift | [`MULTICELLGEOLIFT`](https://mlsynth.readthedocs.io/en/latest/multicellgeolift.html) |
 
 ## Contributing
 

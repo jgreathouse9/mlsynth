@@ -167,16 +167,10 @@ encode the pinned commits/tags that keep the cross-check byte-stable.
    `cran/Synth` / `cran/microsynth`.
 4. **Run the pinned install scripts in dependency order, one at a time:**
    - `benchmarks/R/install_augsynth.sh` → `augsynth` + `osqp` + `S7` +
-     `LiblineaR` (for `geolift_augsynth_ref`, `ascm_kansas`).
+     `LiblineaR` (for `ascm_kansas`).
    - `benchmarks/R/install_pensynth.sh` → `LowRankQP` (for `pensynth_prop99`;
      the authors' `wsoll1.R`/`TZero.R` are *cloned* separately by
      `clone_pensynth.py`, not installed).
-   - `benchmarks/R/install_geolift.sh` → re-runs install_augsynth.sh, then the
-     heavy `Boom → BoomSpikeSlab → bsts → CausalImpact → MarketMatching → gsynth
-     → GeoLift` chain (for `geolift_marketselection_ref`). **`Boom` is a
-     ~15–25 min single C++ compile** — it dominates the whole provisioning time.
-     The chain is frozen to the last R-4.3-compatible release set (newer `Boom`
-     needs R ≥ 4.5).
    - `Synth`/`synthdid`/`MCPanel` go via CRAN or install_github, both blocked —
      pull `Synth` from the mirror (above); `synthdid` (`synth-inference/synthdid`)
      and `MCPanel` (`susanathey/MCPanel`) are used only to *regenerate* the
@@ -239,9 +233,7 @@ needs the repo root on `PYTHONPATH`, e.g. `python -m benchmarks.reference.clone_
   (libpysal, kneed, toolz, scmrelax/cvxopt, cvxpy), the 9 R
   cross-checks (`masc_basque`, `microsynth_seattle`, `nsc_prop99`,
   `pensynth_prop99`, `pda_luxurywatch`, `scmo_concatenated_mc`, `siv_syria_mc`,
-  `cwz_ttest`, `cwz_mc`), and the GeoLift cases (`geolift_augsynth_ref`,
-  `geolift_marketselection`, `geolift_marketselection_ref` against *live*
-  `GeoLiftMarketSelection`) all pass alongside the ~67 pure-Python cases.
+  `cwz_ttest`, `cwz_mc`) all pass alongside the ~67 pure-Python cases.
 
 ### If you had to do it again
 

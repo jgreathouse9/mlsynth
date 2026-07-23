@@ -187,7 +187,7 @@ separately); ``m_min`` / ``m_max`` per cluster is a stratum quota ("at least /
 at most this many treated per region"); ``costs`` / ``budget`` is the cost bound;
 and because each cluster's control synthetic :math:`v_{\cdot,k}` is built only
 from cluster-``k`` members, donors are automatically same-region. The same
-restriction vocabulary SYNDES and GEOLIFT expose then adds the rest, as
+restriction vocabulary SYNDES and LEXSCM expose then adds the rest, as
 constraints on the MIP:
 
 * ``to_be_treated`` / ``not_to_be_treated`` -- force a market in (one leadership

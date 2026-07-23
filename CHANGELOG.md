@@ -8,6 +8,17 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Removed
+- The GeoLift market-selection estimators (`GEOLIFT`, `MULTICELLGEOLIFT`) and
+  their `utils/geolift_helpers/` package are removed from the public library.
+  The two size/attribute eligibility primitives that SYNDES borrowed
+  (`eligible_by_size`, `unit_attribute_map`) now live in
+  `mlsynth.utils.syndes_helpers.eligibility`; SYNDES, LEXSCM, and MAREX are
+  unaffected. `compare_methods` / the design-comparison utility drop the
+  `"GEOLIFT"` method and the `from_geolift` adapter (SYNDES / LEXSCM / MAREX
+  remain). The remaining design estimators cover market selection under a
+  budget.
+
 ### Added
 - `mlsynth.save_spec` / `mlsynth.load_spec`: serialize an analysis specification
   to a portable JSON or YAML file and load it back into a ready-to-fit estimator.

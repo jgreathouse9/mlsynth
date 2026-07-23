@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **64 cross-validation checks** against original
-implementations across **37 estimators** -- 29 reproduce the reference to display precision, 22 to
+Coverage: **62 cross-validation checks** against original
+implementations across **36 estimators** -- 27 reproduce the reference to display precision, 22 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -57,10 +57,6 @@ Summary
      - 1
      - 1 exact
      - 0.00032
-   * - :ref:`GEOLIFT <val-geolift>`
-     - 2
-     - 2 exact
-     - 0.026
    * - :ref:`LINF <val-linf>`
      - 2
      - 1 tight · 1 close
@@ -343,34 +339,6 @@ FDID
      - 0.00032
      - exact — matches to display precision
      - `fdid_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fdid_hongkong.py>`__
-
-.. _val-geolift:
-
-GEOLIFT
--------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - R package augsynth (via Rscript)
-     - —
-     - 15
-     - 0.026
-     - exact — matches to display precision
-     - `geolift_augsynth_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geolift_augsynth_ref.py>`__
-   * - R GeoLiftMarketSelection (via Rscript)
-     - —
-     - 15
-     - 0.005
-     - exact — matches to display precision
-     - `geolift_marketselection_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geolift_marketselection_ref.py>`__
 
 .. _val-linf:
 

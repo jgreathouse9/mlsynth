@@ -42,7 +42,6 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
 - **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
-- **GEOLIFT** — GeoLift market-selection design.
 - **HSC** — Harmonic Synthetic Control (HSC) estimator.  (config: HSCConfig)
 - **ISCM** — Imperfect Synthetic Controls estimator.  (config: ISCMConfig)
 - **LEXSCM** — Lexicographic Synthetic Control (LEXSCM) estimator.  (config: LEXSCMConfig)
@@ -53,7 +52,6 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
 - **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
 - **MTGP** — Multitask Gaussian Process synthetic control (Ben-Michael et al. 2023).  (config: MTGPConfig)
-- **MULTICELLGEOLIFT** — Multi-cell GeoLift: measure several treatment cells at once.
 - **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
 - **MVBBSC** — Bayesian synthetic control of Martinez & Vives-i-Bastida (2024).  (config: MVBBSCConfig)
 - **MicroSynth** — User-level balancing synthetic control estimator.  (config: MicroSynthConfig)

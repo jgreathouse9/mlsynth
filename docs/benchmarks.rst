@@ -211,16 +211,8 @@ Cross-validation against reference implementations
      - vs LIVE propsdid (Rscript): Bogatyrev-Stoetzer Table 2 common-weights SDID on party vote shares (skips if absent)
    * - ``clustersc_subgroups_ref``
      - vs authors' repo
-   * - ``geolift_augsynth_ref``
-     - vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
    * - ``pensynth_prop99``
      - vs LIVE pensynth wsoll1 (Rscript+LowRankQP): penalized SC weights/ATT on Prop 99 (skips if absent)
-   * - ``geolift_cpic``
-     - vs GeoLiftMarketSelection: CPIC investment value-for-value
-   * - ``geolift_multicell``
-     - vs augsynth: multi-cell per-cell ATT + donor exclusion
-   * - ``geolift_walkthrough``
-     - vs GeoLift/augsynth: GeoLift_Walkthrough realized report (fixedeff ASCM + conformal)
    * - ``linf_crossval_ref``
      - LINF vs LinfinitySC (skips if absent)
    * - ``mcnnm_prop99``
