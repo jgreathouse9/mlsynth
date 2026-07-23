@@ -746,7 +746,14 @@ Verification
 
 The panel method is cross-validated against the R ``microsynth`` package on the
 Seattle Drug Market Intervention example — see :doc:`replications/microsynth`
-(durable case ``benchmarks/cases/microsynth_seattle.py``).
+(durable case ``benchmarks/cases/microsynth_seattle.py``). A second,
+larger cross-check on the Baltimore crime-information-center evaluation
+(Lawrence, Peterson & March 2026; four districts, 32 models) maps the boundary
+of that agreement: the identified quantities match R exactly and the
+dense-outcome counterfactual to about one percent, while the sparse-outcome and
+per-period counterfactual differ because the constraints do not identify them —
+see :doc:`replications/microsynth_baltimore` (durable case
+``benchmarks/cases/microsynth_baltimore.py``).
 
 .. automodule:: mlsynth.utils.microsynth_helpers.diagnostics
    :members:

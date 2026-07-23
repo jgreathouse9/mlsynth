@@ -128,6 +128,7 @@ CASES = {
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
     "pensynth_prop99": "benchmarks.cases.pensynth_prop99",  # cross-val vs LIVE pensynth wsoll1 (Rscript+LowRankQP) on Prop 99 penalized SC (skips if absent)
     "microsynth_seattle": "benchmarks.cases.microsynth_seattle",  # cross-val vs R microsynth panel method (Seattle DMI)
+    "microsynth_baltimore": "benchmarks.cases.microsynth_baltimore",  # cross-val vs R microsynth panel method (Baltimore BCIC, Lawrence et al. 2026): identified quantities exact, counterfactual under-identified (max-ESS vs LowRankQP)
     "scpi_staggered": "benchmarks.cases.scpi_staggered",  # cross-val vs scpi: staggered point estimates (Germany)
     "scpi_staggered_pi": "benchmarks.cases.scpi_staggered_pi",  # cross-val vs scpi: staggered TSUA prediction intervals (Germany)
     "scpi_staggered_covariate": "benchmarks.cases.scpi_staggered_covariate",  # cross-val vs scpi: covariate (multi-feature) staggered illustration (Germany)
