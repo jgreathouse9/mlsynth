@@ -224,6 +224,21 @@ The covariate path exposes three reliable solvers via ``backend=``:
    donor weights match to solver tolerance and the per-period gap agrees
    pointwise. See :doc:`replications/ibex`.
 
+.. note::
+
+   The outcome-only backend's large-sample behaviour is pinned by the Path-B
+   ``ferman_manyperiods`` benchmark, a Monte Carlo from Ferman (2021, JASA
+   Table 1). In a two-factor model where the treated unit and half the donors
+   load on one factor and the rest on the other, ``VanillaSC`` recovers the
+   treated unit's factor structure as the donor pool and pre-period grow: the
+   weight on the treated unit's own factor group climbs from about 0.75 at
+   :math:`J = 4` to 0.94 at :math:`J = 100` (misallocation heading to zero),
+   and the effect's Monte-Carlo SD shrinks -- while an unconstrained-OLS
+   comparison's grows about threefold, so SC's SD is roughly a fifth of OLS's
+   at :math:`J = 100`. The simplex constraint is what buys that precision. On a
+   fixed draw mlsynth's weights match R ``solve.QP`` (the paper's own solver)
+   value-for-value. See :doc:`replications/ferman_manyperiods`.
+
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

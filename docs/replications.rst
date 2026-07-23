@@ -61,6 +61,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/vanillasc
    replications/vanillasc_staggered
    replications/synth_jhai_prop99
+   replications/ferman_manyperiods
    replications/ibex
    replications/secession
    replications/ascm_kansas

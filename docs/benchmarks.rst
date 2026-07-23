@@ -135,6 +135,8 @@ Path B — Monte Carlo / simulation
      - CWZ 2025 Table 3 application-based Monte Carlo
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
+   * - ``ferman_manyperiods``
+     - VanillaSC recovers the factor structure as J, T0 grow (Ferman 2021 JASA Table 1): weight on the treated factor group → 1, se(α) shrinks while OLS's grows; mlsynth == R ``solve.QP`` value-for-value
    * - ``fdid_table5``
      - simulation
    * - ``fma_coverage_mc``
