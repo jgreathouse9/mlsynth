@@ -67,6 +67,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **RESCM** — Relaxed/penalized synthetic-control estimator.  (config: RESCMConfig)
 - **RMSI** — Robust Matrix estimation with Side Information.  (config: RMSIConfig)
 - **ROLLDID** — Rolling-transformation difference-in-differences.  (config: ROLLDIDConfig)
+- **RRSC** — Robust-regression synthetic control with interference (He et al. 2026).  (config: RRSCConfig)
 - **SBC** — Synthetic Business Cycle (SBC) estimator.  (config: SBCConfig)
 - **SCD** — Synthetic Control with Differencing estimator.  (config: SCDConfig)
 - **SCMO** — Synthetic Control with Multiple Outcomes estimator.  (config: SCMOConfig)

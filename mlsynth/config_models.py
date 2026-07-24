@@ -641,6 +641,7 @@ _RELOCATED_CONFIGS = {
     "FDIDConfig": "mlsynth.utils.fdid_helpers.config",
     "TSSCConfig": "mlsynth.utils.tssc_helpers.config",
     "ROLLDIDConfig": "mlsynth.utils.rolldid_helpers.config",
+    "RRSCConfig": "mlsynth.utils.rrsc_helpers.config",
 }
 
 

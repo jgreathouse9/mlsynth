@@ -28,6 +28,7 @@ CASES = {
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # cross-val vs Bayani's RPCA-SC code (West Germany reunification, value-for-value)
     "fgrc_toy_subspace": "benchmarks.cases.fgrc_toy_subspace",  # Path B: fGRC subspace separation recovers cluster structure invisible to k-means (Yamamoto-Hwang GRC.Rd toy example)
+    "rrsc_reference": "benchmarks.cases.rrsc_reference",  # cross-val: mlsynth RRSC vs reference R (He-Li-Shi-Miao 2026), both regimes value-for-value; skips without R
     "tssc_brooklyn": "benchmarks.cases.tssc_brooklyn",        # Path A: Brooklyn showroom (Li-Shankar)
     "tssc_figure2": "benchmarks.cases.tssc_figure2",          # Path B: Figure 2 MSE-ratio grid
     "sbc_germany": "benchmarks.cases.sbc_germany",            # Path A: SBC German reunification
