@@ -1,0 +1,20 @@
+# case: ferman_pinto_mc
+# generated_at: 2026-07-24T00:00:00Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC (SC) + TSSC MSCa (demeaned SC)
+# reference_impl: authors' _aux.R synth_control_est + synth_control_est_demean (quadprog QPs, live via Rscript)
+# reference_version: Ferman & Pinto (2021), Quantitative Economics 12:1197-1221
+# note: value-for-value on the calibrated MC panels; the Table 1 bias reproduction (Panels A/B close, C/D structure) is on the replication page.
+quantity,mlsynth,reference,abs_diff
+Panel A SC effect,-0.2328,-0.2328,0.0
+Panel A demeaned SC effect,-0.398,-0.3983,0.0003
+Panel A demeaned intercept,0.7941,0.7941,0.0
+Panel B SC effect,1.2802,1.2802,0.0
+Panel B demeaned SC effect,0.237,0.2367,0.0003
+Panel B demeaned intercept,-3.3869,-3.3869,0.0
+Panel C SC effect,1.6098,1.6098,0.0
+Panel C demeaned SC effect,1.718,1.7179,0.0001
+Panel C demeaned intercept,-0.8087,-0.8087,0.0
+Panel D SC effect,-1.7368,-1.7368,0.0
+Panel D demeaned SC effect,-1.516,-1.5161,0.0001
+Panel D demeaned intercept,0.388,0.3879,0.0001

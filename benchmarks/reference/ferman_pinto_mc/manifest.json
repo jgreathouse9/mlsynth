@@ -1,0 +1,9 @@
+{
+  "case": "ferman_pinto_mc",
+  "title": "Ferman & Pinto (2021) QE Table 1 Monte Carlo -- VanillaSC (SC) / TSSC-MSCa (demeaned SC) vs the authors' quadprog QPs, live",
+  "paper": "Ferman, B. & Pinto, C. (2021). 'Synthetic controls with imperfect pretreatment fit.' Quantitative Economics 12:1197-1221. https://doi.org/10.3982/QE1596",
+  "reference_impl": "authors' _aux.R synth_control_est + synth_control_est_demean (quadprog QPs), reproduced verbatim in reference.R and run LIVE via Rscript on the same simulated panels mlsynth sees; the factor-model DGP is calibrated from the authors' CPS employment panel (interFE + AR, see calibrate.py)",
+  "path_type": "Path B + cross-validation",
+  "command": "Rscript benchmarks/reference/ferman_pinto_mc/reference.R <panels.json>",
+  "data": "benchmarks/reference/ferman_pinto_mc/fixed_env.npz (calibrated from cps_employment_1982_2019.csv via calibrate.py)"
+}

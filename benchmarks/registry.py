@@ -143,6 +143,7 @@ CASES = {
     "synth_prop99": "benchmarks.cases.synth_prop99",   # cross-val vs original R Synth solver (Prop 99 outcome-only); skips if R/Synth absent
     "synth_jhai_prop99": "benchmarks.cases.synth_jhai_prop99",  # cross-val vs Hainmueller j-hai/Synth 1.2.0 (Prop 99 ADH spec): weights/ATT + split-conformal band value-for-value
     "ferman_manyperiods": "benchmarks.cases.ferman_manyperiods",  # Path B: Ferman 2021 JASA Table 1 -- VanillaSC recovers factor structure as J,T0 grow (E[mu01]->1, se(alpha) shrinks vs OLS grows); mlsynth == R solve.QP value-for-value
+    "ferman_pinto_mc": "benchmarks.cases.ferman_pinto_mc",  # Path B + cross-val: Ferman-Pinto 2021 QE Table 1 MC (CPS-calibrated factor model) -- VanillaSC(SC)/TSSC-MSCa(demeaned SC) reproduce Panel A/B bias + theory; == authors' quadprog QPs value-for-value on identical panels (LIVE Rscript)
     "cmbsts_vignette": "benchmarks.cases.cmbsts_vignette",  # cross-val vs R CausalMBSTS: multivariate BSTS vignette (trend+cycle)
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)

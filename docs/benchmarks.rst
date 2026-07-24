@@ -139,6 +139,8 @@ Path B — Monte Carlo / simulation
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
    * - ``ferman_manyperiods``
      - VanillaSC recovers the factor structure as J, T0 grow (Ferman 2021 JASA Table 1): weight on the treated factor group → 1, se(α) shrinks while OLS's grows; mlsynth == R ``solve.QP`` value-for-value
+   * - ``ferman_pinto_mc``
+     - Ferman-Pinto 2021 QE Table 1 MC (CPS-calibrated factor model): VanillaSC (SC) and TSSC MSCa (demeaned SC) reproduce the Panel A/B bias + the efficiency-over-DID and break-panel findings; SC/demeaned == the authors' ``quadprog`` QPs value-for-value on identical panels (live Rscript)
    * - ``fdid_table5``
      - simulation
    * - ``fma_coverage_mc``

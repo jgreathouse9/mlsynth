@@ -239,6 +239,17 @@ The covariate path exposes three reliable solvers via ``backend=``:
    fixed draw mlsynth's weights match R ``solve.QP`` (the paper's own solver)
    value-for-value. See :doc:`replications/ferman_manyperiods`.
 
+.. note::
+
+   The *cost* of that same constraint under imperfect fit is pinned by the
+   ``ferman_pinto_mc`` benchmark, the Monte Carlo of Ferman & Pinto (2021, QE
+   Table 1). When the treated unit's level sits at the extreme of the fixed-effect
+   distribution, ``VanillaSC`` cannot reconstruct that level and stays biased even
+   as :math:`T_0` grows -- which is precisely why the paper proposes the demeaned
+   SC (:class:`~mlsynth.TSSC` MSCa) with its free intercept. mlsynth's SC matches
+   the authors' own ``quadprog`` program value-for-value on the simulated panels.
+   See :doc:`replications/ferman_pinto_mc`.
+
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

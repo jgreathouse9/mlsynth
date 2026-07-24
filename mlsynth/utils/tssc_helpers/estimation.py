@@ -69,11 +69,17 @@ def _solve(
 
     w = cp.Variable(dim)
     objective = cp.Minimize(cp.norm(y - X @ w, 2))
+    # The intercept variants (MSCa/MSCc) carry a FREE intercept -- its sign is
+    # unconstrained (Ferman & Pinto's "demeaning"). Non-negativity applies to the
+    # donor weights only, i.e. w[1:]; constraining w[0] >= 0 would wrongly clamp a
+    # negative intercept to zero whenever the treated unit sits below its donors.
     if model == "SIMPLEX":
         constraints = [w >= 0, cp.sum(w) == 1]
     elif model == "MSCa":
-        constraints = [w >= 0, cp.sum(w[1:]) == 1]   # donor weights (excl. intercept) sum to 1
-    else:  # MSCb, MSCc
+        constraints = [w[1:] >= 0, cp.sum(w[1:]) == 1]   # donors: simplex; intercept free
+    elif model == "MSCc":
+        constraints = [w[1:] >= 0]                       # donors >= 0; intercept free
+    else:  # MSCb -- no intercept column, bare non-negativity
         constraints = [w >= 0]
 
     problem = cp.Problem(objective, constraints)

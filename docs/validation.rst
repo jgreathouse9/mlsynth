@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **68 cross-validation checks** against original
-implementations across **38 estimators** -- 27 reproduce the reference to display precision, 24 to
-within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **69 cross-validation checks** against original
+implementations across **38 estimators** -- 27 reproduce the reference to display precision, 25 to
+within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -178,8 +178,8 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 14
-     - 5 exact · 4 tight · 4 close · 1 documented
+     - 15
+     - 5 exact · 5 tight · 4 close · 1 documented
      - 4.1
 
 .. _val-beast:
@@ -1131,6 +1131,12 @@ VanillaSC
      - 0.24
      - close
      - `ferman_manyperiods <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_manyperiods.py>`__
+   * - authors' _aux.R synth_control_est + synth_control_est_demean (quadprog QPs, live via Rscript)
+     - —
+     - 12
+     - 0.0003
+     - tight
+     - `ferman_pinto_mc <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_pinto_mc.py>`__
    * - mharoruiz/ibex R replication (01_functions/sc.R: limSolve::lsei simplex SC; scinference)
      - ``ibex_day_ahead_price.csv`` (18c69704e7ee…)
      - 6
@@ -1213,6 +1219,8 @@ action records them once its toolchain provisions.
      - Reference
    * - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
      - —
+   * - `drosc_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/drosc_basque.py>`__
+     - authors' helpers.R sc() + DRoSC() (limSolve::lsei), sourced from github.com/taehyeonkoo/DRoSC and run LIVE via Rscript -- deterministic worst-case point estimand across the robustness-radius sweep
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
 
