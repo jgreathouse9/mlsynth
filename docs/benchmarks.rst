@@ -219,6 +219,8 @@ Cross-validation against reference implementations
      - vs LIVE propsdid (Rscript): Bogatyrev-Stoetzer Table 2 common-weights SDID on party vote shares (skips if absent)
    * - ``clustersc_subgroups_ref``
      - vs authors' repo
+   * - ``rrsc_reference``
+     - vs LIVE reference R (He-Li-Shi-Miao 2026): RRSC large-N and fixed-N regimes value-for-value on a synthetic interference panel (skips if R absent)
    * - ``pensynth_prop99``
      - vs LIVE pensynth wsoll1 (Rscript+LowRankQP): penalized SC weights/ATT on Prop 99 (skips if absent)
    * - ``linf_crossval_ref``
