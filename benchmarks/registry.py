@@ -28,6 +28,7 @@ CASES = {
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # cross-val vs Bayani's RPCA-SC code (West Germany reunification, value-for-value)
     "fgrc_toy_subspace": "benchmarks.cases.fgrc_toy_subspace",  # Path B: fGRC subspace separation recovers cluster structure invisible to k-means (Yamamoto-Hwang GRC.Rd toy example)
+    "rrsc_reference": "benchmarks.cases.rrsc_reference",  # cross-val: mlsynth RRSC vs reference R (He-Li-Shi-Miao 2026), both regimes value-for-value; skips without R
     "tssc_brooklyn": "benchmarks.cases.tssc_brooklyn",        # Path A: Brooklyn showroom (Li-Shankar)
     "tssc_figure2": "benchmarks.cases.tssc_figure2",          # Path B: Figure 2 MSE-ratio grid
     "sbc_germany": "benchmarks.cases.sbc_germany",            # Path A: SBC German reunification
@@ -66,7 +67,6 @@ CASES = {
     "masc_crossval": "benchmarks.cases.masc_crossval",        # cross-val vs authors' own R MASC (maxkllgg/masc, nogurobi) on Basque, value-for-value
     "src_basque": "benchmarks.cases.src_basque",
     "ferman_demeaned_basque": "benchmarks.cases.ferman_demeaned_basque",  # cross-val vs Ferman-Pinto (2021) demeaned SC in their own R (quadprog), Basque/ETA 1975: MSCa == demeaned SC value-for-value (LIVE Rscript)              # cross-val vs R Code_SMC + Path A: SRC Basque/ETA (Zhu 2023)
-    "drosc_basque": "benchmarks.cases.drosc_basque",  # cross-val vs authors' own R DRoSC (Koo & Guo 2026, helpers.R + limSolve::lsei) run LIVE via Rscript on Basque: worst-case estimand tau(lambda) + lambda=0 weights value-for-value (~1e-7); skips if R/limSolve absent
     "bscm_china_watches": "benchmarks.cases.bscm_china_watches",  # cross-val vs reference Stan horseshoe + FSPDA (Shi-Huang) on China anti-corruption watches, p>n (Kim-Lee-Gupta 2020)
     "bvss_watches": "benchmarks.cases.bvss_watches",              # cross-val vs authors' own two-coordinate Gibbs (Xu-Zhou 2025) on China anti-corruption watches, p>n: engine exact + posterior ATT within MC error
     "bfsc_germany": "benchmarks.cases.bfsc_germany",                # cross-val vs author appendix Stan (corr 0.999999) + Path A: West Germany reunification (Pinkney 2021)
