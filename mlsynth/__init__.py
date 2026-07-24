@@ -72,6 +72,7 @@ from .estimators.orthsc import ORTHSC
 from .estimators.beast import BEAST
 from .estimators.dpsc import DPSC
 from .estimators.dsc import DSC
+from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
@@ -165,6 +166,7 @@ __all__ = [
     "from_syndes",
     "plot_compare_pareto",
     "DSC",
+    "DROSC",
     "SpSyDiD",
     "ISCM",
     "VanillaSC",
