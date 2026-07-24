@@ -12,6 +12,7 @@ from .estimators.medsc import MEDSC ## Check
 from .estimators.pda import PDA ## Check
 from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
+from .estimators.rrsc import RRSC ## Check
 from .estimators.proximal import PROXIMAL ## Check
 from .estimators.fscm import FSCM ## Check
 from .estimators.scmo import SCMO
@@ -71,7 +72,6 @@ from .estimators.orthsc import ORTHSC
 from .estimators.beast import BEAST
 from .estimators.dpsc import DPSC
 from .estimators.dsc import DSC
-from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
@@ -113,6 +113,7 @@ __all__ = [
     "PDA",
     "FDID",
     "CLUSTERSC",
+    "RRSC",
     "PROXIMAL",
     "FSCM",
     "SCMO",
@@ -164,7 +165,6 @@ __all__ = [
     "from_syndes",
     "plot_compare_pareto",
     "DSC",
-    "DROSC",
     "SpSyDiD",
     "ISCM",
     "VanillaSC",
