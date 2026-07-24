@@ -65,6 +65,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ibex
    replications/secession
    replications/ferman
+   replications/ferman_pinto_mc
    replications/ascm_kansas
    replications/pensynth
    replications/sparse_sc

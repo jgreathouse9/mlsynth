@@ -1,0 +1,11 @@
+{
+  "tool": "authors' _aux.R QPs (quadprog::solve.QP) run live via Rscript; DGP calibration by calibrate.py (a NumPy port of gsynth::interFE + an AR fit)",
+  "reference_code": "Ferman & Pinto (2021) supplementary _aux.R -- synth_control_est (original SC) and synth_control_est_demean (demeaned SC) reproduced verbatim in reference.R",
+  "solver": "quadprog::solve.QP (Goldfarb-Idnani active set); mlsynth SC matches to ~1e-10 (same active-set family), demeaned SC to ~1e-3 (mlsynth's cvxpy/CLARABEL vs solve.QP)",
+  "r_version": "4.3.3",
+  "r_packages": ["quadprog", "jsonlite"],
+  "os": "Ubuntu 24.04",
+  "calibration": "fixed_env.npz is produced once by calibrate.py from cps_employment_1982_2019.csv (the authors' base_state_final.csv, 1982-2019, employment_per). interFE is a two-way-plus-4-factor interactive-FE port; r=4 is the paper's IC_p1 selection (our port's own IC_p1 lands at 5 -- a fine-detail gap between iterated-FE implementations, gsynth not being installable in CI); idiosyncratic and factor dynamics are AR(1) stand-ins for the authors' auto.arima.",
+  "determinism": "seeded. The value-for-value estimator tie is solver-tight and calibration-independent. Panels A/B reproduce the published SC bias within the calibration+MC gap; Panels C/D reproduce Table 1's qualitative structure only (their exact magnitudes depend on gsynth's factor rotation).",
+  "notes": "The case BenchmarkSkipped()s when Rscript / quadprog / jsonlite is unavailable, so a missing R toolchain never turns the suite red."
+}

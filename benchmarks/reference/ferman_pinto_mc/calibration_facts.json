@@ -1,0 +1,15 @@
+{
+  "n_states": 51,
+  "n_periods": 456,
+  "n_factors": 4,
+  "panelA_state_2nd_largest_fe": 46,
+  "panelB_state_2nd_smallest_fe": 2,
+  "panelC_state_2nd_largest_mu1": 22,
+  "panelD_state_2nd_smallest_mu1": 9,
+  "fe_range": [
+    -2.187,
+    2.227
+  ],
+  "resid_sd_mean": 0.86,
+  "sd_factor1": 1.0
+}

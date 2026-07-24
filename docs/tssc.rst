@@ -485,7 +485,12 @@ intercept) is exactly the *demeaned synthetic control* of Ferman & Pinto (2021).
 On the identified Basque/ETA panel it reproduces the authors' own R ``quadprog``
 program value-for-value -- cross-checked live via ``Rscript`` -- so ``MSCa``
 serves as mlsynth's demeaned SC without a separate estimator. See
-:doc:`replications/ferman`.
+:doc:`replications/ferman`. The same equivalence is exercised across the paper's
+Monte Carlo (Table 1) by the ``ferman_pinto_mc`` benchmark, where ``MSCa``
+reproduces the demeaned SC's near-zero bias and its 40-50% efficiency gain over
+difference-in-differences; see :doc:`replications/ferman_pinto_mc`. That case's
+free-intercept requirement is what surfaced -- and fixed -- a bug in which
+``MSCa`` had wrongly constrained its intercept to be non-negative.
 
 Core API
 --------
