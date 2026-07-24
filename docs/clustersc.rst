@@ -29,7 +29,13 @@ control behind a single estimator.
   treated unit's cluster via Principal Component Pursuit
   (Candes, Li, Ma & Wright 2011) or half-quadratic non-convex
   regularisation (Wang, Li, So & Liu 2023), then non-negative least
-  squares against the low-rank donor matrix.
+  squares against the low-rank donor matrix. On top of this default
+  path mlsynth adds three opt-in pieces, each documented below:
+  subspace-separation clustering (fGRC, Yamamoto and Hwang 2017) in
+  place of the FPCA silhouette step, a signal-recovery HSVT denoiser
+  whose rank is read from the donor spectrum in place of the fixed
+  Candes penalty, and simplex weights in place of non-negative least
+  squares.
 
 Either family can be selected via :py:attr:`CLUSTERSCConfig.method`
 (``"pcr"``, ``"rpca"``, or ``"both"``); when both run, the
@@ -484,6 +490,68 @@ denoised donor matrix,
                     \sum_{t \in \mathcal{T}_2}
                     \bigl(y_{1t} - (\mathbf{L}^\top \widehat{\mathbf{w}})_t\bigr).
 
+RPCA-SC clustering: subspace separation via fGRC
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Bayani's Step 2 clusters the donors on the FPC scores -- the
+*max-variance* subspace of the pre-period trajectories. That works when
+the directions that carry the most variance are also the directions that
+separate the groups. It fails when the donors share a strong common
+movement -- a regional growth trend, a business cycle, a shared price
+level -- that dominates the variance without saying anything about which
+donors resemble the treated unit. The silhouette then splits on that
+shared trend, and the treated unit's cluster is either almost every donor
+or a level-mismatched handful. On the West German and Proposition 99
+panels this is exactly what happens: the donors co-move so strongly that
+clustering on the FPC scores cannot isolate a coherent pool.
+
+mlsynth adds an opt-in alternative,
+:py:attr:`CLUSTERSCConfig.cluster_method` set to ``"fgrc"``: functional
+generalized reduced clustering (Yamamoto and Hwang 2017). fGRC does not
+cluster on the max-variance subspace; it *searches for* the subspace that
+reveals the groups while projecting a separate disturbing subspace -- the
+shared trend -- out of the way. Write the pre-period trajectories
+(B-spline smoothed) as the rows of :math:`\mathbf{X}` and split an
+orthonormal loading matrix into a cluster subspace :math:`\mathbf{A}_1`
+(dimension ``fgrc_c1``) and a disturbing subspace :math:`\mathbf{A}_2`
+(dimension ``fgrc_c2``). fGRC minimises
+
+.. math::
+
+   \bigl\| \mathbf{X} - \mathbf{X}\mathbf{A}\mathbf{A}^\top \bigr\|_F^2
+   + \rho_1 \bigl\| (\mathbf{I} - \mathbf{P}_U)\,\mathbf{X}\mathbf{A}_1 \bigr\|_F^2
+   + \rho_2 \bigl\| \mathbf{P}_U\,\mathbf{X}\mathbf{A}_1 \bigr\|_F^2,
+   \qquad
+   \mathbf{P}_U = \mathbf{U}(\mathbf{U}^\top\mathbf{U})^{-1}\mathbf{U}^\top,
+
+over the loadings :math:`\mathbf{A} = [\mathbf{A}_1 \mid \mathbf{A}_2]`
+and a cluster-membership indicator :math:`\mathbf{U}`. The first term
+keeps :math:`\mathbf{A}` a faithful low-rank summary of the donors; the
+:math:`\rho_1` term rewards a cluster subspace on which the
+within-cluster scatter is small (tight, well-separated groups); and the
+disturbing subspace :math:`\mathbf{A}_2` absorbs the shared high-variance
+direction so that it no longer drives the grouping. Clustering then runs
+on :math:`\mathbf{X}\mathbf{A}_1`, the cluster-revealing coordinates, by
+Lloyd :math:`k`-means. The loadings update in closed form (an
+eigendecomposition) when there is no disturbing subspace
+(:math:`c_2 = 0`, where fGRC reduces to reduced :math:`k`-means) and by a
+Stiefel-manifold gradient projection otherwise.
+
+The practical effect for donor selection is that fGRC keeps the donors
+that track the treated unit's *co-movement* once the shared trend is
+removed, rather than the donors that happen to sit at a similar overall
+level. On the West German panel, ``cluster_method="fgrc"`` with
+``fgrc_k=2`` isolates a coherent seven-donor core led by France and the
+United States, and it is on that clustered pool -- not the full donor
+set -- that the denoising step gives its best pre-period fit. The number
+of clusters ``fgrc_k`` is set directly (default ``2``) rather than by a
+silhouette search, because the goal is one coherent pool for a single
+treated unit, not a full partition of the panel; the subspace dimensions
+``fgrc_c1`` / ``fgrc_c2`` and the B-spline resolution ``fgrc_knots`` /
+``fgrc_order`` carry the paper's defaults. The port is validated to
+machine precision against the authors' compiled ``OptimGRC`` routine
+(``mlsynth/tests/test_fgrc.py``).
+
 RPCA-SC tuning via leave-one-time-out cross-validation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -537,6 +605,72 @@ in half (2.11 → 1.08, ATT moving from −15.5 to −17.7);
 ``cv_hqf_rank=True`` picks :math:`\widehat r = 8` (vs. cumvar
 default of 4) with ATT moving from −12.8 to −16.6. Both ATTs land
 in the canonical SCM / RSC range of −19 to −24.
+
+RPCA-SC denoising: signal-recovery rank selection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The cross-validation tuners above still start from Bayani's premise that
+the denoising level is a single number to be searched. His defaults set
+it from the matrix shape alone: PCP takes
+:math:`\lambda^\star = 1/\sqrt{\max(|\mathcal D|, T)}`, the
+Candes-Li-Ma-Wright (2011) value that guarantees *exact* recovery of the
+low-rank-plus-sparse split, and HQF stops at a fixed cumulative-energy
+share. Neither rule looks at the donor spectrum, and both optimise
+decomposition identifiability rather than counterfactual fit -- the
+distinction the robust-SC literature draws between recovering
+:math:`\mathbf{L}` exactly and predicting :math:`\mathbf{y}_1` well.
+
+mlsynth adds a third robust decomposition,
+:py:attr:`CLUSTERSCConfig.rpca_method` set to ``"HSVT"``, that chooses
+the denoising level *from the data*. HSVT is hard singular-value
+truncation -- the same denoiser the PCR-SC family uses -- so in place of
+the convex PCP relaxation it simply keeps the leading singular values of
+the donor matrix and zeroes the rest. The cut point is set by
+:py:attr:`CLUSTERSCConfig.hsvt_rank_method`:
+
+* ``"usvt"`` (default) -- the Donoho-Gavish (2014) optimal hard
+  threshold. Keep every singular value exceeding
+  :math:`\omega(\beta)\cdot \operatorname{median}(\sigma)`, where
+  :math:`\sigma` are the donor singular values, :math:`\beta` is the
+  matrix aspect ratio :math:`\min(m, n) / \max(m, n)`, and
+
+  .. math::
+
+     \omega(\beta) = 0.56\,\beta^3 - 0.95\,\beta^2 + 1.82\,\beta + 1.43.
+
+  The median singular value is a robust estimate of the noise scale, so
+  this cut is the rank that minimises the asymptotic mean-squared error
+  of the recovered low-rank matrix for the noise level actually present
+  in the pool.
+* ``"cumvar"`` -- the smallest rank whose cumulative spectral energy
+  reaches ``hsvt_cumvar`` (default ``0.95``).
+* ``"fixed"`` -- an explicit ``hsvt_rank``.
+
+The contrast with Candes is a contrast of objectives. His
+:math:`\lambda^\star` depends only on the matrix dimensions and targets
+exact decomposition; the Donoho-Gavish threshold reads the singular
+spectrum and the noise scale and targets the best low-rank
+reconstruction. The two disagree most when the pool is heterogeneous:
+applied to the full sixteen-donor West German pool the signal-recovery
+threshold collapses the rank and over-denoises, but applied to the
+fGRC-clustered seven-donor pool -- where the donors genuinely share a
+low-rank signal -- it gives the best pre-period fit of any denoiser
+tested, and at a matched rank it edges out PCP. That ordering is why the
+recommended configuration clusters first and denoises second:
+``cluster_method="fgrc"`` and then ``rpca_method="HSVT"``.
+
+A companion knob governs the final weight step.
+:py:attr:`CLUSTERSCConfig.weight_objective` set to ``"simplex"`` replaces
+Bayani's non-negative least squares (Step 4) with the
+Abadie-Diamond-Hainmueller sum-to-one convex-hull constraint. Bayani
+drops the simplex deliberately, arguing that clustering has already
+restricted the pool; but nothing forces that choice, and on a denoised,
+coherent pool the convex-hull restriction is well-posed and keeps the
+counterfactual strictly inside the span of the donors. The full
+recommended pipeline is therefore fGRC clustering, HSVT signal-recovery
+denoising, and simplex weights -- each piece opt-in, with the default
+path (FPCA clustering, PCP at the Candes penalty, NNLS weights) left
+byte-for-byte identical to Bayani (2021).
 
 When the assumptions bind: practical diagnostics
 -------------------------------------------------
