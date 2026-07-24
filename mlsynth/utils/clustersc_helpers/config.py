@@ -69,9 +69,61 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         default="frequentist",
         description="Frequentist QP or Bayesian posterior for the PCR family.",
     )
-    rpca_method: Literal["PCP", "HQF"] = Field(
+    rpca_method: Literal["PCP", "HQF", "HSVT"] = Field(
         default="PCP",
-        description="Robust-PCA decomposition for the RPCA family.",
+        description="Robust-PCA / low-rank denoiser for the RPCA family: 'PCP' "
+                    "(Candes et al. 2011, default), 'HQF' (Wang et al. 2023), or "
+                    "'HSVT' (hard singular-value truncation, RSC/PCR-native; the "
+                    "rank is chosen by hsvt_rank_method).",
+    )
+    cluster_method: Literal["fpca", "fgrc"] = Field(
+        default="fpca",
+        description="Donor-clustering step for the RPCA family: 'fpca' (FPCA + "
+                    "silhouette k-means, Bayani 2021, default) or 'fgrc' "
+                    "(functional generalized reduced clustering, Yamamoto-Hwang "
+                    "2017, which projects out a shared disturbing trend before "
+                    "grouping).",
+    )
+    weight_objective: Literal["nnls", "simplex"] = Field(
+        default="nnls",
+        description="Weight objective against the denoised donors: 'nnls' "
+                    "(non-negative LS, Bayani 2021, default) or 'simplex' (the "
+                    "Abadie-Diamond-Hainmueller sum-to-one convex-hull constraint).",
+    )
+    fgrc_c1: int = Field(
+        default=2, ge=1,
+        description="fGRC cluster-subspace dimension (cluster_method='fgrc').",
+    )
+    fgrc_c2: int = Field(
+        default=1, ge=0,
+        description="fGRC disturbing-subspace dimension (cluster_method='fgrc').",
+    )
+    fgrc_k: Optional[int] = Field(
+        default=None, ge=2,
+        description="fGRC number of clusters (cluster_method='fgrc'). Defaults to 2.",
+    )
+    fgrc_knots: Optional[int] = Field(
+        default=None, ge=2,
+        description="fGRC B-spline breakpoints (cluster_method='fgrc'). Defaults "
+                    "to max(4, T0//2 - 2).",
+    )
+    fgrc_order: int = Field(
+        default=4, ge=2,
+        description="fGRC B-spline order (cluster_method='fgrc'; 4 = cubic).",
+    )
+    hsvt_rank_method: Literal["usvt", "cumvar", "fixed"] = Field(
+        default="usvt",
+        description="Rank rule for rpca_method='HSVT': 'usvt' (Donoho-Gavish "
+                    "optimal hard threshold, default), 'cumvar' (hsvt_cumvar "
+                    "energy), or 'fixed' (explicit hsvt_rank).",
+    )
+    hsvt_rank: Optional[int] = Field(
+        default=None, ge=1,
+        description="Explicit HSVT truncation rank (hsvt_rank_method='fixed').",
+    )
+    hsvt_cumvar: float = Field(
+        default=0.95, gt=0.0, le=1.0,
+        description="Cumulative-variance target for hsvt_rank_method='cumvar'.",
     )
     lambda_penalty: Optional[float] = Field(
         default=None, ge=0.0,
