@@ -129,6 +129,8 @@ Path B — Monte Carlo / simulation
      - ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
    * - ``clustersc_subgroups``
      - ClusterSC vs RSC
+   * - ``fgrc_toy_subspace``
+     - fGRC subspace separation recovers cluster structure invisible to k-means (Yamamoto-Hwang ``GRC.Rd`` toy example)
    * - ``ctsc_powell_mc``
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
