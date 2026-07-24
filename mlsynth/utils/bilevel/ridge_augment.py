@@ -43,6 +43,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
+from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
+
 _EPS = 1e-12
 
 # Max condition number of the ridge Gram ``B B^T + lambda I`` tolerated when
@@ -63,11 +65,19 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
     (:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), which avoids
     cvxpy's per-call canonicalisation overhead in the hot conformal /
     market-selection loops and is warm-startable. Augmented SCM augments an
-    *accurately solved* simplex SCM (augsynth uses quadprog), and the bilevel
-    package's FISTA primitive under-converges on long pre-periods, so the base
-    is solved exactly here. Falls back to cvxpy if the active set fails to
-    certify convergence (degenerate cycling), keeping the result no worse than
-    before.
+    *accurately solved* simplex SCM (augsynth uses quadprog), so the base is
+    solved exactly here. Falls back to cvxpy if the active set fails to certify
+    convergence (degenerate cycling), keeping the result no worse than before.
+
+    For a large donor pool (``J >= ACCEL_MIN_DONORS``) with no caller-supplied
+    warm start, a Gram-collapsed FISTA warm start
+    (:func:`mlsynth.utils.bilevel.accelerate.fista_warm_start`) is computed first
+    so the active set is certified from the right support instead of built up
+    pivot by pivot -- up to ~20x faster on a few hundred donors, and faster than a
+    general interior-point solver (CLARABEL) on the same problem. This is
+    speed-only: the exact active-set (with the cvxpy fallback) still determines
+    the weights, so the answer is unchanged; the small-``J`` hot path and any
+    caller that already warm-starts are untouched.
 
     Parameters
     ----------
@@ -82,6 +92,10 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
     """
     from .active_set import solve_simplex_qp
 
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    if warm_start is None and B.shape[1] >= ACCEL_MIN_DONORS:
+        warm_start = fista_warm_start(B, A)
     w, info = solve_simplex_qp(B, A, warm_start=warm_start, return_info=True)
     if info["converged"]:
         return w
