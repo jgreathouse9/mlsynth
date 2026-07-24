@@ -313,6 +313,7 @@ headline numbers.
    spsydid
    spillsynth
    spotsynth
+   rrsc
    cmbsts
 
 .. toctree::
