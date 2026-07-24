@@ -23,9 +23,13 @@ from typing import Optional, Sequence, Tuple
 
 import numpy as np
 
-from ....exceptions import MlsynthEstimationError
+from ....exceptions import MlsynthConfigError, MlsynthEstimationError
+from ...pcr.core import hsvt as _hsvt
+from ...pcr.rank import select_rank as _select_rank
+from ..pcr.convex import solve_simplex as _solve_simplex
 from ..structures import MethodFit
 from .clustering import FPCACluster, assign_clusters
+from .fgrc import fgrc_cluster as _fgrc_cluster
 from .fpca import FPCAFeatures, compute_fpca_features
 from .hqf import HQFResult, hqf_decompose
 from .pcp import PCPResult, pcp_decompose
@@ -33,6 +37,10 @@ from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
+
+_RPCA_METHODS = {"PCP", "HQF", "HSVT"}
+_CLUSTER_METHODS = {"fpca", "fgrc"}
+_WEIGHT_OBJECTIVES = {"nnls", "simplex"}
 
 _MIN_PRE = 2
 _MIN_DONORS = 2
@@ -45,10 +53,22 @@ def run_rpca(
     T0: int,
     *,
     rpca_method: str = "PCP",
+    cluster_method: str = "fpca",
+    weight_objective: str = "nnls",
     # FPCA / clustering knobs
     fpca_cumvar: float = 0.95,
     k_clusters: Optional[int] = None,
     k_max: int = 8,
+    # fGRC clustering knobs (cluster_method="fgrc")
+    fgrc_c1: int = 2,
+    fgrc_c2: int = 1,
+    fgrc_k: Optional[int] = None,
+    fgrc_knots: Optional[int] = None,
+    fgrc_order: int = 4,
+    # HSVT denoiser knobs (rpca_method="HSVT")
+    hsvt_rank_method: str = "usvt",
+    hsvt_rank: Optional[int] = None,
+    hsvt_cumvar: float = 0.95,
     # PCP knobs
     pcp_lambda: Optional[float] = None,
     pcp_mu: Optional[float] = None,
@@ -110,9 +130,17 @@ def run_rpca(
         Frozen container with the RPCA-SC fit (counterfactual projected
         through the denoised donor matrix in both pre and post).
     """
-    if rpca_method not in {"PCP", "HQF"}:
+    if rpca_method not in _RPCA_METHODS:
         raise MlsynthEstimationError(
-            f"rpca_method must be 'PCP' or 'HQF'; got {rpca_method!r}."
+            f"rpca_method must be one of {sorted(_RPCA_METHODS)}; got {rpca_method!r}."
+        )
+    if cluster_method not in _CLUSTER_METHODS:
+        raise MlsynthConfigError(
+            f"cluster_method must be one of {sorted(_CLUSTER_METHODS)}; got {cluster_method!r}."
+        )
+    if weight_objective not in _WEIGHT_OBJECTIVES:
+        raise MlsynthConfigError(
+            f"weight_objective must be one of {sorted(_WEIGHT_OBJECTIVES)}; got {weight_objective!r}."
         )
     if T0 < _MIN_PRE:
         raise MlsynthEstimationError(
@@ -130,27 +158,51 @@ def run_rpca(
         )
 
     # ------------------------------------------------------------------
-    # Step 1: FPCA on the full panel (treated unit prepended as row 0).
+    # Steps 1-2: cluster the pre-period trajectories and keep the treated
+    # unit's cluster as the donor pool. Default: FPCA + silhouette k-means
+    # (Bayani 2021). Alternative: fGRC subspace-separated clustering, which
+    # projects out a shared disturbing trend before grouping.
     # ------------------------------------------------------------------
     full_pre_panel = np.vstack([treated_outcome[:T0], donor_outcomes[:T0].T])
-    features: FPCAFeatures = compute_fpca_features(
-        pre_outcomes=full_pre_panel, cumvar_threshold=fpca_cumvar,
-    )
-
-    # ------------------------------------------------------------------
-    # Step 2: k-means and donor selection.
-    # ------------------------------------------------------------------
-    cluster: FPCACluster = assign_clusters(
-        scores=features.scores,
-        treated_row=0,
-        k_clusters=k_clusters,
-        k_max=k_max,
-        random_state=random_state,
-    )
-    # donor_indices is in *full panel* coordinates; subtract 1 to get
-    # back to the donor_outcomes column indices.
-    donor_col_idx = cluster.donor_indices - 1
-    donor_col_idx = donor_col_idx[donor_col_idx >= 0]
+    if cluster_method == "fpca":
+        features: FPCAFeatures = compute_fpca_features(
+            pre_outcomes=full_pre_panel, cumvar_threshold=fpca_cumvar,
+        )
+        cluster: FPCACluster = assign_clusters(
+            scores=features.scores, treated_row=0,
+            k_clusters=k_clusters, k_max=k_max, random_state=random_state,
+        )
+        # donor_indices is in *full panel* coordinates; subtract 1 to get
+        # back to the donor_outcomes column indices.
+        donor_col_idx = cluster.donor_indices - 1
+        donor_col_idx = donor_col_idx[donor_col_idx >= 0]
+        cluster_meta = {
+            "cluster_method": "fpca",
+            "fpca_cumvar": float(fpca_cumvar),
+            "fpca_rank": int(features.rank),
+            "fpca_smoothing": features.smoothing,
+            "k_clusters": int(cluster.k),
+            "treated_cluster": int(cluster.treated_cluster),
+            "cluster_labels": cluster.labels.tolist(),
+        }
+    else:  # cluster_method == "fgrc"
+        n_units = full_pre_panel.shape[0]
+        k = int(fgrc_k) if fgrc_k is not None else 2
+        knots = int(fgrc_knots) if fgrc_knots is not None else max(4, T0 // 2 - 2)
+        labels, fgrc_loss = _fgrc_cluster(
+            full_pre_panel, c1=fgrc_c1, c2=fgrc_c2, k=k,
+            n_knots=knots, order=fgrc_order, seed=random_state,
+        )
+        treated_cluster = int(labels[0])
+        donor_col_idx = np.where(labels[1:] == treated_cluster)[0]
+        cluster_meta = {
+            "cluster_method": "fgrc",
+            "fgrc_c1": int(fgrc_c1), "fgrc_c2": int(fgrc_c2), "fgrc_k": int(k),
+            "fgrc_knots": int(knots), "fgrc_order": int(fgrc_order),
+            "fgrc_loss": float(fgrc_loss),
+            "treated_cluster": treated_cluster,
+            "cluster_labels": labels.tolist(),
+        }
     if donor_col_idx.size < _MIN_DONORS:
         raise MlsynthEstimationError(
             f"Treated cluster has {donor_col_idx.size} donor(s); "
@@ -210,13 +262,14 @@ def run_rpca(
             max_iter=pcp_max_iter,
             tol=pcp_tol,
         )
+        L_full = result.low_rank.T
         solver_metadata = {
             "pcp_lambda": result.lambda_used,
             "pcp_mu": result.mu_used,
             "pcp_iterations": result.iterations,
             "pcp_converged": result.converged,
         }
-    else:
+    elif rpca_method == "HQF":
         result = hqf_decompose(
             Y=donor_matrix,
             rank=hqf_rank,
@@ -226,20 +279,36 @@ def run_rpca(
             max_iter=hqf_max_iter,
             random_state=random_state,
         )
+        L_full = result.low_rank.T
         solver_metadata = {
             "hqf_rank": result.rank_used,
             "hqf_lambda": result.lambda_used,
             "hqf_ip": result.ip_used,
             "hqf_iterations": result.iterations,
         }
+    else:  # rpca_method == "HSVT" -- hard singular-value truncation (RSC/PCR-native)
+        if hsvt_rank_method == "fixed":
+            r_hsvt = _select_rank(donor_matrix, method="fixed", r=hsvt_rank)
+        elif hsvt_rank_method == "cumvar":
+            r_hsvt = _select_rank(donor_matrix, method="cumvar", cumvar_threshold=hsvt_cumvar)
+        else:  # "usvt" -- Donoho-Gavish optimal hard threshold
+            r_hsvt = _select_rank(donor_matrix, method="usvt")
+        L_donor, _u, _s, _vt = _hsvt(donor_matrix, r_hsvt)
+        L_full = L_donor.T
+        solver_metadata = {"hsvt_rank": int(r_hsvt), "hsvt_rank_method": hsvt_rank_method}
 
-    L_full = result.low_rank.T          # shape (T, n_donors), donors as columns
+    # shape (T, n_donors), donors as columns
     L_pre = L_full[:T0]
 
     # ------------------------------------------------------------------
-    # Step 4: non-negative LS against the denoised pre-period donors.
+    # Step 4: fit weights against the denoised pre-period donors. Default is
+    # non-negative LS (Bayani 2021); "simplex" adds the Abadie-Diamond-
+    # Hainmueller sum-to-one convex-hull constraint on the denoised donors.
     # ------------------------------------------------------------------
-    beta = solve_nnls(denoised_donor_pre=L_pre, target_pre=treated_outcome[:T0])
+    if weight_objective == "simplex":
+        beta = _solve_simplex(L_pre, treated_outcome[:T0])
+    else:
+        beta = solve_nnls(denoised_donor_pre=L_pre, target_pre=treated_outcome[:T0])
 
     # ------------------------------------------------------------------
     # Step 5: project through the denoised donor matrix in both periods.
@@ -253,12 +322,8 @@ def run_rpca(
 
     metadata = {
         "rpca_method": rpca_method,
-        "fpca_cumvar": float(fpca_cumvar),
-        "fpca_rank": int(features.rank),
-        "fpca_smoothing": features.smoothing,
-        "k_clusters": int(cluster.k),
-        "treated_cluster": int(cluster.treated_cluster),
-        "cluster_labels": cluster.labels.tolist(),
+        "weight_objective": weight_objective,
+        **cluster_meta,
         **solver_metadata,
         **cv_metadata,
     }
@@ -274,6 +339,16 @@ def run_rpca(
                 donor_names=donor_names,
                 T0=T0,
                 rpca_method=rpca_method,
+                cluster_method=cluster_method,
+                weight_objective=weight_objective,
+                fgrc_c1=fgrc_c1,
+                fgrc_c2=fgrc_c2,
+                fgrc_k=fgrc_k,
+                fgrc_knots=fgrc_knots,
+                fgrc_order=fgrc_order,
+                hsvt_rank_method=hsvt_rank_method,
+                hsvt_rank=hsvt_rank,
+                hsvt_cumvar=hsvt_cumvar,
                 fpca_cumvar=fpca_cumvar,
                 k_clusters=k_clusters,
                 k_max=k_max,
