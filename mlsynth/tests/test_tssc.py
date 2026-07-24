@@ -27,7 +27,7 @@ from pydantic import ValidationError
 from mlsynth import TSSC
 from mlsynth.config_models import TSSCConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.tssc_helpers.estimation import fit_variant
+from mlsynth.utils.tssc_helpers.estimation import _solve, fit_variant
 from mlsynth.utils.tssc_helpers.selection import _restriction_matrices, select_method
 from mlsynth.utils.tssc_helpers.setup import prepare_tssc_inputs
 from mlsynth.utils.tssc_helpers.structures import (
@@ -292,3 +292,60 @@ class TestImmutability:
         # assignment raises pydantic's ValidationError ("frozen_instance").
         with pytest.raises(ValidationError):
             res.summary = None
+
+
+# =========================================================================
+# FREE INTERCEPT (MSCa / MSCc) -- regression for a clamped-intercept bug
+# =========================================================================
+
+class TestFreeIntercept:
+    """MSCa (Ferman & Pinto's demeaned SC) and MSCc carry a *free* intercept:
+    its sign is unconstrained. A treated unit whose level sits below every donor
+    needs a negative intercept; the solver must not clamp it at zero.
+    """
+
+    @staticmethod
+    def _panel(offset):
+        """Donors around level 100; treated = a simplex mix of them plus
+        ``offset``. The demeaned-SC optimum is that mix with intercept ``offset``.
+        """
+        rng = np.random.default_rng(3)
+        T0, J = 40, 6
+        X = 100.0 + np.cumsum(rng.normal(size=(T0, J)), axis=0)
+        w_true = np.array([0.4, 0.3, 0.2, 0.1, 0.0, 0.0])
+        y = X @ w_true + offset + rng.normal(scale=1e-3, size=T0)
+        return X, y, T0, J
+
+    def _reference_demeaned(self, X, y):
+        """Correct demeaned SC: simplex weights on demeaned data, concentrated
+        intercept ``a = ybar - Xbar.w`` -- the free-intercept optimum."""
+        from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+        w = solve_simplex_qp(X - X.mean(0), y - y.mean())
+        return float(y.mean() - X.mean(0) @ w), w
+
+    def test_msca_intercept_may_be_negative(self):
+        """Treated 5 below the donor mix -> MSCa intercept ~ -5, not clamped to 0."""
+        X, y, T0, J = self._panel(offset=-5.0)
+        coef = _solve("MSCa", X, y, T0, J)
+        assert coef is not None
+        intercept, w = coef[0], coef[1:]
+        assert intercept < -1.0                       # free, negative intercept
+        a_ref, w_ref = self._reference_demeaned(X, y)
+        assert intercept == pytest.approx(a_ref, abs=1e-2)
+        assert float(np.abs(w - w_ref).sum()) < 1e-2  # weights match the optimum
+
+    def test_msca_reaches_the_optimum_when_intercept_negative(self):
+        """The clamped-intercept bug left MSCa at a strictly worse pre-fit SSR."""
+        X, y, T0, J = self._panel(offset=-5.0)
+        coef = _solve("MSCa", X, y, T0, J)
+        ssr = float(((y - coef[0] - X @ coef[1:]) ** 2).sum())
+        a_ref, w_ref = self._reference_demeaned(X, y)
+        ssr_ref = float(((y - a_ref - X @ w_ref) ** 2).sum())
+        assert ssr == pytest.approx(ssr_ref, abs=1e-4)
+
+    def test_mscc_intercept_free(self):
+        """MSCc also carries a free intercept (donors >= 0, no sum constraint)."""
+        X, y, T0, J = self._panel(offset=-5.0)
+        coef = _solve("MSCc", X, y, T0, J)
+        assert coef is not None
+        assert coef[0] < -1.0                          # negative, not clamped
