@@ -213,6 +213,8 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``drosc_basque``
+     - DROSC vs authors' R ``DRoSC`` (Koo & Guo 2026, ``limSolve::lsei``) on Basque: worst-case estimand τ(λ) and λ=0 weights value-for-value across the robustness sweep
    * - ``propsc_spain``
      - vs LIVE propsdid (Rscript): Bogatyrev-Stoetzer Table 2 common-weights SDID on party vote shares (skips if absent)
    * - ``clustersc_subgroups_ref``
