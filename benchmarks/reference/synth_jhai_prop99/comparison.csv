@@ -1,0 +1,17 @@
+# case: synth_jhai_prop99
+# generated_at: 2026-07-24T09:21:54Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "mscmt", "inference": "conformal_split"}
+# reference_impl: R Synth (j-hai/Synth, synth + synth_inference)
+# reference_version: Synth 1.2.0
+quantity,mlsynth,reference,abs_diff
+w[Utah],0.3351,0.3432,0.0081
+w[Nevada],0.2356,0.2358,0.0002
+w[Montana],0.2019,0.182,0.0199
+w[Colorado],0.1595,0.1747,0.0152
+w[Connecticut],0.0679,0.0624,0.0055
+ATT,-18.982,-18.719,0.263
+pre_RMSPE,1.754,1.791,0.037
+conformal_q (own synthetic),5.898,6.113,0.215
+"conformal_q (value-for-value, shared gaps)",6.113436,6.113436,0.0

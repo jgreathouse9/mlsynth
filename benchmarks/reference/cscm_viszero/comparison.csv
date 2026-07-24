@@ -1,0 +1,12 @@
+# case: cscm_viszero
+# generated_at: 2026-07-24T09:18:43Z
+# mlsynth_version: 1.0.0
+# estimator: CSCM
+# config: {"K": 2, "outcome": "deathrate_mln", "time": "TIME", "treat": "treated", "unitid": "ID", "v_method": "uniform"}
+# reference_impl: Bonander CSCM_helper_functions.R (OSF osf.io/uvt5p, live run, captured)
+# reference_version: Bonander (2021), Epidemiology 32(4):e18-e19
+quantity,mlsynth,reference,abs_diff
+scm_finland,1.0,1.0,0.0
+cscm_sum_weights,0.5001,0.486,0.0141
+full_sample_rr,1.0513,1.037,0.0143
+crossfit_rr,1.0562,1.065,0.0088

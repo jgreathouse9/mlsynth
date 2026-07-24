@@ -1,0 +1,64 @@
+# case: microsynth_baltimore
+# generated_at: 2026-07-24T09:21:53Z
+# mlsynth_version: 1.0.0
+# estimator: MicroSynth
+# config: {"covariates": "21 census/parcel", "outcome_lag_periods": "full pre-window", "weight_method": "panel"}
+# reference_impl: R microsynth (config A: match.out=trajectory)
+# reference_version: microsynth 2.0.51
+quantity,mlsynth,reference,abs_diff
+Central/Outdoor/allcrime/cum_treated,4166.0,4166.0,0.0
+Central/Outdoor/allcrime/cum_control,3904.98,3879.59,25.39
+Central/Outdoor/person/cum_treated,1461.0,1461.0,0.0
+Central/Outdoor/person/cum_control,1249.18,1231.94,17.24
+Central/Outdoor/property/cum_treated,1665.0,1665.0,0.0
+Central/Outdoor/property/cum_control,1611.12,1591.26,19.86
+Central/Outdoor/shooting/cum_treated,164.0,164.0,0.0
+Central/Outdoor/shooting/cum_control,130.29,119.22,11.07
+Central/Total/allcrime/cum_treated,11147.0,11147.0,0.0
+Central/Total/allcrime/cum_control,10732.58,10834.66,102.08
+Central/Total/person/cum_treated,2949.0,2949.0,0.0
+Central/Total/person/cum_control,2685.12,2661.96,23.16
+Central/Total/property/cum_treated,5364.0,5364.0,0.0
+Central/Total/property/cum_control,5182.22,5278.95,96.73
+Central/Total/shooting/cum_treated,203.0,203.0,0.0
+Central/Total/shooting/cum_control,173.33,155.06,18.27
+Eastern/Outdoor/allcrime/cum_treated,8052.0,8052.0,0.0
+Eastern/Outdoor/allcrime/cum_control,7399.84,7440.13,40.29
+Eastern/Outdoor/person/cum_treated,2724.0,2724.0,0.0
+Eastern/Outdoor/person/cum_control,2292.01,2307.41,15.4
+Eastern/Outdoor/property/cum_treated,3690.0,3690.0,0.0
+Eastern/Outdoor/property/cum_control,3558.28,3576.38,18.1
+Eastern/Total/allcrime/cum_treated,18341.0,18341.0,0.0
+Eastern/Total/allcrime/cum_control,17538.57,17606.54,67.97
+Eastern/Total/person/cum_treated,5350.0,5350.0,0.0
+Eastern/Total/person/cum_control,4820.0,4822.56,2.56
+Eastern/Total/property/cum_treated,8049.0,8049.0,0.0
+Eastern/Total/property/cum_control,8126.61,8144.65,18.04
+Southwestern/Outdoor/allcrime/cum_treated,5442.0,5442.0,0.0
+Southwestern/Outdoor/allcrime/cum_control,5606.38,5592.8,13.58
+Southwestern/Outdoor/person/cum_treated,1602.0,1602.0,0.0
+Southwestern/Outdoor/person/cum_control,1579.73,1576.78,2.95
+Southwestern/Outdoor/property/cum_treated,2890.0,2890.0,0.0
+Southwestern/Outdoor/property/cum_control,3017.26,2996.34,20.92
+Southwestern/Outdoor/shooting/cum_treated,268.0,268.0,0.0
+Southwestern/Outdoor/shooting/cum_control,203.33,202.87,0.46
+Southwestern/Total/allcrime/cum_treated,15044.0,15044.0,0.0
+Southwestern/Total/allcrime/cum_control,14582.64,14541.29,41.35
+Southwestern/Total/person/cum_treated,3967.0,3967.0,0.0
+Southwestern/Total/person/cum_control,3979.0,3936.78,42.22
+Southwestern/Total/property/cum_treated,6904.0,6904.0,0.0
+Southwestern/Total/property/cum_control,6835.37,6779.4,55.97
+Southwestern/Total/shooting/cum_treated,328.0,328.0,0.0
+Southwestern/Total/shooting/cum_control,244.32,240.99,3.33
+Western/Outdoor/allcrime/cum_treated,6935.0,6935.0,0.0
+Western/Outdoor/allcrime/cum_control,6796.75,6804.88,8.13
+Western/Outdoor/person/cum_treated,2308.0,2308.0,0.0
+Western/Outdoor/person/cum_control,2114.98,2113.92,1.06
+Western/Outdoor/property/cum_treated,3332.0,3332.0,0.0
+Western/Outdoor/property/cum_control,3230.53,3264.69,34.16
+Western/Total/allcrime/cum_treated,16349.0,16349.0,0.0
+Western/Total/allcrime/cum_control,15699.04,15681.21,17.83
+Western/Total/person/cum_treated,4827.0,4827.0,0.0
+Western/Total/person/cum_control,4423.39,4402.4,20.99
+Western/Total/property/cum_treated,7212.0,7212.0,0.0
+Western/Total/property/cum_control,7090.35,7113.57,23.22

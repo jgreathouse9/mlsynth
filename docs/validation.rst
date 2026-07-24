@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **64 cross-validation checks** against original
-implementations across **37 estimators** -- 27 reproduce the reference to display precision, 23 to
-within two percent. A further 5 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **68 cross-validation checks** against original
+implementations across **38 estimators** -- 27 reproduce the reference to display precision, 24 to
+within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -45,6 +45,10 @@ Summary
      - 2
      - 2 exact
      - 0
+   * - :ref:`CSCM <val-cscm>`
+     - 1
+     - 1 tight
+     - 0.014
    * - :ref:`ClusterSC <val-clustersc>`
      - 2
      - 1 exact · 1 tight
@@ -86,9 +90,9 @@ Summary
      - 1 tight
      - 20
    * - :ref:`MicroSynth <val-microsynth>`
-     - 1
-     - 1 tight
-     - 0.097
+     - 2
+     - 1 tight · 1 documented
+     - 1e+02
    * - :ref:`NSC <val-nsc>`
      - 1
      - 1 close
@@ -174,8 +178,8 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 12
-     - 5 exact · 4 tight · 2 close · 1 documented
+     - 14
+     - 5 exact · 4 tight · 4 close · 1 documented
      - 4.1
 
 .. _val-beast:
@@ -271,6 +275,28 @@ CLUSTERSC
      - 0
      - exact — matches to display precision
      - `scpi_ridge_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scpi_ridge_germany.py>`__
+
+.. _val-cscm:
+
+CSCM
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - Bonander CSCM_helper_functions.R (OSF osf.io/uvt5p, live run, captured)
+     - —
+     - 4
+     - 0.014
+     - tight
+     - `cscm_viszero <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cscm_viszero.py>`__
 
 .. _val-clustersc:
 
@@ -519,6 +545,12 @@ MicroSynth
      - max \|Δ\|
      - Verdict
      - Case
+   * - R microsynth (config A: match.out=trajectory)
+     - —
+     - 56
+     - 1e+02
+     - documented — see notes
+     - `microsynth_baltimore <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/microsynth_baltimore.py>`__
    * - R package microsynth (via Rscript)
      - —
      - 6
@@ -1093,6 +1125,12 @@ VanillaSC
      - 0
      - exact — matches to display precision
      - `cwz_ttest <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_ttest.py>`__
+   * - Ferman (2021) JASA Table 1 (SC columns 1-4, OLS se col 5-8)
+     - —
+     - 12
+     - 0.24
+     - close
+     - `ferman_manyperiods <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_manyperiods.py>`__
    * - mharoruiz/ibex R replication (01_functions/sc.R: limSolve::lsei simplex SC; scinference)
      - ``ibex_day_ahead_price.csv`` (18c69704e7ee…)
      - 6
@@ -1141,6 +1179,12 @@ VanillaSC
      - 4.1
      - documented — see notes
      - `secession_scm <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/secession_scm.py>`__
+   * - R Synth (j-hai/Synth, synth + synth_inference)
+     - —
+     - 9
+     - 0.26
+     - close
+     - `synth_jhai_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/synth_jhai_prop99.py>`__
    * - `R package Synth::synth <https://CRAN.R-project.org/package=Synth>`__
      - ``california_panel.csv`` (9d6a73e21f1a…)
      - 8
@@ -1169,12 +1213,6 @@ action records them once its toolchain provisions.
      - Reference
    * - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
      - —
-   * - `cscm_viszero <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cscm_viszero.py>`__
-     - —
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
-   * - `microsynth_baltimore <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/microsynth_baltimore.py>`__
-     - R microsynth 2.0.51 (Robbins, Saunders & Kilmer 2017), config A = full-trajectory match.out (identical constraints to mlsynth)
-   * - `synth_jhai_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/synth_jhai_prop99.py>`__
-     - R Synth j-hai/Synth 1.2.0 (synth + synth_inference)
 

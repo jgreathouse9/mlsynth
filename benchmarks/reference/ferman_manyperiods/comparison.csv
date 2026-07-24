@@ -1,0 +1,20 @@
+# case: ferman_manyperiods
+# generated_at: 2026-07-24T09:22:02Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "outcome-only"}
+# reference_impl: Ferman (2021) JASA Table 1 (SC columns 1-4, OLS se col 5-8)
+# reference_version: doi:10.1080/01621459.2021.1965613
+quantity,mlsynth,reference,abs_diff
+E[mu01] PanelA J=4,0.777,0.76,0.017
+E[mu01] PanelA J=10,0.806,0.817,0.011
+E[mu01] PanelA J=50,0.894,0.905,0.011
+E[mu01] PanelA J=100,0.937,0.929,0.008
+E[mu01] PanelB J=4,0.769,0.753,0.016
+E[mu01] PanelB J=10,0.814,0.831,0.017
+E[mu01] PanelB J=50,0.922,0.922,0.0
+E[mu01] PanelB J=100,0.944,0.944,0.0
+se(alpha) SC PanelA J=4,1.265,1.288,0.023
+se(alpha) OLS PanelA J=4,1.62,1.586,0.034
+se(alpha) SC PanelA J=100,1.103,1.073,0.03
+se(alpha) OLS PanelA J=100,4.984,5.22,0.236
