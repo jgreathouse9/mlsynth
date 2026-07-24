@@ -1,0 +1,13 @@
+{
+  "tool": "R DRoSC (Koo & Guo 2026, helpers.R)",
+  "r_version": "4.3.3",
+  "packages": {
+    "limSolve": "GitHub CRAN mirror (cran/limSolve)",
+    "Synth": "GitHub CRAN mirror (cran/Synth)"
+  },
+  "os": "Ubuntu 24.04",
+  "reference_repo": "github.com/taehyeonkoo/DRoSC (helpers.R sc() + DRoSC(), Inference=FALSE)",
+  "patch": "cond <- FALSE (the repo leaves the conditional/unconditional flag undefined); hardcoded source() paths replaced",
+  "install_route": "CRAN firewalled; git clone github.com/cran/{lpSolve,intervals,limSolve} + apt r-cran-* + R CMD INSTALL (see benchmarks/R/drosc_basque.R header)",
+  "notes": "The worst-case point estimand (Inference=FALSE) is deterministic and matches mlsynth's cvxpy solve value-for-value (tau to <= 0.001, lambda=0 weights to 5 decimals). The perturbation union CI (Inference=TRUE) is stochastic/seed-dependent and is not pinned in the benchmark."
+}

@@ -66,6 +66,7 @@ CASES = {
     "masc_crossval": "benchmarks.cases.masc_crossval",        # cross-val vs authors' own R MASC (maxkllgg/masc, nogurobi) on Basque, value-for-value
     "src_basque": "benchmarks.cases.src_basque",
     "ferman_demeaned_basque": "benchmarks.cases.ferman_demeaned_basque",  # cross-val vs Ferman-Pinto (2021) demeaned SC in their own R (quadprog), Basque/ETA 1975: MSCa == demeaned SC value-for-value (LIVE Rscript)              # cross-val vs R Code_SMC + Path A: SRC Basque/ETA (Zhu 2023)
+    "drosc_basque": "benchmarks.cases.drosc_basque",  # cross-val vs authors' R DRoSC (Koo & Guo 2026, limSolve::lsei) on Basque: worst-case estimand tau(lambda) shrinks to 0 as robustness radius grows; value-for-value on tau + lambda=0 weights
     "bscm_china_watches": "benchmarks.cases.bscm_china_watches",  # cross-val vs reference Stan horseshoe + FSPDA (Shi-Huang) on China anti-corruption watches, p>n (Kim-Lee-Gupta 2020)
     "bvss_watches": "benchmarks.cases.bvss_watches",              # cross-val vs authors' own two-coordinate Gibbs (Xu-Zhou 2025) on China anti-corruption watches, p>n: engine exact + posterior ATT within MC error
     "bfsc_germany": "benchmarks.cases.bfsc_germany",                # cross-val vs author appendix Stan (corr 0.999999) + Path A: West Germany reunification (Pinkney 2021)

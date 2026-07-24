@@ -1,0 +1,32 @@
+{
+ "values": {
+  "tau_SC": -0.89458854864,
+  "tau_lam0.00": -0.7423678561,
+  "tau_lam0.015": -0.48576967558,
+  "tau_lam0.03": -0.25569324093,
+  "tau_lam0.045": -0.035799031409,
+  "tau_lam0.06": -1.3607458271e-08,
+  "w_Madrid_lam0": 0.38841176521,
+  "w_Baleares_lam0": 0.27375164277,
+  "w_Cataluna_lam0": 0.20258364953,
+  "w_Asturias_lam0": 0.13525294249
+ },
+ "donor_names": [
+  "Andalucia",
+  "Aragon",
+  "Principado De Asturias",
+  "Baleares (Islas)",
+  "Canarias",
+  "Cantabria",
+  "Castilla Y Leon",
+  "Castilla-La Mancha",
+  "Cataluna",
+  "Comunidad Valenciana",
+  "Extremadura",
+  "Galicia",
+  "Madrid (Comunidad De)",
+  "Murcia (Region de)",
+  "Navarra (Comunidad Foral De)",
+  "Rioja (La)"
+ ]
+}

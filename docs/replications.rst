@@ -85,6 +85,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/beast
    replications/dpsc
    replications/scd
+   replications/drosc
    replications/rolldid
    replications/ppscm
    replications/cscm
@@ -421,6 +422,13 @@ High-dimensional donor pools
   weight-variance trace, and confidence-set decisions) value-for-value for all
   three differencing schemes, to :math:`\sim 10^{-9}` (durable: ``scd_cps``).
   See the :doc:`dedicated page <replications/scd>`.
+* :doc:`drosc` -- Koo & Guo (2026) distributionally robust synthetic control.
+  Cross-validation: on the Basque Country / ETA-terrorism study, mlsynth
+  reproduces the authors' R ``DRoSC`` (``limSolve::lsei``) worst-case estimand
+  :math:`\widehat{\tau}(\lambda)` across the robustness-radius sweep and the
+  :math:`\lambda = 0` donor weights, value-for-value to :math:`\sim 10^{-7}`
+  (durable: ``drosc_basque``). See the
+  :doc:`dedicated page <replications/drosc>`.
 * :doc:`msqrt` -- Shen, Song & Abadie (2025) multivariate
   square-root-Lasso SC for high-dimensional disaggregated data.
   Path B: the Section-6 simulation (true ATT = 0) -- the

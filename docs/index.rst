@@ -245,6 +245,7 @@ headline numbers.
    ctsc
    dsc
    scd
+   drosc
    si
    microsynth
 

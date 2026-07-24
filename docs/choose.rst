@@ -314,6 +314,17 @@ spillovers (a true outlier)?
   effect), or the unconstrained :doc:`pda` (the
   Hsiao--Ching--Wan panel-data regression and its modern penalised cousins).
 
+A different worry at this gate is not being *outside* the hull but the donors
+being *highly correlated* inside it, so many weightings fit the pre-period
+equally well and the effect you read off is unstable -- or the treated-control
+relationship shifting across the intervention. :doc:`drosc` addresses both: it
+reports a worst-case effect over the whole set of weights compatible with the
+pre-treatment moments, indexed by a robustness radius, and sweeping that radius
+shows how much robustness the conclusion can absorb before it reaches zero. Use
+it when you want a deliberately conservative effect and a valid (non-regular)
+interval precisely where the standard identification is shaky; use :doc:`lexscm`
+instead if you only need a stable deterministic tie-break for the non-uniqueness.
+
 *PDA versus SCM.* This convex-hull gate is exactly where the panel data approach
 and synthetic control part ways, and the two camps argue it on their own terms.
 Wan, Xie and Hsiao (2018) cast it as constrained versus unconstrained

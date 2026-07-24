@@ -1,0 +1,9 @@
+{
+  "case": "drosc_basque",
+  "title": "DROSC vs authors' R DRoSC on the Basque study (Koo & Guo 2026)",
+  "paper": "Koo, T. & Guo, Z. (2026). 'Distributionally Robust Synthetic Control: Ensuring Robustness Against Highly Correlated Controls and Weight Shifts.' arXiv:2511.02632",
+  "reference_impl": "R DRoSC (Koo & Guo 2026, helpers.R, limSolve::lsei) -- deterministic worst-case point estimand across the robustness-radius sweep",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/R/drosc_basque.R basedata/basque_jasa.csv benchmarks/reference/drosc_basque/",
+  "data": "basedata/basque_jasa.csv"
+}
