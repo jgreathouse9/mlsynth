@@ -1,13 +1,9 @@
 {
-  "tool": "R DRoSC (Koo & Guo 2026, helpers.R)",
+  "tool": "authors' R DRoSC (Koo & Guo 2026, helpers.R), run live via Rscript",
+  "reference_repo": "github.com/taehyeonkoo/DRoSC (src/helpers.R, sc() + DRoSC(), Inference=FALSE) -- cloned by reference.R into benchmarks/reference/.cache and sourced unmodified",
+  "solver": "limSolve::lsei (installed from the GitHub CRAN mirror; see benchmarks/R/install_drosc.sh)",
   "r_version": "4.3.3",
-  "packages": {
-    "limSolve": "GitHub CRAN mirror (cran/limSolve)",
-    "Synth": "GitHub CRAN mirror (cran/Synth)"
-  },
   "os": "Ubuntu 24.04",
-  "reference_repo": "github.com/taehyeonkoo/DRoSC (helpers.R sc() + DRoSC(), Inference=FALSE)",
-  "patch": "cond <- FALSE (the repo leaves the conditional/unconditional flag undefined); hardcoded source() paths replaced",
-  "install_route": "CRAN firewalled; git clone github.com/cran/{lpSolve,intervals,limSolve} + apt r-cran-* + R CMD INSTALL (see benchmarks/R/drosc_basque.R header)",
-  "notes": "The worst-case point estimand (Inference=FALSE) is deterministic and matches mlsynth's cvxpy solve value-for-value (tau to <= 0.001, lambda=0 weights to 5 decimals). The perturbation union CI (Inference=TRUE) is stochastic/seed-dependent and is not pinned in the benchmark."
+  "determinism": "Inference=FALSE, so the worst-case point estimand is deterministic (no seed/cond); mlsynth's cvxpy solve matches the authors' lsei value-for-value (tau <= 1e-7, lambda=0 weights <= 1e-7).",
+  "notes": "The perturbation union CI (Inference=TRUE) is stochastic/seed-dependent and is not pinned in the benchmark. The case BenchmarkSkipped()s when Rscript / limSolve / the clone is unavailable."
 }

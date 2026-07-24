@@ -168,7 +168,8 @@ Verification
 ------------
 
 DROSC is cross-validated against the authors' own R implementation (``helpers.R``,
-``limSolve::lsei``) on the Basque study: the worst-case estimand
+``limSolve::lsei``) -- sourced from their repository and run live via ``Rscript``
+-- on the Basque study: the worst-case estimand
 :math:`\widehat{\tau}(\lambda)` and the :math:`\lambda = 0` donor weights match
 value-for-value (to :math:`\sim 10^{-7}`) across the robustness sweep. See the
 durable case ``benchmarks/cases/drosc_basque.py`` and the replication page

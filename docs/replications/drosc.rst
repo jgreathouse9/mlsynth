@@ -9,7 +9,8 @@ DROSC — Basque robustness sweep vs the authors' R
    `arXiv:2511.02632 <https://arxiv.org/abs/2511.02632>`_. Reference code:
    `taehyeonkoo/DRoSC <https://github.com/taehyeonkoo/DRoSC>`_ (``helpers.R``).
 :Replication type: cross-validation against the authors' own R
-   (``limSolve::lsei``), the deterministic worst-case point estimand.
+   (``limSolve::lsei``) run *live* via ``Rscript``, the deterministic worst-case
+   point estimand.
 :Status: verified -- the estimand and the donor weights match value-for-value.
 :Benchmark: ``benchmarks/cases/drosc_basque.py``
    (`source <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/drosc_basque.py>`__).
@@ -74,13 +75,15 @@ Reproduce
 
    python benchmarks/run_benchmarks.py --case drosc_basque
 
-The mlsynth side reads ``basedata/basque_jasa.csv``. The R reference is baked
-into ``benchmarks/reference/drosc_basque/`` from the authors' ``helpers.R``;
-regenerate it with
+The mlsynth side reads ``basedata/basque_jasa.csv``. The reference is the
+authors' own code, run live: ``benchmarks/reference/drosc_basque/reference.R``
+clones ``github.com/taehyeonkoo/DRoSC`` (cached), sources its unmodified
+``src/helpers.R``, and solves with ``limSolve::lsei`` each time the case runs.
+The case ``BenchmarkSkipped``\ s when ``Rscript`` / ``limSolve`` / the clone is
+unavailable, so a missing R toolchain never reds the suite. Provision the solver
+with ``benchmarks/R/install_drosc.sh`` (``limSolve`` from the GitHub CRAN mirror,
+since CRAN is firewalled), then run the reference directly with
 
 .. code-block:: bash
 
-   # CRAN firewalled; install limSolve from the GitHub mirror:
-   #   git clone --depth 1 https://github.com/cran/limSolve && R CMD INSTALL limSolve
-   Rscript benchmarks/R/drosc_basque.R basedata/basque_jasa.csv \
-       benchmarks/reference/drosc_basque
+   Rscript benchmarks/reference/drosc_basque/reference.R basedata/basque_jasa.csv
