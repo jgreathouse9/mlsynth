@@ -1,0 +1,16 @@
+# case: rrsc_reference
+# generated_at: 2026-07-25T04:05:29Z
+# mlsynth_version: 1.0.0
+# estimator: RRSC
+# config: {"n_factors": 2, "regimes": "large_n + fixed_n", "update_dif": "False (large-N) / True (fixed-N)"}
+# reference_impl: reference R implementation of both RRSC regimes (fa.em + Huber-IRLS; stats::factanal + robustbase::ltsReg + Donoho-Johnstone selection), run LIVE via Rscript
+# reference_version: He, Li, Shi & Miao (2026), arXiv:2411.01249
+quantity,mlsynth,reference,abs_diff
+"large-N: direct effect, treated unit",8.231374,8.231374,0.0
+"large-N: interference, unit 1",5.265711,5.265711,0.0
+"large-N: interference, unit 2",4.667567,4.667567,0.0
+"large-N: clean control, unit 5",0.22437,0.22437,0.0
+"fixed-N: direct effect, treated unit",8.380981,8.380981,0.0
+"fixed-N: interference, unit 1",5.466196,5.466196,0.0
+"fixed-N: interference, unit 2",5.03733,5.03733,0.0
+"fixed-N: clean control, unit 5",0.174448,0.174448,0.0

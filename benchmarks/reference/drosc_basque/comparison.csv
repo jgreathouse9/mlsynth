@@ -1,0 +1,18 @@
+# case: drosc_basque
+# generated_at: 2026-07-25T04:05:37Z
+# mlsynth_version: 1.0.0
+# estimator: DROSC
+# config: {"backend": "lsei-band"}
+# reference_impl: authors' helpers.R sc() + DRoSC() (limSolve::lsei, live via Rscript)
+# reference_version: Koo & Guo (2026), arXiv:2511.02632
+quantity,mlsynth,reference,abs_diff
+tau (lambda=0),-0.7424,-0.7424,0.0
+tau (lambda=0.015),-0.4858,-0.4858,0.0
+tau (lambda=0.03),-0.2557,-0.2557,0.0
+tau (lambda=0.045),-0.0358,-0.0358,0.0
+tau (lambda=0.06),-0.0,-0.0,0.0
+classical SC ATT,-0.8946,-0.8946,0.0
+w[Madrid] (lambda=0),0.3884,0.3884,0.0
+w[Baleares] (lambda=0),0.2738,0.2738,0.0
+w[Cataluna] (lambda=0),0.2026,0.2026,0.0
+w[Asturias] (lambda=0),0.1353,0.1353,0.0

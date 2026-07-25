@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **69 cross-validation checks** against original
-implementations across **38 estimators** -- 27 reproduce the reference to display precision, 25 to
-within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **71 cross-validation checks** against original
+implementations across **40 estimators** -- 29 reproduce the reference to display precision, 25 to
+within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -54,6 +54,10 @@ Summary
      - 1 exact · 1 tight
      - 0.036
    * - :ref:`DPSC <val-dpsc>`
+     - 1
+     - 1 exact
+     - 0
+   * - :ref:`DROSC <val-drosc>`
      - 1
      - 1 exact
      - 0
@@ -122,6 +126,10 @@ Summary
      - 2 tight
      - 0.0013
    * - :ref:`ROLLDID <val-rolldid>`
+     - 1
+     - 1 exact
+     - 0
+   * - :ref:`RRSC <val-rrsc>`
      - 1
      - 1 exact
      - 0
@@ -347,6 +355,28 @@ DPSC
      - 0
      - exact — matches to display precision
      - `dpsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dpsc_prop99.py>`__
+
+.. _val-drosc:
+
+DROSC
+-----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - authors' helpers.R sc() + DRoSC() (limSolve::lsei, live via Rscript)
+     - —
+     - 10
+     - 0
+     - exact — matches to display precision
+     - `drosc_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/drosc_basque.py>`__
 
 .. _val-fdid:
 
@@ -781,6 +811,28 @@ ROLLDID
      - 0
      - exact — matches to display precision
      - `rolldid_lw <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rolldid_lw.py>`__
+
+.. _val-rrsc:
+
+RRSC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - reference R implementation of both RRSC regimes (fa.em + Huber-IRLS; stats::factanal + robustbase::ltsReg + Donoho-Johnstone selection), run LIVE via Rscript
+     - —
+     - 8
+     - 0
+     - exact — matches to display precision
+     - `rrsc_reference <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rrsc_reference.py>`__
 
 .. _val-sbc:
 
@@ -1219,8 +1271,6 @@ action records them once its toolchain provisions.
      - Reference
    * - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
      - —
-   * - `drosc_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/drosc_basque.py>`__
-     - authors' helpers.R sc() + DRoSC() (limSolve::lsei), sourced from github.com/taehyeonkoo/DRoSC and run LIVE via Rscript -- deterministic worst-case point estimand across the robustness-radius sweep
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
 
