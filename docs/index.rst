@@ -305,6 +305,7 @@ headline numbers.
    ppscm
    cscm
    ssc
+   cast
 
 .. toctree::
    :hidden:
