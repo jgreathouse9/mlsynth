@@ -1,0 +1,11 @@
+{
+  "tool": "reference R implementation of both RRSC regimes (He, Li, Shi & Miao 2026), run live via Rscript",
+  "reference_script": "benchmarks/R/rrsc_reference.R -- large-N: the authors' fa.pc/fa.em EM factor analysis + Huber-IRLS factor regression; fixed-N: stats::factanal(rotation='none') + expm::sqrtm rescaling + robustbase::ltsReg(alpha=0.5, intercept=FALSE) + the Donoho-Johnstone valid-control selection and OLS refit",
+  "r_version": "4.3.3",
+  "packages": {"robustbase": "0.99.2", "expm": "0.999.9"},
+  "os": "Ubuntu 24.04.4 LTS",
+  "data": [],
+  "dataset_note": "No external dataset: the panel is drawn in-code from the method's own untreated factor model (numpy default_rng seed 20260101), with a direct effect planted on the treated unit and interference on two controls. Only the reference algorithm is exercised, so no data licence is involved and there is no file to checksum.",
+  "determinism": "Fully deterministic on both sides -- fixed seed, no resampling, and the point estimands are the solutions of the two regimes' fixed programs. mlsynth reproduces the live R value-for-value: the large-N EM + IRLS to solver precision (max |delta| ~ 4e-15 over all 30 units) and the fixed-N path to the factor-analysis optimiser tolerance (~3e-7 over all 8 units, SciPy L-BFGS-B vs R optim).",
+  "notes": "Two reference behaviours are transcribed rather than reimplemented, because the published numbers depend on them: fa.em early-stops at R's default tol=1e-6 (far short of the ML optimum), and ltsReg applies robustbase's Pison-Van Aelst-Willems (2002) finite-sample raw-scale correction. The case BenchmarkSkipped()s when Rscript / robustbase / expm is unavailable, so a missing R toolchain never reds the suite."
+}
