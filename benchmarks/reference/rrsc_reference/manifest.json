@@ -1,0 +1,9 @@
+{
+  "case": "rrsc_reference",
+  "title": "RRSC vs a reference R implementation of both regimes (He, Li, Shi & Miao 2026), live",
+  "paper": "He, P., Li, Y., Shi, X. & Miao, W. (2026). 'A robust regression approach to synthetic control with interference.' arXiv:2411.01249",
+  "reference_impl": "reference R implementation of both RRSC regimes -- large-N (Bai-Li EM factor analysis + Huber-IRLS) and fixed-N (stats::factanal + robustbase::ltsReg + Donoho-Johnstone selection) -- run LIVE via Rscript on the same panel mlsynth is given",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/export_comparison.py rrsc_reference",
+  "data": "self-contained synthetic panel drawn from the method's own untreated factor model (seed 20260101; no external dataset or licence)"
+}
