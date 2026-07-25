@@ -12,6 +12,7 @@ from .estimators.medsc import MEDSC ## Check
 from .estimators.pda import PDA ## Check
 from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
+from .estimators.cast import CAST ## Check
 from .estimators.rrsc import RRSC ## Check
 from .estimators.proximal import PROXIMAL ## Check
 from .estimators.fscm import FSCM ## Check
@@ -114,6 +115,7 @@ __all__ = [
     "PDA",
     "FDID",
     "CLUSTERSC",
+    "CAST",
     "RRSC",
     "PROXIMAL",
     "FSCM",
