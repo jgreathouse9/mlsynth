@@ -102,6 +102,8 @@ CASES = {
     "dpsc_prop99": "benchmarks.cases.dpsc_prop99",            # cross-val vs srho1/dpsc (differentially private SC, Prop 99, bit-for-bit both mechanisms)
     "scd_cps": "benchmarks.cases.scd_cps",                    # cross-val vs base-R SCD reference (Rincon-Song 2026): Arizona LAWA CPS weights + effect path + RC SE + confidence set, value-for-value
     "scul_prop99": "benchmarks.cases.scul_prop99",            # Path A/X: SCUL California (Prop 99) lasso SC vs hollina/scul
+    "esc_prop99": "benchmarks.cases.esc_prop99",              # Path A: ESC California (Prop 99) reproduces classic SC path + informative PI
+    "esc_saopaulo": "benchmarks.cases.esc_saopaulo",          # Path A: ESC Sao Paulo homicides (T0=9) short-panel interval on lives saved
     "dr_proximal_mc": "benchmarks.cases.dr_proximal_mc",      # Path B: DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
     "dr_proximal_brazil": "benchmarks.cases.dr_proximal_brazil",  # cross-val vs LIVE R (authors' analysis.Rmd commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
     "brazil_vaccine_scm_vs_proximal": "benchmarks.cases.brazil_vaccine_scm_vs_proximal",  # cross-val vs LIVE R: standard SC (VanillaSC) vs proximal (DR-OID h/DR), Brazil vaccine/pneumonia contrast
