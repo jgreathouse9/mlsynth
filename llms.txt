@@ -28,6 +28,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **BPSCS** — Bayesian Penalized Synthetic Control under Spillovers (Fernandez-Morales et al. 2026).  (config: BPSCSConfig)
 - **BSCM** — Bayesian Synthetic Control Methods (Kim, Lee & Gupta 2020).  (config: BSCMConfig)
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
+- **CAST** — Confidence intervals under staggered adoption (Xia et al. 2025).  (config: CASTConfig)
 - **CFM** — Causal Factor Model (Bai & Wang 2026) estimator.  (config: CFMConfig)
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)

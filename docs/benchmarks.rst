@@ -221,6 +221,8 @@ Cross-validation against reference implementations
      - vs LIVE propsdid (Rscript): Bogatyrev-Stoetzer Table 2 common-weights SDID on party vote shares (skips if absent)
    * - ``clustersc_subgroups_ref``
      - vs authors' repo
+   * - ``cast_aca``
+     - vs the authors' ``CAST-panel`` package (Xia-Yan-Wainwright 2025) on the ACA Medicaid expansion: entrywise point estimates value-for-value, Table 1 ATET and population totals, and both significance-count regimes (see the replication page for the standard-error correction)
    * - ``rrsc_reference``
      - vs LIVE reference R (He-Li-Shi-Miao 2026): RRSC large-N and fixed-N regimes value-for-value on a synthetic interference panel (skips if R absent)
    * - ``pensynth_prop99``
