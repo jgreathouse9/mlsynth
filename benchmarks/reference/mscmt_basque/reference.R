@@ -4,8 +4,9 @@
 # the Abadie-Gardeazabal (2003) Basque study, using the predictor specification
 # from the package vignette "Working with package MSCMT" -- the thirteen-
 # predictor model fitting per-capita GDP over the optimisation window 1960-1969.
-# It prints the synthetic-control donor weights and the average post-treatment
-# gap (1970-1990, MSCMT's `did`/`average.post` range). These are the genuine
+# It prints the synthetic-control donor weights, the average post-treatment
+# gap (1970-1990, MSCMT's `did`/`average.post` range), and the dependent loss
+# (`res$loss.v`, MSCMT's MSPE "loss V", with its RMSPE). These are the genuine
 # package outputs the Python case pins against, not transcribed vignette
 # constants.
 #
@@ -71,5 +72,10 @@ cat(sprintf("weight\tCataluna\t%.6f\n",              w["Cataluna"]))
 cat(sprintf("weight\tBaleares (Islas)\t%.6f\n",      w["Baleares (Islas)"]))
 cat(sprintf("weight\tMadrid (Comunidad De)\t%.6f\n", w["Madrid (Comunidad De)"]))
 cat(sprintf("avg_post_gap\t%.6f\n",                  mean(gap)))
+# Dependent loss: MSCMT's MSPE over the optimisation window ("loss V"), and its
+# RMSPE. res$loss.v is the pre-fit MSPE the vignette reports; the Python case
+# pins mlsynth's pre-fit MSPE (fit_window 1960-1969) against it.
+cat(sprintf("loss_v\t%.9f\n",                        res$loss.v))
+cat(sprintf("rmspe\t%.9f\n",                         sqrt(res$loss.v)))
 cat("== SESSION INFO ==\n")
 print(sessionInfo())
