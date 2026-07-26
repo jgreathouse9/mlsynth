@@ -812,6 +812,128 @@ cost is prohibitive for an interactive library. Parked on cost, not correctness.
 
 ---
 
+## 9. TWP -- Tangential Wasserstein Projections (multivariate distributional SC)
+
+**Status: Planned (paper reviewed in full; reference code read; demonstrate-first
+partial -- the 1D reduction to ``DSC`` is verified. No library code yet). Verdict:
+build via prototype-first -- the strongest in-lane candidate of the recent review
+batch (the multivariate sibling of an estimator we already ship).**
+
+### Source
+
+> Gunsilius, F., Hsieh, M. H., & Lee, M. J. (2024). "Tangential Wasserstein
+> Projections." *Journal of Machine Learning Research* 25, 1-41.
+
+Reference implementation (Python; read ``twp_utils.py``):
+**https://github.com/menghsuanhsieh/tangential-wasserstein-projection**
+(``Python Code/twp_utils.py`` = the method: ``baryc_proj``, ``tan_wass_proj``,
+``tan_wass_proj2``; deps POT ``ot`` + ``cvxpy`` + ``multiprocess``).
+
+The multivariate generalization of, and explicitly pitched as complementing:
+
+> Gunsilius, F. (2023). "Distributional Synthetic Controls." *Econometrica*
+> 91(3):1105-1117 -- mlsynth's existing ``DSC`` (univariate).
+
+### The idea in one line
+
+Distributional SC for MULTIVARIATE outcomes: treat each unit as a probability
+measure over R^d and project the treated unit's outcome distribution onto the
+donor distributions in the 2-Wasserstein space. Because W2 is positively curved
+for d>1 (no closed-form barycenter), TWP lifts the problem to the tangent cone at
+the treated measure and reduces it to a simplex-constrained linear regression:
+(i) OT plans ``gamma_0j`` from treated ``P0`` to each donor ``Pj`` (POT emd /
+Sinkhorn); (ii) barycentric-project each to a tangent map ``b_0j``; (iii) solve
+``min_{lambda in Delta} ||sum_j lambda_j (b_0j - Id)||^2_{L2(P0)}`` for the donor
+weights; counterfactual is ``exp_{P0}(sum_j lambda_j b_0j - Id)``.
+
+### Use case (when to reach for it)
+
+Distributional SC where the per-``(unit,time)`` outcome is a JOINT distribution of
+several outcomes and you want the counterfactual joint distribution plus treatment
+heterogeneity across dimensions -- where ``DSC`` (one outcome's quantile function)
+cannot go. Paper's application: a Medicaid expansion in Montana with a
+d=28-dimensional, non-regular outcome measure. Same micro-level panel ingestion as
+``DSC`` (one row per unit x time x individual observation), but the observations
+are d-vectors rather than scalars.
+
+### Relationship to ``DSC``, and the "should we just replace DSC?" decision (KEEP THIS)
+
+TWP is the d>=1 generalization of ``DSC``; in 1D they coincide. Verified
+demonstrate-first this session:
+
+- **Derivation.** In 1D the OT plan is the monotone (sorted) coupling, so ``b_0j``
+  is the sorted donor and TWP's tangent regression
+  ``min_lambda ||sum_j lambda_j (b_0j - Id)||^2_{L2(P0)}`` becomes *exactly* DSC's
+  quantile-function regression ``min_lambda ||sum_j lambda_j Q_j - Q_0||^2``.
+- **Numeric check** (pure numpy, no POT; 4 donors + a Gaussian target): DSC
+  weights ``[0.034, 0.493, 0, 0.474]`` vs TWP-1D ``[0.037, 0.494, 0, 0.469]`` --
+  agree to 4e-3. The residual is ``np.quantile`` interpolation vs order
+  statistics; in the real multivariate TWP it becomes EMD LP tolerance / Sinkhorn
+  ``reg=0.005`` bias.
+
+**Decision: do NOT replace ``DSC`` with TWP.** The 1D agreement is only to solver
+tolerance, and ``DSC``'s 1D engine is the exact, closed-form (sort + simplex QP),
+fast, theory-pinned (Zhang et al. 2026 Algorithm 1, benchmarked) path. Routing 1D
+through an OT solver trades an exact engine for an approximate, slower,
+POT-dependent one for the *same* answer, and breaks the cell-exact ``DSC``
+replication. Instead: build TWP as the d>1 engine and use "TWP-in-1D reproduces
+``DSC`` to tolerance" as the port's acceptance test (``DSC`` becomes the oracle).
+If parsimony is wanted, unify under one API that dispatches on outcome dimension
+(d=1 -> exact quantile engine; d>1 -> OT-tangent engine), sharing ``dsc_helpers``
+ingestion + the simplex solver -- one estimator, no duplication, exact 1D path
+preserved.
+
+### Implementability & cost
+
+- Deps: ``cvxpy`` (have) for the simplex regression; POT (``pot``/``ot``) is a NEW
+  optional dep for the OT plans -- lightweight, gate it like ``numpyro``
+  (``ot = ["pot"]``, lazy import). Exact EMD could fall back to
+  ``scipy.optimize.linprog``; Sinkhorn is ~20 lines of numpy if avoiding the dep.
+- Reference to validate against: the authors' Python repo -- same-language
+  cross-validation, the easiest kind.
+- Hard parts: (1) matching the barycentric-projection + tangent regression weights
+  numerically (expect match-to-tolerance, not bit-exact -- OT solvers differ);
+  (2) the results container -- a multivariate distributional effect is not a scalar
+  or a single QTE curve; surface the counterfactual measure + weights, and likely
+  per-dimension marginal QTEs and/or a Wasserstein-distance effect summary (a real
+  ``BaseEstimatorResults`` extension, and the likely bottleneck).
+- Estimate: ~3-5 days incl. results design + tests.
+
+### Architecture
+
+Sibling of ``DSC`` reusing ``dsc_helpers`` micro-level ingestion + simplex-weight
+machinery: ``estimators/twp.py`` + ``utils/twp_helpers/{setup, ot_plans,
+barycentric, weights, structures}.py``, riding ``dataprep`` (micro-level, d-dim
+outcome cube) + a distributional ``BaseEstimatorResults``. Naming: ``TWP`` (or
+``MVDSC``) -- ``DSC`` / ``DSCAR`` are taken, and ``DTWSC`` is reserved for the
+parked Cao-Chadefaux dynamic method (#3); keep the distributional/dynamic SCs
+disambiguated in docs.
+
+### Replication path
+
+Cross-validate against ``twp_utils.py`` on the repo's synthetic experiments --
+match ``lambda`` and the reconstructed projection to tolerance; then the Montana
+Medicaid d=28 counterfactual if the data ships in the repo. First validation gate:
+TWP-1D reproduces ``DSC`` to tolerance.
+
+### Caveats
+
+- OT solver tolerance => "matches to tolerance," not bit-exact; pin the solver +
+  Sinkhorn regularization to the reference.
+- Inference is thin in the paper (consistency of weights/projection, no ready CI);
+  lean on placebo / permutation as ``DSC`` does.
+- The multivariate-effect representation is the real design work -- settle it
+  before building.
+
+### Verdict
+
+Build (prototype-first). Genuine multivariate gap next to ``DSC``, JMLR-published,
+reproducible with same-language Python reference code, and the new dependency (POT)
+is a reasonable optional add. Run ``/replicate`` against ``twp_utils.py`` (acceptance
+gate: reproduces ``DSC`` in 1D) -> ``/new-estimator`` as a ``DSC`` sibling.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
