@@ -18,6 +18,7 @@ from .estimators.proximal import PROXIMAL ## Check
 from .estimators.fscm import FSCM ## Check
 from .estimators.scmo import SCMO
 from .estimators.propsc import PROPSC
+from .estimators.compsc import COMPSC
 from .estimators.scta import SCTA
 from .estimators.scul import SCUL
 from .estimators.scd import SCD                                # noqa: F401
@@ -122,6 +123,7 @@ __all__ = [
     "SCMO",
     "SRC",
     "PROPSC",
+    "COMPSC",
     "SCTA",
     "SCUL",
     "SCD",

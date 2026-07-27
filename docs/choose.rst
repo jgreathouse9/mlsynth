@@ -653,6 +653,28 @@ for one binary treatment)?
 * A high-frequency outcome where you must decide whether to aggregate the
   pre-period (months vs years) -- :doc:`scta`.
 * Several distinct intervention arms to compare -- :doc:`si`.
+* A vector of shares that sum to a whole (a generation mix, a budget split,
+  brand share within a category) -- :doc:`compsc`.
+
+*When to reach for Compositional Synthetic Controls.* :doc:`compsc` (Boussim
+(2026)) is for outcomes that live on the simplex, where a gain in one share is
+mechanically a loss in the others. Two things break if you treat the shares as
+ordinary outcomes. Fitting one synthetic control per share gives each its own
+donor mix, so the fitted shares need not sum to one and there is no single
+counterfactual unit. And a Euclidean objective on raw shares weights each
+category's *proportional* error by its squared share, so a category holding 2
+percent of the total barely registers next to one holding 50 -- precisely
+backwards when the emerging category is the policy question. COMPSC fits one
+weight vector in log-ratio space, where the multinomial-logit micro-foundation
+makes the transformed shares the relative utilities driving choice, and returns
+the counterfactual as the weighted geometric mean of the donor compositions.
+The effects then sum to zero by construction, and the estimands include the
+log-ratio effect -- the change in the odds of one category against another --
+which is what makes a small category legible. Its sibling :doc:`propsc` solves
+only the first problem, on the level scale; prefer PROPSC when a block of
+treated units adopts simultaneously (COMPSC takes a single treated unit) or when
+all the categories are large and comparably sized, and prefer COMPSC when the
+question is about relative structure or a small share.
 
 *When to reach for Synthetic Interventions.* :doc:`si` (Agarwal, Shah and Shen
 (2024)) is the multi-arm member of this same low-rank family, and the comparison
