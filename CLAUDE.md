@@ -123,6 +123,24 @@ migration or refactor PR.
 - Commit author/committer email: `noreply@anthropic.com`.
 - Don't create a PR unless asked.
 
+### One estimator, one branch, one scope
+
+Every new estimator gets its **own branch** and its **own scope**. Do not add a
+new estimator on a branch that is already carrying other work, and do not carry
+unrelated work onto an estimator's branch. Concretely:
+
+- Branch per estimator, named for it (e.g. `claude/compsc`), cut fresh from
+  `main` — not stacked on another feature branch.
+- The branch contains only that estimator: config, estimator class,
+  `utils/<name>_helpers/`, its tests, its docs page, the `__init__.py` export,
+  and the `docs/choose.rst` entry. Nothing else.
+- Adjacent work goes on its own branch: benchmark cases (see the replication
+  contract above), refactors of shared helpers, doc-wide edits, and changes to
+  this file. If an estimator genuinely needs a shared helper changed, land that
+  change first on its own branch and rebase.
+- A paper review or replication spike is its own scope too — it produces a
+  recommendation, not estimator code.
+
 ### Merging PRs (standing authorization, with guardrails)
 
 Claude Code may merge a pull request **without re-asking** only when **all** of
