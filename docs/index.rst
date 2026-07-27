@@ -241,6 +241,7 @@ headline numbers.
 
    scmo
    propsc
+   compsc
    scta
    ctsc
    dsc
