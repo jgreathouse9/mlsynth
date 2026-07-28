@@ -1,0 +1,6 @@
+{
+  "paper": "Abadie, Diamond & Hainmueller (2010), JASA 105(490) -- Proposition 99",
+  "reference_impl": "Synth 1.1.10 (uniform custom.v) and tidysynth 0.2.0 (ADH spec)",
+  "path_type": "cross-validation",
+  "panel": "basedata/smoking_data.csv (39 states x 1970-2000) / tidysynth::smoking"
+}
