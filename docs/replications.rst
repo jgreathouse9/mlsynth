@@ -11,8 +11,8 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-six of the
-thirty-seven estimators are currently fully verified; ISCM carries a
+This page catalogues those replications. Thirty-seven of the
+thirty-eight estimators are currently fully verified; ISCM carries a
 one-draw illustration only (its paper relies on a non-public panel
 and provides no Monte Carlo to reproduce).
 
@@ -80,6 +80,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/lexscm
    replications/scmo
    replications/propsc
+   replications/compsc
    replications/scta
    replications/sbc
    replications/rescm
@@ -212,6 +213,20 @@ Generalising the estimand, treatment, or unit
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
   → dedicated page: :doc:`replications/scmo`.
+
+* :doc:`compsc` -- compositional SC in the Aitchison geometry
+  (Boussim 2026). Path A: Pennsylvania's Alternative Energy Portfolio
+  Standard, reproduced from public EIA generation data -- all nine Table 1
+  donor weights to three decimals (Illinois :math:`0.233`, Wyoming
+  :math:`0.208`, Iowa :math:`0.168`), Aitchison pre-RMSPE :math:`0.187`,
+  every cell of Table 2 across all eleven reported years, and the section 6.4
+  placebo (ratio :math:`9.18`, 36 retained, :math:`p = 4/36 = 0.111`)
+  (durable: ``compsc_pennsylvania``). The case also pins the geometry
+  correction mlsynth ships as its default: the paper's additive log-ratio map
+  is not the Aitchison isometry, and switching to the centered log-ratio moves
+  the weights by :math:`0.85` in :math:`L_1` and the 2022 gas effect from
+  :math:`+60.4` to :math:`+51.1` points.
+  → dedicated page: :doc:`replications/compsc`.
 
 * :doc:`scta` -- temporal aggregation for SC, cross-validated against
   ``augsynth`` on the Texas SB8 study (Sun-Ben-Michael-Feller 2024). The
