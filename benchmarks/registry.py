@@ -149,6 +149,7 @@ CASES = {
     "cmbsts_vignette": "benchmarks.cases.cmbsts_vignette",  # cross-val vs R CausalMBSTS: multivariate BSTS vignette (trend+cycle)
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)
+    "compsc_pennsylvania": "benchmarks.cases.compsc_pennsylvania",  # Path A: Boussim 2026 Pennsylvania AEPS -- Table 1 weights, all of Table 2, and the sec 6.4 placebo (p=0.111) reproduced from public EIA generation data
 }
 
 # Names whose case reads an external R/MATLAB reference *dump*. Cross-checks that

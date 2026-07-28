@@ -77,6 +77,19 @@ solve once, offline, and pre-commits the chosen dark markets so the paper can
 load the panel and recover the same design in a single `fit`). The selection
 matches on the pre-launch sales and the seven covariates with `standardize=True`.
 
+## Pennsylvania electricity generation mix — Boussim (2026)
+
+| File | What it is | Used by |
+|---|---|---|
+| `pa_aeps_generation.csv` | annual net generation in MWh by state and category, 1990–2023, for Pennsylvania plus the 42 donors surviving the paper's screens: three categories (`gas` = EIA Natural Gas + Other Gases; `fossil` = Coal + Petroleum; `renewables` = conventional hydro, wind, solar, geothermal, wood, other biomass, other, pumped storage), nuclear excluded | COMPSC Pennsylvania AEPS replication |
+
+Built from the EIA state historical table `annual_generation_state.xls` (Total
+Electric Power Industry). Raw megawatt hours are stored rather than shares, so
+the file can be audited directly against the EIA source; COMPSC closes each row
+to the simplex on ingestion. The category assignment is not stated outright in
+the paper — it was recovered by matching its Table 1 balance row; see
+`docs/replications/compsc.rst`.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.

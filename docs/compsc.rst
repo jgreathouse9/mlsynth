@@ -331,6 +331,13 @@ default clr geometry moves the weights by 0.85 in :math:`L_1`, changes the donor
 set, improves the Aitchison pre-treatment fit from 0.187 to 0.177, and reduces
 the 2022 natural-gas effect from 60.4 to 51.1 percentage points.
 
+The benchmark case that pins all of this is
+`benchmarks/cases/compsc_pennsylvania.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania.py>`_,
+running on ``basedata/pa_aeps_generation.csv``. See
+:doc:`replications/compsc` for the full validation, including the category
+recipe recovered from the paper's balance table and the geometry comparison.
+
 Core API
 --------
 
