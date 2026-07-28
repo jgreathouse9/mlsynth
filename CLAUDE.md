@@ -123,13 +123,32 @@ migration or refactor PR.
 - Commit author/committer email: `noreply@anthropic.com`.
 - Don't create a PR unless asked.
 
+### One estimator, one branch, one scope
+
+Every new estimator gets its **own branch** and its **own scope**. Do not add a
+new estimator on a branch that is already carrying other work, and do not carry
+unrelated work onto an estimator's branch. Concretely:
+
+- Branch per estimator, named for it (e.g. `claude/compsc`), cut fresh from
+  `main` — not stacked on another feature branch.
+- The branch contains only that estimator: config, estimator class,
+  `utils/<name>_helpers/`, its tests, its docs page, the `__init__.py` export,
+  and the `docs/choose.rst` entry. Nothing else.
+- Adjacent work goes on its own branch: benchmark cases (see the replication
+  contract above), refactors of shared helpers, doc-wide edits, and changes to
+  this file. If an estimator genuinely needs a shared helper changed, land that
+  change first on its own branch and rebase.
+- A paper review or replication spike is its own scope too — it produces a
+  recommendation, not estimator code.
+
 ### Merging PRs (standing authorization, with guardrails)
 
 Claude Code may merge a pull request **without re-asking** only when **all** of
 these hold:
 
 1. **Trigger** — the user explicitly says to merge it (e.g. "merge it",
-   "go ahead and merge"). Absent an explicit instruction, ask first.
+   "go ahead and merge"), **or** has given standing authorization for
+   `claude/*` PRs (see below). Absent either, ask first.
 2. **Preconditions** — required CI is **green**, there are **no unresolved
    review threads**, and the PR has **no merge conflicts** with its base.
 3. **Scope** — the PR originates from a `claude/*` branch produced in this
@@ -140,6 +159,17 @@ these hold:
 **Hard stops (never, even if asked):** do not force-merge or override a failing
 required check; do not merge if the diff has drifted from what was discussed;
 do not merge into anything other than the agreed base. When in doubt, ask.
+
+#### Standing authorization for `claude/*` PRs
+
+The author has granted blanket approval: Claude Code may open **and merge** a
+pull request from a `claude/*` branch into `main` without asking each time, as
+long as conditions 2–4 above all hold — CI green, no unresolved review threads,
+no conflicts, squash-merge, delete the branch. This is a default, not an
+obligation: still ask when the change is larger or more contentious than the
+work that was discussed, when it touches the result contract or another shared
+invariant, or when you are not confident the diff is what the author expected.
+The hard stops above are unaffected.
 
 ## AI workflow (slash commands)
 
