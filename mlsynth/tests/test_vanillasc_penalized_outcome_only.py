@@ -141,32 +141,15 @@ def test_unpenalized_solution_is_degenerate_on_this_panel(deg):
 def test_positive_lambda_gives_at_most_K_plus_one_nonzero_weights(deg):
     """Theorem 1 sparsity bound, with the pre-period lags as matching variables.
 
-    Checked where the default solver budget attains the exact optimum; the
-    small-lambda regime is pinned separately below.
+    Covers the small-lambda end too. That regime used to be excluded here and
+    pinned separately as a solver limitation: the inner QP was a first-order
+    method that under-converged when the penalty was small relative to the fit
+    term. It is now solved exactly, so the bound holds at every positive lambda
+    as the theorem states.
     """
     T_pre = 4
-    for lam in (1e-1, 1.0):
+    for lam in (1e-4, 1e-2, 1e-1, 1.0):
         assert _nnz(_fit(deg, backend="penalized", penalized_lambda=lam)) <= T_pre + 1
-
-
-def test_small_lambda_sparsity_is_solver_limited(deg):
-    """Known limitation, pinned so a fix is noticed.
-
-    Theorem 1 guarantees at most ``K + 1`` non-zero weights for *any* positive
-    lambda, but the inner simplex QP is FISTA and under-converges when the
-    penalty is small relative to the fit term: at ``lambda = 1e-4`` on this
-    panel it returns seven donors where the exact optimum has five, at a
-    slightly higher objective. It is under-convergence rather than a wrong
-    program -- raising ``max_iter`` to ~2e5 recovers the exact solution -- so
-    the remedy is to solve the inner QP exactly rather than iterate further.
-    Tracked separately from the routing fix because it also changes the
-    with-covariates path, which carries its own benchmark.
-
-    If this assertion starts failing because the count dropped, the inner
-    solver was fixed: fold this case back into the test above.
-    """
-    T_pre = 4
-    assert _nnz(_fit(deg, backend="penalized", penalized_lambda=1e-4)) > T_pre + 1
 
 
 def test_penalized_fit_is_deterministic(deg):
