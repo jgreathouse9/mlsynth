@@ -1,0 +1,15 @@
+# case: vanillasc_xval_references
+# generated_at: 2026-07-28T09:35:09Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC
+# config: {"backend": "outcome-only / mscmt", "inference": "placebo"}
+# reference_impl: Synth (uniform custom.v) + tidysynth (ADH spec)
+# reference_version: Synth 1.1.10, tidysynth 0.2.0
+quantity,mlsynth,reference,abs_diff
+A: placebo rank (V-free),3.0,3.0,0.0
+A: pre-period SSR (same objective),52.12958343287152,55.6980124093,3.568429
+A: units fitted,39.0,38.0,1.0
+B: placebo rank (ADH spec),1.0,1.0,0.0
+B: placebo p-value,0.02564102564102564,0.025641025641,0.0
+B: RMSPE ratio (root scale),11.359725518192844,10.976915129,0.38281
+max |weight - ADH Table 2|,0.004473635097009515,0.017029440000000007,0.012556

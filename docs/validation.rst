@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **71 cross-validation checks** against original
-implementations across **40 estimators** -- 29 reproduce the reference to display precision, 25 to
+Coverage: **73 cross-validation checks** against original
+implementations across **41 estimators** -- 29 reproduce the reference to display precision, 26 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -45,6 +45,10 @@ Summary
      - 2
      - 2 exact
      - 0
+   * - :ref:`COMPSC <val-compsc>`
+     - 1
+     - 1 tight
+     - 0.047
    * - :ref:`CSCM <val-cscm>`
      - 1
      - 1 tight
@@ -186,8 +190,8 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 15
-     - 5 exact · 5 tight · 4 close · 1 documented
+     - 16
+     - 5 exact · 5 tight · 5 close · 1 documented
      - 4.1
 
 .. _val-beast:
@@ -283,6 +287,28 @@ CLUSTERSC
      - 0
      - exact — matches to display precision
      - `scpi_ridge_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scpi_ridge_germany.py>`__
+
+.. _val-compsc:
+
+COMPSC
+------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - Boussim (2026) published tables (no replication package released)
+     - —
+     - 34
+     - 0.047
+     - tight
+     - `compsc_pennsylvania <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania.py>`__
 
 .. _val-cscm:
 
@@ -1255,6 +1281,12 @@ VanillaSC
      - 0.028
      - close
      - `vanillasc_carbontax <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_carbontax.py>`__
+   * - Synth (uniform custom.v) + tidysynth (ADH spec)
+     - —
+     - 7
+     - 3.6
+     - close
+     - `vanillasc_xval_references <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_xval_references.py>`__
 
 Pending capture
 ---------------
