@@ -699,6 +699,21 @@ so the fit blends dissimilar units?
   the SC simplex and chooses the mix that minimises estimated bias, directly
   targeting interpolation bias.
 
+Q1.10 · Is your pre-treatment fit suspiciously perfect, with a donor pool
+large relative to the pre-period?
+
+* No -- you are done; use the *Start here* method.
+* Yes -- read :doc:`identification` before reporting anything. With
+  :math:`J` donors and :math:`T_0` pre-periods, matching exactly imposes only
+  :math:`T_0 + 1` constraints, so once :math:`J` exceeds that and the treated
+  unit is inside the donors' hull, an entire polytope of weight vectors fits
+  perfectly and they imply *different* counterfactuals. The reported effect is
+  then chosen by the solver, not the data. That page gives a short linear
+  program that returns the range of effects the data cannot distinguish, and
+  shows the fix: :doc:`vanillasc` with ``backend="penalized"`` (Abadie-L'Hour),
+  whose penalty makes the solution unique and sparse for any positive
+  :math:`\lambda`.
+
 Part 2 — Many treated units
 ---------------------------
 
