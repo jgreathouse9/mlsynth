@@ -934,6 +934,186 @@ gate: reproduces ``DSC`` in 1D) -> ``/new-estimator`` as a ``DSC`` sibling.
 
 ---
 
+## 10. DRDIDSC -- doubly robust DiD-meets-SC identification (Sun, Xie & Zhang 2025)
+
+**Status: Prototype-first (paper reviewed; no library code yet).**
+
+### Source
+
+> Sun, Y., Xie, H., & Zhang, Y. (2025). "Difference-in-Differences Meets
+> Synthetic Control: Doubly Robust Identification and Estimation."
+> arXiv:2503.11375v2 (25 Sep 2025). No replication package, no reference
+> implementation.
+
+Empirical application: Alaska's 2003 minimum-wage increase on equivalized family
+income, CPS 1998--2003, following Gunsilius (2023) / Dube (2019).
+
+### The idea in one line
+
+One moment function that identifies the ATT if *either* conditional parallel
+trends *or* a group-level synthetic-control condition holds -- neither implying
+the other -- so the researcher no longer has to pick between DiD and SC:
+
+```
+phi(S) = (1/pi_1) * [ G_1 - sum_g w_g(X) * (p_1(X)/p_g(X)) * G_g ] * (dY - m_D(X))
+```
+
+with `dY = Y_T - Y_{T-1}`, `m_D(X) = E[dY | G != 1, X]`, `p_g(X) = P(G=g|X)` and
+covariate-indexed SC weights `w_g(X)` summing to one. Read the bracket first and
+it is SC-with-a-DiD-adjustment; read the difference first and it is
+DiD-augmented-by-SC. Under PT the moment is Neyman orthogonal (weights are
+irrelevant -- Theorem 1(i)); under SC it is *not*, so the asymptotics carry an
+extra first-stage correction (Theorem 3). A multiplier bootstrap (iid weights,
+mean 1, variance 1) is valid under either assumption, which is the practical
+point: you never have to declare which assumption you are relying on.
+
+Estimation is a three-nuisance cross-fitted plug-in: local-polynomial `m_{g,t}(x)`
+and `m_D(x)`; the propensity *ratio* `r_{1,g}(x) = p_1/p_g` fit directly by local
+polynomial on `rho(r,G) = r^2 G_g - 2 r G_1`; and weights from the
+exactly-solvable linear system `w_0(x) = (M'M)^{-1} M' m_1` built from the
+pre-period conditional means. Weights are *not* simplex-constrained (footnote 3).
+Extensions cover repeated cross-sections (Section 4 -- required for the CPS
+application) and staggered adoption (Section 5).
+
+### Scope gate: passes, but through the micro-panel door
+
+Panel, units x time, pre/post -- but the asymptotics are `n -> infinity` with `T`
+and `N_G` *fixed*, and the unit of observation is the individual inside a group,
+not the group. So it does not ride `datautils.dataprep`; it needs its own
+`utils/<name>_helpers/setup.py` over long micro data, exactly as `DSC` and `SCD`
+already do. That precedent is the reason this is in-lane rather than a new family.
+
+Required inputs beyond the usual four columns: a group column (states) and a
+covariate list -- one continuous covariate (the theory in footnote 8 is written
+for scalar `X`) plus discrete covariates handled by partitioning the sample and
+estimating cell by cell, which is what the paper's Table 1 does (nine cells).
+
+### Gap vs overlap
+
+Overlap-grep (`doubly robust|propensity|parallel trends|Sant'?Anna|multiplier
+bootstrap|cross-fitting`) returns `PROXIMAL`'s DR module, `PPSCM`, `MICROSYNTH`,
+`SSC`, `BEAST`, `SEQ_SDID`. Adjudicated:
+
+- **Genuine gap.** No estimator in `mlsynth` does *identification-level* double
+  robustness (PT-or-SC), and nothing implements a Sant'Anna--Zhao-style
+  covariate-conditional DR DiD at all (`grep "Sant'Anna"` over non-test source is
+  empty). `PROXIMAL`'s DR is a different double robustness (outcome bridge vs
+  treatment bridge, Qiu et al. 2024) on aggregate proximal panels.
+- **Closest sibling: `SCD`** (Rincon & Song 2026, Synthetic Control with
+  Differencing). Same data shape (grouped microdata / repeated cross-sections),
+  same fixed-`T`, `sqrt(n)`-in-individuals regime, and the same
+  differencing-plus-SC combination. `SCD` has *no covariates*, uses simplex
+  weights on the differenced pre-period, and inverts influence functions rather
+  than bootstrapping. In the no-covariate limit the two nearly coincide -- which
+  is both the strongest cross-check available and the clearest overlap risk.
+- Also adjacent: `DSC` (Gunsilius 2023 -- the paper's own empirical benchmark,
+  already ported, already benchmarked on this data), `MICROSYNTH` (individual-level
+  balancing, selection-on-observables), `SDID` / `MASC` (DiD+SC hybrids, aggregate).
+- **Naming.** `DSC`, `SCD`, `DPSC` and `DROSC` are all taken; `DRSC` would read as
+  a typo for `DROSC`. Prefer `DRDIDSC` (or another unambiguous acronym) and say
+  in the docstring that it is unrelated to `DROSC`.
+
+### Implementability & cost
+
+Pure NumPy/SciPy. No solver: the SC weights are an OLS solve, not a QP, because
+nonnegativity is deliberately dropped. Local linear regression on a scalar
+covariate, `L`-fold cross-fitting, and a 500-replication multiplier bootstrap that
+refits every nuisance under the weighted empirical operator. The only piece with
+no Python reference is the MSE-optimal bandwidth the paper takes from `nprobust`
+(Calonico--Cattaneo--Farrell); a Fan--Gijbels rule-of-thumb times the paper's
+`n^{1/5 - 1/3.5}` undersmoothing factor is a defensible substitute, and the paper
+states bandwidth sensitivity is mild -- expose `bandwidth` in the config either way.
+
+Cost: roughly 3--4 days for the panel + repeated-cross-section cases with the
+bootstrap and full test layering; staggered adoption (Section 5) is another day
+and should be deferred to a follow-up. The genuinely fiddly parts are (a) the
+bootstrap having to re-run the *nuisance* fits, not just reweight the moment,
+(b) cross-fitting interacting with the per-cell partition on discrete covariates,
+and (c) deciding the public estimand -- the paper reports nine per-cell ATTs and
+never aggregates them.
+
+### Replication path -- weak, and this is the crux
+
+- **Path A is not reachable from repo data.** `basedata/dube_minwage.parquet`
+  (already here, used by `benchmarks/cases/dsc_dube.py`) is the `DiSCo` package's
+  `dube` extract: `(time_col, id_col, y_col)` only, 34 states x 1998--2004,
+  subsampled to 250 draws per state-year. Table 1 needs household age, education
+  count and child count, which that file does not carry -- so reproducing the nine
+  cells means reconstructing a CPS/IPUMS extract to Dube's household definitions.
+  Legitimate under scenario-1 rules (documented reconstruction counts as a pass),
+  but matching estimates like `-0.636 (-1.949, 1.287)` to display precision with
+  no author code is not realistic. The only durable claim is the qualitative one:
+  all nine intervals cover zero.
+- **Path B is not self-contained either.** DGP1--3 are calibrated to the authors'
+  imputed CPS panel (factor loadings from a matrix-completion fill of their own
+  data), which is not published. The *structure* is fully specified, though --
+  factor model, `w_g(x) = 0.2 + 0.8 * softmax((g - N_G - 1)x)`, treatment effect
+  scaled off `sin(2 pi x)` -- so it re-implements cleanly on a substitute panel.
+  Target the geometry rather than the cells: negligible bias, SD falling at
+  `n^{-1/2}` across `n = 1000/2000/3000`, bootstrap coverage near 0.95 under all
+  three DGPs, and -- the claim that matters -- a plain DR-DiD biased under DGP1
+  while this estimator is not, and a pure SC estimator biased under DGP2.
+- **The strong anchor is cross-validation against `pedrohcgs/DRDID`.** Set
+  `N_G = 1` and `w = 1` and the estimator collapses to Sant'Anna--Zhao DR DiD. With
+  a *discrete* covariate the local polynomial degenerates to cell means and a
+  saturated DRDID does too, so the two should agree to machine precision. `DRDID`
+  is a GitHub install, which is the route that works in this sandbox
+  (`agents_r_environment.md`). Make this the acceptance gate for any build.
+- Second anchor, no reference needed: with no covariates the estimator must equal
+  equation (4), `dYbar_1 - sum_g w_g dYbar_g`, computable in closed form.
+
+### Findings from the feasibility probe (keep these)
+
+Ran the no-covariate special case (eq. 4) on `basedata/dube_minwage.parquet` with
+the paper's own six donors (VA, NH, MD, UT, MI, OH), AK treated, 1998--2003:
+
+```
+T = 6, N_G = 6  ->  M is 5x5, square: the weight system is EXACTLY identified
+weights: VA 1.154, NH 0.708, MD -1.059, UT 0.438, MI 1.650, OH -1.892   (sum 1)
+cond(A) = 10.95 ;  eq.(4) ATT = 0.622
+```
+
+The weights interpolate five noisy pre-period differences with zero degrees of
+freedom and land far outside the simplex. Under Assumption PT this is harmless --
+Theorem 1(i) says the weights do not matter. Under Assumption SC, which is the
+whole selling point, it is the estimator, and it is the non-orthogonal branch with
+the harder variance. The paper's own application sits exactly at `T = N_G`, its
+footnote 4 concedes the `T < N_G` case needs a penalty and defers it to future
+work, and its nine intervals are correspondingly wide (one is
+`(-5.667, 2.471)`). Any build should ship a conditioning/extrapolation diagnostic
+and should probably offer an optional ridge or simplex restriction on the weight
+solve, flagged as a deviation from the paper.
+
+### Caveats
+
+- The six donors are chosen by reading off Gunsilius's estimated weights -- a
+  data-driven donor selection performed outside the method, whose inference does
+  not account for it. The `T >= N_G` requirement is what forces the pruning.
+- No code, no data, recent preprint, single empirical application whose headline
+  result is a null. Nothing here is *wrong*, but there is no published number this
+  library could be pinned to.
+- Genuine value is the identification-robustness argument, not a demonstrated
+  accuracy edge: the paper never shows the estimator beating a competent DiD or SC
+  baseline on real data, only that it stays valid in simulations where each
+  baseline in turn is invalid.
+- Practitioner reach: state- or region-level policy evaluated on survey microdata
+  (CPS, ACS, PSID, NLSY) or firm-level digital-trace panels, where `T` is short,
+  groups are few, individuals are many, and the analyst has real covariates and no
+  confidence in parallel trends. That regime is genuinely under-served in the
+  library -- `SCD` is the only current answer and it ignores covariates.
+
+### Verdict
+
+Prototype-first, not build-now. The gap is real and the method fits the library's
+micro-panel door, but validation is the binding constraint: no reference code, a
+Path-A table that needs data the repo does not have, and a Path-B DGP calibrated
+to an unpublished panel. Run `/replicate` with the `DRDID` collapse as the
+acceptance gate (`N_G = 1`, discrete `X`, machine-precision agreement) plus the
+eq.(4) no-covariate identity; only if both hold, proceed to `/new-estimator` as an
+`SCD`/`DSC` sibling, with the weight-conditioning diagnostic in scope from day one.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
