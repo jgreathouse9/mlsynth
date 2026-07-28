@@ -31,7 +31,12 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40     # a hung suite shouldn't burn a full-length runner slot
+    # The cap exists to kill a genuinely hung suite, not to bound a healthy one.
+    # The full run has measured 30-38 min across the matrix, so 40 left under 10%
+    # headroom and ordinary runner variance was tipping jobs into a timeout that
+    # reads as 'cancelled' rather than a clear failure. 55 keeps the hang guard
+    # while leaving room for a slow runner.
+    timeout-minutes: 55
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -115,7 +120,7 @@ jobs:
   # avoid duplicating `build`.
   pyversions:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
