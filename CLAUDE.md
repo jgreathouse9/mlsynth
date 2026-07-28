@@ -147,7 +147,8 @@ Claude Code may merge a pull request **without re-asking** only when **all** of
 these hold:
 
 1. **Trigger** — the user explicitly says to merge it (e.g. "merge it",
-   "go ahead and merge"). Absent an explicit instruction, ask first.
+   "go ahead and merge"), **or** has given standing authorization for
+   `claude/*` PRs (see below). Absent either, ask first.
 2. **Preconditions** — required CI is **green**, there are **no unresolved
    review threads**, and the PR has **no merge conflicts** with its base.
 3. **Scope** — the PR originates from a `claude/*` branch produced in this
@@ -158,6 +159,17 @@ these hold:
 **Hard stops (never, even if asked):** do not force-merge or override a failing
 required check; do not merge if the diff has drifted from what was discussed;
 do not merge into anything other than the agreed base. When in doubt, ask.
+
+#### Standing authorization for `claude/*` PRs
+
+The author has granted blanket approval: Claude Code may open **and merge** a
+pull request from a `claude/*` branch into `main` without asking each time, as
+long as conditions 2–4 above all hold — CI green, no unresolved review threads,
+no conflicts, squash-merge, delete the branch. This is a default, not an
+obligation: still ask when the change is larger or more contentious than the
+work that was discussed, when it touches the result contract or another shared
+invariant, or when you are not confident the diff is what the author expected.
+The hard stops above are unaffected.
 
 ## AI workflow (slash commands)
 
