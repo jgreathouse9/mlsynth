@@ -192,18 +192,48 @@ def test_simplex_lstsq_silent_by_default():
         simplex_lstsq(A, b, max_iter=1)               # warn=False -> no warning
 
 
-def test_simplex_qp_warns_on_nonconvergence():
+# The penalized inner QP used to be FISTA, and these two cases asserted that a
+# starved iteration budget warned about non-convergence. It is now solved
+# directly, so "non-convergence" no longer exists as a state: the solve either
+# returns the optimum or raises. What replaces those cases is the contract that
+# actually holds -- the iteration controls no longer influence the answer, and a
+# solver breakdown is raised rather than warned about and papered over.
+
+def test_simplex_qp_ignores_the_iteration_budget(recwarn):
     rng = np.random.default_rng(1)
     X0 = rng.normal(size=(3, 5)); Q = X0.T @ X0; c = rng.normal(size=5)
-    with pytest.warns(RuntimeWarning, match="did not converge"):
-        _simplex_qp(Q, c, max_iter=1, warn=True)
+    starved = _simplex_qp(Q, c, max_iter=1, warn=True)
+    generous = _simplex_qp(Q, c, max_iter=10_000, warn=True)
+    assert np.allclose(starved, generous, atol=1e-9)
+    assert not [w for w in recwarn if issubclass(w.category, RuntimeWarning)]
 
 
-def test_penalized_weights_warns_on_nonconvergence():
+def test_penalized_weights_ignores_the_iteration_budget(recwarn):
     rng = np.random.default_rng(2)
     X0 = rng.normal(size=(3, 6)); X1 = rng.normal(size=3)
-    with pytest.warns(RuntimeWarning, match="did not converge"):
-        penalized_weights(X1, X0, lam=0.1, max_iter=1, warn=True)
+    starved = penalized_weights(X1, X0, lam=0.1, max_iter=1, warn=True)
+    generous = penalized_weights(X1, X0, lam=0.1, max_iter=10_000, warn=True)
+    assert np.allclose(starved, generous, atol=1e-9)
+    assert starved.sum() == pytest.approx(1.0, abs=1e-9)
+    assert not [w for w in recwarn if issubclass(w.category, RuntimeWarning)]
+
+
+def test_penalized_weights_raises_rather_than_returning_uniform_on_breakdown():
+    """A failed solve must not be reported as a legitimate dense fit."""
+    from unittest.mock import patch
+
+    from mlsynth.exceptions import MlsynthEstimationError
+
+    rng = np.random.default_rng(3)
+    X0 = rng.normal(size=(3, 6)); X1 = rng.normal(size=3)
+
+    # A no-op solve leaves the variable unset, which is what a broken solve
+    # looks like from the caller's side.
+    import cvxpy as cp
+
+    with patch.object(cp.Problem, "solve", lambda self, **kw: None):
+        with pytest.raises(MlsynthEstimationError, match="did not solve"):
+            penalized_weights(X1, X0, lam=0.1)
 
 
 def test_mscmt_warns_on_de_nonconvergence():

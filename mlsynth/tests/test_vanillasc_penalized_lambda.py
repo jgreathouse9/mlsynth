@@ -102,10 +102,17 @@ class TestNonePreservesCV:
 
     def test_fixed_differs_from_cv_when_far(self, df):
         # A deliberately large fixed penalty should not coincide with the
-        # CV-selected weights.
-        cv = np.array(list(_weights(_fit(df, penalized_lambda=None)).values()))
-        fixed = np.array(list(_weights(_fit(df, penalized_lambda=100.0)).values()))
-        assert not np.allclose(cv, fixed, atol=1e-6)
+        # CV-selected weights. Compared over the union of donors: the exact
+        # solver returns genuinely sparse weights and ``donor_weights`` omits
+        # zero entries, so the two dicts need not share a support (and a raw
+        # ``np.allclose`` on their values would raise on the shape mismatch
+        # rather than report a difference).
+        cv = _weights(_fit(df, penalized_lambda=None))
+        fixed = _weights(_fit(df, penalized_lambda=100.0))
+        keys = sorted(set(cv) | set(fixed))
+        a = np.array([cv.get(k, 0.0) for k in keys])
+        b = np.array([fixed.get(k, 0.0) for k in keys])
+        assert not np.allclose(a, b, atol=1e-6)
 
 
 # ----------------------------------------------------------------------
