@@ -119,15 +119,18 @@ class TestValidation:
                            time="time", covariates=["x"], backend="penalized",
                            penalized_lambda=-0.5))
 
-    def test_fixed_lambda_ignored_without_covariates(self, df):
-        # The Abadie-L'Hour pairwise penalty needs covariate predictors; with
-        # none, the engine routes backend='penalized' to the exact outcome-only
-        # simplex, so penalized_lambda has no effect and is surfaced as None.
+    def test_fixed_lambda_applies_without_covariates(self, df):
+        # Superseded. This case used to assert that penalized_lambda was
+        # ignored without covariates, on the rationale that the Abadie-L'Hour
+        # pairwise penalty "needs covariate predictors". That rationale was
+        # wrong: the penalty lives on the matching variables, which in the
+        # outcome-only specification are the pre-treatment outcome lags, and
+        # BilevelProblem documents K == 0 as supported precisely for this
+        # backend. The engine no longer routes penalized to the unpenalized
+        # simplex, so the fixed lambda is honoured and surfaced.
+        # See tests/test_vanillasc_penalized_outcome_only.py.
         base = dict(df=df, outcome="y", treat="D", unitid="unit", time="time",
                     display_graphs=False)
         res = VanillaSC({**base, "backend": "penalized", "penalized_lambda": 0.2}).fit()
-        assert res.method_details.parameters_used["penalized_lambda"] is None
-        oo = VanillaSC({**base, "backend": "outcome-only"}).fit()
-        a = np.array(list(_weights(res).values()))
-        b = np.array(list(_weights(oo).values()))
-        assert np.allclose(a, b, atol=1e-8)
+        assert res.method_details.parameters_used["penalized_lambda"] == pytest.approx(0.2)
+        assert res.method_details.parameters_used["backend"] == "penalized"

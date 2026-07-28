@@ -236,7 +236,17 @@ class BilevelSCM:
         pred_names: List[str] = []
         diagnostics: Dict[str, Any] = {}
 
-        if backend == "outcome-only" or not has_cov:
+        # ``penalized`` is well defined without covariates: Abadie-L'Hour's
+        # pairwise penalty lives on the *matching variables*, which in the
+        # outcome-only specification are the pre-treatment outcome lags. That is
+        # also the case where it matters most -- a donor pool large relative to
+        # the pre-period puts the treated unit inside the hull, so the
+        # unpenalized program has a continuum of perfect-fitting solutions and
+        # the returned one is a solver artifact. So only fall through to the
+        # plain simplex for the genuinely predictor-free backends; ``penalized``
+        # continues below with an empty (K=0) predictor block, which
+        # :class:`BilevelProblem` and the penalized solver both accept.
+        if backend == "outcome-only" or (not has_cov and backend != "penalized"):
             backend = "outcome-only"
             # Exact simplex QP (cvxpy). The FISTA primitive ``simplex_lstsq``
             # under-converges on long, ill-conditioned pre-windows (e.g. the
@@ -245,6 +255,10 @@ class BilevelSCM:
             # exactly, matching augsynth's quadprog.
             W = simplex_qp(Y0_pre, y_pre)
         else:
+            if not has_cov:
+                # Predictor-free penalized fit: match on the outcome lags alone.
+                X1 = np.empty(0, dtype=float)
+                X0 = np.empty((0, J), dtype=float)
             X1 = np.asarray(X1, dtype=float).ravel()
             X0 = np.asarray(X0, dtype=float)
             if X0.shape != (X1.shape[0], J):
