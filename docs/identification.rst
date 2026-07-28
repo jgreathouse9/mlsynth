@@ -4,9 +4,11 @@ When a perfect pre-treatment fit means nothing
 ==============================================
 
 A synthetic control that tracks the treated unit exactly before the
-intervention looks like the best possible outcome. Sometimes it is the opposite:
-a sign that the data do not determine the answer at all, and that the number you
-are about to report was chosen by your solver rather than by your panel.
+intervention looks like the best possible outcome. Sometimes it carries less
+information than it appears to: the fit criterion may be satisfied by a whole
+family of donor weightings that disagree about the counterfactual, in which case
+the number you are about to report was settled by your solver rather than by
+your panel.
 
 This page explains when that happens, how to check for it in a few lines, and
 what to do about it. It is written around a published example, so the failure is
@@ -45,6 +47,11 @@ This is not an edge case in the wide-panel regime. It is the generic outcome
 whenever a large donor pool is matched on a short pre-period, and a perfect
 pre-treatment fit is its signature rather than its refutation.
 
+A caveat worth stating immediately, because it changes what to conclude: none of
+this says a large donor pool is bad. See `Adding donors is not the problem`_
+below. What it says is that the objective stops choosing for you, so something
+else must — and you should know what.
+
 Diagnosing it
 -------------
 
@@ -61,7 +68,7 @@ feasible set,
    \textstyle\sum_j w_j = 1,\; w \ge 0,
 
 where :math:`c` holds each donor's mean outcome over the post-treatment
-periods. The spread between the two solutions is the range of effects the data
+periods. The spread between the two solutions is the range of effects the fit criterion
 cannot distinguish. If the program is infeasible, the treated unit lies outside
 the donors' hull, which is a different problem (see below).
 
@@ -93,7 +100,75 @@ the donors' hull, which is a different problem (see below).
 
 Run it whenever ``pre_rmse`` is near zero and the donor pool is large relative
 to the pre-period. A narrow interval means the fit pins the counterfactual down;
-a wide one means it does not, and no amount of solver tuning will change that.
+a wide one means it does not, and no amount of solver tuning will change that --
+only a stated rule for choosing among the tied solutions will.
+
+.. _Adding donors is not the problem:
+
+Adding donors is not the problem
+--------------------------------
+
+It would be easy to read the above as an argument for small donor pools. It is
+not, and the evidence points the other way.
+
+Spiess, Imbens and Venugopal (2023) study exactly this regime and find that
+synthetic control exhibits *single* descent: average out-of-time imputation error
+falls monotonically as control units are added, with no deterioration at or past
+the point where the pre-treatment fit becomes perfect. Their Proposition 4 gives
+the mechanism -- because the weights are convex, a synthetic control built from
+:math:`J` donors is itself a convex combination of the fits built from
+:math:`J - 1` of them, so a larger pool behaves like a model average over smaller
+ones. The result holds with or without interpolation, and they note it extends to
+penalized synthetic control at a fixed penalty.
+
+Their conclusion is explicit that the conventional worry is misplaced -- but so
+is its condition, and the condition is the whole point of this page: the result
+holds *as long as ties are broken by a suitable regularisation procedure*, the
+minimum-norm solution in their case. Non-uniqueness is not denied; it is assumed
+away by fixing a rule.
+
+So the two readings fit together. The polytope is real, and which point you land
+on is not determined by fit. What follows is not "use fewer donors" but "decide
+the rule, and report it" -- and given a rule, more donors can help rather than
+hurt.
+
+How much does the rule matter? On the panel below, every one of these tracks the
+pre-treatment path to within about thirteen cents a month, on contributions
+averaging some ``$66,000`` a month:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 18 20
+
+   * - Tie-breaking rule
+     - Donors used
+     - Effect (four-month)
+   * - minimum norm (Spiess et al.)
+     - 47
+     - ``$113,700``
+   * - Abadie-L'Hour penalty, :math:`\lambda = 10^{-6}`
+     - 10
+     - ``$124,600``
+   * - mlsynth's interior-point default
+     - 98
+     - ``$126,800``
+   * - the original study's general-purpose NLP solver
+     - 96
+     - ``$130,500``
+
+A spread of about ``$17,000`` across four defensible-looking routes, none of
+which is meaningfully distinguishable on pre-treatment fit. Note what the last row is not: an
+argument that its answer is wrong. It is that nothing in that analysis names the
+rule, so the number came from an optimiser's path rather than from a modelling
+choice anyone made deliberately.
+
+Two things this comparison does *not* show. Spiess et al. measure average
+imputation risk over randomly chosen donor subsets, which is a different question
+from the spread of estimates at a fixed donor set -- their result can hold while
+this interval stays wide. And mlsynth's own outcome-only default is an
+interior-point solution: deterministic and reproducible, but a solver artifact
+rather than a rule anyone chose. If the identified interval is wide, choose the
+rule explicitly rather than inheriting that one.
 
 A worked example
 ----------------
@@ -226,6 +301,10 @@ Disaggregated Data." Journal of the American Statistical Association 116(536),
 
 Abadie, A., and J. Vives-i-Bastida (2022). "Synthetic Controls in Action."
 arXiv:2203.06279.
+
+Spiess, J., G. Imbens, and A. Venugopal (2023). "Double and Single Descent in
+Causal Inference with an Application to High-Dimensional Synthetic Control."
+Advances in Neural Information Processing Systems 36.
 
 Doudchenko, N., and G. W. Imbens (2016). "Balancing, Regression,
 Difference-in-Differences and Synthetic Control Methods: A Synthesis." NBER
