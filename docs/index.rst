@@ -286,6 +286,7 @@ headline numbers.
    dpsc
    pda
    scul
+   esc
    rescm
 
 .. toctree::

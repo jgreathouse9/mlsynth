@@ -28,7 +28,7 @@ import pytest
 _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
-    BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
+    BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
     MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
@@ -163,6 +163,7 @@ OBSERVATIONAL = [
                           "outcomes": ["p1", "p2", "p3"]}, id="COMPSC"),
     pytest.param(SCUL, {"inference": False, "number_initial_periods": 4,
                         "training_post_length": 5}, id="SCUL"),
+    pytest.param(ESC, {"n_learners": 30, "n_alphas": 10}, id="ESC"),
     pytest.param(RESCM, {}, id="RESCM"),
     pytest.param(CSCM, {"v_method": "uniform"}, id="CSCM"),
     pytest.param(PDA, {}, id="PDA"),

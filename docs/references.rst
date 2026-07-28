@@ -305,6 +305,11 @@ References
     An applied example using high-dimensional data."
     Working paper, 2022. Reference implementation: https://github.com/hollina/scul
 
+.. [LianPu2026]
+    Lian, Yujun, and Pu, Jinbo.
+    "Inference of Synthetic Control Method under Short Panel."
+    Working paper, 2026. (Ensemble Synthetic Control, ESC.)
+
 .. [TIBSHIRANI2013]
     Tibshirani, Ryan J.
     "The Lasso Problem and Uniqueness."

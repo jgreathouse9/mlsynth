@@ -19,20 +19,25 @@ using ``backend="mscmt"`` (the nested predictor-weight ``V`` search) with
     Baleares (Islas)         0.2193           0.21931
     Madrid (Comunidad De)    0.1479           0.14790
     avg post gap 1970-1990   -0.7709          -0.77096
+    dependent loss (MSPE)    0.004286         0.004286
     =======================  ===============  =========================
 
 The donor weights match to four decimals; the post-period gap (averaged over
-1970-1990, MSCMT's ``did`` range) matches MSCMT's ``average.post`` of -0.770963.
-The fit window is essential: without it the outcome SSR would run over the full
-1955-1969 pre-period and the weights would drift off the MSCMT solution.
+1970-1990, MSCMT's ``did`` range) matches MSCMT's ``average.post`` of -0.770963;
+and the dependent loss (MSCMT's ``loss.v``, the pre-fit MSPE over 1960-1969)
+matches its 0.004286071 to ~1e-6. The fit window is essential: without it the
+outcome SSR would run over the full 1955-1969 pre-period and the weights would
+drift off the MSCMT solution.
 
 The reference numbers are a live captured run of the MSCMT R package, not
 transcribed vignette constants: ``benchmarks/reference/mscmt_basque/`` holds the
 exact ``reference.R`` (the vignette specification, ``outer.optim="DEoptim"``,
-``seed=42``), its verbatim output, the parsed weights/gap the case pins against,
-and full provenance (MSCMT version, OS, data checksum). Install MSCMT with
-``benchmarks/R/install_mscmt.sh``; regenerate the bundle with
-``python benchmarks/reference/generate.py mscmt_basque``. Data ship as
+``seed=42``), its verbatim output, the parsed weights/gap/loss the case pins
+against, and full provenance (MSCMT version, OS, data checksum). ``reference.R``
+now also emits the dependent loss (``res$loss.v``); the dependent-loss pin lies
+dormant until the bundle is regenerated to capture it, then activates
+automatically. Install MSCMT with ``benchmarks/R/install_mscmt.sh``; regenerate
+the bundle with ``python benchmarks/reference/generate.py mscmt_basque``. Data ship as
 ``basedata/basque_mscmt.csv`` (the MSCMT-transformed ``basque`` panel: schooling
 rescaled to per-unit percentage shares, ``school.higher = school.high +
 school.post.high``, Spain excluded from the donor pool downstream).
@@ -91,7 +96,13 @@ def run() -> dict:
     years = np.array(sorted(d["year"].unique()))
     gap = np.asarray(res.time_series.estimated_gap, dtype=float)
     post = (years >= 1970) & (years <= 1990)
+    fit = (years >= 1960) & (years <= 1969)      # MSCMT's times.dep window
     n_pos = sum(1 for v in w.values() if v > 1e-3)
+
+    # Dependent loss: the pre-fit MSPE over the optimisation window (MSCMT's
+    # `loss.v`, its headline "loss V"). Pinned against the captured MSCMT loss
+    # once the reference bundle carries it (see EXPECTED / comparison).
+    dependent_mspe = float((gap[fit] ** 2).mean())
 
     return {
         "cataluna": w.get("Cataluna", 0.0),
@@ -102,6 +113,8 @@ def run() -> dict:
                              + w.get("Madrid (Comunidad De)", 0.0)),
         "n_positive_donors": float(n_pos),
         "avg_post_gap_70_90": float(gap[post].mean()),
+        "dependent_mspe": dependent_mspe,
+        "dependent_rmspe": dependent_mspe ** 0.5,
     }
 
 
@@ -139,6 +152,13 @@ def comparison() -> dict:
          "mlsynth": round(r["avg_post_gap_70_90"], 6),
          "reference": round(ref_gap, 6)},
     ]
+    # Dependent loss (MSCMT's MSPE "loss V"): present once the bundle is
+    # regenerated with the updated reference.R (which now emits res$loss.v).
+    ref_loss = load_reference("mscmt_basque")["values"].get("loss_v")
+    if ref_loss is not None:
+        rows.append({"quantity": "dependent_loss_MSPE",
+                     "mlsynth": round(r["dependent_mspe"], 6),
+                     "reference": round(ref_loss, 6)})
     return {
         "rows": rows,
         "mlsynth_call": {"estimator": "VanillaSC", "config": cfg},
@@ -164,3 +184,10 @@ EXPECTED = {
     "n_positive_donors": (3.0, 1.0),
     "avg_post_gap_70_90": (reference_value("mscmt_basque", "avg_post_gap"), 0.005),
 }
+# Dependent-loss pin (MSCMT's MSPE "loss V"): dormant until the bundle is
+# regenerated with the updated reference.R (which now emits res$loss.v). The
+# vignette reports 0.004286071 and mlsynth reproduces it to ~1e-6; once the
+# captured loss is in reference.json this pin activates automatically.
+_LOSS_V = load_reference("mscmt_basque")["values"].get("loss_v")
+if _LOSS_V is not None:
+    EXPECTED["dependent_mspe"] = (_LOSS_V, 5e-4)

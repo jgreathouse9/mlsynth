@@ -87,6 +87,41 @@ def test_codeload_skips_on_unwritable_cache(tmp_path, monkeypatch):
     assert _fetch._codeload("https://github.com/owner/repo.git", "deadbeef", dest) is False
 
 
+def test_mscmt_basque_reference_prepped_to_capture_dependent_loss():
+    # The mscmt_basque dependent-loss pin is "prepped for regen": reference.R
+    # must emit the loss_v (and rmspe) lines so a bundle regeneration captures
+    # MSCMT's loss.v, and generate.py's parser must pick them up. This guards the
+    # regen contract -- a future edit cannot silently drop the dependent loss and
+    # leave the pin permanently dormant.
+    rscript = (_ROOT / "benchmarks" / "reference" / "mscmt_basque"
+               / "reference.R").read_text()
+    assert "res$loss.v" in rscript, "reference.R no longer emits MSCMT's loss.v"
+    assert "sqrt(res$loss.v)" in rscript, "reference.R no longer emits the RMSPE"
+    assert "loss_v" in rscript and "rmspe" in rscript
+    sample = (
+        "== REFERENCE VALUES ==\n"
+        "weight\tCataluna\t0.632794\n"
+        "avg_post_gap\t-0.770963\n"
+        "loss_v\t0.004286071\n"
+        "rmspe\t0.065468095\n"
+        "== SESSION INFO ==\n"
+    )
+    parsed = _parse_values(sample)
+    assert parsed["values"]["loss_v"] == pytest.approx(0.004286071)
+    assert parsed["values"]["rmspe"] == pytest.approx(0.065468095)
+
+
+def test_mscmt_basque_dependent_loss_pin_dormant_until_bundle_has_it():
+    # Until the bundle carries loss_v the pin stays dormant, so the case remains
+    # green on the current bundle; when a regen adds loss_v the case's guard
+    # (``.get("loss_v")``) is what flips it on. Assert the guard reflects the
+    # bundle's actual state, both ways.
+    from benchmarks.cases import mscmt_basque as case
+
+    has_loss = load_reference("mscmt_basque")["values"].get("loss_v") is not None
+    assert ("dependent_mspe" in case.EXPECTED) == has_loss
+
+
 def test_comparison_csv_is_self_consistent():
     # The committed side-by-side table: a metadata header (timestamp, mlsynth
     # version + call) then rows whose abs_diff equals |mlsynth - reference| and

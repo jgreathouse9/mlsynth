@@ -43,6 +43,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
 - **DesignComparison** — Result of :func:`compare_methods`.
 - **DesignSpec** — A design from any estimator, in the common cross-method currency.
+- **ESC** — Ensemble Synthetic Control estimator.  (config: ESCConfig)
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
 - **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
