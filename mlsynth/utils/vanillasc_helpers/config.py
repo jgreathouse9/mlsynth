@@ -337,5 +337,13 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "nearest-neighbour matching, an infinitesimal value gives "
                     "the lexicographic (fit-preserving) tie-break, and 0 is the "
                     "unpenalized synthetic control. 'None' (default) selects "
-                    "lambda by cross-validation. Ignored for other backends.",
+                    "lambda by cross-validation. Ignored for other backends. "
+                    "Covariates are not required: with none supplied the "
+                    "pre-treatment outcome lags are the matching variables, "
+                    "which is the case where the penalty matters most (a donor "
+                    "pool large relative to the pre-period makes the "
+                    "unpenalized optimum non-unique). Note the inner QP is a "
+                    "first-order method that under-converges for very small "
+                    "lambda relative to the fit term, so Abadie-L'Hour's "
+                    "at-most-K+1 sparsity bound may not be attained there.",
     )
