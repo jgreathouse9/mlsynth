@@ -91,9 +91,13 @@ def _simplex_qp(Q: np.ndarray, c: np.ndarray, *, max_iter: int = 2000,
     also faster (roughly 6x on problems of this size), so there is no trade-off
     between the two.
 
-    ``max_iter`` and ``tol`` are retained for API compatibility and forwarded to
-    the solver as its iteration cap and accuracy target. ``warn`` emits a
-    :class:`RuntimeWarning` if the solver does not reach an optimal status.
+    ``max_iter`` and ``tol`` are accepted and ignored: a direct solve has no
+    iteration budget to spend or convergence tolerance to trade against. They
+    remain in the signature because callers (and ``solve_penalized``'s public
+    parameters) still pass them, and dropping them would be a breaking change
+    for no gain -- but they no longer influence the result, and saying so here
+    is better than leaving a parameter that looks live and is not. ``warn``
+    emits a :class:`RuntimeWarning` if the solver returns a non-optimal status.
     """
     n = Q.shape[0]
     if n == 1:
@@ -163,13 +167,23 @@ def penalized_weights(X1: np.ndarray, X0: np.ndarray, lam: float, *,
         Penalty ``lambda >= 0``. ``lambda > 0`` guarantees a unique, sparse
         solution; ``lambda -> 0`` is the (possibly non-unique) pure synthetic
         control; large ``lambda`` approaches nearest-neighbour matching.
+    max_iter, tol : int, float
+        Accepted and ignored -- the program is solved directly rather than
+        iteratively, so there is no budget to spend or tolerance to trade
+        against. Kept so existing callers continue to work unchanged.
     warn : bool
-        Forwarded to the inner QP: warn on non-convergence.
+        Unused here; retained for signature compatibility with the other
+        backends. A solver breakdown raises rather than warning, since uniform
+        weights are indistinguishable from a legitimate dense fit.
 
     Raises
     ------
     ValueError
         If ``lam < 0`` (a negative penalty makes the objective non-convex).
+    MlsynthEstimationError
+        If the solver fails to return a point. The feasible set is a non-empty
+        compact simplex and the objective is convex, so a minimiser always
+        exists: any such failure is numerical breakdown, not infeasibility.
     """
     if lam < 0:
         raise ValueError(f"penalty lambda must be non-negative, got {lam}.")
