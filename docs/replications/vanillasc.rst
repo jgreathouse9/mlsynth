@@ -187,3 +187,34 @@ covariate-matched Synth concentrates the effect on California
 ``outcome-only`` fit — where California is only rank 3 of 39 — gives
 :math:`\approx 0.10`; both are internally consistent with their respective
 ordinary placebo p-values. Choose the specification before reading the test.
+
+Cross-validation of the placebo inference
+-----------------------------------------
+
+The Path-A checks above pin the donor weights and the fit. The in-space placebo
+test that turns those into a p-value is cross-validated separately, against the
+two R packages a user would otherwise reach for, in
+``benchmarks/cases/vanillasc_xval_references.py``.
+
+Run on the full Abadie-Diamond-Hainmueller predictor spec, mlsynth and
+``tidysynth`` agree exactly: California ranks first among the 39 units and the
+p-value is :math:`1/39 = 0.0256` in both. mlsynth's donor weights also land
+closer to the published Table 2 than tidysynth's (largest deviation
+:math:`0.004` against :math:`0.017`).
+
+Run on a V-free objective -- ``Synth`` driven with a uniform ``custom.v``, which
+collapses its inner problem to the same quadratic program mlsynth solves with
+``backend="outcome-only"`` -- the two implementations again place California
+third, with a per-unit correlation of :math:`0.994` across the placebo pool.
+Two differences are worth recording. mlsynth reaches a pre-treatment sum of
+squares of :math:`52.13` against ``Synth``'s :math:`55.70`, a 6.4 percent lower
+value of the objective ``Synth`` is itself minimising; and ``Synth``'s ``ipop``
+solver aborts on one donor (Nebraska, reporting a computationally singular
+system), so it fits 38 of the 39 placebos while mlsynth fits all 39. The
+benchmark reports both without asserting them, so a change surfaces without
+"mlsynth is better" becoming a pass condition.
+
+One convention to watch when comparing by hand: ``tidysynth``'s ``mspe_ratio``
+is on the squared scale (:math:`120.5` here) while mlsynth reports the RMSPE
+ratio, its square root (:math:`11.4`). Reconciled, the two agree to 3.5 percent.
+

@@ -219,6 +219,8 @@ Cross-validation against reference implementations
      - DROSC vs authors' R ``DRoSC`` (Koo & Guo 2026, ``limSolve::lsei``) on Basque: worst-case estimand τ(λ) and λ=0 weights value-for-value across the robustness sweep
    * - ``propsc_spain``
      - vs LIVE propsdid (Rscript): Bogatyrev-Stoetzer Table 2 common-weights SDID on party vote shares (skips if absent)
+   * - ``vanillasc_xval_references``
+     - vs Synth (uniform custom.v) and tidysynth (ADH spec) on Prop 99: placebo rank and p-value agree exactly (1/39); also records where mlsynth attains a lower value of Synth's own objective and where ipop fails outright
    * - ``compsc_pennsylvania``
      - Path A: Boussim (2026) Pennsylvania AEPS from public EIA data -- Table 1 donor weights and both RMSPEs, all eleven years of Table 2, and the section 6.4 placebo (p = 0.111); also pins the clr-vs-alr geometry correction
    * - ``clustersc_subgroups_ref``

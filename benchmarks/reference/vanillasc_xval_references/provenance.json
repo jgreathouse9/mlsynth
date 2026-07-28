@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-07-28T00:22:00Z",
+  "git_sha": "89be517ba2f6555727894ae87e2698deee5285a4",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "Synth": "1.1.10",
+    "tidysynth": "0.2.0"
+  },
+  "script": "benchmarks/R/sc_references.R"
+}
