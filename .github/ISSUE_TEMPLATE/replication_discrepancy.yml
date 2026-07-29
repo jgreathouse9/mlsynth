@@ -1,0 +1,66 @@
+name: Replication discrepancy
+description: mlsynth's output disagrees with a published result or another implementation
+title: "[Replication] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every estimator here is validated against a paper or a reference
+        implementation, so a disagreement is worth knowing about even when it
+        turns out to be expected. Some differences are documented and
+        deliberate — see the estimator's page under `docs/replications/`.
+
+        Before filing, one thing is worth ruling out: that both sides are
+        reporting the same quantity in the same units. Rescaling, differing
+        pre-treatment windows, and differing donor pools have all produced
+        apparent disagreements that were really two different numbers.
+  - type: input
+    id: estimator
+    attributes:
+      label: Estimator
+      placeholder: e.g. DTWSC
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: What you compared against
+      description: Paper with DOI, or the reference implementation and its version or commit.
+      placeholder: Cao & Chadefaux (2025), 10.1017/pan.2024.14 — or conflictlab/dsc @ b1cd241
+    validations:
+      required: true
+  - type: dropdown
+    id: path
+    attributes:
+      label: Kind of comparison
+      options:
+        - A published number in the paper
+        - A table or figure in the paper
+        - Output I generated from the authors' code
+        - Output from an unrelated implementation
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: The quantities, side by side
+      description: Which statistic, the reference value, mlsynth's value, and the gap. Pointwise paths are more informative than summary statistics, since averaging hides sign-cancelling error.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: How each side was configured
+      description: Data source, donor pool and any exclusions, treatment date, pre-treatment window, predictors, and the units the outcome is in on each side.
+    validations:
+      required: true
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer
+      render: python
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: mlsynth 0.0.0, Python 3.12 — and the reference's language and version

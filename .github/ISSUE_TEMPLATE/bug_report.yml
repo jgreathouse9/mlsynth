@@ -1,0 +1,65 @@
+name: Bug report
+description: An estimator crashes, raises the wrong error, or returns a result you believe is incorrect
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the concern is that mlsynth's numbers disagree with a paper or another
+        implementation, use the Replication discrepancy form instead — the
+        resolution there is often to document a known difference rather than to
+        change code.
+  - type: input
+    id: estimator
+    attributes:
+      label: Estimator
+      placeholder: e.g. DTWSC, FDID, MCNNM
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: How does it misbehave?
+      description: The first one matters most. A wrong number that runs cleanly is the hardest kind to catch, so it is worth separating.
+      options:
+        - Runs, but returns a result I believe is wrong
+        - Raises an exception
+        - Raises the wrong error type, or an unclear message
+        - Hangs, or is unreasonably slow
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproducer
+      description: The smallest script that shows it. If the data cannot be shared, a generator that reproduces the shape of the panel is just as useful.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what you got
+      description: For a numerical disagreement, please give both numbers and how far apart they are.
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback
+      description: If it raised. Please paste the whole thing rather than the last line.
+      render: shell
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: mlsynth 0.0.0, Python 3.12, numpy 2.1, macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: panel
+    attributes:
+      label: Panel shape
+      description: Units, periods, pre-periods, donors, and anything degenerate about it — a single donor, collinear donors, unbalanced panel, treatment in the first period.

@@ -1,0 +1,73 @@
+name: Paper candidate
+description: Propose a method for implementation as a new estimator
+title: "[Paper] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Candidates are assessed on four questions: is the method genuinely new
+        relative to what mlsynth already has, is it implementable from what the
+        authors published, is there a credible route to validating it, and is the
+        build cost proportionate. This form asks for what is needed to answer
+        them. A partial answer is fine — an assessment is the point of filing.
+  - type: input
+    id: citation
+    attributes:
+      label: Paper
+      description: Full citation with DOI or link.
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: What the method does
+      description: In a few sentences, and in plain terms — what it estimates and what makes it different.
+    validations:
+      required: true
+  - type: textarea
+    id: regime
+    attributes:
+      label: What regime does it cover that mlsynth does not?
+      description: The most important question. Which existing estimator would someone otherwise misapply, and why would it mislead them? See `docs/choose.rst` for what is already covered.
+    validations:
+      required: true
+  - type: dropdown
+    id: reference
+    attributes:
+      label: Is there a reference implementation?
+      options:
+        - Yes, a maintained package
+        - Yes, replication code with the paper
+        - Code exists but only as excerpts in an appendix
+        - No, the paper alone
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: reference_link
+    attributes:
+      label: Where
+      description: Repository, archive DOI, or supplement link. Note the licence if you know it.
+  - type: dropdown
+    id: validation
+    attributes:
+      label: What could validate it?
+      description: Every estimator needs one of these before it ships.
+      options:
+        - The paper's empirical result on data the authors provide
+        - The paper's Monte Carlo or simulation table
+        - A match against a reference implementation
+        - Not obvious — needs assessing
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data availability
+      description: Is the authors' data public, and is it already in `basedata/`?
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Known difficulties, dependencies the method would pull in, or parts of the paper that look under-specified.

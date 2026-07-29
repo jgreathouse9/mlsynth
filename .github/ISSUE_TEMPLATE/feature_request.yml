@@ -1,0 +1,45 @@
+name: Feature request
+description: A new option, backend, or diagnostic on an estimator that already exists
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a method that is not implemented at all, use the Paper candidate form.
+  - type: input
+    id: estimator
+    attributes:
+      label: Estimator
+      placeholder: e.g. VanillaSC, DTWSC
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: What should it be able to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What is not possible without it?
+      description: If it mirrors something a paper or a reference implementation does, say which — that is the strongest case, since it means a published result is currently out of reach.
+    validations:
+      required: true
+  - type: dropdown
+    id: compat
+    attributes:
+      label: Would this change existing behaviour?
+      description: New options are expected to default to what the estimator already does, so existing results do not move silently.
+      options:
+        - "No — purely additive, off by default"
+        - "Yes — it would change what a default configuration returns"
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: sketch
+    attributes:
+      label: How you would expect to call it
+      render: python
