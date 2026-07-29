@@ -188,6 +188,20 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # fit one synthetic control per treated unit on the never-treated donors.
         from .staggered import run_vanillasc_staggered
         return run_vanillasc_staggered(config, prep)
+    if getattr(config, "staggered_spec", None) is not None:
+        # Only the staggered engine reads ``staggered_spec``; the single-treated
+        # path below never looks at it. Accepting it here would discard every
+        # field on the spec -- including ``w_constr`` -- while returning a plain
+        # outcome-only fit that looks like it honoured the constraint.
+        raise MlsynthConfigError(
+            "staggered_spec was given, but this panel has 1 treated unit and "
+            "the staggered engine needs at least 2. On a single-treated panel "
+            "the spec would be silently ignored, so it is rejected instead. "
+            "For multi-feature matching with one treated unit use `covariates` "
+            "(with `covariate_windows` and a predictor-weight `backend`); to "
+            "use the staggered spec, mark the other treated units in "
+            f"'{config.treat}'."
+        )
     if "y" not in prep or "donor_matrix" not in prep:
         raise MlsynthDataError(
             "VanillaSC could not prepare the data (dataprep returned neither a "

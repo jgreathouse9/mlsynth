@@ -1168,6 +1168,13 @@ effects match scpi's ``scest`` (West Germany :math:`-1.75`, Italy
 :math:`-0.89`) and the event-time prediction intervals match its
 ``CI_all_gaussian`` (durable benchmark ``scpi_staggered_covariate``).
 
+The spec belongs to the staggered engine, so it needs at least two treated
+units. Passing it on a single-treated panel raises ``MlsynthConfigError``
+rather than being quietly dropped -- otherwise every field on the spec,
+``w_constr`` included, would be discarded while the fit returned the ordinary
+outcome-only result. With one treated unit, match on several series through
+``covariates`` and ``covariate_windows`` with a predictor-weight ``backend``.
+
 .. note::
 
    scpi's multi-feature design produces duplicate donor-column names that recent
