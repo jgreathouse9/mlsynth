@@ -10,6 +10,66 @@ from ..datautils import dataprep
 from .structures import DTWSCInputs
 
 
+def unit_rescale_factors(
+    df: pd.DataFrame,
+    unitid: str,
+    time: str,
+    outcome: str,
+    last_pre_period,
+):
+    """Per-unit ``(offset, multiplier)`` putting every unit on one range.
+
+    Reproduces ``dsc(rescale = TRUE)``, the reference's default. Each unit is
+    mapped by ``(x - min_i) * mean_range / (max_i - min_i)``, where the min and
+    max are taken over the PRE-treatment window only and ``mean_range`` is the
+    mean of those ranges across units. Afterwards every unit spans exactly the
+    same pre-treatment interval.
+
+    The point is what the synthetic control then optimises over. Untransformed,
+    a donor whose outcome swings widely contributes more squared error than a
+    flat one and is fitted harder for reasons unrelated to how well its path
+    resembles the treated unit's. Equalising the ranges makes the fit a
+    comparison of shape.
+
+    Restricting to the pre-period matters: taking the range over the whole
+    panel would let post-treatment variation -- including the treatment effect
+    itself -- set the weights.
+
+    A unit that is flat across the entire pre-period has no range to normalise
+    and is left alone rather than divided by zero.
+    """
+    pre = df[df[time] <= last_pre_period]
+    if pre.empty:
+        raise MlsynthDataError(
+            "DTWSC: rescaling needs at least one pre-treatment period; none "
+            f"of the panel's {time} values are <= {last_pre_period}."
+        )
+    ranges = pre.groupby(unitid)[outcome].agg(["min", "max"])
+    spans = ranges["max"] - ranges["min"]
+    mean_span = float(spans.mean())
+    factors = {}
+    for unit, lo in ranges["min"].items():
+        span = float(spans.loc[unit])
+        factors[unit] = (float(lo), mean_span / span if span > 0 else 1.0)
+    return factors
+
+
+def rescale_panel(
+    df: pd.DataFrame,
+    unitid: str,
+    time: str,
+    outcome: str,
+    last_pre_period,
+) -> pd.DataFrame:
+    """Return ``df`` with ``outcome`` put on the common pre-treatment range."""
+    factors = unit_rescale_factors(df, unitid, time, outcome, last_pre_period)
+    out = df.copy()
+    lo = out[unitid].map(lambda u: factors[u][0])
+    mult = out[unitid].map(lambda u: factors[u][1])
+    out[outcome] = (out[outcome] - lo) * mult
+    return out
+
+
 def prepare_dtwsc_inputs(
     df: pd.DataFrame,
     outcome: str,

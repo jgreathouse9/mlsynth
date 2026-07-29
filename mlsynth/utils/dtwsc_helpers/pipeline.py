@@ -247,7 +247,8 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
               inference: str = "none", placebo_pairs: int = 0,
               alpha: float = 0.05, mse_window: Optional[int] = 10,
               sc_backend: str = "simplex", covariates=None,
-              covariate_windows=None, fit_window=None) -> DTWSCResults:
+              covariate_windows=None, fit_window=None,
+              rescale_units: bool = False) -> DTWSCResults:
     """Warp every donor onto the treated unit's clock, then fit the control."""
     y = inputs.y
     donors = inputs.donor_matrix
@@ -351,6 +352,7 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
         "n_donors": inputs.J, "k": int(k), "warp": bool(warp),
         "smooth": bool(smooth), "treated_unit": inputs.treated_name,
         "sc_backend": str(sc_backend),
+        "rescale_units": bool(rescale_units),
         "covariates": list(covariates) if covariates else None,
         "n_unwarped_tail_cells": int((~np.isfinite(warped)).sum()),
         "n_post_periods_undefined": int(inputs.n_post - n_post_defined),

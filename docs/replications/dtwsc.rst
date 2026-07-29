@@ -31,9 +31,30 @@ Headline numbers
    * - DTWSC, mlsynth's warp through R's ``Synth``
      - 0.0705
      - -0.5592
+   * - DTWSC, mlsynth end to end
+     - 0.0663
+     - -0.5310
+   * - standard SC, mlsynth end to end
+     - 0.0845
+     - -0.6232
 
 The paper's claim reproduces: warping tightens the pre-treatment fit by about
 20 percent, and moves the ATT modestly toward zero.
+
+Read the units before comparing any of these. ``dsc(rescale = TRUE)`` is the
+reference's default, and it maps every unit onto a common pre-treatment range
+before fitting anything, so every number R reports is in rescaled units rather
+than in GDP per capita. The mlsynth rows above are run with
+``rescale_units=True`` so the whole table sits on one scale; without it mlsynth
+reports in the outcome's own units, where R's standard-SC ATT is -0.6405 and
+not -0.6027.
+
+That distinction is easy to lose, and this page previously lost it: an mlsynth
+ATT of -0.6026 in GDP per capita was compared against R's -0.6027 in rescaled
+units and reported as a four-decimal reproduction. It was a coincidence of two
+different quantities landing on the same digits. On one scale the two arms
+agree to about 0.004 on pre-RMSE and 0.03 on the ATT, which is the honest
+figure and is what ``benchmarks/cases/dtwsc_basque.py`` now pins.
 
 What matches, seam by seam
 --------------------------

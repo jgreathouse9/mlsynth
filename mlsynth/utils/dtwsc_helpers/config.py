@@ -144,6 +144,21 @@ class DTWSCConfig(BaseEstimatorConfig):
             "'mscmt' together with ``covariates`` to reproduce the paper."
         ),
     )
+    rescale_units: bool = Field(
+        default=False,
+        description=(
+            "Put every unit on a common pre-treatment range before fitting, "
+            "as ``dsc(rescale = TRUE)`` does -- each unit mapped by "
+            "``(x - min_i) * mean_range / (max_i - min_i)`` over the "
+            "pre-period. This makes the synthetic control weigh donors by the "
+            "shape of their path rather than by how far it travels, and it is "
+            "required to compare against the reference's synthetic-control "
+            "arm, whose numbers are reported in those rescaled units. The "
+            "warp is unaffected, since the alignment is scale-invariant. "
+            "Defaults to False so the estimator does not silently change the "
+            "units its effects are reported in."
+        ),
+    )
     covariates: Optional[List[str]] = Field(
         default=None,
         description=(

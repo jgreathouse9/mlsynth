@@ -21,10 +21,18 @@ What this case pins, and why each row is where it is:
   that the TFDTW port is exact, and it isolates the one remaining difference
   to preprocessing alone.
 * The synthetic-control half, against the reference's own numbers, using
-  ``sc_backend="mscmt"`` with the paper's 14 predictors. The UNWARPED arm
-  reproduces R's standard-SC result essentially exactly (pre-RMSE 0.0881 vs
-  0.0886, ATT -0.6026 vs -0.6027), which establishes that the delegation to
-  mlsynth's Synth replication is faithful.
+  ``sc_backend="mscmt"`` with the paper's 14 predictors and
+  ``rescale_units=True``. Both arms land within 0.004 on pre-RMSE and 0.03 on
+  the ATT.
+
+  The rescaling is not optional for that comparison, and an earlier version of
+  this file got it wrong in a way worth recording. ``dsc(rescale = TRUE)`` is
+  the reference's default: it maps every unit onto a common pre-treatment
+  range before fitting, so R reports in rescaled units, not in gdpcap. mlsynth
+  without ``rescale_units`` reports an unwarped ATT of -0.6026 in gdpcap and R
+  reports -0.6027 rescaled, which reads as a four-decimal match and is not one
+  -- they are different quantities. In common units R's is -0.6405. The rows
+  below compare like with like.
 
 The one documented gap is the Savitzky-Golay edge treatment: the reference
 pads each series with an ``auto.arima`` forecast before filtering where
@@ -63,11 +71,50 @@ TREATED = "Basque Country (Pais Vasco)"
 TREAT_YEAR = 1971
 
 
-def _panel() -> pd.DataFrame:
+#: The paper's 14 special predictors, as inclusive averaging windows.
+_COVARIATE_WINDOWS = {
+    "invest_ratio": (1964, 1969), "popdens": (1969, 1969),
+    "sec.agriculture": (1961, 1969), "sec.energy": (1961, 1969),
+    "sec.industry": (1961, 1969), "sec.construction": (1961, 1969),
+    "sec.services.venta": (1961, 1969), "sec.services.nonventa": (1961, 1969),
+    "school.illit": (1964, 1969), "school.prim": (1964, 1969),
+    "school.med": (1964, 1969), "school.high": (1964, 1969),
+    "school.post.high": (1964, 1969),
+}
+_COVARIATES = list(_COVARIATE_WINDOWS)
+
+
+def _panel(with_covariates: bool = False) -> pd.DataFrame:
     df = pd.read_csv(_DATA)
     df = df[df.regionname != "Spain (Espana)"].dropna(subset=["gdpcap"]).copy()
     df["treated"] = ((df.regionname == TREATED) & (df.year >= TREAT_YEAR)).astype(int)
+    if with_covariates:
+        df["invest_ratio"] = df["invest"] / df["gdpcap"]
+        present = [c for c in _COVARIATES if c in df.columns]
+        df[present] = df.groupby("regionname")[present].ffill().bfill()
     return df
+
+
+def _reference_fit():
+    """R's own fitted paths, or ``None``.
+
+    ``value`` is the treated unit's outcome and ``synth_dsc`` / ``synth_sc``
+    the two counterfactuals, all in the units R fits in -- that is, AFTER
+    ``dsc(rescale = TRUE)`` has mapped each unit onto the common pre-treatment
+    range.
+    """
+    path = _REF / "gold_fit.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path)
+
+
+def _pre_rmse_and_att(observed, synthetic, n_pre):
+    observed = np.asarray(observed, dtype=float)
+    synthetic = np.asarray(synthetic, dtype=float)
+    return (float(np.sqrt(np.nanmean(
+                (observed[:n_pre] - synthetic[:n_pre]) ** 2))),
+            float(np.nanmean(observed[n_pre:] - synthetic[n_pre:])))
 
 
 def _load_reference():
@@ -219,6 +266,35 @@ def run() -> dict:
     out["dtwsc_speeds_exact_on_r_filter"] = float(n_bit)
     out["dtwsc_post_speed_max_diff_on_r_filter"] = worst_post
     out["dtwsc_warped_max_diff_on_r_filter"] = worst_warp
+
+    # The synthetic-control half, compared IN R'S OWN UNITS. This row exists
+    # because comparing across scales once produced a spurious four-decimal
+    # agreement -- see the module docstring.
+    fit = _reference_fit()
+    if fit is None:
+        for key in ("dtwsc_sc_pre_rmse_gap_vs_r", "dtwsc_sc_att_gap_vs_r",
+                    "dtwsc_dsc_pre_rmse_gap_vs_r", "dtwsc_dsc_att_gap_vs_r"):
+            out[key] = float("nan")
+        return out
+
+    panel = _panel(with_covariates=True)
+    present = [c for c in _COVARIATES if c in panel.columns]
+    scaled = {**cfg, "df": panel, "rescale_units": True,
+              "sc_backend": "mscmt", "covariates": present,
+              "covariate_windows": {k: v for k, v in _COVARIATE_WINDOWS.items()
+                                    if k in present},
+              "fit_window": (1960, 1969)}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        dsc_arm = DTWSC(dict(scaled)).fit()
+        sc_arm = DTWSC({**scaled, "warp": False}).fit()
+
+    n_pre_fit = int((fit["time"] <= 1970).sum())
+    for tag, arm, column in (("sc", sc_arm, "synth_sc"),
+                             ("dsc", dsc_arm, "synth_dsc")):
+        r_rmse, r_att = _pre_rmse_and_att(fit["value"], fit[column], n_pre_fit)
+        out[f"dtwsc_{tag}_pre_rmse_gap_vs_r"] = abs(arm.pre_rmse - r_rmse)
+        out[f"dtwsc_{tag}_att_gap_vs_r"] = abs(arm.att - r_att)
     return out
 
 
@@ -265,4 +341,8 @@ EXPECTED = {
     "dtwsc_speeds_exact_on_r_filter": (16.0, 0.0),
     "dtwsc_post_speed_max_diff_on_r_filter": (0.0, 1e-15),
     "dtwsc_warped_max_diff_on_r_filter": (0.0, 1e-13),
+    "dtwsc_sc_pre_rmse_gap_vs_r": (0.0041, 0.004),
+    "dtwsc_sc_att_gap_vs_r": (0.0205, 0.015),
+    "dtwsc_dsc_pre_rmse_gap_vs_r": (0.0042, 0.004),
+    "dtwsc_dsc_att_gap_vs_r": (0.0269, 0.015),
 }
