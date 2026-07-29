@@ -1,8 +1,10 @@
 """Dynamic time warping with Sakoe-Chiba step patterns.
 
-A self-contained implementation of the two step patterns the Dynamic Synthetic
-Control method needs -- ``symmetricP1`` and ``asymmetricP2`` (Sakoe & Chiba
-1978) -- so that :mod:`mlsynth` gains no runtime dependency for DTWSC.
+A self-contained implementation of the step patterns the Dynamic Synthetic
+Control method needs, so that :mod:`mlsynth` gains no runtime dependency for
+DTWSC. The six here are exactly the ones the authors' grid search selects:
+``symmetricP1`` / ``symmetricP2`` / ``asymmetricP1`` / ``asymmetricP2``
+(Sakoe & Chiba 1978), ``typeIc`` (Rabiner & Juang), and ``mori2006``.
 
 Step patterns are encoded in the standard ``(pattern, di, dj, weight)`` table:
 the row with ``weight == -1`` opens a pattern and gives the offset back to the
@@ -49,8 +51,67 @@ ASYMMETRIC_P2: np.ndarray = np.array(
     dtype=float,
 )
 
-#: Normalisation hint per pattern -- ``"N+M"`` (symmetric) or ``"N"``.
-_NORM: Dict[int, str] = {id(SYMMETRIC_P1): "N+M", id(ASYMMETRIC_P2): "N"}
+SYMMETRIC_P2: np.ndarray = np.array(
+    [
+        [1, 2, 3, -1.0], [1, 1, 2, 2.0], [1, 0, 1, 2.0], [1, 0, 0, 1.0],
+        [2, 1, 1, -1.0], [2, 0, 0, 2.0],
+        [3, 3, 2, -1.0], [3, 2, 1, 2.0], [3, 1, 0, 2.0], [3, 0, 0, 1.0],
+    ],
+    dtype=float,
+)
+
+_H = 0.5
+ASYMMETRIC_P1: np.ndarray = np.array(
+    [
+        [1, 1, 2, -1.0], [1, 0, 1, _H], [1, 0, 0, _H],
+        [2, 1, 1, -1.0], [2, 0, 0, 1.0],
+        [3, 2, 1, -1.0], [3, 1, 0, 1.0], [3, 0, 0, 1.0],
+    ],
+    dtype=float,
+)
+
+#: Rabiner-Juang type Ic. Note the zero-weight row: the third pattern reaches
+#: (i, j) from (i, j-2) charging only the intermediate cell, so the endpoint
+#: itself is free. A weight of zero is meaningful, not a placeholder.
+TYPE_IC: np.ndarray = np.array(
+    [
+        [1, 2, 1, -1.0], [1, 1, 0, 1.0], [1, 0, 0, 1.0],
+        [2, 1, 1, -1.0], [2, 0, 0, 1.0],
+        [3, 1, 2, -1.0], [3, 0, 1, 1.0], [3, 0, 0, 0.0],
+    ],
+    dtype=float,
+)
+
+MORI2006: np.ndarray = np.array(
+    [
+        [1, 2, 1, -1.0], [1, 1, 0, 2.0], [1, 0, 0, 1.0],
+        [2, 1, 1, -1.0], [2, 0, 0, 3.0],
+        [3, 1, 2, -1.0], [3, 0, 1, 3.0], [3, 0, 0, 3.0],
+    ],
+    dtype=float,
+)
+
+#: Normalisation per pattern. ``"N+M"`` divides by query plus reference length,
+#: ``"N"`` by the query's, ``"M"`` by the reference's. ``mori2006`` is the only
+#: one of the six normalised by M, and getting it wrong leaves the path right
+#: but every normalised distance -- hence every open-end endpoint -- wrong.
+_NORM: Dict[int, str] = {
+    id(SYMMETRIC_P1): "N+M", id(SYMMETRIC_P2): "N+M",
+    id(ASYMMETRIC_P1): "N", id(ASYMMETRIC_P2): "N",
+    id(TYPE_IC): "N", id(MORI2006): "M",
+}
+
+#: Public name -> table, for config and benchmark lookup.
+PATTERNS: Dict[str, np.ndarray] = {
+    "symmetricP1": SYMMETRIC_P1, "symmetricP2": SYMMETRIC_P2,
+    "asymmetricP1": ASYMMETRIC_P1, "asymmetricP2": ASYMMETRIC_P2,
+    "typeIc": TYPE_IC, "mori2006": MORI2006,
+}
+
+
+def norm_mode(step_pattern: np.ndarray) -> str:
+    """The pattern's normalisation mode -- ``"N+M"``, ``"N"`` or ``"M"``."""
+    return _NORM.get(id(step_pattern), "N")
 
 
 class DTWAlignment:
@@ -92,7 +153,12 @@ def _pattern_rows(step_pattern: np.ndarray) -> List[Tuple[Tuple[int, int], List[
 
 
 def _norm_factor(step_pattern: np.ndarray, n: int, m: int) -> float:
-    return float(n + m) if _NORM.get(id(step_pattern), "N") == "N+M" else float(n)
+    mode = norm_mode(step_pattern)
+    if mode == "N+M":
+        return float(n + m)
+    if mode == "M":
+        return float(m)
+    return float(n)
 
 
 def dtw(

@@ -10,7 +10,7 @@ import pandas as pd
 from ...config_models import InferenceResults, WeightsResults
 from ...exceptions import MlsynthEstimationError
 from ..results_helpers import build_effect_submodels
-from .dtw import ASYMMETRIC_P2, SYMMETRIC_P1
+from .dtw import PATTERNS
 from .inference import (
     icc_corrected_ttest,
     placebo_band,
@@ -19,7 +19,7 @@ from .inference import (
 from .structures import DTWSCInputs, DTWSCResults
 from .warping import savgol_second_derivative, tfdtw, warp_series
 
-_PATTERNS = {"symmetricP1": SYMMETRIC_P1, "asymmetricP2": ASYMMETRIC_P2}
+_PATTERNS = PATTERNS
 
 
 def _simplex_weights(target: np.ndarray, donors: np.ndarray) -> np.ndarray:
