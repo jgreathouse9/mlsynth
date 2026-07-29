@@ -215,8 +215,8 @@ loadings-as-slopes specification against ``zhan-gao/classo`` first.
 
 ## 3. DSC -- Dynamic Synthetic Control (DTW speed-warping)
 
-**Status: Parked (demonstrate-first DONE; blocked on a `dtw-python` vs R-`dtw`
-`open.end` library difference -- not worth finishing until that is resolved).**
+**Status: UNBLOCKED -- build. The `open.end` blocker was misdiagnosed and is
+resolved; see "Blocker resolved" below. Everything else was already ported.**
 
 ### Source
 
@@ -224,7 +224,16 @@ loadings-as-slopes specification against ``zhan-gao/classo`` first.
 > Varying Speeds in Comparative Case Studies." *Political Analysis* 33, 18-31.
 
 Reference package (cloned, read in full; pin downstream, never vendor):
-**https://github.com/conflictlab/dsc** -- `R/{TFDTW,dsc,misc,synth}.R`.
+**https://github.com/conflictlab/dsc** -- `R/{TFDTW,dsc,misc,synth}.R`. MIT
+(`LICENSE`; the README's "GPL-3" line contradicts `DESCRIPTION` and the actual
+file -- treat MIT as governing, and clean-room the port either way).
+
+There is now also a JOSS software paper in the repo (`paper.md`, `paper.pdf`,
+`.github/workflows/draft-pdf.yml`, Sep 2025). It restates the method; it adds no
+new algorithm. `git log` confirms `R/TFDTW.R`, `R/misc.R` and `R/synth.R` are
+untouched since 2023-09-14, and the only 2025 change to `R/dsc.R` is a ggplot
+block appended to `dsc()`. The reference implementation this entry was written
+against is byte-identical to the current `main`.
 
 ### The idea in one line
 
@@ -253,15 +262,13 @@ Giorgino's official Python port of R `dtw`, identical step patterns
   `warpWITHweight`, the cutoff, and the pre-period speed weights `weight.a`. On
   Basque the **pre-period warped donors match R to ~1e-15** (confirmed on the
   worst donor: `weight.a` and the pre-warp `0, 0.2036, ..., 2.1799` identical).
-* **NOT bit-reproducible: `second.dtw`** (the post-period double-sliding-window).
-  The *entire* residual is one library-level disagreement: **`dtw-python`'s
-  `open.end=TRUE` alignment covers the full query, while R `dtw` lets the
-  open-ended alignment stop short.** This changes `RefTooShort`'s window-include
-  decision, so the post-period `avg.weight` (and hence the warped post series)
-  diverges. The 0-vs-1-index `+1` patch in `RefTooShort` fixes the overlap
-  window but then *over-includes* the short boundary window everywhere (it wins
-  the cost search with a spuriously cheap open-ended match) -- one fix trades for
-  another, because the libraries genuinely terminate open ends differently.
+* **NOT bit-reproducible at the time: `second.dtw`** (the post-period
+  double-sliding-window). The symptom was real -- `RefTooShort`'s window-include
+  decision differed, so the post-period `avg.weight` (and hence the warped post
+  series) diverged, and the 0-vs-1-index `+1` patch fixed the overlap window
+  while over-including the short boundary window. The *diagnosis* was wrong: it
+  was attributed to `open.end` termination differing between the libraries. It
+  does not. See below.
 
 **Reference numbers (R `dsc`, gold, full Abadie 14-predictor spec, Synth's
 `basque`, Spain dropped -> 16 donors):**
@@ -278,12 +285,52 @@ exactly**; only the ATT rides on the un-portable `second.dtw` (the warp gap move
 an outcome-only ATT from R's -0.480 to Python's -0.573, so it is *not* negligible
 -- bitwise matters here).
 
-### Build path if resumed
+### Blocker resolved -- it was `warp()`, not `open.end` (KEEP THIS)
 
-1. **Resolve the `open.end` blocker** -- the only real obstacle. Hand-roll the
-   DTW open-end recursion to replicate R's exact truncation/tie-breaking, or
-   vendor R's step-pattern open-end logic. Uncertain payoff; reverse-engineering
-   R `dtw`'s open-end termination point by point. *Everything else is done.*
+Re-tested head-to-head, R `dtw` 1.23-3 vs `dtw-python` 1.7.5, both step patterns
+used by the package (`symmetricP2` for `first.dtw`, `asymmetricP2` for
+`second.dtw`), 268 usable random (query, reference) pairs spanning lengths 2-25
+(white noise, random walks, and noisy sinusoids), all with `open.end=TRUE`:
+
+| quantity | agreement |
+|---|---|
+| `distance` | 268/268 exact (1e-6) |
+| full `index1`/`index2` warping paths | 268/268 identical |
+| `RefTooShort` boolean, after the fix below | 268/268 identical |
+
+**The open ends terminate identically.** `dtw-python` does *not* force coverage
+of the full query; it stops short exactly where R does, with the same `jmin`.
+
+The entire divergence is in **`warp()`'s handling of the many-to-one map**. R's
+`dtw::warp` averages the tied indices; `dtw-python`'s does not. Worked case
+(`length(Q) = length(R) = 8`, identical alignment in both):
+
+```
+index1 = 1 2 3 3 4 5 6 7 8      index2 = 1 2 3 4 5 6 7 8 8
+R   warp(index.reference=FALSE) -> 1 2 3 3 4 5 6 7.5     <- mean(7, 8)
+py  warp(index_reference=False) -> 1 2 3 3 4 5 6 7       (after +1)
+```
+
+`RefTooShort` then tests `round(max(wq)) < length(query)`: R gets
+`round(7.5) = 8`, not `< 8`, so FALSE (window kept); Python gets `7 < 8`, TRUE
+(window dropped). That single tie-break is the whole "short boundary window"
+over-inclusion described above. The fix is one function:
+
+```python
+def warp_R(a, index_reference=False):
+    src, dst = (a.index1, a.index2) if index_reference else (a.index2, a.index1)
+    return np.array([dst[src == j].mean() for j in range(int(src.max()) + 1)])
+```
+
+With `warp_R` substituted for `dtw.warp`, `RefTooShort` matches R on 120/120
+`second.dtw`-shaped pairs and 268/268 in the wide sweep, both step patterns. Use
+numpy's `round` (banker's rounding, same as R's) for the comparison.
+
+### Build path
+
+1. ~~Resolve the `open.end` blocker~~ **Done -- see above.** Reimplement `warp`
+   with R's tie-averaging semantics; do not call `dtw.warp` directly. Both call
+   sites matter: `RefTooShort` and `first.dtw`'s `wr`/`cutoff`.
 2. Port `preprocessing` (S-G filter `scipy.signal.savgol_filter` 2nd-deriv --
    matches up to a constant that DTW re-normalizes away; the `auto.arima`
    edge-buffer is the one inherently-fuzzy piece, ~2 edge points, approximate it).
@@ -301,13 +348,28 @@ Synth`; plus `signal, forecast` (forecast pulls `tseries/quantmod/urca`) and
 `parallel=FALSE` to avoid `furrr`. (augsynth's install recipe in
 `benchmarks/R/install_augsynth.sh` is the template.)
 
+### Gap vs overlap (re-checked)
+
+`grep -rilE "dynamic time warp|dtw|warp" mlsynth --include=*.py` hits only
+`CMBSTS`, whose `control_selection='dtw'` uses DTW *distance* to screen the donor
+pool (optional `fastdtw`). That is DTW as a similarity metric for donor
+selection; nothing in the library *warps a donor's outcome path*. Genuine gap.
+Closest siblings by intent: `MASC` (reshapes the donor set rather than the donor
+series), `CMBSTS` (DTW screening), `DSCAR` (a different "dynamic"). Naming
+guidance above still stands -- `DSC` and `DSCAR` are taken, use `DTWSC`.
+
 ### Verdict
 
-The method is worth having (genuine gap, top venue, recent, reproduces cleanly)
-and is ~90% ported -- but **do not finish it until the `open.end` library
-difference is solved**, because without it the post-period is not bit-faithful to
-R and the ATT is only *close*. Revisit when there is appetite to hand-roll the
-open-end DTW.
+**Build.** Genuine gap, top venue (*Political Analysis*), MIT reference package,
+now also a JOSS submission, and it reproduces cleanly. The one obstacle that
+parked it was a misdiagnosis: the libraries agree bit-for-bit on open-ended
+alignment, and the residual is a five-line `warp` tie-averaging fix, verified
+268/268. The pre-warp was already bit-exact, so the remaining work is mechanical
+-- swap in `warp_R`, re-run `second.dtw`, and confirm the Basque ATT lands on R's
+outcome-only -0.480 (the earlier Python run gave -0.573; that gap *is* the warp
+bug and is the acceptance test). Then `/replicate` against the R package for the
+full 14-predictor spec (pre-RMSE 0.0728, ATT -0.537) and `/new-estimator` as
+`DTWSC`.
 
 ---
 
