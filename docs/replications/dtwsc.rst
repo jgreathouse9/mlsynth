@@ -193,9 +193,32 @@ fixed warping hyperparameters, 17 pools and 256 placebo runs:
      - 20 percent
      - 16 percent
 
-The direction and rough magnitude reproduce. The remaining gap is expected: the
-paper fits each placebo run at its own grid-optimal ``filter.width`` / ``k`` /
-step pattern, which mlsynth holds fixed.
+The direction and rough magnitude reproduce, but read the table as a
+comparison of two different procedures rather than a reproduction attempt. The
+authors' replication archive (Dataverse ``10.7910/DVN/DIUPUA``) shows their
+placebo design differs from mlsynth's built-in one in five ways: they keep
+Spain in the donor pool where the estimator page's example drops it; they use
+118 perturbed datasets and 1789 runs against mlsynth's 17 pools and 256; they
+give every run its own grid-optimal ``filter.width`` / ``k`` / step pattern
+where mlsynth holds one configuration fixed; they fit the full 14-predictor
+specification on every placebo where mlsynth's example is outcome-only; and
+they map each gap back to the outcome's own units before squaring it, so their
+reported log MSEs are not on the scale mlsynth reports.
+
+An earlier version of this page said the rule that picked those per-run
+hyperparameters was absent from the replication package. That was wrong, and
+in the useful direction: the archive ships the resulting choices themselves,
+per run and per panel, in ``Figure_5_*_gridOpt.Rds``. The selection rule is
+indeed not shown, but it is not needed -- the choices can be read directly.
+
+What does block a like-for-like comparison is narrower and concrete. Their
+sweep ranges over seven DTW step patterns and the chosen optima use six of
+them; mlsynth implements two. Restricted to runs whose optimum is a pattern
+mlsynth has, we could reproduce 39 percent of the Basque design, 31 percent of
+the California one, and 50 percent of the German one. Matching the published
+``t`` therefore needs ``symmetricP2``, ``asymmetricP1``, ``typeIc`` and
+``mori2006`` implemented and validated first. Until then this table stands as a
+qualitative agreement, not a replication of the reported statistic.
 
 The band does not reproduce, and that is worth stating plainly. On this
 specification the warped band comes out marginally wider than the unwarped one

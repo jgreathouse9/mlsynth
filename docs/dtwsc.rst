@@ -142,10 +142,14 @@ the post-period means of the band and ``p_value`` the efficiency test's. Both
 are scalar summaries of pointwise objects; read ``placebo_band`` for what the
 paper actually plots.
 
-Two honest caveats. First, the paper fits each placebo run at its own
-grid-optimal warping hyperparameters, and the rule that selected them is not in
-the replication package -- only the sweep and the resulting table are shipped.
-mlsynth runs every placebo at the hyperparameters you configure. Second, on the
+Two honest caveats. First, this is not the design the paper ran. The authors
+give each placebo its own grid-optimal warping hyperparameters, drawn from a
+sweep over seven DTW step patterns, and perturb the donor pool far more
+aggressively than the default here; mlsynth runs every placebo at the
+hyperparameters you configure. Their per-run choices are shipped in the
+replication archive, so the difference is a matter of implementing the missing
+step patterns rather than of missing information --
+:doc:`replications/dtwsc` sets out exactly what differs. Second, on the
 Basque panel the efficiency test reproduces the paper's direction and rough
 magnitude (``t = -6.8`` against the paper's ``-7.91``, a 20 percent MSE
 reduction), but the band does not narrow -- it comes out 0.3 percent wider than
