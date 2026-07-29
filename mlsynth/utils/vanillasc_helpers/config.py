@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (BaseModel, ConfigDict, Field, field_validator,
+                      model_validator)
 
 from ...config_models import BaseEstimatorConfig
 
@@ -270,6 +271,20 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "inference='scpi'; other inference modes always show the "
                     "pointwise band.",
     )
+    w_constr: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Donor weight-constraint family for the SINGLE-treated fit "
+                    "(scpi's w_constr): 'simplex' (the Abadie sum-to-one convex "
+                    "hull), 'ols' (unconstrained), 'lasso' (L1 <= Q), 'ridge' "
+                    "(L2 <= Q, budget estimated from the data) or 'L1-L2'. A "
+                    "dict passes the family plus an explicit budget, e.g. "
+                    "{'name': 'lasso', 'Q': 0.5}. None (default) keeps the "
+                    "bilevel engine's simplex fit, so behaviour is unchanged "
+                    "unless the option is set. Which constraint is used is a "
+                    "modelling choice, not a property of the panel: on a "
+                    "multi-treated panel the same families are reached through "
+                    "staggered_spec.w_constr, and setting both is an error.",
+    )
     staggered_spec: Optional[StaggeredSCMSpec] = Field(
         default=None,
         description="Staggered adoption only. Covariate (multi-feature) matching "
@@ -347,3 +362,56 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "lambda relative to the fit term, so Abadie-L'Hour's "
                     "at-most-K+1 sparsity bound may not be attained there.",
     )
+
+    # Recognized scpi weight-constraint families, shared with StaggeredSCMSpec.
+    _W_CONSTR_NAMES = ("simplex", "ols", "lasso", "ridge", "L1-L2")
+
+    @field_validator("w_constr")
+    @classmethod
+    def _validate_w_constr(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            name = v
+        elif isinstance(v, dict):
+            name = v.get("name", "simplex")
+        else:
+            raise ValueError(
+                "w_constr must be a family name or a dict carrying one; got "
+                f"{type(v).__name__}."
+            )
+        valid = ("simplex", "ols", "lasso", "ridge", "L1-L2")
+        if name not in valid:
+            raise ValueError(
+                f"w_constr name must be one of {valid}; got {name!r}."
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _w_constr_is_exclusive(self):
+        """``w_constr`` routes the fit through scpi's constrained program, which
+        is a different estimator from the bilevel predictor-weight engine and
+        from user-supplied weights. Silently preferring one over the other is
+        the failure mode this option exists to remove, so the clashes raise."""
+        if self.w_constr is None:
+            return self
+        clashes = []
+        if self.covariates:
+            clashes.append(
+                "covariates (the scpi constrained program matches on the "
+                "outcome; for predictor matching use a bilevel `backend`)")
+        if self.backend != "auto":
+            clashes.append(
+                f"backend={self.backend!r} (a predictor-weight backend; "
+                "w_constr constrains the donor weights instead)")
+        if self.oracle_weights is not None:
+            clashes.append(
+                "oracle_weights (weights supplied, so no program is solved)")
+        if self.staggered_spec is not None:
+            clashes.append(
+                "staggered_spec, which carries its own w_constr")
+        if clashes:
+            raise ValueError(
+                "w_constr cannot be combined with " + "; ".join(clashes) + "."
+            )
+        return self

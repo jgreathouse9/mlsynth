@@ -250,6 +250,59 @@ The covariate path exposes three reliable solvers via ``backend=``:
    the authors' own ``quadprog`` program value-for-value on the simulated panels.
    See :doc:`replications/ferman_pinto_mc`.
 
+Weight-constraint families
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The backends above choose how the *predictor* weights are found; they all leave
+the donor weights on the simplex. To change that constraint itself, set
+``w_constr`` to one of scpi's weight-constraint families (Cattaneo, Feng,
+Palomba and Titiunik):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 30 56
+
+   * - ``w_constr``
+     - constraint on :math:`\mathbf{w}`
+     - what it buys
+   * - ``"simplex"``
+     - :math:`\sum_j w_j = 1,\ w_j \ge 0`
+     - the Abadie convex hull; no extrapolation (the default behaviour)
+   * - ``"lasso"``
+     - :math:`\|\mathbf{w}\|_1 \le Q`
+     - sparsity and signed weights (Chernozhukov et al.)
+   * - ``"ridge"``
+     - :math:`\|\mathbf{w}\|_2 \le Q`
+     - shrinkage with :math:`Q` estimated from the data (Amjad et al.)
+   * - ``"ols"``
+     - none
+     - unconstrained regression; extrapolates freely
+   * - ``"L1-L2"``
+     - simplex plus :math:`\|\mathbf{w}\|_2 \le Q_2`
+     - a shrunk convex combination (Arkhangelsky et al.)
+
+.. code-block:: python
+
+   res = VanillaSC({"df": df, "outcome": "gdp", "treat": "treated",
+                    "unitid": "country", "time": "year",
+                    "w_constr": "ridge"}).fit()          # or {"name": "lasso", "Q": 0.5}
+
+Which constraint to impose is a modelling choice, not a property of the panel,
+so the same families are available whether one unit is treated or many: with
+several treated units they are reached through ``staggered_spec.w_constr``
+instead, and setting both is an error. ``w_constr`` solves scpi's constrained
+program on the pre-treatment outcomes, which is a different estimator from the
+bilevel predictor-weight engine, so it cannot be combined with ``covariates``,
+a non-default ``backend``, or ``oracle_weights`` -- those raise rather than
+silently picking one. ``res.method_details.parameters_used`` reports the family
+that ran and the budget ``Q`` it used, so a fit never leaves its specification
+ambiguous.
+
+The choice moves the estimate. Leaving the simplex relaxes the no-extrapolation
+restriction, which usually improves pre-treatment fit and may or may not improve
+the counterfactual: a better in-sample fit bought by extrapolation is not
+evidence of a better estimate. Report the family alongside the effect.
+
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
