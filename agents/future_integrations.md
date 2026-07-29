@@ -371,6 +371,30 @@ bug and is the acceptance test). Then `/replicate` against the R package for the
 full 14-predictor spec (pre-RMSE 0.0728, ATT -0.537) and `/new-estimator` as
 `DTWSC`.
 
+### Shipped, and one thing worth carrying forward
+
+`DTWSC` landed. The warping engine is bit-exact against the R package (see
+`docs/replications/dtwsc.rst`); the sole remaining difference is the
+Savitzky-Golay edge treatment, where the reference pads with an `auto.arima`
+forecast and mlsynth edge-pads.
+
+Carry forward the reason that took three wrong diagnoses to find, because it
+generalizes past this estimator. `second.dtw` filters speeds with a type-7
+`Q3 + 3*IQR` fence, and the speeds are small-denominator rationals -- so on a
+column like `(1, 1, 7/6, 1)` the fence evaluates to exactly `7/6` and sits on
+the value it is judging. One bit decides whether the cell is kept, and that
+moves the column mean by `1/24`. The bit came from smoothing: R's
+`stats::filter` accumulates `x[k] * (1/w)` where a plain window mean computes
+`(sum x[k]) / w`, and the two disagree in the last place on 7/6.
+
+Two rules follow for any future port. Match the reference's summation order in
+any step feeding a discrete decision, rather than assuming an algebraically
+equal formula is numerically equal. And when a port is close but not exact,
+substitute the reference's own intermediate outputs stage by stage to localize
+the divergence -- inferring from the end result gave the wrong answer three
+times (blamed hyperparameter selection, then the SC backend, then the ARIMA
+buffer; each was refuted by measurement).
+
 ---
 
 ## 4. Rolling-transformation DiD (ROLLDID) -- scope boundary with `diff-diff`

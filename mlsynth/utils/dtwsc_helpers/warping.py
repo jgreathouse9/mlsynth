@@ -177,15 +177,30 @@ def first_dtw(
 
 
 def _moving_average(x, width: int) -> np.ndarray:
-    """Centred moving average, ``NaN`` where the window overhangs an end."""
+    """Centred moving average, ``NaN`` where the window overhangs an end.
+
+    Reproduces ``stats::filter(x, rep(1/width, width))`` bit-for-bit, which
+    means accumulating ``x[k] * (1 / width)`` from the right-hand end of the
+    window inward rather than taking ``window.mean()``. The two agree to
+    within one bit, and one bit is enough: :func:`second_dtw` drops outliers
+    with a type-7 fence that, on the near-constant speed columns this panel
+    produces, evaluates to exactly the value it is testing. Which side of the
+    comparison a speed falls on then decides whether it is averaged in at all,
+    so a last-bit difference here becomes a 1/24 difference in the donor's
+    post-period speeds and shifts every warped series.
+    """
     x = np.asarray(x, dtype=float)
     n = x.size
     out = np.full(n, np.nan)
     off = width // 2
+    coef = 1.0 / width
     for i in range(n):
         lo, hi = i - (width - 1 - off), i + off
         if lo >= 0 and hi < n:
-            out[i] = x[lo: hi + 1].mean()
+            total = 0.0
+            for k in range(hi, lo - 1, -1):    # R's filter runs the window
+                total += x[k] * coef           # from the far end inward
+            out[i] = total
     return out
 
 

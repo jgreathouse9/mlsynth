@@ -11,20 +11,35 @@ quantities when it is absent -- the pure-Python invariants below still run.
 
 What this case pins, and why each row is where it is:
 
-* The warp, against the R dump -- ``cutoff`` and the first-phase speeds. This
-  is the tight structural comparison.
+* The warp, against the R dump -- ``cutoff`` and the first-phase speeds,
+  through mlsynth's own preprocessing. This is the tight structural
+  comparison.
+* The warp again, this time fed R's own filtered panel (``gold_preproc.csv``)
+  instead of mlsynth's. Every stage of the warping engine then agrees with R
+  to the last bit: first-phase speeds 16/16 bit-identical, second-phase speeds
+  to one ULP, warped donor series to 1e-14. That row is the real statement
+  that the TFDTW port is exact, and it isolates the one remaining difference
+  to preprocessing alone.
 * The synthetic-control half, against the reference's own numbers, using
   ``sc_backend="mscmt"`` with the paper's 14 predictors. The UNWARPED arm
   reproduces R's standard-SC result essentially exactly (pre-RMSE 0.0881 vs
-  0.0886, ATT -0.6026 vs -0.6027), which is what establishes that the
-  delegation to mlsynth's Synth replication is faithful.
-* The WARPED arm still differs (0.0601 / -0.6696 against R's 0.0705 /
-  -0.5579). That residual is isolated to the Savitzky-Golay preprocessing:
-  the reference pads each series with an ``auto.arima`` forecast before
-  filtering where mlsynth edge-pads, which leaves 11 of 16 donors with
-  bit-exact speeds rather than 16. Feeding mlsynth's warp into R's own
-  ``Synth`` gives 0.0705 / -0.5592, so the warp and the SC half are each
-  correct in isolation; only the filter's edge treatment is not.
+  0.0886, ATT -0.6026 vs -0.6027), which establishes that the delegation to
+  mlsynth's Synth replication is faithful.
+
+The one documented gap is the Savitzky-Golay edge treatment: the reference
+pads each series with an ``auto.arima`` forecast before filtering where
+mlsynth edge-pads. The filter agrees to 1e-16 in the interior and disagrees
+only over the two points at each end -- but those points are large relative to
+the local scale of a second derivative, so through mlsynth's own preprocessing
+5 of 16 donors pick up a different alignment step.
+
+Closing that gap would take a bit-exact ``auto.arima``, not an approximate
+one. ``second_dtw`` discards outliers with a type-7 fence that, on the
+near-constant speed columns this panel produces, evaluates to exactly the
+value it is testing; which side of that comparison a speed falls on decides
+whether it is averaged in at all. An approximate ARIMA would land on an
+arbitrary side of the fence, so it would not reproduce R any more reliably
+than edge-padding does. Hence the gap is recorded rather than papered over.
 """
 from __future__ import annotations
 
@@ -69,6 +84,65 @@ def _load_reference():
     return out
 
 
+def _load_reference_filtered():
+    """``{unit: array}`` -- R's own Savitzky-Golay panel, or ``None``.
+
+    Injecting this in place of mlsynth's filter removes the single known
+    difference between the two implementations, so what remains measures the
+    warping engine and nothing else.
+    """
+    path = _REF / "gold_preproc.csv"
+    if not path.exists():
+        return None
+    ref = pd.read_csv(path)
+    out = {}
+    for unit, sub in ref.groupby("unit", sort=False):
+        sub = sub.sort_values("time")
+        # ``value_raw`` is the unfiltered series (affinely rescaled by the
+        # reference); ``value`` is that series after R's filter. Keeping both
+        # lets the substitution be looked up by the series going in.
+        out[unit] = (sub["value_raw"].to_numpy(float),
+                     sub["value"].to_numpy(float))
+    return out
+
+
+def _warp_on_reference_filter(cfg, filtered):
+    """Re-run the warp with R's filtered panel substituted in.
+
+    Keyed on the t-normalized series so the lookup is invariant to the affine
+    rescaling the reference applies before dumping.
+    """
+    import mlsynth.utils.dtwsc_helpers.pipeline as pipeline
+    from mlsynth.utils.dtwsc_helpers.warping import (
+        savgol_second_derivative as _real, t_normalize)
+    from mlsynth import DTWSC
+
+    def key(v):
+        return tuple(np.round(t_normalize(np.asarray(v, dtype=float)), 6))
+
+    table = {key(raw): value for raw, value in filtered.values()}
+
+    def substitute(Y, filter_width=5, n_poly=3):
+        Y = np.asarray(Y, dtype=float)
+        flat = Y.ndim == 1
+        M = Y[:, None] if flat else Y
+        out = np.empty_like(M)
+        for c in range(M.shape[1]):
+            k = key(M[:, c])
+            out[:, c] = (table[k] if k in table
+                         else _real(M[:, c], filter_width, n_poly))
+        return out[:, 0] if flat else out
+
+    original = pipeline.savgol_second_derivative
+    pipeline.savgol_second_derivative = substitute
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return DTWSC(cfg).fit()
+    finally:
+        pipeline.savgol_second_derivative = original
+
+
 def run() -> dict:
     from mlsynth import DTWSC
 
@@ -90,9 +164,12 @@ def run() -> dict:
 
     ref = _load_reference()
     if ref is None:
-        out["dtwsc_cutoff_matches_r"] = float("nan")
-        out["dtwsc_donors_speeds_exact_vs_r"] = float("nan")
-        out["dtwsc_speed_max_abs_diff_vs_r"] = float("nan")
+        for key in ("dtwsc_cutoff_matches_r", "dtwsc_donors_speeds_exact_vs_r",
+                    "dtwsc_speed_max_abs_diff_vs_r",
+                    "dtwsc_speeds_exact_on_r_filter",
+                    "dtwsc_post_speed_max_diff_on_r_filter",
+                    "dtwsc_warped_max_diff_on_r_filter"):
+            out[key] = float("nan")
         return out
 
     n_cut, n_exact, worst = 0, 0, 0.0
@@ -107,6 +184,41 @@ def run() -> dict:
     out["dtwsc_cutoff_matches_r"] = float(n_cut)
     out["dtwsc_donors_speeds_exact_vs_r"] = float(n_exact)
     out["dtwsc_speed_max_abs_diff_vs_r"] = worst
+
+    filtered = _load_reference_filtered()
+    if filtered is None:
+        out["dtwsc_speeds_exact_on_r_filter"] = float("nan")
+        out["dtwsc_post_speed_max_diff_on_r_filter"] = float("nan")
+        out["dtwsc_warped_max_diff_on_r_filter"] = float("nan")
+        return out
+
+    same = _warp_on_reference_filter(cfg, filtered)
+    n_bit, worst_post, worst_warp = 0, 0.0, 0.0
+    donors = list(same.inputs.donor_names)
+    matrix = np.asarray(same.warped_donor_matrix, dtype=float)
+    for j, unit in enumerate(donors):
+        if unit not in ref:
+            continue
+        # Bit-identical, not merely close: see the module docstring on why the
+        # last bit is load-bearing here.
+        n_bit += int(np.array_equal(
+            np.asarray(same.pre_period_speeds[unit], dtype=float),
+            ref[unit]["weight.a"]))
+        worst_post = max(worst_post, float(np.nanmax(np.abs(
+            np.asarray(same.post_period_speeds[unit], dtype=float)
+            - ref[unit]["avg.weight"]))))
+        # The reference dumps the warp of an affinely rescaled series, so the
+        # comparison is made after removing that rescaling.
+        mine, theirs = matrix[:, j], ref[unit]["warped"]
+        n = min(mine.size, theirs.size)
+        mine, theirs = mine[:n], theirs[:n]
+        ok = np.isfinite(mine) & np.isfinite(theirs)
+        slope, intercept = np.polyfit(mine[ok], theirs[ok], 1)
+        worst_warp = max(worst_warp, float(np.nanmax(
+            np.abs(slope * mine + intercept - theirs))))
+    out["dtwsc_speeds_exact_on_r_filter"] = float(n_bit)
+    out["dtwsc_post_speed_max_diff_on_r_filter"] = worst_post
+    out["dtwsc_warped_max_diff_on_r_filter"] = worst_warp
     return out
 
 
@@ -133,6 +245,14 @@ def run() -> dict:
 #  * ``speed_max_abs_diff_vs_r`` -- the size of that edge-buffer disagreement,
 #    2/3 of one period's speed on the worst donor. Pinned loosely (0.1) because
 #    it is a known, documented difference, not a target to drive to zero.
+#  * ``speeds_exact_on_r_filter`` -- 16/16 donors bit-identical once R's own
+#    filtered panel is used, so the first-phase port has no residual at all.
+#    Zero tolerance, and equality is exact rather than tolerance-based.
+#  * ``post_speed_max_diff_on_r_filter`` / ``warped_max_diff_on_r_filter`` --
+#    the second phase and the resulting warped series on the same footing:
+#    one ULP and 1e-14. Pinned tightly, at roughly an order of magnitude of
+#    headroom over the observed values, because anything larger means a real
+#    regression in the warping engine rather than accumulated rounding.
 EXPECTED = {
     "dtwsc_pre_rmse_improves": (1.0, 0.0),
     "dtwsc_pre_rmse_ratio": (0.70, 0.08),
@@ -142,4 +262,7 @@ EXPECTED = {
     "dtwsc_cutoff_matches_r": (16.0, 0.0),
     "dtwsc_donors_speeds_exact_vs_r": (11.0, 0.0),
     "dtwsc_speed_max_abs_diff_vs_r": (0.667, 0.1),
+    "dtwsc_speeds_exact_on_r_filter": (16.0, 0.0),
+    "dtwsc_post_speed_max_diff_on_r_filter": (0.0, 1e-15),
+    "dtwsc_warped_max_diff_on_r_filter": (0.0, 1e-13),
 }

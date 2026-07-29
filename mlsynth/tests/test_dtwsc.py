@@ -756,6 +756,39 @@ class TestBehavioursTheSuiteMissed:
         x = np.array([3.0, 1.0, 4.0, 1.0, 5.0])
         assert _moving_average(x, 1) == pytest.approx(x)
 
+    @pytest.mark.parametrize(
+        "series, expected",
+        [
+            # Rscript -e 'sprintf("%.17g",
+            #   as.numeric(stats::filter(c(1,1,1.5,1,1), rep(1/3,3))))'
+            ([1.0, 1.0, 1.5, 1.0, 1.0],
+             [1.1666666666666665, 1.1666666666666665, 1.1666666666666665]),
+            ([2.0, 1.0, 1.0, 1.5, 1.0, 3.0, 1.0],
+             [1.3333333333333333, 1.1666666666666665, 1.1666666666666665,
+              1.8333333333333333, 1.6666666666666665]),
+        ],
+    )
+    def test_speed_smoothing_matches_r_filter_to_the_last_bit(
+        self, series, expected
+    ):
+        """R pin, exact: ``stats::filter`` accumulates ``x[j] * (1/width)``.
+
+        Averaging as ``sum(window) / width`` instead rounds differently in the
+        last bit -- 7/6 comes out ``1.1666666666666667`` rather than R's
+        ``1.1666666666666665``. That is not cosmetic here. Downstream,
+        :func:`second_dtw` removes outliers with a type-7 fence, and on a
+        column like ``[1, 1, 7/6, 1]`` the fence ``Q3 + 3 * IQR`` evaluates to
+        exactly ``7/6`` -- it lands on the very value it is judging. One bit
+        decides whether that cell is kept or dropped, which moves the column
+        mean by 1/24 and propagates into every warped donor. So the smoothing
+        must match R bit-for-bit, not merely to floating-point tolerance.
+        """
+        from mlsynth.utils.dtwsc_helpers.warping import _moving_average
+        out = _moving_average(np.array(series), 3)
+        assert np.isnan(out[0]) and np.isnan(out[-1])
+        # Exact equality, deliberately: approx() would pass on the wrong value.
+        assert list(out[1:-1]) == expected
+
     def test_two_pre_periods_is_refused_with_a_reason(self):
         """Three pre-periods is the documented floor; two must be rejected.
 

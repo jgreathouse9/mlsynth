@@ -49,15 +49,19 @@ warping is being tested.
    * - ``cutoff``
      - 16/16 donors exact
    * - ``weight.a`` (first-phase speeds)
-     - 16/16 exact, worst 2.2e-16 (one ULP)
+     - 16/16 bit-identical
+   * - ``avg.weight`` (second-phase speeds)
+     - 16/16, worst 2.2e-16 (one ULP)
+   * - warped donor series
+     - 16/16, worst 7.1e-15
    * - second-phase window search (``j_opt``, ``margin``, candidate count)
      - 28/28 windows on the worst-fitting donor
    * - outlier-filter decisions
-     - 13848/13888 cells (99.71 percent)
-   * - pre-RMSE
-     - matches to four decimals
-   * - ATT
-     - within 0.0013, or 0.23 percent
+     - 13888/13888 cells
+
+These rows are pinned in ``benchmarks/cases/dtwsc_basque.py`` rather than left
+as a one-off measurement, so a regression in the warping engine fails the
+benchmark.
 
 Two findings worth keeping
 --------------------------
@@ -68,26 +72,65 @@ query/reference pairs spanning lengths 2--25 it agrees with R ``dtw`` 1.23-3 on
 the accumulated cost to 1e-6, on the full ``index1``/``index2`` warping paths
 exactly, and on which pairs are inadmissible.
 
-The residual is a tie, not a bug. Forty of the 13888 outlier-filter decisions
-differ, split near-evenly in both directions (21 R-only, 19 mlsynth-only). The
-warping weights are small-denominator rationals -- 2/3, 1, 4/3 -- so they land
-within a few units in the last place of the :math:`Q_1 \pm 3\,\mathrm{IQR}`
-bound routinely, and which side they fall on turns on floating-point summation
-order rather than on the data. One contributor was identified and fixed: R's
-``quantile(type = 7)`` evaluates :math:`(1-h)x_{lo} + h\,x_{hi}` where numpy
-takes a different interpolation branch, a two-ULP difference on a bound that
-can sit three ULP from the data. A symmetric tolerance does not close the rest,
-because the disagreements run both ways.
+One bit was load-bearing. An earlier version of this page recorded a residual
+disagreement in 40 of the 13888 outlier-filter decisions and attributed it to
+floating-point ties that no implementation could be expected to reproduce. That
+was wrong, and the way it was wrong is worth keeping.
 
-The practical consequence is worth stating plainly: the last digit of a DSC ATT
-is not reproducible across languages, and should not be reported as if it were.
-Any cross-check should use a tolerance no tighter than about 0.005.
+``second_dtw`` discards outlying speeds with a type-7 :math:`Q_3 + 3\,
+\mathrm{IQR}` fence. The speeds are small-denominator rationals, so a column
+routinely looks like :math:`(1, 1, 7/6, 1)` -- and on such a column the fence
+evaluates to exactly :math:`7/6`, landing on the very value it is judging.
+Which side of that comparison the value falls on is then decided by the last
+bit of arithmetic, and dropping the cell rather than keeping it moves the
+column mean by :math:`1/24`.
+
+The last bit was ours to get right. R's ``stats::filter`` smooths the speeds by
+accumulating :math:`x_k \cdot (1/w)` across the window; taking the window's
+mean instead computes :math:`(\sum x_k)/w`, which rounds 7/6 to
+``1.1666666666666667`` where R gets ``1.1666666666666665``. Everything
+downstream inherited that one bit. Matching R's summation order makes the
+first-phase speeds bit-identical and the entire warping engine exact, which is
+what the table above now records. A tolerance on the fence does not work, and
+was tried: because the disagreements run in both directions, widening the fence
+fixes three donors and breaks four.
+
+The general lesson is about the method rather than the port. A statistic whose
+value turns on which side of an exactly-coincident bound a number falls is
+fragile by construction, and DSC has one in its inner loop. mlsynth reproduces
+the reference's choice here, but a cross-language check of a DSC ATT should not
+be read as validating the last digit.
 
 A second artefact is inherited from the method rather than the port. Three
 donors' warped series end one period short of 1997, so the reference's own
 counterfactual is ``NA`` there and its ATT is really taken over 1971--1996.
 mlsynth reproduces that rather than extrapolating over it, and reports the
 number of dropped periods in ``res.metadata["n_post_periods_undefined"]``.
+
+The one remaining difference
+----------------------------
+
+Every seam above is measured with R's own filtered panel substituted for
+mlsynth's, which is the honest way to test the warping engine on its own. Run
+end to end on mlsynth's own preprocessing instead, 5 of the 16 donors pick up a
+different alignment and the warped series diverge. That difference is the
+Savitzky--Golay stage, and it is the only one left.
+
+Before differentiating, the reference extends each series at both ends with a
+two-period ``forecast::auto.arima`` forecast, filters the extended series, and
+trims back. mlsynth edge-pads instead. The filters agree to 1e-16 across the
+interior of every series and disagree only over the two points at each end --
+but a second derivative is small, and at those four points the disagreement
+reaches 0.083 against a series whose own scale is 0.090. Two of them sit at the
+start of the pre-treatment window the first alignment learns from.
+
+This is recorded rather than fixed, and deliberately. Closing it would take a
+bit-exact ``auto.arima``, not a good one. Because the outlier fence described
+above lands exactly on the values it is testing, an approximate forecast would
+fall on an arbitrary side of it and would not track the reference any more
+reliably than edge-padding does -- while adding a heavyweight dependency and a
+stepwise order search to a preprocessing step. The gap is bounded, measured,
+and pinned in the benchmark case as ``dtwsc_speed_max_abs_diff_vs_r``.
 
 Placebo inference
 -----------------
