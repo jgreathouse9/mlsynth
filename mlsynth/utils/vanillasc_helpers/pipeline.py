@@ -48,6 +48,42 @@ class _OracleFit:
         return np.asarray(Y0, dtype=float) @ self.W
 
 
+class _ConstrainedFit:
+    """Drop-in for the bilevel fit when a ``w_constr`` family is requested.
+
+    Solves scpi's constrained weight program (Cattaneo, Feng, Palomba and
+    Titiunik) on the pre-treatment outcomes instead of the bilevel simplex QP,
+    and exposes the same surface ``run_vanillasc`` reads off a fitted engine.
+    ``wc`` carries the normalised constraint, including the budget ``Q`` that
+    ridge and L1-L2 estimate from the data.
+    """
+
+    def __init__(self, y_pre: np.ndarray, Y0_pre: np.ndarray,
+                 donor_names: List[str], w_constr: Any):
+        from .staggered_engine import b_est
+
+        J = Y0_pre.shape[1]
+        x, wc = b_est(np.asarray(y_pre, dtype=float).reshape(-1, 1),
+                      np.asarray(Y0_pre, dtype=float), J, 0, w_constr)
+        self.W = np.asarray(x, dtype=float).ravel()[:J]
+        self.wc = wc
+        self.donor_weights = {n: float(v) for n, v in zip(donor_names, self.W)}
+        self.backend = f"w_constr:{wc['name']}"
+        self.V = None
+        self.v_agreement = None
+        self.predictor_names: List[str] = []
+        self.diagnostics: Dict[str, Any] = {
+            "backend": self.backend,
+            "w_constr": wc["name"],
+            "w_constr_Q": wc.get("Q"),
+            "w_constr_Q2": wc.get("Q2"),
+            "w_constr_lambda": wc.get("lambda"),
+        }
+
+    def counterfactual(self, Y0: np.ndarray) -> np.ndarray:
+        return np.asarray(Y0, dtype=float) @ self.W
+
+
 def _align_oracle(oracle_weights: Dict[Any, float],
                   donor_names: List[str]) -> np.ndarray:
     """Align a ``{donor_id: weight}`` map to the Y0 column order (missing -> 0)."""
@@ -243,6 +279,14 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         oracle_w = _align_oracle(config.oracle_weights, donor_names)
         engine = None
         res = _OracleFit(oracle_w, donor_names)
+    elif getattr(config, "w_constr", None) is not None:
+        # Named weight-constraint family: solve scpi's constrained program on
+        # the pre-treatment outcomes. The config forbids combining this with
+        # covariates / a predictor-weight backend, so there is no ambiguity
+        # about which estimator ran.
+        engine = None
+        res = _ConstrainedFit(y[fit_pos], Y0[fit_pos], donor_names,
+                              config.w_constr)
     else:
         # Build predictor matrices (treated + donors, donor order matches Y0 cols).
         if covariates:
@@ -604,6 +648,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                     and res.diagnostics.get("lambda") is not None
                     else None
                 ),
+                # Which weight-constraint family ran, and the budget it used
+                # (estimated from the data for ridge / L1-L2). None on the
+                # default path, so the reported spec is never ambiguous.
+                "w_constr": res.diagnostics.get("w_constr"),
+                "w_constr_Q": res.diagnostics.get("w_constr_Q"),
             },
         ),
         additional_outputs={
