@@ -211,14 +211,11 @@ in the useful direction: the archive ships the resulting choices themselves,
 per run and per panel, in ``Figure_5_*_gridOpt.Rds``. The selection rule is
 indeed not shown, but it is not needed -- the choices can be read directly.
 
-What does block a like-for-like comparison is narrower and concrete. Their
-sweep ranges over seven DTW step patterns and the chosen optima use six of
-them; mlsynth implements two. Restricted to runs whose optimum is a pattern
-mlsynth has, we could reproduce 39 percent of the Basque design, 31 percent of
-the California one, and 50 percent of the German one. Matching the published
-``t`` therefore needs ``symmetricP2``, ``asymmetricP1``, ``typeIc`` and
-``mori2006`` implemented and validated first. Until then this table stands as a
-qualitative agreement, not a replication of the reported statistic.
+So the table above is a comparison of two procedures that happen to measure
+the same thing, not a replication of the reported statistic. Reproducing the
+published ``t`` means adopting their design wholesale -- pool, datasets,
+per-run hyperparameters, predictors, and units -- rather than tightening
+anything in mlsynth's own.
 
 The band does not reproduce, and that is worth stating plainly. On this
 specification the warped band comes out marginally wider than the unwarped one

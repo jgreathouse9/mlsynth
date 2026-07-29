@@ -147,9 +147,9 @@ give each placebo its own grid-optimal warping hyperparameters, drawn from a
 sweep over seven DTW step patterns, and perturb the donor pool far more
 aggressively than the default here; mlsynth runs every placebo at the
 hyperparameters you configure. Their per-run choices are shipped in the
-replication archive, so the difference is a matter of implementing the missing
-step patterns rather than of missing information --
-:doc:`replications/dtwsc` sets out exactly what differs. Second, on the
+replication archive, so what separates the two is a matter of adopting their
+design rather than of missing information -- :doc:`replications/dtwsc` sets out
+exactly what differs. Second, on the
 Basque panel the efficiency test reproduces the paper's direction and rough
 magnitude (``t = -6.8`` against the paper's ``-7.91``, a 20 percent MSE
 reduction), but the band does not narrow -- it comes out 0.3 percent wider than
