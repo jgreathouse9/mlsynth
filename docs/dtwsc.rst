@@ -114,9 +114,31 @@ Assumptions
 Inference and diagnostics
 -------------------------
 
-The paper supplies no inference procedure for the warped fit, and mlsynth does
-not invent one: ``res.inference`` is ``None``. What the method offers instead is
-diagnostic, and the result object exposes all of it.
+The paper does supply inference, and it is the core of its empirical claim --
+but mlsynth does not implement it yet, so ``res.inference`` is ``None`` in this
+release. Two procedures appear in the authors' replication package (Cao and
+Chadefaux's Political Analysis materials, not the ``dsc`` R package, which ships
+only the point estimate):
+
+The 95 percent band in the paper's Figure 5 is a placebo distribution, not a
+sampling distribution. Every untreated unit is re-analysed as if it had been
+treated, with the real treated unit removed from every placebo donor pool; the
+pool is then perturbed by dropping one or two further units, and each run is
+fit at its own grid-optimal warping hyperparameters. On the Basque panel that
+is 1789 placebo paths. The band is the pointwise 2.5 and 97.5 percent quantiles
+of those paths, drawn separately for the warped and unwarped fits, with the
+treated unit's own gap overlaid. The paper's argument is that warping narrows
+the band, so the same effect clears it more decisively.
+
+The second is a paired efficiency test: a t-test on
+:math:`\log(\mathrm{MSE}_{\mathrm{DSC}} / \mathrm{MSE}_{\mathrm{SC}})` over
+those placebo runs, with the degrees of freedom deflated by a variance-inflation
+factor derived from the intra-class correlation of a two-way ANOVA over dataset
+and unit -- the runs share units and donor pools, so they are not independent.
+This tests whether warping helps, not whether the treatment had an effect.
+
+Until those land, what the estimator offers is diagnostic, and the result object
+exposes all of it.
 
 ``res.pre_rmse`` against a ``warp=False`` refit is the honest test of whether
 warping bought anything on your panel -- the paper's own claim is a tighter

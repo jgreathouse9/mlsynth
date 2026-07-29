@@ -580,11 +580,15 @@ class TestDTWSCContract:
             assert getattr(res, slot) is not None
         assert res.method_details.method_name == "DTWSC"
 
-    def test_inference_slot_is_empty_because_the_method_ships_none(self):
-        """Cao & Chadefaux give no inference procedure for the warped fit.
+    def test_inference_slot_is_empty_in_this_release(self):
+        """DTWSC does not yet implement the paper's placebo band.
 
-        The slot exists and stays ``None`` rather than being filled with a
-        placebo distribution the paper never justifies.
+        Cao & Chadefaux DO define inference -- a pointwise 2.5/97.5 quantile
+        band over placebo re-analyses, plus an ICC-corrected t-test on the
+        log MSE ratio -- but in their replication package, not in the ``dsc``
+        R package this port was built against. The slot stays ``None`` rather
+        than being filled with something weaker that reads like the paper's
+        band; see ``docs/dtwsc.rst``.
         """
         assert DTWSC(base_config()).fit().inference is None
 
