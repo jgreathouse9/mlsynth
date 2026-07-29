@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field, model_validator
 
@@ -128,6 +128,41 @@ class DTWSCConfig(BaseEstimatorConfig):
     step_pattern2: Literal["symmetricP1", "asymmetricP2"] = Field(
         default="asymmetricP2",
         description="Step pattern for the second-phase (post-period) search.",
+    )
+    inference: Literal["none", "placebo"] = Field(
+        default="none",
+        description=(
+            "'placebo' runs Cao & Chadefaux's placebo procedure: every donor "
+            "is re-analysed as if it had been treated, with the real treated "
+            "unit removed from each placebo pool, and the pointwise quantiles "
+            "of the resulting gaps form the band. Also reports the paper's "
+            "ICC-corrected efficiency test on the log MSE ratio. Costs one "
+            "full warp per donor per perturbed pool, so it is off by default."
+        ),
+    )
+    placebo_pairs: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "How many two-donor-drop perturbations of the pool to add to the "
+            "placebo runs, in lexicographic order. The paper uses 100; the "
+            "default 0 runs the cheaper leave-one-out construction only."
+        ),
+    )
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Band coverage is 1 - alpha, pointwise. The paper uses 0.05.",
+    )
+    mse_window: Optional[int] = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Post-treatment periods entering the efficiency test's MSE, "
+            "counted from the treatment date. The paper uses 10. None uses "
+            "every post-treatment period."
+        ),
     )
     match_method: Literal["fixed", "open.end"] = Field(
         default="fixed",

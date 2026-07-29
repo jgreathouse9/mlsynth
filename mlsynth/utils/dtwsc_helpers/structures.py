@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from pydantic import ConfigDict, Field as PydField
@@ -78,6 +78,19 @@ class DTWSCResults(BaseEstimatorResults):
         second-phase window search.
     warp_applied : bool
         False when ``warp=False``, i.e. the result is the standard-SC baseline.
+    placebo_band : dict, optional
+        With ``inference="placebo"``: ``lower`` / ``upper`` are the pointwise
+        quantiles of the placebo gaps for the warped fit, ``lower_unwarped`` /
+        ``upper_unwarped`` the same for the unwarped fit. The paper's claim is
+        that warping narrows the band, so both are kept.
+    placebo_gaps : dict, optional
+        ``{donor: gap path}`` from the unperturbed pool -- the individual
+        placebo lines behind the band.
+    efficiency_test : dict, optional
+        The paper's t-test on ``log(MSE_DSC / MSE_SC)`` with ICC-corrected
+        degrees of freedom: ``t``, ``p``, ``df``, ``icc``, ``vif``,
+        ``mean_log_ratio``, ``mse_reduction``, ``n_runs``, ``n_pools``. A
+        negative ``t`` means warping achieved the lower post-treatment MSE.
     metadata : dict
     """
 
@@ -89,4 +102,7 @@ class DTWSCResults(BaseEstimatorResults):
     pre_period_speeds: Dict[Any, Any]
     post_period_speeds: Dict[Any, Any]
     warp_applied: bool = True
+    placebo_band: Optional[Dict[str, Any]] = None
+    placebo_gaps: Optional[Dict[str, Any]] = None
+    efficiency_test: Optional[Dict[str, float]] = None
     metadata: Dict[str, Any] = PydField(default_factory=dict)

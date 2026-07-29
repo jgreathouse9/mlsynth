@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 
-from ...config_models import WeightsResults
+from ...config_models import InferenceResults, WeightsResults
 from ...exceptions import MlsynthEstimationError
 from ..results_helpers import build_effect_submodels
 from .dtw import ASYMMETRIC_P2, SYMMETRIC_P1
+from .inference import (
+    icc_corrected_ttest,
+    placebo_band,
+    placebo_donor_pools,
+)
 from .structures import DTWSCInputs, DTWSCResults
 from .warping import savgol_second_derivative, tfdtw, warp_series
 
@@ -50,30 +55,25 @@ def _simplex_weights(target: np.ndarray, donors: np.ndarray) -> np.ndarray:
     return weights / total if total > 0 else np.full(J, 1.0 / J)
 
 
-def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
-              filter_width: int, poly_order: int, buffer: int, n_burn: int,
-              ma: int, default_margin: int, n_q: int, n_r: int,
-              dist_quant: float, n_iqr: float, step_pattern1: str,
-              step_pattern2: str, match_method: str) -> DTWSCResults:
-    """Warp every donor onto the treated unit's clock, then fit the control."""
-    y = inputs.y
-    donors = inputs.donor_matrix
-    t_treat = inputs.n_pre
+def _fit_one(y, donors, t_treat, *, warp, smooth, filter_width, poly_order,
+             k, buffer, n_burn, ma, default_margin, n_q, n_r, dist_quant,
+             n_iqr, step_pattern1, step_pattern2, match_method):
+    """Warp a donor block onto ``y``'s clock and fit the simplex control.
 
+    Returns ``(counterfactual, warped, cutoffs, pre_speeds, post_speeds,
+    weights)``. Shared by the real fit and every placebo run so the two can
+    never drift apart.
+    """
     warped = np.array(donors, dtype=float, copy=True)
-    cutoffs: Dict[Any, int] = {}
-    pre_speeds: Dict[Any, Any] = {}
-    post_speeds: Dict[Any, Any] = {}
-
+    cutoffs, pre_speeds, post_speeds = {}, {}, {}
     if warp:
-        # Alignment sees curvature; the warp is applied to the raw outcome.
         if smooth:
             aligned_y = savgol_second_derivative(y, filter_width, poly_order)
             aligned_donors = savgol_second_derivative(donors, filter_width,
                                                       poly_order)
         else:
             aligned_y, aligned_donors = y, donors
-        for j, name in enumerate(inputs.donor_names):
+        for j in range(donors.shape[1]):
             res = tfdtw(
                 aligned_donors[:, j], aligned_y, k=k, t_treat=t_treat,
                 buffer=buffer, step_pattern1=_PATTERNS[step_pattern1],
@@ -83,23 +83,108 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
             )
             warped[:, j] = warp_series(donors[:, j], res["cutoff"],
                                        res["weight_a"], res["avg_weight"],
-                                       t_treat, inputs.T)
-            cutoffs[name] = int(res["cutoff"])
-            pre_speeds[name] = res["weight_a"]
-            post_speeds[name] = res["avg_weight"]
+                                       t_treat, y.size)
+            cutoffs[j] = int(res["cutoff"])
+            pre_speeds[j] = res["weight_a"]
+            post_speeds[j] = res["avg_weight"]
 
-    pre = slice(0, t_treat)
-    weights = _simplex_weights(y[pre], warped[pre])
-    counterfactual = np.full(inputs.T, np.nan)
-    for t in range(inputs.T):
+    weights = _simplex_weights(y[:t_treat], warped[:t_treat])
+    counterfactual = np.full(y.size, np.nan)
+    for t in range(y.size):
         row = warped[t]
         ok = np.isfinite(row)
         if ok.any():
-            # Renormalise over the donors still observed at t, so a compressed
-            # tail shrinks the pool rather than silently zeroing a donor.
             mass = weights[ok].sum()
             if mass > 0:
                 counterfactual[t] = float(row[ok] @ (weights[ok] / mass))
+    return counterfactual, warped, cutoffs, pre_speeds, post_speeds, weights
+
+
+def _mse(gap, lo, hi):
+    seg = gap[lo:hi]
+    with np.errstate(invalid="ignore"):
+        return float(np.nanmean(seg ** 2)) if seg.size else float("nan")
+
+
+def _run_placebos(inputs, opts, alpha, placebo_pairs, mse_window):
+    """Re-analyse every donor as if treated, over perturbed donor pools.
+
+    Follows ``Figure_5_*.R``: the treated unit is excluded from every placebo
+    pool, so no placebo counterfactual can borrow from it.
+    """
+    y_all = inputs.donor_matrix
+    t_treat, T = inputs.n_pre, inputs.T
+    n_donors = inputs.J
+    pools = placebo_donor_pools(n_donors + 1, treated=n_donors,
+                                n_pairs=placebo_pairs)
+
+    gaps_w, gaps_u, rows = [], [], []
+    per_unit_w = {}
+    hi = T if mse_window is None else min(T, t_treat + int(mse_window))
+    for data_id, pool in enumerate(pools):
+        for target in pool:
+            others = [u for u in pool if u != target]
+            if len(others) < 2:  # pragma: no cover - placebo_donor_pools
+                # already refuses to emit a pool that cannot spare a target and
+                # still leave two donors; kept as a local invariant.
+                continue
+            y = y_all[:, target]
+            block = y_all[:, others]
+            cf_w, *_ = _fit_one(y, block, t_treat, warp=True, **opts)
+            cf_u, *_ = _fit_one(y, block, t_treat, warp=False, **opts)
+            gw, gu = y - cf_w, y - cf_u
+            gaps_w.append(gw)
+            gaps_u.append(gu)
+            name = inputs.donor_names[target]
+            per_unit_w.setdefault(str(name), gw)
+            mse_w, mse_u = _mse(gw, t_treat, hi), _mse(gu, t_treat, hi)
+            if np.isfinite(mse_w) and np.isfinite(mse_u) and mse_u > 0:
+                rows.append((np.log(mse_w / mse_u), data_id, target))
+
+    if not gaps_w:  # pragma: no cover - unreachable while at least one pool
+        # survives, which placebo_donor_pools guarantees for >= 3 units; kept
+        # so an empty placebo set is named rather than crashing in nanquantile.
+        raise MlsynthEstimationError(
+            "DTWSC: no placebo run produced a usable fit."
+        )
+    band = placebo_band(np.asarray(gaps_w), alpha)
+    band_u = placebo_band(np.asarray(gaps_u), alpha)
+    band["lower_unwarped"] = band_u["lower"]
+    band["upper_unwarped"] = band_u["upper"]
+    eff = icc_corrected_ttest(
+        np.array([r[0] for r in rows]),
+        np.array([r[1] for r in rows]),
+        np.array([r[2] for r in rows]),
+    )
+    eff["n_pools"] = len(pools)
+    return band, per_unit_w, eff
+
+
+def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
+              filter_width: int, poly_order: int, buffer: int, n_burn: int,
+              ma: int, default_margin: int, n_q: int, n_r: int,
+              dist_quant: float, n_iqr: float, step_pattern1: str,
+              step_pattern2: str, match_method: str,
+              inference: str = "none", placebo_pairs: int = 0,
+              alpha: float = 0.05,
+              mse_window: Optional[int] = 10) -> DTWSCResults:
+    """Warp every donor onto the treated unit's clock, then fit the control."""
+    y = inputs.y
+    donors = inputs.donor_matrix
+    t_treat = inputs.n_pre
+
+    opts = dict(smooth=smooth, filter_width=filter_width,
+                poly_order=poly_order, k=k, buffer=buffer, n_burn=n_burn,
+                ma=ma, default_margin=default_margin, n_q=n_q, n_r=n_r,
+                dist_quant=dist_quant, n_iqr=n_iqr,
+                step_pattern1=step_pattern1, step_pattern2=step_pattern2,
+                match_method=match_method)
+    counterfactual, warped, cut_ix, pre_ix, post_ix, weights = _fit_one(
+        y, donors, t_treat, warp=warp, **opts)
+    names = inputs.donor_names
+    cutoffs: Dict[Any, int] = {names[j]: v for j, v in cut_ix.items()}
+    pre_speeds: Dict[Any, Any] = {names[j]: v for j, v in pre_ix.items()}
+    post_speeds: Dict[Any, Any] = {names[j]: v for j, v in post_ix.items()}
 
     # A warp that compresses every donor past the end of the panel leaves the
     # counterfactual undefined at those periods. The reference implementation
@@ -124,6 +209,40 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
         base = np.nanmean(np.abs(y[t_treat:][np.isfinite(post_gap)]))
     att_percent = float(100.0 * att / base) if base else float("nan")
 
+    band = per_unit = eff = None
+    std_inference = None
+    if inference == "placebo":
+        band, per_unit, eff = _run_placebos(inputs, opts, alpha,
+                                            placebo_pairs, mse_window)
+        # The reported interval is the placebo band averaged over the post
+        # period -- the scalar summary of a pointwise object. Read
+        # `placebo_band` for the path, which is what the paper plots.
+        with np.errstate(invalid="ignore"):
+            lo = float(np.nanmean(band["lower"][t_treat:]))
+            hi = float(np.nanmean(band["upper"][t_treat:]))
+        std_inference = InferenceResults(
+            method="placebo",
+            ci_lower=lo,
+            ci_upper=hi,
+            confidence_level=float(1.0 - alpha),
+            p_value=float(eff["p"]),
+            details={
+                "n_placebo_runs": int(eff["n_runs"]),
+                "n_donor_pools": int(eff["n_pools"]),
+                "efficiency_t": float(eff["t"]),
+                "efficiency_df": float(eff["df"]),
+                "icc": float(eff["icc"]),
+                "vif": float(eff["vif"]),
+                "note": (
+                    "Pointwise placebo band (Cao & Chadefaux 2025). ci_lower / "
+                    "ci_upper are the post-period means of the band, not a "
+                    "sampling interval for the ATT; p_value is the efficiency "
+                    "test on log(MSE_DSC/MSE_SC), which asks whether warping "
+                    "helps, not whether the treatment had an effect."
+                ),
+            },
+        )
+
     submodels = build_effect_submodels(
         observed_outcome=y,
         counterfactual_outcome=counterfactual,
@@ -137,6 +256,7 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
                            for n, w in zip(inputs.donor_names, weights)}
         ),
         method_name="DTWSC",
+        inference=std_inference,
         intervention_time=(inputs.time_labels[t_treat]
                            if t_treat < inputs.T else inputs.time_labels[-1]),
     )
@@ -151,5 +271,6 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
         **submodels, inputs=inputs, warped_donor_matrix=warped,
         cutoffs=cutoffs, pre_period_speeds=pre_speeds,
         post_period_speeds=post_speeds, warp_applied=bool(warp),
+        placebo_band=band, placebo_gaps=per_unit, efficiency_test=eff,
         metadata=metadata,
     )

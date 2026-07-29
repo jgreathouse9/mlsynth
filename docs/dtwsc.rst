@@ -114,46 +114,49 @@ Assumptions
 Inference and diagnostics
 -------------------------
 
-The paper does supply inference, and it is the core of its empirical claim --
-but mlsynth does not implement it yet, so ``res.inference`` is ``None`` in this
-release. Two procedures appear in the authors' replication package (Cao and
-Chadefaux's Political Analysis materials, not the ``dsc`` R package, which ships
-only the point estimate):
+Set ``inference="placebo"`` to run Cao and Chadefaux's procedure. It is off by
+default because it costs one full warp per donor per perturbed pool.
 
-The 95 percent band in the paper's Figure 5 is a placebo distribution, not a
-sampling distribution. Every untreated unit is re-analysed as if it had been
-treated, with the real treated unit removed from every placebo donor pool; the
-pool is then perturbed by dropping one or two further units, and each run is
-fit at its own grid-optimal warping hyperparameters. On the Basque panel that
-is 1789 placebo paths. The band is the pointwise 2.5 and 97.5 percent quantiles
-of those paths, drawn separately for the warped and unwarped fits, with the
-treated unit's own gap overlaid. The paper's argument is that warping narrows
-the band, so the same effect clears it more decisively.
+The 95 percent band is a placebo distribution, not a sampling distribution.
+Every donor is re-analysed as if it had been treated, with the real treated
+unit removed from every placebo pool so no placebo counterfactual can borrow
+from it; ``placebo_pairs`` additionally perturbs the pool by dropping two
+donors at a time, in the paper's lexicographic order. ``res.placebo_band``
+holds the pointwise ``alpha/2`` and ``1 - alpha/2`` quantiles of the resulting
+gap paths for the warped fit, and ``lower_unwarped`` / ``upper_unwarped`` for
+the unwarped one, because the paper's claim is comparative: warping should
+narrow the band, so the same effect clears it more decisively.
 
-The second is a paired efficiency test: a t-test on
-:math:`\log(\mathrm{MSE}_{\mathrm{DSC}} / \mathrm{MSE}_{\mathrm{SC}})` over
-those placebo runs, with the degrees of freedom deflated by a variance-inflation
-factor derived from the intra-class correlation of a two-way ANOVA over dataset
-and unit -- the runs share units and donor pools, so they are not independent.
-This tests whether warping helps, not whether the treatment had an effect.
+``res.efficiency_test`` is the paper's second procedure, a t-test on
+:math:`\log(\mathrm{MSE}_{\mathrm{DSC}} / \mathrm{MSE}_{\mathrm{SC}})`
+across the placebo runs. The runs share units and donor pools, so they are not
+independent; the degrees of freedom are deflated by a variance-inflation factor
+:math:`1 + (k-1)\,\mathrm{ICC}` built from the intra-class correlation of a
+two-way ANOVA over dataset and unit. A negative ``t`` means warping achieved the
+lower post-treatment MSE. Note what this tests: whether warping helps, not
+whether the treatment had an effect. ``mse_window`` sets how many post-treatment
+periods enter the MSE, ten by default, as in the paper.
 
-Until those land, what the estimator offers is diagnostic, and the result object
-exposes all of it.
+``res.inference`` mirrors the standardized slot, with ``ci_lower`` / ``ci_upper``
+the post-period means of the band and ``p_value`` the efficiency test's. Both
+are scalar summaries of pointwise objects; read ``placebo_band`` for what the
+paper actually plots.
 
-``res.pre_rmse`` against a ``warp=False`` refit is the honest test of whether
-warping bought anything on your panel -- the paper's own claim is a tighter
-pre-treatment fit, and it is directly checkable. ``res.cutoffs`` gives the donor
-period each donor's pre-window ends on: a cutoff above :math:`T_0` means that
-donor was running slow. ``res.pre_period_speeds`` and
-``res.post_period_speeds`` expose the learned speeds themselves.
+Two honest caveats. First, the paper fits each placebo run at its own
+grid-optimal warping hyperparameters, and the rule that selected them is not in
+the replication package -- only the sweep and the resulting table are shipped.
+mlsynth runs every placebo at the hyperparameters you configure. Second, and
+following from that: on the Basque panel the efficiency test reproduces the
+paper's direction and rough magnitude (``t = -7.0`` against the paper's
+``-7.91``, a 21 percent MSE reduction), but the band does not narrow -- it comes
+out about 1 percent wider than the unwarped one. Those are not in conflict. The
+efficiency test is a within-run paired comparison, while the band is the
+cross-run spread, and reducing each run's error need not shrink the dispersion
+across runs. Per-run hyperparameter optimisation, which is what mlsynth is
+missing, would be expected to tighten the tails specifically. Treat the band as
+descriptive and the efficiency test as the reproducible claim.
 
-One artefact deserves attention. When a warp compresses a donor past the end of
-the panel, the warped series ends short and the tail is ``NaN`` rather than
-extrapolated. The counterfactual at those periods is formed from the donors
-that remain, and if none remain the period is dropped from the ATT.
-``res.metadata["n_post_periods_undefined"]`` reports how many were dropped; a
-non-zero value there means the reported ATT covers a shorter window than the
-nominal post-period.
+Beyond inference, the estimator exposes its warping diagnostics directly.
 
 Example
 -------
@@ -178,6 +181,11 @@ Example
    # what the warp bought, on this panel
    plain = DTWSC({**cfg, "warp": False}).fit()
    print(plain.pre_rmse, "->", res.pre_rmse)
+
+   # the paper's placebo band and efficiency test (slow: one warp per donor)
+   inf = DTWSC({**cfg, "inference": "placebo"}).fit()
+   print(inf.efficiency_test["t"], inf.efficiency_test["p"])
+   lo, hi = inf.placebo_band["lower"], inf.placebo_band["upper"]
 
    # which donors were running slow
    {k: v for k, v in res.cutoffs.items() if v > res.inputs.n_pre}

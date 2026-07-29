@@ -88,3 +88,53 @@ donors' warped series end one period short of 1997, so the reference's own
 counterfactual is ``NA`` there and its ATT is really taken over 1971--1996.
 mlsynth reproduces that rather than extrapolating over it, and reports the
 number of dropped periods in ``res.metadata["n_post_periods_undefined"]``.
+
+Placebo inference
+-----------------
+
+``inference="placebo"`` implements the paper's two inferential procedures. Run
+on the Basque panel through the public API -- outcome-only synthetic control,
+fixed warping hyperparameters, 17 pools and 256 placebo runs:
+
+.. list-table::
+   :header-rows: 1
+
+   * - quantity
+     - mlsynth
+     - paper
+   * - efficiency test ``t``
+     - -7.00
+     - -7.91
+   * - efficiency test ``p``
+     - 2.7e-11
+     - < 0.0001
+   * - mean ``log(MSE_DSC / MSE_SC)``
+     - -0.233
+     - -0.18 (from the reported log MSEs)
+   * - implied MSE reduction
+     - 21 percent
+     - 16 percent
+
+The direction and rough magnitude reproduce. The gap is expected: the paper
+fits each placebo run at its own grid-optimal ``filter.width`` / ``k`` / step
+pattern, and uses a 14-predictor Abadie specification for the synthetic control
+where this run is outcome-only.
+
+The band does not reproduce, and that is worth stating plainly. On this
+specification the warped band comes out about 1 percent *wider* than the
+unwarped one, where the paper reports it narrower. The two results are not in
+conflict: the efficiency test is a within-run paired comparison of MSE, while
+the band is the cross-run spread of gaps, and lowering each run's error need not
+shrink the dispersion across runs -- the band is a tail quantity. The most
+likely source of the difference is the per-run hyperparameter optimisation,
+which would tighten the tails specifically, and which mlsynth cannot reproduce
+because the selection rule is not in the replication package. Only the sweep
+and the resulting ``gridOpt`` tables are shipped; nothing in the released code
+builds them.
+
+Treat the efficiency test as the reproducible claim and the band as
+descriptive.
+
+Cost. The placebo procedure runs one full two-phase warp per donor per pool.
+Basque with ``placebo_pairs=0`` is 256 warped fits and takes about 12 minutes;
+the paper's ``placebo_pairs=100`` construction is roughly 2000 fits.

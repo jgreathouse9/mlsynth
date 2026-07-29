@@ -837,3 +837,220 @@ class TestBehavioursTheSuiteMissed:
         with pytest.raises(MlsynthEstimationError, match="exceeds"):
             DTWSC(base_config(make_panel(n_pre=14, n_post=3, seed=40),
                               k=12)).fit()
+
+
+# ==========================================================================
+# Inference -- the paper's placebo band and efficiency test
+# ==========================================================================
+from mlsynth.utils.dtwsc_helpers.inference import (  # noqa: E402
+    icc_corrected_ttest,
+    placebo_donor_pools,
+)
+
+
+class TestPlaceboDonorPools:
+    """The dataset construction of Figure_5_*.R in the replication package.
+
+    ``data.list`` is: the full panel, then one dataset per unit with that unit
+    dropped, then the first ``n_pairs`` two-unit combinations in R's
+    ``combn`` (lexicographic) order. The treated unit is excluded from every
+    placebo pool -- it is dropped in the ``filter(!(id %in% c(i, 17)))`` step.
+    """
+
+    def test_first_pool_is_the_untouched_donor_set(self):
+        pools = placebo_donor_pools(n_units=5, treated=2, n_pairs=0)
+        assert pools[0] == (0, 1, 3, 4)
+
+    def test_the_treated_unit_never_appears_in_any_pool(self):
+        pools = placebo_donor_pools(n_units=6, treated=3, n_pairs=5)
+        assert all(3 not in p for p in pools)
+
+    def test_leave_one_out_covers_every_donor_exactly_once(self):
+        pools = placebo_donor_pools(n_units=5, treated=4, n_pairs=0)
+        dropped = [set(range(4)) - set(p) for p in pools[1:]]
+        assert dropped == [{0}, {1}, {2}, {3}]
+
+    def test_pairs_follow_r_combn_lexicographic_order(self):
+        """R's ``combn(setdiff(ids, treated), 2)`` yields (1,2), (1,3), ...
+
+        Truncating to the first ``n_pairs`` columns only reproduces the paper
+        if the order matches; itertools.combinations agrees with combn here.
+        """
+        pools = placebo_donor_pools(n_units=5, treated=4, n_pairs=3)
+        dropped = [tuple(sorted(set(range(4)) - set(p))) for p in pools[5:]]
+        assert dropped == [(0, 1), (0, 2), (0, 3)]
+
+    def test_pair_count_is_capped_at_what_exists(self):
+        """With three donors, dropping two would leave one -- so no pairs.
+
+        A synthetic control needs something to interpolate between, so pools
+        that would fall below two donors are skipped rather than emitted and
+        left to fail downstream.
+        """
+        pools = placebo_donor_pools(n_units=4, treated=3, n_pairs=99)
+        assert len(pools) == 1 + 3              # full + 3 leave-one-out
+
+    def test_pairs_are_emitted_when_enough_donors_remain(self):
+        pools = placebo_donor_pools(n_units=6, treated=5, n_pairs=99)
+        assert len(pools) == 1 + 5 + 10         # full + singles + C(5,2)
+
+    def test_every_pool_retains_at_least_two_donors(self):
+        for p in placebo_donor_pools(n_units=6, treated=0, n_pairs=10):
+            assert len(p) >= 2
+
+    def test_pools_are_deterministic(self):
+        a = placebo_donor_pools(n_units=7, treated=1, n_pairs=8)
+        b = placebo_donor_pools(n_units=7, treated=1, n_pairs=8)
+        assert a == b
+
+
+class TestICCCorrectedTTest:
+    """R pin of the Figure_5_*.R efficiency test.
+
+    The placebo runs share units and donor pools, so they are not independent.
+    The paper deflates the degrees of freedom by a variance-inflation factor
+    built from the intra-class correlation of a two-way ANOVA on dataset and
+    unit, then reports a two-sided lower-tail p-value.
+    """
+
+    LOG_RATIO = np.array([
+        0.422575, -0.738819, -0.182123, -0.020282, -0.157439, -0.463675,
+        0.506913, -0.456795, 0.811054, -0.437628, 0.382922, 0.971987,
+        -1.233316, -0.567273, -0.479993, -0.01843, -0.570552, -1.993873,
+        -1.86428, 0.392068, -0.583983, -1.468785, -0.50315, 0.328805,
+        0.737116, -0.658281, -0.554362, -1.457898, -0.123942, -0.783997])
+    DATA_ID = np.array([1, 2, 3, 4, 5, 6] * 5)
+    UNIT_ID = np.repeat([1, 2, 3, 4, 5], 6)
+
+    def test_matches_r_cell_for_cell(self):
+        out = icc_corrected_ttest(self.LOG_RATIO, self.DATA_ID, self.UNIT_ID)
+        assert out["icc"] == pytest.approx(-0.1376475086, rel=1e-8)
+        assert out["vif"] == pytest.approx(0.4494099658, rel=1e-8)
+        assert out["df"] == pytest.approx(66.75419391, rel=1e-8)
+        assert out["t"] == pytest.approx(-2.610155295, rel=1e-8)
+        assert out["p"] == pytest.approx(0.01116279195, rel=1e-6)
+
+    def test_the_t_statistic_is_the_ordinary_one_sample_t(self):
+        """Only the degrees of freedom are corrected, not the statistic."""
+        from scipy import stats
+        out = icc_corrected_ttest(self.LOG_RATIO, self.DATA_ID, self.UNIT_ID)
+        assert out["t"] == pytest.approx(
+            stats.ttest_1samp(self.LOG_RATIO, 0.0).statistic)
+
+    def test_reports_the_mean_log_ratio_and_the_mse_reduction(self):
+        out = icc_corrected_ttest(self.LOG_RATIO, self.DATA_ID, self.UNIT_ID)
+        assert out["mean_log_ratio"] == pytest.approx(self.LOG_RATIO.mean())
+        assert out["mse_reduction"] == pytest.approx(
+            1 - np.exp(self.LOG_RATIO.mean()))
+
+    def test_a_degenerate_single_group_does_not_raise(self):
+        out = icc_corrected_ttest(np.array([-0.5, -0.4, -0.6]),
+                                  np.array([1, 1, 1]), np.array([1, 2, 3]))
+        assert np.isfinite(out["t"])
+
+    def test_too_few_observations_is_reported(self):
+        with pytest.raises(MlsynthEstimationError):
+            icc_corrected_ttest(np.array([-0.5]), np.array([1]), np.array([1]))
+
+
+class TestPlaceboBand:
+    """The band is a two-sided pointwise interval: alpha/2 in each tail."""
+
+    def test_edges_are_the_alpha_over_two_quantiles(self):
+        """Splitting alpha unevenly would shift the band without changing
+        its width ordering, so the width test alone cannot catch it."""
+        from mlsynth.utils.dtwsc_helpers.inference import placebo_band
+        rng = np.random.default_rng(0)
+        gaps = rng.normal(size=(400, 5))
+        band = placebo_band(gaps, alpha=0.10)
+        assert band["lower"] == pytest.approx(
+            np.quantile(gaps, 0.05, axis=0), abs=1e-12)
+        assert band["upper"] == pytest.approx(
+            np.quantile(gaps, 0.95, axis=0), abs=1e-12)
+
+    def test_coverage_is_symmetric_about_the_median(self):
+        from mlsynth.utils.dtwsc_helpers.inference import placebo_band
+        rng = np.random.default_rng(1)
+        gaps = rng.normal(size=(2000, 3))
+        band = placebo_band(gaps, alpha=0.05)
+        below = (gaps < band["lower"]).mean(axis=0)
+        above = (gaps > band["upper"]).mean(axis=0)
+        assert below == pytest.approx(above, abs=0.02)
+        assert below == pytest.approx(0.025, abs=0.01)
+
+    def test_runs_with_a_short_warp_still_contribute_where_defined(self):
+        from mlsynth.utils.dtwsc_helpers.inference import placebo_band
+        gaps = np.array([[1.0, 2.0], [3.0, np.nan], [5.0, 6.0]])
+        band = placebo_band(gaps, alpha=0.5)
+        assert np.isfinite(band["lower"]).all()
+
+    def test_no_runs_is_reported(self):
+        from mlsynth.utils.dtwsc_helpers.inference import placebo_band
+        with pytest.raises(MlsynthEstimationError):
+            placebo_band(np.empty((0, 5)), alpha=0.05)
+
+
+class TestDTWSCPlaceboInference:
+    def test_placebo_inference_populates_the_standard_slot(self):
+        res = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        assert res.inference is not None
+        assert res.inference.method == "placebo"
+        assert np.isfinite(res.inference.ci_lower)
+        assert np.isfinite(res.inference.ci_upper)
+        assert res.inference.ci_lower < res.inference.ci_upper
+
+    def test_the_band_is_pointwise_and_spans_the_panel(self):
+        res = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        band = res.placebo_band
+        assert band["lower"].shape == band["upper"].shape == (28,)
+        assert np.all(band["lower"] <= band["upper"])
+
+    def test_both_the_warped_and_unwarped_bands_are_reported(self):
+        """The paper's claim is comparative, so both must be available."""
+        res = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        assert set(res.placebo_band) >= {"lower", "upper",
+                                         "lower_unwarped", "upper_unwarped"}
+
+    def test_the_treated_unit_is_not_among_the_placebos(self):
+        res = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        assert "treated" not in res.placebo_gaps
+
+    def test_every_donor_serves_as_a_placebo_target(self):
+        res = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        assert len(res.placebo_gaps) == 6
+
+    def test_the_efficiency_test_is_reported(self):
+        res = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        eff = res.efficiency_test
+        assert set(eff) >= {"t", "p", "df", "icc", "vif", "mean_log_ratio",
+                            "mse_reduction", "n_runs"}
+        assert np.isfinite(eff["t"]) and 0.0 <= eff["p"] <= 1.0
+
+    def test_pool_perturbation_multiplies_the_placebo_runs(self):
+        few = DTWSC(base_config(inference="placebo", placebo_pairs=0)).fit()
+        many = DTWSC(base_config(inference="placebo", placebo_pairs=2)).fit()
+        assert many.efficiency_test["n_runs"] > few.efficiency_test["n_runs"]
+
+    def test_inference_off_by_default(self):
+        assert DTWSC(base_config()).fit().inference is None
+
+    def test_alpha_widens_or_narrows_the_band(self):
+        wide = DTWSC(base_config(inference="placebo", placebo_pairs=0,
+                                 alpha=0.5)).fit()
+        narrow = DTWSC(base_config(inference="placebo", placebo_pairs=0,
+                                   alpha=0.01)).fit()
+        w = wide.placebo_band["upper"] - wide.placebo_band["lower"]
+        n = narrow.placebo_band["upper"] - narrow.placebo_band["lower"]
+        assert np.nanmean(w) <= np.nanmean(n)
+
+    @pytest.mark.parametrize("bad", [{"inference": "bootstrap"},
+                                     {"placebo_pairs": -1},
+                                     {"alpha": 0.0}, {"alpha": 1.0}])
+    def test_invalid_inference_options_are_rejected(self, bad):
+        with pytest.raises(MlsynthConfigError):
+            DTWSC(base_config(**bad))
+
+    def test_too_few_donors_for_a_placebo_is_reported(self):
+        df = make_panel(n_donors=1, seed=50)
+        with pytest.raises(MlsynthEstimationError, match="placebo"):
+            DTWSC(base_config(df, inference="placebo")).fit()

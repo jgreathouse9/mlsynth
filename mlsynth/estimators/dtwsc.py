@@ -106,6 +106,8 @@ class DTWSC:
                 step_pattern1=cfg.step_pattern1,
                 step_pattern2=cfg.step_pattern2,
                 match_method=cfg.match_method,
+                inference=cfg.inference, placebo_pairs=cfg.placebo_pairs,
+                alpha=cfg.alpha, mse_window=cfg.mse_window,
             )
             pc = cfg.resolved_plot()
             if pc.xlabel is None:
