@@ -1,3 +1,19 @@
+<!--
+Scope-specific templates live in .github/PULL_REQUEST_TEMPLATE/ . GitHub does not
+offer a picker for pull request templates the way it does for issues, so pick one
+by appending ?template=<file> to the compare URL, replacing YOUR-BRANCH:
+
+  new estimator          ...compare/main...YOUR-BRANCH?quick_pull=1&template=new-estimator.md
+  feature on an existing ...compare/main...YOUR-BRANCH?quick_pull=1&template=estimator-feature.md
+  bug fix                ...compare/main...YOUR-BRANCH?quick_pull=1&template=bugfix.md
+  benchmark / validation ...compare/main...YOUR-BRANCH?quick_pull=1&template=benchmark.md
+
+Or open the PR, then copy the template you want over this body.
+
+This default is the right one for anything else: docs-wide edits, refactors of
+shared helpers, tooling, CI. Delete this comment before submitting.
+-->
+
 ## Related Links
 
 What links will make reviewing these code changes as straightforward as possible?
@@ -5,7 +21,7 @@ What links will make reviewing these code changes as straightforward as possible
 - Docs page for the estimator: `docs/<name>.rst`
 - Replication page and benchmark case: `docs/replications/<name>.rst`, `benchmarks/cases/<name>.py`
 - Source paper (DOI or link) and the reference implementation it was checked against
-- Related issue, or the PR this one follows from or depends on
+- The PR this one follows from or depends on
 
 ## What
 
