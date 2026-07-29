@@ -145,16 +145,23 @@ paper actually plots.
 Two honest caveats. First, the paper fits each placebo run at its own
 grid-optimal warping hyperparameters, and the rule that selected them is not in
 the replication package -- only the sweep and the resulting table are shipped.
-mlsynth runs every placebo at the hyperparameters you configure. Second, and
-following from that: on the Basque panel the efficiency test reproduces the
-paper's direction and rough magnitude (``t = -7.0`` against the paper's
-``-7.91``, a 21 percent MSE reduction), but the band does not narrow -- it comes
-out about 1 percent wider than the unwarped one. Those are not in conflict. The
-efficiency test is a within-run paired comparison, while the band is the
-cross-run spread, and reducing each run's error need not shrink the dispersion
-across runs. Per-run hyperparameter optimisation, which is what mlsynth is
-missing, would be expected to tighten the tails specifically. Treat the band as
-descriptive and the efficiency test as the reproducible claim.
+mlsynth runs every placebo at the hyperparameters you configure. Second, on the
+Basque panel the efficiency test reproduces the paper's direction and rough
+magnitude (``t = -6.8`` against the paper's ``-7.91``, a 20 percent MSE
+reduction), but the band does not narrow -- it comes out 0.3 percent wider than
+the unwarped one.
+
+Those are not in conflict. The efficiency test is a within-run paired
+comparison, while the band is the cross-run spread, and reducing each run's
+error need not shrink the dispersion across runs. Two explanations for the band
+have been tested and ruled out: fitting the paper's 14-predictor specification
+with ``sc_backend="malo"`` widens it further rather than tightening it, and the
+warp itself is now bit-exact against the authors' R package. The per-run
+hyperparameter optimisation remains untested, as does the paper's much larger
+pool construction -- its quantiles are drawn over roughly 2000 runs against 256
+here, and a 2.5 percent tail is not well determined at that count. Treat the
+band as descriptive and the efficiency test as the reproducible claim;
+:doc:`replications/dtwsc` has the measurements.
 
 Beyond inference, the estimator exposes its warping diagnostics directly.
 

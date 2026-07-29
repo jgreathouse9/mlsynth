@@ -146,34 +146,45 @@ fixed warping hyperparameters, 17 pools and 256 placebo runs:
      - mlsynth
      - paper
    * - efficiency test ``t``
-     - -7.00
+     - -6.79
      - -7.91
    * - efficiency test ``p``
-     - 2.7e-11
+     - 9.0e-11
      - < 0.0001
    * - mean ``log(MSE_DSC / MSE_SC)``
-     - -0.233
+     - -0.226
      - -0.18 (from the reported log MSEs)
    * - implied MSE reduction
-     - 21 percent
+     - 20 percent
      - 16 percent
 
-The direction and rough magnitude reproduce. The gap is expected: the paper
-fits each placebo run at its own grid-optimal ``filter.width`` / ``k`` / step
-pattern, and uses a 14-predictor Abadie specification for the synthetic control
-where this run is outcome-only.
+The direction and rough magnitude reproduce. The remaining gap is expected: the
+paper fits each placebo run at its own grid-optimal ``filter.width`` / ``k`` /
+step pattern, which mlsynth holds fixed.
 
 The band does not reproduce, and that is worth stating plainly. On this
-specification the warped band comes out about 1 percent *wider* than the
-unwarped one, where the paper reports it narrower. The two results are not in
-conflict: the efficiency test is a within-run paired comparison of MSE, while
-the band is the cross-run spread of gaps, and lowering each run's error need not
-shrink the dispersion across runs -- the band is a tail quantity. The most
-likely source of the difference is the per-run hyperparameter optimisation,
-which would tighten the tails specifically, and which mlsynth cannot reproduce
-because the selection rule is not in the replication package. Only the sweep
-and the resulting ``gridOpt`` tables are shipped; nothing in the released code
-builds them.
+specification the warped band comes out marginally wider than the unwarped one
+-- 2.436 against 2.296, or 0.3 percent -- where the paper reports it narrower.
+
+The two results are not in conflict. The efficiency test is a within-run paired
+comparison of MSE; the band is the cross-run spread of gaps. Lowering each
+run's error need not shrink the dispersion across runs, because the band is a
+tail quantity.
+
+Two candidate explanations have been tested and ruled out. The first was the
+synthetic-control specification: the paper fits ``Synth`` over 14 predictors
+where the default here matches on the outcome alone, so ``sc_backend="malo"``
+with the paper's predictors ought to have tightened the band. It does the
+opposite -- the band widens to 2.9 percent and the efficiency test collapses
+(:math:`t = +0.56`, MSE reduction :math:`-2` percent). The second was fidelity
+of the warp itself, which is now bit-exact against the reference; fixing it
+moved the band from 1.3 percent wider to 0.3 percent wider, so it was a real
+contributor but not the explanation.
+
+What remains untested is the per-run hyperparameter optimisation, and the pool
+construction: the paper draws its quantiles over roughly 2000 runs where the
+figures here use 256, and a 2.5 percent tail quantile is not well determined at
+that count. Neither has been measured, so neither is claimed.
 
 Treat the efficiency test as the reproducible claim and the band as
 descriptive.
