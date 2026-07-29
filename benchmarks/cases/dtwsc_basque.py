@@ -117,6 +117,26 @@ def _pre_rmse_and_att(observed, synthetic, n_pre):
             float(np.nanmean(observed[n_pre:] - synthetic[n_pre:])))
 
 
+def _post_path_gap(mlsynth_path, reference_path, n_pre):
+    """Worst POINTWISE post-treatment gap between the two counterfactuals.
+
+    The ATT rows above average the same difference, and averaging hides it:
+    the two paths cross rather than running parallel, so sign-cancelling
+    pointwise error of ~0.19 collapses to an ATT gap of ~0.03. A regression
+    that tilted the counterfactual while leaving its mean intact would clear
+    the ATT row untouched, so the quantity that actually moves is pinned here.
+
+    Three donors' warped series end a period short of 1997, which makes the
+    reference's own counterfactual ``NA`` there; the comparison is taken over
+    the periods both sides define.
+    """
+    mlsynth_path = np.asarray(mlsynth_path, dtype=float)
+    reference_path = np.asarray(reference_path, dtype=float)
+    n = min(len(mlsynth_path), len(reference_path))
+    gap = np.abs(mlsynth_path[:n] - reference_path[:n])[n_pre:]
+    return float(np.nanmax(gap)) if gap.size and not np.isnan(gap).all() else float("nan")
+
+
 def _load_reference():
     """``{unit: {quantity: array}}`` from the R dump, or ``None``."""
     path = _REF / "gold_tfdtw.csv"
@@ -295,6 +315,8 @@ def run() -> dict:
         r_rmse, r_att = _pre_rmse_and_att(fit["value"], fit[column], n_pre_fit)
         out[f"dtwsc_{tag}_pre_rmse_gap_vs_r"] = abs(arm.pre_rmse - r_rmse)
         out[f"dtwsc_{tag}_att_gap_vs_r"] = abs(arm.att - r_att)
+        out[f"dtwsc_{tag}_post_path_gap_vs_r"] = _post_path_gap(
+            arm.counterfactual, fit[column], n_pre_fit)
     return out
 
 
@@ -345,4 +367,9 @@ EXPECTED = {
     "dtwsc_sc_att_gap_vs_r": (0.0205, 0.015),
     "dtwsc_dsc_pre_rmse_gap_vs_r": (0.0042, 0.004),
     "dtwsc_dsc_att_gap_vs_r": (0.0269, 0.015),
+    # Pointwise, not averaged -- see ``_post_path_gap``. An order of magnitude
+    # larger than the ATT rows, and the honest measure of how far the two
+    # counterfactuals actually run apart.
+    "dtwsc_sc_post_path_gap_vs_r": (0.1610, 0.02),
+    "dtwsc_dsc_post_path_gap_vs_r": (0.1897, 0.02),
 }

@@ -56,6 +56,20 @@ different quantities landing on the same digits. On one scale the two arms
 agree to about 0.004 on pre-RMSE and 0.03 on the ATT, which is the honest
 figure and is what ``benchmarks/cases/dtwsc_basque.py`` now pins.
 
+Do not read that ATT agreement as agreement between the counterfactual paths,
+either. Comparing the two pointwise rather than in the mean, the pre-treatment
+halves sit almost on top of each other -- worst single-period gap 0.027 warped
+and 0.036 unwarped, against a series spanning 2.18 rescaled units -- while the
+post-treatment halves reach 0.19 and 0.16. The paths cross rather than running
+parallel, so most of that error cancels in the average and a 0.19 divergence
+presents as a 0.03 ATT gap.
+
+That is the expected signature of the Savitzky--Golay difference described
+below: it is held down where the pre-treatment fit constrains it and free to
+grow where nothing does. The pointwise maximum is pinned in the benchmark
+alongside the ATT, because a regression that tilted the counterfactual while
+leaving its mean intact would pass an ATT check untouched.
+
 What matches, seam by seam
 --------------------------
 
