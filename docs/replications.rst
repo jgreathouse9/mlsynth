@@ -103,6 +103,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cmbsts
    replications/marex
    replications/dsc
+   replications/dtwsc
    replications/microsynth
    replications/microsynth_baltimore
    replications/cfm
@@ -273,6 +274,10 @@ Generalising the estimand, treatment, or unit
   post (``MSE_pre`` / ``MSE_post`` near zero, rising only mildly with
   the horizon, as the bias bound predicts; durable:
   ``shc_recovery_mc``).
+* :doc:`dtwsc` -- Dynamic SC (speed warping). Cross-validation:
+  Cao & Chadefaux's R package ``conflictlab/dsc`` on the Basque panel --
+  pre-RMSE 0.0705 exact, ATT within 0.23 percent
+  (:doc:`replications/dtwsc`).
 * :doc:`dsc` -- Distributional SC. Path B: Gunsilius (2023)
   Figure 4 reproduction -- the 2-Wasserstein-squared distance
   collapses at :math:`J = 30` against the rough fit at

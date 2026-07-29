@@ -298,6 +298,7 @@ headline numbers.
    cfm
    cscipca
    dscar
+   dtwsc
 
 .. toctree::
    :hidden:
