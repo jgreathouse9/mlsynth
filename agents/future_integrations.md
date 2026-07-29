@@ -215,8 +215,8 @@ loadings-as-slopes specification against ``zhan-gao/classo`` first.
 
 ## 3. DSC -- Dynamic Synthetic Control (DTW speed-warping)
 
-**Status: Parked (demonstrate-first DONE; blocked on a `dtw-python` vs R-`dtw`
-`open.end` library difference -- not worth finishing until that is resolved).**
+**Status: UNBLOCKED -- build. The `open.end` blocker was misdiagnosed and is
+resolved; see "Blocker resolved" below. Everything else was already ported.**
 
 ### Source
 
@@ -224,7 +224,16 @@ loadings-as-slopes specification against ``zhan-gao/classo`` first.
 > Varying Speeds in Comparative Case Studies." *Political Analysis* 33, 18-31.
 
 Reference package (cloned, read in full; pin downstream, never vendor):
-**https://github.com/conflictlab/dsc** -- `R/{TFDTW,dsc,misc,synth}.R`.
+**https://github.com/conflictlab/dsc** -- `R/{TFDTW,dsc,misc,synth}.R`. MIT
+(`LICENSE`; the README's "GPL-3" line contradicts `DESCRIPTION` and the actual
+file -- treat MIT as governing, and clean-room the port either way).
+
+There is now also a JOSS software paper in the repo (`paper.md`, `paper.pdf`,
+`.github/workflows/draft-pdf.yml`, Sep 2025). It restates the method; it adds no
+new algorithm. `git log` confirms `R/TFDTW.R`, `R/misc.R` and `R/synth.R` are
+untouched since 2023-09-14, and the only 2025 change to `R/dsc.R` is a ggplot
+block appended to `dsc()`. The reference implementation this entry was written
+against is byte-identical to the current `main`.
 
 ### The idea in one line
 
@@ -253,15 +262,13 @@ Giorgino's official Python port of R `dtw`, identical step patterns
   `warpWITHweight`, the cutoff, and the pre-period speed weights `weight.a`. On
   Basque the **pre-period warped donors match R to ~1e-15** (confirmed on the
   worst donor: `weight.a` and the pre-warp `0, 0.2036, ..., 2.1799` identical).
-* **NOT bit-reproducible: `second.dtw`** (the post-period double-sliding-window).
-  The *entire* residual is one library-level disagreement: **`dtw-python`'s
-  `open.end=TRUE` alignment covers the full query, while R `dtw` lets the
-  open-ended alignment stop short.** This changes `RefTooShort`'s window-include
-  decision, so the post-period `avg.weight` (and hence the warped post series)
-  diverges. The 0-vs-1-index `+1` patch in `RefTooShort` fixes the overlap
-  window but then *over-includes* the short boundary window everywhere (it wins
-  the cost search with a spuriously cheap open-ended match) -- one fix trades for
-  another, because the libraries genuinely terminate open ends differently.
+* **NOT bit-reproducible at the time: `second.dtw`** (the post-period
+  double-sliding-window). The symptom was real -- `RefTooShort`'s window-include
+  decision differed, so the post-period `avg.weight` (and hence the warped post
+  series) diverged, and the 0-vs-1-index `+1` patch fixed the overlap window
+  while over-including the short boundary window. The *diagnosis* was wrong: it
+  was attributed to `open.end` termination differing between the libraries. It
+  does not. See below.
 
 **Reference numbers (R `dsc`, gold, full Abadie 14-predictor spec, Synth's
 `basque`, Spain dropped -> 16 donors):**
@@ -278,12 +285,52 @@ exactly**; only the ATT rides on the un-portable `second.dtw` (the warp gap move
 an outcome-only ATT from R's -0.480 to Python's -0.573, so it is *not* negligible
 -- bitwise matters here).
 
-### Build path if resumed
+### Blocker resolved -- it was `warp()`, not `open.end` (KEEP THIS)
 
-1. **Resolve the `open.end` blocker** -- the only real obstacle. Hand-roll the
-   DTW open-end recursion to replicate R's exact truncation/tie-breaking, or
-   vendor R's step-pattern open-end logic. Uncertain payoff; reverse-engineering
-   R `dtw`'s open-end termination point by point. *Everything else is done.*
+Re-tested head-to-head, R `dtw` 1.23-3 vs `dtw-python` 1.7.5, both step patterns
+used by the package (`symmetricP2` for `first.dtw`, `asymmetricP2` for
+`second.dtw`), 268 usable random (query, reference) pairs spanning lengths 2-25
+(white noise, random walks, and noisy sinusoids), all with `open.end=TRUE`:
+
+| quantity | agreement |
+|---|---|
+| `distance` | 268/268 exact (1e-6) |
+| full `index1`/`index2` warping paths | 268/268 identical |
+| `RefTooShort` boolean, after the fix below | 268/268 identical |
+
+**The open ends terminate identically.** `dtw-python` does *not* force coverage
+of the full query; it stops short exactly where R does, with the same `jmin`.
+
+The entire divergence is in **`warp()`'s handling of the many-to-one map**. R's
+`dtw::warp` averages the tied indices; `dtw-python`'s does not. Worked case
+(`length(Q) = length(R) = 8`, identical alignment in both):
+
+```
+index1 = 1 2 3 3 4 5 6 7 8      index2 = 1 2 3 4 5 6 7 8 8
+R   warp(index.reference=FALSE) -> 1 2 3 3 4 5 6 7.5     <- mean(7, 8)
+py  warp(index_reference=False) -> 1 2 3 3 4 5 6 7       (after +1)
+```
+
+`RefTooShort` then tests `round(max(wq)) < length(query)`: R gets
+`round(7.5) = 8`, not `< 8`, so FALSE (window kept); Python gets `7 < 8`, TRUE
+(window dropped). That single tie-break is the whole "short boundary window"
+over-inclusion described above. The fix is one function:
+
+```python
+def warp_R(a, index_reference=False):
+    src, dst = (a.index1, a.index2) if index_reference else (a.index2, a.index1)
+    return np.array([dst[src == j].mean() for j in range(int(src.max()) + 1)])
+```
+
+With `warp_R` substituted for `dtw.warp`, `RefTooShort` matches R on 120/120
+`second.dtw`-shaped pairs and 268/268 in the wide sweep, both step patterns. Use
+numpy's `round` (banker's rounding, same as R's) for the comparison.
+
+### Build path
+
+1. ~~Resolve the `open.end` blocker~~ **Done -- see above.** Reimplement `warp`
+   with R's tie-averaging semantics; do not call `dtw.warp` directly. Both call
+   sites matter: `RefTooShort` and `first.dtw`'s `wr`/`cutoff`.
 2. Port `preprocessing` (S-G filter `scipy.signal.savgol_filter` 2nd-deriv --
    matches up to a constant that DTW re-normalizes away; the `auto.arima`
    edge-buffer is the one inherently-fuzzy piece, ~2 edge points, approximate it).
@@ -301,13 +348,52 @@ Synth`; plus `signal, forecast` (forecast pulls `tseries/quantmod/urca`) and
 `parallel=FALSE` to avoid `furrr`. (augsynth's install recipe in
 `benchmarks/R/install_augsynth.sh` is the template.)
 
+### Gap vs overlap (re-checked)
+
+`grep -rilE "dynamic time warp|dtw|warp" mlsynth --include=*.py` hits only
+`CMBSTS`, whose `control_selection='dtw'` uses DTW *distance* to screen the donor
+pool (optional `fastdtw`). That is DTW as a similarity metric for donor
+selection; nothing in the library *warps a donor's outcome path*. Genuine gap.
+Closest siblings by intent: `MASC` (reshapes the donor set rather than the donor
+series), `CMBSTS` (DTW screening), `DSCAR` (a different "dynamic"). Naming
+guidance above still stands -- `DSC` and `DSCAR` are taken, use `DTWSC`.
+
 ### Verdict
 
-The method is worth having (genuine gap, top venue, recent, reproduces cleanly)
-and is ~90% ported -- but **do not finish it until the `open.end` library
-difference is solved**, because without it the post-period is not bit-faithful to
-R and the ATT is only *close*. Revisit when there is appetite to hand-roll the
-open-end DTW.
+**Build.** Genuine gap, top venue (*Political Analysis*), MIT reference package,
+now also a JOSS submission, and it reproduces cleanly. The one obstacle that
+parked it was a misdiagnosis: the libraries agree bit-for-bit on open-ended
+alignment, and the residual is a five-line `warp` tie-averaging fix, verified
+268/268. The pre-warp was already bit-exact, so the remaining work is mechanical
+-- swap in `warp_R`, re-run `second.dtw`, and confirm the Basque ATT lands on R's
+outcome-only -0.480 (the earlier Python run gave -0.573; that gap *is* the warp
+bug and is the acceptance test). Then `/replicate` against the R package for the
+full 14-predictor spec (pre-RMSE 0.0728, ATT -0.537) and `/new-estimator` as
+`DTWSC`.
+
+### Shipped, and one thing worth carrying forward
+
+`DTWSC` landed. The warping engine is bit-exact against the R package (see
+`docs/replications/dtwsc.rst`); the sole remaining difference is the
+Savitzky-Golay edge treatment, where the reference pads with an `auto.arima`
+forecast and mlsynth edge-pads.
+
+Carry forward the reason that took three wrong diagnoses to find, because it
+generalizes past this estimator. `second.dtw` filters speeds with a type-7
+`Q3 + 3*IQR` fence, and the speeds are small-denominator rationals -- so on a
+column like `(1, 1, 7/6, 1)` the fence evaluates to exactly `7/6` and sits on
+the value it is judging. One bit decides whether the cell is kept, and that
+moves the column mean by `1/24`. The bit came from smoothing: R's
+`stats::filter` accumulates `x[k] * (1/w)` where a plain window mean computes
+`(sum x[k]) / w`, and the two disagree in the last place on 7/6.
+
+Two rules follow for any future port. Match the reference's summation order in
+any step feeding a discrete decision, rather than assuming an algebraically
+equal formula is numerically equal. And when a port is close but not exact,
+substitute the reference's own intermediate outputs stage by stage to localize
+the divergence -- inferring from the end result gave the wrong answer three
+times (blamed hyperparameter selection, then the SC backend, then the ARIMA
+buffer; each was refuted by measurement).
 
 ---
 
@@ -931,6 +1017,186 @@ Build (prototype-first). Genuine multivariate gap next to ``DSC``, JMLR-publishe
 reproducible with same-language Python reference code, and the new dependency (POT)
 is a reasonable optional add. Run ``/replicate`` against ``twp_utils.py`` (acceptance
 gate: reproduces ``DSC`` in 1D) -> ``/new-estimator`` as a ``DSC`` sibling.
+
+---
+
+## 10. DRDIDSC -- doubly robust DiD-meets-SC identification (Sun, Xie & Zhang 2025)
+
+**Status: Prototype-first (paper reviewed; no library code yet).**
+
+### Source
+
+> Sun, Y., Xie, H., & Zhang, Y. (2025). "Difference-in-Differences Meets
+> Synthetic Control: Doubly Robust Identification and Estimation."
+> arXiv:2503.11375v2 (25 Sep 2025). No replication package, no reference
+> implementation.
+
+Empirical application: Alaska's 2003 minimum-wage increase on equivalized family
+income, CPS 1998--2003, following Gunsilius (2023) / Dube (2019).
+
+### The idea in one line
+
+One moment function that identifies the ATT if *either* conditional parallel
+trends *or* a group-level synthetic-control condition holds -- neither implying
+the other -- so the researcher no longer has to pick between DiD and SC:
+
+```
+phi(S) = (1/pi_1) * [ G_1 - sum_g w_g(X) * (p_1(X)/p_g(X)) * G_g ] * (dY - m_D(X))
+```
+
+with `dY = Y_T - Y_{T-1}`, `m_D(X) = E[dY | G != 1, X]`, `p_g(X) = P(G=g|X)` and
+covariate-indexed SC weights `w_g(X)` summing to one. Read the bracket first and
+it is SC-with-a-DiD-adjustment; read the difference first and it is
+DiD-augmented-by-SC. Under PT the moment is Neyman orthogonal (weights are
+irrelevant -- Theorem 1(i)); under SC it is *not*, so the asymptotics carry an
+extra first-stage correction (Theorem 3). A multiplier bootstrap (iid weights,
+mean 1, variance 1) is valid under either assumption, which is the practical
+point: you never have to declare which assumption you are relying on.
+
+Estimation is a three-nuisance cross-fitted plug-in: local-polynomial `m_{g,t}(x)`
+and `m_D(x)`; the propensity *ratio* `r_{1,g}(x) = p_1/p_g` fit directly by local
+polynomial on `rho(r,G) = r^2 G_g - 2 r G_1`; and weights from the
+exactly-solvable linear system `w_0(x) = (M'M)^{-1} M' m_1` built from the
+pre-period conditional means. Weights are *not* simplex-constrained (footnote 3).
+Extensions cover repeated cross-sections (Section 4 -- required for the CPS
+application) and staggered adoption (Section 5).
+
+### Scope gate: passes, but through the micro-panel door
+
+Panel, units x time, pre/post -- but the asymptotics are `n -> infinity` with `T`
+and `N_G` *fixed*, and the unit of observation is the individual inside a group,
+not the group. So it does not ride `datautils.dataprep`; it needs its own
+`utils/<name>_helpers/setup.py` over long micro data, exactly as `DSC` and `SCD`
+already do. That precedent is the reason this is in-lane rather than a new family.
+
+Required inputs beyond the usual four columns: a group column (states) and a
+covariate list -- one continuous covariate (the theory in footnote 8 is written
+for scalar `X`) plus discrete covariates handled by partitioning the sample and
+estimating cell by cell, which is what the paper's Table 1 does (nine cells).
+
+### Gap vs overlap
+
+Overlap-grep (`doubly robust|propensity|parallel trends|Sant'?Anna|multiplier
+bootstrap|cross-fitting`) returns `PROXIMAL`'s DR module, `PPSCM`, `MICROSYNTH`,
+`SSC`, `BEAST`, `SEQ_SDID`. Adjudicated:
+
+- **Genuine gap.** No estimator in `mlsynth` does *identification-level* double
+  robustness (PT-or-SC), and nothing implements a Sant'Anna--Zhao-style
+  covariate-conditional DR DiD at all (`grep "Sant'Anna"` over non-test source is
+  empty). `PROXIMAL`'s DR is a different double robustness (outcome bridge vs
+  treatment bridge, Qiu et al. 2024) on aggregate proximal panels.
+- **Closest sibling: `SCD`** (Rincon & Song 2026, Synthetic Control with
+  Differencing). Same data shape (grouped microdata / repeated cross-sections),
+  same fixed-`T`, `sqrt(n)`-in-individuals regime, and the same
+  differencing-plus-SC combination. `SCD` has *no covariates*, uses simplex
+  weights on the differenced pre-period, and inverts influence functions rather
+  than bootstrapping. In the no-covariate limit the two nearly coincide -- which
+  is both the strongest cross-check available and the clearest overlap risk.
+- Also adjacent: `DSC` (Gunsilius 2023 -- the paper's own empirical benchmark,
+  already ported, already benchmarked on this data), `MICROSYNTH` (individual-level
+  balancing, selection-on-observables), `SDID` / `MASC` (DiD+SC hybrids, aggregate).
+- **Naming.** `DSC`, `SCD`, `DPSC` and `DROSC` are all taken; `DRSC` would read as
+  a typo for `DROSC`. Prefer `DRDIDSC` (or another unambiguous acronym) and say
+  in the docstring that it is unrelated to `DROSC`.
+
+### Implementability & cost
+
+Pure NumPy/SciPy. No solver: the SC weights are an OLS solve, not a QP, because
+nonnegativity is deliberately dropped. Local linear regression on a scalar
+covariate, `L`-fold cross-fitting, and a 500-replication multiplier bootstrap that
+refits every nuisance under the weighted empirical operator. The only piece with
+no Python reference is the MSE-optimal bandwidth the paper takes from `nprobust`
+(Calonico--Cattaneo--Farrell); a Fan--Gijbels rule-of-thumb times the paper's
+`n^{1/5 - 1/3.5}` undersmoothing factor is a defensible substitute, and the paper
+states bandwidth sensitivity is mild -- expose `bandwidth` in the config either way.
+
+Cost: roughly 3--4 days for the panel + repeated-cross-section cases with the
+bootstrap and full test layering; staggered adoption (Section 5) is another day
+and should be deferred to a follow-up. The genuinely fiddly parts are (a) the
+bootstrap having to re-run the *nuisance* fits, not just reweight the moment,
+(b) cross-fitting interacting with the per-cell partition on discrete covariates,
+and (c) deciding the public estimand -- the paper reports nine per-cell ATTs and
+never aggregates them.
+
+### Replication path -- weak, and this is the crux
+
+- **Path A is not reachable from repo data.** `basedata/dube_minwage.parquet`
+  (already here, used by `benchmarks/cases/dsc_dube.py`) is the `DiSCo` package's
+  `dube` extract: `(time_col, id_col, y_col)` only, 34 states x 1998--2004,
+  subsampled to 250 draws per state-year. Table 1 needs household age, education
+  count and child count, which that file does not carry -- so reproducing the nine
+  cells means reconstructing a CPS/IPUMS extract to Dube's household definitions.
+  Legitimate under scenario-1 rules (documented reconstruction counts as a pass),
+  but matching estimates like `-0.636 (-1.949, 1.287)` to display precision with
+  no author code is not realistic. The only durable claim is the qualitative one:
+  all nine intervals cover zero.
+- **Path B is not self-contained either.** DGP1--3 are calibrated to the authors'
+  imputed CPS panel (factor loadings from a matrix-completion fill of their own
+  data), which is not published. The *structure* is fully specified, though --
+  factor model, `w_g(x) = 0.2 + 0.8 * softmax((g - N_G - 1)x)`, treatment effect
+  scaled off `sin(2 pi x)` -- so it re-implements cleanly on a substitute panel.
+  Target the geometry rather than the cells: negligible bias, SD falling at
+  `n^{-1/2}` across `n = 1000/2000/3000`, bootstrap coverage near 0.95 under all
+  three DGPs, and -- the claim that matters -- a plain DR-DiD biased under DGP1
+  while this estimator is not, and a pure SC estimator biased under DGP2.
+- **The strong anchor is cross-validation against `pedrohcgs/DRDID`.** Set
+  `N_G = 1` and `w = 1` and the estimator collapses to Sant'Anna--Zhao DR DiD. With
+  a *discrete* covariate the local polynomial degenerates to cell means and a
+  saturated DRDID does too, so the two should agree to machine precision. `DRDID`
+  is a GitHub install, which is the route that works in this sandbox
+  (`agents_r_environment.md`). Make this the acceptance gate for any build.
+- Second anchor, no reference needed: with no covariates the estimator must equal
+  equation (4), `dYbar_1 - sum_g w_g dYbar_g`, computable in closed form.
+
+### Findings from the feasibility probe (keep these)
+
+Ran the no-covariate special case (eq. 4) on `basedata/dube_minwage.parquet` with
+the paper's own six donors (VA, NH, MD, UT, MI, OH), AK treated, 1998--2003:
+
+```
+T = 6, N_G = 6  ->  M is 5x5, square: the weight system is EXACTLY identified
+weights: VA 1.154, NH 0.708, MD -1.059, UT 0.438, MI 1.650, OH -1.892   (sum 1)
+cond(A) = 10.95 ;  eq.(4) ATT = 0.622
+```
+
+The weights interpolate five noisy pre-period differences with zero degrees of
+freedom and land far outside the simplex. Under Assumption PT this is harmless --
+Theorem 1(i) says the weights do not matter. Under Assumption SC, which is the
+whole selling point, it is the estimator, and it is the non-orthogonal branch with
+the harder variance. The paper's own application sits exactly at `T = N_G`, its
+footnote 4 concedes the `T < N_G` case needs a penalty and defers it to future
+work, and its nine intervals are correspondingly wide (one is
+`(-5.667, 2.471)`). Any build should ship a conditioning/extrapolation diagnostic
+and should probably offer an optional ridge or simplex restriction on the weight
+solve, flagged as a deviation from the paper.
+
+### Caveats
+
+- The six donors are chosen by reading off Gunsilius's estimated weights -- a
+  data-driven donor selection performed outside the method, whose inference does
+  not account for it. The `T >= N_G` requirement is what forces the pruning.
+- No code, no data, recent preprint, single empirical application whose headline
+  result is a null. Nothing here is *wrong*, but there is no published number this
+  library could be pinned to.
+- Genuine value is the identification-robustness argument, not a demonstrated
+  accuracy edge: the paper never shows the estimator beating a competent DiD or SC
+  baseline on real data, only that it stays valid in simulations where each
+  baseline in turn is invalid.
+- Practitioner reach: state- or region-level policy evaluated on survey microdata
+  (CPS, ACS, PSID, NLSY) or firm-level digital-trace panels, where `T` is short,
+  groups are few, individuals are many, and the analyst has real covariates and no
+  confidence in parallel trends. That regime is genuinely under-served in the
+  library -- `SCD` is the only current answer and it ignores covariates.
+
+### Verdict
+
+Prototype-first, not build-now. The gap is real and the method fits the library's
+micro-panel door, but validation is the binding constraint: no reference code, a
+Path-A table that needs data the repo does not have, and a Path-B DGP calibrated
+to an unpublished panel. Run `/replicate` with the `DRDID` collapse as the
+acceptance gate (`N_G = 1`, discrete `X`, machine-precision agreement) plus the
+eq.(4) no-covariate identity; only if both hold, proceed to `/new-estimator` as an
+`SCD`/`DSC` sibling, with the weight-conditioning diagnostic in scope from day one.
 
 ---
 

@@ -81,6 +81,7 @@ At a glance
    Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · BPSCS (spatial, unknown which) · SPOTSYNTH (unknown which) · ISCM (outside hull)
    Nonstationary / spurious trend?      ─► SBC · HSC
    Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA · BFSC (Bayesian, credible band)
+   Donors right in shape, wrong in TIMING? ─► DTWSC (warp donor speeds, then SC)
    Nonlinear outcome surface?           ─► NSC
    Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)

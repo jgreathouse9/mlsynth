@@ -578,6 +578,7 @@ class DesignResult(MlsynthResult):
 # BaseEstimatorConfig from here).
 # ---------------------------------------------------------------------------
 _RELOCATED_CONFIGS = {
+    "DTWSCConfig": "mlsynth.utils.dtwsc_helpers.config",
     "PANGEOConfig": "mlsynth.utils.pangeo_helpers.config",
     "FSCMConfig": "mlsynth.utils.fscm_helpers.config",
     "LEXSCMConfig": "mlsynth.utils.fast_scm_helpers.config",

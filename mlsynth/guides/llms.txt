@@ -41,6 +41,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **DROSC** — Distributionally Robust Synthetic Control estimator.  (config: DROSCConfig)
 - **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
+- **DTWSC** — Dynamic Synthetic Control estimator.  (config: DTWSCConfig)
 - **DesignComparison** — Result of :func:`compare_methods`.
 - **DesignSpec** — A design from any estimator, in the common cross-method currency.
 - **ESC** — Ensemble Synthetic Control estimator.  (config: ESCConfig)

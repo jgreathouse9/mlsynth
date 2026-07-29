@@ -77,6 +77,7 @@ from .estimators.dpsc import DPSC
 from .estimators.dsc import DSC
 from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
+from .estimators.dtwsc import DTWSC
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
 from .estimators.vanillasc import VanillaSC
@@ -178,6 +179,7 @@ __all__ = [
     "VanillaSC",
     "truncated_history", "TruncatedHistoryResult", "TruncatedHistoryWindow",
     "DSCAR",
+    "DTWSC",
     "SPILLSYNTH",
     "CTSC",
     "SNN",
