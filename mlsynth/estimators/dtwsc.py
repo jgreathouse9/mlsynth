@@ -94,6 +94,7 @@ class DTWSC:
             inputs = prepare_dtwsc_inputs(
                 df=self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
+                covariates=self.config.covariates,
             )
             cfg = self.config
             results = run_dtwsc(
@@ -108,6 +109,9 @@ class DTWSC:
                 match_method=cfg.match_method,
                 inference=cfg.inference, placebo_pairs=cfg.placebo_pairs,
                 alpha=cfg.alpha, mse_window=cfg.mse_window,
+                sc_backend=cfg.sc_backend, covariates=cfg.covariates,
+                covariate_windows=cfg.covariate_windows,
+                fit_window=cfg.fit_window,
             )
             pc = cfg.resolved_plot()
             if pc.xlabel is None:

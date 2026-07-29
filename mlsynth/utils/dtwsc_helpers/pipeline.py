@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import numpy as np
+import pandas as pd
 
 from ...config_models import InferenceResults, WeightsResults
 from ...exceptions import MlsynthEstimationError
@@ -55,9 +56,76 @@ def _simplex_weights(target: np.ndarray, donors: np.ndarray) -> np.ndarray:
     return weights / total if total > 0 else np.full(J, 1.0 / J)
 
 
+def _sc_via_vanillasc(y, warped, ctx, backend, covariates,
+                      covariate_windows, fit_window, donor_names):
+    """Fit the synthetic control through :class:`mlsynth.VanillaSC`.
+
+    The paper's synthetic-control half is ``Synth`` with a V-matrix over
+    predictors, which mlsynth already replicates. Rather than reimplement it,
+    rebuild a long panel whose outcome is the WARPED donor series (the treated
+    unit keeps its own, unwarped, path) and hand it over.
+    """
+    from ...estimators.vanillasc import VanillaSC
+
+    times = np.asarray(ctx["time_labels"])
+    n_pre = int(ctx["n_pre"])
+    rows = []
+    treated = str(ctx["treated_label"])
+    for t_i, t in enumerate(times):
+        rows.append({"__unit": treated, "__time": t, "__y": float(y[t_i]),
+                     "__treat": int(t_i >= n_pre)})
+    for j, name in enumerate(donor_names):
+        for t_i, t in enumerate(times):
+            rows.append({"__unit": str(name), "__time": t,
+                         "__y": float(warped[t_i, j]), "__treat": 0})
+    panel = pd.DataFrame(rows)
+    # A warp that compresses a donor past the panel end leaves NaN; VanillaSC
+    # needs a balanced frame, so carry the donor's last observed value forward
+    # rather than dropping the period for every unit.
+    panel["__y"] = panel.groupby("__unit")["__y"].ffill()
+    if panel["__y"].isna().any():
+        panel["__y"] = panel.groupby("__unit")["__y"].bfill()
+
+    if covariates:
+        src = ctx.get("covariate_frame")
+        if src is None:
+            raise MlsynthEstimationError(
+                "DTWSC: covariates were requested but the input frame did not "
+                "carry them; pass them as columns of `df`."
+            )
+        cov = src.copy()
+        cov["__unit"] = cov["__unit"].astype(str)
+        panel = panel.merge(cov, on=["__unit", "__time"], how="left")
+        missing = [c for c in covariates if c not in panel.columns]
+        if missing:
+            raise MlsynthEstimationError(
+                f"DTWSC: covariate column(s) {missing} not found in `df`."
+            )
+
+    cfg = {"df": panel, "outcome": "__y", "treat": "__treat",
+           "unitid": "__unit", "time": "__time", "display_graphs": False,
+           "backend": backend, "inference": False}
+    if covariates:
+        cfg["covariates"] = list(covariates)
+    if covariate_windows:
+        cfg["covariate_windows"] = covariate_windows
+    if fit_window:
+        cfg["fit_window"] = fit_window
+    res = VanillaSC(cfg).fit()
+    cf = np.asarray(res.counterfactual, dtype=float).ravel()
+    w = np.array([float(res.donor_weights.get(str(n), 0.0))
+                  for n in donor_names])
+    total = w.sum()
+    if total > 0:
+        w = w / total
+    return cf, w
+
+
 def _fit_one(y, donors, t_treat, *, warp, smooth, filter_width, poly_order,
              k, buffer, n_burn, ma, default_margin, n_q, n_r, dist_quant,
-             n_iqr, step_pattern1, step_pattern2, match_method):
+             n_iqr, step_pattern1, step_pattern2, match_method,
+             sc_backend="simplex", covariates=None, covariate_windows=None,
+             fit_window=None, ctx=None, donor_names=None):
     """Warp a donor block onto ``y``'s clock and fit the simplex control.
 
     Returns ``(counterfactual, warped, cutoffs, pre_speeds, post_speeds,
@@ -88,15 +156,20 @@ def _fit_one(y, donors, t_treat, *, warp, smooth, filter_width, poly_order,
             pre_speeds[j] = res["weight_a"]
             post_speeds[j] = res["avg_weight"]
 
-    weights = _simplex_weights(y[:t_treat], warped[:t_treat])
-    counterfactual = np.full(y.size, np.nan)
-    for t in range(y.size):
-        row = warped[t]
-        ok = np.isfinite(row)
-        if ok.any():
-            mass = weights[ok].sum()
-            if mass > 0:
-                counterfactual[t] = float(row[ok] @ (weights[ok] / mass))
+    if sc_backend == "simplex":
+        weights = _simplex_weights(y[:t_treat], warped[:t_treat])
+        counterfactual = np.full(y.size, np.nan)
+        for t in range(y.size):
+            row = warped[t]
+            ok = np.isfinite(row)
+            if ok.any():
+                mass = weights[ok].sum()
+                if mass > 0:
+                    counterfactual[t] = float(row[ok] @ (weights[ok] / mass))
+    else:
+        counterfactual, weights = _sc_via_vanillasc(
+            y, warped, ctx, sc_backend, covariates, covariate_windows,
+            fit_window, donor_names)
     return counterfactual, warped, cutoffs, pre_speeds, post_speeds, weights
 
 
@@ -130,8 +203,14 @@ def _run_placebos(inputs, opts, alpha, placebo_pairs, mse_window):
                 continue
             y = y_all[:, target]
             block = y_all[:, others]
-            cf_w, *_ = _fit_one(y, block, t_treat, warp=True, **opts)
-            cf_u, *_ = _fit_one(y, block, t_treat, warp=False, **opts)
+            names = [inputs.donor_names[u] for u in others]
+            ctx = {"time_labels": inputs.time_labels, "n_pre": t_treat,
+                   "treated_label": inputs.donor_names[target],
+                   "covariate_frame": inputs.covariate_frame}
+            cf_w, *_ = _fit_one(y, block, t_treat, warp=True, ctx=ctx,
+                                donor_names=names, **opts)
+            cf_u, *_ = _fit_one(y, block, t_treat, warp=False, ctx=ctx,
+                                donor_names=names, **opts)
             gw, gu = y - cf_w, y - cf_u
             gaps_w.append(gw)
             gaps_u.append(gu)
@@ -166,8 +245,9 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
               dist_quant: float, n_iqr: float, step_pattern1: str,
               step_pattern2: str, match_method: str,
               inference: str = "none", placebo_pairs: int = 0,
-              alpha: float = 0.05,
-              mse_window: Optional[int] = 10) -> DTWSCResults:
+              alpha: float = 0.05, mse_window: Optional[int] = 10,
+              sc_backend: str = "simplex", covariates=None,
+              covariate_windows=None, fit_window=None) -> DTWSCResults:
     """Warp every donor onto the treated unit's clock, then fit the control."""
     y = inputs.y
     donors = inputs.donor_matrix
@@ -178,9 +258,15 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
                 ma=ma, default_margin=default_margin, n_q=n_q, n_r=n_r,
                 dist_quant=dist_quant, n_iqr=n_iqr,
                 step_pattern1=step_pattern1, step_pattern2=step_pattern2,
-                match_method=match_method)
+                match_method=match_method, sc_backend=sc_backend,
+                covariates=covariates, covariate_windows=covariate_windows,
+                fit_window=fit_window)
+    main_ctx = {"time_labels": inputs.time_labels, "n_pre": t_treat,
+                "treated_label": inputs.treated_name,
+                "covariate_frame": inputs.covariate_frame}
     counterfactual, warped, cut_ix, pre_ix, post_ix, weights = _fit_one(
-        y, donors, t_treat, warp=warp, **opts)
+        y, donors, t_treat, warp=warp, ctx=main_ctx,
+        donor_names=inputs.donor_names, **opts)
     names = inputs.donor_names
     cutoffs: Dict[Any, int] = {names[j]: v for j, v in cut_ix.items()}
     pre_speeds: Dict[Any, Any] = {names[j]: v for j, v in pre_ix.items()}
@@ -264,6 +350,8 @@ def run_dtwsc(inputs: DTWSCInputs, *, k: int, warp: bool, smooth: bool,
         "T": inputs.T, "n_pre": int(t_treat), "n_post": int(inputs.n_post),
         "n_donors": inputs.J, "k": int(k), "warp": bool(warp),
         "smooth": bool(smooth), "treated_unit": inputs.treated_name,
+        "sc_backend": str(sc_backend),
+        "covariates": list(covariates) if covariates else None,
         "n_unwarped_tail_cells": int((~np.isfinite(warped)).sum()),
         "n_post_periods_undefined": int(inputs.n_post - n_post_defined),
     }

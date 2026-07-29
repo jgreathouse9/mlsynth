@@ -16,6 +16,7 @@ def prepare_dtwsc_inputs(
     treat: str,
     unitid: str,
     time: str,
+    covariates=None,
 ) -> DTWSCInputs:
     """Pivot a long panel into :class:`DTWSCInputs` via :func:`dataprep`.
 
@@ -58,6 +59,17 @@ def prepare_dtwsc_inputs(
     if not np.isfinite(y).all() or not np.isfinite(donors).all():
         raise MlsynthDataError("DTWSC: outcome contains NaN or infinite values.")
 
+    cov_frame = None
+    if covariates:
+        missing = [c for c in covariates if c not in df.columns]
+        if missing:
+            raise MlsynthDataError(
+                f"DTWSC: covariate column(s) {missing} missing from `df`."
+            )
+        cov_frame = df[[unitid, time, *covariates]].copy()
+        cov_frame = cov_frame.rename(columns={unitid: "__unit", time: "__time"})
+        cov_frame["__unit"] = cov_frame["__unit"].astype(str)
+
     return DTWSCInputs(
         y=y,
         donor_matrix=donors,
@@ -65,4 +77,5 @@ def prepare_dtwsc_inputs(
         time_labels=np.asarray(prepped["time_labels"]),
         n_pre=n_pre,
         treated_name=prepped.get("treated_unit_name"),
+        covariate_frame=cov_frame,
     )

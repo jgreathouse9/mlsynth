@@ -1054,3 +1054,77 @@ class TestDTWSCPlaceboInference:
         df = make_panel(n_donors=1, seed=50)
         with pytest.raises(MlsynthEstimationError, match="placebo"):
             DTWSC(base_config(df, inference="placebo")).fit()
+
+
+# ==========================================================================
+# The synthetic-control half: delegating to mlsynth's Synth replication
+# ==========================================================================
+class TestSCBackend:
+    """The paper fits ``Synth`` with a V-matrix over 14 special predictors.
+
+    DTWSC's own simplex solve is outcome-only, which overfits the pre-period
+    relative to the reference (0.054 against R's 0.071 on Basque) and inflates
+    the ATT by about 28 percent. ``sc_backend`` routes the synthetic-control
+    half through ``VanillaSC``'s predictor machinery instead, so the paper's
+    specification is reachable.
+    """
+
+    def test_simplex_is_the_default(self):
+        res = DTWSC(base_config()).fit()
+        assert res.metadata["sc_backend"] == "simplex"
+
+    @pytest.mark.parametrize("backend", ["simplex", "outcome-only"])
+    def test_outcome_only_backends_agree_closely(self, backend):
+        """Both fit the same objective, so they must land in the same place."""
+        df = make_panel(seed=60)
+        a = DTWSC(base_config(df, sc_backend="simplex")).fit()
+        b = DTWSC(base_config(df, sc_backend=backend)).fit()
+        assert b.att == pytest.approx(a.att, abs=0.35)
+
+    def test_predictor_backend_changes_the_weights(self):
+        """With covariates the V-matrix backend must not reduce to simplex."""
+        df = make_panel(seed=61)
+        df["x1"] = df.groupby("unit")["y"].transform(
+            lambda s: s.rolling(3, min_periods=1).mean())
+        plain = DTWSC(base_config(df, sc_backend="simplex")).fit()
+        withcov = DTWSC(base_config(df, sc_backend="malo",
+                                    covariates=["x1"])).fit()
+        assert np.isfinite(withcov.att)
+        assert withcov.metadata["sc_backend"] == "malo"
+        w1 = np.array(list(plain.donor_weights.values()))
+        w2 = np.array(list(withcov.donor_weights.values()))
+        assert not np.allclose(w1, w2, atol=1e-8)
+
+    def test_the_backend_receives_the_warped_donors_not_the_raw_ones(self):
+        """The whole point: the SC half must see the resampled series."""
+        df = make_panel(seed=62, stretch=1.5)
+        warped = DTWSC(base_config(df, sc_backend="outcome-only")).fit()
+        raw = DTWSC(base_config(df, sc_backend="outcome-only",
+                                warp=False)).fit()
+        assert not np.allclose(warped.warped_donor_matrix,
+                               raw.warped_donor_matrix)
+        assert warped.pre_rmse != pytest.approx(raw.pre_rmse, abs=1e-9)
+
+    def test_covariates_without_a_predictor_backend_is_refused(self):
+        """Silently ignoring predictors would misreport what was fit."""
+        with pytest.raises(MlsynthConfigError, match="sc_backend"):
+            DTWSC(base_config(sc_backend="simplex", covariates=["x1"]))
+
+    @pytest.mark.parametrize("bad", ["synth", "abadie", ""])
+    def test_unknown_backends_are_rejected(self, bad):
+        with pytest.raises(MlsynthConfigError):
+            DTWSC(base_config(sc_backend=bad))
+
+    def test_a_missing_covariate_column_is_reported(self):
+        with pytest.raises((MlsynthDataError, MlsynthEstimationError,
+                            MlsynthConfigError)):
+            DTWSC(base_config(sc_backend="malo",
+                              covariates=["not_a_column"])).fit()
+
+    def test_placebo_inference_uses_the_configured_backend(self):
+        """A band built on a different estimator than the point estimate
+        would not be a placebo distribution for that estimate."""
+        res = DTWSC(base_config(sc_backend="outcome-only",
+                                inference="placebo", placebo_pairs=0)).fit()
+        assert res.inference is not None
+        assert res.metadata["sc_backend"] == "outcome-only"

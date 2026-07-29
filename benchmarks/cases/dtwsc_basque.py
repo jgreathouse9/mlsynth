@@ -9,13 +9,22 @@ The reference dump is not committed (it needs a live R + ``Synth`` toolchain),
 so this case reads it when present and reports ``nan`` for the reference-backed
 quantities when it is absent -- the pure-Python invariants below still run.
 
-Scope note. The reference fits its synthetic control through R's ``Synth`` with
-the full 14-predictor Abadie specification; mlsynth's DTWSC fits an
-outcome-only simplex control on the warped donors. The two therefore agree on
-the *warp* -- which is what this case pins -- and not on the SC weights. The
-warp-level agreement (``cutoff``, first-phase speeds) is the numerically tight
-comparison; see ``docs/replications/dtwsc.rst`` for the end-to-end numbers
-obtained by running R's ``Synth`` on mlsynth's warped donors.
+What this case pins, and why each row is where it is:
+
+* The warp, against the R dump -- ``cutoff`` and the first-phase speeds. This
+  is the tight structural comparison.
+* The synthetic-control half, against the reference's own numbers, using
+  ``sc_backend="mscmt"`` with the paper's 14 predictors. The UNWARPED arm
+  reproduces R's standard-SC result essentially exactly (pre-RMSE 0.0881 vs
+  0.0886, ATT -0.6026 vs -0.6027), which is what establishes that the
+  delegation to mlsynth's Synth replication is faithful.
+* The WARPED arm still differs (0.0601 / -0.6696 against R's 0.0705 /
+  -0.5579). That residual is isolated to the Savitzky-Golay preprocessing:
+  the reference pads each series with an ``auto.arima`` forecast before
+  filtering where mlsynth edge-pads, which leaves 11 of 16 donors with
+  bit-exact speeds rather than 16. Feeding mlsynth's warp into R's own
+  ``Synth`` gives 0.0705 / -0.5592, so the warp and the SC half are each
+  correct in isolation; only the filter's edge treatment is not.
 """
 from __future__ import annotations
 

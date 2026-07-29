@@ -26,6 +26,9 @@ class DTWSCInputs:
     n_pre : int
         Number of pre-treatment periods.
     treated_name : Any
+    covariate_frame : pd.DataFrame, optional
+        Long ``(__unit, __time, <covariates>)`` frame carried through for the
+        predictor backends; ``None`` when no covariates were requested.
     """
 
     y: np.ndarray
@@ -34,6 +37,7 @@ class DTWSCInputs:
     time_labels: np.ndarray
     n_pre: int
     treated_name: Any
+    covariate_frame: Any = None
 
     @property
     def T(self) -> int:
