@@ -38,8 +38,21 @@ therefore still caught. The full sweep lives in
 ``run_benchmarks``; ``python benchmarks/reference/song_ml_ascm/run_full_sweep.py``
 runs all 1024.
 
-Agreement is asserted as a *distance* from the published values, so each row reads
-as "how far apart are we" and cannot be quietly re-fitted if it drifts.
+Every row is a *distance*, so it reads as "how far apart are we" and cannot be
+quietly re-fitted if it moves.
+
+The rows come in two families, against two different references, and keeping them
+apart is the point. ``live_*`` rows compare mlsynth to a live augsynth 0.2.0 run
+at the pinned commit; ``published_*`` rows compare it to the authors'
+``main_result.csv``. The first asks whether mlsynth implements this
+specification, the second whether the published artifact was produced by this
+version of it. A third row, ``published_vs_live_att_max_diff``, compares the two
+references to each other and involves no mlsynth code at all.
+
+Collapsing these into one number would force a single tolerance loose enough to
+swallow the known drift, and a real regression in mlsynth could then hide inside
+it. Split, the arithmetic is checkable: the published distance is bounded by the
+live distance plus the drift.
 
 An important correction, recorded because an earlier version of this case got it
 wrong. The disagreements below are NOT mlsynth against augsynth. On every cell
@@ -50,8 +63,18 @@ published artifact against the pinned package.
 
 The gap is concentrated in the 2016 heating year (mean |diff| 0.20 against ~0.01
 for every other year) and in the particulate series, and it reaches 1.45 on an
-ATT of ~25, about 6 percent. Across all 1024 cells, 54 percent agree with the
-published values to 1e-6 and 70 percent to 1e-5; the rest are almost all 2016.
+ATT of ~25, about 6 percent. Across all 1024 cells, 70 percent agree with the
+published values to 1e-5.
+
+The per-year breakdown is worth stating exactly, because it is sharper than "the
+disagreement is concentrated in 2016" suggests and sharper than an earlier note
+here claimed. 2016 does not merely disagree more often -- *none* of its 128 cells
+reproduces to 1e-5, where every other year sits between 77 and 84 percent. So
+there are two things going on, not one: a broad ~20 percent tail present in every
+year, and 2016 failing wholesale. Only the second is year-specific, and 2016
+accounts for about 40 percent of the non-reproducing cells rather than for
+almost all of them.
+
 The pre-treatment imbalance agrees everywhere to 6e-4, so the same optimum
 *value* is reached even where the reported effect differs.
 
@@ -121,8 +144,15 @@ POLLUTANTS = ["SO2wn", "NO2wn", "PM2.5wn", "PM10wn", "O3_8hwn", "COwn",
               "Ox", "Oxwn"]
 
 
-def _pre_fit_l2(panel, donors, group, year, pollutant):
-    """augsynth's ``l2_imbalance``: the pre-period norm on centered outcomes."""
+def _fit_diagnostics(panel, donors, group, year, pollutant):
+    """``(l2_imbalance, selected ridge penalty)`` for one cell.
+
+    Both come off the same fit, since augsynth reports both (``l2_imbalance``
+    and ``lambda``) and refitting to get the second would double the case's cost.
+    The penalty is worth comparing in its own right: it is the quantity that
+    drifted between the authors' augsynth and the pinned one, so it localises a
+    disagreement that the ATT alone only registers.
+    """
     from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
     sub = _cell(panel, donors, group, year, pollutant)
     piv = sub.pivot(index="ID", columns="date", values=pollutant).sort_index()
@@ -133,14 +163,37 @@ def _pre_fit_l2(panel, donors, group, year, pollutant):
     y_pre, Y0_pre = Y[trt][0][:n_pre], Y[~trt][:, :n_pre].T
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        w = ridge_augment_weights(y_pre, Y0_pre).W
+        fit = ridge_augment_weights(y_pre, Y0_pre)
     mu = Y0_pre.mean(axis=1)
-    return float(np.sqrt(np.sum(((y_pre - mu) - (Y0_pre - mu[:, None]) @ w) ** 2)))
+    l2 = float(np.sqrt(np.sum(
+        ((y_pre - mu) - (Y0_pre - mu[:, None]) @ fit.W) ** 2)))
+    return l2, float(fit.lambda_)
+
+
+def _pre_fit_l2(panel, donors, group, year, pollutant):
+    """augsynth's ``l2_imbalance``: the pre-period norm on centered outcomes."""
+    return _fit_diagnostics(panel, donors, group, year, pollutant)[0]
 
 
 def _donors():
     return [d for d in
             (_REF / "donor_pool.txt").read_text().split("\n") if d.strip()]
+
+
+def _live_gold():
+    """The live augsynth 0.2.0 run over the same 30 cells, or ``None``.
+
+    Regenerate with ``Rscript benchmarks/reference/song_ml_ascm/reference.R``
+    after ``bash benchmarks/R/install_augsynth.sh``; the output is committed so
+    the case runs without an R toolchain. Returning ``None`` when it is absent
+    keeps a checkout that has lost the file honest -- the live rows go to
+    ``nan`` and fail their tolerances rather than silently reporting only the
+    published comparison.
+    """
+    p = _REF / "gold_live_augsynth.csv"
+    if not p.exists():                          # pragma: no cover - committed
+        return None
+    return pd.read_csv(p)
 
 
 def _cell(panel, donors, group, year, pollutant):
@@ -196,7 +249,10 @@ def run() -> dict:
     out["n_gold_cells"] = float(
         gold.groupby(["city", "year", "pollutant"]).ngroups)
 
+    live = _live_gold()
+
     att_diffs, l2_diffs, fitted, skipped = [], [], 0, 0
+    live_att, live_l2, live_lambda, drift = [], [], [], []
     for group, year, pollutant in strata():
         g = gold[(gold.city == group) & (gold.year == year)
                  & (gold.pollutant == pollutant)]
@@ -205,21 +261,53 @@ def run() -> dict:
             skipped += 1
             continue
         fitted += 1
-        att_diffs.append(abs(res.effects.att - float(g.average_att.iloc[0])))
-        l2_diffs.append(abs(_pre_fit_l2(panel, donors, group, year, pollutant)
-                            - float(g.L2.iloc[0])))
+        published = float(g.average_att.iloc[0])
+        att_diffs.append(abs(res.effects.att - published))
+        l2, lam = _fit_diagnostics(panel, donors, group, year, pollutant)
+        l2_diffs.append(abs(l2 - float(g.L2.iloc[0])))
+
+        # Basis two: the same cell through a LIVE augsynth 0.2.0 run at the
+        # pinned commit. This is the comparison that says whether mlsynth
+        # implements the spec; the published one says whether the artifact was
+        # produced by this version of it. They are different questions.
+        lv = live[(live.group == group) & (live.year == year)
+                  & (live.pollutant == pollutant)] if live is not None else None
+        if lv is not None and not lv.empty:
+            live_att.append(abs(res.effects.att - float(lv.att.iloc[0])))
+            live_l2.append(abs(l2 - float(lv.l2.iloc[0])))
+            live_lambda.append(abs(lam - float(lv["lambda"].iloc[0])))
+            # Reference against reference: no mlsynth code is involved in this
+            # number at all. It is the drift, stated as a quantity rather than
+            # as a claim in a docstring.
+            drift.append(abs(float(lv.att.iloc[0]) - published))
 
     out["n_cells_fitted"] = float(fitted)
     out["n_cells_skipped"] = float(skipped)
-    out["att_max_diff"] = float(np.max(att_diffs)) if att_diffs else float("nan")
-    out["att_mean_diff"] = float(np.mean(att_diffs)) if att_diffs else float("nan")
+    out["published_att_max_diff"] = (
+        float(np.max(att_diffs)) if att_diffs else float("nan"))
+    out["published_att_mean_diff"] = (
+        float(np.mean(att_diffs)) if att_diffs else float("nan"))
     # The claim that holds on every cell, including those where the reported
     # effect drifts: mlsynth reaches the same pre-treatment imbalance the authors
     # report. The same optimum VALUE is found even where the published effect
     # differs, which is what localises the drift to the penalty rather than to
     # the fit.
-    out["pre_fit_l2_max_diff"] = (
+    out["published_l2_max_diff"] = (
         float(np.max(l2_diffs)) if l2_diffs else float("nan"))
+
+    # Basis two, and the decomposition it buys. If the first row is tight and
+    # the third is not, the disagreement with the paper is the artifact's and
+    # not mlsynth's -- and each row fails independently, so a regression in
+    # mlsynth cannot hide behind the drift.
+    out["live_att_max_diff"] = (
+        float(np.max(live_att)) if live_att else float("nan"))
+    out["live_l2_max_diff"] = (
+        float(np.max(live_l2)) if live_l2 else float("nan"))
+    out["live_lambda_max_diff"] = (
+        float(np.max(live_lambda)) if live_lambda else float("nan"))
+    out["published_vs_live_att_max_diff"] = (
+        float(np.max(drift)) if drift else float("nan"))
+    out["n_live_cells"] = float(len(live_att))
 
 
     # The interval columns, which exist only because jackknife+ was ported. Two
@@ -248,24 +336,63 @@ def run() -> dict:
     return out
 
 
+# Tolerances for the live-augsynth rows. Set from the observed agreement with
+# headroom for a different BLAS, not from a round number: the simplex QP is
+# solved by different exact solvers on the two sides (quadprog in augsynth,
+# an active-set method here), and ~1e-7 is that floor rather than a modelling
+# difference. Filled in from a measured run; see the replication page.
+_LIVE_ATT_TOL = 1e-6
+_LIVE_L2_TOL = 1e-6
+_LIVE_LAMBDA_TOL = 1e-9
+
+# Two reference bases, kept apart on purpose. Rows prefixed ``live_`` compare
+# mlsynth against a live augsynth 0.2.0 run at the pinned commit and answer "does
+# mlsynth implement this spec"; rows prefixed ``published_`` compare it against
+# the authors' main_result.csv and answer "was that artifact produced by this
+# version of the spec". Collapsing them into one number would force a single
+# tolerance loose enough to hide a real regression in the first question behind
+# the known drift in the second.
 EXPECTED = {
     "n_donors": (37.0, 0.5),
     "n_gold_cells": (1024.0, 0.5),
     "n_cells_fitted": (30.0, 0.5),
     "n_cells_skipped": (0.0, 0.5),
-    # Distances from the PUBLISHED values, which drift from the pinned package
-    # (see the module docstring). Pinned at what is actually observed so a real
-    # regression still moves them, and explicitly NOT presented as agreement.
-    "att_max_diff": (0.919, 0.05),
-    "att_mean_diff": (0.035, 0.02),
-    # Holds on every cell, including the 2016 ones whose published effect drifts.
-    "pre_fit_l2_max_diff": (0.0, 1e-4),
-    # Measured, not targeted. Recorded so the size of the non-uniqueness is
-    # visible rather than hidden; a large change here is worth investigating even
-    # though agreement is not expected.
-    # The claim that holds tightly: the fraction of the 30 strata reproducing the
-    # published value to 1e-5. Most do; the 2016 cells are the exceptions.
+    "n_live_cells": (30.0, 0.5),
+
+    # --- basis one: live augsynth 0.2.0 at commit 7a90ea48 (cross-validation).
+    # Tight, because this is agreement and not an estimate of it. These are the
+    # rows that must not be loosened; if one of them moves, mlsynth moved.
+    "live_att_max_diff": (0.0, _LIVE_ATT_TOL),
+    "live_l2_max_diff": (0.0, _LIVE_L2_TOL),
+    # The penalty itself, which is the quantity that drifted between the authors'
+    # augsynth and the pinned one. Comparing it localises a disagreement that the
+    # ATT alone only registers as a number being different.
+    "live_lambda_max_diff": (0.0, _LIVE_LAMBDA_TOL),
+
+    # --- basis two: the authors' published main_result.csv (Path A).
+    # Loose, and pinned at what is actually observed rather than at zero, so a
+    # real regression still moves them. Explicitly NOT presented as agreement.
+    "published_att_max_diff": (0.919, 0.05),
+    "published_att_mean_diff": (0.035, 0.02),
+    # This one is tight even against the published artifact: mlsynth reaches the
+    # same pre-treatment imbalance the authors report on every cell, including
+    # the 2016 ones whose reported effect drifts. The same optimum VALUE is
+    # found where the reported effect differs, which is what localises the drift
+    # to the penalty rather than to the fit.
+    "published_l2_max_diff": (0.0, 1e-4),
+    # The fraction of the 30 strata reproducing the published value to 1e-5.
+    # Most do; the 2016 cells are the exceptions.
     "frac_cells_within_1e5": (0.867, 0.07),
     "average_att_bound_max_diff": (0.0, 1e-5),
+
+    # --- the drift itself: reference against reference, no mlsynth code in it.
+    # This is what makes the two-basis structure worth its cost. With only the
+    # published basis, "mlsynth disagrees with the paper" and "the paper's
+    # artifact disagrees with its own package" are the same number and cannot be
+    # told apart. Here they are three rows, and the arithmetic is checkable:
+    # published_att_max_diff is bounded by live_att_max_diff plus this.
+    "published_vs_live_att_max_diff": (0.919, 0.05),
+
+    # Their headline finding, which survives all of the above.
     "heating_raises_pm25": (1.0, 0.5),
 }

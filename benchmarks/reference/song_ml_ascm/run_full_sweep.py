@@ -7,14 +7,22 @@ The routine benchmark (``benchmarks/cases/song_ml_ascm.py``) pins a stratified
 30-cell subset so it stays cheap. This runs the whole design: 8 heating years x
 8 treatment groups x 16 pollutant series, the same grid their ``main_result.csv``
 contains. It writes one row per cell to ``full_sweep.csv`` and prints a summary
-split by whether the pre-treatment fit is well conditioned.
+split by heating year.
 
-The split matters. Where the treated unit is an almost exact convex combination of
-the donors the simplex optimum is not unique, so two solvers can reach the same
-objective value and disagree on the post-treatment extrapolation. Pooling those
-cells with the rest would report a max disagreement of ~1 and hide the fact that
-the well-conditioned cells agree to ~1e-6. Cells are classified by their gold
-``Scaled_L2``, i.e. by conditioning, not by whether they happened to disagree.
+Split by year because that is where the disagreement lives, and finding that out
+is what this sweep is for. An earlier version split on the gold ``Scaled_L2``
+instead, on the theory that near-perfectly-fitting cells have a non-unique simplex
+optimum and two solvers can therefore reach the same objective value while
+disagreeing on the extrapolation. That theory was fitted to two cells and this
+sweep refuted it: the worst-disagreeing cells are well conditioned, with gold
+``Scaled_L2`` between 0.25 and 0.60. The pattern is temporal, not geometric --
+2016 has a mean |diff| of 0.20 against ~0.01 for every other year, and a max of
+1.45 -- which points at reference-version drift, since the authors ran whatever
+augsynth was current in 2022-2023.
+
+The pre-treatment imbalance agrees to 6.2e-4 everywhere, 2016 included. The same
+optimum *value* is reached even where the reported effect differs, which is what
+localises the drift to the penalty rather than to the fit.
 
 ``--inference`` additionally computes jackknife+ bounds. That costs one refit per
 pre-treatment period per cell -- roughly 25 on these windows, so about 25,000
@@ -34,8 +42,12 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parents[1]))          # benchmarks/ importable
 
 from cases.song_ml_ascm import (            # noqa: E402
-    GROUPS, POLLUTANTS, WINDOWS, _DEGENERATE_SCALED_L2, _PANEL, _REF,
-    _donors, _pre_fit_l2, fit_cell)
+    GROUPS, POLLUTANTS, WINDOWS, _PANEL, _REF, _donors, _pre_fit_l2, fit_cell)
+
+#: The heating year whose published values drift from the pinned package. Named
+#: rather than inlined so the summary below and the case docstring cannot
+#: disagree about which year is the exception.
+DRIFT_YEAR = 2016
 
 
 def main() -> int:
@@ -105,22 +117,31 @@ def main() -> int:
     if ok.empty:                                  # pragma: no cover
         return 1
 
-    well = ok[ok.gold_scaled_l2 >= _DEGENERATE_SCALED_L2]
-    degen = ok[ok.gold_scaled_l2 < _DEGENERATE_SCALED_L2]
-    print(f"\nwell-conditioned cells ({len(well)}):")
-    print(f"    ATT   max |diff| {well.att_diff.max():.3e}   "
-          f"mean {well.att_diff.mean():.3e}")
-    print(f"    preL2 max |diff| {well.l2_diff.max():.3e}")
-    print(f"\nnear-degenerate cells ({len(degen)}), gold Scaled_L2 < "
-          f"{_DEGENERATE_SCALED_L2}:")
-    if not degen.empty:
-        print(f"    ATT   max |diff| {degen.att_diff.max():.3e}   "
-              f"mean {degen.att_diff.mean():.3e}")
-        print(f"    preL2 max |diff| {degen.l2_diff.max():.3e}   "
-              f"<- the same optimum VALUE is still reached")
-        worst = degen.loc[degen.att_diff.idxmax()]
-        print(f"    worst: {worst.group} / {worst.year} / {worst.pollutant}"
-              f"  Scaled_L2 {worst.gold_scaled_l2:.4f}")
+    print("\nATT |diff| vs the published values, by heating year:")
+    print(f"    {'year':>6}  {'max':>10}  {'mean':>10}  {'<=1e-5':>7}  {'n':>4}")
+    for year, g in ok.groupby("year"):
+        mark = "  <- drift" if year == DRIFT_YEAR else ""
+        print(f"    {year:>6}  {g.att_diff.max():>10.3e}  "
+              f"{g.att_diff.mean():>10.3e}  "
+              f"{(g.att_diff <= 1e-5).mean():>7.1%}  {len(g):>4}{mark}")
+
+    rest = ok[ok.year != DRIFT_YEAR]
+    print(f"\n    all years   within 1e-5: {(ok.att_diff <= 1e-5).mean():.1%}")
+    print(f"    excl {DRIFT_YEAR}   within 1e-5: "
+          f"{(rest.att_diff <= 1e-5).mean():.1%}")
+
+    # The row that separates "the fit differs" from "the reported effect
+    # differs". It holds everywhere, drift year included.
+    print(f"\npre-treatment L2 max |diff| (all {len(ok)} cells): "
+          f"{ok.l2_diff.max():.3e}")
+    print("    the same optimum VALUE is reached even where the effect differs")
+
+    worst = ok.loc[ok.att_diff.idxmax()]
+    print(f"\nworst cell: {worst.group} / {worst.year} / {worst.pollutant}"
+          f"  |diff| {worst.att_diff:.4f}  gold Scaled_L2 "
+          f"{worst.gold_scaled_l2:.4f}")
+    print("    a well-conditioned cell -- which is why the non-uniqueness "
+          "explanation was dropped")
     if args.inference and "bound_diff" in ok:
         b = ok.bound_diff.dropna()
         if not b.empty:

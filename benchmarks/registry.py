@@ -135,6 +135,7 @@ CASES = {
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
     "ascm_jackknife_plus": "benchmarks.cases.ascm_jackknife_plus",  # cross-val vs augsynth inf_type="jackknife+": per-period bounds on Kansas, both branches
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
+    "song_ml_ascm": "benchmarks.cases.song_ml_ascm",          # Path A (Song et al. 2023 published main_result.csv, loose) + cross-val vs live augsynth 0.2.0 (tight): China clean winter heating, 30 stratified cells
     "pensynth_prop99": "benchmarks.cases.pensynth_prop99",  # cross-val vs LIVE pensynth wsoll1 (Rscript+LowRankQP) on Prop 99 penalized SC (skips if absent)
     "microsynth_seattle": "benchmarks.cases.microsynth_seattle",  # cross-val vs R microsynth panel method (Seattle DMI)
     "microsynth_baltimore": "benchmarks.cases.microsynth_baltimore",  # cross-val vs R microsynth panel method (Baltimore BCIC, Lawrence et al. 2026): identified quantities exact, counterfactual under-identified (max-ESS vs LowRankQP)
