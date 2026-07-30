@@ -23,6 +23,7 @@ from ...config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
+from .covariates import adjust_outcome_for_covariates
 from .event_study import estimate_event_study_sdid
 from .setup import apply_ddd_transform, prepare_sdid_inputs
 from .structures import (
@@ -236,6 +237,7 @@ def run_sdid(
     intercept_adjust: bool = False,
     subgroup=None,
     target_subgroup=None,
+    covariates=None,
 ) -> SDIDResults:
     """End-to-end SDID pipeline producing a typed ``SDIDResults`` object.
 
@@ -243,9 +245,23 @@ def run_sdid(
     (2024) triple-difference-to-DID demeaning (:func:`apply_ddd_transform`) and
     SDID is run on the transformed outcome over the target subgroup -- the
     synthetic triple difference (SC-DDD).
+
+    When ``covariates`` is given, the outcome is first adjusted by the Kranz
+    (2022) two-step projection (:func:`adjust_outcome_for_covariates`) and
+    ordinary SDID runs on the adjusted outcome. The two options are mutually
+    exclusive; ``SDIDConfig`` rejects the combination.
     """
 
     method_name = "SDID"
+    if covariates:
+        df = df.copy()
+        adjusted_name = f"{outcome}__x_adjusted"
+        df[adjusted_name] = adjust_outcome_for_covariates(
+            panel=df, unit=unitid, time=time, outcome=outcome, treat=treat,
+            covariates=list(covariates))
+        outcome = adjusted_name
+        method_name = "SDID-X"
+
     if subgroup is not None:
         df, outcome = apply_ddd_transform(
             df=df, outcome=outcome, treat=treat, unitid=unitid, time=time,

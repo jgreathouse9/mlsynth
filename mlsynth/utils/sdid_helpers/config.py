@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
@@ -86,6 +86,67 @@ class SDIDConfig(BaseEstimatorConfig):
             "out. Required when ``subgroup`` is set."
         ),
     )
+
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Time-varying covariates to adjust the outcome for, Kranz (2022, "
+            "the xsynthdid R package). SDID has no slot for controls -- it "
+            "absorbs unit and time effects and nothing else -- so they enter in "
+            "a first step instead: the covariate coefficients from "
+            "'outcome ~ covariates | unit + time', fit on the rows with no "
+            "treatment, are subtracted from the outcome across the whole panel, "
+            "and ordinary SDID runs on the result. The unit and time effects "
+            "are left in, since SDID handles those itself. Columns must be "
+            "numeric. None (default) -> no adjustment, and the estimate is "
+            "unchanged from earlier versions."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _check_covariates(self) -> "SDIDConfig":
+        if self.covariates is None:
+            return self
+        if len(self.covariates) == 0:
+            raise MlsynthConfigError(
+                "covariates is an empty list; pass None (the default) to run "
+                "SDID without a covariate adjustment.")
+        missing = [c for c in self.covariates if c not in self.df.columns]
+        if missing:
+            raise MlsynthConfigError(
+                f"covariate column(s) {missing} are not in df; available: "
+                f"{list(self.df.columns)}.")
+        if self.outcome in self.covariates:
+            raise MlsynthConfigError(
+                f"the outcome column '{self.outcome}' is also listed as a "
+                "covariate; adjusting the outcome for itself would zero it out.")
+        if self.treat in self.covariates:
+            raise MlsynthConfigError(
+                f"the treatment column '{self.treat}' is listed as a covariate; "
+                "the adjustment would absorb the effect being estimated.")
+        import pandas.api.types as ptypes
+        non_numeric = [c for c in self.covariates
+                       if not ptypes.is_numeric_dtype(self.df[c])]
+        if non_numeric:
+            raise MlsynthConfigError(
+                f"covariate column(s) {non_numeric} are not numeric. SDID's "
+                "covariate adjustment fits a linear projection, so each column "
+                "must be a numeric measurement; encode categoricals as "
+                "indicator columns yourself if that is what you intend.")
+        # SC-DDD collapses the panel over the subgroup dimension before SDID
+        # runs, so a (unit, time) covariate has no single row to attach to --
+        # it would have to be adjusted on the pre-collapse panel (where the
+        # fixed effects are unit-by-subgroup) or the post-collapse one (where
+        # the covariate is no longer defined). Neither is Kranz's estimator, so
+        # the combination is refused rather than silently resolved.
+        if self.subgroup is not None:
+            raise MlsynthConfigError(
+                "covariates and subgroup cannot be combined: SC-DDD mode "
+                "transforms the outcome over the subgroup dimension, leaving no "
+                "(unit, time) panel for the covariate adjustment to be defined "
+                "on. Adjust the outcome yourself before passing it in if you "
+                "need both.")
+        return self
 
     @model_validator(mode="after")
     def _check_ddd(self) -> "SDIDConfig":

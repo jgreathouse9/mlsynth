@@ -26,12 +26,26 @@ optimum:
    ``sqrt(lambda_r) * I`` block beneath the centered design with a zero target,
    so ``||X_aug w - b_aug||^2 == ||X_c w - b_c||^2 + lambda_r ||w||^2``.
 
-Both reduced programs are strictly convex on SDID's panels (the unit program by
-the positive ridge; the time program because the donors outnumber the
-pre-periods), so the optimum is unique and the active-set solution coincides
-with CLARABEL's to solver tolerance -- the Prop 99 ATT is preserved bit-for-bit
-within the pinned benchmark tolerance. Parity is asserted in
+The unit program is strictly convex by its positive ridge, so its optimum is
+unique. The time program is strictly convex only when the donors outnumber the
+pre-periods; with ``N0 <= T0`` the centered design is rank deficient and the
+argmin need not be. ``synthdid`` guards this with an infinitesimal tie-breaker
+(``zeta.lambda = 1e-6 * noise.level``); mlsynth does not, and on the panels
+tested it makes no difference -- adding one moves the ``N0 == T0 == 15`` fixture
+in ``tests/test_sdid_covariates.py`` by 5e-9 -- because the simplex constraint
+pins the solution on its own. Worth knowing rather than assuming, since the
+earlier version of this note claimed the precondition always held.
+
+In both cases the active-set solution coincides with CLARABEL's to solver
+tolerance -- the Prop 99 ATT is preserved bit-for-bit within the pinned
+benchmark tolerance. Parity is asserted in
 ``tests/test_sdid_weights_native.py``.
+
+These are exact solves. ``synthdid`` instead runs projected gradient to a
+stopping rule (``min.decrease = 1e-5 * noise.level``), so the two agree only to
+that rule's residual: usually ~1e-7, but 5e-3 on a ridge-dominated panel where
+the objective near the optimum is nearly flat. See ``TestSynthdidsEarlyStop`` in
+``tests/test_sdid_covariates.py`` for a worked instance.
 """
 
 import numpy as np

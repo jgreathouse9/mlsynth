@@ -1332,7 +1332,28 @@ references do not fully agree with each other.
 
 ## 14. Kranz (2022) two-step SDID (`xsynthdid`)
 
-**Status: Planned (small; surfaced while assessing Kubo et al. 2025, see item 15).**
+**Status: DONE.** Shipped as `SDIDConfig.covariates` (issue #308,
+branch `claude/sdid-covariates`): `mlsynth/utils/sdid_helpers/covariates.py`,
+tests in `mlsynth/tests/test_sdid_covariates.py`, gold from
+`benchmarks/reference/sdid_kranz/reference.R`. The notes below are kept as the
+record of what was planned; two things came out differently in the build and are
+worth carrying forward:
+
+- The description below (taken from Kubo et al.) says "residualise on nuisance
+  fixed effects and run SDID on the residuals". That is not what
+  `adjust.outcome.for.x` does. It subtracts only `X @ beta` and leaves the unit
+  and time effects in the outcome, because SDID constructs its own unit and time
+  weights and handles them itself. Removing the fixed effects too would be a
+  different estimator.
+- Cross-validating the endpoint turned up a `synthdid` fact worth knowing
+  generally: `synthdid_estimate` solves its weight programs by projected
+  gradient and stops at `min.decrease = 1e-5 * noise.level`, while mlsynth
+  solves them exactly. Usually the two agree to ~1e-7, but on a ridge-dominated
+  panel (adjusting away a strong covariate leaves a residual small next to
+  `zeta.omega`, so `omega` sits near the uniform point on a nearly flat surface)
+  the gap reaches 5e-3. mlsynth attains the strictly lower objective. Any future
+  SDID cross-check against R should compare at a tightened `min.decrease`, not
+  at the default -- see `TestSynthdidsEarlyStop`.
 
 ### The idea in one line
 

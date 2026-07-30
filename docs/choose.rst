@@ -809,6 +809,15 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   exposed subgroup -- so the counterfactual is a weighted combination of control
   units rather than a parallel-trends extrapolation across states *and* subgroups.
   Reach for it when, e.g., only one age band in a state is policy-exposed.
+* You have time-varying controls you need to hold fixed -- :doc:`sdid` with
+  ``covariates`` (Kranz 2022). Plain SDID admits unit and time effects and
+  nothing else, so a covariate that moves within a unit over time sits in the
+  residual the synthetic control is matching. The option regresses the outcome
+  on the covariates with unit and time fixed effects, using the rows with no
+  treatment in force, and subtracts the covariate part from the whole panel
+  before the estimator runs. Seasonal dummies are the motivating case. Do not
+  reach for it when the covariate is itself a channel of the treatment effect,
+  which the adjustment would remove along with the confounding.
 
 *Which staggered synthetic control?* Three SC-family methods target this same
 setting on different arguments, and the choice turns on your donor pool, sample

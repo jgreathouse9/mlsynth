@@ -485,6 +485,10 @@ Helper Modules
    :members:
    :undoc-members:
 
+.. automodule:: mlsynth.utils.sdid_helpers.covariates
+   :members:
+   :undoc-members:
+
 .. automodule:: mlsynth.utils.sdid_helpers.weights
    :members:
    :undoc-members:
@@ -592,6 +596,83 @@ SDID (no ``subgroup``) when the treated/control split across units is all you
 need. The transform needs at least one non-target subgroup value in every
 treatment-group-by-time cell to demean by.
 
+Time-varying covariates
+-----------------------
+
+SDID has no slot for control variables. Its whole design is a two-way
+comparison -- unit effects and time effects -- and a covariate that moves within
+a unit over time, such as a state's unemployment rate or a firm's headcount, has
+nowhere to go. If that covariate also drives the outcome, it sits in the
+residual the synthetic control is trying to match, and the estimate absorbs it.
+
+Kranz (2022) handles this by adjusting the outcome before the estimator ever
+runs, in two steps. First, regress the outcome on the covariates with unit and
+time fixed effects,
+
+.. math::
+
+   Y_{it} = \alpha_i + \gamma_t + X_{it}' \beta + \varepsilon_{it},
+
+fitting on the rows with no treatment in force -- every control unit in every
+period, plus the treated units before adoption. Then subtract only the covariate
+part from the outcome, on the whole panel including the treated rows:
+
+.. math::
+
+   \tilde Y_{it} = Y_{it} - X_{it}' \hat\beta .
+
+Ordinary SDID then runs on :math:`\tilde Y`. Three details make this work, and
+each is the opposite of a natural-looking alternative:
+
+The regression is fit on untreated rows but applied everywhere. Fitting on
+untreated rows is what keeps the treatment effect out of :math:`\hat\beta` --
+otherwise the covariate would soak up part of the very effect being estimated.
+Applying it everywhere is what makes the adjustment useful, since the treated
+rows are the ones the estimate depends on.
+
+Only :math:`\hat\beta` is removed, not :math:`\hat\alpha_i` or
+:math:`\hat\gamma_t`. The fixed effects stay in the outcome because SDID
+constructs its own unit and time weights and handles them itself; subtracting
+them here would give a different estimator, not a cleaner one.
+
+The covariates must be numeric and must actually vary within a unit over time. A
+covariate that is constant within units is absorbed by :math:`\alpha_i` and a
+covariate that is constant across units at each date is absorbed by
+:math:`\gamma_t`; either way it contributes nothing and leaves the design rank
+deficient.
+
+To switch this on, pass ``covariates``:
+
+.. code-block:: python
+
+   res = SDID({
+       "df": df, "outcome": "y", "treat": "treated",
+       "unitid": "state", "time": "year",
+       "covariates": ["unemployment", "log_income"],
+   }).fit()
+
+which is exactly equivalent to computing :math:`\tilde Y` yourself and passing
+it as ``outcome``. Omitting ``covariates`` leaves every existing estimate
+unchanged. The option cannot be combined with ``subgroup``: SC-DDD collapses the
+panel over the subgroup dimension, so there is no ``unit x time`` panel left for
+the adjustment to be defined on, and mlsynth refuses the combination rather than
+guessing which panel you meant.
+
+The adjustment is a projection, so it inherits the usual caveat about
+controlling for variables that are themselves affected by the treatment. A
+covariate that responds to the policy is a bad control here for the same reason
+it is in a regression: :math:`\hat\beta` would remove part of the effect along
+with the confounding. Kranz's fit on untreated rows guards against the treated
+units' own response contaminating :math:`\hat\beta`, but it cannot rescue a
+covariate that is a channel of the effect rather than a nuisance.
+
+Verified against Kranz's ``xsynthdid`` at two levels -- the fitted coefficient
+and the adjusted outcome element-wise, then the estimate itself -- in
+`mlsynth/tests/test_sdid_covariates.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/mlsynth/tests/test_sdid_covariates.py>`_,
+against gold captured by `benchmarks/reference/sdid_kranz/reference.R
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/sdid_kranz/reference.R>`_.
+
 Example
 -------
 
@@ -693,6 +774,11 @@ Difference-in-Differences Estimators." `arXiv:2407.09565
 
 Clarke, D., Pailanir, D., Athey, S., & Imbens, G. (2023). "Synthetic
 difference in differences estimation." arXiv preprint.
+
+Kranz, S. (2022). "Synthetic Difference-in-Differences with Time-Varying
+Covariates." Working paper; implemented in the `xsynthdid
+<https://github.com/skranz/xsynthdid>`_ R package. The two-step adjustment
+behind SDID's ``covariates`` option.
 
 .. [Zhuang2024] Zhuang, C. C. (2024). "A Way to Synthetic Triple
    Difference." `arXiv:2409.12353 <https://arxiv.org/abs/2409.12353>`_.
