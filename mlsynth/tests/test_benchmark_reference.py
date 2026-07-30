@@ -23,6 +23,53 @@ _ROOT = Path(__file__).resolve().parents[2]
 _BUNDLE = _ROOT / "benchmarks" / "reference" / "synth_prop99"
 
 
+class TestRegistryCoversEveryCase:
+    """Every case module is reachable from ``benchmarks/registry.py``.
+
+    A case that is written, committed and reviewed but never added to ``CASES``
+    is invisible to ``run_benchmarks.py --all``: it does not run in the routine
+    sweep, so it can rot indefinitely without a single check going red. That is
+    a worse failure than a case that fails, because nothing announces it -- and
+    it is easy to do, since the case file and the registry are separate edits
+    and only the case file is the interesting one to write.
+    """
+
+    @staticmethod
+    def _modules():
+        d = _ROOT / "benchmarks" / "cases"
+        return {p.stem for p in d.glob("*.py") if p.stem != "__init__"}
+
+    @staticmethod
+    def _registered():
+        from benchmarks import registry
+        return {v.rsplit(".", 1)[1] for v in registry.CASES.values()}
+
+    def test_every_case_module_is_registered(self):
+        missing = sorted(self._modules() - self._registered())
+        assert not missing, (
+            "case module(s) not in benchmarks/registry.py CASES, so they never "
+            f"run under --all: {missing}")
+
+    def test_every_registered_case_module_exists(self):
+        """The other direction: a rename that misses the registry."""
+        stale = sorted(self._registered() - self._modules())
+        assert not stale, f"CASES names a module that does not exist: {stale}"
+
+    def test_registry_keys_match_their_module_names(self):
+        """The short name and the module stem are the same word.
+
+        ``run_benchmarks.py --case <name>`` takes the key while every other
+        reference to a case -- docs, the reference bundle directory, this test --
+        uses the module name. Letting them drift apart makes a case findable by
+        one name and not the other.
+        """
+        from benchmarks import registry
+        mismatched = sorted(
+            (k, v) for k, v in registry.CASES.items()
+            if v.rsplit(".", 1)[1] != k)
+        assert not mismatched, f"key != module stem: {mismatched}"
+
+
 def test_loader_returns_values_and_weights():
     ref = load_reference("synth_prop99")
     assert set(ref) >= {"values", "weights"}

@@ -215,6 +215,8 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``ascm_jackknife_plus``
+     - vs augsynth ``inf_type="jackknife+"`` on Kansas: the per-drop held-out errors and counterfactuals, the pointwise bounds under both the default and conservative branches, and the post-period average interval
    * - ``drosc_basque``
      - DROSC vs authors' R ``DRoSC`` (Koo & Guo 2026, ``limSolve::lsei``) on Basque: worst-case estimand τ(λ) and λ=0 weights value-for-value across the robustness sweep
    * - ``propsc_spain``
