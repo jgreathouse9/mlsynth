@@ -1,0 +1,6 @@
+augsynth: 0.2.0
+R: 4.3.3
+t0: 89
+t_final: 105
+n_units: 50
+panel: augsynth::kansas, lngdpcapita ~ treated, progfunc=Ridge, scm=TRUE
