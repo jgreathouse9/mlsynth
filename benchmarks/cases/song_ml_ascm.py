@@ -204,6 +204,13 @@ def _live_gold():
     keeps a checkout that has lost the file honest -- the live rows go to
     ``nan`` and fail their tolerances rather than silently reporting only the
     published comparison.
+
+    That script reads the same ``basedata`` parquet this case does, via
+    ``nanoparquet``, and slices it with the same windows and treatment dates.
+    Duplicating the arithmetic across two languages is a cost worth paying to
+    avoid duplicating the *data*: an earlier comparison in this project ran 33
+    donors on the R side against 37 here because each read its own inputs, and
+    the ``live_*`` rows are what would catch the arithmetic drifting.
     """
     p = _REF / "gold_live_augsynth.csv"
     if not p.exists():                          # pragma: no cover - committed
