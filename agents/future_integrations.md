@@ -1330,6 +1330,131 @@ references do not fully agree with each other.
 
 ---
 
+## 14. Kranz (2022) two-step SDID (`xsynthdid`)
+
+**Status: Planned (small; surfaced while assessing Kubo et al. 2025, see item 15).**
+
+### The idea in one line
+
+Residualise the outcome on nuisance fixed effects first, then run SDID on the
+residuals -- so seasonal and other controls can enter an SDID design that
+otherwise only admits unit and time effects.
+
+### Detail
+
+> Kranz, S. (2022). "Synthetic Difference-in-Differences with Time-Varying
+> Covariates." Package: `skranz/xsynthdid`.
+
+The procedure, as Kubo et al. (2025) describe it:
+
+1. regress `Y_{i,y,q}` on quarter dummies, unit fixed effects and year fixed
+   effects;
+2. take the residuals `Ytilde`;
+3. run ordinary SDID on `Ytilde`.
+
+Kranz shows this outperforms passing the controls to `synthdid` directly when
+there are controls other than individual and time fixed effects -- seasonal
+dummies being the motivating case.
+
+### Gap vs overlap
+
+Genuine gap, and small. `grep -rn "Kranz\|xsynthdid\|residuali" mlsynth/utils/sdid_helpers/
+mlsynth/estimators/sdid.py` returns nothing, and `SDIDConfig` has no
+residualisation or covariate field. Scope is a config option plus a
+pre-processing step on an existing estimator -- comparable to items 12
+(`q_min`/`q_max` for DSC) -- not a new estimator.
+
+`SDID` itself is already cross-validated against the authors' `synthdid` R
+package (`benchmarks/cases/sdid_prop99.py`, agreement pinned to 0.02 packs), so
+only the residualisation step needs new validation.
+
+### Replication path
+
+Cross-validation against `skranz/xsynthdid` directly. Do **not** validate it
+against Kubo et al. (2025) -- see item 15 for why that paper cannot serve as a
+target.
+
+---
+
+## 15. Kubo et al. (2025) wildlife-trade spillover -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. Recorded so the assessment is not repeated.**
+
+### Source
+
+> Kubo, T., Mieno, T., Uryu, S., Terada, S., & Verissimo, D. (2025). "Banning
+> Wildlife Trade Can Boost the Unregulated Trade of Threatened Species."
+> *Conservation Letters* 18:e13077. Replication package:
+> `nies-consplan/wt_policy_spillover` (data included, 58 MB of
+> transaction-level CSVs).
+
+### Why it looked attractive
+
+A rare combination: an SDID application with published effects and confidence
+intervals for three taxa, the full transaction-level data shipped in the repo,
+and the estimation script included. On paper a clean Path A.
+
+### Why it is not worth building
+
+Two independent reasons, either sufficient.
+
+**1. The authors' code does not reproduce the authors' paper.** Running their
+`scm.R` unmodified (R 4.3.3, `synthdid` at HEAD, locale set as their script
+does):
+
+    taxon             scm.R                        published paper
+    water bug         +16.70 [ 12.87, 20.54]       +17.54 [14.03, 21.06]
+    salamander        +12.22 [  1.94, 22.51]       +10.06 [ 2.73, 17.39]
+    freshwater fish    +1.36 [ -5.90,  8.62]        +6.19 [ 0.12, 12.25]
+
+The freshwater-fish row changes the conclusion, not just the digits: the paper
+reports a statistically significant positive spillover, and the shipped code
+gives a point estimate 4.5x smaller with a CI spanning zero.
+
+The likely cause is that the paper describes the Kranz two-step (item 14) --
+residualising on quarter, unit and year fixed effects, citing `xsynthdid` -- and
+`scm.R` calls `synthdid_estimate` on raw panel matrices, with no residualisation
+and no `xsynthdid` anywhere in the repository. So the published numbers appear to
+come from an estimator the replication package does not contain. Until that is
+resolved by the authors there is no stable Path-A target.
+
+**2. Pinning against their code instead would be redundant.** That comparison is
+"mlsynth's SDID equals synthdid's SDID", which `sdid_prop99` already pins on
+Prop 99. A second case asserting the same fact on wildlife data adds coverage of
+panel *shape* (40 quarters, count outcomes, 14-44 donors) but not of behaviour --
+and item 11 is the cheaper way to address shape coverage.
+
+### Findings worth keeping
+
+mlsynth's `SDID` reproduces the authors' code to 3 decimal places on identical
+panels -- 0.0033, 0.0005 and 0.0265 across the three taxa. So the estimator was
+never in question here; only the target was.
+
+Getting there took the one-file-two-readers discipline. Rebuilding the panel in
+Python from the raw CSVs gave a salamander estimate of -17.07 against the
+reference's +12.22 -- a sign flip caused entirely by harness error (a 20-entry
+species-renaming table in `R/case.R`, fiscal-quarter arithmetic with
+`fiscal_start = 2` and a 9-day shift, and a taxon-specific relabelling of the
+exotic *Kirkaldyia*). Exporting the panel matrices from R and feeding mlsynth the
+identical file collapsed the disagreement to 5e-4. Rebuild the *inputs* in the
+reference, never in the port.
+
+One environment note: the data is Japanese-language and the species matching is
+by string. Without `Sys.setlocale(category = "LC_ALL", locale = "C.UTF-8")` --
+which their `scm.R` sets and which is easy to drop when porting -- every species
+silently classifies as "Control" and `panel.matrices` fails with "no variation in
+treatment status".
+
+### If this is ever revisited
+
+The finding in (1) is worth reporting to the authors; it is their defect, not
+mlsynth's, and the exact reproduction is recorded above. Should they publish a
+corrected replication package that reproduces the paper, the case becomes
+attractive again -- but only after item 14 lands, since the paper's stated method
+needs it.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
