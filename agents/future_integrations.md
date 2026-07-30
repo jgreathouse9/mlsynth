@@ -1476,6 +1476,110 @@ needs it.
 
 ---
 
+## 16. Identification-bound diagnostic for synthetic control
+
+**Status: Planned (small, self-contained). Surfaced twice while assessing
+candidate papers; both assessments turned on it.**
+
+### The idea in one line
+
+Report the range of post-treatment effects attainable by *any* synthetic control
+that fits the pre-period nearly as well as the optimum, so a reader can see
+whether an estimate is pinned by the data or merely one of many equally good
+answers.
+
+### Why
+
+Synthetic control reports a point estimate from one weight vector. When the
+donor pool is large relative to the pre-period -- which is the common case in
+applied work, not an edge case -- many weight vectors fit the pre-period almost
+identically and extrapolate to very different post-treatment effects. Nothing in
+the standard output distinguishes "the data pin this number" from "this is one
+draw from a wide set", and placebo inference does not answer it either: placebo
+tests ask whether the gap is large relative to donors, not whether the gap is
+determined.
+
+This came up independently in two paper assessments and decided both:
+
+- Kennedy-Shaffer (2025), MLB shift ban. 24 predictors, 20 donors, 5 pre-periods
+  per player. Three implementations (the paper, its own shipped code, mlsynth)
+  gave OBP effects of 0.075, 0.085 and 0.080 for Corey Seager. All three lie
+  inside the set of controls fitting the pre-period within 2 percent of optimal,
+  which spans [0.074, 0.085]. There is no tolerance at which one is right, so
+  the paper was declined as a benchmark case.
+- Lamba et al. (2023), tiger reserves. Averted forest loss on the headline
+  reserve is 2645 ha published, 1999 ha under the current `tidysynth`, 2825 ha
+  under mlsynth. The 2-percent band is [2768, 2922], the 10-percent band
+  [2594, 3026]; the current `tidysynth` value falls outside even a 50-percent
+  band, which is what identified it as a poor fit rather than a rival answer.
+
+In both cases the bound turned an argument about whose implementation was right
+into a measurement. That is worth having as a first-class output.
+
+### What it is
+
+For a fixed tolerance `eps`, with `w` on the simplex:
+
+    minimise / maximise   tau(w) = y_post - Y0_post @ w
+    subject to            ||y_pre - Y0_pre @ w||^2 <= (1 + eps) * SSR*
+
+where `SSR*` is the minimum attainable pre-period sum of squares. The feasible
+set is convex (a norm-ball intersected with the simplex) and the objective is
+linear, so both ends are exact convex programs -- no sampling, no heuristic. It
+is roughly fifteen lines of cvxpy and runs in milliseconds on the panels above.
+
+### Gap vs overlap
+
+Genuine gap. `grep -rniE "identification|partial.?ident|bound" mlsynth/utils
+--include=*.py` returns nothing of this kind, and no `*Config` carries a
+tolerance-band option. Existing inference modes answer a different question:
+`placebo` and `lto` rank the treated unit against donors, `scpi` / `conformal` /
+`eiv` build prediction intervals under a sampling model, `ttest` debiases the
+ATT. None of them varies the weights subject to a fit constraint.
+
+The nearest relative in spirit is the sensitivity literature rather than
+anything currently implemented.
+
+### Where it should live
+
+Most likely `inference="idbound"` on `VanillaSC`, or a standalone utility under
+`mlsynth/utils/vanillasc_helpers/` callable on any fitted result, since it needs
+only `Y0_pre`, `Y0_post`, `y` and the pre/post split -- not the estimator that
+produced the weights. A standalone utility is probably the better first cut: it
+then applies to ASCM, penalised SC and the rest without touching their configs.
+
+Open design questions, all small:
+
+- which tolerances to report by default (2 / 10 / 25 percent were informative);
+- whether to bound the per-period path as well as the aggregate ATT;
+- whether to express the tolerance in SSR, RMSE, or as a fraction of the
+  treated unit's pre-period variance, which would be scale-free and comparable
+  across panels;
+- what to do when `SSR* == 0` (perfect pre-fit), where a relative tolerance
+  degenerates and an absolute one is needed.
+
+### Validation
+
+No external reference exists, so this is neither Path A nor cross-validation.
+Validate by construction instead, which is stronger here: the bound has exact
+properties that can be asserted rather than compared. The optimum must lie
+inside every band; bands must be nested in `eps`; width must be monotone in
+`eps`; at `eps = 0` the band must collapse onto the argmin's effect whenever the
+argmin is unique; and on a constructed panel with a known-unique optimum the
+width must go to zero. Add a Prop 99 and a Basque case so the reported widths on
+familiar panels are on the record.
+
+### Cost
+
+Small -- a day or so including tests and a docs section. The maths is settled;
+the work is in the API choice and in writing the docs so a non-expert reads the
+output correctly. The failure mode to avoid is a reader treating the band as a
+confidence interval. It is not one: it carries no sampling model and no
+coverage guarantee. It is a statement about what the data can and cannot
+distinguish, and the docs need to say so plainly.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
