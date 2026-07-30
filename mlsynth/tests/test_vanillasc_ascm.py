@@ -150,6 +150,76 @@ def test_placebo_with_covariates():
 # --------------------------------------------------------------------------- #
 # Edge cases
 # --------------------------------------------------------------------------- #
+class TestCovariateMeansOmitMissingPerColumn:
+    """How ``_covariate_means`` aggregates when a covariate is sparsely reported.
+
+    augsynth's ``extract_covariates`` (``R/format.R``) passes ``na.action = NULL``
+    to ``model.frame`` -- so no rows are removed -- and aggregates each covariate
+    independently with its default ``cov_agg``, ``function(x) mean(x, na.rm = TRUE)``.
+    Missing values are therefore omitted per covariate, not per period.
+
+    The alternative (drop a period from every covariate if any one of them is
+    missing there) is not a rounding-level difference on real panels. Annual
+    series mixed with quarterly ones are common, and listwise deletion then
+    discards most of the pre-period from the covariates that were fully observed.
+    """
+
+    @staticmethod
+    def _means(df, covariates, **cfg):
+        from mlsynth.utils.vanillasc_helpers.pipeline import _covariate_means
+        units = sorted(df["unit"].unique())
+        pre = sorted(df.loc[df["time"] < 13, "time"].unique())
+        return _covariate_means(df, units, covariates, cfg.get("windows", {}),
+                                pre, "unit", "time")
+
+    def test_a_dense_covariate_averages_over_every_pre_period(self):
+        """The substance of the rule, stated as behaviour.
+
+        ``x1`` is fully observed; ``x2`` is reported only every third period. The
+        mean of ``x1`` must not depend on ``x2``'s reporting calendar.
+        """
+        df = _panel(seed=4).copy()
+        df["x2"] = df["x1"] + 0.5
+        df.loc[df["time"] % 3 != 0, "x2"] = np.nan
+        X = self._means(df, ["x1", "x2"])                  # (K, N)
+        alone = self._means(df, ["x1"])                     # (1, N)
+        np.testing.assert_allclose(X[0], alone[0], rtol=0, atol=1e-12)
+
+    def test_a_sparse_covariate_averages_over_its_reported_periods(self):
+        df = _panel(seed=4).copy()
+        df["x2"] = df["x1"] + 0.5
+        df.loc[df["time"] % 3 != 0, "x2"] = np.nan
+        X = self._means(df, ["x1", "x2"])
+        pre = df[df["time"] < 13]
+        want = pre.groupby("unit")["x2"].mean()             # pandas skips NaN
+        np.testing.assert_allclose(
+            X[1], want.loc[sorted(df["unit"].unique())].to_numpy(),
+            rtol=0, atol=1e-12)
+
+    def test_row_wise_deletion_would_have_moved_the_dense_covariate(self):
+        """Pins that the two rules differ here, so the assertions above bite."""
+        df = _panel(seed=4).copy()
+        df["x2"] = df["x1"] + 0.5
+        df.loc[df["time"] % 3 != 0, "x2"] = np.nan
+        X = self._means(df, ["x1", "x2"])
+        pre = df[df["time"] < 13]
+        rowwise = (pre.dropna(subset=["x1", "x2"]).groupby("unit")["x1"].mean()
+                     .loc[sorted(df["unit"].unique())].to_numpy())
+        assert np.abs(X[0] - rowwise).max() > 1e-6
+
+    def test_a_covariate_missing_everywhere_for_one_unit_still_raises(self):
+        """Column-wise omission must not turn an unusable panel into a silent NaN.
+
+        ``np.nanmean`` of an all-missing slice is NaN, and NaN covariate means
+        would propagate into the weights rather than failing. The reporting
+        guarantee is what is being pinned, not the message.
+        """
+        df = _panel(seed=4).copy()
+        df.loc[df["unit"] == "u3", "x1"] = np.nan
+        with pytest.raises(MlsynthDataError, match="NaN"):
+            self._means(df, ["x1"])
+
+
 def test_per_covariate_windows_use_independent_means():
     # two covariates with *different* windows -> the joint-na.omit path can't
     # apply, so means are taken independently (per-covariate fallback).
@@ -316,9 +386,15 @@ def test_augsynth_kansas_ladder_public_api():
     cov = att({"augment": "ridge", "covariates": covs})
     rez = att({"augment": "ridge", "covariates": covs, "residualize": True})
 
-    assert abs(scm - (-0.0294)) < 0.003, f"SCM {scm}"
-    assert abs(ridge - (-0.0401)) < 0.003, f"ridge {ridge}"
-    assert abs(cov - (-0.0629)) < 0.004, f"covariate {cov}"
-    assert abs(rez - (-0.0572)) < 0.004, f"residualized {rez}"
+    # Live augsynth 0.2.0: -0.029435, -0.040063, -0.060937, -0.052773. Three of
+    # the four reproduce to 1e-5 through the public API, so the tolerances say
+    # so rather than leaving room the fit does not need.
+    assert abs(scm - (-0.029435)) < 1e-5, f"SCM {scm}"
+    assert abs(ridge - (-0.040063)) < 1e-5, f"ridge {ridge}"
+    assert abs(cov - (-0.060937)) < 1e-5, f"covariate {cov}"
+    # The residualized cell is the one deliberate difference: augsynth's residual
+    # lambda-CV is ill-posed once K covariates are projected out, so mlsynth tunes
+    # that penalty on the outcome scale. See docs/replications/ascm_kansas.rst.
+    assert abs(rez - (-0.052773)) < 4e-3, f"residualized {rez}"
     # the de-biasing ladder is monotone in |ATT|
     assert abs(scm) < abs(ridge) < abs(cov)

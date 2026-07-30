@@ -91,22 +91,33 @@ What the fix exposed
 --------------------
 
 Fixing the cross-validation made the covariate cells of :doc:`ascm_kansas`
-disagree *more*, from about 0.002 to 0.005 on the ATT. That is a cancellation
-being removed rather than a regression, and it is worth stating plainly because
-the surface reading is the opposite.
+disagree *more*, from about 0.002 to 0.005 on the ATT. That is worth stating
+plainly, because the surface reading is the opposite: it was a cancellation being
+removed, not a regression.
 
-mlsynth's ``lambda_max`` for the covariate specification is 128.4583 where
-augsynth's is 128.6077 -- a pre-existing difference of about 0.1 percent in the
-standardized covariate block, which the cross-validation fix does not touch. The
-old, wrong fold count happened to select a point on that already-wrong grid that
-landed nearer augsynth's answer. With the fold count corrected the disagreement
-is attributed to its actual cause instead of being masked by a second one. The
-outcome-only specification, where no covariate block exists, is exact.
+Two independent errors had been partly offsetting each other. The fold off-by-one
+was one; the other was in how the benchmark aggregated auxiliary covariates to one
+value per unit. augsynth omits missing values column-wise
+(``mean(x, na.rm = TRUE)`` per covariate, with ``na.action = NULL`` passed to
+``model.frame``); the harness was omitting them row-wise, discarding every quarter
+in which either of the two annually reported revenue series was missing. On the
+Kansas panel that is 56 of 89 pre-treatment quarters, thrown away from all six
+covariates rather than from the two that are sparse, which put ``lambda_max`` at
+128.4583 against augsynth's 128.6077. The wrong fold count happened to select a
+point on that already-wrong grid that landed nearer augsynth's answer.
 
-That remaining covariate difference is tracked separately; the plausible cause is
-the covariate matrix construction rather than the standardization, since
-``ascm_kansas`` already documents a difference in how rows with a missing revenue
-value are dropped before averaging.
+With both corrected, the covariate specification is exact: ATT -0.060937 and
+pre-fit L2 0.053855 against augsynth's own values, matching the two outcome-only
+specifications. The aggregation rule now lives in ``aggregate_covariates`` in
+``benchmarks/cases/ascm_kansas.py``, and ``TestCovariateAggregation`` in
+``mlsynth/tests/test_bilevel_ridge.py`` pins it -- including how far the row-wise
+rule would move the four fully observed covariates, so the two rules cannot be
+confused again silently.
+
+The residualized specification still differs, by about 0.004. That one is
+deliberate and documented on :doc:`ascm_kansas`: augsynth's residual
+lambda-CV is ill-posed once K covariates are projected out, so mlsynth tunes that
+penalty on the outcome scale instead.
 
 Verification
 ------------
