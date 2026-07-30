@@ -1,0 +1,9 @@
+{
+  "case": "ascm_ridge_cv",
+  "title": "Ridge lambda cross-validation vs augsynth (Kansas + Song PM2.5)",
+  "paper": "Ben-Michael, Feller & Rothstein (2021), JASA 116(536); augsynth R package (ebenmichael/augsynth)",
+  "reference_impl": "R package augsynth (live run, lambda grid + CV curve)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/ascm_ridge_cv/reference.R",
+  "data": ["basedata/kansas_ascm.csv", "benchmarks/reference/ascm_ridge_cv/song_pm25_cell.csv"]
+}

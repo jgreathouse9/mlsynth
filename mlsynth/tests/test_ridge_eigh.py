@@ -71,7 +71,15 @@ def _simplex_base(B, A):
 
 
 def _naive_cross_validate(base_weights_fn, X0, X1, lambdas, holdout_len=1):
-    """Reference implementation: the original per-lambda inv() loop."""
+    """Reference implementation: the original per-lambda inv() loop.
+
+    This exists to check the eigendecomposition fast path against a transparent
+    loop, so it must use the same fold-error statistic as the thing it checks.
+    augsynth's ``get_lambda_errors`` reports ``sd(x) / sqrt(length(x))`` and R's
+    ``sd`` is the SAMPLE standard deviation, so the denominator is ``n - 1``.
+    This helper previously used numpy's population default and agreed only
+    because ``cross_validate`` had the same defect.
+    """
     X0 = np.asarray(X0, float); X1 = np.asarray(X1, float).ravel()
     lambdas = np.asarray(lambdas, float)
     res = []
@@ -81,7 +89,9 @@ def _naive_cross_validate(base_weights_fn, X0, X1, lambdas, holdout_len=1):
                 for lam in lambdas]
         res.append(fold)
     arr = np.asarray(res, float)
-    return (lambdas, arr.mean(axis=0), arr.std(axis=0) / np.sqrt(arr.shape[0]))
+    n = arr.shape[0]
+    return (lambdas, arr.mean(axis=0),
+            arr.std(axis=0, ddof=1 if n > 1 else 0) / np.sqrt(n))
 
 
 # ---------------------------------------------------------------------------

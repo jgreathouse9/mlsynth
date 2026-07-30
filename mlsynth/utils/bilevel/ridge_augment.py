@@ -249,7 +249,15 @@ class _HoldoutSplitter:
 
     def __iter__(self):
         m = self.B.shape[0]
-        for idx in range(m - self.holdout_len + 1):
+        # ``range(m - holdout_len)``, NOT ``m - holdout_len + 1``: augsynth's
+        # ``get_lambda_errors`` loops ``i in 1:(ncol(X_c) - holdout_length)`` and
+        # sizes its error matrix to match, so the LAST window is never held out.
+        # One extra fold sounds harmless and is not: the final pre-period is the
+        # one adjacent to treatment, and on a panel where it is atypical its
+        # error dominates the mean. On the Song et al. PM2.5 cell that fold
+        # carries ~9x the mean error of the other 24 and moved the selected
+        # penalty from augsynth's 28.52 to 11.35.
+        for idx in range(m - self.holdout_len):
             hold = slice(idx, idx + self.holdout_len)
             keep = np.ones(m, dtype=bool)
             keep[hold] = False
@@ -322,8 +330,16 @@ def cross_validate(
     arr = np.asarray(res, dtype=float)
     n_folds = arr.shape[0]
     errors_mean = arr.mean(axis=0)
-    # augsynth ``get_lambda_errors``: sd(x)/sqrt(length(x)) over the folds.
-    errors_se = arr.std(axis=0) / np.sqrt(n_folds)
+    # augsynth ``get_lambda_errors``: ``sd(x) / sqrt(length(x))`` over the folds.
+    # R's ``sd`` is the SAMPLE standard deviation (n-1 denominator); numpy's
+    # ``.std`` defaults to the population one, which made this too small by
+    # ``sqrt((n-1)/n)``. It is not cosmetic: it feeds the 1-SE threshold in
+    # :func:`best_lambda` directly, so it can change which penalty is selected.
+    # With a single fold the sample sd is undefined -- R yields NA -- and a NaN
+    # here would silently poison that threshold, so it degrades to zero, which
+    # makes the 1-SE rule collapse to the plain minimum.
+    ddof = 1 if n_folds > 1 else 0
+    errors_se = arr.std(axis=0, ddof=ddof) / np.sqrt(n_folds)
     return lambdas, errors_mean, errors_se
 
 
