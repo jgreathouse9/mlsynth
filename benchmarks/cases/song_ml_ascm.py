@@ -69,16 +69,25 @@ finding, not a defect. The tight cross-validation against the pinned package
 lives in ``docs/replications/ascm_ridge_cv.rst`` and
 ``benchmarks/cases/ascm_jackknife_plus.py``.
 
-Why the agreement is this tight
--------------------------------
+What the cross-validation fix bought
+------------------------------------
 
-The ATT reproduces to ~1e-6. That is a recent state of affairs and worth
-recording: before two defects in the ridge penalty's cross-validation were fixed
-(a fold off-by-one and a population-vs-sample standard error, see
-``docs/replications/ascm_ridge_cv.rst``) this cell disagreed by 4.3 percent --
-+18.744 against the published +17.969. These panels are exactly the shape that
-exposes it: 25 pre-treatment periods against 37 donors, with the final
-pre-period sitting on the seasonal ramp into the heating season.
+The cells that do reproduce, reproduce to ~1e-6, and that is recent. Before two
+defects in the ridge penalty's cross-validation were fixed -- a fold off-by-one
+and a population-vs-sample standard error, see
+``docs/replications/ascm_ridge_cv.rst`` -- the 2015 PM2.5wn cell disagreed by
+4.3 percent, +18.744 against the published +17.969. It now agrees to 1e-7.
+
+These panels are exactly the shape that exposed those defects: 25 pre-treatment
+periods against 37 donors, with the final pre-period sitting on the seasonal ramp
+into the heating season, so the fold that augsynth never holds out is the one
+carrying nine times the average error.
+
+So there are two distinct stories in this case and they should not be conflated.
+The CV fix closed a real defect in mlsynth, taking the reproducible cells from
+4.3 percent out to ~1e-6. What remains is not ours: the published artifact was
+produced by an older augsynth than the one pinned here, and that is what the
+2016 rows measure.
 
 The interval columns need ``inference="jackknife_plus"``; the authors summarise
 every fit with ``inf_type = "jackknife+"``, so ``lower_bound`` /
