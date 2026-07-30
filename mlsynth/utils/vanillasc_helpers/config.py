@@ -22,8 +22,14 @@ from ...config_models import BaseEstimatorConfig
 # rather than silently returning no inference.
 VALID_INFERENCE_METHODS = frozenset(
     {"placebo", "scpi", "conformal", "conformal_split", "lto", "ttest", "eiv",
-     "none"}
+     "jackknife_plus", "none"}
 )
+
+#: Spellings normalised onto a canonical method name. ``augsynth`` writes
+#: ``inf_type="jackknife+"``, so accept that literally -- a user porting an R
+#: script should not have to discover that we renamed it.
+INFERENCE_ALIASES = {"jackknife+": "jackknife_plus",
+                     "jackknife-plus": "jackknife_plus"}
 
 
 class StaggeredSCMSpec(BaseModel):
@@ -203,6 +209,15 @@ class VanillaSCConfig(BaseEstimatorConfig):
         description="Fixed ridge penalty for augment='ridge'; None -> select by "
                     "leave-one-period-out CV (augsynth's 1-SE rule).",
     )
+    jackknife_conservative: bool = Field(
+        default=False,
+        description="With inference='jackknife_plus', use augsynth's "
+                    "conservative branch: bracket the per-drop predictions by "
+                    "their min and max and widen by a quantile of the absolute "
+                    "held-out errors, instead of taking quantiles of "
+                    "``est +/- |err|``. Wider, and augsynth's own default is "
+                    "False.",
+    )
     residualize: bool = Field(
         default=False,
         description="With augment='ridge' and covariates: stack covariates as "
@@ -219,7 +234,10 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "synth_inference), 'lto' (Lei-Sudijono leave-two-"
                     "out refined placebo), 'ttest' (Chernozhukov-Wuthrich-Zhu "
                     "2025 debiased SC t-test for the ATT), 'eiv' (Hirshberg 2021 "
-                    "error-in-variables normal/t prediction intervals), or False.",
+                    "error-in-variables normal/t prediction intervals), "
+                    "'jackknife_plus' (augsynth's ``inf_type=\"jackknife+\"`` for "
+                    "ridge ASCM -- leave-one-pre-period-out refits; requires "
+                    "augment='ridge'), or False.",
     )
     @field_validator("inference")
     @classmethod
@@ -230,6 +248,7 @@ class VanillaSCConfig(BaseEstimatorConfig):
             return v
         if isinstance(v, str):
             low = v.strip().lower()
+            low = INFERENCE_ALIASES.get(low, low)
             if low not in VALID_INFERENCE_METHODS:
                 raise ValueError(
                     f"inference={v!r} is not a recognized inference method. "

@@ -31,14 +31,25 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   r-cran-rlang r-cran-purrr r-cran-fnn r-cran-rcpp r-cran-r6 \
   r-cran-doparallel r-cran-foreach r-cran-gridextra r-cran-lifecycle \
   r-cran-stringr r-cran-tibble r-cran-rcpparmadillo r-cran-rcppeigen r-cran-bh \
-  r-cran-glmnet r-cran-mass r-cran-matrix
+  r-cran-glmnet r-cran-mass r-cran-matrix r-cran-cli
 
 # Compile a GitHub repo at a pinned commit:  inst <owner/repo> <sha> <dirslug>
+#
+# Fetches by `git clone`, NOT by tarball. The sandbox allows git-over-HTTPS to
+# github.com but blocks `codeload.github.com` (403), and
+# `github.com/<o>/<r>/archive/<sha>.tar.gz` redirects to codeload, so it is
+# blocked too. An earlier revision of this script used curl against codeload and
+# failed with "gzip: stdin: not in gzip format" -- that is the 403 JSON body
+# being handed to tar, not a corrupt download.
+#
+# The clone is deliberately full, not --depth 1: a shallow clone cannot check
+# out an arbitrary SHA.
 inst() {
   cd /tmp
-  curl -sL "https://codeload.github.com/$1/tar.gz/$2" -o "$3.tgz"
-  tar xzf "$3.tgz"
-  R CMD INSTALL --no-docs --no-help "$(basename "$1")-$2"
+  rm -rf "$3"
+  git clone --quiet "https://github.com/$1" "$3"
+  git -C "$3" checkout --quiet "$2"
+  R CMD INSTALL --no-docs --no-help "$3"
 }
 inst cran/S7        "$S7_SHA"        S7          # newer osqp needs it
 inst cran/LiblineaR "$LIBLINEAR_SHA" LiblineaR   # bundles liblinear C++
