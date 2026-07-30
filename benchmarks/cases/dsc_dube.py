@@ -16,16 +16,38 @@ expected donor pool.
 
 Provenance / scope
 ------------------
-* Data: ``basedata/dube_minwage.parquet`` -- the ``DiSCo`` package's ``dube`` dataset
-  (Dube 2019; ``adj0contpov`` by state-year), exported from ``dube.rda`` and
-  **subsampled to 250 observations per state-year cell** (fixed seed) so the
-  micro-panel is ~1 MB rather than 15 MB. 34 states (33 donors) x 7 years
-  (1998-2004); each cell is a distribution.
-* No live ``DiSCo`` cross-validation: the R package does not install on this
-  environment's R version, and the vignette's weight/QTE numbers live in figures,
-  not text. So this is Path A on the authors' dataset/setup with mlsynth's own
-  output pinned, anchored to the vignette's stated ``p > 0.05`` result. The
-  one-time machine-precision DiSCo check is documented on the DSC docs page.
+* Data: ``basedata/dube_minwage.parquet`` -- the ``DiSCo`` package's ``dube``
+  dataset (Dube 2019; ``adj0contpov`` by state-year), converted from the
+  package's ``data/dube.rda`` with every column verified bit-identical on
+  round-trip. 652,870 rows, 34 states (33 donors) x 7 years (1998-2004); each
+  cell is a distribution. 2.0 MB as zstd parquet.
+
+  This is the authors' complete analysis dataset, not a sample of it.
+  ``data-raw/dube.R`` in ``DiSCos`` builds it from the Dube replication package
+  by filtering to under-65s, 1998-2004, and Alaska plus the 33 states with no
+  minimum-wage change over that window.
+
+  An earlier revision of this case used a 250-observations-per-cell subsample,
+  retaining 9.1 percent of the rows, to keep the file small. For most estimators
+  that would be an ordinary size-fidelity trade; for a *distributional* method it
+  is not. The estimand here is the within-cell distribution, and true cell sizes
+  run from 1,118 to 9,516 -- an eight-fold spread flattened to a constant 250.
+  That does not merely add sampling noise, it distorts the object being matched
+  and equalises precision across donors that genuinely differ in it. Restoring
+  the full data cut the pre-period 2-Wasserstein fit from 0.129 to 0.038.
+
+* Cross-validation status: pinned values below are still mlsynth's own output,
+  so five of the six rows are regression pins rather than external checks. The
+  one externally anchored quantity is the vignette's stated ``p > 0.05`` ("no
+  spurious effect"), which is a single bit -- a materially wrong DSC that still
+  failed to reject would satisfy it.
+
+  ``DiSCos`` 0.1.4 *is* now installable here (``benchmarks/R/install_discos.sh``),
+  and running it on this same file shows donor weights disagreeing with mlsynth
+  by up to 0.074, with the two implementations reaching pre-period objective
+  values 4 percent apart. That is tracked in issue #304 and is why these rows are
+  not yet cross-validated: pinning agreement before the disagreement is
+  understood would pin the wrong thing.
 """
 from __future__ import annotations
 
@@ -64,15 +86,30 @@ def run() -> dict:
     }
 
 
-# Deterministic on the fixed-seed subsample. DSC fits the treated distribution
-# from a simplex over donor quantile functions; on the Dube panel it tracks
-# closely pre-period (small Wasserstein) and the placebo permutation test fails
-# to reject at both post years (p > 0.05) -- the vignette's "no spurious effect".
+# Deterministic: repeat runs reproduce every value to <1e-12. DSC fits the
+# treated distribution from a simplex over donor quantile functions; on the Dube
+# panel it tracks closely pre-period and the placebo permutation test fails to
+# reject at both post years -- the vignette's "no spurious effect".
+#
+# These values MOVED when the full data replaced the 250-per-cell subsample.
+# That is the point of the change rather than a regression to explain away: the
+# pre-period fit improved 3.4-fold, which is the direct evidence that thinning
+# the cells was distorting the distributions being matched. The one externally
+# anchored row, dsc_no_spurious_effect, is unchanged -- the vignette's claim
+# survives the data change, which is the reassurance worth having.
 EXPECTED = {
-    "dsc_att": (-0.1515, 0.05),
+    # -0.2618 on the full data, against -0.1515 on the subsample.
+    "dsc_att": (-0.2618, 0.02),
     "dsc_no_spurious_effect": (1.0, 0.0),     # cross-check vs the DiSCo vignette
-    "dsc_pvalue_2003": (0.91, 0.25),
-    "dsc_pvalue_2004": (0.32, 0.25),
-    "dsc_pre_wasserstein": (0.129, 0.06),
+    # Permutation p-values over 33 donors + the treated unit are multiples of
+    # 1/34 = 0.0294, so the tolerance is ~3 permutation steps: tight enough that
+    # a real shift in the placebo ranking fails, loose enough to survive one or
+    # two donors swapping order.
+    "dsc_pvalue_2003": (0.5000, 0.09),        # 17/34
+    "dsc_pvalue_2004": (0.1176, 0.09),        # 4/34
+    # 0.0384 on the full data against 0.129 on the subsample. Do NOT loosen this
+    # back toward the old value: a rise here means the distributional fit has
+    # degraded, which is the failure this case exists to catch.
+    "dsc_pre_wasserstein": (0.0384, 0.004),
     "n_donors": (33.0, 0.0),
 }

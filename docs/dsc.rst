@@ -411,17 +411,25 @@ Verification
 
 A durable benchmark (``benchmarks/cases/dsc_dube.py``) reproduces the ``DiSCo``
 vignette's Dube (2019) minimum-wage application: on the micro-level county-income
-panel (Alaska treated, 2003) DSC tracks closely pre-period (2-Wasserstein ~0.13)
-and the placebo permutation test fails to reject at both post years (p = 0.91 /
-0.32) -- the vignette's stated "no spurious effect". See :doc:`replications/dsc`;
+panel (Alaska treated, 2003) DSC tracks closely pre-period (2-Wasserstein 0.038)
+and the placebo permutation test fails to reject at both post years (p = 0.500 /
+0.118) -- the vignette's stated "no spurious effect". See :doc:`replications/dsc`;
 run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
 
 .. note::
 
    This is Path A on the authors' dataset/setup with mlsynth's deterministic
-   output pinned (the ``DiSCo`` R package does not install on the CI environment's
-   R version, and the vignette's weight/QTE numbers are in figures rather than
-   text). The Dube panel is subsampled to 250 obs/cell to keep it ~1 MB.
+   output pinned. The panel is the authors' complete analysis dataset (652,870
+   rows), converted from ``DiSCos``' own ``data/dube.rda``; an earlier revision
+   used a 250-observations-per-cell subsample, which for a *distributional*
+   method distorted the very quantity being matched.
+
+   Five of the six pinned rows are regression pins on mlsynth's own output, not
+   external checks. ``DiSCos`` 0.1.4 is installable here
+   (``benchmarks/R/install_discos.sh``), and it disagrees with mlsynth on donor
+   weights by up to 0.074 on identical data -- tracked in issue #304. Until that
+   is resolved, treat the vignette's ``p > 0.05`` as the only externally
+   anchored quantity in this benchmark.
 
 Core API
 --------
