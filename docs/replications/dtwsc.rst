@@ -31,9 +31,44 @@ Headline numbers
    * - DTWSC, mlsynth's warp through R's ``Synth``
      - 0.0705
      - -0.5592
+   * - DTWSC, mlsynth end to end
+     - 0.0663
+     - -0.5310
+   * - standard SC, mlsynth end to end
+     - 0.0845
+     - -0.6232
 
 The paper's claim reproduces: warping tightens the pre-treatment fit by about
 20 percent, and moves the ATT modestly toward zero.
+
+Read the units before comparing any of these. ``dsc(rescale = TRUE)`` is the
+reference's default, and it maps every unit onto a common pre-treatment range
+before fitting anything, so every number R reports is in rescaled units rather
+than in GDP per capita. The mlsynth rows above are run with
+``rescale_units=True`` so the whole table sits on one scale; without it mlsynth
+reports in the outcome's own units, where R's standard-SC ATT is -0.6405 and
+not -0.6027.
+
+That distinction is easy to lose, and this page previously lost it: an mlsynth
+ATT of -0.6026 in GDP per capita was compared against R's -0.6027 in rescaled
+units and reported as a four-decimal reproduction. It was a coincidence of two
+different quantities landing on the same digits. On one scale the two arms
+agree to about 0.004 on pre-RMSE and 0.03 on the ATT, which is the honest
+figure and is what ``benchmarks/cases/dtwsc_basque.py`` now pins.
+
+Do not read that ATT agreement as agreement between the counterfactual paths,
+either. Comparing the two pointwise rather than in the mean, the pre-treatment
+halves sit almost on top of each other -- worst single-period gap 0.027 warped
+and 0.036 unwarped, against a series spanning 2.18 rescaled units -- while the
+post-treatment halves reach 0.19 and 0.16. The paths cross rather than running
+parallel, so most of that error cancels in the average and a 0.19 divergence
+presents as a 0.03 ATT gap.
+
+That is the expected signature of the Savitzky--Golay difference described
+below: it is held down where the pre-treatment fit constrains it and free to
+grow where nothing does. The pointwise maximum is pinned in the benchmark
+alongside the ATT, because a regression that tilted the counterfactual while
+leaving its mean intact would pass an ATT check untouched.
 
 What matches, seam by seam
 --------------------------
@@ -158,9 +193,29 @@ fixed warping hyperparameters, 17 pools and 256 placebo runs:
      - 20 percent
      - 16 percent
 
-The direction and rough magnitude reproduce. The remaining gap is expected: the
-paper fits each placebo run at its own grid-optimal ``filter.width`` / ``k`` /
-step pattern, which mlsynth holds fixed.
+The direction and rough magnitude reproduce, but read the table as a
+comparison of two different procedures rather than a reproduction attempt. The
+authors' replication archive (Dataverse ``10.7910/DVN/DIUPUA``) shows their
+placebo design differs from mlsynth's built-in one in five ways: they keep
+Spain in the donor pool where the estimator page's example drops it; they use
+118 perturbed datasets and 1789 runs against mlsynth's 17 pools and 256; they
+give every run its own grid-optimal ``filter.width`` / ``k`` / step pattern
+where mlsynth holds one configuration fixed; they fit the full 14-predictor
+specification on every placebo where mlsynth's example is outcome-only; and
+they map each gap back to the outcome's own units before squaring it, so their
+reported log MSEs are not on the scale mlsynth reports.
+
+An earlier version of this page said the rule that picked those per-run
+hyperparameters was absent from the replication package. That was wrong, and
+in the useful direction: the archive ships the resulting choices themselves,
+per run and per panel, in ``Figure_5_*_gridOpt.Rds``. The selection rule is
+indeed not shown, but it is not needed -- the choices can be read directly.
+
+So the table above is a comparison of two procedures that happen to measure
+the same thing, not a replication of the reported statistic. Reproducing the
+published ``t`` means adopting their design wholesale -- pool, datasets,
+per-run hyperparameters, predictors, and units -- rather than tightening
+anything in mlsynth's own.
 
 The band does not reproduce, and that is worth stating plainly. On this
 specification the warped band comes out marginally wider than the unwarped one

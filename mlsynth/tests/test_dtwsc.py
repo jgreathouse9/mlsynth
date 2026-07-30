@@ -1161,3 +1161,154 @@ class TestSCBackend:
                                 inference="placebo", placebo_pairs=0)).fit()
         assert res.inference is not None
         assert res.metadata["sc_backend"] == "outcome-only"
+
+
+class TestUnitRescaling:
+    """``dsc(rescale = TRUE)`` is the reference's default, and DTWSC lacked it.
+
+    Before fitting anything, ``dsc()`` puts every unit on a common
+    pre-treatment range: it takes each unit's pre-treatment min and max, forms
+    the mean range across units, and maps each unit by
+    ``(x - min_i) * mean_range / (max_i - min_i)``. Donors are then weighted by
+    the shape of their path rather than by how far it happens to travel.
+
+    This is invisible to the warp -- the alignment runs on a t-normalized
+    series, which an affine map leaves untouched -- but not to the synthetic
+    control, which sees rescaled donors and returns different weights. Without
+    it the SC arm cannot be compared against the reference at all: R reports in
+    rescaled units, so an mlsynth ATT in the outcome's own units is simply a
+    different quantity.
+
+    Expected values come from R, not from this implementation: ``dplyr`` over
+    ``Synth::basque`` with Spain dropped, printed at %.17g.
+    """
+
+    #: unit -> (pre-treatment min, multiplier), from the R dump.
+    R_RESCALE = {
+        "Andalucia": (1.6887318301425598, 1.3088103659274699),
+        "Aragon": (2.2887745573669802, 0.94472987829972255),
+        "Baleares (Islas)": (3.1439588601777841, 0.58239533056205284),
+        "Basque Country (Pais Vasco)": (3.8531846300052668, 0.94088632561162922),
+        "Canarias": (1.9143815791051888, 0.94347442520648517),
+        "Cantabria": (2.5594116925716537, 0.97667728999631565),
+    }
+    R_MEAN_DIFF = 2.1799485709920097
+
+    @staticmethod
+    def _basque():
+        df = pd.read_csv("basedata/basque_data.csv")
+        return df[df.regionname != "Spain (Espana)"].dropna(
+            subset=["gdpcap"]).copy()
+
+    def _factors(self):
+        from mlsynth.utils.dtwsc_helpers.setup import unit_rescale_factors
+        return unit_rescale_factors(
+            self._basque(), unitid="regionname", time="year",
+            outcome="gdpcap", last_pre_period=1970,
+        )
+
+    def test_rescale_parameters_match_r(self):
+        """The map is derived from the PRE-treatment window only.
+
+        Taking the range over the whole panel would let post-treatment
+        variation -- including the treatment effect -- set the donor weights.
+        """
+        factors = self._factors()
+        for unit, (lo, mult) in self.R_RESCALE.items():
+            got_lo, got_mult = factors[unit]
+            assert got_lo == pytest.approx(lo, abs=1e-12), unit
+            assert got_mult == pytest.approx(mult, abs=1e-12), unit
+
+    def test_rescaled_series_has_the_common_range(self):
+        """Every unit's pre-treatment range becomes the cross-unit mean range.
+
+        That is the transform's whole purpose, and asserting it directly makes
+        this test independent of the R dump above.
+        """
+        df = self._basque()
+        factors = self._factors()
+        for unit, sub in df.groupby("regionname"):
+            pre = sub[sub.year <= 1970]["gdpcap"].to_numpy(float)
+            lo, mult = factors[unit]
+            scaled = (pre - lo) * mult
+            assert scaled.min() == pytest.approx(0.0, abs=1e-12)
+            assert scaled.max() == pytest.approx(self.R_MEAN_DIFF, abs=1e-9)
+
+    def test_rescaling_leaves_the_warp_untouched(self):
+        """The alignment is affine-invariant, so the speeds must not move.
+
+        This is what establishes that rescaling is purely a
+        synthetic-control-side concern.
+        """
+        cfg = dict(base_config())
+        a = DTWSC({**cfg, "rescale_units": False}).fit()
+        b = DTWSC({**cfg, "rescale_units": True}).fit()
+        for donor in a.pre_period_speeds:
+            assert np.allclose(a.pre_period_speeds[donor],
+                               b.pre_period_speeds[donor])
+            assert np.allclose(np.asarray(a.post_period_speeds[donor], float),
+                               np.asarray(b.post_period_speeds[donor], float))
+            assert a.cutoffs[donor] == b.cutoffs[donor]
+
+    def test_rescaling_is_reported(self):
+        res = DTWSC(base_config(rescale_units=True)).fit()
+        assert res.metadata["rescale_units"] is True
+
+    def test_a_flat_unit_is_left_alone_rather_than_divided_by_zero(self):
+        """A unit with no pre-treatment variation has no range to normalise.
+
+        Dividing by its zero span would poison the panel with infinities.
+        """
+        from mlsynth.utils.dtwsc_helpers.setup import unit_rescale_factors
+
+        df = pd.DataFrame({
+            "u": ["a"] * 4 + ["flat"] * 4,
+            "t": [1, 2, 3, 4] * 2,
+            "y": [1.0, 2.0, 3.0, 4.0] + [7.0, 7.0, 7.0, 9.0],
+        })
+        factors = unit_rescale_factors(df, unitid="u", time="t", outcome="y",
+                                       last_pre_period=3)
+        assert factors["flat"] == (7.0, 1.0)
+        assert np.isfinite(factors["a"][1])
+
+    def test_rescaling_without_a_pre_period_is_refused_with_a_reason(self):
+        """Returning an empty mapping would drop every unit further down."""
+        from mlsynth.utils.dtwsc_helpers.setup import unit_rescale_factors
+
+        df = pd.DataFrame({"u": ["a", "a"], "t": [5, 6], "y": [1.0, 2.0]})
+        with pytest.raises(MlsynthDataError, match="pre-treatment period"):
+            unit_rescale_factors(df, unitid="u", time="t", outcome="y",
+                                 last_pre_period=4)
+
+    def test_rescaling_with_treatment_at_the_first_period_is_refused(self):
+        """Treatment from t=0 leaves no pre-period to take a range over.
+
+        This guard runs before ingestion, so it fires ahead of the usual
+        three-pre-periods check and needs its own reason.
+        """
+        rows = []
+        for unit in ("treated", "d1", "d2"):
+            for t in range(8):
+                rows.append({"unit": unit, "time": t,
+                             "y": 1.0 + t + (unit == "d2"),
+                             "treated": int(unit == "treated")})
+        with pytest.raises(MlsynthDataError, match="pre-treatment"):
+            DTWSC({"df": pd.DataFrame(rows), "outcome": "y",
+                   "treat": "treated", "unitid": "unit", "time": "time",
+                   "display_graphs": False, "rescale_units": True}).fit()
+
+    def test_rescaling_without_a_treatment_date_is_refused_with_a_reason(self):
+        """``rescale_units`` needs the treatment date to pick its window.
+
+        This guard runs before ingestion, so it fires ahead of dataprep's own
+        treatment detection and has to name the reason itself.
+        """
+        rows = []
+        for unit in ("a", "b", "c"):
+            for t in range(10):
+                rows.append({"unit": unit, "time": t,
+                             "y": 1.0 + t + (unit == "c"), "treated": 0})
+        with pytest.raises(MlsynthDataError, match="treatment date"):
+            DTWSC({"df": pd.DataFrame(rows), "outcome": "y",
+                   "treat": "treated", "unitid": "unit", "time": "time",
+                   "display_graphs": False, "rescale_units": True}).fit()

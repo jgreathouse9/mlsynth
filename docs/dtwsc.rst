@@ -142,10 +142,14 @@ the post-period means of the band and ``p_value`` the efficiency test's. Both
 are scalar summaries of pointwise objects; read ``placebo_band`` for what the
 paper actually plots.
 
-Two honest caveats. First, the paper fits each placebo run at its own
-grid-optimal warping hyperparameters, and the rule that selected them is not in
-the replication package -- only the sweep and the resulting table are shipped.
-mlsynth runs every placebo at the hyperparameters you configure. Second, on the
+Two honest caveats. First, this is not the design the paper ran. The authors
+give each placebo its own grid-optimal warping hyperparameters, drawn from a
+sweep over seven DTW step patterns, and perturb the donor pool far more
+aggressively than the default here; mlsynth runs every placebo at the
+hyperparameters you configure. Their per-run choices are shipped in the
+replication archive, so what separates the two is a matter of adopting their
+design rather than of missing information -- :doc:`replications/dtwsc` sets out
+exactly what differs. Second, on the
 Basque panel the efficiency test reproduces the paper's direction and rough
 magnitude (``t = -6.8`` against the paper's ``-7.91``, a 20 percent MSE
 reduction), but the band does not narrow -- it comes out 0.3 percent wider than
@@ -162,6 +166,32 @@ pool construction -- its quantiles are drawn over roughly 2000 runs against 256
 here, and a 2.5 percent tail is not well determined at that count. Treat the
 band as descriptive and the efficiency test as the reproducible claim;
 :doc:`replications/dtwsc` has the measurements.
+
+Putting the units on a common footing
+-------------------------------------
+
+``rescale_units=True`` maps every unit onto a common pre-treatment range before
+anything is fitted, sending each unit's outcome through
+:math:`(x - \min_i)\,\overline{r}/(\max_i - \min_i)`, where the minimum and
+maximum are taken over the pre-treatment window and :math:`\overline{r}` is the
+mean of those ranges across units.
+
+The reason to want it is that a synthetic control minimises squared error. A
+donor whose outcome swings widely contributes more of that error than a flat
+one, so it gets fitted harder for reasons that have nothing to do with how much
+its path resembles the treated unit's. Equalising the ranges first makes the fit
+a comparison of shape.
+
+Two consequences are worth knowing. The warp does not move: the alignment runs
+on a normalised series, which an affine map leaves untouched, so only the
+control changes. And the effect comes back in the rescaled units, not the
+outcome's own -- divide by the treated unit's multiplier to read it as GDP per
+capita, or whatever the outcome is.
+
+This is ``dsc(rescale = TRUE)``, the reference implementation's default, and it
+is required to compare mlsynth's synthetic-control half against the authors'
+published numbers, which are reported on that scale. It defaults to False here
+so the estimator does not quietly change the units its effects are reported in.
 
 Beyond inference, the estimator exposes its warping diagnostics directly.
 

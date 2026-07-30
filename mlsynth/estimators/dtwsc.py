@@ -43,7 +43,7 @@ from ..exceptions import (
 )
 from ..utils.dtwsc_helpers.pipeline import run_dtwsc
 from ..utils.dtwsc_helpers.plotter import plot_dtwsc
-from ..utils.dtwsc_helpers.setup import prepare_dtwsc_inputs
+from ..utils.dtwsc_helpers.setup import prepare_dtwsc_inputs, rescale_panel
 from ..utils.dtwsc_helpers.structures import DTWSCResults
 
 
@@ -91,8 +91,31 @@ class DTWSC:
     def fit(self) -> DTWSCResults:
         """Warp the donors, fit the synthetic control, and return the results."""
         try:
+            panel = self.df
+            if self.config.rescale_units:
+                # Before ingestion, so the warp and the control both see one
+                # consistent panel. The cut is the last period before
+                # treatment, read off the data rather than assumed to be one
+                # step back, so irregular time indices keep working.
+                treated_times = panel.loc[panel[self.treat] == 1, self.time]
+                if treated_times.empty:
+                    raise MlsynthDataError(
+                        "DTWSC: 'rescale_units' needs a treatment date to "
+                        f"split on, but no row has {self.treat} == 1."
+                    )
+                pre_times = panel.loc[panel[self.time] < treated_times.min(),
+                                      self.time]
+                if pre_times.empty:
+                    raise MlsynthDataError(
+                        "DTWSC: 'rescale_units' found no pre-treatment "
+                        "periods to take each unit's range over."
+                    )
+                panel = rescale_panel(
+                    panel, unitid=self.unitid, time=self.time,
+                    outcome=self.outcome, last_pre_period=pre_times.max(),
+                )
             inputs = prepare_dtwsc_inputs(
-                df=self.df, outcome=self.outcome, treat=self.treat,
+                df=panel, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
                 covariates=self.config.covariates,
             )
@@ -112,6 +135,7 @@ class DTWSC:
                 sc_backend=cfg.sc_backend, covariates=cfg.covariates,
                 covariate_windows=cfg.covariate_windows,
                 fit_window=cfg.fit_window,
+                rescale_units=cfg.rescale_units,
             )
             pc = cfg.resolved_plot()
             if pc.xlabel is None:
