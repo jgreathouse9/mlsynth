@@ -71,6 +71,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ascm_kansas
    replications/ascm_jackknife_plus
    replications/ascm_ridge_cv
+   replications/song_ml_ascm
    replications/pensynth
    replications/sparse_sc
    replications/nsc
@@ -165,6 +166,17 @@ Canonical workhorses
   cross-validation and 1-SE rule, cross-validated against augsynth on two panels
   chosen so that one of them cannot detect the defects the other does
   → dedicated page: :doc:`replications/ascm_ridge_cv`.
+* :doc:`song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
+  ridge-ASCM half of their two-stage ML-ASCM. Path A against the authors'
+  published ``main_result.csv`` *and* cross-validation against a live augsynth
+  0.2.0 run on the same cells, carried separately because they answer different
+  questions. mlsynth matches the pinned package; the published artifact does
+  not, on a tail present in every heating year and on all 128 cells of 2016.
+  The pre-treatment imbalance agrees everywhere, which places the drift in the
+  ridge penalty rather than the fit. Status: done, with the drift quantified
+  rather than absorbed into a tolerance.
+  → dedicated page: :doc:`replications/song_ml_ascm`; durable case
+  ``song_ml_ascm``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. Path A: the KMPT Section-5
   Basque Country / ETA-terrorism study on ``basque_jasa.csv``,
