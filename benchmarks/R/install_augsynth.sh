@@ -17,12 +17,16 @@
 #   osqp       1.0.0     260dc73e1e3d07ccb7dbff85b62eaaf483672394  (cran/osqp)
 #   S7         0.2.2     33c8f3212c62cd2ebec79cd61d1315e9acc84128  (cran/S7)
 #   LiblineaR  2.10.24   07cca10ee74e2442a8726173bd52360c323ad07e  (cran/LiblineaR)
+#   nanoparquet 0.5.1    4b1627a63513175950304c9d5365df2977cbbb49  (cran/nanoparquet)
 set -euo pipefail
 
 AUGSYNTH_SHA=7a90ea48877fae7925a72cb50bc03a315bc7c042
 OSQP_SHA=260dc73e1e3d07ccb7dbff85b62eaaf483672394
 S7_SHA=33c8f3212c62cd2ebec79cd61d1315e9acc84128
 LIBLINEAR_SHA=07cca10ee74e2442a8726173bd52360c323ad07e
+# Zero-dependency parquet reader, so the Song reference reads the SAME vendored
+# panel the Python case does instead of a committed CSV export of it.
+NANOPARQUET_SHA=4b1627a63513175950304c9d5365df2977cbbb49
 
 DEBIAN_FRONTEND=noninteractive apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -54,6 +58,7 @@ inst() {
 inst cran/S7        "$S7_SHA"        S7          # newer osqp needs it
 inst cran/LiblineaR "$LIBLINEAR_SHA" LiblineaR   # bundles liblinear C++
 inst cran/osqp      "$OSQP_SHA"      osqp        # the SCM QP solver
+inst cran/nanoparquet "$NANOPARQUET_SHA" nanoparquet  # reads basedata/*.parquet
 inst ebenmichael/augsynth "$AUGSYNTH_SHA" augsynth
 
-Rscript -e 'suppressMessages(library(augsynth)); cat("augsynth", as.character(packageVersion("augsynth")), "OK\n")'
+Rscript -e 'suppressMessages({library(augsynth); library(nanoparquet)}); cat("augsynth", as.character(packageVersion("augsynth")), "/ nanoparquet", as.character(packageVersion("nanoparquet")), "OK\n")'

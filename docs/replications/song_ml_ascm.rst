@@ -249,8 +249,17 @@ Durable cases & tests
 * ``benchmarks/reference/song_ml_ascm/run_full_sweep.py`` — all 1024 cells, not
   part of ``run_benchmarks``. This is what produced the table above.
 * ``benchmarks/reference/song_ml_ascm/reference.R`` — regenerates the live
-  ``augsynth`` gold; install the reference first with
+  ``augsynth`` gold; install the references first with
   ``bash benchmarks/R/install_augsynth.sh``. The captured gold is committed, so
   the case and the tests run without an R toolchain.
+
+  Both sides read the same file. The R script slices
+  ``basedata/song_ml_ascm_china.parquet`` directly through ``nanoparquet``,
+  rather than a CSV export of it, so the two implementations cannot end up
+  comparing different inputs — a failure that has already happened once in this
+  project, where an R script and its Python counterpart silently ran 33 donors
+  against 37. The window and treatment-date arithmetic is duplicated between the
+  two languages, but the panel is not, and the benchmark's ``live_*`` rows fail
+  if that duplication ever drifts.
 * The ridge penalty's cross-validation against this panel is pinned separately in
   ``mlsynth/tests/test_ascm_ridge_cv.py``.
