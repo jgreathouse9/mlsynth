@@ -121,11 +121,13 @@ class DTWSCConfig(BaseEstimatorConfig):
             "averaging across windows."
         ),
     )
-    step_pattern1: Literal["symmetricP1", "asymmetricP2"] = Field(
+    step_pattern1: Literal["symmetricP1", "symmetricP2", "asymmetricP1",
+                           "asymmetricP2", "typeIc", "mori2006"] = Field(
         default="symmetricP1",
         description="Step pattern for the first-phase (pre-period) alignment.",
     )
-    step_pattern2: Literal["symmetricP1", "asymmetricP2"] = Field(
+    step_pattern2: Literal["symmetricP1", "symmetricP2", "asymmetricP1",
+                           "asymmetricP2", "typeIc", "mori2006"] = Field(
         default="asymmetricP2",
         description="Step pattern for the second-phase (post-period) search.",
     )

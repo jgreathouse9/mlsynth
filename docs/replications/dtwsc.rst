@@ -101,11 +101,34 @@ benchmark.
 Two findings worth keeping
 --------------------------
 
-The alignment kernel is exact. mlsynth implements the two Sakoe--Chiba step
-patterns directly rather than taking a DTW dependency, and over 268 random
-query/reference pairs spanning lengths 2--25 it agrees with R ``dtw`` 1.23-3 on
-the accumulated cost to 1e-6, on the full ``index1``/``index2`` warping paths
-exactly, and on which pairs are inadmissible.
+The alignment kernel is exact, across every step pattern the method uses.
+mlsynth implements them directly rather than taking a DTW dependency, so a
+mistyped recursion coefficient is the kind of error that would produce a
+plausible warp and a wrong answer. Six are supported -- ``symmetricP1``,
+``symmetricP2``, ``asymmetricP1``, ``asymmetricP2``, ``typeIc`` and
+``mori2006`` -- and each is checked against R ``dtw`` 1.23-3 on committed gold
+in ``benchmarks/reference/dtwsc_dtw/``: 214 admissible alignments agree on the
+accumulated cost, the normalised cost, and the full ``index1``/``index2``
+warping paths exactly, while 138 inadmissible cases raise where R errors.
+``warp`` and ``ref_too_short``, which consume those alignments, are checked
+under all six as well.
+
+Six rather than two because of how the method is meant to be used. The authors
+do not fix the step pattern; they select it per run by grid search over seven,
+and the choices shipped in their replication archive span six. An
+implementation carrying only the two their published example happens to use
+could reproduce 39 percent of their Basque design, 31 percent of the
+California one and 50 percent of the German one -- so the omission was not a
+matter of completeness but of whether the paper's own procedure is reachable at
+all.
+
+One detail was worth getting right rather than approximating. Normalisation is
+not uniform across the patterns: the symmetric ones divide the accumulated cost
+by the query plus reference length, the asymmetric ones by the query's, and
+``mori2006`` by the reference's. Treating that as a two-way choice leaves every
+path correct and every normalised distance wrong, which changes nothing
+visible until an open-ended alignment picks its endpoint -- and that endpoint
+decides which windows ``ref_too_short`` rules out of the second-phase search.
 
 One bit was load-bearing. An earlier version of this page recorded a residual
 disagreement in 40 of the 13888 outlier-filter decisions and attributed it to

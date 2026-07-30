@@ -167,6 +167,24 @@ here, and a 2.5 percent tail is not well determined at that count. Treat the
 band as descriptive and the efficiency test as the reproducible claim;
 :doc:`replications/dtwsc` has the measurements.
 
+Choosing the step pattern
+-------------------------
+
+``step_pattern1`` and ``step_pattern2`` choose the recursion the alignment
+follows, for the first-phase and second-phase passes respectively. Six are
+available -- ``symmetricP1`` (the first-phase default), ``symmetricP2``,
+``asymmetricP1``, ``asymmetricP2`` (the second-phase default), ``typeIc`` and
+``mori2006`` -- each matching R ``dtw``'s definition of the same name.
+
+They differ in how far a donor's clock may drift from the treated unit's before
+the alignment refuses: a pattern permitting a steeper step tolerates more
+speed difference, at the cost of admitting alignments that stretch the series
+harder to achieve a fit. They also differ in what the reported distance is
+divided by, which matters when comparing costs across candidate windows rather
+than within one. Cao and Chadefaux do not fix a pattern; they select one per
+run by grid search, which is a reasonable signal that the choice is empirical
+rather than settled.
+
 Putting the units on a common footing
 -------------------------------------
 
