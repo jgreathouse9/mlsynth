@@ -152,6 +152,25 @@ DiSCoTEA(disco, agg = "quantileDiff", graph = FALSE)
 The installer ends with exactly this fit and asserts `sum(weights) ≈ 1`, so a successful
 run of the script is itself the check.
 
+### Verified run, 2026-07-30
+
+```
+DiSCos 0.1.4 / CVXR 1.0.15 OK (real fit, sum(weights) = 1.000000 )
+```
+
+The resolver built exactly the twelve packages this file predicts, in dependency order —
+CVXR, scs, evmix, extremeStat, lmomco, Lmoments, berryFunctions, evir, ismev, extRemes,
+distillery, Renext — plus DiSCos, and nothing else. `scs` is the one worth noting: it
+appears nowhere in the script, and was pulled in automatically as a CVXR dependency.
+That is the resolver doing its job, and the reason not to go back to a hand-written list.
+
+Independently re-checked outside the installer: 652,870 rows loaded, 33 donors,
+`sum(weights)` 1.0000000000. The donor count matches what `benchmarks/cases/dsc_dube.py`
+reports, which is the first corroboration that case has had from outside mlsynth.
+
+Wall time was about 45 minutes on a container that was simultaneously running an
+unrelated R job; budget 15–25 minutes on an idle one.
+
 Pass `mixture = TRUE` to exercise the CVXR path, and `qmethod = "qkden"` /
 `qmethod = "extreme"` to exercise evmix / extremeStat. Use `copy(dube)` — DiSCos takes a
 `data.table` and modifies it by reference, so a bare `dube` mutates the bundled dataset
