@@ -1,0 +1,14 @@
+tau_unadjusted: 39.7604975328
+tau_adjusted:   49.3975137793
+tau_unadjusted_converged: 39.7605113215
+tau_adjusted_converged:   49.3922909942
+beta_x:         49.8318679341
+n_rows:         900
+n_units:        30
+n_periods:      30
+N0:             15
+T0:             15
+true_tau:       50
+xsynthdid:      0.1.0
+synthdid:       0.0.9
+R:              4.3.3

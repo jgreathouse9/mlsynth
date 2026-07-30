@@ -67,6 +67,13 @@ class SDID:
     setup) or a staggered-adoption panel. ``dataprep`` distinguishes the two
     cases automatically.
 
+    Setting ``covariates`` switches on the Kranz (2022) two-step adjustment for
+    time-varying controls, which SDID otherwise has no slot for: the covariate
+    coefficients from ``outcome ~ covariates | unit + time``, fit on the
+    untreated rows, are subtracted from the outcome across the whole panel
+    before the estimator runs. See
+    :mod:`mlsynth.utils.sdid_helpers.covariates`.
+
     References
     ----------
     Arkhangelsky, D., Athey, S., Hirshberg, D., Imbens, G., & Wager, S. (2021).
@@ -115,6 +122,7 @@ class SDID:
         self.intercept_adjust: bool = config.intercept_adjust
         self.subgroup = config.subgroup
         self.target_subgroup = config.target_subgroup
+        self.covariates = config.covariates
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -137,6 +145,7 @@ class SDID:
                 intercept_adjust=self.intercept_adjust,
                 subgroup=self.subgroup,
                 target_subgroup=self.target_subgroup,
+                covariates=self.covariates,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
