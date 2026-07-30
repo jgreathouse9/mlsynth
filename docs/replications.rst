@@ -70,6 +70,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ferman_pinto_mc
    replications/ascm_kansas
    replications/ascm_jackknife_plus
+   replications/ascm_ridge_cv
    replications/pensynth
    replications/sparse_sc
    replications/nsc
@@ -160,6 +161,10 @@ Canonical workhorses
   augsynth run on the Kansas panel at the per-drop seam as well as end to end
   → dedicated page: :doc:`replications/ascm_jackknife_plus`; durable case
   ``ascm_jackknife_plus``.
+* :doc:`ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
+  cross-validation and 1-SE rule, cross-validated against augsynth on two panels
+  chosen so that one of them cannot detect the defects the other does
+  → dedicated page: :doc:`replications/ascm_ridge_cv`.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. Path A: the KMPT Section-5
   Basque Country / ETA-terrorism study on ``basque_jasa.csv``,

@@ -1,0 +1,5 @@
+lambda: 0.078662228134997417
+n_grid: 21
+T0: 89
+J: 49
+note: T0 > J; negative control -- penalty agrees regardless

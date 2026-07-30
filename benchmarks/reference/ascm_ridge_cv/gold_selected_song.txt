@@ -1,0 +1,5 @@
+lambda: 28.51569767174681
+n_grid: 21
+T0: 25
+J: 37
+note: T0 < J; final pre-period is a ~9x outlier fold
