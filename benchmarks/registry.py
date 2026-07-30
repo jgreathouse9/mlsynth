@@ -133,6 +133,7 @@ CASES = {
     "dsc_dube": "benchmarks.cases.dsc_dube",                  # Path A: DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
     "dtwsc_basque": "benchmarks.cases.dtwsc_basque",          # Cross-validation: DTWSC warp vs the conflictlab/dsc R package on Basque
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+    "ascm_jackknife_plus": "benchmarks.cases.ascm_jackknife_plus",  # cross-val vs augsynth inf_type="jackknife+": per-period bounds on Kansas, both branches
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
     "pensynth_prop99": "benchmarks.cases.pensynth_prop99",  # cross-val vs LIVE pensynth wsoll1 (Rscript+LowRankQP) on Prop 99 penalized SC (skips if absent)
     "microsynth_seattle": "benchmarks.cases.microsynth_seattle",  # cross-val vs R microsynth panel method (Seattle DMI)
