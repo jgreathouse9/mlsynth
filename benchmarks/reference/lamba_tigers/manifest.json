@@ -1,0 +1,9 @@
+{
+  "case": "lamba_tigers",
+  "title": "Lamba et al. (2023) tiger reserves vs tidysynth 0.2.0 (per-reserve SCM)",
+  "paper": "Lamba, A., Teo, H. C., Sreekar, R., Zeng, Y., Carrasco, L. R., & Koh, L. P. (2023), 'Climate co-benefits of tiger conservation', Nature Ecology & Evolution 7:1104-1113, doi:10.1038/s41559-023-02069-x",
+  "reference_impl": "R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst rather than pinned",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/lamba_tigers/reference.R",
+  "data": ["basedata/tiger_reserves.csv"]
+}

@@ -197,3 +197,21 @@ writeLines(c(
   sprintf("n_failed:    %d", if (is.null(failures)) 0L else nrow(failures))),
   file.path(OUT, "versions.txt"))
 cat("\n", readLines(file.path(OUT, "versions.txt")), sep = "\n")
+
+# ---------------------------------------------------------------------------
+# Machine-readable block for benchmarks/reference/generate.py, which parses
+# tab-separated key/value lines into reference.json. Only scalars the benchmark
+# case pins go here; the per-reserve matrices stay in the CSVs beside this file.
+cat("\n== REFERENCE VALUES ==\n")
+sl <- function(s) gsub("[^A-Za-z0-9]+", "_", s)
+for (i in seq_len(nrow(summ))) {
+  k <- sl(summ$reserve[i])
+  cat(sprintf("averted_%s\t%.10f\n", k, summ$averted_loss_ha[i]))
+  cat(sprintf("pre_mspe_%s\t%.10f\n", k, summ$pre_mspe[i]))
+  cat(sprintf("n_donors_%s\t%d\n", k, summ$n_donors[i]))
+}
+cat(sprintf("n_fitted\t%d\n", nrow(summ)))
+cat(sprintf("n_failed\t%d\n", if (is.null(failures)) 0L else nrow(failures)))
+cat(sprintf("total_averted_fitted\t%.10f\n", sum(summ$averted_loss_ha)))
+cat("== END ==\n\n")
+print(sessionInfo())

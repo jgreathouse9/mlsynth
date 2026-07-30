@@ -1076,6 +1076,15 @@ replication page, :doc:`replications/vanillasc`, for the full datasets, code and
 donor-weight tables. These are locked as regression tests in
 ``mlsynth/tests/test_vanillasc_replications.py``.
 
+A fourth, more demanding check runs the estimator over a staggered,
+per-unit-donor-pool design: Lamba et al. (2023) fit one synthetic control
+per Indian tiger reserve, with adoption spread over nine years and a donor
+pool restricted to each reserve's own conservation zone. mlsynth reproduces
+the reference's predictor matrices exactly and reaches the better
+pre-treatment fit on ten of eleven reserves; the estimates themselves are
+not matched, for reasons set out in :doc:`replications/lamba_tigers`
+(``benchmarks/cases/lamba_tigers.py``).
+
 Staggered adoption: multiple treated units
 -------------------------------------------
 
