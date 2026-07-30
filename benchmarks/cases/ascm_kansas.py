@@ -14,34 +14,34 @@ This cross-validates against a live run of the augsynth package (captured in
 constants. mlsynth vs live augsynth 0.2.0 across the four specifications:
 
     Specification     mlsynth ATT / L2     live augsynth ATT / L2
-    Classic SCM       -0.0294 / 0.0826     -0.0294 / 0.0826   (exact)
-    Ridge ASCM        -0.0401 / 0.0615     -0.0401 / 0.0615   (exact)
-    Covariate ASCM    -0.0629 / 0.0546     -0.0609 / 0.0539
-    Residualized      -0.0572 / 0.0668     -0.0528 / 0.0576
+    Classic SCM       -0.029435 / 0.082555   -0.029435 / 0.082555   (exact)
+    Ridge ASCM        -0.040063 / 0.061515   -0.040063 / 0.061515   (exact)
+    Covariate ASCM    -0.060937 / 0.053855   -0.060937 / 0.053855   (exact)
+    Residualized      -0.056377 / 0.060838   -0.052773 / 0.057637
 
-The classic SCM and ridge ASCM reproduce the package to machine precision; the
-covariate cell agrees to ~0.002. The residualized cell is wider (see below) and,
-notably, the package's own live value (-0.053 / 0.058) differs from the vignette
-table's -0.055 / 0.067 -- a symptom of that spec's ill-posed CV, surfaced by
-running augsynth rather than trusting the printed numbers.
-
-Note on the covariate cells: they agree to ~0.005 (ATT) and ~0.008 (L2) rather
-than the ~0.002 recorded earlier. That is not a regression. The ridge lambda CV
-was fixed to match augsynth's fold count and its sample-standard-error, which
-made the two no-covariate cells exact; it also removed a cancellation that had
-been flattering these two. mlsynth's covariate ``lambda_max`` is 128.4583 where
-augsynth's is 128.6077, a pre-existing difference in the standardized covariate
-block that the CV fix does not touch, and the old fold count happened to pick a
-point on that grid closer to augsynth's answer. The disagreement is now
-attributed to its actual cause.
+Three of the four specifications reproduce the package to six decimals. The
+residualized cell does not, by design (see below), and notably the package's own
+live value (-0.0528 / 0.0576) differs from the vignette table's -0.055 / 0.067 --
+a symptom of that spec's ill-posed CV, surfaced by running augsynth rather than
+trusting the printed numbers.
 
 The covariate model is augsynth's documented Kansas spec,
 ``treated | lngdpcapita + log(revstatecapita) + log(revlocalcapita) +
-log(avgwklywagecapita) + estabscapita + emplvlcapita`` -- per-row transforms
-aggregated to a pre-period mean per unit, with rows carrying a missing
-(sparsely reported) revenue value dropped before averaging (R's ``model.frame``
-``na.omit`` default). The two no-covariate cells are exact to augsynth; the
-covariate cells match its values and reproduce the monotone ladder.
+log(avgwklywagecapita) + estabscapita + emplvlcapita``: per-row transforms
+aggregated to one pre-period mean per unit.
+
+How that aggregation treats missing values is the subtle part, and it decides
+the covariate cells. The two revenue series are reported annually, so they are
+absent from 56 of the 89 pre-treatment quarters. augsynth's ``extract_covariates``
+(``R/format.R``) passes ``na.action = NULL`` to ``model.frame`` and then averages
+each covariate independently with ``mean(x, na.rm = TRUE)`` -- missing values
+omitted column-wise. Averaging over the quarters where every covariate is
+reported instead (row-wise deletion) throws 56 quarters away from all six series
+and not just from the two sparse ones, which moved the covariate ``lambda_max``
+to 128.4583 against augsynth's 128.6077 and the covariate ATT to -0.066328.
+``aggregate_covariates`` implements the column-wise rule; ``TestCovariateAggregation``
+in ``mlsynth/tests/test_bilevel_ridge.py`` pins it, including how much the wrong
+rule would move.
 
 Note on the residualized penalty: after residualizing out K covariates the
 residual Gram is rank-deficient, so augsynth's residual lambda-CV is ill-posed
@@ -73,6 +73,50 @@ _COVS = [("lngdpcapita", None), ("revstatecapita", np.log),
          ("estabscapita", None), ("emplvlcapita", None)]
 
 
+def covariate_stack():
+    """The pre-treatment covariate cube, per-row transforms applied, unaggregated.
+
+    Returns
+    -------
+    np.ndarray, shape (N, T0, K)
+        Units in sorted ``fips`` order, pre-treatment quarters, covariates in
+        ``_COVS`` order. Missing values are left in place: the two revenue series
+        are reported annually and so are absent from 56 of the 89 quarters.
+    """
+    d = pd.read_csv(os.path.abspath(_DATA))
+    times = np.array(sorted(d["year_qtr"].unique()))
+    pre = times < _T_INT
+    layers = []
+    for name, fn in _COVS:
+        m = (d.pivot(index="fips", columns="year_qtr", values=name)
+              .sort_index().to_numpy()[:, pre])
+        layers.append(fn(m) if fn else m)
+    return np.stack(layers, axis=2)
+
+
+def aggregate_covariates(stack):
+    """Per-unit covariate means, omitting missing values column-wise.
+
+    This is augsynth's rule, and it is not the obvious one. ``extract_covariates``
+    (``R/format.R``) passes ``na.action = NULL`` to ``model.frame``, so no rows are
+    removed, and then aggregates each covariate independently with its default
+    ``cov_agg``, ``function(x) mean(x, na.rm = TRUE)``.
+
+    Row-wise (listwise) deletion is the tempting alternative and it is wrong here
+    by more than a rounding: the revenue series are annual, so dropping every
+    quarter in which they are missing would discard 56 of the 89 pre-treatment
+    quarters from all six covariates rather than from the two that are actually
+    sparse. Doing that moved the covariate ``lambda_max`` from augsynth's 128.6077
+    to 128.4583, and the covariate ATT from -0.060937 to -0.066328.
+    """
+    return np.nanmean(np.asarray(stack, dtype=float), axis=1)
+
+
+def kansas_panel():
+    """``(y_pre, Y0_pre, y_post, Y0_post, Z0, z1)`` for the augsynth Kansas study."""
+    return _prep()
+
+
 def _prep():
     d = pd.read_csv(os.path.abspath(_DATA))
     piv = d.pivot(index="fips", columns="year_qtr", values="lngdpcapita").sort_index()
@@ -85,14 +129,7 @@ def _prep():
     y_pre, Y0_pre = y[: pre.sum()], Y0[:, : pre.sum()].T          # (T0,), (T0, J)
     y_post, Y0_post = y[pre.sum():], Y0[:, pre.sum():]            # (T1,), (J, T1)
 
-    # covariate matrix: per-row transform, drop rows with any NA, pre-period mean
-    layers = []
-    for name, fn in _COVS:
-        m = d.pivot(index="fips", columns="year_qtr", values=name).sort_index().to_numpy()[:, pre]
-        layers.append(fn(m) if fn else m)
-    stack = np.stack(layers, axis=2)                              # (N, T0, K)
-    rowok = ~np.isnan(stack).any(axis=2)
-    Zall = np.array([stack[u][rowok[u]].mean(0) for u in range(stack.shape[0])])
+    Zall = aggregate_covariates(covariate_stack())                 # (N, K)
     Z0, z1 = Zall[~trt], Zall[trt][0]
     return y_pre, Y0_pre, y_post, Y0_post, Z0, z1
 
@@ -176,8 +213,8 @@ def comparison() -> dict:
 
 # Deterministic. Targets are pinned from a live augsynth run captured in
 # benchmarks/reference/ascm_kansas/ (not transcribed constants), so the benchmark
-# checks mlsynth against the actual package output. The no-covariate and
-# covariate cells match augsynth to ~0.002; the residualized cells are wider
+# checks mlsynth against the actual package output. Three of the four
+# specifications are exact to six decimals; the residualized cells are wider
 # because augsynth's residual lambda-CV is ill-posed (rank-deficient residual
 # Gram) -- the spec where the package's own value drifts (its live -0.053/0.058
 # differs from the vignette's -0.055/0.067).
@@ -187,21 +224,21 @@ EXPECTED = {
     "l2_scm": (_ref("l2_scm"), 0.001),
     "att_ridge": (_ref("att_ridge"), 0.001),
     "l2_ridge": (_ref("l2_ridge"), 0.001),
-    # Widened from 0.003/0.002, and NOT because the new value is better. Fixing
-    # two defects in the ridge lambda CV (a fold off-by-one and a
+    # Exact, at the same tolerance as the outcome-only cells. Getting here took
+    # two fixes: the ridge lambda CV (a fold off-by-one and a
     # population-vs-sample standard error, see docs/replications/ascm_ridge_cv)
-    # made the outcome-only cells EXACT and moved these two further out, from
-    # ~0.002 to ~0.005/0.008. The reason is a partial cancellation that has now
-    # been removed rather than a regression: mlsynth's covariate lambda_max is
-    # 128.4583 against augsynth's 128.6077 -- a pre-existing ~0.1 percent
-    # difference in the standardized covariate block, untouched by the CV fix --
-    # and the old fold count happened to select a point on that already-wrong
-    # grid which landed nearer augsynth's answer. The gap is now correctly
-    # attributed to the covariate block instead of being masked. Tracked
-    # separately; do not tighten these by reverting the CV fix.
-    "att_covariate": (_ref("att_covariate"), 0.006),
-    "l2_covariate": (_ref("l2_covariate"), 0.009),
-    "att_residualized": (_ref("att_residualized"), 0.007),
-    "l2_residualized": (_ref("l2_residualized"), 0.013),
+    # and the covariate aggregation rule (``aggregate_covariates`` above).
+    # Each of those alone left a visible gap, and for a while they partly
+    # cancelled -- which is why these tolerances were briefly 0.006/0.009.
+    "att_covariate": (_ref("att_covariate"), 0.001),
+    "l2_covariate": (_ref("l2_covariate"), 0.001),
+    # Deliberately loose. mlsynth tunes the residualized penalty on the outcome
+    # scale because augsynth's residual lambda-CV is ill-posed there (see the
+    # note in the module docstring), so the two land at different penalties by
+    # design. 0.004 is the resulting gap, not a slack budget: do not use it to
+    # absorb a future regression in the shared covariate or CV code, both of
+    # which are pinned exactly by the four cells above.
+    "att_residualized": (_ref("att_residualized"), 0.004),
+    "l2_residualized": (_ref("l2_residualized"), 0.004),
     "ladder_monotone": (1.0, 0.5),
 }

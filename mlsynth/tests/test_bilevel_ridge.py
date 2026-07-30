@@ -249,25 +249,105 @@ def test_residualize_returns_donor_weights_off_simplex():
     assert res.W.sum() == pytest.approx(1.0, abs=1e-6)   # add-back preserves sum-1
 
 
+def _kansas_covariate_stack():
+    """The raw ``(N, T0, K)`` pre-treatment covariate cube, before aggregation."""
+    pytest.importorskip("pandas")
+    from benchmarks.cases.ascm_kansas import covariate_stack
+
+    return covariate_stack()
+
+
 def _kansas_ascm_covariates():
-    pd = pytest.importorskip("pandas")
-    df = pd.read_csv(_KANSAS_ASCM)
-    piv = df.pivot(index="fips", columns="year_qtr", values="lngdpcapita").sort_index()
-    times = np.array(sorted(df["year_qtr"].unique())); pre = times < 2012.25
-    units = piv.index.to_numpy(); trt = units == 20.0
-    Y = piv.to_numpy(); y, Y0 = Y[trt][0], Y[~trt]
-    y_pre, Y0_pre = y[: pre.sum()], Y0[:, : pre.sum()].T
-    y_post, Y0_post = y[pre.sum():], Y0[:, pre.sum():]
-    specs = [("lngdpcapita", None), ("revstatecapita", np.log), ("revlocalcapita", np.log),
-             ("avgwklywagecapita", np.log), ("estabscapita", None), ("emplvlcapita", None)]
-    layers = []
-    for n, fn in specs:
-        m = df.pivot(index="fips", columns="year_qtr", values=n).sort_index().to_numpy()[:, pre]
-        layers.append(fn(m) if fn else m)
-    st = np.stack(layers, axis=2)
-    ok = ~np.isnan(st).any(2)
-    Zall = np.array([st[u][ok[u]].mean(0) for u in range(st.shape[0])])
-    return y_pre, Y0_pre, y_post, Y0_post, Zall[~trt], Zall[trt][0]
+    pytest.importorskip("pandas")
+    from benchmarks.cases.ascm_kansas import kansas_panel
+
+    return kansas_panel()
+
+
+class TestCovariateAggregation:
+    """How per-unit covariate means treat missing values.
+
+    augsynth's ``extract_covariates`` (``R/format.R``) passes ``na.action = NULL``
+    to ``model.frame`` -- so no rows are removed -- and then aggregates each
+    covariate independently with ``mean(x, na.rm = TRUE)``. Omitting missing
+    values *column*-wise rather than *row*-wise is the whole content of that
+    choice, and on this panel it is not a rounding-level distinction: the two
+    revenue series are reported annually, so listwise deletion would discard
+    those quarters from all six covariates and not just from revenue.
+    """
+
+    def test_only_the_revenue_series_are_sparse(self):
+        """The property that makes this panel diagnostic, asserted not assumed.
+
+        If the vendored CSV ever gains or loses missing values the two tests
+        below stop distinguishing column-wise from row-wise aggregation, and
+        would pass for the wrong reason.
+        """
+        stack = _kansas_covariate_stack()
+        missing = np.isnan(stack).sum(axis=(0, 1))
+        # covariate order: lngdpcapita, log(revstate), log(revlocal),
+        #                  log(avgwklywage), estabscapita, emplvlcapita
+        assert missing[0] == 0
+        assert missing[3] == missing[4] == missing[5] == 0
+        assert missing[1] == missing[2] > 0
+        # 50 units x 56 of the 89 pre-treatment quarters
+        n_units, n_pre, _ = stack.shape
+        assert missing[1] == n_units * 56
+        assert n_pre == 89
+
+    def test_missing_values_are_omitted_per_column_not_per_row(self):
+        """The substance of the difference, stated as behaviour.
+
+        A covariate with no missing values must average over every pre-treatment
+        quarter, however sparse its neighbours are. Under row-wise deletion it
+        would average over only the 33 quarters where revenue is also reported.
+        """
+        from benchmarks.cases.ascm_kansas import aggregate_covariates
+
+        stack = _kansas_covariate_stack()
+        Z = aggregate_covariates(stack)
+        # the four fully observed covariates: the mean over all T0 quarters
+        dense = [0, 3, 4, 5]
+        np.testing.assert_allclose(
+            Z[:, dense], stack[:, :, dense].mean(axis=1), rtol=0, atol=1e-12)
+        # the two sparse ones: the mean over their reported quarters only
+        for k in (1, 2):
+            for u in range(stack.shape[0]):
+                col = stack[u, :, k]
+                assert Z[u, k] == pytest.approx(
+                    col[~np.isnan(col)].mean(), rel=0, abs=1e-12)
+
+    def test_row_wise_deletion_would_move_the_dense_covariates(self):
+        """Pins that the two rules genuinely differ, so the fix is load-bearing.
+
+        Without this, a future refactor could reintroduce row-wise deletion and
+        the assertions above would be the only thing standing in the way, with
+        no record of how much was at stake.
+        """
+        from benchmarks.cases.ascm_kansas import aggregate_covariates
+
+        stack = _kansas_covariate_stack()
+        Z = aggregate_covariates(stack)
+        keep = ~np.isnan(stack).any(axis=2)
+        Z_rowwise = np.array([stack[u][keep[u]].mean(0)
+                              for u in range(stack.shape[0])])
+        gap = np.abs(Z - Z_rowwise).max(axis=0)
+        assert gap[1] == gap[2] == pytest.approx(0.0, abs=1e-12)  # sparse: same
+        assert gap[0] > 0.1 and gap[3] > 0.1                      # dense: not
+
+
+def test_kansas_covariate_lambda_max_matches_augsynth():
+    """``get_lambda_max`` on the covariate-stacked matching matrix.
+
+    The whole lambda grid is ``lambda_max * scaler^k``, so a wrong
+    ``lambda_max`` misplaces every candidate penalty. It is also the cheapest
+    scalar that detects a wrong covariate block: nothing downstream can be right
+    if this is off, and it is off by 0.15 under row-wise aggregation.
+    """
+    y_pre, Y0_pre, _, _, Z0, z1 = _kansas_ascm_covariates()
+    B, _ = build_matching(y_pre, Y0_pre, Z0=Z0, z1=z1)
+    lambda_max = float(np.linalg.svd(B, compute_uv=False)[0]) ** 2
+    assert lambda_max == pytest.approx(128.6077, abs=1e-4)
 
 
 def test_augsynth_kansas_covariate_ladder():
@@ -275,30 +355,17 @@ def test_augsynth_kansas_covariate_ladder():
     att = lambda w: float(np.mean(y_post - Y0_post.T @ w))
     cov = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1)
     res = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1, residualize=True)
-    # augsynth Kansas ladder: Covariate ASCM -0.061, Residualized -0.055.
-    #
-    # Tolerances are 7e-3 on the covariate cell and 5e-3 on the residualized one,
-    # widened from 3e-3, and NOT because the new numbers are better. Fixing two
-    # defects in the ridge lambda cross-validation -- a fold off-by-one and a
-    # population-vs-sample standard error, see docs/replications/ascm_ridge_cv.rst
-    # -- made the two NO-covariate cells exact against augsynth and moved these
-    # two further out.
-    #
-    # That is a cancellation being removed, not a regression. mlsynth's covariate
-    # ``lambda_max`` is 128.4583 where augsynth's is 128.6077: a pre-existing
-    # ~0.1 percent difference in the standardized covariate block, which
-    # ``generate_lambdas`` owns and the CV fix does not touch. The old, wrong fold
-    # count happened to select a point on that already-wrong grid which landed
-    # nearer augsynth's answer. The disagreement is now attributed to its actual
-    # cause instead of being masked by a second one.
-    #
-    # Do NOT tighten these by reverting the CV fix. The residual covariate-block
-    # difference is tracked separately; the likely cause is the covariate matrix
-    # construction (see benchmarks/cases/ascm_kansas.py on how rows with a
-    # missing revenue value are dropped before averaging) rather than the
-    # standardization, which matches augsynth expression for expression.
-    assert att(cov.W) == pytest.approx(-0.061, abs=7e-3)
-    assert att(res.W) == pytest.approx(-0.055, abs=5e-3)
+    # Live augsynth on this spec: covariate ASCM -0.060937, residualized
+    # -0.052773. The covariate cell reproduces to 1e-6 -- it is an exact
+    # cross-validation, not an approximate one, so the tolerance says so.
+    assert att(cov.W) == pytest.approx(-0.060937, abs=1e-5)
+    # The residualized cell stays loose on purpose. After residualizing out K
+    # covariates the residual Gram is rank-deficient, so augsynth's residual
+    # lambda-CV is ill-posed and drifts to the grid floor; mlsynth tunes on the
+    # outcome scale instead, which is where augsynth's CV lands anyway and which
+    # reproduces the vignette's published -0.055 robustly. The gap is that
+    # deliberate difference, not a defect -- see benchmarks/cases/ascm_kansas.py.
+    assert att(res.W) == pytest.approx(-0.052773, abs=4e-3)
 
 
 # === moving-block (cyclic) conformal permutation (augsynth type="block") ===

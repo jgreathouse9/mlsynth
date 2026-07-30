@@ -109,11 +109,23 @@ def _covariate_means(
 ) -> np.ndarray:
     """Per-unit covariate means over each covariate's window -> ``(K, N)``.
 
-    With a single shared window (the default, and augsynth's covariate spec) the
-    aggregation is a joint ``na.omit``: a pre-period contributes to the means
-    only if *every* covariate is observed there, matching augsynth's
-    ``X <- na.omit(...)`` (which drops a row carrying any missing covariate
-    before averaging). Per-covariate windows fall back to independent means.
+    Missing values are omitted per covariate, not per period: each covariate is
+    averaged over the periods in which *it* is reported, whatever its neighbours
+    do. This is augsynth's rule -- ``extract_covariates`` (``R/format.R``) passes
+    ``na.action = NULL`` to ``model.frame``, so no rows are dropped, and then
+    aggregates each column with its default ``cov_agg``,
+    ``function(x) mean(x, na.rm = TRUE)``.
+
+    The alternative -- dropping a period from every covariate when any one of them
+    is missing there -- is a tempting reading and a costly one. Mixing an annual
+    series with quarterly ones is ordinary in panel data, and listwise deletion
+    then discards three quarters in four from the covariates that were fully
+    observed. On augsynth's own Kansas study that moved the covariate ASCM's ATT
+    from -0.0609 to -0.0663.
+
+    A unit with a covariate missing in *every* period still yields NaN here, which
+    the finiteness check below turns into a reported :class:`MlsynthDataError`
+    rather than a silently degenerate fit.
     """
     for cov in covariates:
         if cov not in df.columns:
@@ -129,7 +141,8 @@ def _covariate_means(
     year_sets = [_years(c) for c in covariates]
 
     if all(ys == year_sets[0] for ys in year_sets):
-        # joint na.omit over the shared window (augsynth convention)
+        # shared window: one mean per covariate, NAs omitted column-wise
+        # (augsynth's ``mean(x, na.rm = TRUE)`` per covariate)
         years = year_sets[0]
         sub = df[df[time].isin(years)]
         stack = np.stack(
@@ -138,12 +151,12 @@ def _covariate_means(
              for cov in covariates],
             axis=2,
         )                                            # (N, T_win, K)
-        row_ok = ~np.isnan(stack).any(axis=2)        # period kept iff no NA
-        means = np.full((len(units), len(covariates)), np.nan)
-        for u in range(len(units)):
-            if row_ok[u].any():
-                means[u] = stack[u][row_ok[u]].mean(0)
-        X = means.T                                  # (K, N)
+        with warnings.catch_warnings():
+            # an all-missing (unit, covariate) slice is a legitimate input error,
+            # reported by the finiteness check below -- not a warning to surface
+            warnings.filterwarnings("ignore", "Mean of empty slice",
+                                    RuntimeWarning)
+            X = np.nanmean(stack, axis=1).T           # (K, N)
     else:
         rows = []
         for cov, years in zip(covariates, year_sets):
