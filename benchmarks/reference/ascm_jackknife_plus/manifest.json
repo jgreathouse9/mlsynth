@@ -1,0 +1,9 @@
+{
+  "case": "ascm_jackknife_plus",
+  "title": "jackknife+ intervals for ridge ASCM vs augsynth (Kansas)",
+  "paper": "Ben-Michael, Feller & Rothstein (2021), JASA 116(536); augsynth R package (ebenmichael/augsynth)",
+  "reference_impl": "R package augsynth (live run, inf_type=\"jackknife+\")",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/ascm_jackknife_plus/reference.R",
+  "data": ["basedata/kansas_ascm.csv"]
+}

@@ -69,6 +69,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ferman
    replications/ferman_pinto_mc
    replications/ascm_kansas
+   replications/ascm_jackknife_plus
    replications/pensynth
    replications/sparse_sc
    replications/nsc
@@ -154,6 +155,11 @@ Canonical workhorses
   and bias reduction across four Kansas-calibrated DGPs. Status: done.
   → dedicated page: :doc:`replications/ascm_kansas`; durable cases
   ``ascm_kansas`` and ``augsynth_calibrated``.
+* :doc:`ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
+  ASCM, the leave-one-pre-period-out interval, cross-validated against a live
+  augsynth run on the Kansas panel at the per-drop seam as well as end to end
+  → dedicated page: :doc:`replications/ascm_jackknife_plus`; durable case
+  ``ascm_jackknife_plus``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. Path A: the KMPT Section-5
   Basque Country / ETA-terrorism study on ``basque_jasa.csv``,

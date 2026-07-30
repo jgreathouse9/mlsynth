@@ -17,7 +17,8 @@ from ...config_models import (
     InferenceResults,
     MethodDetailsResults,
 )
-from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ...exceptions import (MlsynthConfigError, MlsynthDataError,
+                           MlsynthEstimationError)
 from ..datautils import dataprep
 from ..helperutils import IndexSet
 from ..results_helpers import build_effect_submodels, make_weights_results
@@ -416,6 +417,59 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "period_p_value": ci.p_value,
                 "joint_p_value": ci.joint_p_value,
                 "lambda": res.lambda_,
+            },
+        )
+
+    # jackknife+ over pre-treatment periods (augsynth ``inf_type="jackknife+"``).
+    # Only defined for the ridge-augmented fit: the procedure refits the ASCM
+    # once per held-out pre-period, so without an augmentation layer there is
+    # nothing being de-biased and the "refit" is just the base SCM again.
+    if mode == "jackknife_plus" and gap[pre:].size:
+        if config.augment != "ridge":
+            raise MlsynthEstimationError(
+                "VanillaSC inference='jackknife_plus' is augsynth's inference "
+                "for ridge ASCM and needs augment='ridge'; got "
+                f"augment={config.augment!r}."
+            )
+        from ..bilevel.jackknife_plus import jackknife_plus
+        Z0 = X0.T if X0 is not None else None
+        z1 = X1 if X1 is not None else None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            jk = jackknife_plus(
+                y[:pre], Y0[:pre], y[pre:], Y0[pre:].T,
+                alpha=config.alpha, conservative=config.jackknife_conservative,
+                Z0=Z0, z1=z1, residualize=config.residualize,
+                lambda_=res.lambda_,
+            )
+        # jackknife_plus returns one extra entry for the post-period average;
+        # the per-period band is everything before it.
+        per_period_lower, per_period_upper = jk.lower[:-1], jk.upper[:-1]
+        cf_lower = np.full_like(y, np.nan, dtype=float)
+        cf_upper = np.full_like(y, np.nan, dtype=float)
+        cf_lower[pre:] = jk.counterfactual_lower[:-1]
+        cf_upper[pre:] = jk.counterfactual_upper[:-1]
+        inference = InferenceResults(
+            # The scalar slots carry the bound on the post-period AVERAGE --
+            # augsynth's own ``average_att`` row -- not the mean of the
+            # per-period bounds, which is a different and less useful quantity.
+            ci_lower=float(jk.lower[-1]),
+            ci_upper=float(jk.upper[-1]),
+            p_value=None,
+            confidence_level=1.0 - config.alpha,
+            method=("jackknife+ over pre-treatment periods "
+                    "(augsynth inf_type=\"jackknife+\")"),
+            details={
+                "periods": list(time_labels[pre:]),
+                "pi_lower": per_period_lower,
+                "pi_upper": per_period_upper,
+                "counterfactual_lower": cf_lower,
+                "counterfactual_upper": cf_upper,
+                "average_att_lower": float(jk.lower[-1]),
+                "average_att_upper": float(jk.upper[-1]),
+                "held_out_errors": jk.held_out_errors,
+                "conservative": jk.conservative,
+                "lambda": jk.lambda_,
             },
         )
 

@@ -322,7 +322,8 @@ Several inference modes are available via ``inference=``:
 Each mode returns one kind of output, and the fit always tells you which.
 ``"placebo"``, ``"lto"`` and ``"ttest"`` are tests: they return a p-value (the
 t-test also returns an ATT confidence interval). ``"conformal"``,
-``"conformal_split"``, ``"scpi"`` and ``"eiv"`` are prediction intervals: they
+``"conformal_split"``, ``"scpi"``, ``"eiv"`` and ``"jackknife_plus"`` are
+prediction intervals: they
 return the per-period counterfactual
 bands on ``res.time_series`` (``counterfactual_lower`` / ``counterfactual_upper``)
 and the gap intervals in ``res.inference.details``. In every case
@@ -374,6 +375,58 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     ``res.inference.details["counterfactual_lower" / "counterfactual_upper"]``
     (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
     :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
+
+``"jackknife_plus"`` -- jackknife+ over pre-treatment periods (Ben-Michael, Feller & Rothstein 2021)
+    ``augsynth``'s ``inf_type = "jackknife+"``, and only defined for the
+    ridge-augmented fit (``augment="ridge"``); asking for it without the
+    augmentation raises, since with no de-biasing layer the "refit" is just the
+    base synthetic control again.
+
+    The resampling is over *time*, not units. Each pre-treatment period is held
+    out in turn, the augmented control is refitted on the remaining pre-periods,
+    and the refit is asked to predict the period it never saw. Writing
+    :math:`e_j` for that held-out error and :math:`\widehat{y}^{N}_{1t}(j)` for
+    the refit's counterfactual at post-period :math:`t`, the counterfactual bounds
+    are the :math:`\alpha/2` and :math:`1-\alpha/2` quantiles, across the
+    :math:`j`, of :math:`\widehat{y}^{N}_{1t}(j) \mp |e_j|`. A period the fit
+    cannot predict when it is hidden is evidence that the post-treatment
+    prediction is also uncertain, and the interval widens accordingly.
+
+    Two things about it are worth knowing before comparing numbers with R. The
+    ridge penalty is selected once on the full pre-period and then reused by
+    every refit -- ``augsynth`` pins it before resampling, so no refit re-runs
+    cross-validation. And the quantiles are taken on the counterfactual scale
+    and then subtracted from the observed treated path, which *reverses* them:
+    the lower bound on the effect is built from the upper bound on the
+    counterfactual.
+
+    ``res.inference.ci_lower`` / ``ci_upper`` carry the bound on the
+    post-treatment *average* -- the row ``augsynth`` prints as ``average_att`` --
+    rather than the mean of the per-period bounds, which is a different and less
+    useful quantity. The per-period band is in
+    ``res.inference.details["pi_lower" / "pi_upper"]``, with the held-out errors
+    themselves under ``["held_out_errors"]`` for diagnosis. There is no p-value;
+    the procedure produces an interval only.
+
+    ``jackknife_conservative=True`` selects ``augsynth``'s alternative branch,
+    which brackets the per-drop predictions by their minimum and maximum and
+    widens by the :math:`1-\alpha` quantile of the absolute held-out errors.
+    Despite the name it is not reliably wider: it reaches the
+    :math:`1-\alpha` quantile of the errors where the default reaches
+    :math:`1-\alpha/2` of :math:`\widehat{y}^{N}_{1t}(j) + |e_j|`, so when the
+    held-out errors are right-skewed the default's deeper reach into that tail
+    can dominate the wider envelope and leave the "conservative" interval
+    tighter. On the Kansas panel it is narrower at 16 of 17 periods. Check rather
+    than assume. ``augsynth``'s own default is the quantile form, so that is the
+    default here too.
+
+    Cost scales with the pre-period: one refit per pre-treatment period, so a
+    panel with 89 pre-periods costs 89 refits for one interval. Cross-validated
+    against a live ``augsynth`` 0.2.0 run on the Kansas panel -- the per-drop
+    errors and predictions agree to 1e-7 and the assembled bounds to 4e-9, with
+    the conservative branch looser at 1e-7 because its min/max deliberately
+    select the most extreme refit. See :doc:`replications/ascm_jackknife_plus`
+    and :func:`mlsynth.utils.bilevel.jackknife_plus.jackknife_plus`.
 
 ``"conformal_split"`` -- split-conformal band (Chernozhukov, Wüthrich & Zhu 2021)
     The simpler *split*-conformal construction: a single constant half-width
