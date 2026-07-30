@@ -1200,6 +1200,136 @@ eq.(4) no-covariate identity; only if both hold, proceed to `/new-estimator` as 
 
 ---
 
+## 11. Panel-shape coverage inventory for the benchmark suite
+
+**Status: Planned (motivated by three defects found on 2026-07-30; no code yet).**
+
+### The idea in one line
+
+The suite catalogues its ~152 cases by *what* each validates and never by the
+*shape* of the panel it validates on, so blind spots are invisible until
+something stumbles into one.
+
+### Why this is worth doing
+
+Three defects landed on 2026-07-30 that the suite could not have caught, and all
+three surfaced only because one newly added panel had an unusual shape.
+
+The ridge-ASCM cross-validation defects (#297) were invisible on augsynth's own
+canonical Kansas example: its selected penalty came out identical to fifteen
+significant figures whether the fold count was right or wrong, because with
+`T0 = 89` against `J = 49` the CV curve is flat near its optimum. The Song panel
+detected both immediately -- `T0 = 25` against `J = 37`, with the final
+pre-period on a seasonal ramp carrying nine times the average held-out error.
+Same code, same test, one panel blind and one panel diagnostic.
+
+The covariate-aggregation defect (#299) is sharper still. Kansas *does* have
+sparse covariates and could have caught it, but two errors were partly
+cancelling; it took fixing the CV first to expose the second. And when that fix
+landed, an audit found **no other case in the suite has sparse covariates at
+all** -- so that fix has exactly one witness.
+
+There is a selection effect at work. Canonical benchmark panels are chosen by
+paper authors partly because the method works cleanly on them, which is the
+wrong sampling distribution for finding bugs: it tests each method where it is
+best behaved.
+
+### What to build
+
+A short inventory -- a script or a generated table -- recording per case:
+`T0` vs `J`, cells per unit and their spread, covariate sparsity, donor-matrix
+conditioning, and structural oddities (a donor-pool aggregate used as its own
+treated unit, as in Song's `"Southern control"`, is a degeneracy no Prop 99 /
+Basque / Kansas panel contains).
+
+Cheap to produce, and it turns "we have 152 cases" into a statement about what
+they collectively cover.
+
+### Caveat
+
+Out-of-distribution benchmarks also cost more. Roughly half the effort on Song
+went into establishing that a disagreement was the *reference's* fault rather
+than ours -- it needed all 1024 cells plus a live augsynth run to attribute.
+More coverage finds more, and each finding takes longer to adjudicate.
+
+---
+
+## 12. `q_min` / `q_max` for DSC
+
+**Status: Planned (surfaced while closing #304; small and well-specified).**
+
+### The idea in one line
+
+Both official DSC implementations let the user restrict the matched quantile
+range; `DSCConfig` has no equivalent.
+
+### Detail
+
+DiSCos exposes `q_min` / `q_max`, and the Stata command exposes `qmin` / `qmax`,
+both defaulting to the full `[0, 1]`. The Stata Journal paper (§2.2) gives the
+motivation: "researchers may sometimes wish to match or conduct inference on
+specific parts of the distribution."
+
+This is not cosmetic. The DiSCo vignette's own headline run uses `q_max = 0.9`,
+and at that setting the two implementations select **entirely different donor
+sets** from the same data than they do at `q_max = 1`. A user following the
+vignette cannot currently reproduce it in mlsynth.
+
+Scope: a config field on an existing estimator, threaded into
+`sample_quantile_grid` (which after #307 builds `linspace(q_min, q_max, M)`,
+already the right shape) plus validation that `q_min < q_max` within `[0, 1]`.
+Its own branch and tests per the repo contract.
+
+### Learnings
+
+Worth pinning `q_max = 0.9` against the Stata implementation when this lands --
+it is a second published configuration on a panel already vendored
+(`basedata/disco_tenure.parquet`), so it costs one R run and buys another
+external check.
+
+---
+
+## 13. Why the R and Stata DSC implementations disagree at small `M`
+
+**Status: Open question (documented, not explained; no action required).**
+
+### The observation
+
+After #307, mlsynth reproduces the Stata `disco` command's published tenure
+weights to 5e-05. The DiSCos R package, on the *same* vendored panel with the
+same donor pool, sits 0.034 from those values at `M = 10,000` and does not
+converge to them as `M` grows (0.0442 at M=100, 0.0431 at M=1,000, 0.0341 at
+M=10,000).
+
+### What is already known
+
+Most of the gap is resolution, not method. The published run uses `m(100)`,
+where the answer is far from converged -- the `amazon` weight runs
+0.2203 (M=100) -> 0.1860 (1,000) -> 0.1827 (5,000) -> 0.1821 (20,000). Both grid
+rules converge to about 0.182, and R's random rule reaches 0.1826 by
+`M = 10,000`. Replicating R's `runif` rule in Python reproduces R's behaviour,
+so there is no further bug in the R package beyond the seed noise recorded in
+#304.
+
+Ruled out: different data (both read the same parquet), different donor pools
+(identical 31), `simplex`, `q_max`, and the aggregation convention -- Stata
+loops `t8 = 1..T0-1` dividing by `T0-1` while R loops `1:T0` dividing by `T0`,
+but their `T0` differ by exactly one, so both average the same two pre-periods.
+
+### What remains
+
+A residual systematic difference at matched large `M`, small enough to be
+quadrature-rule bias in the argmin (Monte Carlo quadrature makes the *argmin* a
+biased estimate even where the objective is unbiased, since the argmin is a
+nonlinear functional of the sampled objective) but not demonstrated to be that.
+
+Not worth chasing unless it grows. Recorded because the next person to compare
+the two implementations will otherwise rediscover it from scratch, and because
+the honest position is that mlsynth matches one reference exactly and the two
+references do not fully agree with each other.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
