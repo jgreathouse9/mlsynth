@@ -217,6 +217,8 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``disco_tenure``
+     - vs the ``disco`` Stata Journal published results: the tenure example's top-5 donor weights (to 5e-5) and its quantile-effects table (to 5e-4), plus the M-converged readings so the published m(100) values are not mistaken for the estimand
    * - ``ascm_jackknife_plus``
      - vs augsynth ``inf_type="jackknife+"`` on Kansas: the per-drop held-out errors and counterfactuals, the pointwise bounds under both the default and conservative branches, and the post-period average interval
    * - ``drosc_basque``

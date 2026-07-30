@@ -56,22 +56,17 @@ tracking before treatment.
 
 .. note::
 
-   **No live DiSCo cross-validation here.** The ``DiSCo`` R package does not
-   install on this environment's R version, and the vignette is built with
-   ``eval=FALSE`` so it publishes code but no numbers. This case is therefore
-   Path A on the authors' exact dataset and setup, with mlsynth's deterministic
-   output pinned and anchored to the one quantitative claim the vignette states
-   (``p > 0.05``).
+   Two claims previously made here were wrong, and are corrected rather than
+   quietly dropped. The ``DiSCo`` R package *does* install in this environment
+   (``benchmarks/R/install_discos.sh``), and the vignette's numbers do not "live
+   in figures rather than text" — the vignette is built with ``eval=FALSE`` and
+   publishes no numbers at all. The conclusion was right, the reasons were not,
+   and the wrong reasons made the situation look permanent instead of fixable.
 
-   Both halves of that are now out of date, and the second is the one that
-   matters. ``DiSCos`` 0.1.4 does install here — see
-   ``benchmarks/R/install_discos.sh`` — and running it against this same file
-   shows donor weights disagreeing with mlsynth by up to 0.074, with the two
-   implementations reaching pre-period objective values 4 percent apart. Until
-   that is understood (issue #304), five of this case's six rows remain
-   regression pins on mlsynth's own output rather than external checks, and the
-   single externally anchored quantity is one bit: a materially wrong DSC that
-   still failed to reject would satisfy ``p > 0.05``.
+   This case still pins mlsynth's own deterministic output, anchored to the one
+   quantitative claim the vignette states (:math:`p > 0.05`). For genuinely
+   external validation see :doc:`disco_tenure`, which reproduces the ``disco``
+   Stata Journal article's published weights and quantile-effects table.
 
 Reproduce
 ---------

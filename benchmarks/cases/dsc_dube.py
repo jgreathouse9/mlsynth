@@ -97,19 +97,29 @@ def run() -> dict:
 # the cells was distorting the distributions being matched. The one externally
 # anchored row, dsc_no_spurious_effect, is unchanged -- the vignette's claim
 # survives the data change, which is the reassurance worth having.
+# These are mlsynth's own deterministic output, not external agreement -- the
+# vignette publishes no numbers (it is built with eval=FALSE). The one
+# externally anchored row is dsc_no_spurious_effect. For a case that does pin
+# published reference values, see benchmarks/cases/disco_tenure.py and
+# mlsynth/tests/test_dsc_stata_exact.py.
+#
+# All four moved when DSC was aligned to the reference implementations (#304):
+# a closed quantile grid including the endpoints, type-7 empirical quantiles,
+# and an exact simplex solve. That is a change of estimator convention, not a
+# regression, and the fit improved: pre-period 2-Wasserstein 0.0384 -> 0.0354.
 EXPECTED = {
-    # -0.2618 on the full data, against -0.1515 on the subsample.
-    "dsc_att": (-0.2618, 0.02),
+    # -0.2705 after the #304 alignment; -0.2618 before it; -0.1515 on the
+    # 250-obs-per-cell subsample this case used before the full panel landed.
+    "dsc_att": (-0.2705, 0.02),
     "dsc_no_spurious_effect": (1.0, 0.0),     # cross-check vs the DiSCo vignette
     # Permutation p-values over 33 donors + the treated unit are multiples of
     # 1/34 = 0.0294, so the tolerance is ~3 permutation steps: tight enough that
     # a real shift in the placebo ranking fails, loose enough to survive one or
     # two donors swapping order.
-    "dsc_pvalue_2003": (0.5000, 0.09),        # 17/34
-    "dsc_pvalue_2004": (0.1176, 0.09),        # 4/34
-    # 0.0384 on the full data against 0.129 on the subsample. Do NOT loosen this
-    # back toward the old value: a rise here means the distributional fit has
-    # degraded, which is the failure this case exists to catch.
-    "dsc_pre_wasserstein": (0.0384, 0.004),
+    "dsc_pvalue_2003": (0.3824, 0.09),        # 13/34
+    "dsc_pvalue_2004": (0.0882, 0.09),        # 3/34
+    # Do NOT loosen this toward the old 0.129: a rise means the distributional
+    # fit has degraded, which is the failure this case exists to catch.
+    "dsc_pre_wasserstein": (0.0354, 0.004),
     "n_donors": (33.0, 0.0),
 }

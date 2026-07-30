@@ -106,6 +106,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cmbsts
    replications/marex
    replications/dsc
+   replications/disco_tenure
    replications/dtwsc
    replications/microsynth
    replications/microsynth_baltimore
