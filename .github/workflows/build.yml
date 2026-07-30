@@ -41,9 +41,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Decide whether this change can affect the test suite. Docs-only and
-      # benchmarks-only PRs skip the (slow) run -- the job still completes, so a
-      # required "build" check stays satisfiable. Workflow_dispatch always runs.
+      # Decide whether this change can affect the test suite. Docs-only PRs skip
+      # the (slow) run -- the job still completes, so a required "build" check
+      # stays satisfiable. Workflow_dispatch always runs.
+      #
+      # This list must cover every directory the suite READS, not only the one it
+      # lives in, because a skipped check reports success and a skipped success
+      # is indistinguishable from a real one. 'benchmarks/**' and 'basedata/**'
+      # are here for that reason: tests/test_benchmark_reference.py reads
+      # benchmarks/registry.py and benchmarks/cases/, and 75 test files load
+      # fixtures from basedata/. Benchmarks-only PRs used to skip the run
+      # legitimately; they stopped being safe to skip when the registry-coverage
+      # test was added. mlsynth/tests/test_benchmark_reference.py asserts this
+      # list against those dependencies, so narrowing it fails a test rather
+      # than silently disarming CI.
       - name: Detect code changes
         id: filter
         if: github.event_name == 'pull_request'
@@ -52,6 +63,8 @@ jobs:
           filters: |
             code:
               - 'mlsynth/**'
+              - 'benchmarks/**'
+              - 'basedata/**'
               - 'requirements.txt'
               - 'pyproject.toml'
               - '.github/workflows/build.yml'
@@ -129,6 +142,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Kept identical to the build job's filter above, including the reasoning
+      # recorded there. The test asserts every copy, so the two cannot drift.
       - name: Detect code changes
         id: filter
         if: github.event_name == 'pull_request'
@@ -137,6 +152,8 @@ jobs:
           filters: |
             code:
               - 'mlsynth/**'
+              - 'benchmarks/**'
+              - 'basedata/**'
               - 'requirements.txt'
               - 'pyproject.toml'
               - '.github/workflows/build.yml'

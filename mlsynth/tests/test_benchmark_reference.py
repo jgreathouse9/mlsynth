@@ -23,6 +23,66 @@ _ROOT = Path(__file__).resolve().parents[2]
 _BUNDLE = _ROOT / "benchmarks" / "reference" / "synth_prop99"
 
 
+class TestCIRunsWhenTheSuiteCanBreak:
+    """The CI paths filter must cover every directory the test suite reads.
+
+    ``.github/workflows/build.yml`` skips the (slow) suite for changes that
+    cannot affect it. That is a sound optimisation and a dangerous one: a check
+    that is skipped reports success, and a skipped success is indistinguishable
+    from a real one on the pull request page.
+
+    The filter was originally correct. It stopped being correct when tests
+    started reading outside ``mlsynth/``: ``TestRegistryCoversEveryCase`` below
+    reads ``benchmarks/registry.py`` and ``benchmarks/cases/``, and 75 test files
+    load fixtures from ``basedata/``. A pull request touching only those
+    directories could therefore break the suite and still go green -- which is
+    exactly what happened to the pull request that added the Song benchmark: the
+    one test that validates a new case against the registry was the one CI
+    skipped.
+
+    So the coupling is asserted here rather than left to whoever next edits the
+    workflow. If the suite stops reading one of these directories, delete the
+    entry; do not narrow the filter while tests still depend on it.
+    """
+
+    @staticmethod
+    def _filter_blocks():
+        """Every ``filters:`` block in the workflow, not just the first.
+
+        ``build.yml`` gates two jobs (``build`` and the ``pyversions`` matrix)
+        and each carries its own copy of the list. Checking only the first would
+        have passed while the matrix jobs still skipped -- which is the same
+        class of partial check this whole class exists to prevent.
+        """
+        import re
+        wf = (_ROOT / ".github" / "workflows" / "build.yml").read_text()
+        blocks = re.findall(r"filters:\s*\|\n((?:\s+(?:code:|-\s*'[^']+')\n)+)", wf)
+        assert blocks, "could not locate any paths-filter block in build.yml"
+        return [set(re.findall(r"-\s*'([^']+)'", b)) for b in blocks]
+
+    def test_the_workflow_still_has_the_two_filter_copies(self):
+        """If a copy is added or removed, re-read the test below before trusting it."""
+        assert len(self._filter_blocks()) == 2
+
+    @pytest.mark.parametrize("directory", ["mlsynth", "benchmarks", "basedata"])
+    def test_directories_the_tests_read_trigger_a_run(self, directory):
+        for i, paths in enumerate(self._filter_blocks()):
+            assert f"{directory}/**" in paths, (
+                f"tests read from {directory}/ but CI filter block {i} does not "
+                "list it, so a change there skips the suite and still reports "
+                "success")
+
+    def test_the_tests_really_do_read_those_directories(self):
+        """The premise of the test above, asserted rather than assumed.
+
+        Without this, the filter entries could outlive the dependency that
+        justifies them and nobody would know it was safe to drop them.
+        """
+        srcs = [p.read_text() for p in (_ROOT / "mlsynth" / "tests").glob("*.py")]
+        assert sum("basedata" in s for s in srcs) > 10
+        assert sum("benchmarks" in s for s in srcs) > 5
+
+
 class TestRegistryCoversEveryCase:
     """Every case module is reachable from ``benchmarks/registry.py``.
 
