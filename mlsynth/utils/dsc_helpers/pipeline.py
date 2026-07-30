@@ -45,7 +45,7 @@ def run_dsc(
     inputs: DSCInputs,
     *,
     M: Optional[int] = None,
-    grid_method: Literal["halton", "sobol", "uniform"] = "halton",
+    grid_method: Literal["equidistant", "halton", "sobol", "uniform"] = "equidistant",
     lambda_method: Literal["uniform", "recency"] = "uniform",
     lambda_decay: float = 0.9,
     lambda_weights: Optional[Sequence[float]] = None,
@@ -67,7 +67,7 @@ def run_dsc(
         defaults to ``max(200, min_cell_size)`` where ``min_cell_size``
         is the smallest within-cell sample size in the panel
         (Zhang et al. 2026 suggest ``M = C * n`` for some constant C).
-    grid_method : {"halton", "sobol", "uniform"}
+    grid_method : {"equidistant", "halton", "sobol", "uniform"}
         Sampling rule for the quantile grid. ``"halton"`` (default)
         and ``"sobol"`` are deterministic QMC sequences with
         Koksma-Hlawka error :math:`O(\\log M / M)`; ``"uniform"``

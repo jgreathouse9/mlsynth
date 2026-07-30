@@ -65,9 +65,18 @@ def solve_simplex_weights(
     Gunsilius (2023, Section 6.1), where the method is meant to use
     tens to hundreds of donors. The reference DiSCo R package solves the
     same program with a dedicated constrained least-squares routine
-    (``pracma::lsqlincon``); projected gradient is its dependency-free
-    analogue and returns the identical optimum (the objective is convex
-    with a unique minimum value over the simplex).
+    (``pracma::lsqlincon``).
+
+    An earlier version of this docstring claimed projected gradient
+    "returns the identical optimum (the objective is convex with a unique
+    minimum value over the simplex)". That reasoning is wrong, and the
+    error is worth keeping visible: a unique minimum *value* does not
+    imply a unique *argmin*, and the argmin is what gets reported. FISTA
+    reaches the same objective as an exact QP to 0.00 percent while its
+    weights differ by ~1e-3, which was enough to miss the reference's
+    published weights by 0.0047 (issue #304). The projected-gradient pass
+    is therefore a warm start, and :func:`_refine_exact` produces the
+    returned answer.
 
     Parameters
     ----------
@@ -125,7 +134,41 @@ def solve_simplex_weights(
 
     w = np.clip(w, 0.0, None)
     s = w.sum()
-    return w / s if s > 0 else np.full(J, 1.0 / J)
+    w = w / s if s > 0 else np.full(J, 1.0 / J)
+
+    # FISTA converges on the OBJECTIVE, and that is not the same as converging
+    # on the argmin. Measured against an exact QP on the Dube pre-periods, it
+    # reaches the same objective to 0.00 percent while its weights differ by
+    # ~1e-3, and on the Stata Journal tenure panel that is enough to miss the
+    # reference's published weights by 0.0047. Since the weights are the
+    # reported quantity, the projected-gradient result is used only as a warm
+    # start and the answer comes from an exact solve.
+    return _refine_exact(A, b, w)
+
+
+def _refine_exact(A: np.ndarray, b: np.ndarray, warm: np.ndarray) -> np.ndarray:
+    """Exact simplex least squares, falling back to ``warm`` if unavailable.
+
+    ``cvxpy`` is already required by the DSC test path and the bilevel engine
+    keeps an equivalent fallback (``_simplex_qp_cvxpy``), so this adds no new
+    dependency. The fallback exists so that an environment without a working
+    solver degrades to the previous behaviour rather than failing outright.
+    """
+    try:
+        import cvxpy as cp
+    except Exception:  # pragma: no cover - cvxpy is a declared dependency
+        return warm
+    try:
+        w = cp.Variable(A.shape[1], nonneg=True)
+        cp.Problem(cp.Minimize(cp.sum_squares(A @ w - b)),
+                   [cp.sum(w) == 1]).solve(solver=cp.CLARABEL)
+        if w.value is None:  # pragma: no cover - degenerate
+            return warm
+        out = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
+        total = out.sum()
+        return out / total if total > 0 else warm
+    except Exception:  # pragma: no cover - solver failure
+        return warm
 
 
 def wasserstein_loss_at_weights(

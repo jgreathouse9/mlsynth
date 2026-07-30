@@ -86,11 +86,31 @@ def micro_panel():
 
 class TestQuantiles:
     def test_empirical_quantile_matches_numpy(self):
+        """Type 7, matching both official DSC implementations.
+
+        This asserted ``inverted_cdf`` (R type 1, the generalized inverse both
+        papers define) until issue #304. Both the DiSCos R package (``qtype = 7``)
+        and the Stata command (``disco_quantile_sorted``, interpolating at
+        ``(N-1)p + 1``) use type 7, and matching a shipped reference beats
+        matching prose neither author implemented. See
+        ``test_dsc_quantile_convention.py`` for the distinction itself.
+        """
         sample = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         q = np.array([0.1, 0.5, 0.9])
         out = empirical_quantile(sample, q)
-        expected = np.quantile(sample, q, method="inverted_cdf")
+        expected = np.quantile(sample, q, method="linear")
         np.testing.assert_array_equal(out, expected)
+
+    def test_empirical_quantile_accepts_the_closed_grid(self):
+        """``q = 0`` and ``q = 1`` are the sample min and max, not errors.
+
+        Both references evaluate them, and excluding them was the single
+        largest source of disagreement with the Stata reference (~0.09 on the
+        tenure panel).
+        """
+        sample = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        out = empirical_quantile(sample, np.array([0.0, 1.0]))
+        np.testing.assert_array_equal(out, np.array([1.0, 5.0]))
 
     def test_quantile_grid_qmc_in_unit_interval(self):
         V = sample_quantile_grid(M=100, method="halton", random_state=0)

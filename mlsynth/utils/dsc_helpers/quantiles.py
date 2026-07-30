@@ -47,7 +47,9 @@ def empirical_quantile(
         Length-``n`` 1-D sample of observed outcomes for a single
         ``(unit, time)`` cell.
     quantiles : np.ndarray
-        Quantile probabilities in ``(0, 1)``, shape ``(M,)``.
+        Quantile probabilities in ``[0, 1]``, shape ``(M,)``. The endpoints
+        are allowed and evaluate the sample minimum and maximum; the
+        reference implementations both include them in the grid.
 
     Returns
     -------
@@ -59,39 +61,62 @@ def empirical_quantile(
         raise MlsynthEstimationError(
             "empirical_quantile expects a non-empty 1-D sample."
         )
-    if np.any((quantiles <= 0.0) | (quantiles >= 1.0)):
+    if np.any((quantiles < 0.0) | (quantiles > 1.0)) or np.any(~np.isfinite(quantiles)):
         raise MlsynthEstimationError(
-            "quantiles must lie in the open interval (0, 1)."
+            "quantiles must be finite and lie in the closed interval [0, 1]."
         )
-    return np.quantile(sample, quantiles, method="inverted_cdf")
+    # method="linear" is R's quantile type 7. Both papers define the
+    # generalized inverse (type 1, numpy "inverted_cdf"), but BOTH official
+    # implementations use type 7 -- DiSCos passes qtype = 7 and the Stata
+    # command's disco_quantile_sorted interpolates as (N-1)p + 1. Matching a
+    # shipped reference beats matching prose that neither author implemented;
+    # test_dsc_quantile_convention.py pins the distinction so the choice stays
+    # visible. Using type 1 instead moves the fitted weights by ~0.003 on the
+    # Stata Journal tenure panel.
+    return np.quantile(sample, quantiles, method="linear")
 
 
 def sample_quantile_grid(
     M: int,
-    method: Literal["halton", "sobol", "uniform"] = "halton",
+    method: Literal["equidistant", "halton", "sobol", "uniform"] = "equidistant",
     random_state: int = 0,
 ) -> np.ndarray:
-    """Draw the quantile-grid :math:`\\{V_m\\}_{m=1}^{M} \\subset (0, 1)`.
+    """Build the quantile grid :math:`\\{V_m\\}_{m=1}^{M} \\subset [0, 1]`.
 
     Parameters
     ----------
     M : int
         Number of quantile points.
-    method : {"halton", "sobol", "uniform"}
-        Sampling rule. ``"halton"`` (default) and ``"sobol"`` give
-        deterministic low-discrepancy sequences with Koksma-Hlawka
-        error :math:`O(\\log M / M)`; ``"uniform"`` draws i.i.d.
-        samples with :math:`O(M^{-1/2})` error.
+    method : {"equidistant", "halton", "sobol", "uniform"}
+        Grid rule. ``"equidistant"`` (default) is
+        ``V_m = (m - 1) / (M - 1)``, the closed grid used by the authors'
+        Stata implementation (``disco_prob_grid`` in ``disco_utils.mata``)
+        and the only rule that reproduces its published weights. The
+        endpoints are *kept*: :math:`V = 0` and :math:`V = 1` evaluate the
+        sample minimum and maximum, and dropping them moves the fitted
+        weights by ~0.09 on the Stata Journal tenure panel -- the single
+        largest source of disagreement with the reference.
+        ``"halton"`` and ``"sobol"`` give deterministic low-discrepancy
+        sequences with Koksma-Hlawka error :math:`O(\\log M / M)`;
+        ``"uniform"`` draws i.i.d. samples with :math:`O(M^{-1/2})` error,
+        which is what Gunsilius (2023, eq. 3) writes and what the R package
+        does -- and is why that package's weights vary with its seed.
     random_state : int
-        Seed for the QMC scrambling / i.i.d. RNG.
+        Seed for the QMC scrambling / i.i.d. RNG. Unused by
+        ``"equidistant"``, which is deterministic.
 
     Returns
     -------
     np.ndarray
-        Length-``M`` quantile points in ``(0, 1)``.
+        Length-``M`` quantile points. Closed ``[0, 1]`` for
+        ``"equidistant"``; open ``(0, 1)`` for the sampling rules, whose
+        draws are clipped away from the endpoints.
     """
     if M < 2:
         raise MlsynthEstimationError("M must be >= 2.")
+    if method == "equidistant":
+        # Matches disco_prob_grid: p[j] = q_min + (q_max - q_min)*(j-1)/(N-1).
+        return np.linspace(0.0, 1.0, M)
     if method == "halton":
         sampler = qmc.Halton(d=1, seed=random_state)
         V = sampler.random(n=M).flatten()
@@ -104,7 +129,7 @@ def sample_quantile_grid(
     else:
         raise MlsynthEstimationError(
             f"Unknown quantile-grid method {method!r}; expected one of "
-            "'halton', 'sobol', 'uniform'."
+            "'equidistant', 'halton', 'sobol', 'uniform'."
         )
     # Map any exact 0 / 1 draws into the open interval so that
     # empirical_quantile does not refuse them.

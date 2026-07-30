@@ -29,7 +29,7 @@ class DSCConfig(BaseEstimatorConfig):
         2-Wasserstein loss. If ``None``, defaults to
         ``max(200, min_cell_size)`` (Zhang et al. 2026 suggest
         :math:`M = C n` for a constant ``C >= 1``).
-    grid_method : {"halton", "sobol", "uniform"}
+    grid_method : {"equidistant", "halton", "sobol", "uniform"}
         Sampling rule for the quantile grid. ``"halton"`` (default)
         and ``"sobol"`` are quasi-Monte Carlo with Koksma-Hlawka error
         :math:`O(\\log M / M)`; ``"uniform"`` is i.i.d. with
@@ -60,9 +60,14 @@ class DSCConfig(BaseEstimatorConfig):
         description="Number of quantile-grid points used to approximate the "
                     "2-Wasserstein loss. Defaults to max(200, min cell size).",
     )
-    grid_method: Literal["halton", "sobol", "uniform"] = Field(
-        default="halton",
-        description="Quantile-grid sampling rule (QMC by default).",
+    grid_method: Literal["equidistant", "halton", "sobol", "uniform"] = Field(
+        default="equidistant",
+        description="Quantile-grid rule. 'equidistant' (default) is the closed "
+                    "grid (m-1)/(M-1) used by the authors' Stata implementation, "
+                    "endpoints included; it is the only rule that reproduces the "
+                    "reference's published weights. 'halton'/'sobol' are QMC "
+                    "sequences; 'uniform' is the i.i.d. draw the paper writes "
+                    "and the R package uses, whose weights vary with the seed.",
     )
     lambda_method: Literal["uniform", "recency"] = Field(
         default="uniform",
