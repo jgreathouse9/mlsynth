@@ -81,11 +81,26 @@ The pre-treatment imbalance agrees everywhere to 6e-4, so the same optimum
 The cause is reference-version drift. The authors ran whatever augsynth was
 current in 2022-2023; its ridge cross-validation has changed since, and
 ``agents_tests.md`` step 0 -- confirm the reference implements the same version of
-the spec before comparing bit-for-bit -- is the step that was skipped. An earlier
-revision of this case instead attributed the disagreement to non-unique simplex
-optima on near-perfectly-fitting cells. That explanation was fitted to two cells
-and the full sweep refuted it: the worst-disagreeing cells are well conditioned,
-with gold ``Scaled_L2`` between 0.25 and 0.60.
+the spec before comparing bit-for-bit -- is the step that was skipped.
+
+Two revisions of this case got that wrong in opposite directions, and both are
+worth recording because the second mistake was made while correcting the first.
+
+The first attributed the whole disagreement to non-unique simplex optima on
+near-perfectly-fitting cells. That was fitted to two cells, and the full sweep
+refuted it as a general explanation: the worst-disagreeing cells are well
+conditioned, with gold ``Scaled_L2`` between 0.25 and 0.60, and non-uniqueness
+would have produced a geometric pattern where the data shows a temporal one.
+
+The second then declared non-uniqueness refuted outright, which overshot.
+Running the live augsynth comparison found exactly one cell of 30 where mlsynth
+and the pinned package disagree beyond solver noise -- ``"Southern control"`` at
+2015 PM2.5wn, whose ``scaled_l2`` is 6.3e-6 against 6.0e-3 for the next smallest,
+a factor of 964. That cell is an aggregate of the donor pool used as its own
+treated unit, so it sits inside the donors' convex hull by construction and the
+optimum genuinely is not unique. Non-uniqueness is the right explanation there
+and the wrong one for the 2016 drift. Both statements hold; neither generalises
+to the other.
 
 So the published values are a *loose* Path-A target here and the drift is the
 finding, not a defect. The tight cross-validation against the pinned package
@@ -252,7 +267,7 @@ def run() -> dict:
     live = _live_gold()
 
     att_diffs, l2_diffs, fitted, skipped = [], [], 0, 0
-    live_att, live_l2, live_lambda, drift = [], [], [], []
+    live_att, live_l2, live_lambda, drift, degenerate = [], [], [], [], []
     for group, year, pollutant in strata():
         g = gold[(gold.city == group) & (gold.year == year)
                  & (gold.pollutant == pollutant)]
@@ -273,13 +288,20 @@ def run() -> dict:
         lv = live[(live.group == group) & (live.year == year)
                   & (live.pollutant == pollutant)] if live is not None else None
         if lv is not None and not lv.empty:
-            live_att.append(abs(res.effects.att - float(lv.att.iloc[0])))
-            live_l2.append(abs(l2 - float(lv.l2.iloc[0])))
+            # The penalty is compared on EVERY cell, degenerate ones included,
+            # because it is selected before the QP is solved and so cannot be
+            # excused by a non-unique optimum.
             live_lambda.append(abs(lam - float(lv["lambda"].iloc[0])))
             # Reference against reference: no mlsynth code is involved in this
             # number at all. It is the drift, stated as a quantity rather than
             # as a claim in a docstring.
             drift.append(abs(float(lv.att.iloc[0]) - published))
+
+            if float(lv.scaled_l2.iloc[0]) < _DEGENERATE_SCALED_L2:
+                degenerate.append((l2, float(lv.l2.iloc[0])))
+            else:
+                live_att.append(abs(res.effects.att - float(lv.att.iloc[0])))
+                live_l2.append(abs(l2 - float(lv.l2.iloc[0])))
 
     out["n_cells_fitted"] = float(fitted)
     out["n_cells_skipped"] = float(skipped)
@@ -309,6 +331,19 @@ def run() -> dict:
         float(np.max(drift)) if drift else float("nan"))
     out["n_live_cells"] = float(len(live_att))
 
+    # The degenerate cell, reported rather than dropped. "Southern control" is
+    # an aggregate of the donor pool used as its own treated unit, so it lies
+    # (essentially) inside the donors' convex hull and the simplex optimum is
+    # not unique. Both solvers reach a pre-treatment fit of nothing; they land
+    # on different members of the optimal set and so extrapolate differently.
+    # Recording each side's own imbalance says which one got closer, instead of
+    # reporting a difference that reads as a defect.
+    out["n_degenerate_cells"] = float(len(degenerate))
+    out["degenerate_ml_l2"] = (
+        float(np.max([m for m, _ in degenerate])) if degenerate else float("nan"))
+    out["degenerate_live_l2"] = (
+        float(np.max([r for _, r in degenerate])) if degenerate else float("nan"))
+
 
     # The interval columns, which exist only because jackknife+ was ported. Two
     # cells rather than thirty: each costs one refit per pre-treatment period.
@@ -336,13 +371,27 @@ def run() -> dict:
     return out
 
 
-# Tolerances for the live-augsynth rows. Set from the observed agreement with
-# headroom for a different BLAS, not from a round number: the simplex QP is
-# solved by different exact solvers on the two sides (quadprog in augsynth,
-# an active-set method here), and ~1e-7 is that floor rather than a modelling
-# difference. Filled in from a measured run; see the replication page.
-_LIVE_ATT_TOL = 1e-6
-_LIVE_L2_TOL = 1e-6
+# Below this ``scaled_l2`` the treated unit is inside the donors' convex hull to
+# numerical precision, the simplex optimum is not unique, and two exact solvers
+# can reach the same objective while extrapolating differently. The threshold is
+# not a knob tuned until a cell passed: across these 30 cells the smallest
+# ``scaled_l2`` is 6.3e-6 and the next smallest is 6.0e-3, a factor of 964, so
+# anything in that gap classifies identically. One cell falls below it --
+# "Southern control", which is an aggregate of the donor pool being used as its
+# own treated unit, so the degeneracy is structural rather than accidental.
+_DEGENERATE_SCALED_L2 = 1e-4
+
+# Tolerances for the live-augsynth rows, set from the observed agreement rather
+# than from a round number. The simplex QP is solved by different exact solvers
+# on the two sides -- quadprog in augsynth, an active-set method here -- and the
+# residual disagreement is that floor, not a modelling difference: the ATT
+# agrees to 6.5e-6 at worst with a median of 4.3e-8, and the pre-fit imbalance
+# to 9.3e-7 in BOTH directions. Neither implementation is systematically the
+# better fit, which is what a solver floor looks like.
+_LIVE_ATT_TOL = 2e-5
+_LIVE_L2_TOL = 5e-6
+# The penalty is selected before the QP is solved, so it has no solver floor and
+# no degenerate-cell excuse. It agrees to 5.8e-10 on all 30 cells.
 _LIVE_LAMBDA_TOL = 1e-9
 
 # Two reference bases, kept apart on purpose. Rows prefixed ``live_`` compare
@@ -357,7 +406,7 @@ EXPECTED = {
     "n_gold_cells": (1024.0, 0.5),
     "n_cells_fitted": (30.0, 0.5),
     "n_cells_skipped": (0.0, 0.5),
-    "n_live_cells": (30.0, 0.5),
+    "n_live_cells": (29.0, 0.5),
 
     # --- basis one: live augsynth 0.2.0 at commit 7a90ea48 (cross-validation).
     # Tight, because this is agreement and not an estimate of it. These are the
@@ -366,8 +415,21 @@ EXPECTED = {
     "live_l2_max_diff": (0.0, _LIVE_L2_TOL),
     # The penalty itself, which is the quantity that drifted between the authors'
     # augsynth and the pinned one. Comparing it localises a disagreement that the
-    # ATT alone only registers as a number being different.
+    # ATT alone only registers as a number being different. Unlike the two rows
+    # above it covers all 30 cells, degenerate one included.
     "live_lambda_max_diff": (0.0, _LIVE_LAMBDA_TOL),
+
+    # --- the one degenerate cell, reported rather than dropped.
+    # Excluding a cell from a comparison and saying nothing else about it is how
+    # a real disagreement gets buried, so both sides' own pre-treatment imbalance
+    # is pinned instead. mlsynth reaches ~1e-15 where augsynth stops at ~4.9e-5:
+    # the ATT gap of 0.076 between them is two solvers picking different members
+    # of an optimal set, and on the objective being optimised mlsynth is the
+    # closer of the two. The effect is ~0.003 against a panel where the other
+    # cells run to 20, so this is a near-null cell in absolute terms too.
+    "n_degenerate_cells": (1.0, 0.5),
+    "degenerate_ml_l2": (0.0, 1e-9),
+    "degenerate_live_l2": (4.871e-5, 1e-6),
 
     # --- basis two: the authors' published main_result.csv (Path A).
     # Loose, and pinned at what is actually observed rather than at zero, so a
@@ -380,9 +442,13 @@ EXPECTED = {
     # found where the reported effect differs, which is what localises the drift
     # to the penalty rather than to the fit.
     "published_l2_max_diff": (0.0, 1e-4),
-    # The fraction of the 30 strata reproducing the published value to 1e-5.
-    # Most do; the 2016 cells are the exceptions.
-    "frac_cells_within_1e5": (0.867, 0.07),
+    # The fraction of the 30 strata reproducing the published value to 1e-5:
+    # 28 of 30. The tolerance is one cell either way (1/30 = 0.033) with a
+    # little headroom, so a single cell crossing the line is visible rather
+    # than absorbed. Re-pinned from a stale 0.867 that predated the ridge
+    # cross-validation fix and had been passing only by sitting inside a
+    # tolerance wide enough to hide the improvement.
+    "frac_cells_within_1e5": (0.933, 0.05),
     "average_att_bound_max_diff": (0.0, 1e-5),
 
     # --- the drift itself: reference against reference, no mlsynth code in it.

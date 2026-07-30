@@ -150,24 +150,76 @@ current in 2022–2023, and its ridge cross-validation has changed since — see
 penalty. Against a live ``augsynth`` 0.2.0 run at the pinned commit, mlsynth
 agrees on these same cells, 2016 included.
 
-A correction worth recording
-----------------------------
+What mlsynth agrees with, and the one cell it does not
+------------------------------------------------------
 
-An earlier version of this case explained the disagreement differently: that on
-cells where the treated unit is an almost exact convex combination of the donors,
-the simplex optimum is not unique, so two solvers can reach the same objective
-value and disagree on the extrapolation.
+Against the live ``augsynth`` 0.2.0 run on the same 30 stratified cells:
 
-That explanation was fitted to two cells, and running all 1024 refuted it. The
-worst-disagreeing cells are well conditioned, with gold ``Scaled_L2`` between
-0.25 and 0.60 — the worst of all, ``2+26 cities`` / 2016 / ``PM2.5``, sits at
-0.333. Non-uniqueness would have shown up as a geometric pattern; what is
-actually there is a temporal one.
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 44
 
-This is the failure mode ``agents_tests.md`` step 0 exists to prevent: confirm
-the reference implements the same version of the specification before comparing
-bit for bit. Skipping it produced a plausible story about solver geometry when
-the real answer was that the artifact predates the package.
+   * - Quantity
+     - Worst over 29 cells
+     -
+   * - average ATT
+     - :math:`6.5 \times 10^{-6}`
+     - median :math:`4.3 \times 10^{-8}`
+   * - pre-fit :math:`L_2` imbalance
+     - :math:`9.3 \times 10^{-7}`
+     - in both directions
+   * - selected ridge penalty
+     - :math:`5.8 \times 10^{-10}`
+     - all 30 cells, degenerate one included
+
+The ATT and imbalance rows are a solver floor rather than a modelling difference.
+``augsynth`` solves the simplex program with ``quadprog`` and mlsynth with an
+active-set method; the residual disagreement runs in both directions, which is
+what a floor looks like and what a systematic difference would not.
+
+The penalty row is the informative one. It is selected before the quadratic
+program is solved, so it has no solver floor to hide behind, and it agrees on
+every cell.
+
+One cell of the 30 disagrees beyond that floor: ``Southern control`` at 2015
+PM2.5, where mlsynth gives 0.0792 and ``augsynth`` 0.0033. It is not a defect,
+and the reason is structural. ``Southern control`` is an aggregate of the donor
+pool being used as its own treated unit, so it lies inside the donors' convex
+hull by construction and the simplex optimum is not unique. Its ``scaled_l2`` is
+:math:`6.3 \times 10^{-6}` against :math:`6.0 \times 10^{-3}` for the next
+smallest of the 30 — a factor of 964, so calling it degenerate is reading the
+data rather than choosing a threshold.
+
+On the objective actually being minimised, mlsynth is the closer of the two:
+its pre-treatment imbalance is :math:`2.1 \times 10^{-15}` where ``augsynth``
+stops at :math:`4.9 \times 10^{-5}`. Both effectively fit perfectly and then
+extrapolate from different members of the same optimal set. The case pins each
+side's own imbalance rather than the difference between them, so the cell is
+reported rather than quietly dropped.
+
+Two corrections worth recording
+-------------------------------
+
+Both are about this explanation, and the second was made while fixing the first.
+
+An earlier version of the case attributed the whole disagreement with the
+published values to non-unique simplex optima. That was fitted to two cells, and
+running all 1024 refuted it as a general account: the worst-disagreeing cells are
+well conditioned, with gold ``Scaled_L2`` between 0.25 and 0.60 — the worst of
+all, ``2+26 cities`` / 2016 / ``PM2.5``, sits at 0.333. Non-uniqueness would have
+produced a geometric pattern; the data shows a temporal one.
+
+The next version then declared non-uniqueness refuted outright, which overshot in
+the other direction. The live comparison above found precisely one cell where it
+is the right explanation. Non-uniqueness explains that cell and does not explain
+the 2016 drift; both statements hold and neither generalises to the other.
+
+The first mistake is the failure mode ``agents_tests.md`` step 0 exists to
+prevent: confirm the reference implements the same version of the specification
+before comparing bit for bit. Skipping it produced a plausible story about solver
+geometry when the answer was that the artifact predates the package. The second
+is the failure mode of over-correcting — discarding an explanation entirely
+because it was over-applied.
 
 What the cross-validation fix bought
 ------------------------------------
