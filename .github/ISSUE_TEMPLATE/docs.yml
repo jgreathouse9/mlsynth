@@ -1,0 +1,32 @@
+name: Documentation
+description: Something in the docs is wrong, unclear, or missing
+title: "[Docs] "
+labels: ["documentation"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      placeholder: docs/dtwsc.rst, or the URL
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - Factually wrong — it states something untrue about the method or the code
+        - An example does not run, or does not produce what it claims
+        - Unclear, or assumes knowledge a newcomer would not have
+        - Missing — an assumption, diagnostic, or caveat that should be stated
+        - Notation is inconsistent with the rest of the docs
+        - Typo or formatting
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: What it says, and what it should say
+      description: Quoting the passage helps. If a stated number looks wrong, please say what you think it should be.
+    validations:
+      required: true

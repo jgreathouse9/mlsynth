@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Which estimator should I use?
+    url: https://mlsynth.readthedocs.io/en/latest/choose.html
+    about: The decision tree covers most of these without needing an issue.
+  - name: How an estimator was validated
+    url: https://mlsynth.readthedocs.io/en/latest/replications.html
+    about: Replication pages record what each estimator was checked against, including known and deliberate differences.
