@@ -547,30 +547,3 @@ def optimized_covariate_beta(
         if t >= 2 and previous - value <= min_decrease ** 2:
             break
     return beta
-
-
-def optimized_block_adjustment(
-    donor_outcomes: np.ndarray,
-    treated_outcome: np.ndarray,
-    donor_covariates: np.ndarray,
-    treated_covariates: np.ndarray,
-    pre_periods: int,
-    n_treated: int = 1,
-):
-    """Residualise one block's outcomes by its jointly-fitted coefficients.
-
-    Returns ``(donor_outcomes_adjusted, treated_outcome_adjusted, beta)``. The
-    fit is per block because in a staggered design the donor pool, the horizon
-    and the ridge all vary by adoption cohort, so a single panel-wide
-    coefficient would not be the quantity any cohort's objective defines.
-    """
-    beta = optimized_covariate_beta(
-        donor_outcomes, treated_outcome, donor_covariates,
-        treated_covariates, pre_periods, n_treated=n_treated)
-    Y0 = np.asarray(donor_outcomes, dtype=float)
-    y1 = np.asarray(treated_outcome, dtype=float)
-    X0 = np.asarray(donor_covariates, dtype=float)
-    x1 = np.asarray(treated_covariates, dtype=float)
-    return (Y0 - np.tensordot(beta, X0, axes=(0, 0)),
-            y1 - np.tensordot(beta, x1, axes=(0, 0)),
-            beta)
