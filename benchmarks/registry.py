@@ -48,6 +48,8 @@ CASES = {
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
     "rescm_brexit": "benchmarks.cases.rescm_brexit",            # Path A: SCM-relaxation Brexit/UK GDP (2016Q3)
     "rescm_brexit_2020": "benchmarks.cases.rescm_brexit_2020",  # Path A: SCM-relaxation Brexit robustness (2020Q1)
+    "brabander_brexit_table1": "benchmarks.cases.brabander_brexit_table1",      # Path A: de Brabander et al. 2025 Table 1, all 14 cells (SC/DSC/SDID i-iii/MASC/ASCM, 2016Q3, no covariates)
+    "brabander_brexit_insample": "benchmarks.cases.brabander_brexit_insample",  # Path A: de Brabander et al. 2025 Table 7, in-sample placebo across 20 periods (RMSE/MAB/MedAB)
     "rescm_relax_ref": "benchmarks.cases.rescm_relax_ref",      # cross-val vs scmrelax toy panel (skips if absent)
     "rescm_balanced_gdp": "benchmarks.cases.rescm_balanced_gdp",  # cross-val vs scmrelax on authors' balanced-GDP Brexit panel (UK 2016Q3; skips if absent)
     "rescm_relax_mc": "benchmarks.cases.rescm_relax_mc",        # Path B: latent-group MC, relaxations beat SCM

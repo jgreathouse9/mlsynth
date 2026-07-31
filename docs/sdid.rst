@@ -891,6 +891,16 @@ moved. Correlation of the weight vectors is 0.998 under ``"last"``. See
 and `benchmarks/reference/brabander_sdid_match/
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/brabander_sdid_match/reference.R>`_.
 
+The estimator as a whole is checked against that paper's published results in
+:doc:`replications/brabander_brexit`: all fourteen cells of its Table 1 and all
+twenty-one of its Table 7 in-sample placebo, pinned by
+`brabander_brexit_table1.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brabander_brexit_table1.py>`_
+and `brabander_brexit_insample.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brabander_brexit_insample.py>`_.
+Both need ``zeta=0`` and ``intercept_adjust=True``, which is what that paper's
+specification is.
+
 Example
 -------
 
