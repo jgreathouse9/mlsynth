@@ -48,6 +48,7 @@ the objective near the optimum is nearly flat. See ``TestSynthdidsEarlyStop`` in
 ``tests/test_sdid_covariates.py`` for a worked instance.
 """
 
+import numbers
 import numpy as np
 from typing import Optional, Tuple
 
@@ -344,7 +345,14 @@ def unit_weights(
         raise MlsynthDataError("mean_treated_outcome_pre_treatment must be a NumPy array.")
     if mean_treated_outcome_pre_treatment.ndim != 1: # Must be 1D: (Time,)
         raise MlsynthDataError("mean_treated_outcome_pre_treatment must be a 1D array (T0,).")
-    if not isinstance(regularization_parameter_zeta, (float, int)) or regularization_parameter_zeta < 0:
+    # numbers.Real, not (float, int): np.float64 subclasses Python float but
+    # np.float32 and np.int64 do not, so the narrow check rejected perfectly
+    # good values whenever the panel's dtype happened to be 32-bit -- which is
+    # what pandas gives you for a Stata .dta. See issue #320.
+    if (not isinstance(regularization_parameter_zeta, numbers.Real)
+            or isinstance(regularization_parameter_zeta, bool)
+            or not np.isfinite(float(regularization_parameter_zeta))
+            or regularization_parameter_zeta < 0):
         raise MlsynthConfigError("regularization_parameter_zeta must be a non-negative float or int.")
 
     # Get dimensions: number of pre-treatment periods and number of donors.
