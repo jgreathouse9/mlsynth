@@ -129,6 +129,46 @@ def _pre_period_covariate_means(df, unitid, treat, cols, unit_order):
     return np.atleast_2d(out)
 
 
+def _apply_optimized_covariates(payload, df, unitid, time, cols, donor_names,
+                                treated_names):
+    """Fit and remove one cohort's 'optimized' covariate effect, in place.
+
+    Per cohort rather than panel-wide: the donor pool, the horizon and the
+    ridge all vary by adoption date in a staggered design, so a single
+    coefficient would not be the quantity any cohort's objective defines. This
+    is the same reason ``match`` attaches its covariate summaries per cohort.
+    """
+    from .covariates import optimized_block_adjustment
+
+    wide = df.pivot_table(index=time, columns=unitid, values=list(cols))
+    order = sorted(wide.index)
+    donor_cov = np.stack([
+        wide[c].reindex(index=order, columns=list(donor_names)).to_numpy(float)
+        for c in cols])
+    treated_cov = np.stack([
+        wide[c].reindex(index=order, columns=list(treated_names))
+        .to_numpy(float).mean(axis=1) for c in cols])
+
+    donors, treated, beta = optimized_block_adjustment(
+        donor_outcomes=np.asarray(payload["donor_matrix"], dtype=float),
+        treated_outcome=np.asarray(payload["y"], dtype=float).mean(axis=1),
+        donor_covariates=donor_cov,
+        treated_covariates=treated_cov,
+        pre_periods=int(payload["pre_periods"]),
+        n_treated=len(treated_names),
+    )
+    payload["donor_matrix"] = donors
+    # ``y`` keeps its (T, n_treated) shape: subtract the cohort's coefficients
+    # from each treated unit's own covariate path, not from their mean.
+    treated_paths = np.stack([
+        wide[c].reindex(index=order, columns=list(treated_names)).to_numpy(float)
+        for c in cols])
+    payload["y"] = (np.asarray(payload["y"], dtype=float)
+                    - np.tensordot(beta, treated_paths, axes=(0, 0)))
+    payload["optimized_beta"] = beta
+    return payload
+
+
 def prepare_sdid_inputs(
     df: pd.DataFrame,
     outcome: str,
@@ -137,6 +177,7 @@ def prepare_sdid_inputs(
     time: str,
     match_covariates=None,
     match_pre_periods=None,
+    optimized_covariates=None,
     zeta=None,
 ) -> SDIDInputs:
     """Prepare panel data for the SDID pipeline.
@@ -191,6 +232,12 @@ def prepare_sdid_inputs(
                     df, unitid, treat, match_covariates,
                     list(payload["treated_indices"])).mean(axis=1)
                 payload["match_pre_periods"] = match_pre_periods
+        if optimized_covariates:
+            for key, payload in cohorts_dict.items():
+                _apply_optimized_covariates(
+                    payload, df, unitid, time, list(optimized_covariates),
+                    list(payload["donor_names"]),
+                    list(payload["treated_indices"]))
         # Earliest cohort drives the pre/post counts surfaced on inputs.
         earliest = min(cohorts_dict.keys())
         n_pre = int(cohorts_dict[earliest]["pre_periods"])
@@ -247,6 +294,11 @@ def prepare_sdid_inputs(
             cohorts_dict[cohort_key]["donor_covariates"] = donor_cov
             cohorts_dict[cohort_key]["treated_covariates"] = treated_cov
             cohorts_dict[cohort_key]["match_pre_periods"] = match_pre_periods
+        if optimized_covariates:
+            _apply_optimized_covariates(
+                cohorts_dict[cohort_key], df, unitid, time,
+                list(optimized_covariates), list(prep["donor_names"]),
+                [prep["treated_unit_name"]])
         n_pre = int(pre)
         n_post = int(post)
         treated_unit_name = prep["treated_unit_name"]

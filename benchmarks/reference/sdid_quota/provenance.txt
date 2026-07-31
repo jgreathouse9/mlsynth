@@ -1,0 +1,20 @@
+source: https://github.com/Daniel-Pailanir/sdid (the Stata package's own example data)
+file: quota_example.dta, converted to CSV unchanged
+paper: Clarke, Pailanir, Athey & Imbens (2024), "Synthetic Difference-in-Differences
+       Estimation", Stata Journal 24(3)
+table: Table 1, gender quotas and women's parliamentary representation
+
+panel: 115 countries x 26 years (1990-2015), 2,990 rows
+outcome: womparl (% of parliamentary seats held by women)
+treatment: quota (staggered; 9 treated countries adopting in 2000, 2002, 2003,
+           2005, 2010, 2012, 2013)
+covariate: lngdp (log GDP per capita); 104 rows are missing it, and the two
+           covariate columns of Table 1 are estimated on the 2,990 complete rows
+
+reference values reproduced (Table 1):
+  column 1  no covariates                8.034
+  column 2  covariates(lngdp)            8.051   [optimized -- Stata's default]
+  column 3  covariates(lngdp, projected) 8.059
+
+Asserted against these frozen numbers in
+mlsynth/tests/test_sdid_optimized_covariates.py. No R or Stata runs in CI.

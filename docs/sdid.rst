@@ -660,9 +660,10 @@ a unit over time, such as a state's unemployment rate or a firm's headcount, has
 nowhere to go. If that covariate also drives the outcome, it sits in the
 residual the synthetic control is trying to match, and the estimate absorbs it.
 
-Two answers exist in the literature and mlsynth implements both. They are
+Three answers exist in the literature and mlsynth implements all three. They are
 different estimators, so the method is named explicitly rather than inferred:
-``covariates`` takes a dictionary keyed by ``"adjust"`` or ``"match"``.
+``covariates`` takes a dictionary keyed by ``"adjust"``, ``"optimized"`` or
+``"match"``.
 
 Write :math:`\mathbf{x}_{it} \in \mathbb{R}^{K}` for the covariate vector of
 unit :math:`i` at time :math:`t`, and :math:`\mathcal{U} \coloneqq \{(i, t) :
@@ -711,6 +712,103 @@ The covariates must vary within a unit over time. A covariate constant within
 units is absorbed by :math:`\alpha_i`, and one constant across units at each
 date is absorbed by :math:`\gamma_t`; either way it contributes nothing and
 leaves the design rank deficient.
+
+Optimising jointly with the weights (Arkhangelsky et al. 2021)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The second answer does not estimate :math:`\boldsymbol{\beta}` first. It
+estimates it at the same time as the weights, from one objective in
+:math:`(\boldsymbol{\beta}, \boldsymbol{\omega}, \boldsymbol{\lambda})`. This is
+footnote 4 of Arkhangelsky et al. and, importantly for reading applied work, it
+is the default in Stata's ``sdid``: a paper whose code says ``covariates(x)``
+and nothing else used this, not the Kranz projection above.
+
+Write :math:`\mathbf{Y}(\boldsymbol{\beta})` for the outcome with the covariates
+removed, :math:`y_{it} - \mathbf{x}_{it}^{\top}\boldsymbol{\beta}`, and let
+:math:`\bar y_{t}^{\,tr}(\boldsymbol{\beta})` be its mean over the treated units
+and :math:`\bar y_{i}^{\,post}(\boldsymbol{\beta})` its mean over the
+post-treatment periods. Both weight programs carry a free intercept,
+:math:`a_{\omega}` and :math:`a_{\lambda}`. The joint objective is the sum of
+the two weight criteria,
+
+.. math::
+
+   \ell(\boldsymbol{\beta}, \boldsymbol{\omega}, \boldsymbol{\lambda})
+   \;=\;
+   \frac{1}{T_{pre}} \sum_{t \le T_{pre}}
+     \Bigl( \bar y_{t}^{\,tr}(\boldsymbol{\beta}) - a_{\omega}
+       - \sum_{i \in \mathcal{C}} \omega_i \, y_{it}(\boldsymbol{\beta})
+     \Bigr)^{2}
+   \;+\;
+   \frac{1}{N_{co}} \sum_{i \in \mathcal{C}}
+     \Bigl( \bar y_{i}^{\,post}(\boldsymbol{\beta}) - a_{\lambda}
+       - \sum_{t \le T_{pre}} \lambda_t \, y_{it}(\boldsymbol{\beta})
+     \Bigr)^{2}
+   \;+\; \zeta^{2} \lVert \boldsymbol{\omega} \rVert^{2},
+
+minimised over :math:`\boldsymbol{\beta} \in \mathbb{R}^{K}` and the two weight
+vectors on the simplex, with :math:`\zeta` the same ridge the covariate-free
+estimator uses.
+
+The intercepts are not decoration. Without them :math:`\boldsymbol{\beta}` can
+lower the objective by shifting the level of a covariate rather than by
+explaining the outcome, and the minimiser runs off to wherever that shift is
+largest.
+
+Being the default does not make it the better choice. The authors of the Stata
+package caveat their own default: it "has been observed to be problematic at
+times (refer to Kranz (2022))", and it is sensitive to covariates with high
+dispersion. Reach for ``optimized`` when the goal is to reproduce a published
+specification that used it, and for ``adjust`` when you are choosing freshly.
+
+Two properties of this estimator are worth stating plainly, because both are
+easy to get wrong and one is genuinely surprising.
+
+In a staggered design the coefficient is fitted separately for each adoption
+cohort. A cohort has its own donor pool, its own pre-treatment window and its
+own :math:`\zeta`, so :math:`\ell` is a different function for each; a single
+panel-wide :math:`\boldsymbol{\beta}` would not be the minimiser of any of them.
+Each cohort's fitted coefficient is available on its payload as
+``optimized_beta``.
+
+The reference implementation does not reach the minimum, and mlsynth reproduces
+that rather than correcting it. ``synthdid`` alternates a Frank-Wolfe step on
+each weight vector with a :math:`1/t` gradient step on
+:math:`\boldsymbol{\beta}`. Since :math:`\sum_{t \le n} 1/t` grows like
+:math:`\log n`, the total distance :math:`\boldsymbol{\beta}` can travel is
+logarithmic in the iteration cap, and on real panels the cap binds while
+:math:`\boldsymbol{\beta}` is still moving:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 14 14 14 14 14
+
+   * - iteration cap
+     - 10
+     - 100
+     - 1000
+     - 10000
+     - 100000
+   * - fitted :math:`\beta`
+     - 0.094
+     - 0.182
+     - 0.266
+     - 0.344
+     - 0.414
+
+Because :math:`\ell` is very nearly flat in :math:`\boldsymbol{\beta}` -- on the
+panel above it moves from 21.57 at :math:`\beta = 0` to 20.92 at its minimum
+near :math:`\beta = 1.05` -- this early stop is load-bearing. It acts as
+shrinkage toward zero on a direction the data barely identify. Minimising
+:math:`\ell` properly is a different estimator: it returns :math:`\beta = 8.4`
+on one cohort of that panel and moves the ATT to 8.011, against the 8.051 every
+published ``optimized`` result was computed with. So mlsynth fits
+:math:`\boldsymbol{\beta}` with the reference's own iteration at its own default
+cap, and then solves the weight programs exactly, as it does everywhere else.
+This is the one place in the SDID implementation where a deliberately inexact
+solver is ported rather than replaced, and
+:func:`mlsynth.utils.sdid_helpers.covariates.sdid_covariate_objective` is public
+so the claim can be checked rather than believed.
 
 Matching on the covariates (de Brabander et al. 2025)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -835,20 +933,58 @@ Using them
 
 .. code-block:: python
 
-   # residualise the outcome (Kranz)
+   # residualise the outcome (Kranz); Stata's covariates(x, projected)
    res = SDID({..., "covariates": {"adjust": ["unemployment", "log_income"]}}).fit()
+
+   # fit the coefficients with the weights; Stata's default, covariates(x)
+   res = SDID({..., "covariates": {"optimized": ["log_gdp"]}}).fit()
 
    # match donors on covariates (de Brabander et al.)
    res = SDID({..., "covariates": {"match": ["gdp_pc"]},
                     "match_pre_periods": "last"}).fit()
 
-   # both: residualise for seasonality, match donors on income
+   # compose: residualise for seasonality, match donors on income
    res = SDID({..., "covariates": {"adjust": ["seasonal"], "match": ["gdp_pc"]}}).fit()
 
-The two compose because they act on different objects -- ``adjust`` on
-:math:`y`, ``match`` on :math:`\mathbf{w}` -- though a column may not appear
-under both, since residualising the outcome for a variable and then matching
-donors on it counts the same variation twice.
+To reproduce a Stata result, read its ``covariates()`` call: bare or with
+``optimized`` maps to ``"optimized"``, and ``projected`` to ``"adjust"``.
+
+The methods compose because they act on different objects -- ``adjust`` and
+``optimized`` on :math:`y`, ``match`` on :math:`\mathbf{w}` -- though a column
+may not appear under two keys at once, since residualising the outcome for a
+variable and then matching donors on it counts the same variation twice.
+
+Verification
+~~~~~~~~~~~~
+
+All three columns of Table 1 in Clarke, Pailanir, Athey and Imbens (2024) are
+reproduced on the authors' quota panel, each to within the solver tolerance the
+rest of this page documents:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 22 22
+
+   * - specification
+     - Stata ``sdid``
+     - mlsynth
+     - difference
+   * - no covariates
+     - 8.034
+     - 8.038
+     - 0.004
+   * - ``covariates(lngdp)``
+     - 8.051
+     - 8.045
+     - 0.006
+   * - ``covariates(lngdp, projected)``
+     - 8.059
+     - 8.054
+     - 0.005
+
+The residuals are the Frank-Wolfe versus exact-simplex difference described
+under the weight solvers, not a difference in specification. Pinned in
+``mlsynth/tests/test_sdid_optimized_covariates.py``.
 
 A bare list is rejected. Before these options existed ``covariates`` meant the
 Kranz adjustment, and silently reinterpreting it would change which estimator
