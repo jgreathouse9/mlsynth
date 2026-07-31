@@ -261,6 +261,7 @@ def estimate_cohort_sdid_effects(
                     mean_treated_outcome_pre_treatment_cohort,
                     donor_covariates, treated_covariates,
                     regularization_parameter_zeta,
+                    pre_periods=cohort_data_dict.get("match_pre_periods"),
                 )
             )
         else:

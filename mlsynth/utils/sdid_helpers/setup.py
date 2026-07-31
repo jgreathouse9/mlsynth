@@ -136,6 +136,7 @@ def prepare_sdid_inputs(
     unitid: str,
     time: str,
     match_covariates=None,
+    match_pre_periods=None,
 ) -> SDIDInputs:
     """Prepare panel data for the SDID pipeline.
 
@@ -183,6 +184,7 @@ def prepare_sdid_inputs(
                 payload["treated_covariates"] = _pre_period_covariate_means(
                     df, unitid, treat, match_covariates,
                     list(payload["treated_indices"])).mean(axis=1)
+                payload["match_pre_periods"] = match_pre_periods
         # Earliest cohort drives the pre/post counts surfaced on inputs.
         earliest = min(cohorts_dict.keys())
         n_pre = int(cohorts_dict[earliest]["pre_periods"])
@@ -238,6 +240,7 @@ def prepare_sdid_inputs(
                 [prep["treated_unit_name"]]).ravel()
             cohorts_dict[cohort_key]["donor_covariates"] = donor_cov
             cohorts_dict[cohort_key]["treated_covariates"] = treated_cov
+            cohorts_dict[cohort_key]["match_pre_periods"] = match_pre_periods
         n_pre = int(pre)
         n_post = int(post)
         treated_unit_name = prep["treated_unit_name"]

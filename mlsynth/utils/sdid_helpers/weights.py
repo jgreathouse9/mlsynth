@@ -398,6 +398,7 @@ def match_unit_weights(
     donor_covariates: np.ndarray,
     treated_covariates: np.ndarray,
     regularization_parameter_zeta: float,
+    pre_periods=None,
     max_iter: int = 200,
 ) -> Tuple[float, np.ndarray]:
     """Unit weights matching on covariates as well as pre-treatment outcomes.
@@ -459,11 +460,36 @@ def match_unit_weights(
             "covariate matching needs finite outcomes and covariates.")
 
     # Demean the OUTCOME rows only -- each series by its own pre-treatment mean.
+    # Demeaning uses the full pre-period regardless of how many rows then enter
+    # the matching, because it is what makes this the demeaned-SC program; the
+    # scheme selects which rows are *matched on*, not what they are centred by.
     Y0c = Y0 - Y0.mean(axis=0, keepdims=True)
     y1c = y1 - y1.mean()
 
-    A = np.vstack([Y0c, Z0])
-    b = np.concatenate([y1c, z1])
+    # How many pre-treatment outcome rows enter the matching. With all of them,
+    # Kaul et al. (2022) show the nested V search zeroes the covariate rows and
+    # the covariates cannot matter -- so this choice decides whether the
+    # covariates do anything at all. See SDIDConfig.match_pre_periods.
+    scheme = "last" if pre_periods is None else pre_periods
+    if scheme == "all":
+        k = T0
+    elif scheme == "half":
+        k = max(1, T0 // 2)
+    elif scheme == "last":
+        k = 1
+    else:
+        k = int(scheme)
+        if k < 1:
+            raise MlsynthConfigError(
+                f"match_pre_periods must be at least 1; got {k}.")
+        if k > T0:
+            raise MlsynthConfigError(
+                f"match_pre_periods={k} exceeds the {T0} pre-treatment "
+                "period(s) available.")
+    Y0m, y1m = Y0c[T0 - k:], y1c[T0 - k:]
+
+    A = np.vstack([Y0m, Z0])
+    b = np.concatenate([y1m, z1])
     A, b = _standardise_rows(A, b)
     n_rows = A.shape[0]
     ridge = T0 * (float(regularization_parameter_zeta) ** 2)

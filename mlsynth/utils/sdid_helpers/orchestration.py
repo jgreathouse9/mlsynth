@@ -238,6 +238,7 @@ def run_sdid(
     subgroup=None,
     target_subgroup=None,
     covariates=None,
+    match_pre_periods=None,
 ) -> SDIDResults:
     """End-to-end SDID pipeline producing a typed ``SDIDResults`` object.
 
@@ -280,6 +281,7 @@ def run_sdid(
     inputs = prepare_sdid_inputs(
         df=df, outcome=outcome, treat=treat, unitid=unitid, time=time,
         match_covariates=match_cols or None,
+        match_pre_periods=match_pre_periods,
     )
     raw = estimate_event_study_sdid(
         prepped_event_study_data={"cohorts": inputs.cohorts_dict},

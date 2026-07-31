@@ -158,14 +158,29 @@ class TestMatchIsADifferentEstimator:
         assert w.min() >= -1e-9
         assert w.sum() == pytest.approx(1.0, abs=1e-6)
 
-    def test_a_covariate_that_carries_no_information_barely_moves_it(self, panel):
-        """A constant covariate is uninformative for matching, so the estimate
-        should stay close to plain SDID. Guards against the stacked rows
-        swamping the outcome rows through a scaling bug."""
+    def test_a_constant_covariate_carries_no_information(self, panel):
+        """A covariate with no cross-donor variation cannot inform matching.
+
+        On the simplex ``1 - sum(w) == 0``, so a constant row contributes
+        nothing to the objective whatever weight ``V`` gives it. Two different
+        constants must therefore be interchangeable -- which is the scale-free
+        way to say "uninformative", and does not require comparing against a
+        different matching scheme.
+        """
         d = panel.copy()
-        d["const"] = 1.0
-        assert _att(d, covariates={"match": ["const"]}) == pytest.approx(
-            _att(d), abs=0.5)
+        d["c1"] = 1.0
+        d["c2"] = 7.5
+        assert _att(d, covariates={"match": ["c1"]}) == pytest.approx(
+            _att(d, covariates={"match": ["c2"]}), abs=1e-9)
+
+    def test_a_real_covariate_is_not_interchangeable_with_a_constant(self, panel):
+        """The complement, and the test that would catch the covariate row
+        being silently dropped: ``x`` varies across donors, so it must move the
+        weights somewhere a constant does not."""
+        d = panel.copy()
+        d["c1"] = 1.0
+        assert abs(_att(d, covariates={"match": ["x"]})
+                   - _att(d, covariates={"match": ["c1"]})) > 1e-6
 
 
 class TestBothTogether:
@@ -273,3 +288,103 @@ class TestTheDefaultIsUnchanged:
                 for k, v in (l.split(":", 1) for l in txt if ":" in l)}
         assert _att(panel) == pytest.approx(
             float(gold["tau_unadjusted_converged"]), abs=1e-6)
+
+
+class TestTheMatchingScheme:
+    """How many pre-treatment outcome rows enter the matching problem.
+
+    This is not a tuning knob -- it decides whether covariates can do anything
+    at all. Kaul, Klossner, Pfeifer & Schieler (2022) prove that when every
+    pre-treatment outcome is among the predictors, the nested-``V`` search
+    drives the covariate rows to zero weight and the covariates are irrelevant.
+    The paper adopts that result (p. 1629) and answers it by reporting three
+    schemes: all pre-treatment periods, half of them, and the last one only.
+
+    So ``match_pre_periods`` defaults to ``"last"``: the only scheme under which
+    covariates demonstrably bind, and therefore the only default that does not
+    ship a silent no-op.
+    """
+
+    def test_all_periods_makes_covariates_irrelevant(self, panel):
+        """Kaul's theorem, pinned as behaviour.
+
+        Not an accident of this panel and not something to fix -- it is what
+        the nested-``V`` problem implies. Recorded so that a future change
+        making covariates 'work' under ``"all"`` is recognised as a departure
+        from the theory rather than an improvement.
+        """
+        d = panel.copy()
+        d["c1"] = 1.0
+        a = _att(d, covariates={"match": ["x"]}, match_pre_periods="all")
+        b = _att(d, covariates={"match": ["c1"]}, match_pre_periods="all")
+        assert a == pytest.approx(b, abs=1e-9)
+
+    def test_last_period_makes_covariates_bind(self, panel):
+        """The contrast that justifies the default."""
+        d = panel.copy()
+        d["c1"] = 1.0
+        a = _att(d, covariates={"match": ["x"]}, match_pre_periods="last")
+        b = _att(d, covariates={"match": ["c1"]}, match_pre_periods="last")
+        assert abs(a - b) > 1e-6
+
+    def test_the_default_is_last(self, panel):
+        assert _att(panel, covariates={"match": ["x"]}) == pytest.approx(
+            _att(panel, covariates={"match": ["x"]}, match_pre_periods="last"),
+            abs=1e-12)
+
+    @pytest.mark.parametrize("scheme", ["all", "half", "last", 1, 3])
+    def test_every_scheme_produces_a_finite_simplex_fit(self, panel, scheme):
+        assert np.isfinite(
+            _att(panel, covariates={"match": ["x"]}, match_pre_periods=scheme))
+
+    def test_an_integer_selects_that_many_final_pre_periods(self, panel):
+        """``1`` and ``"last"`` name the same scheme, so they must agree."""
+        assert _att(panel, covariates={"match": ["x"]}, match_pre_periods=1) == (
+            pytest.approx(_att(panel, covariates={"match": ["x"]},
+                               match_pre_periods="last"), abs=1e-12))
+
+    def test_more_periods_weakens_the_covariate(self, panel):
+        """The mechanism behind Kaul's result, made visible: as outcome rows
+        are added the covariate's influence shrinks monotonically toward zero."""
+        d = panel.copy()
+        d["c1"] = 1.0
+        gaps = []
+        for n in (1, 3, 8):
+            gaps.append(abs(
+                _att(d, covariates={"match": ["x"]}, match_pre_periods=n)
+                - _att(d, covariates={"match": ["c1"]}, match_pre_periods=n)))
+        assert gaps[0] > gaps[-1]
+
+
+class TestTheSchemeIsOnlyMeaningfulWithMatch:
+    """It cannot be set where it would do nothing."""
+
+    def test_setting_it_without_match_raises(self, panel):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError, match="match"):
+            _att(panel, match_pre_periods="last")
+
+    def test_setting_it_with_only_adjust_raises(self, panel):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError, match="match"):
+            _att(panel, covariates={"adjust": ["x"]}, match_pre_periods="last")
+
+    def test_an_unknown_scheme_raises(self, panel):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError):
+            _att(panel, covariates={"match": ["x"]}, match_pre_periods="most")
+
+    def test_a_non_positive_integer_raises(self, panel):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError):
+            _att(panel, covariates={"match": ["x"]}, match_pre_periods=0)
+
+    def test_more_periods_than_the_panel_has_raises(self, panel):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError, match="pre-treatment"):
+            _att(panel, covariates={"match": ["x"]}, match_pre_periods=999)

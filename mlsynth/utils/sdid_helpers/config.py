@@ -6,9 +6,9 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
 
@@ -113,6 +113,41 @@ class SDIDConfig(BaseEstimatorConfig):
         ),
     )
 
+    match_pre_periods: Optional[Union[Literal["all", "half", "last"], int]] = Field(
+        default=None,
+        description=(
+            "How many pre-treatment outcome periods enter the covariate "
+            "matching problem, for covariates={'match': ...}. Not a tuning "
+            "knob: it decides whether the covariates can do anything at all. "
+            "Kaul, Klossner, Pfeifer & Schieler (2022) show that when every "
+            "pre-treatment outcome is among the predictors, the nested V "
+            "search gives the covariate rows zero weight and the covariates "
+            "are irrelevant; de Brabander et al. (2025) adopt that result and "
+            "report three schemes in response. 'last' (the default) uses only "
+            "the final pre-treatment period and is the scheme under which "
+            "covariates demonstrably bind; 'half' uses the later half; 'all' "
+            "uses every pre-period and reproduces Kaul's irrelevance exactly. "
+            "An integer n uses the last n pre-treatment periods. Only "
+            "meaningful alongside a 'match' key, and rejected without one."
+        ),
+    )
+
+    @field_validator("covariates", mode="before")
+    @classmethod
+    def _reject_the_old_list_form(cls, v):
+        # Before this option existed, covariates was a list and meant the Kranz
+        # adjustment. Pydantic would reject a list here anyway, but with a type
+        # dump that does not tell an upgrading caller what to do instead.
+        if isinstance(v, (list, tuple, set)):
+            raise MlsynthConfigError(
+                "covariates must be a dict keyed by method, not a list. Pass "
+                "{'adjust': [...]} for the Kranz (2022) outcome adjustment, "
+                "which is what a bare list used to mean, or {'match': [...]} "
+                "for covariate matching in the unit-weight problem. Both keys "
+                "may be given together."
+            )
+        return v
+
     @model_validator(mode="after")
     def _check_covariates(self) -> "SDIDConfig":
         if self.covariates is None:
@@ -179,6 +214,25 @@ class SDIDConfig(BaseEstimatorConfig):
                 "no (unit, time) panel for either covariate method to be "
                 "defined on. Adjust the outcome yourself before passing it in "
                 "if you need both.")
+        return self
+
+    @model_validator(mode="after")
+    def _check_match_pre_periods(self) -> "SDIDConfig":
+        if self.match_pre_periods is None:
+            return self
+        if not (self.covariates or {}).get("match"):
+            raise MlsynthConfigError(
+                "match_pre_periods is set but no 'match' covariates were "
+                "given, so it would have no effect. Pass "
+                "covariates={'match': [...]}, or drop match_pre_periods.")
+        if isinstance(self.match_pre_periods, bool):
+            raise MlsynthConfigError(
+                "match_pre_periods must be 'all', 'half', 'last' or a "
+                f"positive integer; got {self.match_pre_periods!r}.")
+        if isinstance(self.match_pre_periods, int) and self.match_pre_periods < 1:
+            raise MlsynthConfigError(
+                "match_pre_periods must be at least 1 when given as an "
+                f"integer; got {self.match_pre_periods}.")
         return self
 
     @model_validator(mode="after")
