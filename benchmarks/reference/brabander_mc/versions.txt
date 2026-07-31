@@ -1,0 +1,5 @@
+R: 4.3.3
+synthdid: 0.0.9
+draws_per_setting: 12
+note: masc not captured (its solver needs Gurobi)
+note: augsynth not captured (errors on 24 units x 24 pre-periods)

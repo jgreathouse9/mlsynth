@@ -533,6 +533,10 @@ Staggered adoption
   :math:`5.2\times 10^{-4}` respectively. The placebo ranking
   survives too: SDID under the paper's case (i) panel convention is
   the most accurate of the seven, cases (ii) and (iii) the least.
+  Path B: their Section 5 Monte Carlo -- 48 panels drawn by the
+  authors' own DGP in R, reproduced per replication to
+  :math:`5\times 10^{-3}`, and the finding that demeaning cuts the
+  factor-driven bias about fivefold (paper 5.0, mlsynth 4.7).
   → dedicated page: :doc:`replications/brabander_brexit`.
 * :doc:`spsydid` -- Spatial Synthetic-DiD. Path B
   (cross-validation): the authors' State-Level Monte Carlo
