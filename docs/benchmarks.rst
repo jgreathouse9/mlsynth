@@ -47,6 +47,10 @@ Path A — empirical replications
 
    * - Case
      - Validates
+   * - ``brabander_brexit_table1``
+     - de Brabander et al. (2025) Table 1: seven estimators on the Brexit referendum (SC, DSC, SDID under three panel conventions, MASC, ASCM) at two dates, all fourteen cells
+   * - ``brabander_brexit_insample``
+     - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``clustersc_rpca_germany``
      - RPCA-SC West Germany
    * - ``cwz_ttest``

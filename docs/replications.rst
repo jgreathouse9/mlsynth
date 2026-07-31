@@ -77,6 +77,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/sparse_sc
    replications/nsc
    replications/sdid
+   replications/brabander_brexit
    replications/mcnnm
    replications/spsydid
    replications/seq_sdid
@@ -523,6 +524,16 @@ Staggered adoption
   Cross-validation: matched to the authors' own ``synthdid`` R
   (live run) on the same matrix to :math:`|\Delta| = 1.6\times 10^{-3}`.
   → dedicated page: :doc:`replications/sdid`.
+* :doc:`sdid` (also :doc:`tssc`, :doc:`masc`, :doc:`vanillasc`)
+  -- de Brabander, Juodis & Miyazato Szini (2025) on the Brexit
+  referendum. Path A: all fourteen cells of their Table 1 (seven
+  estimators, two dates) and all twenty-one of their Table 7
+  in-sample placebo reproduce to the precision the paper prints --
+  worst deviation :math:`0.028` percentage points and
+  :math:`5.2\times 10^{-4}` respectively. The placebo ranking
+  survives too: SDID under the paper's case (i) panel convention is
+  the most accurate of the seven, cases (ii) and (iii) the least.
+  → dedicated page: :doc:`replications/brabander_brexit`.
 * :doc:`spsydid` -- Spatial Synthetic-DiD. Path B
   (cross-validation): the authors' State-Level Monte Carlo
   (serenini/spatial_SDID) run per-rep against their own algorithm --
