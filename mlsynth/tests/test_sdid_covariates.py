@@ -243,7 +243,7 @@ class TestTheEndpoint:
 
     def test_covariates_through_the_public_api(self, panel, gold):
         """The whole point: ``covariates=`` reproduces the adjusted estimate."""
-        got = self._att(panel, "y", covariates=["x"])
+        got = self._att(panel, "y", covariates={"adjust": ["x"]})
         assert got == pytest.approx(
             float(gold["tau_adjusted_converged"]), abs=1e-6)
 
@@ -255,7 +255,7 @@ class TestTheEndpoint:
         would catch the adjustment being applied at the wrong point in the
         pipeline -- after ``dataprep``, or only to the donors.
         """
-        assert self._att(panel, "y", covariates=["x"]) == pytest.approx(
+        assert self._att(panel, "y", covariates={"adjust": ["x"]}) == pytest.approx(
             self._att(panel, "y.adj"), abs=1e-9)
 
 
@@ -330,7 +330,7 @@ class TestTheConfigRejectsBadInputEarly:
         from mlsynth.exceptions import MlsynthConfigError
 
         with pytest.raises(MlsynthConfigError, match="ghost"):
-            self._cfg(panel, covariates=["ghost"])
+            self._cfg(panel, covariates={"adjust": ["ghost"]})
 
     def test_non_numeric_covariate_is_rejected(self, panel):
         """A string column would silently become dummies rather than a slope."""
@@ -339,7 +339,7 @@ class TestTheConfigRejectsBadInputEarly:
         d = panel.copy()
         d["label"] = "a"
         with pytest.raises(MlsynthConfigError, match="numeric"):
-            self._cfg(d, covariates=["label"])
+            self._cfg(d, covariates={"adjust": ["label"]})
 
     def test_empty_list_is_rejected(self, panel):
         """``[]`` most likely means a caller built the list wrong; ``None`` is
@@ -347,20 +347,20 @@ class TestTheConfigRejectsBadInputEarly:
         from mlsynth.exceptions import MlsynthConfigError
 
         with pytest.raises(MlsynthConfigError, match="empty"):
-            self._cfg(panel, covariates=[])
+            self._cfg(panel, covariates={"adjust": []})
 
     def test_the_outcome_cannot_be_its_own_covariate(self, panel):
         from mlsynth.exceptions import MlsynthConfigError
 
         with pytest.raises(MlsynthConfigError, match="outcome"):
-            self._cfg(panel, covariates=["y"])
+            self._cfg(panel, covariates={"adjust": ["y"]})
 
     def test_the_treatment_cannot_be_its_own_covariate(self, panel):
         """Adjusting for the treatment indicator would subtract the effect."""
         from mlsynth.exceptions import MlsynthConfigError
 
         with pytest.raises(MlsynthConfigError, match="treatment"):
-            self._cfg(panel, covariates=["treat_exp"])
+            self._cfg(panel, covariates={"adjust": ["treat_exp"]})
 
     def test_covariates_and_subgroup_are_refused_together(self, panel):
         """SC-DDD collapses the panel over the subgroup dimension, so there is no
@@ -371,7 +371,7 @@ class TestTheConfigRejectsBadInputEarly:
         d = panel.copy()
         d["band"] = np.where(d.index % 2 == 0, "young", "old")
         with pytest.raises(MlsynthConfigError, match="subgroup"):
-            self._cfg(d, covariates=["x"], subgroup="band",
+            self._cfg(d, covariates={"adjust": ["x"]}, subgroup="band",
                       target_subgroup="young")
 
 

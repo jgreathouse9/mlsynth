@@ -31,7 +31,8 @@ from mlsynth.exceptions import (
     MlsynthEstimationError,
 )
 
-from .weights import compute_regularization, fit_time_weights, unit_weights
+from .weights import (
+    compute_regularization, fit_time_weights, match_unit_weights, unit_weights)
 def estimate_cohort_sdid_effects(
     cohort_adoption_period: int,
     cohort_data_dict: Dict[str, Any],
@@ -247,10 +248,25 @@ def estimate_cohort_sdid_effects(
             num_post_treatment_periods_cohort,
             num_treated_units=cohort_treated_outcomes_matrix.shape[1],
         )
-        # Estimate unit weights (omega) and intercept.
-        optimal_unit_weight_intercept, optimal_unit_weights_vector = unit_weights(
-            donor_outcomes_pre_treatment_cohort, mean_treated_outcome_pre_treatment_cohort, regularization_parameter_zeta
-        )
+        # Estimate unit weights (omega) and intercept. When the caller asked for
+        # covariates={"match": ...} the cohort payload carries per-unit
+        # covariate summaries, and the weights come from the stacked program of
+        # de Brabander et al. (2025) eqs. 11-12 instead of the outcome-only one.
+        donor_covariates = cohort_data_dict.get("donor_covariates")
+        treated_covariates = cohort_data_dict.get("treated_covariates")
+        if donor_covariates is not None and treated_covariates is not None:
+            optimal_unit_weight_intercept, optimal_unit_weights_vector = (
+                match_unit_weights(
+                    donor_outcomes_pre_treatment_cohort,
+                    mean_treated_outcome_pre_treatment_cohort,
+                    donor_covariates, treated_covariates,
+                    regularization_parameter_zeta,
+                )
+            )
+        else:
+            optimal_unit_weight_intercept, optimal_unit_weights_vector = unit_weights(
+                donor_outcomes_pre_treatment_cohort, mean_treated_outcome_pre_treatment_cohort, regularization_parameter_zeta
+            )
 
         # Estimate time weights (lambda) and intercept if there are post-treatment periods and valid donor data.
         if num_post_treatment_periods_cohort == 0:

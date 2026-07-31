@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
@@ -87,19 +87,29 @@ class SDIDConfig(BaseEstimatorConfig):
         ),
     )
 
-    covariates: Optional[List[str]] = Field(
+    covariates: Optional[Dict[Literal["adjust", "match"], List[str]]] = Field(
         default=None,
         description=(
-            "Time-varying covariates to adjust the outcome for, Kranz (2022, "
-            "the xsynthdid R package). SDID has no slot for controls -- it "
-            "absorbs unit and time effects and nothing else -- so they enter in "
-            "a first step instead: the covariate coefficients from "
-            "'outcome ~ covariates | unit + time', fit on the rows with no "
-            "treatment, are subtracted from the outcome across the whole panel, "
-            "and ordinary SDID runs on the result. The unit and time effects "
-            "are left in, since SDID handles those itself. Columns must be "
-            "numeric. None (default) -> no adjustment, and the estimate is "
-            "unchanged from earlier versions."
+            "Time-varying covariates, keyed by how they are used. The two "
+            "methods are different estimators, so the key is required rather "
+            "than defaulted. "
+            "'adjust' -- Kranz (2022, xsynthdid): the covariate coefficients "
+            "from 'outcome ~ covariates | unit + time', fit on the rows with "
+            "no treatment in force, are subtracted from the outcome across the "
+            "whole panel and ordinary SDID runs on the result; the weight "
+            "problem never sees a covariate. "
+            "'match' -- de Brabander, Juodis & Miyazato Szini (2025, eqs. "
+            "11-12): covariates enter the unit-weight problem instead. The "
+            "treated unit's demeaned pre-treatment outcomes are stacked with "
+            "its covariate means, the donors likewise, and a diagonal V "
+            "weighting those rows is chosen by nested optimisation against the "
+            "pre-treatment outcome fit; the outcome is left alone. "
+            "Both keys may be given together -- residualising for seasonality "
+            "while matching donors on income is coherent -- but a column may "
+            "not appear under both. Columns must be numeric. None (default) -> "
+            "no covariates. A bare list is rejected: 'covariates' previously "
+            "meant 'adjust', and silently reinterpreting it would change which "
+            "estimator runs; pass {'adjust': [...]} for that behaviour."
         ),
     )
 
@@ -107,45 +117,68 @@ class SDIDConfig(BaseEstimatorConfig):
     def _check_covariates(self) -> "SDIDConfig":
         if self.covariates is None:
             return self
-        if len(self.covariates) == 0:
+        if not self.covariates:
             raise MlsynthConfigError(
-                "covariates is an empty list; pass None (the default) to run "
-                "SDID without a covariate adjustment.")
-        missing = [c for c in self.covariates if c not in self.df.columns]
-        if missing:
-            raise MlsynthConfigError(
-                f"covariate column(s) {missing} are not in df; available: "
-                f"{list(self.df.columns)}.")
-        if self.outcome in self.covariates:
-            raise MlsynthConfigError(
-                f"the outcome column '{self.outcome}' is also listed as a "
-                "covariate; adjusting the outcome for itself would zero it out.")
-        if self.treat in self.covariates:
-            raise MlsynthConfigError(
-                f"the treatment column '{self.treat}' is listed as a covariate; "
-                "the adjustment would absorb the effect being estimated.")
+                "covariates is an empty dict; pass None (the default) to run "
+                "SDID without covariates, or {'adjust': [...]} / "
+                "{'match': [...]} to use them.")
+
         import pandas.api.types as ptypes
-        non_numeric = [c for c in self.covariates
-                       if not ptypes.is_numeric_dtype(self.df[c])]
-        if non_numeric:
+
+        for key, cols in self.covariates.items():
+            if not cols:
+                raise MlsynthConfigError(
+                    f"covariates['{key}'] is an empty list; drop the key, or "
+                    "pass None to run SDID without covariates.")
+            missing = [c for c in cols if c not in self.df.columns]
+            if missing:
+                raise MlsynthConfigError(
+                    f"covariate column(s) {missing} under '{key}' are not in "
+                    f"df; available: {list(self.df.columns)}.")
+            if self.outcome in cols:
+                raise MlsynthConfigError(
+                    f"the outcome column '{self.outcome}' is listed as a "
+                    f"covariate under '{key}'. Under 'adjust' that would zero "
+                    "the outcome out; under 'match' it duplicates the "
+                    "pre-treatment outcomes already being matched on.")
+            if self.treat in cols:
+                raise MlsynthConfigError(
+                    f"the treatment column '{self.treat}' is listed as a "
+                    f"covariate under '{key}'; it would absorb the effect "
+                    "being estimated.")
+            non_numeric = [c for c in cols
+                           if not ptypes.is_numeric_dtype(self.df[c])]
+            if non_numeric:
+                raise MlsynthConfigError(
+                    f"covariate column(s) {non_numeric} under '{key}' are not "
+                    "numeric. Both methods are linear in the covariates, so "
+                    "each column must be a numeric measurement; encode "
+                    "categoricals as indicators yourself if that is intended.")
+
+        both = sorted(set(self.covariates.get("adjust", ()))
+                      & set(self.covariates.get("match", ())))
+        if both:
+            # Defensible either way -- one could argue for residualising on a
+            # variable and still matching on its level -- so this is a recorded
+            # decision, not an oversight. Refused because the common case is a
+            # typo, and because the two uses double-count the same variation
+            # with no way for the caller to see it happen.
             raise MlsynthConfigError(
-                f"covariate column(s) {non_numeric} are not numeric. SDID's "
-                "covariate adjustment fits a linear projection, so each column "
-                "must be a numeric measurement; encode categoricals as "
-                "indicator columns yourself if that is what you intend.")
+                f"covariate column(s) {both} appear under both 'adjust' and "
+                "'match'. Adjusting the outcome for a variable and then "
+                "matching donors on it double-counts the same variation; pick "
+                "one use per column.")
+
         # SC-DDD collapses the panel over the subgroup dimension before SDID
-        # runs, so a (unit, time) covariate has no single row to attach to --
-        # it would have to be adjusted on the pre-collapse panel (where the
-        # fixed effects are unit-by-subgroup) or the post-collapse one (where
-        # the covariate is no longer defined). Neither is Kranz's estimator, so
-        # the combination is refused rather than silently resolved.
+        # runs, so a (unit, time) covariate has no single row to attach to.
+        # True of both methods, not only the one this was written for.
         if self.subgroup is not None:
             raise MlsynthConfigError(
                 "covariates and subgroup cannot be combined: SC-DDD mode "
-                "transforms the outcome over the subgroup dimension, leaving no "
-                "(unit, time) panel for the covariate adjustment to be defined "
-                "on. Adjust the outcome yourself before passing it in if you "
-                "need both.")
+                "transforms the outcome over the subgroup dimension, leaving "
+                "no (unit, time) panel for either covariate method to be "
+                "defined on. Adjust the outcome yourself before passing it in "
+                "if you need both.")
         return self
 
     @model_validator(mode="after")

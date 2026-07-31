@@ -104,12 +104,38 @@ def apply_ddd_transform(
     return reduced, new_outcome
 
 
+def _pre_period_covariate_means(df, unitid, treat, cols, unit_order):
+    """Per-unit covariate summary for 'match': the mean over untreated rows.
+
+    Shape ``(K, n_units)``, columns in ``unit_order``. The paper's empirical
+    work uses either the mean of the covariates or their last pre-treatment
+    value, and reports both; the mean is the default here and is what its
+    Tables 1-3 label "mean of covariates". Untreated rows rather than all rows,
+    so a covariate that itself responds to treatment cannot feed the
+    post-treatment period back into the matching.
+    """
+    untreated = df[df[treat] == 0]
+    means = untreated.groupby(unitid)[list(cols)].mean()
+    absent = [u for u in unit_order if u not in means.index]
+    if absent:
+        raise MlsynthDataError(
+            f"unit(s) {absent[:5]} have no untreated rows, so their covariate "
+            "means for covariates={'match': ...} are undefined.")
+    out = means.reindex(list(unit_order)).to_numpy(dtype=float).T
+    if not np.all(np.isfinite(out)):
+        raise MlsynthDataError(
+            "covariate means for covariates={'match': ...} contain NaN/inf; "
+            "check the covariate columns for missing values.")
+    return np.atleast_2d(out)
+
+
 def prepare_sdid_inputs(
     df: pd.DataFrame,
     outcome: str,
     treat: str,
     unitid: str,
     time: str,
+    match_covariates=None,
 ) -> SDIDInputs:
     """Prepare panel data for the SDID pipeline.
 
@@ -145,6 +171,18 @@ def prepare_sdid_inputs(
             int(label_to_index[k]): _coerce_cohort_payload(v)
             for k, v in prep["cohorts"].items()
         }
+        if match_covariates:
+            # Per cohort, because the donor pool and the treated set both vary
+            # by cohort in a staggered design. The treated summary is the mean
+            # over that cohort's treated units, matching how the cohort's
+            # treated outcome path is itself a mean over them.
+            for key, payload in cohorts_dict.items():
+                payload["donor_covariates"] = _pre_period_covariate_means(
+                    df, unitid, treat, match_covariates,
+                    list(payload["donor_names"]))
+                payload["treated_covariates"] = _pre_period_covariate_means(
+                    df, unitid, treat, match_covariates,
+                    list(payload["treated_indices"])).mean(axis=1)
         # Earliest cohort drives the pre/post counts surfaced on inputs.
         earliest = min(cohorts_dict.keys())
         n_pre = int(cohorts_dict[earliest]["pre_periods"])
@@ -192,6 +230,14 @@ def prepare_sdid_inputs(
                 "total_periods": int(total),
             }
         }
+        if match_covariates:
+            donor_cov = _pre_period_covariate_means(
+                df, unitid, treat, match_covariates, list(prep["donor_names"]))
+            treated_cov = _pre_period_covariate_means(
+                df, unitid, treat, match_covariates,
+                [prep["treated_unit_name"]]).ravel()
+            cohorts_dict[cohort_key]["donor_covariates"] = donor_cov
+            cohorts_dict[cohort_key]["treated_covariates"] = treated_cov
         n_pre = int(pre)
         n_post = int(post)
         treated_unit_name = prep["treated_unit_name"]
