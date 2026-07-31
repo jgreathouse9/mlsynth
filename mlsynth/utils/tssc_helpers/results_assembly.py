@@ -7,6 +7,8 @@ into the project's standardized result models, so TSSC's public
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 
 from ...config_models import (
@@ -24,9 +26,23 @@ from .structures import TSSCInputs, TSSCSelection, TSSCVariantFit
 def build_summary(
     inputs: TSSCInputs,
     variant: TSSCVariantFit,
-    selection: TSSCSelection,
+    selection: Optional[TSSCSelection] = None,
+    method_name: Optional[str] = None,
 ) -> BaseEstimatorResults:
-    """Standardized bundle for the Step-1-recommended TSSC variant."""
+    """Standardized bundle for one TSSC variant.
+
+    ``selection`` is None when the caller forced a variant via
+    ``TSSCConfig.method``: Step 1 is skipped in that case, so there is no
+    recommendation and no restriction tests to report. The Step-1 fields are
+    then omitted from ``method_details`` rather than filled with the forced
+    choice, which would misreport the test as having endorsed it.
+    ``method_name`` names the variant actually fit, and is required when
+    ``selection`` is absent.
+    """
+
+    if selection is None and method_name is None:  # pragma: no cover - guarded
+        raise ValueError("build_summary needs method_name when selection is None")
+    chosen = selection.recommended if selection is not None else method_name
 
     ci_lower, ci_upper = variant.att_ci
     half_width = (ci_upper - ci_lower) / 2.0
@@ -40,7 +56,7 @@ def build_summary(
             "ci_upper": t.ci_upper,
             "rejected": t.rejected,
         }
-        for name, t in selection.tests.items()
+        for name, t in (selection.tests.items() if selection is not None else ())
     }
 
     return BaseEstimatorResults(
@@ -68,18 +84,23 @@ def build_summary(
             ci_lower=ci_lower,
             ci_upper=ci_upper,
             standard_error=standard_error,
-            method="bootstrap",
-            details={"selection_alpha": selection.alpha},
+            method="bootstrap" if np.isfinite(half_width) else "none",
+            details=({"selection_alpha": selection.alpha}
+                     if selection is not None else {}),
         ),
         method_details=MethodDetailsResults(
-            method_name=f"TSSC ({selection.recommended})",
+            method_name=f"TSSC ({chosen})",
             parameters_used={
-                "recommended_method": selection.recommended,
-                "selection_alpha": selection.alpha,
-                "subsample_size": selection.subsample_size,
-                "n_subsamples": selection.n_subsamples,
-                "decision_path": list(selection.decision_path),
-                "restriction_tests": test_summary,
+                "variant": chosen,
+                "step1_run": selection is not None,
+                **({
+                    "recommended_method": selection.recommended,
+                    "selection_alpha": selection.alpha,
+                    "subsample_size": selection.subsample_size,
+                    "n_subsamples": selection.n_subsamples,
+                    "decision_path": list(selection.decision_path),
+                    "restriction_tests": test_summary,
+                } if selection is not None else {}),
             },
         ),
     )

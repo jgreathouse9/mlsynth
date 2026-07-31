@@ -213,8 +213,16 @@ def fit_variant(
     scpi_alpha: float = 0.05,
     scpi_e_method: str = "gaussian",
     scpi_seed: int = 0,
+    compute_ci: bool = True,
 ) -> TSSCVariantFit:
-    """Fit one SC-class variant and assemble its :class:`TSSCVariantFit`."""
+    """Fit one SC-class variant and assemble its :class:`TSSCVariantFit`.
+
+    ``compute_ci=False`` skips the subsampling confidence interval and returns
+    ``att_ci = (nan, nan)``. The weights, counterfactual and ATT are a
+    deterministic QP and are unaffected -- only the interval is dropped. The
+    subsampling dominates the runtime, so this is the difference between a fit
+    that is affordable inside a simulation loop and one that is not.
+    """
 
     if rng is None:
         rng = np.random.default_rng()
@@ -248,10 +256,14 @@ def fit_variant(
     )
     att = float(att_results["ATT"])
 
-    att_ci = bootstrap_att_ci(
-        inputs=inputs, method=method, weights=weights,
-        counterfactual=counterfactual, att=att, n_bootstrap=n_bootstrap,
-        confidence_level=confidence_level, rng=rng,
+    att_ci = (
+        bootstrap_att_ci(
+            inputs=inputs, method=method, weights=weights,
+            counterfactual=counterfactual, att=att, n_bootstrap=n_bootstrap,
+            confidence_level=confidence_level, rng=rng,
+        )
+        if compute_ci
+        else (float("nan"), float("nan"))
     )
 
     donor_weights = {

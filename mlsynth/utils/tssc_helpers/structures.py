@@ -203,9 +203,13 @@ class TSSCResults(BaseEstimatorResults):
     inputs : TSSCInputs
         Preprocessed panel data.
     variants : dict
-        ``method_name -> TSSCVariantFit`` for all four SC-class methods.
-    selection : TSSCSelection
-        The Step-1 recommendation and its underlying tests.
+        ``method_name -> TSSCVariantFit``. All four SC-class methods by
+        default; a single entry when the caller forced one via
+        ``TSSCConfig.method``.
+    selection : TSSCSelection or None
+        The Step-1 recommendation and its underlying tests. None when the
+        caller forced a variant via ``TSSCConfig.method``, in which case Step 1
+        was skipped rather than run and overridden.
     summary : BaseEstimatorResults, optional
         Standardized result bundle for the recommended variant.
     """
@@ -214,7 +218,7 @@ class TSSCResults(BaseEstimatorResults):
 
     inputs: TSSCInputs
     variants: Dict[str, TSSCVariantFit]
-    selection: TSSCSelection
+    selection: Optional[TSSCSelection] = None
     summary: Optional[BaseEstimatorResults] = None
 
     @model_validator(mode="after")
@@ -242,13 +246,24 @@ class TSSCResults(BaseEstimatorResults):
 
     @property
     def recommended_method(self) -> str:
-        """Name of the method recommended by Step 1."""
-        return self.selection.recommended
+        """Name of the variant this result describes.
+
+        The Step-1 recommendation on the default path. When the caller forced a
+        variant via ``TSSCConfig.method`` there is no Step 1, and this names the
+        forced variant instead -- the only one fit. The name is kept for the
+        flat accessors below, which every EffectResult consumer relies on;
+        whether Step 1 actually ran is recorded on
+        ``method_details.parameters_used["step1_run"]`` and by ``selection``
+        being None.
+        """
+        if self.selection is not None:
+            return self.selection.recommended
+        return next(iter(self.variants))
 
     @property
     def recommended(self) -> TSSCVariantFit:
-        """The :class:`TSSCVariantFit` for the recommended method."""
-        return self.variants[self.selection.recommended]
+        """The :class:`TSSCVariantFit` this result describes."""
+        return self.variants[self.recommended_method]
 
     @property
     def att(self) -> float:
