@@ -30,7 +30,7 @@ import warnings
 
 import numpy as np
 
-_PANEL = os.path.join(os.path.dirname(__file__), "..", "reference",
+_PANEL = os.path.join(os.path.dirname(__file__), "reference",
                       "brabander_sdid_match", "brexit_panel.csv")
 UK = "United Kingdom"
 TREAT_T = 227          # 2016:Q3

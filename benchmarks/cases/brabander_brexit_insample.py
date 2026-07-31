@@ -50,13 +50,13 @@ Provenance
   i.e. ``min_preperiods=5``. The scripts' ``min_value_five = T0 - 5`` sets the
   smallest fold rather than the fold count and yields 0.0060 / 0.0041 / 0.0023,
   which does not reproduce the printed row; the note's reading does.
-* Data: the committed ``brexit_panel.csv`` (see ``_brabander_brexit``).
+* Data: the committed ``brexit_panel.csv`` (see ``benchmarks/brabander_common.py``).
 """
 from __future__ import annotations
 
 import numpy as np
 
-from benchmarks.cases._brabander_brexit import (
+from benchmarks.brabander_common import (
     FIRST_T, fit_ascm, fit_dsc, fit_masc, fit_sc, fit_sdid, gap_at, load_panel,
     retreat)
 

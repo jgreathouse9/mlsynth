@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -250,3 +251,48 @@ def test_comparison_csv_is_self_consistent():
             assert rf == pytest.approx(ref["weights"].get(donor, 0.0), abs=1e-6)
         elif r["quantity"] == "pre_period_SSR":
             assert rf == pytest.approx(ref["values"]["synth_pre_ssr"], abs=1e-6)
+
+
+class TestTheBrabanderCasesActuallyRun:
+    """A case whose data is committed must not skip.
+
+    ``BenchmarkSkipped`` is the right answer when an optional toolchain is
+    missing, and the driver prints it as ``[SKIP]`` rather than a failure. That
+    makes it a silent hole for a case whose data ships with the repository: a
+    wrong path inside the case reads exactly like an absent dependency, and
+    ``--all`` still reports success. This happened while these cases were being
+    written -- moving their shared helper changed ``__file__``, the panel path
+    broke, and both cases skipped without anything going red.
+
+    So for the cases backed by ``benchmarks/reference/brabander_sdid_match/``,
+    which is committed, a skip is a defect and is asserted to be one.
+    """
+
+    CASES = ("brabander_brexit_table1", "brabander_brexit_insample")
+
+    @pytest.mark.parametrize("name", CASES)
+    def test_the_panel_is_reachable_from_the_case(self, name):
+        """Cheap surrogate for the whole case: the data it needs resolves.
+
+        Deliberately not a full run -- these fit twenty-odd synthetic controls
+        each and belong in the benchmark suite, not the unit tests. What is
+        asserted here is only the thing that silently broke.
+        """
+        from benchmarks import registry
+        from benchmarks.brabander_common import _PANEL
+
+        assert os.path.exists(_PANEL), (
+            f"{name} reads a committed panel that is not where it looks for "
+            f"it ({_PANEL}); the case would skip rather than fail.")
+        assert name in registry.CASES
+
+    def test_the_helper_is_not_a_case_module(self):
+        """It lives outside ``benchmarks/cases/`` on purpose.
+
+        Every module in that directory has to be registered (see
+        ``TestRegistryCoversEveryCase``), and a shared helper is not a case, so
+        it would be permanently unregisterable there.
+        """
+        cases_dir = _ROOT / "benchmarks" / "cases"
+        assert not (cases_dir / "_brabander_brexit.py").exists()
+        assert (_ROOT / "benchmarks" / "brabander_common.py").exists()

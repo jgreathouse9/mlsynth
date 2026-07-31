@@ -55,11 +55,11 @@ Provenance
   the Table 1 note -- ``min_preperiods=6``. The script's ``min_value_five``
   variable sets 5 folds instead and does not reproduce the printed cells; the
   note does.
-* Data: the committed ``brexit_panel.csv`` (see ``_brabander_brexit``).
+* Data: the committed ``brexit_panel.csv`` (see ``benchmarks/brabander_common.py``).
 """
 from __future__ import annotations
 
-from benchmarks.cases._brabander_brexit import (
+from benchmarks.brabander_common import (
     FIRST_T, TREAT_T, UK, fit_ascm, fit_dsc, fit_masc, fit_sc, fit_sdid,
     load_panel, loss_pct, retreat, sdid_out_of_window_loss)
 
