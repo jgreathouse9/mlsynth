@@ -197,3 +197,43 @@ class TestThePinnedPanelMovesToTheBetterNumber:
         # against a rounded literal -- an earlier version did the latter and
         # passed against the unscaled code on rounding noise alone.
         assert abs(got - 8.051) < 0.005
+
+
+class TestTheScaleIsPooledOverDonorsAndTreated:
+    """Which rows the dispersion is measured over is a real choice.
+
+    It changes the preconditioner, so it changes the descent path and the
+    fitted coefficient. The invariance tests above cannot see it: both
+    candidates are homogeneous of degree one in the column, so rescaling a
+    covariate rescales either the same way. It needs stating directly.
+
+    The choice is pooled, and the evidence is that pooling reproduces the
+    published figures more closely on both panels where the two differ
+    materially (-53.170 vs -53.304 for a published -53.154; 0.6096 vs 0.5990
+    for a published 0.610).
+    """
+
+    def test_the_treated_units_values_are_included(self):
+        from mlsynth.utils.sdid_helpers.covariates import _covariate_scale
+
+        # donors tight, treated wide: pooling must land well above the donors'
+        # own dispersion, and nowhere near it
+        donors = np.full((6, 4), 1.0)
+        donors[0, 0] = 1.001
+        treated = np.array([[0.0, 10.0, 20.0, 30.0, 40.0, 50.0]])
+        scale = _covariate_scale(donors[None], treated)
+        donors_only = float(np.std(donors.ravel()))
+        pooled = float(np.std(np.concatenate([donors.ravel(),
+                                              treated.ravel()])))
+        assert scale[0] == pytest.approx(pooled, rel=1e-12)
+        assert scale[0] > 10 * donors_only
+
+    def test_it_is_one_scale_per_covariate(self):
+        from mlsynth.utils.sdid_helpers.covariates import _covariate_scale
+
+        donors = np.stack([np.full((5, 3), 2.0), np.arange(15.0).reshape(5, 3)])
+        treated = np.stack([np.full(5, 2.0), np.arange(5.0)])
+        scale = _covariate_scale(donors, treated)
+        assert scale.shape == (2,)
+        assert scale[0] == 1.0          # no dispersion -> guarded to one
+        assert scale[1] > 0.0

@@ -385,6 +385,13 @@ def _covariate_scale(donor_covariates: np.ndarray,
     donors and treated together, so the scaling does not depend on which unit
     happens to be treated.
 
+    Pooling rather than using the donors alone is a real choice, not a
+    formality: it changes the preconditioner, hence the descent path, hence the
+    coefficient. Both reproduce the published quota figure (8.0482 against
+    8.0481), but on the two Sun et al. (2025) panels pooling is closer on both
+    -- -53.170 against -53.304 for a published -53.154, and 0.6096 against
+    0.5990 for a published 0.610.
+
     A covariate with no dispersion carries no information -- it is absorbed by
     the unit and time effects and its coefficient stays at zero -- so its scale
     is set to one rather than dividing by zero.
