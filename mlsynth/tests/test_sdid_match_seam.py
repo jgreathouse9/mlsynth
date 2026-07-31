@@ -244,3 +244,74 @@ class TestTheSparsityDifferenceIsRecordedNotGated:
         dropped = w <= 1e-8
         assert dropped.any()
         assert r[dropped].max() < 0.05
+
+
+class TestTheSolverRejectsMalformedInput:
+    """Shape and finiteness guards on ``match_unit_weights`` itself.
+
+    Reached only through the helper, since the estimator builds these matrices
+    itself -- but a caller using the solver directly (the seam tests above do)
+    should get a translated error naming the mismatch, not a numpy broadcast.
+    """
+
+    def _solve(self, **kw):
+        from mlsynth.utils.sdid_helpers.weights import match_unit_weights
+
+        base = dict(donor_outcomes_pre_treatment=np.ones((6, 4)),
+                    treated_outcome_pre_treatment=np.arange(6.0),
+                    donor_covariates=np.ones((2, 4)),
+                    treated_covariates=np.ones(2),
+                    regularization_parameter_zeta=0.0)
+        base.update(kw)
+        return match_unit_weights(**base)
+
+    def test_a_one_dimensional_donor_matrix(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        with pytest.raises(MlsynthDataError, match="2D"):
+            self._solve(donor_outcomes_pre_treatment=np.ones(6))
+
+    def test_treated_and_donor_pre_periods_must_agree(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        with pytest.raises(MlsynthDataError, match="pre-periods"):
+            self._solve(treated_outcome_pre_treatment=np.arange(5.0))
+
+    def test_covariate_columns_must_match_the_donor_count(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        with pytest.raises(MlsynthDataError, match="donors"):
+            self._solve(donor_covariates=np.ones((2, 3)))
+
+    def test_treated_covariates_must_match_the_covariate_rows(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        with pytest.raises(MlsynthDataError, match="covariate rows"):
+            self._solve(treated_covariates=np.ones(3))
+
+    @pytest.mark.parametrize("field", [
+        "donor_outcomes_pre_treatment", "treated_outcome_pre_treatment",
+        "donor_covariates", "treated_covariates"])
+    def test_non_finite_values_are_reported(self, field):
+        from mlsynth.exceptions import MlsynthDataError
+
+        base = {"donor_outcomes_pre_treatment": np.ones((6, 4)),
+                "treated_outcome_pre_treatment": np.arange(6.0),
+                "donor_covariates": np.ones((2, 4)),
+                "treated_covariates": np.ones(2)}
+        bad = base[field].astype(float).copy()
+        bad.reshape(-1)[0] = np.nan
+        with pytest.raises(MlsynthDataError, match="finite"):
+            self._solve(**{field: bad})
+
+    def test_a_scheme_larger_than_the_panel(self):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError, match="pre-treatment"):
+            self._solve(pre_periods=99)
+
+    def test_a_non_positive_scheme(self):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        with pytest.raises(MlsynthConfigError, match="at least 1"):
+            self._solve(pre_periods=0)

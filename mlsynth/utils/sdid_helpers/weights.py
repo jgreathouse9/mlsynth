@@ -513,14 +513,13 @@ def match_unit_weights(
     #
     # regularization_parameter_zeta is accepted so the signature matches
     # unit_weights and a caller can be explicit, but it is deliberately unused.
-    ridge = 0.0
     def solve_inner(v: np.ndarray) -> np.ndarray:
         sw = np.sqrt(np.maximum(v, 0.0))[:, None]
-        design, target = A * sw, b * sw.ravel()
-        if ridge > 0.0:
-            design = np.vstack([design, np.sqrt(ridge) * np.eye(J)])
-            target = np.concatenate([target, np.zeros(J)])
-        return solve_simplex_qp(design, target)
+        # No ridge block: see the note above -- this program is unpenalised, so
+        # there is nothing to fold in. Keeping a dead `if ridge > 0` branch here
+        # would suggest the penalty is merely switched off rather than absent by
+        # design.
+        return solve_simplex_qp(A * sw, b * sw.ravel())
 
     def outer_loss(w: np.ndarray) -> float:
         # Raw pre-treatment outcomes, level-matched -- the intercept is free in
