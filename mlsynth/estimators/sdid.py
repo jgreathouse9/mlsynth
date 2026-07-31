@@ -123,6 +123,7 @@ class SDID:
         self.subgroup = config.subgroup
         self.target_subgroup = config.target_subgroup
         self.covariates = config.covariates
+        self.match_pre_periods = config.match_pre_periods
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -146,6 +147,7 @@ class SDID:
                 subgroup=self.subgroup,
                 target_subgroup=self.target_subgroup,
                 covariates=self.covariates,
+                match_pre_periods=self.match_pre_periods,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

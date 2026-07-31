@@ -1,0 +1,5 @@
+Synth: 1.1.10
+R: 4.3.3
+treated: United Kingdom
+n_donors: 23
+pre_periods: 86

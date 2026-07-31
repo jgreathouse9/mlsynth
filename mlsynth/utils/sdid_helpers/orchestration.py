@@ -238,6 +238,7 @@ def run_sdid(
     subgroup=None,
     target_subgroup=None,
     covariates=None,
+    match_pre_periods=None,
 ) -> SDIDResults:
     """End-to-end SDID pipeline producing a typed ``SDIDResults`` object.
 
@@ -253,14 +254,23 @@ def run_sdid(
     """
 
     method_name = "SDID"
-    if covariates:
+    covariates = covariates or {}
+    adjust_cols = list(covariates.get("adjust", ()))
+    match_cols = list(covariates.get("match", ()))
+
+    if adjust_cols:
+        # Kranz (2022): residualise the outcome; the weight problem is untouched.
         df = df.copy()
         adjusted_name = f"{outcome}__x_adjusted"
         df[adjusted_name] = adjust_outcome_for_covariates(
             panel=df, unit=unitid, time=time, outcome=outcome, treat=treat,
-            covariates=list(covariates))
+            covariates=adjust_cols)
         outcome = adjusted_name
         method_name = "SDID-X"
+    if match_cols:
+        # de Brabander et al. (2025): covariates enter the unit-weight problem.
+        # The outcome is left alone, so this composes with 'adjust'.
+        method_name = "SDID-X-both" if adjust_cols else "SDID-X"
 
     if subgroup is not None:
         df, outcome = apply_ddd_transform(
@@ -269,7 +279,9 @@ def run_sdid(
         method_name = "SDID-DDD"
 
     inputs = prepare_sdid_inputs(
-        df=df, outcome=outcome, treat=treat, unitid=unitid, time=time
+        df=df, outcome=outcome, treat=treat, unitid=unitid, time=time,
+        match_covariates=match_cols or None,
+        match_pre_periods=match_pre_periods,
     )
     raw = estimate_event_study_sdid(
         prepped_event_study_data={"cohorts": inputs.cohorts_dict},

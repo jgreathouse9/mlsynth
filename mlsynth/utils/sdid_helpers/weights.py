@@ -376,3 +376,185 @@ def unit_weights(
         ridge=penalty_coefficient,
     )
     return float(intercept), omega
+
+
+def _standardise_rows(A: np.ndarray, b: np.ndarray, return_scale: bool = False):
+    """Scale each predictor row to unit standard deviation across donors.
+
+    Abadie's ``V`` weights predictors that are on arbitrary and unrelated
+    scales -- a GDP level and an employment share, say -- so without a common
+    scale the search starts somewhere meaningless and the ridge penalises the
+    rows unevenly. Rows with no cross-donor variation carry no information for
+    matching and are given scale 1 so they neither blow up nor vanish.
+    """
+    scale = A.std(axis=1, ddof=0)
+    scale = np.where(scale > 1e-12, scale, 1.0)
+    if return_scale:
+        return A / scale[:, None], b / scale, scale
+    return A / scale[:, None], b / scale
+
+
+def match_unit_weights(
+    donor_outcomes_pre_treatment: np.ndarray,
+    treated_outcome_pre_treatment: np.ndarray,
+    donor_covariates: np.ndarray,
+    treated_covariates: np.ndarray,
+    regularization_parameter_zeta: float,
+    pre_periods=None,
+    max_iter: int = 200,
+) -> Tuple[float, np.ndarray]:
+    """Unit weights matching on covariates as well as pre-treatment outcomes.
+
+    Implements de Brabander, Juodis & Miyazato Szini (2025) eqs. (11)-(12): the
+    SDID/DSC unit-weight program with covariates stacked into the matching
+    problem and a diagonal ``V`` over the stacked rows chosen by nested
+    optimisation.
+
+    Inner problem, for a given ``v``::
+
+        min_w  (z1 - Z0 w)' diag(v) (z1 - Z0 w) + T0 zeta^2 ||w||^2
+        s.t.   sum(w) = 1,  w >= 0
+
+    where ``z1`` stacks the treated unit's *demeaned* pre-treatment outcomes on
+    top of its covariate summaries, and ``Z0`` the same for the donors. Outer
+    problem: choose ``v`` to minimise the pre-treatment fit on the raw outcomes,
+    ``||y_pre - Y0_pre w(v)||^2``.
+
+    Two details are load-bearing and both follow the paper.
+
+    Only the outcome rows are demeaned. Abadie (2021b)'s recommendation, which
+    the paper adopts: the covariates sit on their own scales and demeaning them
+    alongside the outcome mixes those scales together. Demeaning the outcome
+    rows is what makes this the *demeaned* SC program that SDID's unit weights
+    are built on, so it cannot simply be dropped either.
+
+    The intercept is not profiled out separately. Demeaning the outcome rows
+    already absorbs it; centring the stacked design again -- which is what the
+    outcome-only path does via ``_solve_intercept_simplex`` -- would also centre
+    the covariate rows and change the estimand.
+
+    Returns ``(intercept, weights)``, the intercept recovered afterwards as the
+    level difference the demeaning removed, so the return shape matches
+    :func:`unit_weights`.
+    """
+    Y0 = np.asarray(donor_outcomes_pre_treatment, dtype=float)
+    y1 = np.asarray(treated_outcome_pre_treatment, dtype=float)
+    Z0 = np.atleast_2d(np.asarray(donor_covariates, dtype=float))
+    z1 = np.atleast_1d(np.asarray(treated_covariates, dtype=float))
+
+    if Y0.ndim != 2:
+        raise MlsynthDataError("donor_outcomes_pre_treatment must be 2D (T0, J).")
+    T0, J = Y0.shape
+    if y1.shape[0] != T0:
+        raise MlsynthDataError(
+            f"treated outcome has {y1.shape[0]} pre-periods against {T0} for "
+            "the donors.")
+    if Z0.shape[1] != J:
+        raise MlsynthDataError(
+            f"donor covariates have {Z0.shape[1]} columns against {J} donors.")
+    if z1.shape[0] != Z0.shape[0]:
+        raise MlsynthDataError(
+            f"treated covariates have {z1.shape[0]} entries against "
+            f"{Z0.shape[0]} covariate rows for the donors.")
+    if not (np.all(np.isfinite(Y0)) and np.all(np.isfinite(y1))
+            and np.all(np.isfinite(Z0)) and np.all(np.isfinite(z1))):
+        raise MlsynthDataError(
+            "covariate matching needs finite outcomes and covariates.")
+
+    # Demean the OUTCOME rows only -- each series by its own pre-treatment mean.
+    # Demeaning uses the full pre-period regardless of how many rows then enter
+    # the matching, because it is what makes this the demeaned-SC program; the
+    # scheme selects which rows are *matched on*, not what they are centred by.
+    Y0c = Y0 - Y0.mean(axis=0, keepdims=True)
+    y1c = y1 - y1.mean()
+
+    # How many pre-treatment outcome rows enter the matching. With all of them,
+    # Kaul et al. (2022) show the nested V search zeroes the covariate rows and
+    # the covariates cannot matter -- so this choice decides whether the
+    # covariates do anything at all. See SDIDConfig.match_pre_periods.
+    scheme = "last" if pre_periods is None else pre_periods
+    if scheme == "all":
+        k = T0
+    elif scheme == "half":
+        k = max(1, T0 // 2)
+    elif scheme == "last":
+        k = 1
+    else:
+        k = int(scheme)
+        if k < 1:
+            raise MlsynthConfigError(
+                f"match_pre_periods must be at least 1; got {k}.")
+        if k > T0:
+            raise MlsynthConfigError(
+                f"match_pre_periods={k} exceeds the {T0} pre-treatment "
+                "period(s) available.")
+    Y0m, y1m = Y0c[T0 - k:], y1c[T0 - k:]
+
+    A = np.vstack([Y0m, Z0])
+    b = np.concatenate([y1m, z1])
+    A, b, row_scale = _standardise_rows(A, b, return_scale=True)
+    n_rows = A.shape[0]
+
+    # No ridge here, and that is the reference's choice rather than an
+    # oversight. de Brabander et al. take omega from an UNPENALISED
+    # Synth::synth and pass zeta.omega = 0 to synthdid; they report the
+    # penalised variant separately (their "Including penalty" results).
+    #
+    # It is also the only coherent option once the rows are standardised.
+    # synthdid's zeta is calibrated on the volatility of first-differenced raw
+    # outcomes -- 224.47 on the #309 fixture -- while the standardised matching
+    # rows have unit variance by construction and the cross-donor scale they
+    # were divided by is 4.2. The two live on different scales, so T0 * zeta^2
+    # is not a penalty on this design at any rescaling: carried over unchanged
+    # it is 755,818 against an O(1) design and pins w to the uniform simplex
+    # point; rescaled by the row variance it is still 42,673 and moves w by
+    # 3e-5 no matter what V does. Either way the covariates cannot bind, which
+    # is exactly the symptom that sent us here.
+    #
+    # regularization_parameter_zeta is accepted so the signature matches
+    # unit_weights and a caller can be explicit, but it is deliberately unused.
+    def solve_inner(v: np.ndarray) -> np.ndarray:
+        sw = np.sqrt(np.maximum(v, 0.0))[:, None]
+        # No ridge block: see the note above -- this program is unpenalised, so
+        # there is nothing to fold in. Keeping a dead `if ridge > 0` branch here
+        # would suggest the penalty is merely switched off rather than absent by
+        # design.
+        return solve_simplex_qp(A * sw, b * sw.ravel())
+
+    def outer_loss(w: np.ndarray) -> float:
+        # Raw pre-treatment outcomes, level-matched -- the intercept is free in
+        # this program, so the outer fit is judged on the demeaned residual.
+        resid = y1c - Y0c @ w
+        return float(resid @ resid)
+
+    # Equal weights over the standardised rows is the natural starting point and
+    # is already a sensible estimator; the search refines it.
+    v = np.full(n_rows, 1.0 / n_rows)
+    best_w = solve_inner(v)
+    best = outer_loss(best_w)
+
+    # Coordinate-wise multiplicative search on the simplex of row weights.
+    # Deterministic, cheap, and monotone by construction -- a step is kept only
+    # when it lowers the outer loss -- which matters because this runs inside
+    # placebo and bootstrap loops where a stochastic optimiser would make the
+    # reported estimate depend on the resampling seed.
+    step = 2.0
+    for _ in range(max_iter):
+        improved = False
+        for i in range(n_rows):
+            for factor in (step, 1.0 / step):
+                cand = v.copy()
+                cand[i] *= factor
+                cand /= cand.sum()
+                w = solve_inner(cand)
+                loss = outer_loss(w)
+                if loss < best - 1e-14:
+                    v, best, best_w, improved = cand, loss, w, True
+                    break
+        if not improved:
+            step = np.sqrt(step)
+            if step < 1.01:
+                break
+
+    intercept = float(np.mean(y1) - np.mean(Y0 @ best_w))
+    return intercept, best_w
