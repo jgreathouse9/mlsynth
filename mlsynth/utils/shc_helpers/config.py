@@ -6,6 +6,8 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
+import numbers
+
 from typing import List, Optional
 from pydantic import Field, model_validator
 from ...exceptions import MlsynthConfigError
@@ -52,7 +54,9 @@ class SHCConfig(BaseEstimatorConfig):
         if self.bandwidth_grid is not None:
             if not self.bandwidth_grid:
                 raise MlsynthConfigError("'bandwidth_grid' cannot be an empty list.")
-            if not all(isinstance(h, (int, float)) for h in self.bandwidth_grid):
+            # numbers.Real: numpy scalars are numbers too (issue #320).
+            if not all(isinstance(h, numbers.Real) and not isinstance(h, bool)
+                       for h in self.bandwidth_grid):
                 raise MlsynthConfigError("All elements in 'bandwidth_grid' must be numeric.")
             if not all(h > 0 for h in self.bandwidth_grid):
                 raise MlsynthConfigError("All bandwidth values must be strictly positive.")

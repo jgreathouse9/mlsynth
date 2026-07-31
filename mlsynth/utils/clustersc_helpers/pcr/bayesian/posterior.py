@@ -6,6 +6,7 @@ former shared ``mlsynth.utils.bayesutils`` module: it has a single consumer
 (clustersc's PCR Bayesian path), so it lives inside that estimator's package.
 """
 
+import numbers
 import numpy as np
 from typing import Tuple
 
@@ -96,12 +97,13 @@ def BayesSCM(
     if np.any(np.isnan(target_outcome_pre_intervention)) or np.any(np.isinf(target_outcome_pre_intervention)):
         raise MlsynthDataError("target_outcome_pre_intervention contains NaN or Inf values.")
 
-    if not isinstance(observation_noise_variance, (float, int)):
+    # numbers.Real: numpy scalars are numbers too (issue #320).
+    if not isinstance(observation_noise_variance, numbers.Real) or isinstance(observation_noise_variance, bool):
         raise MlsynthDataError("observation_noise_variance must be a float or int.")
     if observation_noise_variance <= 0:
         raise MlsynthDataError("observation_noise_variance must be positive.")
 
-    if not isinstance(weights_prior_precision, (float, int)):
+    if not isinstance(weights_prior_precision, numbers.Real) or isinstance(weights_prior_precision, bool):
         raise MlsynthDataError("weights_prior_precision must be a float or int.")
     if weights_prior_precision < 0: # Allow zero for non-informative prior if matrix is invertible
         raise MlsynthDataError("weights_prior_precision must be non-negative.")

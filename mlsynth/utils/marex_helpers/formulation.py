@@ -18,6 +18,8 @@ is selected by ``design``:
 
 from __future__ import annotations
 
+import numbers
+
 import cvxpy as cp
 import numpy as np
 import pandas as pd
@@ -71,7 +73,9 @@ def validate_costs_budget(costs, budget, N, cluster_labels, K):
         raise ValueError("costs must have length N (rows of Y).")
     if budget is None:
         raise ValueError("budget must be provided if costs are specified.")
-    if isinstance(budget, (int, float)):
+    # numbers.Real so a numpy scalar budget takes the scalar branch rather than
+    # falling through to "must be a scalar or dict" -- see issue #320.
+    if isinstance(budget, numbers.Real) and not isinstance(budget, bool):
         budget_dict = {lab: budget / K for lab in cluster_labels}
     elif isinstance(budget, dict):
         for lab in cluster_labels:
