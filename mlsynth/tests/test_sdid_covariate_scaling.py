@@ -191,5 +191,9 @@ class TestThePinnedPanelMovesToTheBetterNumber:
                 "unitid": "country", "time": "year", "vce": "noinference",
                 "display_graphs": False,
                 "covariates": {"optimized": ["lngdp"]}}).fit().effects.att)
-        # Stata reports 8.051; unscaled gave 8.0446, scaled gives 8.0483.
-        assert abs(got - 8.051) < abs(8.0446 - 8.051)
+        # Stata reports 8.051. Unscaled gives 8.0446, which is 0.0064 away;
+        # scaling gives 8.0483, which is 0.0027. The threshold sits between
+        # them so this states the improvement rather than merely comparing
+        # against a rounded literal -- an earlier version did the latter and
+        # passed against the unscaled code on rounding noise alone.
+        assert abs(got - 8.051) < 0.005

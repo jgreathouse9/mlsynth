@@ -790,15 +790,29 @@ logarithmic in the iteration cap, and on real panels the cap binds while
      - 10000
      - 100000
    * - fitted :math:`\beta`
-     - 0.094
-     - 0.182
-     - 0.266
-     - 0.344
-     - 0.414
+     - 0.074
+     - 0.145
+     - 0.213
+     - 0.278
+     - 0.339
+
+One consequence is worth stating on its own, because it is easy to assume the
+opposite. The exact minimiser of :math:`\ell` is scale-equivariant: multiply a
+covariate by :math:`c` and its coefficient divides by :math:`c`, leaving
+:math:`\mathbf{x}^{\top}\boldsymbol{\beta}` and the estimate untouched. A
+descent that stops early on a fixed schedule is not. The step is not scaled by
+the curvature, so a covariate whose dispersion is far from the outcome's makes
+the first step overshoot, and the iteration diverges instead of converging
+slowly. mlsynth therefore scales each covariate to unit dispersion before
+descending and undoes the scaling on the fitted coefficient. That is part of
+reproducing the reference rather than a numerical nicety layered on it: without
+it, a panel whose income covariate has seventy times the outcome's dispersion
+returns an estimate eleven orders of magnitude too large.
 
 Because :math:`\ell` is very nearly flat in :math:`\boldsymbol{\beta}` -- on the
-panel above it moves from 21.57 at :math:`\beta = 0` to 20.92 at its minimum
-near :math:`\beta = 1.05` -- this early stop is load-bearing. It acts as
+panel above it moves from 20.973 at :math:`\beta = 0` to 20.922 at its
+minimum near :math:`\beta = 1.05`, a quarter of one percent -- this early stop
+is load-bearing. It acts as
 shrinkage toward zero on a direction the data barely identify. Minimising
 :math:`\ell` properly is a different estimator: it returns :math:`\beta = 8.4`
 on one cohort of that panel and moves the ATT to 8.011, against the 8.051 every
@@ -975,8 +989,8 @@ rest of this page documents:
      - 0.004
    * - ``covariates(lngdp)``
      - 8.051
-     - 8.045
-     - 0.006
+     - 8.048
+     - 0.003
    * - ``covariates(lngdp, projected)``
      - 8.059
      - 8.054
