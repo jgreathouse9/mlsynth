@@ -378,7 +378,7 @@ def unit_weights(
     return float(intercept), omega
 
 
-def _standardise_rows(A: np.ndarray, b: np.ndarray):
+def _standardise_rows(A: np.ndarray, b: np.ndarray, return_scale: bool = False):
     """Scale each predictor row to unit standard deviation across donors.
 
     Abadie's ``V`` weights predictors that are on arbitrary and unrelated
@@ -389,6 +389,8 @@ def _standardise_rows(A: np.ndarray, b: np.ndarray):
     """
     scale = A.std(axis=1, ddof=0)
     scale = np.where(scale > 1e-12, scale, 1.0)
+    if return_scale:
+        return A / scale[:, None], b / scale, scale
     return A / scale[:, None], b / scale
 
 
@@ -490,10 +492,28 @@ def match_unit_weights(
 
     A = np.vstack([Y0m, Z0])
     b = np.concatenate([y1m, z1])
-    A, b = _standardise_rows(A, b)
+    A, b, row_scale = _standardise_rows(A, b, return_scale=True)
     n_rows = A.shape[0]
-    ridge = T0 * (float(regularization_parameter_zeta) ** 2)
 
+    # No ridge here, and that is the reference's choice rather than an
+    # oversight. de Brabander et al. take omega from an UNPENALISED
+    # Synth::synth and pass zeta.omega = 0 to synthdid; they report the
+    # penalised variant separately (their "Including penalty" results).
+    #
+    # It is also the only coherent option once the rows are standardised.
+    # synthdid's zeta is calibrated on the volatility of first-differenced raw
+    # outcomes -- 224.47 on the #309 fixture -- while the standardised matching
+    # rows have unit variance by construction and the cross-donor scale they
+    # were divided by is 4.2. The two live on different scales, so T0 * zeta^2
+    # is not a penalty on this design at any rescaling: carried over unchanged
+    # it is 755,818 against an O(1) design and pins w to the uniform simplex
+    # point; rescaled by the row variance it is still 42,673 and moves w by
+    # 3e-5 no matter what V does. Either way the covariates cannot bind, which
+    # is exactly the symptom that sent us here.
+    #
+    # regularization_parameter_zeta is accepted so the signature matches
+    # unit_weights and a caller can be explicit, but it is deliberately unused.
+    ridge = 0.0
     def solve_inner(v: np.ndarray) -> np.ndarray:
         sw = np.sqrt(np.maximum(v, 0.0))[:, None]
         design, target = A * sw, b * sw.ravel()
