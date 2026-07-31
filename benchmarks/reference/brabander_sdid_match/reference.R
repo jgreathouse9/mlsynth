@@ -124,6 +124,26 @@ write.csv(as.data.frame(Ypre_dm), file.path(OUT, "Ypre_demeaned.csv"), row.names
 write.csv(as.data.frame(covmeans), file.path(OUT, "covariate_means.csv"))
 writeLines(country_names, file.path(OUT, "country_names.txt"))
 
+# A long-format panel for the estimator-level tests: raw log GDP plus the six
+# covariates, pre- and post-treatment, with the UK treated from 2016Q3 (index
+# 227). Exported here rather than rebuilt in Python for the same reason as the
+# matrices above. The covariates are the same per-period series the pre-period
+# means are taken from, so a test can use either.
+POST <- 227:240
+ALL <- c(PRE, POST)
+long <- do.call(rbind, lapply(seq_along(country_names), function(j) {
+  data.frame(country = country_names[j], t = ALL,
+             y = y_long[ALL, j], real_con = con[ALL, j], real_inv = inv[ALL, j],
+             real_exp = exp_[ALL, j], real_imp = imp[ALL, j],
+             lab_prod = lab[ALL, j], tot_emp_pc = emp[ALL, j],
+             treat = as.integer(j == TREATED_COL & ALL >= 227),
+             stringsAsFactors = FALSE)
+}))
+stopifnot(!any(is.na(long)))
+write.csv(long, file.path(OUT, "brexit_panel.csv"), row.names = FALSE)
+cat(sprintf("panel: %d rows, %d units, %d periods, %d treated rows\n",
+            nrow(long), length(unique(long$country)), length(ALL), sum(long$treat)))
+
 writeLines(c(sprintf("Synth: %s", as.character(packageVersion("Synth"))),
              sprintf("R: %s.%s", R.version$major, R.version$minor),
              sprintf("treated: %s", country_names[TREATED_COL]),

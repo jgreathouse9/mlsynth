@@ -27,6 +27,19 @@ The dict also makes the combined case expressible, which a flat selector could
 not: ``{"adjust": ["seasonal"], "match": ["gdp_pc"]}`` residualises the outcome
 for seasonality while matching donors on income. Those are different jobs and
 there is no reason to force a choice.
+
+Two panels, for a reason. Most assertions run on the ``#309`` xsdid.mc fixture,
+which is where ``adjust`` is pinned against frozen gold. Anything asking whether
+covariates *bind* runs on the Brexit panel instead, because the xsdid fixture
+violates the convex-hull condition and makes those assertions vacuous --
+``TestWhyThoseTestsMovedToBrexit`` asserts that rather than leaving it as a
+claim.
+
+This file and ``test_sdid_match_seam.py`` are complementary, not redundant, and
+mutation testing shows it: disabling the nested ``V`` search survives here and
+is killed there, while removing the outcome demeaning is killed here and
+survives there (the seam bundle hands over already-demeaned matrices). Neither
+file alone covers the solver.
 """
 from __future__ import annotations
 
@@ -49,6 +62,42 @@ def panel():
     if not p.exists():  # pragma: no cover - gold is committed
         pytest.skip(f"missing {p}")
     return pd.read_csv(p)
+
+
+_BREXIT = (Path(__file__).resolve().parents[2] / "benchmarks" / "reference"
+           / "brabander_sdid_match" / "brexit_panel.csv")
+
+
+@pytest.fixture(scope="module")
+def brexit():
+    """The paper's own panel: 24 OECD countries, 1995Q1-2020Q4, UK treated 2016Q3.
+
+    Needed because the xsdid.mc fixture above cannot test whether covariates
+    bind. There the treated unit sits outside the donor convex hull -- demeaned
+    donors span [40.962, 57.561] at the last pre-period, the treated is at
+    39.968 -- so the simplex solution is pinned at a vertex and V is irrelevant
+    whatever the matching scheme. That is the paper's own section 2.2 condition
+    failing, a property of the fixture rather than of the estimator, and it
+    makes every "the covariate changes something" assertion vacuous.
+
+    Exported by benchmarks/reference/brabander_sdid_match/reference.R so both
+    sides read one file.
+    """
+    if not _BREXIT.exists():  # pragma: no cover - gold is committed
+        pytest.skip(f"missing {_BREXIT}")
+    return pd.read_csv(_BREXIT)
+
+
+def _batt(df, **extra):
+    """ATT on the Brexit panel."""
+    from mlsynth import SDID
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return float(SDID({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "country",
+            "time": "t", "vce": "noinference", "display_graphs": False,
+            **extra}).fit().effects.att)
 
 
 def _att(df, **extra):
@@ -173,14 +222,18 @@ class TestMatchIsADifferentEstimator:
         assert _att(d, covariates={"match": ["c1"]}) == pytest.approx(
             _att(d, covariates={"match": ["c2"]}), abs=1e-9)
 
-    def test_a_real_covariate_is_not_interchangeable_with_a_constant(self, panel):
+    def test_a_real_covariate_is_not_interchangeable_with_a_constant(self, brexit):
         """The complement, and the test that would catch the covariate row
-        being silently dropped: ``x`` varies across donors, so it must move the
-        weights somewhere a constant does not."""
-        d = panel.copy()
+        being silently dropped: a real covariate varies across donors, so it
+        must move the weights somewhere a constant does not.
+
+        On the Brexit panel rather than the fixture above, because this is the
+        assertion the convex-hull failure makes vacuous there.
+        """
+        d = brexit.copy()
         d["c1"] = 1.0
-        assert abs(_att(d, covariates={"match": ["x"]})
-                   - _att(d, covariates={"match": ["c1"]})) > 1e-6
+        assert abs(_batt(d, covariates={"match": ["real_con"]})
+                   - _batt(d, covariates={"match": ["c1"]})) > 1e-6
 
 
 class TestBothTogether:
@@ -319,12 +372,17 @@ class TestTheMatchingScheme:
         b = _att(d, covariates={"match": ["c1"]}, match_pre_periods="all")
         assert a == pytest.approx(b, abs=1e-9)
 
-    def test_last_period_makes_covariates_bind(self, panel):
-        """The contrast that justifies the default."""
-        d = panel.copy()
+    def test_last_period_makes_covariates_bind(self, brexit):
+        """The contrast that justifies the default.
+
+        The reference measures the covariates' share of V at 79.8 percent under
+        this scheme against 2.4 percent under "all"; this is the estimator-level
+        consequence.
+        """
+        d = brexit.copy()
         d["c1"] = 1.0
-        a = _att(d, covariates={"match": ["x"]}, match_pre_periods="last")
-        b = _att(d, covariates={"match": ["c1"]}, match_pre_periods="last")
+        a = _batt(d, covariates={"match": ["real_con"]}, match_pre_periods="last")
+        b = _batt(d, covariates={"match": ["c1"]}, match_pre_periods="last")
         assert abs(a - b) > 1e-6
 
     def test_the_default_is_last(self, panel):
@@ -343,16 +401,22 @@ class TestTheMatchingScheme:
             pytest.approx(_att(panel, covariates={"match": ["x"]},
                                match_pre_periods="last"), abs=1e-12))
 
-    def test_more_periods_weakens_the_covariate(self, panel):
-        """The mechanism behind Kaul's result, made visible: as outcome rows
-        are added the covariate's influence shrinks monotonically toward zero."""
-        d = panel.copy()
+    def test_more_periods_weakens_the_covariate(self, brexit):
+        """The mechanism behind Kaul's result, made visible at the estimator.
+
+        The reference shows it in V directly -- 79.8 percent of the weight on
+        the covariates with one outcome row, 8.7 with the later half, 2.4 with
+        all 86. Here the same gradient is read off the estimate: the further a
+        real covariate can move the ATT away from an uninformative one shrinks
+        as outcome rows are added.
+        """
+        d = brexit.copy()
         d["c1"] = 1.0
         gaps = []
-        for n in (1, 3, 8):
+        for n in (1, 20, 80):
             gaps.append(abs(
-                _att(d, covariates={"match": ["x"]}, match_pre_periods=n)
-                - _att(d, covariates={"match": ["c1"]}, match_pre_periods=n)))
+                _batt(d, covariates={"match": ["real_con"]}, match_pre_periods=n)
+                - _batt(d, covariates={"match": ["c1"]}, match_pre_periods=n)))
         assert gaps[0] > gaps[-1]
 
 
@@ -388,3 +452,45 @@ class TestTheSchemeIsOnlyMeaningfulWithMatch:
 
         with pytest.raises(MlsynthConfigError, match="pre-treatment"):
             _att(panel, covariates={"match": ["x"]}, match_pre_periods=999)
+
+
+class TestWhyThoseTestsMovedToBrexit:
+    """The convex-hull failure that makes the xsdid.mc fixture unusable here.
+
+    Asserted rather than left as a comment, because it is the whole reason three
+    tests above read a different panel. If the fixture ever changes so that the
+    treated unit falls inside the hull, these fail and the tests can move back.
+    """
+
+    def test_the_treated_unit_is_outside_the_donor_hull(self, panel):
+        Y = panel.pivot(index="t", columns="i", values="y")
+        treated = sorted(panel.loc[panel.treat_exp == 1, "i"].unique())
+        donors = [c for c in Y.columns if c not in treated]
+        pre = Y.index[:15]
+        dm = Y.loc[pre] - Y.loc[pre].mean(axis=0)
+        row = dm.loc[pre[-1], donors].to_numpy()
+        t = float(dm.loc[pre[-1], treated].to_numpy().mean())
+        assert not (row.min() <= t <= row.max())
+
+    def test_the_brexit_panel_does_not_have_that_problem(self, brexit):
+        Y = brexit.pivot(index="t", columns="country", values="y")
+        treated = sorted(brexit.loc[brexit.treat == 1, "country"].unique())
+        donors = [c for c in Y.columns if c not in treated]
+        pre = [t for t in Y.index if t < 227]
+        dm = Y.loc[pre] - Y.loc[pre].mean(axis=0)
+        row = dm.loc[pre[-1], donors].to_numpy()
+        t = float(dm.loc[pre[-1], treated].to_numpy().mean())
+        assert row.min() <= t <= row.max()
+
+    def test_the_covariate_is_inert_on_the_degenerate_fixture(self, panel):
+        """The consequence, stated as behaviour.
+
+        Not a defect to fix: no convex combination can reach a treated value
+        below every donor, so V has nothing to work with. Pinned so that a
+        future change appearing to make covariates bind here is recognised as a
+        departure from the simplex constraint rather than an improvement.
+        """
+        d = panel.copy()
+        d["c1"] = 1.0
+        assert _att(d, covariates={"match": ["x"]}) == pytest.approx(
+            _att(d, covariates={"match": ["c1"]}), abs=1e-9)
