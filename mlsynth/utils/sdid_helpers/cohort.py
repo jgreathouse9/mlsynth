@@ -243,11 +243,18 @@ def estimate_cohort_sdid_effects(
         # synthdid's zeta.omega = (N_tr * T_post)^(1/4) * sigma. A single treated
         # unit leaves zeta unchanged; multiple treated units regularize omega
         # more strongly.
-        regularization_parameter_zeta = compute_regularization(
-            donor_outcomes_pre_treatment_cohort,
-            num_post_treatment_periods_cohort,
-            num_treated_units=cohort_treated_outcomes_matrix.shape[1],
-        )
+        # A caller-supplied zeta replaces that quantity outright rather than
+        # scaling it, so reproducing a published specification means passing the
+        # number that paper used (commonly 0, which switches the ridge off).
+        zeta_override = cohort_data_dict.get("zeta_override")
+        if zeta_override is not None:
+            regularization_parameter_zeta = float(zeta_override)
+        else:
+            regularization_parameter_zeta = compute_regularization(
+                donor_outcomes_pre_treatment_cohort,
+                num_post_treatment_periods_cohort,
+                num_treated_units=cohort_treated_outcomes_matrix.shape[1],
+            )
         # Estimate unit weights (omega) and intercept. When the caller asked for
         # covariates={"match": ...} the cohort payload carries per-unit
         # covariate summaries, and the weights come from the stacked program of

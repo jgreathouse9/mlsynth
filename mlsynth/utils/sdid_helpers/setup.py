@@ -137,6 +137,7 @@ def prepare_sdid_inputs(
     time: str,
     match_covariates=None,
     match_pre_periods=None,
+    zeta=None,
 ) -> SDIDInputs:
     """Prepare panel data for the SDID pipeline.
 
@@ -147,6 +148,11 @@ def prepare_sdid_inputs(
     outcome, treat, unitid, time : str
         Column names identifying the outcome, treatment indicator, units,
         and time periods.
+    zeta : float, optional
+        Unit-weight ridge penalty to use in place of the data-driven one. When
+        given it is written onto every cohort payload, so each cohort uses the
+        same penalty rather than one scaled to its own donors and horizon --
+        which is the point of overriding it.
 
     Returns
     -------
@@ -245,6 +251,10 @@ def prepare_sdid_inputs(
         n_post = int(post)
         treated_unit_name = prep["treated_unit_name"]
         donor_names = list(prep["donor_names"])
+
+    if zeta is not None:
+        for payload in cohorts_dict.values():
+            payload["zeta_override"] = float(zeta)
 
     Ywide = prep["Ywide"]
     time_labels = np.asarray(prep["time_labels"])

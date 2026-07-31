@@ -239,6 +239,7 @@ def run_sdid(
     target_subgroup=None,
     covariates=None,
     match_pre_periods=None,
+    zeta=None,
 ) -> SDIDResults:
     """End-to-end SDID pipeline producing a typed ``SDIDResults`` object.
 
@@ -251,6 +252,11 @@ def run_sdid(
     (2022) two-step projection (:func:`adjust_outcome_for_covariates`) and
     ordinary SDID runs on the adjusted outcome. The two options are mutually
     exclusive; ``SDIDConfig`` rejects the combination.
+
+    ``zeta`` overrides the unit-weight ridge penalty, which is otherwise
+    computed per cohort from that cohort's own donor outcomes and horizon. It
+    is carried on the cohort payloads rather than passed down the call chain so
+    that the placebo resampler, which deep-copies those payloads, keeps it.
     """
 
     method_name = "SDID"
@@ -282,6 +288,7 @@ def run_sdid(
         df=df, outcome=outcome, treat=treat, unitid=unitid, time=time,
         match_covariates=match_cols or None,
         match_pre_periods=match_pre_periods,
+        zeta=zeta,
     )
     raw = estimate_event_study_sdid(
         prepped_event_study_data={"cohorts": inputs.cohorts_dict},
