@@ -9,7 +9,7 @@ default.
 It is not, however, what every published SDID analysis uses. de Brabander,
 Juodis & Miyazato Szini (2025) pass ``zeta.omega = 0`` throughout their Brexit
 study, and without a way to say the same thing mlsynth cannot express their
-specification at all -- their Table 1 SDID column sits 0.06 to 0.11 percentage
+specification at all -- their Table 1 SDID column sits 0.26 to 0.32 percentage
 points away purely because of a penalty they switched off. Hence ``zeta``.
 
 The option is a number, not a flag, because the quantity is a number: a caller
@@ -67,6 +67,15 @@ def _gap_at(df, t, **extra):
 
     The paper reports the effect in a named quarter rather than the post-period
     average, so the comparison has to read the gap at that period.
+
+    ``intercept_adjust=True`` is not a detail. The paper's estimator subtracts
+    the time-weighted pre-treatment gap,
+    ``tau = y_1T - y_0T'w - lambda'(Y_1,pre - Y_0,pre w)``, which is mlsynth's
+    intercept-adjusted counterfactual; the default un-adjusted series is a
+    different quantity and comparing it to the published number would be
+    comparing a different estimator. It is worth about 0.05 here -- small
+    enough to read as a minor disagreement rather than the wrong estimand,
+    which is exactly why it is pinned rather than assumed.
     """
     from mlsynth import SDID
 
@@ -75,7 +84,7 @@ def _gap_at(df, t, **extra):
         res = SDID({
             "df": df, "outcome": "y", "treat": "treat", "unitid": "country",
             "time": "t", "vce": "noinference", "display_graphs": False,
-            **extra}).fit()
+            "intercept_adjust": True, **extra}).fit()
     ts = res.time_series
     g = dict(zip(np.asarray(ts.time_periods).ravel().tolist(),
                  np.asarray(ts.estimated_gap, dtype=float).ravel().tolist()))
@@ -164,14 +173,21 @@ class TestItReproducesThePublishedBrexitNumbers:
     de Brabander et al. (2025) Table 1, no covariates, treatment 2016Q3, SDID
     case (ii): 2.79 percent at 2018Q4 and 3.92 at 2019Q4. Their case (ii) fits
     on a panel running to the evaluation period, so the panel is truncated to
-    match; with mlsynth's own ridge the estimates sit 0.11 and 0.06 above,
-    which is what motivated this.
+    match. With mlsynth's own ridge the estimates land at 2.53 and 3.60 --
+    0.26 and 0.32 below the published values -- which is what motivated this.
 
-    Not gated to the published precision. ``synthdid_estimate`` stops at
-    ``min.decrease`` where mlsynth solves the weight programs exactly, a
-    difference already documented in ``sdid_helpers/weights.py`` and worth
-    roughly this much on this panel. The assertion is that ``zeta=0`` closes
-    most of the gap, which is the claim being made.
+    Not gated to the paper's two printed decimals. ``synthdid_estimate`` stops
+    at ``min.decrease`` where mlsynth solves the weight programs exactly, a
+    difference already documented in ``sdid_helpers/weights.py``, and worth
+    about 0.015 on this panel. The band below is a little wider than that and
+    an order of magnitude tighter than what the default ridge produces, so it
+    separates the two specifications without claiming solver-level agreement.
+
+    The full table -- all seven estimators, both dates, and the paper's
+    in-sample placebo -- is pinned as a durable benchmark case rather than
+    here; see ``benchmarks/cases/brabander_brexit_table1.py``. What these tests
+    guard is narrower: that ``zeta`` is what makes that specification
+    reachable at all.
     """
 
     @pytest.mark.parametrize("t,published", [(236, 2.79), (240, 3.92)])
@@ -183,15 +199,17 @@ class TestItReproducesThePublishedBrexitNumbers:
         assert abs(zeroed - published) < abs(default - published)
 
     @pytest.mark.parametrize("t,published", [(236, 2.79), (240, 3.92)])
-    def test_it_lands_within_a_tenth_of_a_point(self, brexit, t, published):
+    def test_it_lands_within_a_fiftieth_of_a_point(self, brexit, t, published):
         d = brexit[brexit.t <= t]
-        assert _gap_at(d, t, zeta=0.0) == pytest.approx(published, abs=0.10)
+        assert _gap_at(d, t, zeta=0.0) == pytest.approx(published, abs=0.02)
 
-    def test_the_default_does_not_get_that_close(self, brexit):
+    @pytest.mark.parametrize("t,published", [(236, 2.79), (240, 3.92)])
+    def test_the_default_is_an_order_of_magnitude_further_away(
+            self, brexit, t, published):
         """The contrast that makes the test above meaningful: without the
         override the specification simply is not expressible."""
-        d = brexit[brexit.t <= 236]
-        assert abs(_gap_at(d, 236) - 2.79) > 0.05
+        d = brexit[brexit.t <= t]
+        assert abs(_gap_at(d, t) - published) > 0.2
 
 
 class TestStaggeredAdoption:
