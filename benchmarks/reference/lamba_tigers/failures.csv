@@ -1,0 +1,5 @@
+"reserve","treatment_year","n_donors","error"
+"Valmiki WLS/Tiger Reserve",2012,44,"system is computationally singular: reciprocal condition number = 9.94929e-18"
+"Biligiri Rangaswamy Temple (B.R.T.) WLS/Tiger Reserve",2011,44,"system is computationally singular: reciprocal condition number = 2.15751e-16"
+"Sariska National Park",2007,44,"system is computationally singular: reciprocal condition number = 5.52286e-20"
+"Anamalai Tiger Reserve",2007,44,"system is computationally singular: reciprocal condition number = 2.4173e-17"

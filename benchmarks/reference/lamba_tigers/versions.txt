@@ -1,0 +1,7 @@
+tidysynth: 0.2.0
+kernlab:   0.9.32
+R:         4.3.3
+quadopt:   ipop (see note in fit_one)
+n_requested: 15
+n_fitted:    11
+n_failed:    4

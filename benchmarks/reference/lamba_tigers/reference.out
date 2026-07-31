@@ -1,0 +1,96 @@
+Nawegaon-Nagzira Tiger Reserve                           ty=2013 donors=44 averted=  1998.90
+Similipal-Hadagarh WLS/Tiger Reserve                     ty=2007 donors=44 averted=  1570.34
+Udanti WLS                                               ty=2009 donors=44 averted=  1594.60
+Valmiki WLS/Tiger Reserve                                ty=2012 donors=44 FAILED: system is computationally singular: reciprocal condition number = 9.94929e-18
+Nagarjuna Sagar-Srisailam WLS PLIT                       ty=2007 donors=44 averted=   167.30
+Palamau WLS/Tiger Reserve                                ty=2012 donors=44 averted=   158.54
+Satkosia Gorge WLS                                       ty=2007 donors=44 averted=    20.05
+Bandipur National Park/Tiger Reserve                     ty=2007 donors=44 averted=    23.46
+Biligiri Rangaswamy Temple (B.R.T.) WLS/Tiger Reserve    ty=2011 donors=44 FAILED: system is computationally singular: reciprocal condition number = 2.15751e-16
+Sariska National Park                                    ty=2007 donors=44 FAILED: system is computationally singular: reciprocal condition number = 5.52286e-20
+Satpura National Park/Tiger Reserve                      ty=2007 donors=44 averted=     8.77
+Pilibhit Tiger Reserve                                   ty=2014 donors=44 averted=  -339.14
+Anamalai Tiger Reserve                                   ty=2007 donors=44 FAILED: system is computationally singular: reciprocal condition number = 2.4173e-17
+Dampa WLS/Tiger Reserve                                  ty=2007 donors=29 averted=  -209.55
+Kaziranga National Park/Tiger Reserve                    ty=2007 donors=29 averted=   -85.82
+
+
+tidysynth: 0.2.0
+kernlab:   0.9.32
+R:         4.3.3
+quadopt:   ipop (see note in fit_one)
+n_requested: 15
+n_fitted:    11
+n_failed:    4
+
+== REFERENCE VALUES ==
+averted_Nawegaon_Nagzira_Tiger_Reserve	1998.9044045792
+pre_mspe_Nawegaon_Nagzira_Tiger_Reserve	12520.6858448444
+n_donors_Nawegaon_Nagzira_Tiger_Reserve	44
+averted_Similipal_Hadagarh_WLS_Tiger_Reserve	1570.3395091187
+pre_mspe_Similipal_Hadagarh_WLS_Tiger_Reserve	334.5512726450
+n_donors_Similipal_Hadagarh_WLS_Tiger_Reserve	44
+averted_Udanti_WLS	1594.5998237921
+pre_mspe_Udanti_WLS	859.2157258845
+n_donors_Udanti_WLS	44
+averted_Nagarjuna_Sagar_Srisailam_WLS_PLIT	167.3011425298
+pre_mspe_Nagarjuna_Sagar_Srisailam_WLS_PLIT	8.3670900193
+n_donors_Nagarjuna_Sagar_Srisailam_WLS_PLIT	44
+averted_Palamau_WLS_Tiger_Reserve	158.5402942742
+pre_mspe_Palamau_WLS_Tiger_Reserve	15.7627444546
+n_donors_Palamau_WLS_Tiger_Reserve	44
+averted_Satkosia_Gorge_WLS	20.0480104254
+pre_mspe_Satkosia_Gorge_WLS	1.4383038930
+n_donors_Satkosia_Gorge_WLS	44
+averted_Bandipur_National_Park_Tiger_Reserve	23.4640198684
+pre_mspe_Bandipur_National_Park_Tiger_Reserve	0.6359397544
+n_donors_Bandipur_National_Park_Tiger_Reserve	44
+averted_Satpura_National_Park_Tiger_Reserve	8.7744912151
+pre_mspe_Satpura_National_Park_Tiger_Reserve	0.0498802791
+n_donors_Satpura_National_Park_Tiger_Reserve	44
+averted_Pilibhit_Tiger_Reserve	-339.1408653927
+pre_mspe_Pilibhit_Tiger_Reserve	104.6004676360
+n_donors_Pilibhit_Tiger_Reserve	44
+averted_Dampa_WLS_Tiger_Reserve	-209.5459330837
+pre_mspe_Dampa_WLS_Tiger_Reserve	0.8387135180
+n_donors_Dampa_WLS_Tiger_Reserve	29
+averted_Kaziranga_National_Park_Tiger_Reserve	-85.8216814380
+pre_mspe_Kaziranga_National_Park_Tiger_Reserve	36.2969365613
+n_donors_Kaziranga_National_Park_Tiger_Reserve	29
+n_fitted	11
+n_failed	4
+total_averted_fitted	4907.4632158885
+== END ==
+
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] dplyr_1.1.4     tidysynth_0.2.0
+
+loaded via a namespace (and not attached):
+ [1] tidyr_1.3.1         utf8_1.2.4          R6_2.5.1           
+ [4] numDeriv_2016.8-1.1 tidyselect_1.2.0    magrittr_2.0.3     
+ [7] glue_1.7.0          tibble_3.2.1        pkgconfig_2.0.3    
+[10] generics_0.1.3      lifecycle_1.0.4     cli_3.6.2          
+[13] fansi_1.0.5         nloptr_2.0.3        vctrs_0.6.5        
+[16] optimx_2023-10.21   withr_2.5.0         compiler_4.3.3     
+[19] kernlab_0.9-32      purrr_1.0.2         pracma_2.4.4       
+[22] pillar_1.9.0        rlang_1.1.3        

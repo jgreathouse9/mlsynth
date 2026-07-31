@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-07-30T20:42:50Z",
+  "git_sha": "1b9e48e34f5d190cb36d82fcaf881948847fee02",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/lamba_tigers/reference.R",
+  "data": [
+    {
+      "path": "basedata/tiger_reserves.csv",
+      "sha256": "a529e3de9e6fdfb3a78aff98b5e09ab265a058c4eee4825383401d1540c1bf55"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "dplyr": "1.1.4",
+    "tidysynth": "0.2.0",
+    "tidyr": "1.3.1",
+    "utf8": "1.2.4",
+    "numDeriv": "2016.8-1.1",
+    "tidyselect": "1.2.0",
+    "magrittr": "2.0.3",
+    "glue": "1.7.0",
+    "tibble": "3.2.1",
+    "pkgconfig": "2.0.3",
+    "generics": "0.1.3",
+    "lifecycle": "1.0.4",
+    "cli": "3.6.2",
+    "fansi": "1.0.5",
+    "nloptr": "2.0.3",
+    "vctrs": "0.6.5",
+    "optimx": "2023-10.21",
+    "withr": "2.5.0",
+    "compiler": "4.3.3",
+    "kernlab": "0.9-32",
+    "purrr": "1.0.2",
+    "pracma": "2.4.4",
+    "pillar": "1.9.0",
+    "rlang": "1.1.3"
+  }
+}
