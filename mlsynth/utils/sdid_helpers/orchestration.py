@@ -263,6 +263,7 @@ def run_sdid(
     covariates = covariates or {}
     adjust_cols = list(covariates.get("adjust", ()))
     match_cols = list(covariates.get("match", ()))
+    optimized_cols = list(covariates.get("optimized", ()))
 
     if adjust_cols:
         # Kranz (2022): residualise the outcome; the weight problem is untouched.
@@ -273,10 +274,18 @@ def run_sdid(
             covariates=adjust_cols)
         outcome = adjusted_name
         method_name = "SDID-X"
+    if optimized_cols:
+        # Arkhangelsky et al. (2021) fn. 4 / Stata's default: the coefficients
+        # come from a joint minimisation over (beta, omega, lambda), so they
+        # cannot be computed before the weights the way 'adjust' can. The fit is
+        # per adoption cohort -- see ``prepare_sdid_inputs`` -- so unlike
+        # 'adjust' there is no single panel-wide adjusted outcome to build here.
+        method_name = "SDID-X"
     if match_cols:
         # de Brabander et al. (2025): covariates enter the unit-weight problem.
         # The outcome is left alone, so this composes with 'adjust'.
-        method_name = "SDID-X-both" if adjust_cols else "SDID-X"
+        method_name = ("SDID-X-both" if (adjust_cols or optimized_cols)
+                       else "SDID-X")
 
     if subgroup is not None:
         df, outcome = apply_ddd_transform(
@@ -288,6 +297,7 @@ def run_sdid(
         df=df, outcome=outcome, treat=treat, unitid=unitid, time=time,
         match_covariates=match_cols or None,
         match_pre_periods=match_pre_periods,
+        optimized_covariates=optimized_cols or None,
         zeta=zeta,
     )
     raw = estimate_event_study_sdid(

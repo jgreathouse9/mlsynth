@@ -108,7 +108,9 @@ class SDIDConfig(BaseEstimatorConfig):
         ),
     )
 
-    covariates: Optional[Dict[Literal["adjust", "match"], List[str]]] = Field(
+    covariates: Optional[
+        Dict[Literal["adjust", "match", "optimized"], List[str]]
+    ] = Field(
         default=None,
         description=(
             "Time-varying covariates, keyed by how they are used. The two "
@@ -125,12 +127,23 @@ class SDIDConfig(BaseEstimatorConfig):
             "its covariate means, the donors likewise, and a diagonal V "
             "weighting those rows is chosen by nested optimisation against the "
             "pre-treatment outcome fit; the outcome is left alone. "
-            "Both keys may be given together -- residualising for seasonality "
+            "'optimized' -- Arkhangelsky et al. (2021, footnote 4), and the "
+            "default in Stata's ``sdid``: the coefficients are estimated "
+            "*jointly* with the unit and time weights by minimising a single "
+            "objective, rather than in a separate first step, so the "
+            "covariates and the weights determine each other. Use it to "
+            "reproduce a paper that wrote ``covariates(x)`` without naming a "
+            "type. The Stata authors caveat their own default -- it \"has been "
+            "observed to be problematic at times (refer to Kranz (2022))\" and "
+            "is sensitive to covariates with high dispersion -- so 'adjust' is "
+            "the better-behaved choice when you are not matching a published "
+            "specification. "
+            "Keys may be given together -- residualising for seasonality "
             "while matching donors on income is coherent -- but a column may "
-            "not appear under both. Columns must be numeric. None (default) -> "
-            "no covariates. A bare list is rejected: 'covariates' previously "
-            "meant 'adjust', and silently reinterpreting it would change which "
-            "estimator runs; pass {'adjust': [...]} for that behaviour."
+            "not appear under more than one. Columns must be numeric. None "
+            "(default) -> no covariates. A bare list is rejected: 'covariates' "
+            "previously meant 'adjust', and silently reinterpreting it would "
+            "change which estimator runs; pass {'adjust': [...]} for that."
         ),
     )
 
@@ -231,8 +244,10 @@ class SDIDConfig(BaseEstimatorConfig):
                     "each column must be a numeric measurement; encode "
                     "categoricals as indicators yourself if that is intended.")
 
-        both = sorted(set(self.covariates.get("adjust", ()))
-                      & set(self.covariates.get("match", ())))
+        from itertools import combinations
+        both = sorted({c for a, b in combinations(self.covariates, 2)
+                       for c in (set(self.covariates[a])
+                                 & set(self.covariates[b]))})
         if both:
             # Defensible either way -- one could argue for residualising on a
             # variable and still matching on its level -- so this is a recorded
@@ -240,10 +255,10 @@ class SDIDConfig(BaseEstimatorConfig):
             # typo, and because the two uses double-count the same variation
             # with no way for the caller to see it happen.
             raise MlsynthConfigError(
-                f"covariate column(s) {both} appear under both 'adjust' and "
-                "'match'. Adjusting the outcome for a variable and then "
-                "matching donors on it double-counts the same variation; pick "
-                "one use per column.")
+                f"covariate column(s) {both} appear under both of two "
+                "covariate methods. Each method uses the variable differently, "
+                "so applying two to one column double-counts the same "
+                "variation; pick one use per column.")
 
         # SC-DDD collapses the panel over the subgroup dimension before SDID
         # runs, so a (unit, time) covariate has no single row to attach to.
