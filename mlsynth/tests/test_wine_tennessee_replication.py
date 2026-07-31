@@ -244,3 +244,103 @@ class TestTheFittedSCMLayer:
         b = self._fit(study2, "employper", "time", *kw)
         assert float(a.effects.att) == pytest.approx(float(b.effects.att),
                                                      rel=1e-9)
+
+
+class TestTheFittedSDIDLayer:
+    """Table 6, panels B and C.
+
+    The paper's Stata call is ``sdid ..., covariates(...)`` with no type named,
+    so it takes Stata's default, which is ``optimized`` and not ``projected``.
+    That option is why #322 and #323 existed; this is the check it was for.
+    """
+
+    def _att(self, df, outcome, time, covariates=None):
+        from mlsynth import SDID
+
+        cfg = {"df": df, "outcome": outcome, "treat": "treat",
+               "unitid": "state", "time": time, "vce": "noinference",
+               "display_graphs": False}
+        if covariates is not None:
+            cfg["covariates"] = covariates
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return float(SDID(cfg).fit().effects.att)
+
+    def test_table_6_panel_b_employment(self, study2):
+        got = self._att(study2, "employper", "time",
+                        {"optimized": COVARIATES})
+        assert got == pytest.approx(PAPER_T6B_AVG, abs=0.5)
+
+    def test_table_6_panel_c_tax_revenue(self, study3):
+        got = self._att(study3, "taxper", "year", {"optimized": COVARIATES})
+        assert got == pytest.approx(PAPER_T6C_AVG, abs=0.02)
+
+    def test_the_covariates_move_the_estimate(self, study2):
+        """Otherwise the panel above would pass with the option doing nothing."""
+        plain = self._att(study2, "employper", "time")
+        with_x = self._att(study2, "employper", "time",
+                           {"optimized": COVARIATES})
+        assert abs(with_x - plain) > 1.0
+        # and the covariate version is the one that matches the paper
+        assert abs(with_x - PAPER_T6B_AVG) < abs(plain - PAPER_T6B_AVG)
+
+    def test_this_panel_is_why_the_scaling_fix_exists(self, study2):
+        """A regression guard for #325, on the data that exposed it.
+
+        ``incomepc`` has a within-unit dispersion around seventy times the
+        outcome's. Before the covariates were scaled, this returned 1.7e+11.
+        """
+        got = self._att(study2, "employper", "time",
+                        {"optimized": COVARIATES})
+        assert np.isfinite(got)
+        assert abs(got) < 1e3
+
+
+class TestWhatTheDataDoNotDetermine:
+    """Study 3's donor weights are not identified, so they are not pinned.
+
+    Three pre-treatment periods and five donors. Several weight vectors fit the
+    pre-period about equally well, and the published one is not the best of
+    them -- so a test demanding the published weights would be demanding one
+    arbitrary point from a flat region, and would fail on any harmless change
+    to the search.
+
+    Recording it is the honest alternative, and it is a real assertion: if a
+    future change made the problem identified, the inequality below would stop
+    holding and this test would fail, prompting a revisit.
+    """
+
+    def test_the_published_weights_are_not_the_best_pre_treatment_fit(
+            self, study3):
+        from itertools import combinations
+
+        from scipy.optimize import nnls
+
+        wide = study3.pivot_table(index="year", columns="state", values="taxper")
+        pre = [y for y in wide.index if y <= 2016]
+        donors = [c for c in wide.columns if c != "TN"]
+        target = wide.loc[pre, "TN"].to_numpy(float)
+
+        best = np.inf
+        for size in range(1, len(donors) + 1):
+            for combo in combinations(donors, size):
+                design = wide.loc[pre, list(combo)].to_numpy(float)
+                big = 1e6                      # enforce the simplex sum
+                sol, _ = nnls(np.vstack([design, big * np.ones(len(combo))]),
+                              np.append(target, big))
+                best = min(best, float(np.sqrt(
+                    np.mean((target - design @ sol) ** 2))))
+
+        published = _pre_rmse(study3, "year", "taxper", PAPER_W3, 2016)
+        assert best < published, (
+            "the published weights are now the best pre-treatment fit; the "
+            "non-identification recorded here no longer holds")
+        # ...and the gap is small relative to the outcome's own scale, which is
+        # what makes the region flat rather than the published fit poor
+        assert (published - best) < 0.1 * float(study3["taxper"].std())
+
+    def test_the_effect_is_identified_even_though_the_weights_are_not(
+            self, study3):
+        """Which is why the ATT is pinned above and the weights are not."""
+        got = _effects_from_weights(study3, "year", "taxper", PAPER_W3, 2016)
+        assert float(np.mean(got)) == pytest.approx(PAPER_T5_AVG, abs=0.01)
