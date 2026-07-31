@@ -311,6 +311,61 @@ This is Equation 2 of Ciccia (2024). Each cohort is fit independently
 inside
 :func:`mlsynth.utils.sdid_helpers.cohort.estimate_cohort_sdid_effects`.
 
+Choosing the unit-weight penalty
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The term :math:`T_0 \zeta^2 \|\mathbf{w}\|_2^2` in the unit-weight program is
+the one free quantity in the two displays above, and it is worth being explicit
+about what sets it. Arkhangelsky et al. (2021) calibrate it to the noise the
+weights are being asked not to chase,
+
+.. math::
+
+   \zeta \;=\; \bigl(N_{tr}\, T_{post}\bigr)^{1/4}\, \widehat\sigma,
+   \qquad
+   \widehat\sigma^{\,2}
+   \;=\;
+   \frac{1}{N_{co}(T_{pre} - 1) - 1}
+   \sum_{i=1}^{N_{co}} \sum_{t=1}^{T_{pre}-1}
+     \bigl(\Delta_{it} - \overline{\Delta}\bigr)^{2},
+   \qquad
+   \Delta_{it} = y_{i,t+1} - y_{it},
+
+with :math:`\overline{\Delta}` the mean first difference over the same donor
+block. Two things follow from the shape of :math:`\zeta`. It grows with the
+volatility of the donors, so a noisy panel is pulled further toward equal
+weights; and it grows in :math:`N_{tr} T_{post}`, so a design with many treated
+units and a long post-period is regularized more strongly than a
+single-treated, short-horizon one on identical outcomes. That is the default,
+and it is what :math:`\zeta` means everywhere else on this page.
+
+It is not, however, universal. A published SDID analysis may set the penalty
+itself, and the value it sets is part of the specification rather than a
+detail: at :math:`\zeta = 0` the program is the unpenalised simplex least
+squares, which fits the pre-period more closely and tends to put weight on
+fewer donors, while as :math:`\zeta \to \infty` the objective is dominated by
+:math:`\|\mathbf{w}\|_2^2` and :math:`\mathbf{w}^\ast` approaches the uniform
+weights :math:`1/N_{co}`, i.e. plain difference-in-differences against the
+donor average. The estimate therefore moves continuously between a synthetic
+control and a DiD as the penalty rises, and reproducing someone else's number
+means using their point on that path.
+
+:py:attr:`SDIDConfig.zeta` supplies it. Left as ``None`` (the default) the
+formula above is used, recomputed per cohort from that cohort's own donors and
+horizon; given a number, that number is used for every cohort instead. Time
+weights are untouched either way -- their penalty is a separate quantity that
+SDID fixes at machine precision, for the reason given under Assumption 3.
+
+.. code-block:: python
+
+   # de Brabander, Juodis & Miyazato Szini (2025) run their Brexit study with
+   # the unit-weight penalty switched off.
+   res = SDID({
+       "df": df, "outcome": "lgdp", "treat": "brexit",
+       "unitid": "country", "time": "quarter",
+       "zeta": 0.0,
+   }).fit()
+
 Cohort-Specific Event Study (Equation 3)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

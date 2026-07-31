@@ -74,6 +74,12 @@ class SDID:
     before the estimator runs. See
     :mod:`mlsynth.utils.sdid_helpers.covariates`.
 
+    Setting ``zeta`` replaces the data-driven unit-weight ridge
+    ``(N_tr * T_post)^(1/4) * sigma_hat`` with a fixed value, for reproducing a
+    published specification that set the penalty itself; ``zeta=0`` leaves the
+    unit weights unpenalised. Left as None (the default) the parameter is
+    computed per cohort as Arkhangelsky et al. (2021) prescribe.
+
     References
     ----------
     Arkhangelsky, D., Athey, S., Hirshberg, D., Imbens, G., & Wager, S. (2021).
@@ -124,6 +130,7 @@ class SDID:
         self.target_subgroup = config.target_subgroup
         self.covariates = config.covariates
         self.match_pre_periods = config.match_pre_periods
+        self.zeta = config.zeta
 
         self.display_graphs: bool = config.display_graphs
         self.save: Any = config.save
@@ -148,6 +155,7 @@ class SDID:
                 target_subgroup=self.target_subgroup,
                 covariates=self.covariates,
                 match_pre_periods=self.match_pre_periods,
+                zeta=self.zeta,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

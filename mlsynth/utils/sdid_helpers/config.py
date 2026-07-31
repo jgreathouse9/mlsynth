@@ -6,6 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import Field, field_validator, model_validator
@@ -53,6 +54,26 @@ class SDIDConfig(BaseEstimatorConfig):
     seed: int = Field(
         default=1400,
         description="Random seed used for the placebo / bootstrap resampling.",
+    )
+    zeta: Optional[float] = Field(
+        default=None,
+        description=(
+            "Ridge penalty on the unit weights, ``synthdid``'s ``zeta.omega``: "
+            "the unit-weight objective carries the term "
+            "``T_pre * zeta^2 * ||omega||^2``. None (the default) computes it "
+            "from the data as Arkhangelsky et al. (2021) prescribe, "
+            "``(N_tr * T_post)^(1/4) * sigma_hat`` with ``sigma_hat`` the "
+            "standard deviation of the first-differenced control outcomes; "
+            "that is the recommended value and nothing changes unless this is "
+            "set. Give a number to override it -- published SDID analyses do "
+            "not all use the default, and de Brabander, Juodis & Miyazato "
+            "Szini (2025) set it to 0 throughout their Brexit study, a "
+            "specification that is otherwise not expressible. A number rather "
+            "than a flag because the quantity is a number; 0 is only the most "
+            "common override. Time weights are unaffected -- their penalty is "
+            "``zeta.lambda``, which SDID sets from the machine epsilon and "
+            "which this does not touch."
+        ),
     )
     intercept_adjust: bool = Field(
         default=False,
@@ -146,6 +167,26 @@ class SDIDConfig(BaseEstimatorConfig):
                 "for covariate matching in the unit-weight problem. Both keys "
                 "may be given together."
             )
+        return v
+
+    @field_validator("zeta")
+    @classmethod
+    def _check_zeta(cls, v):
+        # A bad penalty does not fail loudly downstream: a negative one makes
+        # the weight objective non-convex and a NaN one propagates silently
+        # into every weight, so both are caught here rather than surfacing as
+        # an unexplained fit.
+        if v is None:
+            return v
+        if not math.isfinite(v):
+            raise MlsynthConfigError(
+                f"zeta must be finite; got {v}. Leave it as None (the default) "
+                "to compute the penalty from the data.")
+        if v < 0:
+            raise MlsynthConfigError(
+                f"zeta must be non-negative; got {v}. It is the coefficient on "
+                "a squared-norm penalty, so a negative value would reward "
+                "large weights. Pass 0 to switch the penalty off.")
         return v
 
     @model_validator(mode="after")
