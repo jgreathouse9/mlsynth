@@ -374,3 +374,35 @@ class TestTheBlockSolverOnASingleCohortPanel:
             time="t", optimized_covariates=["x"])
         beta = next(iter(inputs.cohorts_dict.values()))["optimized_beta"]
         assert 0.0 < float(beta[0]) < 2.0
+
+
+class TestTheStoppingRuleThatAlmostNeverFires:
+    """The convergence test exists; on real panels the cap beats it to it.
+
+    ``TestWhatTheObjectiveActuallyDoes`` pins that the iteration runs to
+    ``max_iter`` on the quota panel. That leaves the ``min_decrease`` branch
+    untaken, so this constructs the case where it does fire -- a covariate that
+    carries no signal at all, which zeroes the gradient and leaves the
+    objective to converge on the weight steps alone.
+    """
+
+    def _block(self, covariate):
+        rng = np.random.default_rng(2)
+        T, N0, T0 = 12, 5, 8
+        donors = rng.normal(size=(T, N0)) + np.arange(T)[:, None] * 0.2
+        treated = donors.mean(axis=1) + rng.normal(0, 0.1, size=T)
+        return dict(
+            donor_outcomes=donors, treated_outcome=treated,
+            donor_covariates=covariate(T, N0)[None],
+            treated_covariates=np.zeros((1, T)),
+            pre_periods=T0, n_treated=1)
+
+    def test_a_signal_free_covariate_stops_before_the_cap(self):
+        from mlsynth.utils.sdid_helpers.covariates import (
+            optimized_covariate_beta)
+
+        block = self._block(lambda T, N0: np.zeros((T, N0)))
+        # If the break never fired this would run 10**6 iterations; that it
+        # returns at all is the assertion, and the coefficient stays at zero.
+        beta = optimized_covariate_beta(max_iter=1_000_000, **block)
+        assert float(beta[0]) == pytest.approx(0.0, abs=1e-12)
