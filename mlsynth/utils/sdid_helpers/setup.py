@@ -138,7 +138,7 @@ def _apply_optimized_covariates(payload, df, unitid, time, cols, donor_names,
     coefficient would not be the quantity any cohort's objective defines. This
     is the same reason ``match`` attaches its covariate summaries per cohort.
     """
-    from .covariates import optimized_block_adjustment
+    from .covariates import optimized_covariate_beta
 
     wide = df.pivot_table(index=time, columns=unitid, values=list(cols))
     order = sorted(wide.index)
@@ -149,7 +149,7 @@ def _apply_optimized_covariates(payload, df, unitid, time, cols, donor_names,
         wide[c].reindex(index=order, columns=list(treated_names))
         .to_numpy(float).mean(axis=1) for c in cols])
 
-    donors, treated, beta = optimized_block_adjustment(
+    beta = optimized_covariate_beta(
         donor_outcomes=np.asarray(payload["donor_matrix"], dtype=float),
         treated_outcome=np.asarray(payload["y"], dtype=float).mean(axis=1),
         donor_covariates=donor_cov,
@@ -157,9 +157,10 @@ def _apply_optimized_covariates(payload, df, unitid, time, cols, donor_names,
         pre_periods=int(payload["pre_periods"]),
         n_treated=len(treated_names),
     )
-    payload["donor_matrix"] = donors
-    # ``y`` keeps its (T, n_treated) shape: subtract the cohort's coefficients
-    # from each treated unit's own covariate path, not from their mean.
+    payload["donor_matrix"] = (np.asarray(payload["donor_matrix"], dtype=float)
+                               - np.tensordot(beta, donor_cov, axes=(0, 0)))
+    # ``y`` keeps its (T, n_treated) shape, so the coefficients come off each
+    # treated unit's own covariate path rather than off their mean.
     treated_paths = np.stack([
         wide[c].reindex(index=order, columns=list(treated_names)).to_numpy(float)
         for c in cols])

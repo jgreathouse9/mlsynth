@@ -406,3 +406,98 @@ class TestTheStoppingRuleThatAlmostNeverFires:
         # returns at all is the assertion, and the coefficient stays at zero.
         beta = optimized_covariate_beta(max_iter=1_000_000, **block)
         assert float(beta[0]) == pytest.approx(0.0, abs=1e-12)
+
+
+class TestTheObjectiveIsTheDocumentedSum:
+    """The objective's formula, checked term by term rather than as a black box.
+
+    Comparing objective values across betas -- which the tests above do -- is
+    insensitive to the formula's *shape*: dropping the ridge, or swapping which
+    block is divided by the pre-period count and which by the donor count,
+    changes every value by roughly the same amount and so flips no comparison.
+    These pin the decomposition itself, at the seam where it is assembled.
+    """
+
+    def test_it_equals_its_three_documented_terms(self, block):
+        from mlsynth.utils.sdid_helpers.covariates import (
+            _noise_level, sdid_covariate_objective)
+        from mlsynth.utils.sdid_helpers.weights import (fit_time_weights,
+                                                        unit_weights)
+
+        beta = np.array([0.4])
+        t0 = block["pre_periods"]
+        n_post = block["donor_outcomes"].shape[0] - t0
+        donors = (block["donor_outcomes"]
+                  - np.tensordot(beta, block["donor_covariates"], axes=(0, 0)))
+        treated = block["treated_outcome"] - beta @ block["treated_covariates"]
+
+        zeta = ((block["n_treated"] * n_post) ** 0.25) * _noise_level(
+            block["donor_outcomes"], t0)
+        donor_pre, post_mean = donors[:t0], donors[t0:].mean(axis=0)
+        a_o, omega = unit_weights(donor_pre, treated[:t0], zeta)
+        a_l, lam = fit_time_weights(donor_pre, post_mean)
+        err_o = treated[:t0] - a_o - donor_pre @ omega
+        err_l = post_mean - a_l - donor_pre.T @ lam
+
+        n0 = donors.shape[1]
+        expected = (err_o @ err_o / t0            # omega block: one per period
+                    + err_l @ err_l / n0          # lambda block: one per donor
+                    + zeta ** 2 * (omega @ omega))
+        assert sdid_covariate_objective(beta=beta, **block) == pytest.approx(
+            float(expected), rel=1e-12)
+
+    def test_the_ridge_term_is_present(self, block):
+        """Separately, since it is the term a value comparison cannot see."""
+        from mlsynth.utils.sdid_helpers.covariates import (
+            _noise_level, sdid_covariate_objective)
+        from mlsynth.utils.sdid_helpers.weights import (fit_time_weights,
+                                                        unit_weights)
+
+        beta = np.array([0.4])
+        t0 = block["pre_periods"]
+        n_post = block["donor_outcomes"].shape[0] - t0
+        donors = (block["donor_outcomes"]
+                  - np.tensordot(beta, block["donor_covariates"], axes=(0, 0)))
+        treated = block["treated_outcome"] - beta @ block["treated_covariates"]
+        zeta = ((block["n_treated"] * n_post) ** 0.25) * _noise_level(
+            block["donor_outcomes"], t0)
+        donor_pre, post_mean = donors[:t0], donors[t0:].mean(axis=0)
+        a_o, omega = unit_weights(donor_pre, treated[:t0], zeta)
+        a_l, lam = fit_time_weights(donor_pre, post_mean)
+        fit_only = (float((treated[:t0] - a_o - donor_pre @ omega) @
+                          (treated[:t0] - a_o - donor_pre @ omega)) / t0
+                    + float((post_mean - a_l - donor_pre.T @ lam) @
+                            (post_mean - a_l - donor_pre.T @ lam))
+                    / donors.shape[1])
+        got = sdid_covariate_objective(beta=beta, **block)
+        assert got > fit_only
+        assert got - fit_only == pytest.approx(
+            float(zeta ** 2 * (omega @ omega)), rel=1e-9)
+
+
+class TestTheRidgeScalesWithTheDesign:
+    """``n_treated`` enters only through zeta, so it must change the answer.
+
+    Arkhangelsky et al. set the unit-weight penalty to
+    ``(N_tr * T_post)^(1/4) * sigma``. If the treated count or the horizon were
+    dropped from that expression the estimator would still run and still look
+    reasonable -- it would just be penalising by the wrong amount.
+    """
+
+    def test_more_treated_units_change_the_objective(self, block):
+        from mlsynth.utils.sdid_helpers.covariates import (
+            sdid_covariate_objective)
+
+        one = sdid_covariate_objective(beta=[0.3], **{**block, "n_treated": 1})
+        many = sdid_covariate_objective(beta=[0.3], **{**block, "n_treated": 9})
+        assert one != pytest.approx(many, rel=1e-9)
+
+    def test_more_treated_units_change_the_fit(self, block):
+        from mlsynth.utils.sdid_helpers.covariates import (
+            optimized_covariate_beta)
+
+        one = optimized_covariate_beta(max_iter=200,
+                                       **{**block, "n_treated": 1})
+        many = optimized_covariate_beta(max_iter=200,
+                                        **{**block, "n_treated": 9})
+        assert not np.allclose(one, many)
