@@ -1,0 +1,45 @@
+source: https://osf.io/rbt4n -- the authors' own replication package
+        ("AJAE MS#25282-Data and Code-Caputo.zip")
+files:  Replicate_Study2_Data.dta -> study2_employment.csv
+        Replicate_Study3_Data.dta -> study3_taxrevenue.csv
+        converted to CSV with column names lowercased; values unchanged
+paper:  Sun, Caputo, Staples & Vassilopoulos (2025), "When Wine Walked into
+        Grocery Stores: Examining the (Un)intended Economic Consequences of
+        Wine Sale Reform in Tennessee", American Journal of Agricultural
+        Economics. doi:10.1111/ajae.70033
+licence: the package README permits adaptation for research and educational
+        use provided the paper is cited as the original source.
+
+Tennessee allowed grocery stores to sell wine from July 2016. The paper asks
+whether the intended gain (wine excise tax revenue) came with unintended costs
+(liquor store closures and employment).
+
+STUDY 1 is not vendored and cannot be replicated: its outcome series comes from
+proprietary NielsenIQ Retail Measurement data, which the authors are not free to
+redistribute. That also rules out the first column of Table 6.
+
+study2_employment.csv -- liquor store employment (QCEW, NAICS 445310)
+  440 rows: 11 states x 40 quarters (2009 Q1 - 2018 Q4)
+  treated: TN (state_id 10) from time 31 (2016 Q3); 30 pre-periods, 10 post
+  outcome: employper, employment per million residents aged 21+
+  sha256(first 16): 2f0e9367296ba067
+
+study3_taxrevenue.csv -- wine excise tax revenue
+  36 rows: 6 states x 6 fiscal years (FY2014 - FY2019)
+  treated: TN (state_id 6) from FY2017; 3 pre-periods, 3 post
+  outcome: taxper, wine excise tax per resident aged 21+
+  sha256(first 16): 21459cf508dc9ade
+
+Published values reproduced against these panels:
+
+  Table 1 col 2  SCM donor weights, Study 2   KY 0.231  NY 0.551  UT 0.218
+  Figure 6 code  SCM donor weights, Study 3   AK 0.104  MN 0.636  NY 0.259
+  Table 4        SCM effects, employment      avg -42.500, p 0.000
+                 per quarter -13.081 -30.672 -31.033 -52.340 -62.457
+                             -61.404 -54.817 -49.229 -31.310 -38.665
+  Table 5        SCM effects, tax revenue     0.700 0.480 0.587, avg 0.589
+  Table 6 B      SDID effects, employment     avg -53.154 (p 0.122)
+  Table 6 C      SDID effects, tax revenue    avg 0.610 (p 0.014)
+
+Asserted against these frozen numbers from the Python test suite. No Stata runs
+in CI.

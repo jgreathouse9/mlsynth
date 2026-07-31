@@ -51,6 +51,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/fdid
+   replications/wine_tennessee
    replications/cast
    replications/rrsc
    replications/src
