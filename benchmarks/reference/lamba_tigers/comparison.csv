@@ -1,0 +1,18 @@
+# case: lamba_tigers
+# generated_at: 2026-07-31T09:43:45Z
+# mlsynth_version: 1.0.0
+# estimator: 
+# config: {}
+# reference_impl: R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst rather than pinned
+# reference_version: R version 4.3.3 (2024-02-29)
+# reference_generated_at: 2026-07-30T20:42:50Z
+quantity,mlsynth,reference,abs_diff
+averted_loss_ha[nawegaon_nagzira],2825.382055308598,1998.9044045792,826.477651
+pre_treatment_mspe[nawegaon_nagzira],3490.1414687203055,12520.6858448444,9030.544376
+averted_loss_ha[similipal_hadagarh],1612.852423328466,1570.3395091187,42.512914
+pre_treatment_mspe[similipal_hadagarh],364.3683380107166,334.551272645,29.817065
+averted_loss_ha[udanti],1516.4732284088532,1594.5998237921,78.126595
+pre_treatment_mspe[udanti],850.8276437430145,859.2157258845,8.388082
+averted_loss_ha[pilibhit],-339.88079354398616,-339.1408653927,0.739928
+pre_treatment_mspe[pilibhit],13.542149777637668,104.600467636,91.058318
+reserves_fitted_of_15,15.0,11.0,4.0
