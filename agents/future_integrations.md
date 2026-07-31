@@ -1580,6 +1580,185 @@ distinguish, and the docs need to say so plainly.
 
 ---
 
+## 17. Shen (2026) Two-Way Synthetic Forecasting (TWSF) -- assessed, PARKED pending two answers from the author
+
+**Status: Parked. Not a rejection -- the method is novel, the gap is real, and
+an implementation exists in scratch. It is blocked because neither replication
+path can be completed from the paper as published. Recorded so the two spikes
+are not repeated.**
+
+### Source
+
+> Shen, D. (2026). "Causal Forecasting in Panel Data: A Two-Way Synthetic
+> Forecasting Approach." arXiv:2606.18512v1. Single author, no code release.
+
+Data for the case study (NFL stadium openings) is available: the NYT county
+series plus the stadium-county mapping are both vendored in
+`Joshuashou/Synthetic-Control-Paper-Model` (a *different* paper -- "Synthetic
+Control Method with Many Outcomes", pending at JMLR -- which reuses the same
+setting). That repo is **not** the PNAS replication package, and its
+opening-date column must not be used: Kansas City is typed `9/10/2021`, New
+Orleans and Washington are marked "Closed to fans" though the paper has them
+opening 10/25 and 11/8, and Pittsburgh and Tennessee are blank. Take dates from
+the TWSF paper's Table 1 instead.
+
+### The idea in one line
+
+Forecast a *treated* potential outcome for a unit that has never been treated,
+at a time *beyond the end of the panel* -- by combining a Synthetic
+Interventions unit-side regression with an mSSA Page-matrix time-side
+forecaster, bilinearly.
+
+### Why it is worth wanting
+
+It is a genuinely different estimand from everything in the library. Every
+mlsynth estimator imputes a counterfactual *inside* the observed window; TWSF
+extrapolates past it. The applied regime is prospective rollout: six metros
+already have the intervention, what happens to Denver next month if we switch
+it on? Today that question can only be answered by abusing `SI`.
+
+### Gap vs overlap
+
+Unusually clean. Grepping the library:
+
+* HSVT / PCR -> `mlsynth/utils/pcr/core.py`, `si.py`, `clustersc.py`:
+  **capability overlap**, already built and validated (`si_prop99`,
+  `pcr_rsc_ref`).
+* Synthetic Interventions -> `estimators/si.py`: **capability overlap**, and
+  `SIConfig.inters` is already the exact interface for the treated donor pool.
+* Page matrix / Hankel / mSSA -> **zero hits. Genuine gap.**
+* Forecasting beyond the panel -> zero (`sbc_helpers/trend_forecast` is a
+  within-panel detrend). **Genuine gap.**
+
+Closest existing estimator: `SI` (same author lineage, same PCR kernel).
+
+### Cost -- low, and this was verified rather than estimated
+
+Both the one-step and the recursive multi-step orthogonalized estimators were
+implemented during the spikes on top of `hsvt` and `pcr_weights` **without
+modifying them**. Pure NumPy: SVD, pseudo-inverse, a companion matrix and its
+Jacobian. No solver, no compiled dependency. The "half of it already exists"
+claim held up completely.
+
+### Why it is parked: two replication paths, two unreported specifications
+
+**Path B (the paper's simulation) -- geometry not reproducible.**
+
+What checked out:
+
+* the estimator algebra is exact -- with `sigma = 0` the forecast error is 0 to
+  machine precision at every `d`, confirming the Page-block layout, the
+  identification, and every step of the orthogonalization;
+* the plug-in variance is essentially exact -- empirical SD / plug-in SE =
+  **0.92-1.08** across every configuration tried. This is a strong positive
+  result for the paper's inference theory.
+
+What did not:
+
+* coverage. Nominal 90%, obtained 0.39-0.87, driven entirely by a
+  latent-draw-specific **bias** that does not shrink in `d` (at `d = 150`, bias
+  0.195 against an SE of 0.084).
+
+The cause is a calibration the paper states but does not report: "the loading
+matrices and scaling are calibrated so that the population design and
+forecasting blocks have the intended ranks and *well-separated nonzero
+spectra*". Neither `A_0`, `A_1`, the harmonic periods, nor the scaling is
+given. A reconstruction from the prose produced a Page spectrum whose nonzero
+singular values span **500,000x**, with the smallest signal direction at ~1e-4
+against a noise floor of 3.7 -- so PCR at the oracle rank inverts four
+directions of pure noise. Rebuilding the DGP for separation moved coverage to
+0.86-0.87 at large `d`, but no hand-tuned variant reached nominal.
+
+Worth flagging to the author: **small average bias and broken coverage are
+compatible here.** Averaged over latent draws the bias is -0.02 to +0.03,
+matching the paper's reported figure, but the bias is draw-specific and does
+not cancel *within* a replication. A bias-vs-`d` figure can look clean while
+coverage is 0.39.
+
+**Path A (the NFL validation study) -- containment not reproducible.**
+
+The matchable claim is crisp: of 11 cities opening after the donor pool,
+exactly three (Carolina, Cincinnati, Pittsburgh) fall outside the pointwise 90%
+band. The hyperparameters are *given* (Table 2, CV-selected per opening date),
+so unlike Path B there is nothing to guess about the method.
+
+What checked out:
+
+* the data pipeline, verified against the paper's own figure -- Carolina reads
+  29,454 at `tau` and 31,688 at `tau+14`; the figure shows ~29,500 and ~31,700;
+* the point forecasts -- RMSE 66-1,669 on levels of 13k-150k, i.e. 0.2-4% over
+  a 14-day horizon from six donors;
+* the relative ranking -- Carolina, Cincinnati and Pittsburgh are outside the
+  band under *both* outcome readings below, exactly the three the paper names.
+
+What did not: absolute containment, because the scale the band is computed on
+is ambiguous by a factor of ~15.
+
+  ==============================  ==================  =============  =====
+  outcome scale                   half-width @ h=14   outside band   paper
+  ==============================  ==================  =============  =====
+  estimate on cumulative          5,928               7 / 11         3
+  estimate on daily, show cumul.  97                  10 / 11        3
+  ==============================  ==================  =============  =====
+
+The figure's y-axis reads "Accumulated case count", but bands that tight
+require ``sigma_hat`` on a *daily* scale. On cumulative counts ``sigma_hat`` =
+732 -- which is rank-4 PCR curve-shape misfit, not idiosyncratic noise, and 6x
+a typical daily increment.
+
+The paper's secondary claim did not reproduce either: it reports that longer
+treated-donor windows forecast better, but Washington (`T1 = 49`) and Baltimore
+(`T1 = 42`) were among the worst targets.
+
+### What would unblock this
+
+Two one-line answers from the author:
+
+1. `A_0`, `A_1` and the harmonic periods used in the simulation DGP (or the
+   simulation script).
+2. Whether the case-study estimation runs on cumulative or daily counts.
+
+Either likely unblocks its path; both would make this a build.
+
+### Architecture, if it is ever built
+
+New top-level estimator `TWSF`, not a `method=` on `SI` -- different estimand,
+different result semantics, four extra hyperparameters (`L`, `k_y`, `k_z`,
+`k_w`) plus `horizon` and `multistep: Literal["direct","recursive"]`. It should
+import `mlsynth.utils.pcr.core` rather than reimplement HSVT/PCR, and copy
+`SIConfig.inters` for the treated-donor pool. It rides the result contract:
+`observed_outcome` = the realized control path, `counterfactual_outcome` = the
+forecast treated path, `estimated_gap` = the contrast, `counterfactual_lower/
+upper` = the pointwise band -- with the sign convention inverted relative to
+classic SC, the same inversion `SI` already handles.
+
+Feasibility traps to surface as diagnostics, not crashes: `B = T_1 / L` must
+give at least two blocks, and the *direct* multi-step estimator is infeasible
+at short horizons -- the paper's own case study cannot use it, which is why it
+uses the recursive one.
+
+### Learnings
+
+* **A "green" that is really an absence of measurement.** The Path B spike
+  looked like an estimator failure and was not; the variance formula was exact
+  throughout. Separating "algebra wrong" from "variance wrong" from "design
+  wrong" needed three targeted diagnostics -- `sigma = 0` recovery, empirical
+  SD vs plug-in SE, and the signal spectrum. Run those three before concluding
+  anything about a factor-model estimator.
+* **Read the figure axes.** The outcome transform for Path A was not in the
+  prose; it was the y-axis label of a PNG in the arXiv source tarball. One
+  `Read` of the image settled a question that guessing had got wrong.
+* **A paper can report a calibration without reporting the calibration.**
+  "Calibrated so that the spectra are well separated" is a description of an
+  intent, not a specification. When a Monte Carlo's behaviour is governed by
+  spectral separation and the loadings are unreported, Path B is not
+  reproducible in principle, however complete the algorithm is.
+* **Grep substrings lie.** Searching the repo for NFL data matched
+  `fast_scm_helpers/conflict.py` -- "co-nfl-ict". The data was genuinely absent
+  from `basedata/` and from all of git history.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
