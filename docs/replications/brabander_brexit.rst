@@ -254,11 +254,108 @@ penalty - {SC DSC SDID, MASC AUGSYNTH}.R``.
 Both cases are deterministic: no resampling, and MASC's cross-validation grid is
 exhaustive rather than sampled. Together they run in under ten seconds.
 
-Not yet replicated
-------------------
+The Monte Carlo: why the demeaned estimators win
+------------------------------------------------
 
-The paper's Monte Carlo — which decomposes each estimator's error into
-covariate, unobserved-factor and idiosyncratic components under a DGP
-calibrated to this panel — is not covered by these two cases. It is a separate
-piece of work: it needs the calibration regression vendored alongside the panel,
-and it is a Path B replication rather than Path A.
+Tables 1 and 7 say what the estimators claim and which of them tracks a
+known-zero effect best. Neither can say why, because on real data the truth is
+unobserved. Section 5 answers that by simulating.
+
+The design calibrates the factor model of Abadie, Diamond and Hainmueller
+(2010) to this same panel,
+
+.. math::
+
+   y_{jt} \;=\; \delta_t \;+\; \boldsymbol{\theta}_t' \mathbf{c}_j
+   \;+\; \gamma_t \mu_j \;+\; \varepsilon_{jt},
+
+where :math:`\mathbf{c}_j` holds unit :math:`j`'s six covariate means,
+:math:`\delta_t` and :math:`\boldsymbol{\theta}_t` are fit to the real data, and
+:math:`\gamma_t \mu_j` is an interactive fixed effect whose strength
+:math:`\gamma` the study sweeps. The true effect is zero, so an estimate at the
+final period is the estimation error, and the paper splits that error into the
+part traceable to covariates, the part traceable to the common factor, and
+idiosyncratic noise.
+
+The result is about the middle term. As :math:`\gamma` rises, SC, MASC and ASCM
+pick up a bias that grows with it; DSC and SDID barely move, because demeaning
+absorbs the factor. Measuring the bias at :math:`\gamma = 0` and
+:math:`\gamma = 1.5` and taking the difference:
+
+.. list-table:: Bias attributable to the common factor
+   :header-rows: 1
+   :widths: 24 24 24 28
+
+   * - Method
+     - paper
+     - mlsynth
+     - ratio to SC (paper / mlsynth)
+   * - SC
+     - +0.362
+     - +0.425
+     - 1.0 / 1.0
+   * - DSC
+     - +0.073
+     - +0.090
+     - 5.0 / 4.7
+   * - SDID
+     - +0.068
+     - +0.092
+     - 5.3 / 4.6
+
+The ratio is what the case asserts, not the level and not the slope. A bias
+level carries a Monte Carlo standard error of roughly 0.08 at the case's
+:math:`M = 100` -- larger than the levels themselves -- and even the slopes move
+by about 0.05 between :math:`M = 100` and :math:`M = 200`. The ratio is stable
+across both, because numerator and denominator share the same draws, and it is
+what the paper's recommendation actually rests on: demeaning cuts the
+factor-driven bias by a factor of roughly five.
+
+Two checks, not one
+~~~~~~~~~~~~~~~~~~~
+
+A Monte Carlo aggregate on its own cannot separate a wrong DGP from a wrong
+estimator; both show up as cells that miss. So the case carries two independent
+checks.
+
+The first is per-replication cross-validation. ``reference.R`` draws 48 panels
+from the authors' DGP in R and records ``synthdid``'s own error on each.
+mlsynth re-runs those same matrices and reproduces every error to within
+:math:`5\times 10^{-3}` -- the documented exact-solve versus ``min.decrease``
+gap, an order of magnitude below the biases being measured. That pins the
+estimators without reference to the DGP.
+
+The second is the aggregate table above, run on mlsynth's own port of the DGP
+(:mod:`mlsynth.utils.sdid_helpers.simulate`). That pins the port without
+reference to the estimators.
+
+Where the authors' code and their prose disagree
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three places, and the code is followed in each, because the code is what
+produced the printed tables. All three are asserted in
+``mlsynth/tests/test_sdid_simulation.py`` so the choices cannot be quietly
+reverted.
+
+The common factor is :math:`\gamma(1 - 1/t)` in the script, where the paper
+writes :math:`t\gamma/T_0`. The noise is drawn with standard deviation
+:math:`\sigma^2`, where the paper describes variance :math:`\sigma^2` -- and
+this one is checkable rather than a judgment call, since the published
+:math:`\sigma = 0.25` RMSEs are :math:`0.0625` times the :math:`\sigma = 1`
+ones, which a standard deviation of :math:`0.25` cannot produce. Finally the
+treated unit's loading :math:`\mu_1` is the second largest of the draws rather
+than an independent uniform; that one is a deliberate design choice rather than
+a slip, since it places the treated unit inside the donors' convex hull, so the
+simplex weight problem is feasible without extrapolation.
+
+What the Monte Carlo case leaves out
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``SC(B) all`` column, which needs the nested predictor-weight search per
+replication and is the one expensive piece of this design. MASC and ASCM appear
+in the aggregate check but not the cross-validation: the authors' ``masc``
+package requires Gurobi, and ``augsynth`` 0.2.0 warns that its ridge tuning is
+unstable when the unit and pre-period counts are close -- 24 and 24 here -- and
+then errors out, so there is no reference to capture. mlsynth's ridge ASCM is
+cross-validated against a live augsynth run in :doc:`ascm_kansas`, on a panel
+where augsynth does run.

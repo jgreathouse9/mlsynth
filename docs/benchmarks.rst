@@ -131,6 +131,8 @@ Path B — Monte Carlo / simulation
 
    * - Case
      - Validates
+   * - ``brabander_mc``
+     - de Brabander et al. (2025) Section 5 Monte Carlo: per-replication cross-validation against synthdid on 48 panels drawn by the authors' own DGP, plus the Table 9 finding that demeaning cuts the factor-driven bias about fivefold
    * - ``augsynth_calibrated``
      - ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
    * - ``clustersc_subgroups``
