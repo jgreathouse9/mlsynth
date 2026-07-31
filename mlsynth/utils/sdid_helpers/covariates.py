@@ -267,14 +267,15 @@ def adjust_outcome_for_covariates(
 # The two weight programs are strictly convex, so "the optimum" is a well-posed
 # target and solving it exactly is unambiguously better. The beta block is not.
 # Holding the weights at their optima, the objective is very nearly flat in
-# beta: on the quota panel below, cohort 1 runs from 21.57 at ``beta = 0`` to a
-# minimum of 20.92 near ``beta = 1.05``, and the reference never gets there.
+# beta: on the quota panel below, cohort 1 runs from 20.973 at ``beta = 0`` to a
+# minimum of 20.922 near ``beta = 1.05`` -- a quarter of one percent -- and the
+# reference never gets there.
 # ``synthdid`` steps beta by ``1/t`` along the gradient, so its total step budget
 # grows like ``log(max.iter)``; the iteration hits its cap rather than its
 # convergence test, and beta is still drifting when it stops:
 #
 #     max_iter      10     100    1000   10000  100000
-#     beta        0.094   0.182   0.266   0.344   0.414
+#     beta        0.074   0.145   0.213   0.278   0.339
 #
 # The stopping rule is therefore load-bearing, not incidental -- it acts as
 # shrinkage toward zero on a direction the data barely identify. Solving the
@@ -374,6 +375,35 @@ def _validate_block(donor_outcomes, treated_outcome, donor_covariates,
                 f"the 'optimized' covariate fit needs a {name} block free of "
                 "NaN/inf; check the covariate columns for missing values.")
     return Y0, y1, X0, x1, t0, n_post
+
+
+def _covariate_scale(donor_covariates: np.ndarray,
+                     treated_covariates: np.ndarray) -> np.ndarray:
+    """Per-covariate dispersion used to precondition the beta descent.
+
+    The standard deviation over every value the covariate takes in the block,
+    donors and treated together, so the scaling does not depend on which unit
+    happens to be treated.
+
+    Pooling rather than using the donors alone is a real choice, not a
+    formality: it changes the preconditioner, hence the descent path, hence the
+    coefficient. Both reproduce the published quota figure (8.0482 against
+    8.0481), but on the two Sun et al. (2025) panels pooling is closer on both
+    -- -53.170 against -53.304 for a published -53.154, and 0.6096 against
+    0.5990 for a published 0.610.
+
+    A covariate with no dispersion carries no information -- it is absorbed by
+    the unit and time effects and its coefficient stays at zero -- so its scale
+    is set to one rather than dividing by zero.
+    """
+    k = donor_covariates.shape[0]
+    scale = np.empty(k, dtype=float)
+    for j in range(k):
+        pooled = np.concatenate([donor_covariates[j].ravel(),
+                                 treated_covariates[j].ravel()])
+        s = float(np.std(pooled))
+        scale[j] = s if s > 0.0 and np.isfinite(s) else 1.0
+    return scale
 
 
 def _noise_level(donor_outcomes: np.ndarray, pre_periods: int) -> float:
@@ -504,6 +534,21 @@ def optimized_covariate_beta(
     zeta_lambda = _ZETA_LAMBDA * noise
     min_decrease = _FW_MIN_DECREASE * noise
 
+    # Scale each covariate to unit dispersion before descending, and undo it on
+    # the way out. The exact minimiser would not need this -- rescale a column
+    # by c and its coefficient scales by 1/c, leaving the fit unchanged -- but
+    # the beta block is gradient descent on a fixed 1/t schedule with no
+    # curvature scaling, and a fixed step is not scale free. A column whose
+    # dispersion is far from the outcome's makes the first step overshoot, and
+    # the iteration diverges rather than converging slowly: on the Sun et al.
+    # (2025) employment panel an income covariate reached 5.5e8 and the estimate
+    # came back as 1.7e11. Scaling is therefore part of reproducing the
+    # reference, not a numerical nicety on top of it -- it is what makes the
+    # coefficient match Stata on all three published panels tested.
+    scale = _covariate_scale(X0, x1)
+    X0 = X0 / scale[:, None, None]
+    x1 = x1 / scale[:, None]
+
     Yc = _collapse(Y0, y1, t0)
     Xc = np.stack([_collapse(X0[k], x1[k], t0) for k in range(X0.shape[0])])
     n0 = Yc.shape[0] - 1
@@ -546,4 +591,6 @@ def optimized_covariate_beta(
         value, lam, omega, err_l, err_o = update(block, lam, omega)
         if t >= 2 and previous - value <= min_decrease ** 2:
             break
-    return beta
+    # Back to the caller's units, so the returned coefficient multiplies the
+    # raw covariate column rather than the internally scaled one.
+    return beta / scale
