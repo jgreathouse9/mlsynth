@@ -380,10 +380,17 @@ class TestTheStoppingRuleThatAlmostNeverFires:
     """The convergence test exists; on real panels the cap beats it to it.
 
     ``TestWhatTheObjectiveActuallyDoes`` pins that the iteration runs to
-    ``max_iter`` on the quota panel. That leaves the ``min_decrease`` branch
-    untaken, so this constructs the case where it does fire -- a covariate that
-    carries no signal at all, which zeroes the gradient and leaves the
-    objective to converge on the weight steps alone.
+    ``max_iter`` on the quota panel, which leaves the ``min_decrease`` branch
+    untaken. The one condition that does reach it is a covariate carrying no
+    signal at all: the gradient is identically zero, so the objective stops
+    moving once the weight steps settle.
+
+    The assertion is on the coefficient, not on the fact that the call
+    returned. An earlier version passed ``max_iter=1_000_000`` and treated
+    termination itself as the evidence -- which is not an assertion at all, and
+    turned any regression in the stopping rule into a hang rather than a
+    failure. The cap here is small enough that a broken rule costs a second and
+    still reports.
     """
 
     def _block(self, covariate):
@@ -402,10 +409,20 @@ class TestTheStoppingRuleThatAlmostNeverFires:
             optimized_covariate_beta)
 
         block = self._block(lambda T, N0: np.zeros((T, N0)))
-        # If the break never fired this would run 10**6 iterations; that it
-        # returns at all is the assertion, and the coefficient stays at zero.
-        beta = optimized_covariate_beta(max_iter=1_000_000, **block)
+        beta = optimized_covariate_beta(max_iter=5_000, **block)
         assert float(beta[0]) == pytest.approx(0.0, abs=1e-12)
+
+    def test_a_signal_free_covariate_leaves_the_estimate_alone(self, quota):
+        """The invariant behind it: no signal, no adjustment.
+
+        Stronger than the coefficient check, because it goes through the whole
+        pipeline -- a covariate that is pure noise must not move the ATT.
+        """
+        rng = np.random.default_rng(7)
+        d = quota.copy()
+        d["noise"] = rng.normal(size=len(d))
+        assert _att(d, covariates={"optimized": ["noise"]}) == pytest.approx(
+            _att(d), abs=0.25)
 
 
 class TestTheObjectiveIsTheDocumentedSum:
