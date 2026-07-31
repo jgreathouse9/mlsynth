@@ -605,73 +605,236 @@ a unit over time, such as a state's unemployment rate or a firm's headcount, has
 nowhere to go. If that covariate also drives the outcome, it sits in the
 residual the synthetic control is trying to match, and the estimate absorbs it.
 
-Kranz (2022) handles this by adjusting the outcome before the estimator ever
-runs, in two steps. First, regress the outcome on the covariates with unit and
-time fixed effects,
+Two answers exist in the literature and mlsynth implements both. They are
+different estimators, so the method is named explicitly rather than inferred:
+``covariates`` takes a dictionary keyed by ``"adjust"`` or ``"match"``.
+
+Write :math:`\mathbf{x}_{it} \in \mathbb{R}^{K}` for the covariate vector of
+unit :math:`i` at time :math:`t`, and :math:`\mathcal{U} \coloneqq \{(i, t) :
+d_{it} = 0\}` for the rows with no treatment in force -- every control unit in
+every period, plus the treated units before adoption.
+
+Adjusting the outcome (Kranz 2022)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The first answer removes the covariates from the outcome before the estimator
+ever runs. Fit the two-way fixed-effects regression on :math:`\mathcal{U}`,
 
 .. math::
 
-   Y_{it} = \alpha_i + \gamma_t + X_{it}' \beta + \varepsilon_{it},
+   y_{it} = \alpha_i + \gamma_t + \mathbf{x}_{it}^{\top}\boldsymbol{\beta}
+            + \varepsilon_{it},
+   \qquad (i, t) \in \mathcal{U},
 
-fitting on the rows with no treatment in force -- every control unit in every
-period, plus the treated units before adoption. Then subtract only the covariate
-part from the outcome, on the whole panel including the treated rows:
+and subtract only the covariate part, evaluated on the whole panel:
 
 .. math::
 
-   \tilde Y_{it} = Y_{it} - X_{it}' \hat\beta .
+   \tilde y_{it} \;=\; y_{it} - \mathbf{x}_{it}^{\top}
+   \widehat{\boldsymbol{\beta}},
+   \qquad (i, t) \in \mathcal{N} \times \mathcal{T}.
 
-Ordinary SDID then runs on :math:`\tilde Y`. Three details make this work, and
-each is the opposite of a natural-looking alternative:
+Ordinary SDID then runs on :math:`\tilde y`. The weight programs never see a
+covariate.
 
-The regression is fit on untreated rows but applied everywhere. Fitting on
-untreated rows is what keeps the treatment effect out of :math:`\hat\beta` --
-otherwise the covariate would soak up part of the very effect being estimated.
-Applying it everywhere is what makes the adjustment useful, since the treated
-rows are the ones the estimate depends on.
+Three details are load-bearing, and each is the opposite of a natural-looking
+alternative.
 
-Only :math:`\hat\beta` is removed, not :math:`\hat\alpha_i` or
-:math:`\hat\gamma_t`. The fixed effects stay in the outcome because SDID
-constructs its own unit and time weights and handles them itself; subtracting
-them here would give a different estimator, not a cleaner one.
+The regression is fit on :math:`\mathcal{U}` but applied to
+:math:`\mathcal{N} \times \mathcal{T}`. Fitting on untreated rows keeps the
+treatment effect out of :math:`\widehat{\boldsymbol{\beta}}`; applying it
+everywhere is what makes the adjustment useful, since the treated rows are the
+ones the estimate depends on.
 
-The covariates must be numeric and must actually vary within a unit over time. A
-covariate that is constant within units is absorbed by :math:`\alpha_i` and a
-covariate that is constant across units at each date is absorbed by
-:math:`\gamma_t`; either way it contributes nothing and leaves the design rank
-deficient.
+Only :math:`\widehat{\boldsymbol{\beta}}` is removed, not
+:math:`\widehat\alpha_i` or :math:`\widehat\gamma_t`. The fixed effects stay in
+the outcome because SDID constructs its own unit and time weights and handles
+them itself; subtracting them here would give a different estimator, not a
+cleaner one.
 
-To switch this on, pass ``covariates``:
+The covariates must vary within a unit over time. A covariate constant within
+units is absorbed by :math:`\alpha_i`, and one constant across units at each
+date is absorbed by :math:`\gamma_t`; either way it contributes nothing and
+leaves the design rank deficient.
+
+Matching on the covariates (de Brabander et al. 2025)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The second answer leaves the outcome alone and puts the covariates inside the
+unit-weight problem, in the manner of Abadie, Diamond and Hainmueller. SDID's
+unit weights are already the demeaned synthetic control of Ferman and Pinto, so
+collect the pre-treatment control outcomes in
+:math:`\mathbf{Y} \in \mathbb{R}^{T_{pre} \times N_{co}}` with treated column
+:math:`\mathbf{y} \in \mathbb{R}^{T_{pre}}`, and centre each series on its own
+pre-period mean,
+
+.. math::
+
+   \ddot{\mathbf{Y}} \;=\; \bigl(\mathbf{I}_{T_{pre}}
+     - \tfrac{1}{T_{pre}} \mathbf{1}_{T_{pre}} \mathbf{1}_{T_{pre}}^{\top}
+     \bigr)\mathbf{Y},
+   \qquad
+   \ddot{\mathbf{y}} \;=\; \bigl(\mathbf{I}_{T_{pre}}
+     - \tfrac{1}{T_{pre}} \mathbf{1}_{T_{pre}} \mathbf{1}_{T_{pre}}^{\top}
+     \bigr)\mathbf{y}.
+
+Summarise the covariates by their pre-period means, one value per unit per
+covariate, giving :math:`\mathbf{Z} \in \mathbb{R}^{K \times N_{co}}` for the
+controls and :math:`\mathbf{z} \in \mathbb{R}^{K}` for the treated unit. Let
+:math:`\mathcal{M} \subseteq \{1, \dots, T_{pre}\}` be the periods the matching
+uses, :math:`m = |\mathcal{M}|`, and stack
+
+.. math::
+
+   \mathbf{G} \;=\;
+   \begin{bmatrix} \ddot{\mathbf{Y}}_{\mathcal{M}} \\[2pt] \mathbf{Z}
+   \end{bmatrix} \in \mathbb{R}^{(m + K) \times N_{co}},
+   \qquad
+   \mathbf{g} \;=\;
+   \begin{bmatrix} \ddot{\mathbf{y}}_{\mathcal{M}} \\[2pt] \mathbf{z}
+   \end{bmatrix} \in \mathbb{R}^{m + K}.
+
+Rows arrive on unrelated scales -- a log GDP deviation and an employment share
+-- so let :math:`\mathbf{S} = \operatorname{diag}(s_1, \dots, s_{m+K})` hold
+each row's standard deviation across the controls. The estimator is then a
+nested pair of programs. Given a diagonal, non-negative
+:math:`\mathbf{V} = \operatorname{diag}(v_1, \dots, v_{m+K})` on the simplex,
+the inner problem is a weighted simplex least squares,
+
+.. math::
+
+   \mathbf{w}(\mathbf{V}) \;=\;
+   \operatorname*{arg\,min}_{\mathbf{w} \in \Delta^{N_{co}}}\;
+   \bigl(\mathbf{g} - \mathbf{G}\mathbf{w}\bigr)^{\top}
+   \mathbf{S}^{-1} \mathbf{V} \mathbf{S}^{-1}
+   \bigl(\mathbf{g} - \mathbf{G}\mathbf{w}\bigr),
+
+and the outer problem chooses :math:`\mathbf{V}` by pre-treatment fit on the
+outcome alone:
+
+.. math::
+
+   \mathbf{V}^{\ast} \;=\;
+   \operatorname*{arg\,min}_{\mathbf{V}}\;
+   \bigl\|\ddot{\mathbf{y}} - \ddot{\mathbf{Y}}\,\mathbf{w}(\mathbf{V})
+   \bigr\|_{2}^{2},
+   \qquad
+   \mathbf{w}^{\ast} = \mathbf{w}(\mathbf{V}^{\ast}).
+
+Note the asymmetry, which is easy to miss and decides everything below: the
+inner problem matches on :math:`\mathcal{M}`, but the outer problem always
+scores :math:`\mathbf{V}` against the full pre-period :math:`\ddot{\mathbf{y}}`.
+
+This program carries no ridge. SDID's :math:`\zeta` is calibrated on the
+volatility of first-differenced outcomes, while the rows of
+:math:`\mathbf{S}^{-1}\mathbf{G}` have unit variance by construction, so
+:math:`T_{pre}\zeta^{2}` is not a penalty on this design at any rescaling. The
+reference implementation reaches the same place from the other direction: it
+takes :math:`\mathbf{w}^{\ast}` from an unpenalised program and passes
+:math:`\zeta = 0`, reporting the penalised variant separately.
+
+How many pre-periods to match on
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The choice of :math:`\mathcal{M}` is not a tuning knob. Kaul, Klössner, Pfeifer
+and Schieler (2022) show that when every pre-treatment outcome is a predictor --
+:math:`\mathcal{M} = \{1, \dots, T_{pre}\}` -- the outer problem drives the
+covariate rows of :math:`\mathbf{V}^{\ast}` to zero and the covariates are
+irrelevant. The reason is visible in the two displays above: with all periods in
+:math:`\mathbf{G}`, the inner problem already minimises the quantity the outer
+problem scores, so any weight moved onto :math:`\mathbf{Z}` can only make the
+outer fit worse.
+
+On the Brexit panel the reference shows this is a gradient rather than a switch.
+Writing :math:`\pi = \sum_{r > m} v_r^{\ast}` for the share of
+:math:`\mathbf{V}^{\ast}` on the covariate rows:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 16 20 24
+
+   * - ``match_pre_periods``
+     - :math:`m`
+     - :math:`\pi`
+     - pre-treatment loss
+   * - ``"all"``
+     - 86
+     - 0.024
+     - 3.11e-05
+   * - ``"half"``
+     - 43
+     - 0.087
+     - 3.79e-05
+   * - ``"last"``
+     - 1
+     - 0.798
+     - 8.53e-05
+
+So the covariates buy influence with pre-treatment fit, and the trade is
+explicit. ``match_pre_periods`` defaults to ``"last"``, the only setting under
+which the covariates demonstrably bind; ``"half"`` takes the later half,
+``"all"`` every period, and an integer :math:`m` the last :math:`m`.
+
+Using them
+~~~~~~~~~~
 
 .. code-block:: python
 
-   res = SDID({
-       "df": df, "outcome": "y", "treat": "treated",
-       "unitid": "state", "time": "year",
-       "covariates": ["unemployment", "log_income"],
-   }).fit()
+   # residualise the outcome (Kranz)
+   res = SDID({..., "covariates": {"adjust": ["unemployment", "log_income"]}}).fit()
 
-which is exactly equivalent to computing :math:`\tilde Y` yourself and passing
-it as ``outcome``. Omitting ``covariates`` leaves every existing estimate
-unchanged. The option cannot be combined with ``subgroup``: SC-DDD collapses the
-panel over the subgroup dimension, so there is no ``unit x time`` panel left for
-the adjustment to be defined on, and mlsynth refuses the combination rather than
-guessing which panel you meant.
+   # match donors on covariates (de Brabander et al.)
+   res = SDID({..., "covariates": {"match": ["gdp_pc"]},
+                    "match_pre_periods": "last"}).fit()
 
-The adjustment is a projection, so it inherits the usual caveat about
-controlling for variables that are themselves affected by the treatment. A
-covariate that responds to the policy is a bad control here for the same reason
-it is in a regression: :math:`\hat\beta` would remove part of the effect along
-with the confounding. Kranz's fit on untreated rows guards against the treated
-units' own response contaminating :math:`\hat\beta`, but it cannot rescue a
-covariate that is a channel of the effect rather than a nuisance.
+   # both: residualise for seasonality, match donors on income
+   res = SDID({..., "covariates": {"adjust": ["seasonal"], "match": ["gdp_pc"]}}).fit()
 
-Verified against Kranz's ``xsynthdid`` at two levels -- the fitted coefficient
-and the adjusted outcome element-wise, then the estimate itself -- in
-`mlsynth/tests/test_sdid_covariates.py
-<https://github.com/jgreathouse9/mlsynth/blob/main/mlsynth/tests/test_sdid_covariates.py>`_,
-against gold captured by `benchmarks/reference/sdid_kranz/reference.R
+The two compose because they act on different objects -- ``adjust`` on
+:math:`y`, ``match`` on :math:`\mathbf{w}` -- though a column may not appear
+under both, since residualising the outcome for a variable and then matching
+donors on it counts the same variation twice.
+
+A bare list is rejected. Before these options existed ``covariates`` meant the
+Kranz adjustment, and silently reinterpreting it would change which estimator
+runs; pass ``{"adjust": [...]}`` for that behaviour. Omitting ``covariates``
+leaves every existing estimate unchanged. Neither method can be combined with
+``subgroup``: SC-DDD collapses the panel over the subgroup dimension, leaving no
+unit-by-time panel for either to be defined on.
+
+Both methods are projections onto observed covariates, so both inherit the usual
+caveat about controlling for variables that are themselves affected by the
+treatment. Fitting on :math:`\mathcal{U}` guards against the treated units' own
+response contaminating :math:`\widehat{\boldsymbol{\beta}}` or
+:math:`\mathbf{z}`, but it cannot rescue a covariate that is a channel of the
+effect rather than a nuisance.
+
+One structural requirement is worth stating because it fails silently. Matching
+needs the treated unit inside the convex hull of the controls on the matched
+rows. Where it does not hold, the solution of the inner program sits at a vertex
+of :math:`\Delta^{N_{co}}` and :math:`\mathbf{V}` cannot move it, so the
+covariates are inert no matter how :math:`\mathcal{M}` is set -- not a numerical
+failure, but the geometry of the simplex.
+
+Verification
+~~~~~~~~~~~~
+
+The ``adjust`` path is checked against Kranz's ``xsynthdid`` at the fitted
+coefficient and the adjusted outcome element-wise before the estimate, in
+`test_sdid_covariates.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/mlsynth/tests/test_sdid_covariates.py>`_
+against `benchmarks/reference/sdid_kranz/
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/sdid_kranz/reference.R>`_.
+
+The ``match`` path is checked against the authors' own ``Synth`` code on the
+Brexit panel at :math:`\mathbf{w}^{\ast}` and :math:`\mathbf{V}^{\ast}` rather
+than the ATT -- their construction takes :math:`\mathbf{w}^{\ast}` from one fit
+and the time weights from another, so an ATT comparison could not say which
+moved. Correlation of the weight vectors is 0.998 under ``"last"``. See
+`test_sdid_match_seam.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/mlsynth/tests/test_sdid_match_seam.py>`_
+and `benchmarks/reference/brabander_sdid_match/
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/brabander_sdid_match/reference.R>`_.
 
 Example
 -------
