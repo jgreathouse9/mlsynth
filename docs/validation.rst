@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **74 cross-validation checks** against original
-implementations across **42 estimators** -- 29 reproduce the reference to display precision, 26 to
+Coverage: **75 cross-validation checks** against original
+implementations across **42 estimators** -- 29 reproduce the reference to display precision, 27 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -30,8 +30,8 @@ Summary
      - Agreement
      - Worst max \|Δ\|
    * - :ref:`? <val-->`
-     - 1
-     - 1 documented
+     - 2
+     - 1 tight · 1 documented
      - 9e+03
    * - :ref:`BEAST <val-beast>`
      - 1
@@ -213,6 +213,12 @@ Summary
      - max \|Δ\|
      - Verdict
      - Case
+   * - 
+     - —
+     - 14
+     - 0.028
+     - tight
+     - `brabander_brexit_table1 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brabander_brexit_table1.py>`__
    * - R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst rather than pinned
      - ``tiger_reserves.csv`` (a529e3de9e6f…)
      - 9
