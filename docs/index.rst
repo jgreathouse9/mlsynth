@@ -245,6 +245,7 @@ headline numbers.
    compsc
    scta
    ctsc
+   drsc
    dsc
    scd
    drosc
