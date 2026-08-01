@@ -47,12 +47,14 @@ class DRSCConfig(BaseEstimatorConfig):
             "the paper's default."),
     )
     n_grid: int = Field(
-        default=32, gt=1,
+        default=38, gt=1,
         description=(
-            "Number of outcome grid points y_l at which the distribution "
-            "regression is run. Points are quantiles of the pooled outcome "
-            "between `grid_lo` and `grid_hi`; ties are collapsed, so the "
-            "active grid may be shorter than requested."),
+            "Number of outcome grid points y_l *requested* for the "
+            "distribution regression. Points are quantiles of the pooled "
+            "outcome between `grid_lo` and `grid_hi`; ties are collapsed, so "
+            "the active grid is generally shorter. The default is the paper's "
+            "own request of 38, which on its data leaves 32 active points -- "
+            "pass the requested count, not the active one."),
     )
     grid_lo: float = Field(default=0.10, gt=0.0, lt=1.0,
                            description="Lowest quantile of the outcome grid.")

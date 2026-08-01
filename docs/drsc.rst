@@ -131,6 +131,15 @@ a closed form -- no solver, no iteration:
    \frac{\mathbf{1}'\widehat G^{-1}\widehat c - 1}
         {\mathbf{1}'\widehat G^{-1}\mathbf{1}} .
 
+The grid :math:`\{y_l\}_{l=1}^{m}` is a set of quantiles of the pooled outcome
+between ``grid_lo`` and ``grid_hi``. One detail there is worth knowing before
+you change it: ``n_grid`` is the number of points *requested*, and ties are
+collapsed afterwards, so the active grid is generally shorter. Wages reported
+to the cent produce a lot of ties -- on the New Jersey panel the paper's 38
+requested points leave 32 active. Passing the active count instead of the
+requested one is a silent mistake rather than a loud one: asking for 32 leaves
+28 active and moves Florida's weight from 0.515 to 0.496.
+
 Two consequences deserve stating plainly, because both look like faults and
 neither is.
 

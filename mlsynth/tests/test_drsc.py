@@ -349,11 +349,31 @@ class TestItReproducesThePaper:
             pts[nm] = {"e_std": e, "x_std": x, "x_std_sq": x ** 2}
         return pts
 
+    def test_the_default_grid_is_the_papers_requested_count(self):
+        """``n_grid`` counts *requested* quantile points, not active ones.
+
+        The author's ``build_grid(w, m=38, lo=0.10, hi=0.90)`` asks for 38 and
+        gets 32 after ties collapse. Defaulting to 32 would silently request the
+        active count, which on the paper's own data yields 28 active points and
+        moves Florida's weight from 0.515 to 0.496 -- a 0.06 error, sixty times
+        the tolerance the weights otherwise reproduce at.
+        """
+        from mlsynth.utils.drsc_helpers.config import DRSCConfig
+
+        assert DRSCConfig.model_fields["n_grid"].default == 38
+
+    def test_thirty_eight_requested_points_leave_thirty_two_active(self, nj):
+        d, meta = nj
+        res = _fit(d, outcome="logwage", unitid="STATEFIP", time="t",
+                   covariates=["e_std", "x_std", "x_std_sq"],
+                   evaluation_points=self._eval_points(meta), n_grid=38)
+        assert len(res.outcome_grid) == 32
+
     def test_table_1_weights(self, nj):
         d, meta = nj
         res = _fit(d, outcome="logwage", unitid="STATEFIP", time="t",
                    covariates=["e_std", "x_std", "x_std_sq"],
-                   evaluation_points=self._eval_points(meta))
+                   evaluation_points=self._eval_points(meta), n_grid=38)
         w = res.weights.donor_weights
         for fips, target in self.PAPER_W.items():
             assert w[str(fips)] == pytest.approx(target, abs=0.01), f"FIPS {fips}"
@@ -362,7 +382,7 @@ class TestItReproducesThePaper:
         d, meta = nj
         res = _fit(d, outcome="logwage", unitid="STATEFIP", time="t",
                    covariates=["e_std", "x_std", "x_std_sq"],
-                   evaluation_points=self._eval_points(meta))
+                   evaluation_points=self._eval_points(meta), n_grid=38)
         for nm, target in self.PAPER_F.items():
             got = res.conditional_effects[nm].f_hat * 1e3
             assert got == pytest.approx(target, abs=0.05), nm
@@ -371,7 +391,7 @@ class TestItReproducesThePaper:
         d, meta = nj
         res = _fit(d, outcome="logwage", unitid="STATEFIP", time="t",
                    covariates=["e_std", "x_std", "x_std_sq"],
-                   evaluation_points=self._eval_points(meta),
+                   evaluation_points=self._eval_points(meta), n_grid=38,
                    focus_region=(np.log(4.25), np.log(5.10)))
         p = {k: v.p_value_focused for k, v in res.conditional_effects.items()}
         assert p["x10"] < 0.05
