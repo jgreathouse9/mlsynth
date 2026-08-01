@@ -168,12 +168,42 @@ polytope of :math:`\mathbf{V}` reproduces the same :math:`\mathbf{w}`).
 Backends
 --------
 
-The covariate path exposes three reliable solvers via ``backend=``:
+The covariate path exposes four reliable solvers via ``backend=``:
 
 ``"outcome-only"``
     No predictor weights; the convex simplex fit above. The well-posed
     default (also selected by ``backend="auto"`` when no covariates are
     given).
+
+``"regression"``
+    Stata ``synth``'s own default rule, and the one to reach for when the
+    goal is reproducing a published ``synth`` result. Unlike the two
+    searching backends there is no outer optimisation: the predictor
+    weights are a closed-form function of the data, so the fit is fast and
+    deterministic. Normalise every predictor by its standard deviation over
+    the pooled treated-and-donor block, regress the pre-treatment outcomes
+    of all units on the normalised predictors, and set
+    :math:`v_h \propto \beta_h^2`, scaled to sum to one. A predictor that
+    does not help explain the pre-treatment outcome is therefore
+    down-weighted, and the units a predictor happens to be measured in
+    cannot matter.
+
+    This is worth knowing before comparing numbers with a paper. Stata runs
+    the Abadie-Diamond-Hainmueller nested optimisation only when the caller
+    passes ``nested``, and wrappers such as ``allsynth`` forward that flag
+    rather than setting it. Most published ``synth`` estimates were
+    therefore produced by this rule and not by a search, so
+    ``backend="mscmt"`` or ``"malo"`` will answer a different question than
+    the paper asked.
+
+    Two details of the reference implementation are not recoverable from
+    the distributed package, whose predictor-weight subroutines ship
+    compiled: whether the regression is run once over all unit-period
+    observations or once per pre-treatment period, and whether an intercept
+    is fitted. Both are settable (``pooled``, ``fit_intercept``) rather than
+    silently fixed, because the available evidence does not favour either
+    reading. Take agreement with a Stata figure to three digits as good
+    fortune rather than as a guarantee.
 
 ``"mscmt"``
     Becker & Kloessner (2018): a global differential-evolution search over
