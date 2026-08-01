@@ -17,9 +17,12 @@ nj_estimation_sample.parquet
 
   MUST be float64. The Gram matrix has kappa ~ 9.6e4 and the closed-form weight
   solve amplifies relative input error by ~1e6. A float32 round-trip (relative
-  error ~6e-8) moves donor weights by 0.12-0.17 -- Florida 0.515 -> 0.40 -- while
-  leaving the estimands nearly intact. Verified by jitter experiment; see the
-  replication page. float64 costs nothing here: both files are ~1.56 MB, because
+  error ~6e-8) moves donor weights by ~0.043 -- Florida 0.515 -> 0.505 -- which
+  is already 40x the 0.001 they otherwise reproduce at. Random perturbation of
+  the same magnitude, which does not partially cancel the way rounding does,
+  moves them by 0.12-0.17; that is the jitter experiment, not the round-trip,
+  and the two must not be quoted interchangeably. Either way the estimands are
+  nearly intact. float64 costs nothing here: both files are ~1.56 MB, because
   the columns are dictionary-encoded.
 
 nj_meta.json
