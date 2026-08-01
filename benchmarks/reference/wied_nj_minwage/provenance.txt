@@ -1,0 +1,60 @@
+source: author's replication script (reproduce_empirics.py, D. Wied), run against
+        an IPUMS-CPS Basic Monthly extract 1989-1993 supplied by the repo owner
+paper:  Wied, Dominik (2026), "A Synthetic Control Approach to Conditional
+        Distributional Treatment Effects", arXiv:2606.09625v1
+data:   IPUMS-CPS Basic Monthly, 1989-1993 (Flood et al. 2025). The raw extract
+        (~145 MB gzipped, 8.78M person-records) is NOT vendored. What is stored
+        here is the *estimation sample* produced by the author's own
+        prepare_sample() + select_states(), which is the exact input the
+        estimator consumes -- nothing downstream reads the raw microdata.
+
+nj_estimation_sample.parquet
+  381,953 rows x 7 cols, 43 states (NJ + 42 donors) x 4 policy years
+  columns: STATEFIP int16, t int8, logwage, educ_yrs, exper, e_std, x_std
+  policy years run April-March: t=1 Apr89-Mar90 ... t=4 Apr92-Mar93 (post)
+  New Jersey cell sizes 3852 / 3998 / 4031 (pre) and 3905 (post)
+  -- all four match the paper's stated sizes exactly.
+
+  MUST be float64. The Gram matrix has kappa ~ 9.6e4 and the closed-form weight
+  solve amplifies relative input error by ~1e6. A float32 round-trip (relative
+  error ~6e-8) moves donor weights by 0.12-0.17 -- Florida 0.515 -> 0.40 -- while
+  leaving the estimands nearly intact. Verified by jitter experiment; see the
+  replication page. float64 costs nothing here: both files are ~1.56 MB, because
+  the columns are dictionary-encoded.
+
+nj_meta.json
+  n, J, the 43 state FIPS codes, and the four pooled standardisation constants
+  (me, se, mx, sx) needed to map (education, experience) to evaluation points.
+
+results_empirics.csv
+  the AUTHOR'S OWN script output on this estimation sample -- the oracle. Table 2
+  at full precision, for the five evaluation points.
+
+Reproduced (both by the author's code and by an independent port written from the
+paper's equations using statsmodels.Probit):
+
+  Table 1, five largest weights
+    Florida 0.515 | New York 0.479 | South Dakota -0.255
+    Nevada 0.199  | Missouri -0.196
+    kappa(G) = 9.64e4 (paper 9.6e4); 20 of 42 weights negative (paper 20)
+
+  Table 2, f-hat x 1e3 / Tn / p_full / p_MW
+    x0   0.58 / 26.7 / 0.294 / 0.064
+    x10  1.71 / 73.0 / 0.054 / 0.012      one-sided 90% LCB 0.27 (full), 0.97 (MW)
+    xhl  1.55 / 37.1 / 0.686 / 0.150
+    xlh  0.61 / 28.6 / 0.750 / 0.060
+    x90  0.21 / 27.6 / 0.824 / 0.846
+
+  Pre-trend tests at x10: p_full/p_MW = 0.734/0.813 (t1->t2), 0.537/0.713 (t2->t3)
+  x-simultaneous pre-test: Tn = 144.9 and 209.6 (paper 144.9, 209.6)
+
+NOT exactly reproducible, and why: the Gaussian-process critical values c90.
+Obtained here as 245.5 and 240.5 against the paper's 245.3 and 241.7. sup_test
+builds L = V diag(sqrt(ev)) via np.linalg.eigh, whose eigenvector SIGNS are
+implementation-defined; a different LAPACK build gives a different L and hence a
+different realisation for identical Gaussian draws, even with the seed fixed.
+Measured effect ~0.2-0.5% on c90, which covers both gaps. Test statistics (Tn)
+never touch an eigendecomposition and are exact. So: pin Tn, f-hat, LCB and the
+weights tightly; pin c90 and p-values loosely.
+
+No Stata or R runs in CI.
