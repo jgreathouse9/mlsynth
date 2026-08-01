@@ -39,6 +39,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CounterfactualComparison** — Result of :func:`compare_counterfactuals`.
 - **DPSC** — Differentially private synthetic control estimator.  (config: DPSCConfig)
 - **DROSC** — Distributionally Robust Synthetic Control estimator.  (config: DROSCConfig)
+- **DRSC** — Distribution-regression synthetic control.
 - **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
 - **DTWSC** — Dynamic Synthetic Control estimator.  (config: DTWSCConfig)

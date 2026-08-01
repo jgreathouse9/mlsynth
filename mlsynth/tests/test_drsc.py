@@ -19,8 +19,9 @@ not, so the edge cases that matter are thin *cells*, not thin panels.
 
 The weights are ill-conditioned by construction. On the paper's data the Gram
 matrix has a condition number near 1e5 and the closed-form solve amplifies
-relative input error by about 1e6, so float32 inputs move donor weights by
-0.15 while barely touching the estimand. That is pinned in
+relative input error by about 1e6, so a float32 round-trip moves the largest
+donor weight by ~0.04 -- and random noise of the same magnitude by 0.12-0.17 --
+while barely touching the estimand. That is pinned in
 :class:`TestFloat64IsRequired` because it is exactly the kind of property that
 gets rediscovered painfully later.
 

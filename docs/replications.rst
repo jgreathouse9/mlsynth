@@ -50,6 +50,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :hidden:
    :caption: Dedicated replication pages
 
+   replications/drsc
    replications/fdid
    replications/wine_tennessee
    replications/cast
