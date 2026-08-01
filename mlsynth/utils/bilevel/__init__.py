@@ -20,6 +20,7 @@ from .structure import BilevelProblem, BilevelSolution
 from .simplex import project_simplex, simplex_lstsq, mspe
 from .solver import solve_bilevel, lower_level_weights
 from .mscmt import solve_mscmt
+from .regression_v import regression_v, solve_regression
 from .penalized import bias_corrected_gaps, penalized_weights, solve_penalized
 from .determine_v import (
     canonical_v,
@@ -46,6 +47,8 @@ from .ridge_inference import (
 )
 
 __all__ = [
+    "regression_v",
+    "solve_regression",
     "BilevelProblem",
     "BilevelSolution",
     "BilevelSCM",
