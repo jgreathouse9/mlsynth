@@ -24,6 +24,7 @@ from ...config_models import (
 )
 from ..bilevel import (bias_corrected_gaps, regression_v, simplex_lstsq,
                        simplex_lstsq_batch)
+from .plotter import plot_stackedsc
 from .setup import aggregation_weights, build_cohorts, event_window
 from .structures import (STACKEDSCResults, StackedDesign,
                          StackedEventStudy, StackedUnitFit)
@@ -143,7 +144,7 @@ def run_stackedsc(config) -> BaseEstimatorResults:
         for d, v in f.donor_weights.items():
             pooled[d] = pooled.get(d, 0.0) + f.agg_weight * v
 
-    return STACKEDSCResults(
+    results = STACKEDSCResults(
         effects=EffectsResults(att=att, additional_effects={
             "event_study": {int(e): float(t) for e, t in zip(grid, tau)}}),
         fit_diagnostics=FitDiagnosticsResults(
@@ -172,3 +173,6 @@ def run_stackedsc(config) -> BaseEstimatorResults:
         additional_outputs={"donor_names": donors},
         per_unit=per_unit, event_study=event, design=design,
     )
+    if config.display_graphs or config.save:
+        plot_stackedsc(results, save=config.save)
+    return results

@@ -95,6 +95,7 @@ At a glance
      + many treated at once, disaggregated/high-dim donors ─► MSQRT
    Staggered (different times)?  ─► SDID · ROLLDID (rolling-transformation DiD)
      + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
+     + unit sizes differ by orders of magnitude, want % effects ─► STACKEDSC
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD

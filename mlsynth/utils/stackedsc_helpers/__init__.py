@@ -2,6 +2,7 @@
 
 from .config import STACKEDSCConfig
 from .pipeline import run_stackedsc
+from .plotter import plot_stackedsc
 from .structures import (STACKEDSCResults, StackedDesign, StackedEventStudy,
                          StackedUnitFit)
 
@@ -11,5 +12,6 @@ __all__ = [
     "StackedDesign",
     "StackedEventStudy",
     "StackedUnitFit",
+    "plot_stackedsc",
     "run_stackedsc",
 ]

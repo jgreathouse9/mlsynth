@@ -99,6 +99,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/drosc
    replications/rolldid
    replications/ppscm
+   replications/stackedsc
    replications/cscm
    replications/snn
    replications/syndes
