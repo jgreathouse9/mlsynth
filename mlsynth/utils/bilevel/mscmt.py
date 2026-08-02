@@ -243,17 +243,22 @@ def solve_mscmt(
     # product against them and the data never enters the search again.
     rank_one = np.einsum("kj,kl->kjl", Rr, Rr).reshape(K, Jr * Jr)
 
-    # The previous generation's weights seed the next one's active set. The
-    # population moves slowly, so most candidates certify in a single solve.
-    inner_state = {"warm": None, "unconverged": 0}
+    inner_state = {"unconverged": 0}
 
+    # Every generation is solved cold, though seeding each candidate from the
+    # previous generation's weights would cut the inner work by about a third.
+    # The population moves slowly, so the seed would usually be optimal already
+    # -- but where the inner optimum is a face and not a point, which member of
+    # that face comes back would then depend on the search's history, and the
+    # members differ in *outcome* fit even though they tie on predictor fit. The
+    # outer objective would stop being a function of V alone. On the Lamba et al.
+    # tiger reserves that showed up as a seed spread of 5e-2 ha on a 2825 ha
+    # effect, against 2e-6 ha cold.
     def _inner_batch(logv: np.ndarray) -> np.ndarray:
         """Donor weights for a (K, S) block of log10 predictor weights."""
         G = (np.power(10.0, logv).T @ rank_one).reshape(-1, Jr, Jr)
         W, info = solve_simplex_minnorm_batch(
-            G, warm_start=inner_state["warm"], max_iter=inner_max_iter,
-            return_info=True)
-        inner_state["warm"] = W
+            G, max_iter=inner_max_iter, return_info=True)
         inner_state["unconverged"] += int((~info["converged"]).sum())
         return W
 
@@ -305,10 +310,7 @@ def solve_mscmt(
 
     V_raw = np.power(10.0, res.x)
     W = np.zeros(prob.n_donors)
-    # Re-expand to the full donor pool. Solved cold so the reported weights
-    # depend on V alone, not on where the search happened to have been.
-    inner_state["warm"] = None
-    W[sunny] = _inner_batch(res.x[:, None])[0]
+    W[sunny] = _inner_batch(res.x[:, None])[0]   # re-expand to the full pool
     V = V_raw / V_raw.sum()  # report on the simplex (objective is scale-free)
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
     warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)

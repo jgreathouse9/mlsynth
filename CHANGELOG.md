@@ -47,8 +47,8 @@ now returns and the back-compat guarantee.
   whose sum-to-one constraint was a big-M penalty row, so the equality is now
   exact and the inner solution exactly scale-free in `V`, as the outer objective
   assumes. On the Abadie-Gardeazabal Basque specification the bilevel fit runs
-  in 0.8s against 1.7s and the default call (in-space placebo, 17 refits) in
-  16s against 25s, with the MSCMT reference weights unchanged
+  in 1.0s against 1.7s and the default call (in-space placebo, 17 refits) in
+  22s against 26s, with the MSCMT reference weights unchanged
   (`benchmarks/cases/mscmt_basque.py`). The new solver is
   `mlsynth.utils.bilevel.minnorm` (`simplex_gram`, `solve_simplex_minnorm`,
   `solve_simplex_minnorm_batch`), covered by `tests/test_simplex_minnorm.py` and
@@ -57,6 +57,15 @@ now returns and the back-compat guarantee.
   solve scored a candidate without certifying. MEDSC and `determine_v`, which
   share the `_inner_weights` primitive, inherit the exact solve; their pinned
   replications are unchanged.
+
+  Each generation is solved cold. Seeding each candidate's active set from the
+  previous generation's weights cuts the inner work by about a third, and it was
+  measured and rejected: where the inner optimum is a face and not a point, the
+  member returned would then depend on the search's history, and members of that
+  face tie on predictor fit while differing on outcome fit, so the outer
+  objective would stop being a function of `V`. On the Lamba et al. tiger
+  reserves that showed as a seed spread of 5e-2 ha on a 2825 ha effect, against
+  2e-6 ha cold (`tests/test_lamba_tigers.py`, which is the guard).
 
 ## [1.0.0] - 2026-06-20
 
