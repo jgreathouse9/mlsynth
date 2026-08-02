@@ -76,7 +76,8 @@ At a glance
 
    PART 1 — ONE treated unit   (easy ───────────────────────► hard)
    ─────────────────────────────────────────────────────────────────
-   Start:  FDID   (or VanillaSC for the textbook simplex SC; TSSC for a pre-trends test)
+   Start:  FDID   (or VanillaSC -- simplex SC by default, with ols/lasso/ridge weights,
+                   ridge augmentation and eight inference modes; TSSC for a pre-trends test)
      ↓ then escalate ONLY if one of these is true:
    Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · BPSCS (spatial, unknown which) · SPOTSYNTH (unknown which) · ISCM (outside hull)
    Nonstationary / spurious trend?      ─► SBC · HSC
