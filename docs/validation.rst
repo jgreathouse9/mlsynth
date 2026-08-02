@@ -10,8 +10,8 @@ numbers here cannot drift from what CI enforces. Each row links to the
 reference implementation, the dataset (with checksum), and the mlsynth
 case that runs the check.
 
-Coverage: **83 cross-validation checks** against original
-implementations, covering **40 of 71 estimators** -- 31 reproduce the reference to display precision, 33 to
+Coverage: **84 cross-validation checks** against original
+implementations, covering **40 of 71 estimators** -- 31 reproduce the reference to display precision, 34 to
 within two percent. Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 What the denominator counts: exported estimator classes. That is
@@ -157,9 +157,9 @@ Summary
      - 1 tight
      - 0.011
    * - :ref:`SCTA <val-scta>`
-     - 1
-     - 1 exact
-     - 1e-06
+     - 2
+     - 1 exact · 1 tight
+     - 24
    * - :ref:`SCUL <val-scul>`
      - 1
      - 1 tight
@@ -968,6 +968,12 @@ SCTA
      - 1e-06
      - exact — matches to display precision
      - `scta_ibex_xval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`__
+   * - augsynth 0.2.0 (the authors' R package) on their time_aggregation.rmd construction, captured
+     - ``texas_sb8_births.csv`` (70ecc24abacb…)
+     - 10
+     - 24
+     - tight
+     - `scta_texas_sb8 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_texas_sb8.py>`__
 
 .. _val-scul:
 

@@ -1,0 +1,10 @@
+{
+  "case": "scta_texas_sb8",
+  "title": "SCTA vs augsynth on the authors' Texas SB8 live-birth panel",
+  "paper": "Sun, Ben-Michael & Feller (2024), 'Temporal Aggregation for the Synthetic Control Method', AEA P&P 114: 614-617",
+  "reference_impl": "augsynth 0.2.0 (the authors' own R package), driven by their time_aggregation.rmd construction",
+  "path_type": "Path A + cross-validation",
+  "command": "Rscript benchmarks/reference/scta_texas_sb8/reference.R basedata/texas_sb8_births.csv",
+  "data": ["basedata/texas_sb8_births.csv"],
+  "note": "Data and construction are the authors' replication package: compileddata.csv (CDC WONDER Natality 2016-2022 expanded, public domain, compiled by Bell, Stuart & Gemmill 2023) vendored verbatim as basedata/texas_sb8_births.csv, and time_aggregation.rmd transcribed into reference.R. The bundle records augsynth's estimate, both pre-treatment RMSPEs and its own weights across the year_wt grid, plus the objective at those weights under both readings of V, which is what lets the case pin the knob correspondence between the two implementations."
+}

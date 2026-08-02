@@ -251,6 +251,8 @@ Cross-validation against reference implementations
      - LINF vs LinfinitySC (skips if absent)
    * - ``scta_ibex_xval``
      - SCTA vs an independent build of the Sun-Ben-Michael-Feller Sec. 2 stacked design solved by cvxpy/CLARABEL (ibex monthly day-ahead price, Spain treated): ATT across the nu grid to 5e-12, ridge-augmented ATT to 2.7e-10, and the imbalance frontier's two monotonicities
+   * - ``scta_texas_sb8``
+     - SCTA vs augsynth 0.2.0 on the authors' own Texas SB8 live-birth panel and construction: pins the knob mapping nu = K*year_wt^2 (augsynth scales matching columns by V, so its objective weights rows by V^2), the 0.11 percent end-to-end agreement it implies, the demeaning-basis residual that explains the rest, and the Figure 1 frontier
    * - ``mcnnm_prop99``
      - vs authors' MCPanel R (mcnnm_cv; ATT + California counterfactual path)
    * - ``microsynth_seattle``

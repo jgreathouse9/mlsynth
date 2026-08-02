@@ -6,28 +6,24 @@ SCTA — Temporal Aggregation for Synthetic Control (Sun et al. 2024)
 :Estimator: :doc:`../scta` — :class:`mlsynth.SCTA`
 :Source: Sun, L., Ben-Michael, E., & Feller, A. (2024), *"Temporal Aggregation
    for the Synthetic Control Method,"* AEA Papers and Proceedings, 114: 614-617.
-:Reference implementation: the ``augsynth`` R package (the authors' own
-   library); and, in the durable benchmark, an independent implementation of the
-   paper's Section 2 design solved by ``cvxpy``/CLARABEL.
-:Replication type: cross-validation against ``augsynth`` on the paper's Texas
-   SB8 application (Bell, Stuart & Gemmill 2023), to solver tolerance; plus a
-   second cross-validation against an independent build of the same design on a
-   panel that ships with the library.
-:Status: Verified — construction reproduced exactly; estimates agree with
-   ``augsynth`` to solver tolerance (see the caveat below), and with the
-   independent implementation to 5e-12 on the ATT.
+:Reference implementation: ``augsynth`` 0.2.0, the authors' own R package,
+   driven by their ``time_aggregation.rmd``.
+:Replication type: Path A on the authors' data and code, plus cross-validation
+   against ``augsynth`` cell by cell.
+:Status: Verified. The construction reproduces, and the estimates agree with
+   ``augsynth`` to 0.11 percent once the two libraries' aggregation knobs are
+   put on the same scale — which takes a square, described below.
 
 Validation strategy
 -------------------
 
 The paper revisits the Texas SB8 abortion-restriction study, building a
-synthetic Texas from monthly state-level live-birth counts (2016-2022) and
-asking how the estimated effect moves as the pre-period is aggregated from
-months (:math:`\nu = 0`) toward years (:math:`\nu = 1`). The authors ship the
-construction in ``augsynth``: append the yearly aggregates as extra
-pre-periods, weight them against the months through a fixed diagonal
-:math:`\mathbf{V} = \operatorname{diag}(12\nu, 1)`, demean by unit fixed
-effects, and solve a simplex synthetic control.
+synthetic Texas from monthly state-level live-birth counts and asking how the
+estimated effect moves as the pre-period is aggregated from months toward years.
+The authors ship the construction in ``augsynth``: append the yearly aggregates
+as extra pre-periods, weight them against the months through a fixed diagonal
+:math:`\mathbf{V}`, demean by unit fixed effects, and solve a simplex synthetic
+control.
 
 SCTA reproduces that construction natively. mlsynth's ``dataprep`` ingests the
 monthly panel; the engine aggregates the six whole calendar years into block
@@ -35,207 +31,241 @@ means, stacks them on the seventy-five disaggregated months, applies the
 :math:`\nu`-weighted :math:`\mathbf{V}`, demeans, and solves the simplex at the
 true optimum.
 
-The construction is exact
--------------------------
+The panel is the authors' ``compileddata.csv``, vendored verbatim as
+``basedata/texas_sb8_births.csv``: 51 states, 84 months over 2016-2022, live
+births annualised by a factor of twelve, Texas treated from April 2022. That
+leaves 75 pre-treatment months — six whole years plus a three-month tail — and
+nine post-treatment months. The data are CDC WONDER natality counts compiled by
+Bell, Stuart and Gemmill (2023), public domain, and the authors license
+redistribution.
 
-Fed ``augsynth``'s own fitted weights, the SCTA counterfactual formula
-reproduces the ``augsynth`` annualised combined ATT at :math:`\nu = 0.5` to the
-digit (:math:`18{,}917.86`). The temporal-aggregation recipe -- derive the
-aggregate, append as extra pre-periods, :math:`\nu`-weighted :math:`\mathbf{V}`,
-fixed-effects demean, simplex -- is therefore reproduced exactly.
-
-Cross-validation to solver tolerance
-------------------------------------
-
-Run end to end with its own solver, SCTA agrees with ``augsynth`` in direction
-and magnitude across the frontier, within a few percent:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 34 22 22 16
-
-   * - Fit (annualised ATT, :math:`\nu = 0.5`)
-     - SCTA (mlsynth)
-     - augsynth
-     - Gap
-   * - Plain simplex + :math:`\mathbf{V}`
-     - :math:`{\approx}\,19{,}800`
-     - :math:`18{,}918`
-     - :math:`+4.5\%`
-   * - Ridge-augmented + :math:`\mathbf{V}`
-     - :math:`{\approx}\,12{,}500`
-     - :math:`12{,}982`
-     - :math:`-3.6\%`
-
-Why not bit for bit
+The knob is squared
 -------------------
 
-The combined fit's base simplex is ill-conditioned: with fifty donor states
-the donor matrix has condition number :math:`\operatorname{cond}(\mathbf{B}^{\top}\mathbf{B})
-\approx 3\times 10^{5}`, so the :math:`\mathbf{V}`-weighted objective has a long,
-shallow valley. The minimiser is unique, but ``augsynth``'s interior-point
-``LowRankQP`` solver halts about five percent above the true objective
-(:math:`7.78\times 10^{9}` versus the true :math:`7.42\times 10^{9}`), on a
-slightly more spread-out weight vector. mlsynth reaches the true optimum. The
-out-of-sample ATT amplifies that weight difference into the few-percent gaps
-above. The ridge-augmented fit inherits the same base simplex, so it is not bit
-for bit either.
+Both libraries fit the paper's program. They disagree about what the aggregation
+parameter means, and the disagreement is a square.
 
-The honest reading: the temporal-aggregation method and its construction are
-reproduced exactly, and the estimates match to the inherent solver tolerance of
-an ill-conditioned simplex SC. mlsynth deliberately reports the
-true-optimum fit instead of cloning a specific QP solver.
-
-Lower in-sample risk than LowRankQP, provably
----------------------------------------------
-
-Choosing the true optimum is not a stylistic preference: it gives a strictly
-smaller in-sample balancing risk than ``augsynth``'s solver, by construction.
-Both methods minimise the same objective over the same feasible set,
+The paper writes the balancing objective as
 
 .. math::
 
-   f(\gamma) = (\mathbf{a} - \mathbf{B}\gamma)^{\top}\mathbf{V}(\mathbf{a} - \mathbf{B}\gamma),
-   \qquad \gamma \in \Delta = \{\gamma \ge 0,\ \textstyle\sum_i \gamma_i = 1\}.
+   \min_{\gamma \in \Delta}\;
+   (\mathbf{a} - \mathbf{B}\gamma)^{\top}\, \mathbf{V}\, (\mathbf{a} - \mathbf{B}\gamma),
+   \qquad
+   \mathbf{V} = \operatorname{diag}(K\nu, \ldots, K\nu, 1, \ldots, 1).
 
-The objective is convex (Hessian :math:`2\mathbf{B}^{\top}\mathbf{V}\mathbf{B}
-\succeq 0`) and, with a full-rank :math:`\mathbf{B}` and :math:`\mathbf{V}
-\succ 0`, strictly convex, so it has a unique global minimiser
-:math:`\gamma^{\star}`. By the definition of a minimiser,
-:math:`f(\gamma^{\star}) \le f(\gamma)` for every feasible :math:`\gamma` --
-including ``augsynth``'s ``LowRankQP`` iterate, which is feasible (it lies on
-the simplex). Hence
+SCTA implements it by scaling the matching rows by :math:`\sqrt{\mathbf{V}}`, so
+an aggregate row's weight in the objective is :math:`K\nu`. ``augsynth`` reaches
+the program by scaling the matching columns instead —
+``X_c <- X_c %*% V`` in ``fit_ridgeaug_formatted`` — and then solving with the
+weight matrix reset to the identity. Scaling by :math:`\mathbf{V}` and then
+squaring residuals weights an aggregate row by :math:`(K\nu)^2`. So
+``augsynth``'s ``year_wt`` and SCTA's ``nu`` are different parameters:
 
 .. math::
 
-   f(\gamma_{\text{SCTA}}) = f(\gamma^{\star}) \;\le\; f(\gamma_{\text{LowRankQP}}),
+   K\,\nu \;=\; (K \cdot \texttt{year\_wt})^{2}
+   \qquad\Longrightarrow\qquad
+   \nu \;=\; K \cdot \texttt{year\_wt}^{2}, \qquad K = 12.
 
-strictly whenever ``LowRankQP`` halts short of the optimum. This is exact,
-holding for every dataset and every :math:`\nu`, not an asymptotic or average
-statement. The one requirement -- that mlsynth attains :math:`\gamma^{\star}`
--- is certified by solving with two independent algorithms (the active-set QP
-and interior-point CLARABEL) and confirming they agree on the objective to
-:math:`\le 7\times 10^{-9}` relative at every :math:`\nu`.
+The paper's "Yearly + Monthly" fit is ``year_wt = 1``, which is
+:math:`\nu = 12`, not :math:`\nu = 1`.
 
-Across the :math:`\nu` frontier on the Texas panel, the in-sample
-:math:`\mathbf{V}`-weighted risk confirms it, and the suboptimality of
-``LowRankQP`` grows as aggregation stretches the design:
+This is measured, not inferred from reading the source. Handed ``augsynth``'s
+own demeaned design and its own :math:`\mathbf{V}`, mlsynth's active-set QP
+reproduces ``augsynth``'s weight vector to :math:`4.3 \times 10^{-7}` in
+:math:`L_1` over fifty donors under the squared reading, and the objective at
+``augsynth``'s weights sits at the minimum to :math:`6.7 \times 10^{-8}`
+relative. Under the linear reading it does not: the weight vectors differ by
+:math:`0.23` to :math:`1.40` in :math:`L_1` and the objective at ``augsynth``'s
+weights sits 4.9 to 23.7 percent above the minimum.
 
 .. list-table::
    :header-rows: 1
-   :widths: 12 26 26 20
+   :widths: 12 12 19 19 19 19
 
-   * - :math:`\nu`
-     - SCTA (true optimum)
-     - augsynth LowRankQP
-     - augsynth above optimum
-   * - 0.0
-     - :math:`6.628\times 10^{9}`
-     - :math:`6.628\times 10^{9}`
-     - :math:`0.0\%`
-   * - 0.25
-     - :math:`7.039\times 10^{9}`
-     - :math:`7.076\times 10^{9}`
-     - :math:`+0.5\%`
+   * - ``year_wt``
+     - :math:`\nu`
+     - :math:`L_1`, squared
+     - excess, squared
+     - :math:`L_1`, linear
+     - excess, linear
+   * - 0
+     - 0
+     - :math:`5.3\times 10^{-8}`
+     - :math:`-4.6\times 10^{-8}`
+     - 0.0000
+     - 0.0%
    * - 0.5
-     - :math:`7.419\times 10^{9}`
-     - :math:`7.780\times 10^{9}`
-     - :math:`+4.9\%`
-   * - 1.0
-     - :math:`8.121\times 10^{9}`
-     - :math:`9.813\times 10^{9}`
-     - :math:`+20.8\%`
-   * - 2.0
-     - :math:`9.402\times 10^{9}`
-     - :math:`1.163\times 10^{10}`
-     - :math:`+23.7\%`
-   * - 4.0
-     - :math:`1.164\times 10^{10}`
-     - :math:`1.807\times 10^{10}`
-     - :math:`+55.3\%`
+     - 3
+     - :math:`3.9\times 10^{-7}`
+     - :math:`+1.4\times 10^{-8}`
+     - 0.2272
+     - +4.9%
+   * - 1
+     - 12
+     - :math:`4.3\times 10^{-7}`
+     - :math:`-1.1\times 10^{-8}`
+     - 1.0596
+     - +20.8%
+   * - 2
+     - 48
+     - :math:`6.0\times 10^{-8}`
+     - :math:`-2.3\times 10^{-8}`
+     - 1.3840
+     - +23.7%
+   * - 30
+     - 10800
+     - :math:`1.7\times 10^{-7}`
+     - :math:`+6.7\times 10^{-8}`
+     - 1.4033
+     - +12.1%
 
-At :math:`\nu = 0` (no aggregation, well-conditioned) the two agree; as
-:math:`\nu` rises the :math:`K\nu` row scaling worsens the conditioning and
-``LowRankQP``'s interior iterate drifts further above the vertex optimum. The
-risk here is in-sample pre-treatment balance, the quantity both solvers
-target; reaching its true constrained minimum is the correct solve, and is
-distinct from the out-of-sample estimation risk the paper's bias bounds
-address.
+At :math:`\nu = 0` the aggregate rows carry no weight under either reading and
+the two coincide exactly, which is the control that says the rest of the table
+is about :math:`\mathbf{V}` and not about anything else.
 
-The second check, and why there are two
----------------------------------------
+The solver is not the difference
+--------------------------------
 
-The Texas SB8 panel is monthly state-level live births assembled from CDC
-natality files, and it is not redistributable with this library. The
-``augsynth`` comparison above was run once against it and its numbers are
-recorded here, but nobody can re-run it from a clone of this repository. So the
-durable benchmark checks the same estimator a different way, on a panel that
-ships.
+``augsynth`` 0.2.0 solves the simplex with OSQP at ``eps_abs = eps_rel = 1e-8``
+(``augsynth:::synth_qp``). On an identical design and an identical objective its
+weights and mlsynth's active-set QP agree to that tolerance, and the signed
+objective excess in the table above lands on either side of zero — which is what
+two solvers meeting at the same optimum looks like. Neither implementation is
+stopping short of the other.
 
-`benchmarks/cases/scta_ibex_xval.py
-<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`_
-builds the paper's Section 2 design a second time, straight from the equations
-and with no import from ``mlsynth.utils.scta_helpers``, and solves it with
-``cvxpy``/CLARABEL — an interior-point conic solver, where mlsynth uses its own
-primal active-set QP. Two independent constructions and two independent solvers
-then have to agree.
+An earlier version of this page attributed the gap between the two libraries to
+``augsynth``'s solver halting above the optimum, and argued that mlsynth
+therefore attained a strictly lower in-sample balancing risk. That was wrong.
+The argument assumed both libraries minimise the same objective over the same
+feasible set; they minimise different objectives, and each reaches its own
+minimum. The numbers that appeared to support it — an excess of 4.9 percent at
+``year_wt = 0.5`` rising to 23.7 percent — are real, and are the linear column
+above: they measure ``augsynth``'s weights against the wrong program.
 
-The panel is the monthly wholesale day-ahead electricity price used by the
-:doc:`ibex` replication: 22 European countries, 2015-01 to 2023-12, with Spain
-treated by the June-2022 Iberian exception mechanism. Portugal is treated by the
-same mechanism and is dropped, leaving 20 clean donors and 89 pre-treatment months —
-seven whole years plus a five-month tail, the same ragged-block shape as the
-paper's Texas application (six years plus three months). :math:`K = 12`.
+Cross-validation, at the mapped knob
+------------------------------------
+
+With :math:`\nu = K \cdot \texttt{year\_wt}^2`, SCTA run end to end reproduces
+``augsynth``'s estimate across the grid:
 
 .. list-table::
    :header-rows: 1
-   :widths: 42 30 28
+   :widths: 14 12 24 24 16
 
-   * - Quantity
-     - Agreement
-     - Floor on the agreement
-   * - ATT across :math:`\nu \in \{0, 0.25, 0.5, 1, 2, 4\}`
-     - :math:`5 \times 10^{-12}`
-     - floating point
-   * - Ridge-augmented ATT, :math:`\lambda \in \{1, 10\}`
-     - :math:`2.7 \times 10^{-10}`
-     - floating point
-   * - Donor weights, :math:`L_1` over 20 donors
-     - :math:`1 \times 10^{-6}`
-     - mlsynth rounds ``donor_weights`` to six decimals
-   * - :math:`\mathbf{V}`-weighted objective, relative
-     - :math:`1.4 \times 10^{-7}`
-     - CLARABEL's interior-point tolerance
+   * - ``year_wt``
+     - :math:`\nu`
+     - SCTA (mlsynth)
+     - ``augsynth``
+     - Gap
+   * - 0 (monthly alone)
+     - 0
+     - 20877.26
+     - 20895.54
+     - :math:`-0.09\%`
+   * - 0.5
+     - 3
+     - 18905.14
+     - 18917.86
+     - :math:`-0.07\%`
+   * - 1 (yearly + monthly)
+     - 12
+     - 21710.99
+     - 21735.25
+     - :math:`-0.11\%`
+   * - 2
+     - 48
+     - 22924.61
+     - 22942.44
+     - :math:`-0.08\%`
+   * - 30 (yearly alone)
+     - 10800
+     - 24633.00
+     - 24653.97
+     - :math:`-0.09\%`
 
-The last row runs in one direction. Both sides minimise the same convex
-objective over the same simplex, so the smaller value is the better solve, and
-at :math:`\nu = 4` CLARABEL halts :math:`3.2 \times 10^{-6}` above the optimum
-mlsynth reaches — the same pattern as ``LowRankQP`` above, several orders of
-magnitude smaller.
+Estimates are the mean post-treatment effect on annualised births.
 
-The case also pins the frontier's shape. Across the :math:`\nu` grid the
-aggregated imbalance falls monotonically (2.366 to 1.824 EUR/MWh) while the
-disaggregated imbalance rises monotonically (6.463 to 6.702): the trade-off the
-paper's Figure 1 draws, and a property no solver tolerance can produce by
-accident. The estimate itself is stable across the knob, moving 0.39 EUR/MWh on
-an effect of :math:`-44.3`.
+The residual: what is demeaned by what
+--------------------------------------
 
-The two checks cover different things. The ``augsynth`` comparison places SCTA
-against the authors' own library on the authors' data, which is the stronger
-claim and the one that cannot be re-run here. This one places SCTA's
-construction and its solve against an independent implementation of the
-published recipe, and runs in four seconds in CI.
+The remaining tenth of a percent is a second convention difference, and it is
+one-directional — SCTA is below ``augsynth`` at every point on the grid, which
+is the signature of a systematic difference and not of noise.
+
+``augsynth``'s ``fixedeff`` demeans each unit by ``rowMeans`` of its matching
+row (``augsynth:::demean_data``). On the stacked design that row has 81 entries:
+six yearly aggregates and 75 months. So the fixed effect is a weighted blend in
+which the first six years count twice — once through the months they contain and
+again through their own aggregate — and the three-month tail counts once. SCTA
+demeans by the mean of the 75 disaggregated months alone.
+
+For Texas the two differ by 28.7 annualised births on a level of about 379,300,
+:math:`7.6 \times 10^{-5}` in relative terms. Because the weights are on the
+simplex, a common shift would cancel; these are per-unit and do not. Put SCTA's
+solver on ``augsynth``'s demeaning basis and the same squared objective, and the
+gap closes to :math:`1.0 \times 10^{-7}` relative — so the demeaning basis
+accounts for the whole of the residual.
+
+Which basis is right is a question the paper does not settle. Demeaning by the
+disaggregated pre-period mean is the unit's pre-treatment level; demeaning by
+the stacked row mean is what a generic ``rowMeans`` does to a design whose rows
+are not all the same kind of thing. SCTA takes the first. The size of the choice
+is 0.1 percent here, and it is recorded so a reader can price it.
+
+Path A: the paper's figures
+---------------------------
+
+The frontier of the paper's Figure 1 reproduces in shape. As weight moves onto
+the yearly aggregates the monthly imbalance rises monotonically (9401 to 14403)
+and the yearly imbalance falls monotonically (4891 to 3139): aggregation buys
+balance on the aggregates and spends it on the months.
+
+The three labelled points of Figure 3 come out at 20896 (monthly alone), 21735
+(yearly + monthly) and 24654 (yearly alone) annualised births, all positive and
+all of the same order — the paper's finding that the estimate is sensitive to
+the aggregation choice, and that the sensitivity should be traced instead of
+resolved by fiat.
 
 Reproducing
 -----------
 
 .. code-block:: bash
 
-   python benchmarks/run_benchmarks.py --case scta_ibex_xval
+   python benchmarks/run_benchmarks.py --case scta_texas_sb8
 
-Fifteen quantities: the design's counts, the four agreement measures above, the
-frontier's two monotonicities and its four endpoints, and the headline estimate.
-The captured side-by-side table is
-`benchmarks/reference/scta_ibex_xval/comparison.csv
-<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/scta_ibex_xval/comparison.csv>`_,
-and it feeds the :doc:`../validation` dashboard.
+The case is `benchmarks/cases/scta_texas_sb8.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_texas_sb8.py>`_.
+It runs in two seconds and pins fifteen quantities: the design's counts against
+``augsynth``'s own, both directions of the :math:`\mathbf{V}` reading, the
+end-to-end agreement at the mapped knob, the demeaning residual and its size,
+the three labelled estimates, and the frontier's two monotonicities. It reads
+``augsynth``'s numbers from the captured bundle and runs no R.
+
+The bundle is `benchmarks/reference/scta_texas_sb8/
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/reference/scta_texas_sb8>`_
+— the transcribed ``reference.R``, its verbatim output, the parsed values and
+full provenance. Regenerating it needs R with ``augsynth`` and ``dplyr``:
+
+.. code-block:: bash
+
+   python benchmarks/reference/generate.py scta_texas_sb8
+
+A second, R-free check
+----------------------
+
+`benchmarks/cases/scta_ibex_xval.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`_
+builds the paper's Section 2 design from the equations, with no import from
+``mlsynth.utils.scta_helpers``, and solves it with ``cvxpy``/CLARABEL on the
+monthly ibex day-ahead price panel used by the :doc:`ibex` replication. It
+agrees with SCTA on the ATT to :math:`5\times 10^{-12}` across a :math:`\nu`
+grid and on the ridge-augmented ATT to :math:`2.7\times 10^{-10}`.
+
+It covers what the Texas case cannot: the Texas case reads a captured bundle, so
+it can tell you mlsynth still agrees with a fixed set of ``augsynth`` numbers,
+but a change to mlsynth's own construction would move both sides of the ibex
+comparison only if the change were in the shared code — and it is not, because
+the ibex reference is written independently. The two together check the
+construction against an independent implementation and against the authors'.

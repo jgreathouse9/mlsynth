@@ -185,23 +185,29 @@ Verification
 ------------
 
 SCTA reproduces the temporal-aggregation construction of the paper's Texas
-SB8 study [BellStuartGemmill]_ and is cross-validated against the ``augsynth``
-R reference. Because the joint fit's base simplex is ill-conditioned on a large
-donor pool, the per-unit weight vector is solver-dependent: mlsynth reaches the
-true optimum of the :math:`\mathbf{V}`-weighted objective, while ``augsynth``'s
-interior-point solver lands a few percent short, so the estimates agree to
-solver tolerance, not bit for bit (plain :math:`\nu = 0.5`:
-:math:`{\approx}\,19{,}800` vs :math:`18{,}918`; ridge: :math:`{\approx}\,12{,}500`
-vs :math:`12{,}982`, annualised).
+SB8 study [BellStuartGemmill]_ and is cross-validated against ``augsynth`` 0.2.0,
+the authors' own R package, on the authors' own panel — both of which ship with
+the library (`benchmarks/cases/scta_texas_sb8.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_texas_sb8.py>`_).
 
-The Texas panel does not ship with the library, so the durable check is a second
-cross-validation on one that does: `benchmarks/cases/scta_ibex_xval.py
+The two libraries spell the aggregation knob differently, and the difference is
+a square. SCTA scales the matching rows by :math:`\sqrt{\mathbf{V}}`, so an
+aggregate row's weight in the objective is :math:`K\nu`, as the paper writes it.
+``augsynth`` scales the matching columns by :math:`\mathbf{V}` and solves with
+the weight matrix set to the identity, which weights an aggregate row by
+:math:`(K\nu)^2`. The knobs therefore map as
+:math:`\nu = K \cdot \texttt{year\_wt}^2` — the paper's "Yearly + Monthly" fit
+at ``year_wt = 1`` is :math:`\nu = 12`, not :math:`\nu = 1`. At the mapped
+knob the two agree to 0.11 percent across the grid, and the residual is a second
+convention difference in what the unit fixed effect averages over.
+
+A second check needs no R: `benchmarks/cases/scta_ibex_xval.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`_
 rebuilds the paper's Section 2 design from the equations, solves it with
 ``cvxpy``/CLARABEL, and matches SCTA's ATT to :math:`5\times 10^{-12}` across the
 :math:`\nu` grid and its ridge-augmented ATT to :math:`2.7\times 10^{-10}`. See
 the dedicated page :doc:`replications/scta`, and :doc:`validation` for the
-side-by-side table.
+side-by-side tables.
 
 Core API
 --------
