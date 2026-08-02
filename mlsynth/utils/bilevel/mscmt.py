@@ -16,17 +16,24 @@ over ``log10(V)`` with a lower bound ``lb`` on the smallest predictor weight.
 The two backends share the same outer objective (pre-treatment outcome MSPE)
 and the same Section 3.1 global-optimum certificate; they differ only in how
 the predictor weights are searched, which matters when the optimal ``V`` is
-interior rather than a single corner.
+interior, not a single corner.
 
-The inner ``V``-weighted simplex least squares is solved with the in-house
-Lawson-Hanson :func:`~mlsynth.utils.bilevel.nnls.nnls` (non-negativity) plus a
-big-M row for the sum-to-one equality. The outer differential-evolution
-population is evaluated
-*vectorised* (one objective call per generation), and the donor pool is first
-reduced to its **sunny** donors (the Becker-Kloessner LP reduction): shady
-donors can never carry positive inner weight for any ``V`` and are dropped
-without changing the optimum. Both are speed optimisations that leave the
-solution unchanged.
+The inner ``V``-weighted simplex least squares is solved exactly, and for the
+whole outer population at once, by
+:func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm_batch`. The
+sum-to-one constraint turns the inner objective into the homogeneous form
+``W' G(V) W`` -- the minimum-norm point in the hull of the donors' predictor
+discrepancies -- with ``G(V) = sum_k V_k r_k r_k'`` linear in ``V``. So the
+``K`` rank-one pieces are formed once, a generation's Grams are one matrix
+product against them, and the active set then certifies the whole generation in
+a handful of batched linear solves. No product with the data occurs inside the
+search.
+
+Two further reductions leave the solution unchanged. The outer
+differential-evolution population is evaluated *vectorised* (one objective call
+per generation), and the donor pool is first reduced to its **sunny** donors
+(the Becker-Kloessner LP reduction): shady donors can never carry positive inner
+weight for any ``V``, so dropping them shrinks every inner solve.
 """
 
 from __future__ import annotations
@@ -35,51 +42,42 @@ import warnings
 
 import numpy as np
 
-from .nnls import nnls_select
+from .minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
 from .simplex import mspe
-
-# Resolve the NNLS backend once, by capability. scipy's compiled ``nnls`` is the
-# fast path, but its 1.12-1.14 rewrite regressed on the ill-conditioned big-M
-# system below -- it grinds for thousands of iterations and raises
-# ``RuntimeError`` (e.g. scipy 1.13, the newest scipy on Python 3.9), where it is
-# both ~24x slower than and less robust than the in-house Lawson-Hanson solver.
-# So we use scipy where it is the fixed, fast version (>= 1.15) and our own
-# solver everywhere else; both return the identical optimum.
-nnls = nnls_select()
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
 
 _GAP_WARN_FACTOR = 10.0
 
-# Big-M penalty enforcing the simplex equality 1'W = 1 inside the NNLS solve.
-_BIG_M = 1e6
+
+def _predictor_discrepancies(prob: BilevelProblem) -> np.ndarray:
+    """``R = X1 1' - X0``: column ``j`` is treated-minus-donor-``j``, shape ``(K, J)``.
+
+    The inner objective is a quadratic form in these columns alone. On the
+    simplex ``X1 - X0 W = R W``, so
+    ``sum_k V_k (X1_k - (X0 W)_k)^2 = W' R' diag(V) R W`` and the donor weights
+    are the minimum-norm point in the hull of ``R``'s columns under the metric
+    ``diag(V)``.
+    """
+    return prob.X1[:, None] - prob.X0
 
 
 def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
     """W*(V): simplex-constrained ``V``-weighted predictor least squares.
 
     Solves ``min_W ||diag(V)^{1/2} (X1 - X0 W)||^2`` over ``{W >= 0, 1'W = 1}``
-    -- the MSCMT inner objective (Eq. 8'). The non-negativity constraint is
-    handled by the in-house Lawson-Hanson :func:`~mlsynth.utils.bilevel.nnls.nnls`
-    (an active-set solver, robust on the ill-conditioned predictor blocks where
-    a first-order method would crawl); the sum-to-one constraint is enforced by
-    appending a large-penalty row ``M * 1' W = M``. An active-set NNLS is used
-    (rather than the pure-NumPy FISTA primitive) because the global outer search
-    invokes the inner solve tens of thousands of times, where its accuracy and
-    per-solve cost matter; the bespoke solver also makes the result independent
-    of the installed scipy version. The hot
-    loop in :func:`solve_mscmt` uses a preallocated, in-place variant of this;
-    this reference form is kept for the single-predictor path and tests.
+    -- the MSCMT inner objective (Eq. 8') -- exactly, by the active set of
+    :func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm` on the Gram
+    ``R' diag(V) R``. The equality constraint is carried by the reduction to
+    that form, not by a penalty, so the answer is exactly scale-free in ``V``,
+    as the outer objective assumes. The hot loop in :func:`solve_mscmt` runs the
+    batched form of the same solver over a whole population; this single-problem
+    form serves the single-predictor path, :mod:`determine_v`, and callers that
+    need one ``W*(V)``.
     """
-    sq = np.sqrt(np.clip(V, 0.0, None))
-    A = sq[:, None] * prob.X0
-    b = sq * prob.X1
-    J = prob.n_donors
-    A = np.vstack([A, _BIG_M * np.ones(J)])
-    b = np.concatenate([b, [_BIG_M]])
-    w, _ = nnls(A, b, maxiter=10000)
-    s = w.sum()
-    return w / s if s > 0 else w
+    R = _predictor_discrepancies(prob)
+    V = np.clip(np.asarray(V, dtype=float).ravel(), 0.0, None)
+    return solve_simplex_minnorm((R * V[:, None]).T @ R)
 
 
 def _sunny_mask(X1: np.ndarray, X0: np.ndarray, tol: float = 1e-9) -> np.ndarray:
@@ -139,6 +137,7 @@ def solve_mscmt(
     feas_tol: float = 1e-8,
     canonical_v=False,
     prune_shady: bool = True,
+    inner_max_iter=None,
     gap_warn_factor: float = _GAP_WARN_FACTOR,
 ) -> BilevelSolution:
     """Solve the bilevel SCM problem by global outer search (MSCMT style).
@@ -172,6 +171,12 @@ def solve_mscmt(
         fails to certify. When enabled, ``metadata["v_agreement"]`` reports the
         max gap between the two canonical choices (small = ``V`` well
         identified). Default ``False`` (historical behaviour).
+    inner_max_iter : int, optional
+        Cap on the inner active set's iterations per generation. ``None``
+        (default) leaves the solver's own bound, which every well-posed donor
+        pool reaches. A cap too small to certify is reported: the count lands in
+        ``metadata["inner_unconverged"]`` and a :class:`RuntimeWarning` is
+        raised once at the end of the search.
     prune_shady : bool
         If ``True`` (default), reduce the donor pool to its *sunny* donors
         (:func:`_sunny_mask`) before the outer search. Shady donors provably
@@ -227,38 +232,38 @@ def solve_mscmt(
     # for every V, so only the sunny pool enters the tens of thousands of inner
     # solves (the optimum is unchanged).
     sunny = _sunny_mask(prob.X1, prob.X0) if prune_shady else np.ones(prob.n_donors, bool)
-    X0r = np.ascontiguousarray(prob.X0[:, sunny])       # (K, Jr)
+    Rr = np.ascontiguousarray(
+        _predictor_discrepancies(prob)[:, sunny])       # (K, Jr)
     Y0r = np.ascontiguousarray(prob.Y0_pre[:, sunny])
-    X1, y1 = prob.X1, prob.y1_pre
-    Jr = X0r.shape[1]
+    y1 = prob.y1_pre
+    Jr = Rr.shape[1]
 
-    # Preallocated inner buffers (the big-M equality row is constant); filled in
-    # place each solve to avoid per-call allocation in the hot loop.
-    A_buf = np.empty((K + 1, Jr)); A_buf[K, :] = _BIG_M
-    b_buf = np.empty(K + 1); b_buf[K] = _BIG_M
+    # The K rank-one pieces of the inner Gram, formed once: G(V) = sum_k V_k
+    # r_k r_k' is linear in V, so a whole generation's Grams are one matrix
+    # product against them and the data never enters the search again.
+    rank_one = np.einsum("kj,kl->kjl", Rr, Rr).reshape(K, Jr * Jr)
 
-    def _inner(V: np.ndarray) -> np.ndarray:
-        sq = np.sqrt(np.clip(V, 0.0, None))
-        np.multiply(X0r, sq[:, None], out=A_buf[:K, :])
-        np.multiply(X1, sq, out=b_buf[:K])
-        w, _ = nnls(A_buf, b_buf, maxiter=10000)
-        s = w.sum()
-        return w / s if s > 0 else w
+    # The previous generation's weights seed the next one's active set. The
+    # population moves slowly, so most candidates certify in a single solve.
+    inner_state = {"warm": None, "unconverged": 0}
 
-    def _obj1(logv: np.ndarray) -> float:
-        w = _inner(np.power(10.0, logv))
-        r = y1 - Y0r @ w
-        return float(np.mean(r * r))
+    def _inner_batch(logv: np.ndarray) -> np.ndarray:
+        """Donor weights for a (K, S) block of log10 predictor weights."""
+        G = (np.power(10.0, logv).T @ rank_one).reshape(-1, Jr, Jr)
+        W, info = solve_simplex_minnorm_batch(
+            G, warm_start=inner_state["warm"], max_iter=inner_max_iter,
+            return_info=True)
+        inner_state["warm"] = W
+        inner_state["unconverged"] += int((~info["converged"]).sum())
+        return W
 
     def outer(logv: np.ndarray):
         # scipy passes (K,) during polish, (K, S) when vectorized=True
-        if logv.ndim == 1:
-            return _obj1(logv)
-        S = logv.shape[1]
-        out = np.empty(S)
-        for s in range(S):
-            out[s] = _obj1(logv[:, s])
-        return out
+        single = logv.ndim == 1
+        W = _inner_batch(logv[:, None] if single else logv)
+        resid = y1[:, None] - Y0r @ W.T
+        loss = (resid * resid).mean(axis=0)
+        return float(loss[0]) if single else loss
 
     # Seed the population with the K predictor corners (all mass on one
     # predictor, the rest at the lower bound) plus random draws, so the global
@@ -287,9 +292,23 @@ def solve_mscmt(
             stacklevel=2,
         )
 
+    if inner_state["unconverged"]:
+        warnings.warn(
+            f"{inner_state['unconverged']} of the inner simplex solves hit "
+            f"their iteration cap during the outer search, so the predictor "
+            f"weightings they scored were evaluated at a feasible but "
+            f"uncertified W. The reported solution is unaffected only if the "
+            f"optimiser did not settle on one of them.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     V_raw = np.power(10.0, res.x)
     W = np.zeros(prob.n_donors)
-    W[sunny] = _inner(V_raw)                 # re-expand to the full donor pool
+    # Re-expand to the full donor pool. Solved cold so the reported weights
+    # depend on V alone, not on where the search happened to have been.
+    inner_state["warm"] = None
+    W[sunny] = _inner_batch(res.x[:, None])[0]
     V = V_raw / V_raw.sum()  # report on the simplex (objective is scale-free)
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
     warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)
@@ -319,6 +338,7 @@ def solve_mscmt(
             "n_donors": int(prob.n_donors),
             "n_sunny": int(sunny.sum()),
             "n_shady_pruned": int((~sunny).sum()),
+            "inner_unconverged": int(inner_state["unconverged"]),
             **meta_extra,
         },
     )

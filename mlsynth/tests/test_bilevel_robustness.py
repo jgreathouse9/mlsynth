@@ -242,6 +242,25 @@ def test_mscmt_warns_on_de_nonconvergence():
         solve_bilevel(prob, method="mscmt", maxiter=1, polish=False, seed=0)
 
 
+def test_mscmt_reports_inner_solves_that_hit_their_iteration_cap():
+    """An inner active set starved of iterations scores the outer objective at
+    an uncertified W. That has to reach the caller: once as a warning, and as a
+    count in the metadata."""
+    prob = BilevelProblem(**_valid_kwargs(Tpre=12, J=8, K=4, seed=6))
+    with pytest.warns(RuntimeWarning, match="iteration cap"):
+        sol = solve_bilevel(prob, method="mscmt", maxiter=2, polish=False,
+                            seed=0, inner_max_iter=1)
+    assert sol.metadata["inner_unconverged"] > 0
+    # The starved run still returns a usable point on the simplex.
+    assert sol.W.min() >= -1e-12 and abs(sol.W.sum() - 1.0) < 1e-9
+
+
+def test_mscmt_inner_solves_all_certify_by_default():
+    prob = BilevelProblem(**_valid_kwargs(Tpre=12, J=8, K=4, seed=6))
+    sol = solve_bilevel(prob, method="mscmt", maxiter=10, polish=False, seed=0)
+    assert sol.metadata["inner_unconverged"] == 0
+
+
 # --------------------------------------------------------------------------- #
 # Boundary-lambda CV warning
 # --------------------------------------------------------------------------- #

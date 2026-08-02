@@ -275,6 +275,28 @@ The covariate path exposes four reliable solvers via ``backend=``:
     ``"max.order"``) to report a canonical, reproducible :math:`\mathbf{V}` via the
     MSCMT ``determine_v`` step.
 
+    This is the expensive backend, because the outer search prices tens of
+    thousands of candidate :math:`\mathbf{V}`, each needing its own donor-weight
+    solve. Two identities make that affordable. Since the weights sum to one,
+    :math:`\mathbf{X}_1 - \mathbf{X}_0\mathbf{w} = \mathbf{R}\mathbf{w}` for
+    :math:`\mathbf{R} = \mathbf{X}_1\mathbf{1}^\top - \mathbf{X}_0`, whose
+    :math:`j`-th column is donor :math:`j`'s predictor discrepancy from the
+    treated unit; the lower level is then
+    :math:`\min_{\mathbf{w} \in \Delta^{N_0}} \mathbf{w}^\top
+    \mathbf{G}(\mathbf{V}) \mathbf{w}` with
+    :math:`\mathbf{G}(\mathbf{V}) = \sum_p v_p \mathbf{r}_p \mathbf{r}_p^\top`,
+    summed over the rows :math:`\mathbf{r}_p` of :math:`\mathbf{R}`. The donor
+    weights are the point of least :math:`\mathbf{V}`-norm in the convex hull of
+    the discrepancies -- Wolfe's (1976) problem, which an active set over the
+    donors solves exactly and in finitely many steps. And :math:`\mathbf{G}` is
+    linear in :math:`\mathbf{V}`, so the :math:`P` rank-one pieces
+    :math:`\mathbf{r}_p \mathbf{r}_p^\top` are formed once and a whole
+    generation of candidates is one matrix product away, after which the active
+    set certifies the entire generation in a handful of batched linear solves.
+    The data itself never enters the search loop. On the Basque specification
+    below a fit takes about a second; the in-space placebo multiplies that by
+    the donor count.
+
 ``"malo"``
     Malo et al. (2024): a staged corner search. Fast and exact when the
     optimum is a predictor corner -- but when a *lagged outcome*
@@ -1747,3 +1769,6 @@ Refined Placebo Tests." *arXiv:2401.07152*.
 Malo, P., Eskelinen, J., Zhou, X., & Kuosmanen, T. (2024). "Computing
 Synthetic Controls Using Bilevel Optimization." *Computational Economics*
 64:1113-1136.
+
+Wolfe, P. (1976). "Finding the Nearest Point in a Polytope."
+*Mathematical Programming* 11:128-149.

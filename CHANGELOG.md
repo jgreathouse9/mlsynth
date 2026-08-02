@@ -31,6 +31,33 @@ now returns and the back-compat guarantee.
   Covered by `tests/test_spec.py`, including a parametrized check that `load_spec`
   resolves and behaves gracefully for every estimator the package ships.
 
+### Changed
+- VanillaSC's `mscmt` backend (the default when covariates are supplied) solves
+  its inner donor-weight program exactly, and for a whole outer-search
+  generation at once. Because the weights sum to one the design matrix drops out
+  of the inner objective: `X1 - X0 w = R w` for `R = X1 1' - X0`, so the
+  V-weighted predictor loss is the quadratic form `w' G(V) w` with
+  `G(V) = sum_p v_p r_p r_p'`, and the donor weights are the minimum-norm point
+  in the convex hull of the donors' predictor discrepancies (Wolfe 1976), which
+  an active set over the donors solves exactly and finitely. `G` is linear in
+  `V`, so the `P` rank-one pieces are formed once, a differential-evolution
+  generation of Grams is one matrix product against them, and the active set
+  certifies the generation in a handful of batched linear solves -- the data
+  never enters the search loop. This replaces a per-candidate Lawson-Hanson NNLS
+  whose sum-to-one constraint was a big-M penalty row, so the equality is now
+  exact and the inner solution exactly scale-free in `V`, as the outer objective
+  assumes. On the Abadie-Gardeazabal Basque specification the bilevel fit runs
+  in 0.8s against 1.7s and the default call (in-space placebo, 17 refits) in
+  16s against 25s, with the MSCMT reference weights unchanged
+  (`benchmarks/cases/mscmt_basque.py`). The new solver is
+  `mlsynth.utils.bilevel.minnorm` (`simplex_gram`, `solve_simplex_minnorm`,
+  `solve_simplex_minnorm_batch`), covered by `tests/test_simplex_minnorm.py` and
+  `tests/test_simplex_minnorm_perf.py`. `solve_mscmt` gains an `inner_max_iter`
+  cap and reports `metadata["inner_unconverged"]`, warning once when an inner
+  solve scored a candidate without certifying. MEDSC and `determine_v`, which
+  share the `_inner_weights` primitive, inherit the exact solve; their pinned
+  replications are unchanged.
+
 ## [1.0.0] - 2026-06-20
 
 First stable release, published to PyPI (``pip install mlsynth``).
