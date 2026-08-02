@@ -136,10 +136,43 @@ def cross_validation_error(lam: float, values: np.ndarray, n_pre: int, *,
     return total
 
 
-def select_lambda(values: np.ndarray, n_pre: int, bounds, *,
+def penalty_scale(values: np.ndarray, n_pre: int, *,
                   basis: Optional[np.ndarray] = None,
                   grid: Optional[np.ndarray] = None) -> float:
-    """Minimise the cross-validation error over ``bounds`` (bounded Brent).
+    """Natural size of the ridge penalty for this design.
+
+    The penalty in eq. (9) is added to ``r_0' r_0``, so what counts as "small"
+    is set by that matrix, which scales with the square of the outcome and with
+    whatever normalisation the basis carries. An absolute search interval
+    therefore means something different on every dataset: the authors' scripts
+    search (0, 10), which suits their fertility panel and is four orders of
+    magnitude too coarse for their mortality panel once the coefficients are a
+    genuine L2 inner product.
+
+    Reported as the mean eigenvalue of the Gram matrix, so a relative penalty of
+    1 shrinks about as hard as the design's own average curvature. This is the
+    same idea as ``augsynth``'s data-driven lambda grid, reduced to one number
+    because the search here is a scalar minimisation rather than a grid.
+    """
+    centered = center_pre_periods(values, n_pre)
+    R = basis_coefficients(centered, basis, grid)
+    r0 = R[1:, :n_pre].reshape(R.shape[0] - 1, -1)
+    return float(np.sum(r0 * r0) / r0.shape[1])
+
+
+def select_lambda(values: np.ndarray, n_pre: int, bounds, *,
+                  basis: Optional[np.ndarray] = None,
+                  grid: Optional[np.ndarray] = None) -> Tuple[float, float]:
+    """Cross-validate the penalty, searching on the design's own scale.
+
+    ``bounds`` are read as multiples of :func:`penalty_scale`, which makes the
+    default interval mean the same thing whatever the units of the outcome.
+
+    Returns
+    -------
+    (absolute, relative) : tuple of float
+        The penalty to use in eq. (9), and the multiple of the design scale it
+        corresponds to.
 
     Raises
     ------
@@ -152,11 +185,18 @@ def select_lambda(values: np.ndarray, n_pre: int, bounds, *,
             f"cross-validating the ridge penalty needs at least two "
             f"pre-treatment periods (it is leave-one-out); the panel has "
             f"{n_pre}. Pass ridge_lambda explicitly, or set augment=False.")
+    scale = penalty_scale(values, n_pre, basis=basis, grid=grid)
+    if not scale > 0.0:
+        # The centered design is identically zero, which happens whenever there
+        # is a single donor: subtracting the donor mean leaves nothing. The
+        # ridge correction is then zero for every penalty, so there is nothing
+        # to cross-validate and augmentation degrades to a no-op.
+        return 0.0, 0.0
     result = minimize_scalar(
-        lambda L: cross_validation_error(L, values, n_pre, basis=basis,
-                                         grid=grid),
+        lambda ratio: cross_validation_error(ratio * scale, values, n_pre,
+                                             basis=basis, grid=grid),
         bounds=tuple(bounds), method="bounded", options={"xatol": _BRENT_TOL})
-    return float(result.x)
+    return float(result.x) * scale, float(result.x)
 
 
 def synthetic_objects(values: np.ndarray, weights: np.ndarray) -> np.ndarray:

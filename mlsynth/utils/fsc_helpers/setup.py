@@ -23,8 +23,35 @@ from ..datautils import dataprep
 from .structures import FSCInputs
 
 
+def _resolve_grid(df: pd.DataFrame, unitid: str, time: str, argument: str,
+                  numeric_grid: bool) -> np.ndarray:
+    """The common argument grid, in the order the coordinates are indexed by.
+
+    A numeric grid is sorted ascending -- it is a set of points on a line, and
+    the spline basis needs it that way. A labelled grid has no natural order, so
+    the order of the first ``(unit, time)`` cell defines the coordinate
+    identity and every other cell must repeat it.
+    """
+    if numeric_grid:
+        return np.sort(pd.unique(df[argument].to_numpy()))
+
+    first = df.groupby([unitid, time], sort=False).ngroup() == 0
+    grid = pd.unique(df.loc[first, argument].to_numpy())
+    for (unit, period), cell in df.groupby([unitid, time], sort=False):
+        labels = cell[argument].to_numpy()
+        if labels.shape != grid.shape or not np.array_equal(labels, grid):
+            raise MlsynthDataError(
+                f"cell ({unit!r}, {period!r}) lists the argument values in a "
+                f"different order from the first cell. With a non-numeric "
+                "argument the row order carries the coordinate identity, so "
+                "every cell must repeat the same sequence. Expected "
+                f"{list(grid[:4])}..., got {list(labels[:4])}...")
+    return grid
+
+
 def prepare_fsc_inputs(df: pd.DataFrame, outcome: str, treat: str, unitid: str,
-                       time: str, argument: str) -> FSCInputs:
+                       time: str, argument: str,
+                       numeric_grid: bool = True) -> FSCInputs:
     """Pivot a long panel of objects into an ``(N, T, M)`` cube.
 
     Parameters
@@ -33,6 +60,11 @@ def prepare_fsc_inputs(df: pd.DataFrame, outcome: str, treat: str, unitid: str,
         One row per (unit, time, argument).
     outcome, treat, unitid, time, argument : str
         Column names. ``treat`` is constant within a ``(unit, time)`` cell.
+    numeric_grid : bool
+        Whether the argument must be numeric. True for the spaces that build a
+        spline basis, which needs somewhere to put its knots. False for the
+        Euclidean case, where the argument is a coordinate label -- a matrix
+        cell -- and only its position matters.
 
     Returns
     -------
@@ -52,13 +84,30 @@ def prepare_fsc_inputs(df: pd.DataFrame, outcome: str, treat: str, unitid: str,
             f"{list(df.columns)}. Note FSC needs an argument column naming "
             "the point at which each outcome value is observed.")
 
-    for column in (outcome, argument):
-        if not pd.api.types.is_numeric_dtype(df[column]):
-            raise MlsynthDataError(
-                f"column {column!r} is not numeric; FSC needs a numeric "
-                "outcome observed on a numeric argument grid.")
+    if not pd.api.types.is_numeric_dtype(df[outcome]):
+        raise MlsynthDataError(
+            f"column {outcome!r} is not numeric; FSC needs a numeric outcome.")
+    if numeric_grid and not pd.api.types.is_numeric_dtype(df[argument]):
+        raise MlsynthDataError(
+            f"column {argument!r} is not numeric. FSC expands the objects in a "
+            "spline basis for this space, which needs a numeric grid to place "
+            "its knots. Only space='matrix' -- where the argument is a "
+            "coordinate label rather than a point -- accepts labels.")
 
-    grid = np.sort(pd.unique(df[argument].to_numpy()))
+    treated_units = list(pd.unique(df.loc[df[treat] == 1, unitid]))
+    if not treated_units:
+        raise MlsynthDataError(
+            "no treated rows found; FSC needs exactly one treated unit with at "
+            f"least one post-treatment period (column {treat!r} == 1).")
+    if len(treated_units) > 1:
+        # dataprep would cohort these and return a different payload shape;
+        # FSC targets one treated object per period, so say so here instead.
+        raise MlsynthDataError(
+            f"FSC supports a single treated unit; found {len(treated_units)}: "
+            f"{treated_units[:5]}. Fit them separately, or aggregate them into "
+            "one unit first.")
+
+    grid = _resolve_grid(df, unitid, time, argument, numeric_grid)
     if grid.size < 2:
         raise MlsynthDataError(
             f"the argument column {argument!r} takes {grid.size} distinct "

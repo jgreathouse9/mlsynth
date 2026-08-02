@@ -6,8 +6,8 @@ Space-Valued Outcomes."* arXiv:2601.07539.
 Ordinary synthetic control wants a number per unit per period. FSC is for the
 case where what you observe is a whole object instead: an age-specific fertility
 curve, an age-at-death distribution, a covariance matrix across product lines.
-Collapsing such an object to a scalar -- a total, a mean, a Gini -- is often
-exactly what throws away the effect worth reporting. The East German abortion
+Collapsing such an object to a scalar -- a total, a mean, a Gini -- often
+throws away the shape of the effect. The East German abortion
 law in the paper's first application moves fertility down sharply at ages 20-30
 and barely at all elsewhere; a total-fertility-rate synthetic control returns
 that as one number.
@@ -126,22 +126,12 @@ class FSC:
 
     def fit(self) -> FSCResults:
         """Estimate the counterfactual objects and return standardized results."""
-        try:
-            inputs = prepare_fsc_inputs(
-                df=self.config.df, outcome=self.config.outcome,
-                treat=self.config.treat, unitid=self.config.unitid,
-                time=self.config.time, argument=self.config.argument)
-        except (MlsynthDataError, MlsynthConfigError):
-            raise
-        except Exception as exc:  # pragma: no cover - defensive
-            raise MlsynthDataError(f"FSC ingestion failed: {exc}") from exc
-
-        try:
-            results = run_fsc(inputs, self.config)
-        except (MlsynthDataError, MlsynthConfigError, MlsynthEstimationError):
-            raise
-        except Exception as exc:  # pragma: no cover - defensive
-            raise MlsynthEstimationError(f"FSC estimation failed: {exc}") from exc
+        inputs = prepare_fsc_inputs(
+            df=self.config.df, outcome=self.config.outcome,
+            treat=self.config.treat, unitid=self.config.unitid,
+            time=self.config.time, argument=self.config.argument,
+            numeric_grid=self.config.space != "matrix")
+        results = run_fsc(inputs, self.config)
 
         plot = self.config.resolved_plot()
         if plot.display or plot.save:

@@ -48,6 +48,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **ESC** — Ensemble Synthetic Control estimator.  (config: ESCConfig)
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
+- **FSC** — Functional synthetic control estimator.
 - **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
 - **HSC** — Harmonic Synthetic Control (HSC) estimator.  (config: HSCConfig)
 - **ISCM** — Imperfect Synthetic Controls estimator.  (config: ISCMConfig)

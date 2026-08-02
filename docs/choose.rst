@@ -656,6 +656,27 @@ for one binary treatment)?
 * Several distinct intervention arms to compare -- :doc:`si`.
 * A vector of shares that sum to a whole (a generation mix, a budget split,
   brand share within a category) -- :doc:`compsc`.
+* A whole object per period rather than a number -- a curve, a distribution, a
+  covariance matrix -- :doc:`fsc`.
+
+*When to reach for Functional Synthetic Controls.* :doc:`fsc` (Okano and Kurisu
+(2026)) is for the case where each unit-period holds an object with internal
+structure worth preserving: an age-specific fertility profile, an age-at-death
+distribution, a covariance matrix across product lines. You can always collapse
+such an object to a scalar and run an ordinary synthetic control, and the
+question is what that costs. East Germany's 1972 abortion law moved fertility
+sharply at ages 20 to 30 and barely at all elsewhere; as a total fertility rate
+that is one negative number, and the shape -- the actual finding -- is gone. The
+obstacle FSC removes is that these objects have no linear structure, so the
+weighted-average counterfactual is not even well defined; it carries them into a
+Hilbert space through a distance-preserving embedding, runs the ordinary simplex
+fit there, and maps back. It also carries the ridge augmentation of :doc:`vanillasc`
+into that space, which is what lets it close a pre-treatment gap the simplex
+cannot. Note the sharp boundary against its neighbours: :doc:`dsc` and
+:doc:`drsc` want individual-level microdata and give you quantile effects from
+it, whereas FSC wants the object already assembled per cell; and :doc:`compsc`
+handles the compositional case, which FSC's framework covers in principle but
+which COMPSC treats with a purpose-built log-ratio model.
 
 *When to reach for Compositional Synthetic Controls.* :doc:`compsc` (Boussim
 (2026)) is for outcomes that live on the simplex, where a gain in one share is

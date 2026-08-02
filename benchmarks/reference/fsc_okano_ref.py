@@ -4,11 +4,12 @@ Okano, R. & Kurisu, D. (2026). *"Functional Synthetic Control Methods for Metric
 Space-Valued Outcomes."* arXiv:2601.07539.
 Authors' R code: https://github.com/RyoOkano21/FSC
 
-This is a *pre-build* reference implementation: mlsynth does not yet ship an FSC
-estimator, and :mod:`benchmarks.cases.fsc_okano` pins this port against the
-paper's three empirical applications so a build starts from validated ground.
-When the estimator lands the case is re-pointed at ``mlsynth.FSC`` and this
-module becomes its oracle.
+A faithful port of the authors' code, kept as the oracle for
+:class:`mlsynth.FSC`. :mod:`benchmarks.cases.fsc_okano` pins it against the
+paper's three empirical applications, which it reproduces exactly;
+:mod:`benchmarks.cases.fsc_estimator` then runs the shipped estimator on the
+same data, and the differences between the two are the deliberate corrections
+described there.
 
 Function-by-function correspondence with ``main_functions.R``:
 
@@ -21,8 +22,7 @@ Function-by-function correspondence with ``main_functions.R``:
 ``cubic_bsplines``           ``cubicBsplines::Bsplines``
 ===========================  ==================================================
 
-Two things about the method are worth stating up front, because they are what
-make it cheap to build here. First, the whole estimator is the scalar augmented
+Two things about the method are what make it cheap to build here. First, the whole estimator is the scalar augmented
 SCM of Ben-Michael, Feller & Rothstein (2021) applied to a *stacked* design: the
 metric-space outcome is carried into a Hilbert space by an isometry, evaluated on
 a grid, and the ``(period, grid point)`` pairs are stacked into one long matching

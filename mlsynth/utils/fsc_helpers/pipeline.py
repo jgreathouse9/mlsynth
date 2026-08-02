@@ -61,14 +61,18 @@ def run_fsc(inputs: FSCInputs, config: FSCConfig) -> FSCResults:
     fit_fsc = pre_treatment_fit(values, n_pre, synthetic_fsc)
 
     lam: Optional[float] = None
+    lam_relative: Optional[float] = None
     by_cv: Optional[bool] = None
     weights = gamma
     augmented: Optional[np.ndarray] = None
     if config.augment:
         by_cv = config.ridge_lambda is None
-        lam = (select_lambda(values, n_pre, config.lambda_bounds,
-                             basis=basis, grid=inputs.grid)
-               if by_cv else float(config.ridge_lambda))
+        if by_cv:
+            lam, lam_relative = select_lambda(
+                values, n_pre, config.lambda_bounds, basis=basis,
+                grid=inputs.grid)
+        else:
+            lam = float(config.ridge_lambda)
         augmented = augmented_weights(values, n_pre, lam, basis=basis,
                                       grid=inputs.grid)
         weights = augmented
@@ -97,7 +101,7 @@ def run_fsc(inputs: FSCInputs, config: FSCConfig) -> FSCResults:
 
     curves = _build_curves(inputs, values, synthetic, scale, lower, upper)
     return _assemble(inputs, config, curves, gamma, augmented, fit, fit_fsc,
-                     lam, by_cv, p_values, basis)
+                     lam, lam_relative, by_cv, p_values, basis)
 
 
 def _build_curves(inputs: FSCInputs, values: np.ndarray, synthetic: np.ndarray,
@@ -121,7 +125,8 @@ def _build_curves(inputs: FSCInputs, values: np.ndarray, synthetic: np.ndarray,
 
 def _assemble(inputs: FSCInputs, config: FSCConfig, curves: List[FSCCurve],
               gamma: np.ndarray, augmented: Optional[np.ndarray], fit: float,
-              fit_fsc: float, lam: Optional[float], by_cv: Optional[bool],
+              fit_fsc: float, lam: Optional[float],
+              lam_relative: Optional[float], by_cv: Optional[bool],
               p_values, basis: Optional[np.ndarray]) -> FSCResults:
     """Lift the curve-valued output into the standardized sub-models."""
     observed = np.array([c.observed.mean() for c in curves])
@@ -147,6 +152,7 @@ def _assemble(inputs: FSCInputs, config: FSCConfig, curves: List[FSCCurve],
         pre_treatment_fit=fit,
         pre_treatment_fit_fsc=fit_fsc,
         ridge_lambda=lam,
+        ridge_lambda_relative=lam_relative,
         lambda_selected_by_cv=by_cv,
         placebo_p_values=p_values,
         n_negative_weights=None if augmented is None
@@ -190,6 +196,7 @@ def _assemble(inputs: FSCInputs, config: FSCConfig, curves: List[FSCCurve],
                 "augment": config.augment,
                 "n_basis": None if basis is None else int(config.n_basis),
                 "ridge_lambda": lam,
+                "ridge_lambda_relative": lam_relative,
                 "inference": config.inference,
                 "n_donors": inputs.n_donors,
                 "n_pre": inputs.pre_periods,

@@ -115,6 +115,14 @@ class FSCResults(BaseEstimatorResults):
         description="The same quantity for the unaugmented FSC weights.")
     ridge_lambda: Optional[float] = Field(
         default=None, description="Penalty used in eq. (9).")
+    ridge_lambda_relative: Optional[float] = Field(
+        default=None,
+        description=("The cross-validated penalty as a multiple of the "
+                     "design's own scale (the mean eigenvalue of the Gram "
+                     "matrix). This is the quantity `lambda_bounds` searches "
+                     "over, and it is comparable across datasets in a way the "
+                     "absolute penalty is not. None when the penalty was "
+                     "supplied rather than selected."))
     lambda_selected_by_cv: Optional[bool] = Field(
         default=None,
         description="Whether `ridge_lambda` came from cross-validation.")

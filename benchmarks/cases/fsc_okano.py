@@ -4,11 +4,12 @@ Okano, R. & Kurisu, D. (2026). *"Functional Synthetic Control Methods for Metric
 Space-Valued Outcomes."* arXiv:2601.07539.
 Replication package: https://github.com/RyoOkano21/FSC
 
-Pre-build validation. mlsynth does not yet ship an FSC estimator; this case pins
-the reference port in :mod:`benchmarks.reference.fsc_okano_ref` against every
-number the paper reports for its three applications, so the build starts from
-ground truth rather than from a reading of the method. When ``mlsynth.FSC``
-lands, ``_weights`` below is re-pointed at it and the port becomes the oracle.
+This case pins the reference port in
+:mod:`benchmarks.reference.fsc_okano_ref` -- a faithful transcription of the
+authors' R code -- against every number the paper reports for its three
+applications. It answers whether the method as its authors implemented it is
+correctly understood here. :mod:`benchmarks.cases.fsc_estimator` asks the other
+question, of what :class:`mlsynth.FSC` itself produces on the same data.
 
 Reproduced exactly (four decimals, the precision the paper prints):
 
@@ -57,7 +58,7 @@ than smoothed over, because a build has to decide what to do about each.
    norm. Recorded as ``service_frobenius_fsc_fit``: the same weights scored under
    the metric Example 3 actually specifies.
 
-Data: ``basedata/okano_fsc_{asfr,mortality,service}.csv``, converted from the
+Data: ``basedata/okano_fsc_{fertility,mortality,service}.csv``, converted from the
 authors' ``asfr.RData`` / ``aad.RData`` / ``service.RData`` with the ``rdata``
 package (no R required). One row per (unit, time, argument): age 12-55 for
 fertility, quantile level for mortality, and the 45 lower-triangle entries of the
@@ -316,7 +317,7 @@ def validation_rows() -> dict:
     return {
         "rows": rows,
         "mlsynth_call": {
-            "estimator": "(pre-build reference port: benchmarks.reference.fsc_okano_ref)",
+            "estimator": "(reference port: benchmarks.reference.fsc_okano_ref)",
             "config": {"n_basis": N_BASIS, "lambda": _PAPER_LAMBDA},
         },
         "reference": {

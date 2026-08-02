@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional, Tuple
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
@@ -57,7 +57,7 @@ class FSCConfig(BaseEstimatorConfig):
             "simplex cannot at the cost of allowing negative weights."),
     )
     n_basis: int = Field(
-        default=50, ge=4,
+        default=50,
         description=(
             "Number of cubic B-spline basis functions K used to expand the "
             "curves before the ridge correction. The paper uses 50. Ignored "
@@ -66,7 +66,7 @@ class FSCConfig(BaseEstimatorConfig):
             "least two knots."),
     )
     ridge_lambda: Optional[float] = Field(
-        default=None, ge=0.0,
+        default=None,
         description=(
             "Ridge penalty in eq. (9). None (the default) selects it by "
             "leave-one-pre-period-out cross-validation over `lambda_bounds` "
@@ -100,15 +100,50 @@ class FSCConfig(BaseEstimatorConfig):
             "both; 'none' skips inference."),
     )
     conformal_alpha: float = Field(
-        default=0.10, gt=0.0, lt=1.0,
+        default=0.10,
         description=(
             "Nominal level of the prediction band. Must exceed 1 / (T0 + 1): "
             "below that the inverted test never excludes anything and the "
             "band is unbounded."),
     )
 
+    @field_validator("space", "inference", mode="before")
+    @classmethod
+    def _check_choice(cls, value, info):
+        """Reject an unknown choice before pydantic's Literal check fires.
+
+        Without this the caller sees pydantic's ValidationError; the library
+        contract is that a bad config raises MlsynthConfigError.
+        """
+        allowed = {"space": ("function", "distribution", "matrix"),
+                   "inference": ("conformal", "placebo", "both", "none")}
+        options = allowed[info.field_name]
+        if value not in options:
+            raise MlsynthConfigError(
+                f"{info.field_name}={value!r} is not one of "
+                f"{', '.join(map(repr, options))}.")
+        return value
+
     @model_validator(mode="after")
     def _check(self) -> "FSCConfig":
+        # Bounds live here rather than on the Field so a bad value surfaces as
+        # MlsynthConfigError. Field constraints raise pydantic's own
+        # ValidationError, which would leak the wrong exception type to callers
+        # constructing the config directly.
+        if self.n_basis < 4:
+            raise MlsynthConfigError(
+                f"n_basis={self.n_basis} is below 4; a cubic B-spline basis "
+                "needs at least two knots, so K = 4 is the smallest usable "
+                "value.")
+        if self.ridge_lambda is not None and self.ridge_lambda < 0.0:
+            raise MlsynthConfigError(
+                f"ridge_lambda={self.ridge_lambda} is negative; the penalty in "
+                "eq. (9) must be non-negative. Pass None to select it by "
+                "cross-validation.")
+        if not 0.0 < self.conformal_alpha < 1.0:
+            raise MlsynthConfigError(
+                f"conformal_alpha={self.conformal_alpha} is not in (0, 1); it "
+                "is a nominal coverage level.")
         reserved = {"outcome": self.outcome, "treat": self.treat,
                     "unitid": self.unitid, "time": self.time}
         clash = [k for k, v in reserved.items() if v == self.argument]

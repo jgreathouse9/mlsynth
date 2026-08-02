@@ -26,7 +26,7 @@ from mlsynth.utils.fsc_helpers.structures import FSCResults
 # ---------------------------------------------------------------------------
 # panel builders
 # ---------------------------------------------------------------------------
-def curve_panel(n_units=6, n_times=12, n_grid=15, n_pre=8, seed=0,
+def curve_panel(n_units=6, n_times=16, n_grid=15, n_pre=12, seed=0,
                 effect=0.0, weights=None):
     """Factor-model panel of curves; unit 0 is treated from ``n_pre`` on.
 
@@ -59,7 +59,7 @@ def _to_long(cube, n_pre, argument="x", value="y"):
     })
 
 
-def quantile_panel(n_units=5, n_times=10, n_grid=20, n_pre=6, seed=1):
+def quantile_panel(n_units=5, n_times=16, n_grid=20, n_pre=12, seed=1):
     """Panel of quantile functions -- increasing in the argument by construction."""
     rng = np.random.default_rng(seed)
     p = np.linspace(0.02, 0.98, n_grid)
@@ -72,7 +72,7 @@ def quantile_panel(n_units=5, n_times=10, n_grid=20, n_pre=6, seed=1):
     return _to_long(cube, n_pre, argument="p", value="q"), cube
 
 
-def matrix_panel(n_units=5, n_times=10, dim=3, n_pre=6, seed=2):
+def matrix_panel(n_units=5, n_times=16, dim=3, n_pre=12, seed=2):
     """Panel of symmetric PSD matrices stored as row-major lower triangles."""
     rng = np.random.default_rng(seed)
     rows, cols = np.tril_indices(dim)
@@ -86,8 +86,12 @@ def matrix_panel(n_units=5, n_times=10, dim=3, n_pre=6, seed=2):
 
 
 def base_config(df, **kw):
+    # n_basis defaults to 50 in the config, which makes every cross-validation
+    # solve a (50 * T0) square system. These tests check invariants, not the
+    # paper's K, so a small basis keeps the suite quick; the applications in
+    # benchmarks/cases/fsc_estimator.py run at the paper's K = 50.
     cfg = dict(df=df, outcome="y", treat="treat", unitid="unit", time="time",
-               argument="x", display_graphs=False)
+               argument="x", n_basis=10, display_graphs=False)
     cfg.update(kw)
     return cfg
 
@@ -100,7 +104,7 @@ def test_fit_returns_populated_results():
     res = FSC(base_config(df)).fit()
 
     assert isinstance(res, FSCResults)
-    assert len(res.curves) == 12
+    assert len(res.curves) == 16
     assert np.isfinite(res.effects.att)
     assert np.isfinite(res.pre_treatment_fit)
     assert res.method_details.method_name == "FSC"
@@ -225,6 +229,46 @@ def test_cross_validated_lambda_lies_inside_the_bounds():
     assert res.lambda_selected_by_cv is True
 
 
+def test_cross_validated_penalty_is_scale_free():
+    """Rescaling the outcome must not change what the penalty search can reach.
+
+    The natural size of the ridge penalty is set by the Gram matrix of the basis
+    coefficients, which scales with the square of the outcome. A fixed absolute
+    search interval therefore means something different on every dataset, and on
+    a badly scaled one the optimum falls outside it entirely -- which is exactly
+    what happens on the paper's mortality panel, where the units are years.
+    """
+    df, _ = curve_panel()
+    scaled = df.copy()
+    scaled["y"] = scaled["y"] * 1000.0
+
+    plain = FSC(base_config(df, inference="none")).fit()
+    big = FSC(base_config(scaled, inference="none")).fit()
+
+    assert np.allclose(plain.augmented_weights, big.augmented_weights,
+                       atol=1e-6)
+    assert np.isclose(plain.ridge_lambda_relative, big.ridge_lambda_relative,
+                      rtol=1e-6)
+    # the absolute penalty does move, by the square of the rescaling
+    assert big.ridge_lambda > plain.ridge_lambda * 1e5
+
+
+def test_relative_penalty_is_reported_alongside_the_absolute_one():
+    df, _ = curve_panel()
+    res = FSC(base_config(df, inference="none")).fit()
+    assert res.ridge_lambda_relative is not None
+    assert 0.0 <= res.ridge_lambda_relative <= 10.0
+    assert res.ridge_lambda > 0.0
+
+
+def test_explicit_lambda_is_absolute_not_relative():
+    """An explicit penalty is taken at face value, as the paper's scripts use it."""
+    df, _ = curve_panel()
+    res = FSC(base_config(df, ridge_lambda=2.5, inference="none")).fit()
+    assert res.ridge_lambda == pytest.approx(2.5)
+    assert res.ridge_lambda_relative is None
+
+
 def test_large_lambda_collapses_augmentation_onto_the_simplex_fit():
     """As lambda grows the correction in eq. (9) vanishes."""
     df, _ = curve_panel()
@@ -247,7 +291,7 @@ def test_conformal_band_brackets_the_counterfactual():
 
 def test_conformal_band_widens_with_a_smaller_alpha():
     df, _ = curve_panel()
-    wide = FSC(base_config(df, conformal_alpha=0.05)).fit()
+    wide = FSC(base_config(df, conformal_alpha=0.10)).fit()
     narrow = FSC(base_config(df, conformal_alpha=0.40)).fit()
     w = [c for c in wide.curves if c.is_post][0]
     n = [c for c in narrow.curves if c.is_post][0]
@@ -256,7 +300,7 @@ def test_conformal_band_widens_with_a_smaller_alpha():
 
 def test_placebo_p_values_are_ranks_over_the_units():
     df, _ = curve_panel()
-    res = FSC(base_config(df, inference="placebo")).fit()
+    res = FSC(base_config(df, inference="placebo", ridge_lambda=1.0)).fit()
     n_units = 6
     for p in res.placebo_p_values:
         assert 1 / n_units - 1e-12 <= p <= 1.0
@@ -273,7 +317,7 @@ def test_inference_none_leaves_the_band_and_p_values_absent():
 
 def test_inference_both_populates_band_and_p_values():
     df, _ = curve_panel()
-    res = FSC(base_config(df, inference="both")).fit()
+    res = FSC(base_config(df, inference="both", ridge_lambda=1.0)).fit()
     assert res.placebo_p_values is not None
     assert res.time_series.has_prediction_interval is True
 
@@ -330,20 +374,28 @@ def test_vech_roundtrip():
 # edge cases
 # ---------------------------------------------------------------------------
 def test_single_donor_is_forced_to_weight_one():
+    """With one donor the simplex has one point, and centering kills the design.
+
+    Subtracting the donor mean leaves a single donor identically zero, so the
+    ridge correction is zero whatever the penalty. Augmentation has to degrade
+    to a no-op rather than divide by the design's (zero) scale.
+    """
     df, _ = curve_panel(n_units=2)
     res = FSC(base_config(df)).fit()
     assert res.fsc_weights.shape == (1,)
     assert np.isclose(res.fsc_weights[0], 1.0)
+    assert np.isclose(res.augmented_weights[0], 1.0)
+    assert res.pre_treatment_fit == pytest.approx(res.pre_treatment_fit_fsc)
 
 
 def test_single_pre_period_runs():
     df, _ = curve_panel(n_times=6, n_pre=1)
-    res = FSC(base_config(df, ridge_lambda=1.0)).fit()
+    res = FSC(base_config(df, ridge_lambda=1.0, inference="none")).fit()
     assert np.isfinite(res.effects.att)
 
 
 def test_single_post_period_runs():
-    df, _ = curve_panel(n_times=9, n_pre=8)
+    df, _ = curve_panel(n_times=14, n_pre=13)
     res = FSC(base_config(df)).fit()
     assert sum(c.is_post for c in res.curves) == 1
 
@@ -352,7 +404,7 @@ def test_collinear_donors_do_not_blow_up():
     df, cube = curve_panel(n_units=5)
     dup = cube.copy()
     dup[2] = dup[1]                                    # exact duplicate donor
-    res = FSC(base_config(_to_long(dup, 8))).fit()
+    res = FSC(base_config(_to_long(dup, 12))).fit()
     assert np.all(np.isfinite(res.augmented_weights))
     assert np.isclose(res.augmented_weights.sum(), 1.0)
 
@@ -391,6 +443,48 @@ def test_ragged_grid_is_reported():
     ragged = df.drop(df.index[[3]])
     with pytest.raises(MlsynthDataError, match="grid"):
         FSC(base_config(ragged)).fit()
+
+
+def test_matrix_space_accepts_labelled_cells():
+    """A matrix cell is an index, not a point -- 'SC:SD' is a legitimate label.
+
+    No basis is built in the Euclidean case, so nothing needs a numeric grid.
+    """
+    df, cube = matrix_panel(dim=3)
+    rows, cols = np.tril_indices(3)
+    labels = [f"c{r}:c{c}" for r, c in zip(rows, cols)]
+    df = df.copy()
+    df["cell"] = [labels[int(round(v * (len(labels) - 1)))] for v in df["cell"]]
+    res = FSC(base_config(df, outcome="cov", argument="cell",
+                          space="matrix")).fit()
+    assert list(res.grid) == labels
+    for curve in res.curves:
+        M = vech_to_matrix(curve.counterfactual, 3)
+        assert np.linalg.eigvalsh(M).min() >= -1e-8
+
+
+def test_labelled_cells_in_an_inconsistent_order_are_reported():
+    """Order carries the coordinate identity, so a permuted cell is an error."""
+    df, _ = matrix_panel(dim=3)
+    rows, cols = np.tril_indices(3)
+    labels = [f"c{r}:c{c}" for r, c in zip(rows, cols)]
+    df = df.copy()
+    df["cell"] = [labels[int(round(v * (len(labels) - 1)))] for v in df["cell"]]
+    idx = df.index[(df["unit"] == "u1") & (df["time"] == 0)].tolist()
+    df.loc[idx[0], "cell"], df.loc[idx[1], "cell"] = (
+        df.loc[idx[1], "cell"], df.loc[idx[0], "cell"])
+    with pytest.raises(MlsynthDataError, match="order"):
+        FSC(base_config(df, outcome="cov", argument="cell",
+                        space="matrix")).fit()
+
+
+def test_non_numeric_argument_is_reported_for_the_spline_spaces():
+    """A spline basis needs somewhere to put its knots."""
+    df, _ = curve_panel()
+    df = df.copy()
+    df["x"] = df["x"].astype(str)
+    with pytest.raises(MlsynthDataError, match="numeric"):
+        FSC(base_config(df)).fit()
 
 
 def test_non_numeric_outcome_is_reported():
