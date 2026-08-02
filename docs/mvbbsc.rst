@@ -11,7 +11,7 @@ It keeps the standard synthetic-control model -- the untreated outcome of the
 treated unit is a simplex-weighted average of the donor pool -- but replaces the
 single optimized weight vector with a posterior over weights, so every quantity
 it reports (the counterfactual, the per-period effect, the ATT) arrives with a
-credible band rather than a point. Reach for it when you want the interpretable,
+credible band, not a point. Reach for it when you want the interpretable,
 non-extrapolating fit of a classical synthetic control and honest uncertainty on
 the effect, drawn from one coherent Bayesian model. It is a good choice when:
 

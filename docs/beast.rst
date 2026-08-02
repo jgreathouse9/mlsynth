@@ -17,13 +17,13 @@ Use BEAST, due to Bléhaut, D'Haultfœuille, L'Hour and Tsybakov [BEAST]_, when
 you have a moderately rich set of unit-level covariates -- economic predictors,
 lagged outcomes -- of which only a handful truly matter, and you want a
 treatment effect that comes with an honest, analytic confidence interval. BEAST
-picks donor weights by covariate balancing rather than outcome fitting: it finds
+picks donor weights by covariate balancing, not outcome fitting: it finds
 exponential-tilting weights that make the covariates of the weighted donor pool
 match the treated unit, with an ℓ₁ penalty that selects the informative
 covariates and discards the rest. It then corrects the effect with an
 immunizing outcome regression, which makes the estimator doubly robust -- valid
 if either the balancing or the outcome model is right -- and asymptotically
-normal, so its standard error is a closed-form expression rather than a
+normal, so its standard error is a closed-form expression, not a
 placebo distribution.
 
 The name is the authors': BEAST is the immunized doubly-robust estimator built
@@ -36,7 +36,7 @@ Do not use this estimator when
 * Your covariate set is over-saturated -- as many (or nearly as many)
   covariates as control units. The exponential-tilting calibration then
   degenerates: the balancing weights no longer sum to one, so they are not a
-  valid synthetic control. BEAST detects this and raises rather than returning a
+  valid synthetic control. BEAST detects this and raises instead of returning a
   meaningless answer (see `The balance-validity guard`_). Reduce to a sparse,
   informative covariate set, or use a high-dimensional-donor estimator built for
   that regime (:doc:`sparse_sc`, :doc:`clustersc`).
@@ -164,8 +164,9 @@ The balance-validity guard
 
 Assumption 2 is checkable from the fit: a valid tilting synthetic control has
 :math:`\sum_j W_j = 1`. BEAST computes :math:`\lvert \sum_j W_j - 1 \rvert` and,
-if it exceeds ``balance_tol``, raises :class:`~mlsynth.exceptions.MlsynthEstimationError`
-rather than returning weights that are not a synthetic control. This is the
+if it exceeds ``balance_tol``, raises
+:class:`~mlsynth.exceptions.MlsynthEstimationError` instead of returning
+weights that are not a synthetic control. This is the
 concrete signature of the over-saturated regime: when the covariate set is as
 rich as the donor pool, the exponential tilt has no sparse balancing solution
 and the mass condition breaks. The guard turns that failure into an explicit

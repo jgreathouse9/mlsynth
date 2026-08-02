@@ -18,7 +18,7 @@ where
 SYNDES solves a mixed-integer program, SPCD reformulates the design as a
 phase-synchronization problem and solves it with a spectrally-initialized
 power method that converges *globally* under standard linear-factor models,
-in seconds rather than minutes.
+in seconds, not minutes.
 
 Reach for SPCD when treatment can only be applied to coarse, expensive
 units, randomizing at random leaves accuracy on the table, and you want a
@@ -377,8 +377,8 @@ the unit weights are produced by one of two procedures:
      & \sum_{i:\, y^\ast_i = +1} w_i \;=\; \sum_{i:\, y^\ast_i = -1} w_i \;=\; 1.
      \end{aligned}
 
-  via ``cvxpy``. Use this when you need the exact Algorithm-1 weights rather
-  than the closed-form approximation.
+  via ``cvxpy``. Use this when you need the exact Algorithm-1 weights, not the
+  closed-form approximation.
 
 Minority Convention
 ^^^^^^^^^^^^^^^^^^^
@@ -442,7 +442,8 @@ The paper's Appendix 3.2 also defines two further numbered algorithms —
 *Algorithm 4* (its normalized counterpart). These are not implemented as
 separate code paths in :mod:`mlsynth`: they are the abstract meta-versions of
 Algorithms 1 and 2 used to prove the global convergence theorem (Theorem 3)
-and operate on a generic matrix :math:`\mathbf{C} = \mathbf{z} \mathbf{z}^\top + \boldsymbol{\Delta}` rather than on
+and operate on a generic matrix
+:math:`\mathbf{C} = \mathbf{z} \mathbf{z}^\top + \boldsymbol{\Delta}`, not on
 the SPCD-specific iteration matrix :math:`\mathbf{M}`. The two ``variant`` options
 exposed in the API already cover both procedures applied to :math:`\mathbf{M}`.
 
@@ -631,7 +632,7 @@ The MDE computation depends only on :math:`\mathbf{r}_B`, not on
 ``enable_inference=True`` and the holdout window is large enough (at least
 ``min_blank_size`` periods, default 5). The conformal CI only runs when
 :math:`\mathbf{Y}_{\text{post}}` is supplied; otherwise the ATT and CI are reported as
-``None``, an absence rather than a zero.
+``None``, an absence, not a zero.
 
 Opting Out
 ^^^^^^^^^^
@@ -826,7 +827,7 @@ Every fitted design stores two diagnostic curves on its
   ``power.detectability`` is a ``{horizon -> MDE percent}`` map. It is
   computed by default over horizons
   :math:`1, \dots, \min(12, n_{\text{post}})` — real market tests rarely run
-  past ~12 periods, so the grid is capped at 12 rather than sweeping the full
+  past ~12 periods, so the grid is capped at 12 instead of sweeping the full
   (often 30+ period) post window. Pass ``mde_horizon_grid`` to choose your own
   horizons (e.g. ``range(1, 9)`` for an 8-week test). The curve is built both
   per arm and for the whole study; the MDE shrinks as the horizon grows, and

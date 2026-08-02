@@ -194,7 +194,7 @@ with :math:`\mathbf{b}` Laplace (pure :math:`\varepsilon`-DP, :math:`\delta =
 0`) or Gaussian (:math:`(\varepsilon, \delta)`-DP), and a curvature slack
 :math:`\Delta_c \ge 0` added when the base regularisation is too weak for the
 requested budget (Kifer, Smith & Thakurta 2012). Because the noise enters the
-objective rather than the solution, the optimiser keeps
+objective, not the solution, the optimiser keeps
 :math:`\widetilde{\mathbf{f}}` bounded, which is why objective perturbation is
 far more stable than output perturbation on typical panels.
 

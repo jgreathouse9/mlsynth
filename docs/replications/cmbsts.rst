@@ -86,7 +86,7 @@ Two things hold. The mlsynth store-brand effects cross-validate against the R
 Monte-Carlo error. And the substantive Table 3 result reproduces: large positive
 store effects with no significant competitor effect. The controls here are
 screened by dynamic time warping (the package's method) through the optional
-``fastdtw`` package rather than the authors' ``MarketMatching``, so the control
+``fastdtw`` package, not the authors' ``MarketMatching``, so the control
 set differs; the pair-10 effect is strictly significant in both implementations,
 while pairs 4 and 7 sit on the zero boundary where Monte-Carlo noise alone moves
 the lower credible bound across (the package and the port land on opposite sides).

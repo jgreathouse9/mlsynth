@@ -35,7 +35,7 @@ re-implementation would miss them:
 * The fixed-N LTS uses ``robustbase::ltsReg``'s finite-sample raw-scale
   correction (Pison, Van Aelst and Willems 2002). mlsynth transcribes that
   correction (:func:`~mlsynth.utils.rrsc_helpers.robust.lts_fit`), so the
-  reweighted coefficients match ``ltsReg`` rather than an asymptotic
+  reweighted coefficients match ``ltsReg``, not an asymptotic
   approximation.
 
 Large-N — Beijing air pollution
@@ -79,8 +79,8 @@ Honest caveats
 
 * Point estimates are deterministic and match value-for-value; the CBB
   confidence intervals and p-values are Monte-Carlo objects and match only
-  within bootstrap tolerance, because the resampling uses NumPy's random stream
-  rather than R's ``sample()``.
+  within bootstrap tolerance, because the resampling uses NumPy's random
+  stream, not R's ``sample()``.
 * The counterfactual for a treated unit that is nearly orthogonal to the common
   factors (low ``communality``) is close to a raw before-after difference; RRSC
   surfaces this as a diagnostic. For Israel-Palestine the

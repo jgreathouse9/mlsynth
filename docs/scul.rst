@@ -31,7 +31,7 @@ ordering, guarding against overfitting the pre-period noise.
 Reach for SCUL when the donor pool is large or multi-type, when a convex
 synthetic control cannot fit the treated unit because it lies outside the donor
 hull, or when you want model selection over donors to be automatic and
-reproducible rather than hand-curated. It is the lasso sibling of the penalized
+reproducible, not hand-curated. It is the lasso sibling of the penalized
 synthetic control :doc:`pda` (LASSO) variant: both select donors with an
 :math:`\ell_1` penalty, but SCUL pairs that with the rolling-origin
 cross-validation and the unit-free fit diagnostics of the source paper.
@@ -96,7 +96,7 @@ Assumption 3 (continuous, high-dimensional donors are admissible).
    unique [TIBSHIRANI2013]_, so the selected synthetic control is well defined.
 
    Remark. This is the assumption that makes SCUL different from convex SC: it
-   embraces, rather than avoids, the high-dimensional donor pool that the
+   embraces, not avoids, the high-dimensional donor pool that the
    convexity restriction cannot accommodate.
 
 Inference and Diagnostics

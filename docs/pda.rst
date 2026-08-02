@@ -128,7 +128,7 @@ Idea. This is the method that started the literature [HCW2012]_. The recipe is
 the plainest one in the family -- ordinary least squares of the treated unit's
 pre-period outcome on a handful of control series, extrapolated past the
 intervention -- with one twist: *which* controls, and *how many*, are chosen for
-you rather than fixed in advance. HCW's Section 5 turns that choice into a
+you, not fixed in advance. HCW's Section 5 turns that choice into a
 model-selection problem. It helps to walk through it as four steps.
 
 Step 1 -- measure how well a candidate set of controls fits. Pick any subset
@@ -440,7 +440,7 @@ leave-many-out CV in their simulations.)
 Forward selection (``fs``, Shi & Huang)
 ---------------------------------------
 
-Idea. Rather than penalize, *grow* the control set greedily. Start empty;
+Idea. Instead of penalize, *grow* the control set greedily. Start empty;
 at each step add the control whose inclusion maximizes the pre-treatment OLS
 :math:`R^2` (equivalently minimizes the residual sum of squares). The number of
 selected controls :math:`R` is a tuning parameter chosen by a modified BIC
@@ -471,7 +471,7 @@ restriction.
 
 *Remark.* The bounded minimal eigenvalue is what keeps any candidate subset of
 donors well-conditioned, so the greedy step can identify the next informative
-control rather than chase a near-singular direction; that it follows from the
+control, not chase a near-singular direction; that it follows from the
 factor model means it is not an extra demand on the data.
 
 *Assumption 2 (second moments).* Sample second moments converge at the
@@ -1116,7 +1116,7 @@ with :math:`T` and its test approaches the nominal 5% size as :math:`T_0 \to
 \infty`, matching Shi & Wang's Table 2 (size :math:`0.142` at :math:`T_0=50`
 → :math:`0.072` at :math:`200`). Its per-fit cross-validation over the
 :math:`\varepsilon` grid makes large Monte Carlos expensive (~5 s/fit), so the full
-table is summarized rather than swept here.
+table is summarized, not swept here.
 
 Multiple treated units
 ----------------------

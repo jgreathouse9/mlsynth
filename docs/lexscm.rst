@@ -181,8 +181,8 @@ shocks :math:`\varepsilon_{j, t}`.
    :math:`\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\rVert` is a
    measurable goodness-of-fit quantity, reported for every design, on which
    the validity of the bias bound and the inference is *conditional* (Abadie
-   & Zhao, p.13). The analyst checks the :math:`\approx 0` condition rather
-   than assuming it.
+   & Zhao, p.13). The analyst checks the :math:`\approx 0` condition instead
+   of assuming it.
 
 2. Factor structure controls bias. Under the linear factor
    model, matching the treated and synthetic-control trajectories on a long
@@ -191,8 +191,8 @@ shocks :math:`\varepsilon_{j, t}`.
    bounded by the achieved imbalance and shrinks as :math:`T_0` grows and the
    fit tightens.
 
-   *Remark.* This is why Stage 1 minimizes imbalance rather than
-   any in-sample treatment contrast: imbalance is the quantity the bias bound
+   *Remark.* This is why Stage 1 minimizes imbalance, not any in-sample
+   treatment contrast: imbalance is the quantity the bias bound
    is written in.
 
 3. Placebo exchangeability / weak stationarity. On the blank
@@ -205,7 +205,7 @@ shocks :math:`\varepsilon_{j, t}`.
    analysis: the post-treatment null distribution of the test statistic is
    reconstructed by moving-block resampling the blank-window gaps, which
    preserves autocorrelation -- the time-series-robust inference of Abadie &
-   Zhao rather than an i.i.d. permutation.
+   Zhao, not an i.i.d. permutation.
 
 Stage 1 -- Treated-tuple selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -239,10 +239,10 @@ By default Stage 1 is *fully targeted*: the weights :math:`\mathbf{w}` are free
 to contort onto the population mean (Abadie & Zhao's representative-experiment
 goal, so the estimand is the population ATE :math:`\tau_t = \sum_j f_j(Y^I_{jt}
 - Y^N_{jt})`). In practice you often treat the chosen markets as a group --
-equal- or population-weighted -- not with bespoke fractional weights, and you
-may prefer the treated group to look like *itself* rather than the population.
-``targeting_penalty`` :math:`= \gamma \ge 0` adds an anchor toward the group's
-own equal-weight aggregate,
+  equal- or population-weighted -- not with bespoke fractional weights, and you
+  may prefer the treated group to look like *itself*, not the population.
+  ``targeting_penalty`` :math:`= \gamma \ge 0` adds an anchor toward
+  the group's own equal-weight aggregate,
 
 .. math::
 
@@ -252,17 +252,21 @@ own equal-weight aggregate,
 
 On the simplex :math:`\mathbf{1}^\top\mathbf{w}=1`, so :math:`\lVert \mathbf{w}
 - \tfrac1m\mathbf{1}\rVert_2^2 = \mathbf{w}^\top\mathbf{w} - \tfrac1m` and the
-penalty is exactly a diagonal ridge, :math:`\min_{\mathbf{w}\in\Delta}
-\mathbf{w}^\top(\mathbf{G}_{\mathcal{S}\mathcal{S}} + \gamma\mathbf{I})\mathbf{w}`.
-The reported imbalance stays the *true* targeting distance
-:math:`\sqrt{\mathbf{w}^\top\mathbf{G}_{\mathcal{S}\mathcal{S}}\mathbf{w}}` at the
-penalized weights. :math:`\gamma = 0` (default) is the fully targeted design;
-:math:`\gamma \to \infty` selects the best equal-weight :math:`m`-tuple; in
-between is *weakly targeted*, sliding the estimand from the population ATE toward
-the treated group's own ATT. This is also the mechanism that discourages
-idiosyncratic treated sets: free weights can hit the population mean even for an
-odd set, whereas the anchor favours sets that sit near the population naturally
-(with near-equal weights), which the donor pool can also reconstruct.
+  penalty is exactly a diagonal ridge, :math:`\min_{\mathbf{w}\in\Delta}
+  \mathbf{w}^\top(\mathbf{G}_{\mathcal{S}\mathcal{S}} +
+  \gamma\mathbf{I})\mathbf{w}`.
+  The reported imbalance stays the *true* targeting distance
+  :math:`\sqrt{\mathbf{w}^\top\mathbf{G}_{\mathcal{S}\mathcal{S}}\mathbf{w}}`
+  at the
+  penalized weights. :math:`\gamma = 0` (default) is the fully targeted design;
+  :math:`\gamma \to \infty` selects the best equal-weight :math:`m`-tuple; in
+  between is *weakly targeted*, sliding the estimand from the population
+  ATE toward
+  the treated group's own ATT. This is also the mechanism that discourages
+  idiosyncratic treated sets: free weights can hit the population mean even
+  for an odd set, whereas the anchor favours sets that sit near the
+  population naturally
+  (with near-equal weights), which the donor pool can also reconstruct.
 
 How a single tuple is built: the inner simplex QP
 """""""""""""""""""""""""""""""""""""""""""""""""
@@ -510,7 +514,8 @@ conflict-neighbours of a treated set :math:`\mathcal{S}` as
 
 If no conflict-free :math:`m`-tuple exists (e.g. :math:`m` exceeds the number of
 clusters), or the exclusions empty every donor pool, the fit raises
-:class:`~mlsynth.exceptions.MlsynthConfigError` rather than returning a degenerate
+:class:`~mlsynth.exceptions.MlsynthConfigError` instead of returning
+a degenerate
 design. With no ``cluster_col`` / ``adjacency`` supplied, :math:`\mathbf{A} =
 \mathbf{0}` and the behaviour is exactly the unconstrained search.
 
@@ -749,7 +754,7 @@ exposed for transparency), a ``status``, a human-readable
 * ``OK`` -- a valid, adequately powered design was found;
 * ``POWER_NOT_ESTABLISHED`` -- no gated design reached the power target
   within the effect grid, so the best-balanced design is recommended and
-  the power caveat is flagged (the pipeline degrades gracefully rather than
+  the power caveat is flagged (the pipeline degrades gracefully instead of
   crashing);
 * ``EMPTY`` -- no candidate designs were supplied.
 
@@ -1415,8 +1420,8 @@ person, and the program carries a hard :math:`\$10\text{M}` knapsack
 
 The constraints can genuinely conflict: requiring coverage of all five
 divisions *and* only above-median markets *and* a $10M cap asks for five large
-(expensive) markets that the budget cannot afford, so the fit fails loudly
-instead of dropping a criterion.
+(expensive) markets that the budget cannot afford, so the fit raises instead
+of dropping a criterion.
 
 .. code-block:: python
 
@@ -1439,7 +1444,7 @@ prints the binding constraint and by how much, not just "infeasible"::
 Every infeasibility -- candidate pool, budget, coverage, quota, or spillover --
 is audited up front and reported in this same ``have vs need -> minimal fix``
 shape, and all binding constraints are listed together (so you fix them in
-one pass rather than one error at a time). The audit only *reports*: it never
+one pass, not one error at a time). The audit only *reports*: it never
 silently relaxes a constraint you set. All of them raise the one
 :class:`~mlsynth.exceptions.MlsynthConfigError`, so a caller catches a single
 type and surfaces exactly which design ask was impossible and the smallest change

@@ -160,7 +160,7 @@ the ATT still be biased.
 *Within the proximal family: instrument, two proxies, one proxy, or surrogates.*
 These methods share a single premise -- some donors are not valid members of the
 synthetic control but are still informative about the latent confounder, so they
-can be repurposed as proxies (or negative controls) rather than discarded -- yet
+can be repurposed as proxies (or negative controls), not discarded -- yet
 the authors motivate four distinct entry points. Shi, Li, Miao and Tchetgen
 Tchetgen (2026) give the foundational :doc:`proximal` framework: classical SC was
 built for settings with a near-perfect pre-treatment fit, and when that fit is
@@ -185,7 +185,7 @@ and the worry is endogenous exposure; reach for :doc:`proximal` when you hold
 proxies/negative controls instead -- the doubly robust route when you distrust
 your outcome model, the single-proxy route when you have only one kind of proxy
 and a short post-period, and the surrogate route when the leverage is in
-post-treatment correlates rather than a long clean pre-period.
+post-treatment correlates, not a long clean pre-period.
 
 Q0.5 · Do parallel trends hold, and are you in a fixed-T / large-N regime?
 
@@ -248,8 +248,8 @@ Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
 * Yes, an enumerable per-unit spillover set -- :doc:`spillsynth`.
 * Yes, spatial but you do *not* know which donors are contaminated -- you have
   per-unit coordinates and covariates and are willing to assume spillover risk
-  grows with proximity -- :doc:`bpscs`, a Bayesian SC that *down-weights* (rather
-  than excludes) likely-contaminated neighbours via a distance-and-covariate
+  grows with proximity -- :doc:`bpscs`, a Bayesian SC that *down-weights*
+  (not excludes) likely-contaminated neighbours via a distance-and-covariate
   shrinkage prior, and returns a full posterior band (needs the ``[bayes]`` extra).
 * You don't know which donors are contaminated (a large pool, no a-priori
   validity knowledge, or a suspiciously-good-match donor) -- :doc:`spotsynth`,
@@ -444,7 +444,7 @@ observation noise?
   covariates -- see the remark below.
 
 *FMA versus BFSC -- frequentist or Bayesian factor SC.* Both fit the untreated
-outcome with a latent-factor model rather than a donor weighting, so both handle
+outcome with a latent-factor model, not a donor weighting, so both handle
 a treated unit outside the donors' convex hull. :doc:`fma` (Li and Sonnier,
 2023) estimates the factors by principal components, regresses the treated unit
 on the estimated loadings, and contributes a formal inference theory (a
@@ -453,11 +453,11 @@ assumption). :doc:`bfsc` (Pinkney, 2021) instead estimates the factors and
 loadings jointly in one Bayesian model, masks the treated post-period as missing
 data, and reads the counterfactual off the posterior -- so the credible band
 propagates the uncertainty in the factors themselves, and a horseshoe+ prior on
-the loadings makes the factor count a soft upper bound rather than a choice you
+the loadings makes the factor count a soft upper bound, not a choice you
 must commit to. Prefer :doc:`fma` when you want a fast, dependency-free point
 estimate with bootstrap intervals; prefer :doc:`bfsc` when you want a full
-posterior band and would rather not fix the number of factors, and you can take
-on the ``[bayes]`` (NumPyro) dependency.
+posterior band and would prefer not to fix the number of factors, and you
+can take on the ``[bayes]`` (NumPyro) dependency.
 
 *Factor SC with covariate-instrumented loadings.* :doc:`cscipca` (Wang, 2024)
 is the factor estimator to reach for when you observe many time-varying
@@ -486,7 +486,7 @@ shrinkage (horseshoe or spike-and-slab) on *unconstrained* weights; :doc:`bvss`
 keeps a *soft* simplex and adds spike-and-slab donor selection with inclusion
 probabilities. :doc:`bfsc` and :doc:`mtgp` put the prior on a *latent-factor
 model* of the outcome and report a counterfactual band with no donor weights --
-reach for them when a shared factor structure rather than a weighted average of
+reach for them when a shared factor structure, not a weighted average of
 donors is the right model. The two factor models differ in one thing:
 :doc:`bfsc` leaves the factors unconstrained over time, while :doc:`mtgp` puts a
 Gaussian-process (squared-exponential) prior on them, so its factor paths are
@@ -496,7 +496,7 @@ widening band; prefer :doc:`bfsc` when the shared structure is best left
 unconstrained. The sixth, :doc:`bpscs`, puts the prior on *donor coefficients*
 but scales it by an external covariate-and-distance utility -- reach for it, at
 Q1.1, when the concern is spatial spillover contaminating the donor pool and you
-want close-by donors down-weighted rather than trusted or dropped.
+want close-by donors down-weighted, not trusted or dropped.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
@@ -510,11 +510,11 @@ confounders are *time-varying* and observed, and the units are *spatially
 dependent*. Instead of one fixed weight vector it constructs *dynamic*
 (time-varying) weights by maximising an empirical likelihood subject to matching
 the *current* state of the time-varying confounders and the lagged outcome at each
-period; because the match is to the current confounder state rather than to a long
+period; because the match is to the current confounder state, not to a long
 pre-treatment path, an exact match is attainable with probability approaching one.
 And it identifies the effect through *unconfoundedness* conditional on the
 covariates and the lagged outcome -- a selection-on-observables assumption testable
-on the pre-period -- rather than SC's factor structure. So prefer :doc:`dscar` over
+on the pre-period --, not SC's factor structure. So prefer :doc:`dscar` over
 :doc:`vanillasc` when the data are micro-level with observed time-varying
 confounders, autocorrelated outcomes, spatial dependence, or multiple treated
 units; stay with the vanilla synthetic control when you have a single aggregate
@@ -572,7 +572,7 @@ the pre-period and predict the post-period worse.
   unconstrained PDA), :doc:`rescm` (one program from simplex SC to
   :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster donors), or
   :doc:`bvss` (Bayesian spike-and-slab with a soft simplex), or -- when the
-  high dimension is in the *covariates* rather than the donors, and only a few
+  high dimension is in the *covariates*, not the donors, and only a few
   matter -- :doc:`beast` (covariate-balancing weights under sparsity, with a
   doubly-robust, analytically-inferred ATT).
 
@@ -590,8 +590,9 @@ public aggregates, prefer :doc:`vanillasc`.
 *Dense versus sparse weights -- when to relax SCM.* Standard synthetic control
 constrains the weights to the simplex, which (as Doudchenko and Imbens (2016)
 observe) tends to produce *sparse* solutions loading on a handful of donors. Two
-recent papers argue this sparsity is a mechanical byproduct of the optimisation
-rather than a virtue, and motivate the :doc:`rescm` family -- a relaxed program
+recent papers argue this sparsity is a mechanical byproduct of the
+optimisation, not a virtue, and motivate the :doc:`rescm` family -- a
+relaxed program
 spanning simplex SC, the :math:`L_\infty` (dense) norm, and DiD. Liao, Shi and
 Zheng (2025) note that once you have invested in a large donor pool there is
 often no reason to believe only a few controls are relevant: a *dense* scheme
@@ -639,7 +640,7 @@ user only rates films they chose to watch), entries can be deterministically
 missing (positivity violated), and the missingness of one cell can depend on
 others. SNN imputes each target cell from a fully observed *anchor* block of rows
 and columns and delivers entry-wise (max-norm) guarantees -- accurate inference
-for each individual :math:`(i,j)` cell rather than for a row average. So prefer
+for each individual :math:`(i,j)` cell, not for a row average. So prefer
 :doc:`mcnnm` when the gaps are plausibly incidental and you want one estimator
 that travels across short, long, and square panels; prefer :doc:`snn` when the
 gaps are informative -- selected on the outcome itself -- and you need a credible
@@ -658,7 +659,7 @@ for one binary treatment)?
 * Several distinct intervention arms to compare -- :doc:`si`.
 * A vector of shares that sum to a whole (a generation mix, a budget split,
   brand share within a category) -- :doc:`compsc`.
-* A whole object per period rather than a number -- a curve, a distribution, a
+* A whole object per period, not a number -- a curve, a distribution, a
   covariance matrix -- :doc:`fsc`.
 
 *When to reach for Functional Synthetic Controls.* :doc:`fsc` (Okano and Kurisu
@@ -708,10 +709,10 @@ treatment, usually control -- because its matrix factor model carries latent
 factors only for units and time. SI lifts that to a *tensor* factor model with an
 added latent factorisation over treatments, so the same panel can be completed
 under interventions a unit never actually received: what would California's
-cigarette sales have been under a tax increase rather than the program it
+cigarette sales have been under a tax increase, not the program it
 adopted? Prefer :doc:`si` when you have several intervention arms and want each
 unit's counterfactual under arms it did not take -- the multi-treatment
-generalisation Abadie (2021) posed as an open question -- rather than a single
+generalisation Abadie (2021) posed as an open question --, not a single
 average contrast against one control condition.
 
 Q1.9 · Are you worried about interpolation bias -- the synthetic control having
@@ -767,7 +768,7 @@ the treated region itself is a bundle of many micro-units (census blocks in a
 neighbourhood) measured on many covariates and several outcomes at once. Their
 contribution is *calibration*: weights are chosen so the synthetic control
 matches the treated region exactly across all of those covariates and outcomes
-simultaneously -- a survey-weighting construction rather than a single-outcome
+simultaneously -- a survey-weighting construction, not a single-outcome
 fit -- and inference comes from a permutation procedure over placebo areas plus
 an omnibus statistic that tests jointly across outcomes and post-periods, so the
 many-outcome problem is handled without ad hoc multiple-comparison patching. Use
@@ -808,7 +809,7 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   covariate (multi-feature) matching, reproducing the ``scpi`` package. The
   choice between it and the :doc:`sdid` base case follows the two methods' own
   arguments. Arkhangelsky et al. (2021) motivate SDID by its unit fixed effects,
-  which match cohorts on pre-treatment *trends* rather than levels -- absorbing a
+  which match cohorts on pre-treatment *trends*, not levels -- absorbing a
   constant level gap, and so deliberately loosening synthetic control's
   requirement that the treated unit lie inside the donors' convex hull -- plus
   time weights that downweight uninformative pre-periods. Cattaneo, Feng, Palomba
@@ -830,7 +831,7 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   2024). It demeans the outcome by the non-target subgroup within each
   treatment-group-by-time cell, reducing the DDD to a DID, then runs SDID on the
   exposed subgroup -- so the counterfactual is a weighted combination of control
-  units rather than a parallel-trends extrapolation across states *and* subgroups.
+  units, not a parallel-trends extrapolation across states *and* subgroups.
   Reach for it when, e.g., only one age band in a state is policy-exposed.
 * You have time-varying controls you need to hold fixed -- :doc:`sdid` with
   ``covariates`` (Kranz 2022). Plain SDID admits unit and time effects and
@@ -894,7 +895,7 @@ combinatorial. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
 balancing design but reformulate it as a phase-synchronisation problem solved by
 a spectrally-initialised power method (:doc:`spcd`), trading the MIP's
 exactness for a *global* optimality guarantee under the linear factor model and
-a runtime in seconds rather than minutes -- prefer it when the unit count makes
+a runtime in seconds, not minutes -- prefer it when the unit count makes
 the MIP slow. Abadie and Zhao instead target the *population* ATE: they choose
 synthetic-treated and synthetic-control groups whose pre-experiment predictors
 match the population means (:doc:`marex`), a convex design that lowers bias

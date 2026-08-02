@@ -39,7 +39,7 @@ residual factor structure, so the instrument's *partial validity*
 
    SIV is the only estimator in ``mlsynth`` that consumes three series
    simultaneously -- outcome, treatment, and instrument -- and the
-   only one whose target is a 2SLS coefficient rather than an ATT.
+   only one whose target is a 2SLS coefficient, not an ATT.
    Donor units are *all* untreated units in the panel; there is no
    single "treated unit" in the SC sense.
 
@@ -268,7 +268,7 @@ band as the published 2SLS estimates but moderated by the SC
 debiasing step (the paper's own SIV column on this design is
 :math:`-0.70`; the residual gap reflects the donor-trimming and
 pre-window choices, which Gulek and Vives explore as a robustness
-exercise rather than a single point).
+exercise, not a single point).
 
 Path B: Section 6 Monte Carlo (Syrian calibration)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

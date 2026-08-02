@@ -13,7 +13,7 @@ Tennessee's wine reform (Sun et al. 2025)
 :Replication type: Path A — the authors' empirical results on the authors' own
    data (`OSF rbt4n <https://osf.io/rbt4n>`_).
 :Status: Two of three studies reproduced; the third cannot be, and the reason is
-   the data rather than the method.
+   the data, not the method.
 :Case: `benchmarks/cases/wine_tennessee.py
    <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/wine_tennessee.py>`_
 
@@ -25,7 +25,7 @@ only liquor stores could do. The intended consequence was more wine sold and so
 more excise tax revenue. The possible unintended consequence was damage to the
 liquor stores that had held the monopoly. The paper measures both, and the
 interest for a synthetic control library is that it estimates each with two
-different estimators rather than one, so a replication exercises two code paths
+different estimators, not one, so a replication exercises two code paths
 against the same underlying question.
 
 Tennessee is a single treated unit with a clean adoption date, which is the
@@ -60,7 +60,7 @@ What can be replicated
 Study 1's outcome series is licensed NielsenIQ Retail Measurement data, which
 the authors are not free to redistribute; the replication package says so
 explicitly. That also rules out the first column of the paper's Table 6. It is
-recorded here rather than passed over, because "two of three" is the honest
+recorded here, not passed over, because "two of three" is the honest
 description of this replication.
 
 The other two panels ship with the package and are vendored under
@@ -162,14 +162,14 @@ has a justification, and the justification has to keep being true or the case
 fails.
 
 The fitted search is deterministic here: five different seeds give the same
-weights and the same effect to three decimals, so the gap is systematic rather
-than a draw.
+weights and the same effect to three decimals, so the gap is systematic, not a
+draw.
 
 What the data do not determine
 ------------------------------
 
 Study 3's donor weights are not pinned, and the reason is a property of the
-panel rather than of the estimator.
+panel, not of the estimator.
 
 It has three pre-treatment fiscal years and five donors. Searching every donor
 subset under the simplex constraint, the best attainable pre-treatment RMSE is

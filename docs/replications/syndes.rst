@@ -50,8 +50,8 @@ Diff-in-means       12.1         10.2               11.5         9.8
 (ATET RMSE ×1000.) The paper's **headline reproduces**: all three optimized
 design modes attain RMSEs in the paper's ``8–9`` band and beat the randomized
 difference-in-means design at both :math:`K`. (The diff-in-means baseline sits a
-little below the paper's value because mlsynth uses a plain difference of means
-rather than the paper's regularized per-unit synthetic control with random
+little below the paper's value because mlsynth uses a plain difference of
+means, not the paper's regularized per-unit synthetic control with random
 assignment; the design-beats-randomization ordering is what the case asserts.)
 
 Reproduce

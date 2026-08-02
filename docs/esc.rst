@@ -94,7 +94,7 @@ Assumptions
    components.
 
    Remark. Time is the effective sample dimension, so the perturbations must
-   respect it. ESC subsamples contiguous blocks rather than individual periods;
+   respect it. ESC subsamples contiguous blocks, not individual periods;
    independent resampling would implicitly set the autocovariances to zero and
    inflate noise-driven instability when :math:`T_0` is small.
 
@@ -103,7 +103,7 @@ Assumptions
 
    Remark. This is the standard regularity condition under which the lasso
    estimator is well behaved; it supports stable prediction and interval
-   construction rather than structural recovery of :math:`w^\star`.
+   construction, not structural recovery of :math:`w^\star`.
 
 Inference and Diagnostics
 -------------------------
@@ -118,7 +118,7 @@ reported by ``time_series.has_prediction_interval``. A scalar interval on the AT
 is formed from the quantiles of the per-learner average post-treatment gaps and
 is exposed on ``inference`` (``ci_lower`` / ``ci_upper``, with the ensemble
 standard error). Pre-treatment fit is the ensemble RMSE on ``fit_diagnostics``.
-Because each learner regularises rather than interpolating the pre-period, ESC's
+Because each learner regularises instead of interpolating the pre-period, ESC's
 pre-fit is deliberately looser than an unregularised synthetic control's: the
 base learners' bias is not a defect but the source of the interval.
 
@@ -166,7 +166,7 @@ A caveat on coverage. The band ESC ships is the equation-(7) spread of the
 ensemble counterfactuals -- an estimation-uncertainty band. In our Monte Carlo
 checks a faithful port of this band under-covers the realized counterfactual in
 factor-model designs, because the ensemble spread reflects weight-estimation
-variability rather than the treated unit's own disturbance :math:`u_t`. The
+variability, not the treated unit's own disturbance :math:`u_t`. The
 paper's nominal-coverage claim therefore did not reproduce from the equations as
 written; a calibrated coverage benchmark is deferred pending the authors'
 reference implementation.

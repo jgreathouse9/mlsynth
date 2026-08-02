@@ -180,7 +180,7 @@ Canonical workhorses
   questions. mlsynth matches the pinned package; the published artifact does
   not, on a tail present in every heating year and on all 128 cells of 2016.
   The pre-treatment imbalance agrees everywhere, which places the drift in the
-  ridge penalty rather than the fit. Status: done; the drift is quantified.
+  ridge penalty, not the fit. Status: done; the drift is quantified.
   → dedicated page: :doc:`replications/song_ml_ascm`; durable case
   ``song_ml_ascm``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
@@ -729,7 +729,7 @@ Identification under endogeneity
   a multistart basin diagnostic and an optional ``dr_oid_ridge``)
   reaches the genuine optimum that R only approaches. The Kansas
   configuration is retained as a unit-test fixture that documents the
-  ill-conditioning rather than a cross-validation target.
+  ill-conditioning, not a cross-validation target.
 
 .. _replications-design:
 
@@ -770,8 +770,8 @@ Experimental design
   for the single-treated-unit design falling to :math:`\approx 0.16` at
   :math:`m=2` (Table-2 monotonicity).
   → dedicated page: :doc:`replications/lexscm`.
-Coverage summary
-----------------
+  Coverage summary
+  ----------------
 
 .. list-table:: Verification coverage by family
    :header-rows: 1

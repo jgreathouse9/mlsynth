@@ -190,7 +190,7 @@ per capita in 1960, 1965, 1969) — :math:`P = 15` against :math:`N = 16` donors
      - widening through the 1980s
 
 What it adds: SparseSC recovers **A&G's actual two-donor synthetic** — Catalonia
-plus Madrid — rather than the single-donor Catalonia the penalized/MSCMT backends
+plus Madrid —, not the single-donor Catalonia the penalized/MSCMT backends
 collapse to on this panel, while pruning 15 predictors to 3 and achieving a
 tighter pre-fit (RMSE 0.092) than either. The effect (:math:`-0.65` average,
 peaking :math:`-0.95`) lands on the A&G result. Notably the penalty *keeps*
@@ -296,7 +296,7 @@ Honest caveats: *absolute* MSE levels are not comparable to the paper (the
 useful-predictor coefficient scale ``theta_t`` is not pinned down in either
 paper — the companion design has no covariate term — so it is filled in the
 spirit of the ``theta_t Z_i`` term as time-varying ``N(0,1)``); and in the easy
-``k1=k2=5`` regime Sparse ties rather than strictly beats ``SCM λ=0``, within
+``k1=k2=5`` regime Sparse ties, not strictly beats ``SCM λ=0``, within
 the latitude of that unspecified constant, B = 60 Monte-Carlo noise, and a
 coarser (21-point) penalty grid. The *ordering* and the *robustness/selection*
 mechanism — the paper's actual claims — reproduce.

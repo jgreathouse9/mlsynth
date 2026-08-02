@@ -242,7 +242,7 @@ Graphical demonstration: span condition vs. factor invariance
 -------------------------------------------------------------
 
 The decisive distinction in practice is between A4 (the span condition,
-which fails *loudly* -- you see it in a poor pre-fit) and A2 (the cross-
+which is visible in a poor pre-fit) and A2 (the cross-
 intervention factor invariance, which fails *silently* -- pre-fit looks
 fine but the post-period counterfactual is wrong). The block below
 generates a rank-:math:`r = 2` panel and overlays SI's counterfactual on
@@ -671,7 +671,7 @@ simulation studies, and the case-study tables:
      - control / taxes / program
      - identical (max\|diff\| ``0``)
 
-The bridge is design rather than luck: ``mlsynth`` reuses the same HSVT
+The bridge is design, not luck: ``mlsynth`` reuses the same HSVT
 truncation, the authors' exact Gavish-Donoho rank rule
 (``rank_method="donoho"``, :math:`\beta = T_0/N_d`), QR-pivot subset selection,
 pseudo-inverse fit, and degrees-of-freedom-weighted variance

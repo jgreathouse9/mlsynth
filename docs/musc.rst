@@ -150,7 +150,7 @@ intervention periods.
 *Remark.* Strengthens unbiasedness from being conditional on
 :math:`V` (the treated period) to being unconditional on :math:`(U,
 V)`. Useful when the treated period was itself chosen for
-exchangeability reasons rather than by deliberate selection.
+exchangeability reasons, not by deliberate selection.
 
 The MUSC Bias Theorem
 ---------------------

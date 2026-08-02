@@ -193,16 +193,17 @@ same estimator, that spread is a statement about bookkeeping.
 
 One caveat the paper itself makes: cases (ii) and
 (iii) are evaluated four quarters past the placebo date while the other five are
-evaluated one quarter past, so part of their larger error is the longer horizon
-rather than the convention. Case (i) against case (ii) is the clean comparison,
+evaluated one quarter past, so part of their larger error is the longer
+horizon, not the convention. Case (i) against case (ii) is the
+clean comparison,
 since both fit a panel that extends past the treatment date, and there the gap
 is still a factor of two.
 
 What it took to match
 ---------------------
 
-Two settings decide every SDID number on this page, and both are the paper's
-rather than mlsynth's defaults.
+Two settings decide every SDID number on this page, and both are the paper's,
+not mlsynth's defaults.
 
 The first is the penalty. The authors pass ``zeta.omega = 0`` throughout,
 switching off the ridge on the unit weights that Arkhangelsky et al. (2021)
@@ -222,7 +223,7 @@ time-weighted pre-treatment gap,
 which is mlsynth's ``intercept_adjust=True`` series. Reading the default
 un-adjusted counterfactual compares a different quantity to the paper's number
 and costs about 0.05 percentage points on Table 1 — small enough to look like a
-minor disagreement rather than the wrong estimand.
+minor disagreement, not the wrong estimand.
 
 There is a discrepancy in the authors' own package. Both scripts set
 MASC's cross-validation with a variable named ``min_value_five``, computed as
@@ -251,7 +252,7 @@ and ``In-sample across periods/In sample across periods - no covariates - no
 penalty - {SC DSC SDID, MASC AUGSYNTH}.R``.
 
 Both cases are deterministic: no resampling, and MASC's cross-validation grid is
-exhaustive rather than sampled. Together they run in under ten seconds.
+exhaustive, not sampled. Together they run in under ten seconds.
 
 The Monte Carlo: why the demeaned estimators win
 ------------------------------------------------
@@ -333,18 +334,18 @@ Where the authors' code and their prose disagree
 
 Three places, and the code is followed in each, because the code is what
 produced the printed tables. All three are asserted in
-``mlsynth/tests/test_sdid_simulation.py`` so the choices cannot be quietly
+``mlsynth/tests/test_sdid_simulation.py`` so the choices cannot be
 reverted.
 
 The common factor is :math:`\gamma(1 - 1/t)` in the script, where the paper
 writes :math:`t\gamma/T_0`. The noise is drawn with standard deviation
 :math:`\sigma^2`, where the paper describes variance :math:`\sigma^2` -- and
-this one is checkable rather than a judgment call, since the published
+this one is checkable, not a judgment call, since the published
 :math:`\sigma = 0.25` RMSEs are :math:`0.0625` times the :math:`\sigma = 1`
 ones, which a standard deviation of :math:`0.25` cannot produce. Finally the
-treated unit's loading :math:`\mu_1` is the second largest of the draws rather
-than an independent uniform; that one is a deliberate design choice rather than
-a slip, since it places the treated unit inside the donors' convex hull, so the
+treated unit's loading :math:`\mu_1` is the second largest of the draws, not
+an independent uniform; that one is a deliberate design choice, not a slip,
+since it places the treated unit inside the donors' convex hull, so the
 simplex weight problem is feasible without extrapolation.
 
 What the Monte Carlo case leaves out

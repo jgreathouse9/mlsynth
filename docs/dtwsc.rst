@@ -2,7 +2,7 @@ DTWSC: Dynamic Synthetic Control
 ================================
 
 Synthetic control lines a treated unit up against a weighted blend of donors,
-period by period. That comparison quietly assumes something strong: that every
+period by period. That comparison assumes something strong: that every
 unit reacts to a common shock at the same *speed*. Regions, countries and firms
 rarely do. If a donor's boom arrives two years after the treated unit's, then
 matching them on the calendar compares a peak against a trough. The
@@ -21,10 +21,10 @@ When to use it
 Reach for DTWSC when the donors look right in shape but wrong in timing: the
 same cycle, the same turning points, arriving early or late. That shows up as a
 pre-treatment fit that is poor in a structured way, with the synthetic path
-consistently leading or lagging the treated one rather than scattering around
+consistently leading or lagging the treated one instead of scattering around
 it.
 
-It is the wrong tool when donors differ in *level* or *amplitude* rather than
+It is the wrong tool when donors differ in *level* or *amplitude* instead of
 timing (:doc:`vanillasc` with predictors, or :doc:`mcnnm`, handle that), and it
 buys little when the donor pool is large and diverse enough that a convex blend
 of early and late donors already recovers the treated unit's timing. The method
@@ -77,7 +77,7 @@ Assumptions
 1. Common shocks, heterogeneous speeds.
    Units respond to the same underlying process but at unit-specific rates, so
    the donor's untreated path is a time-reparameterised version of the treated
-   unit's counterfactual rather than a scaled one.
+   unit's counterfactual, not a scaled one.
 
    Remark. This is what separates DTWSC from a factor model. A factor model
    lets loadings differ; DTWSC lets the *clock* differ. If the real
@@ -86,7 +86,7 @@ Assumptions
 
 2. Speeds are learnable from the pre-period.
    The pre-treatment window is long enough, and varied enough, that the
-   alignment identifies a stable speed profile rather than fitting noise.
+   alignment identifies a stable speed profile instead of fitting noise.
 
    Remark. The method needs shape to align on. A donor whose pre-period is a
    straight line has no turning points, every alignment is equally good, and
@@ -148,7 +148,7 @@ sweep over seven DTW step patterns, and perturb the donor pool far more
 aggressively than the default here; mlsynth runs every placebo at the
 hyperparameters you configure. Their per-run choices are shipped in the
 replication archive, so what separates the two is a matter of adopting their
-design rather than of missing information -- :doc:`replications/dtwsc` sets out
+design, not of missing information -- :doc:`replications/dtwsc` sets out
 exactly what differs. Second, on the
 Basque panel the efficiency test reproduces the paper's direction and rough
 magnitude (``t = -6.8`` against the paper's ``-7.91``, a 20 percent MSE
@@ -159,7 +159,7 @@ Those are not in conflict. The efficiency test is a within-run paired
 comparison, while the band is the cross-run spread, and reducing each run's
 error need not shrink the dispersion across runs. Two explanations for the band
 have been tested and ruled out: fitting the paper's 14-predictor specification
-with ``sc_backend="malo"`` widens it further rather than tightening it, and the
+with ``sc_backend="malo"`` widens it further instead of tightening it, and the
 warp itself is now bit-exact against the authors' R package. The per-run
 hyperparameter optimisation remains untested, as does the paper's much larger
 pool construction -- its quantiles are drawn over roughly 2000 runs against 256
@@ -180,10 +180,10 @@ They differ in how far a donor's clock may drift from the treated unit's before
 the alignment refuses: a pattern permitting a steeper step tolerates more
 speed difference, at the cost of admitting alignments that stretch the series
 harder to achieve a fit. They also differ in what the reported distance is
-divided by, which matters when comparing costs across candidate windows rather
-than within one. Cao and Chadefaux do not fix a pattern; they select one per
-run by grid search, which is a reasonable signal that the choice is empirical
-rather than settled.
+divided by, which matters when comparing costs across candidate windows, not
+within one. Cao and Chadefaux do not fix a pattern; they select one per
+run by grid search, which is a reasonable signal that the choice is empirical,
+not settled.
 
 Putting the units on a common footing
 -------------------------------------
@@ -209,7 +209,7 @@ capita, or whatever the outcome is.
 This is ``dsc(rescale = TRUE)``, the reference implementation's default, and it
 is required to compare mlsynth's synthetic-control half against the authors'
 published numbers, which are reported on that scale. It defaults to False here
-so the estimator does not quietly change the units its effects are reported in.
+so the estimator does not change the units its effects are reported in.
 
 Beyond inference, the estimator exposes its warping diagnostics directly.
 

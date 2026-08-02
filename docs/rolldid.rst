@@ -30,7 +30,7 @@ Proposition 99 picture — without a convex donor combination.
 ``ROLLDID`` is therefore the regression complement to the synthetic-control
 family in mlsynth (:doc:`sdid`, :doc:`fdid`, :doc:`vanillasc`): the same
 small-donor regime, a different identification lever (parallel trends after
-removing unit means or trends, rather than a weighted donor combination). On
+removing unit means or trends, not a weighted donor combination). On
 short, donor-starved staggered panels — where SC-style per-cohort weight
 optimisation becomes unstable — it stays well behaved, because it estimates no
 weights at all.
@@ -214,12 +214,12 @@ unit root), and collapsing time to a scalar pushes the serial correlation in
 :math:`\{y_{jt}\}` *inside* :math:`\widetilde{y}_j`. Across units the
 :math:`\widetilde{y}_j` are independent, so the object on which we do inference is
 an ordinary cross-section — no clustering, no large-:math:`T` requirement, and
-strong time-series dependence is *absorbed* rather than modelled.
+strong time-series dependence is *absorbed*, not modelled.
 
 Per-period effects (common timing)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Rather than collapse, regress the transformed value at each post period on
+Instead of collapse, regress the transformed value at each post period on
 :math:`d_j` to obtain the event study,
 
 .. math::
@@ -280,8 +280,8 @@ per-cohort variants), with residual degrees of freedom :math:`N - 2`.
   Lang.)
 * ``inference="hc3"`` — heteroskedasticity-robust (MacKinnon–White HC3). Use only
   with a handful of treated and control units: with a single treated unit its
-  leverage is :math:`1` and HC3 is undefined, so ``ROLLDID`` raises rather
-  than returning a degenerate standard error.
+  leverage is :math:`1` and HC3 is undefined, so ``ROLLDID`` raises instead of
+  returning a degenerate standard error.
 * ``inference="ri"`` — randomization inference: re-assign the :math:`N_1` treated
   labels across units ``ri_reps`` times and report the permutation
   :math:`p`-value :math:`\Pr(|\widehat{\tau}^{\,\text{perm}}| \ge
@@ -300,7 +300,8 @@ The synthetic-control family needs the treated unit inside the convex hull of th
 donors and, for inference, large :math:`N_0, T_0, T_1` (SDID additionally assumes
 :math:`I(0)` weak dependence and normality). ROLLDID needs none of those
 dimensions to grow: the collapse buys exact finite-sample inference from large
-:math:`T` alone, and detrending *weakens* parallel trends rather than requiring a
+:math:`T` alone, and detrending *weakens* parallel trends instead of
+requiring a
 donor combination to exist. The trade-off, which the paper is explicit about, is
 efficiency: the cross-sectional estimator can have larger variance than SDID
 when SDID's assumptions hold — but SDID's packaged intervals can under-cover,

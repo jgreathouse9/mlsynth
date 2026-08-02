@@ -10,8 +10,9 @@ Bayesian Factor Synthetic Control (Pinkney 2021) fits the no-intervention
 outcome of every unit with a Bayesian latent factor model and reads the treated
 unit's counterfactual off the posterior. Reach for it when you have a panel with
 a clear common structure -- seasonality, shared macro or market shocks -- and you
-want honest uncertainty on the effect rather than a single line, and you would
-rather not commit in advance to a number of factors. It is a good choice when:
+want honest uncertainty on the effect, not a single line, and you would
+prefer not to commit in advance to a number of factors. It is a good
+choice when:
 
 * You want a full posterior credible band on the counterfactual and the ATT,
   propagating the uncertainty in the factors themselves, not just a point path.
@@ -38,8 +39,8 @@ The Bayesian SC family
 ----------------------
 
 mlsynth carries several Bayesian synthetic-control estimators; they differ in
-what they place a prior on, and BFSC is the one that models the outcome rather
-than the weights.
+what they place a prior on, and BFSC is the one that models the outcome, not
+the weights.
 
 * :doc:`mvbbsc` (Martinez and Vives-i-Bastida) -- a uniform prior over the hard
   simplex, standardized internally, with a Bernstein-von Mises guarantee that
@@ -92,7 +93,7 @@ information enters the scaling, so it cannot bias the treated estimate.
 Shrinkage. The loadings carry a horseshoe+ prior (Bhadra et al. 2017):
 :math:`\lambda_{lj}` is a product of a per-factor, a global, and a per-series
 half-Cauchy scale, so factors the data do not need are pruned. This is why the
-factor count :math:`L` is an upper bound rather than a choice.
+factor count :math:`L` is an upper bound, not a choice.
 
 Counterfactual. The treated unit's post-period outcomes are masked -- treated as
 missing data and imputed by the model, which contains no treatment-effect
@@ -136,7 +137,7 @@ BFSC is inferential by construction: ``res.inference.ci_lower`` /
 ``res.inference.ci_upper`` give the ATT credible interval, and the
 counterfactual band is on ``res.inference_detail``
 (``counterfactual_lower`` / ``counterfactual_upper``). Because the factors are
-sampled rather than plugged in, the band includes factor uncertainty. NUTS
+sampled, not plugged in, the band includes factor uncertainty. NUTS
 diagnostics are surfaced on ``res.weights.summary_stats`` --
 ``nuts_accept_prob``, ``nuts_divergences``, ``max_rhat``. Read convergence on the
 counterfactual and :math:`\sigma` (the identified quantities), not on the raw

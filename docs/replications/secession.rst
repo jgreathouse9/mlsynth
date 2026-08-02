@@ -85,7 +85,7 @@ different implementation -- ``SyntheticControlMethods`` optimises predictor
 (V) weights, auto-selects an Abadie-L'Hour penalty, and uses one hundred random
 restarts -- so mlsynth's deterministic outcome-only fit tracks the authors'
 synthetic (correlation 0.75-0.92) and lands within about fifteen percent on the
-ATT, rather than matching digit for digit. mlsynth's pre-treatment fit is in fact
+ATT instead of matching digit for digit. mlsynth's pre-treatment fit is in fact
 a touch tighter in both cases, which is expected: outcome-only minimises exactly
 the pre-period outcome error, whereas the authors' penalized, covariate-matched
 fit trades a little of that for predictor balance and regularisation. When
@@ -95,7 +95,7 @@ mlsynth is put on the same regularised footing (``backend="penalized"`` or
 Because the cross-package agreement is approximate, this case appears on the
 :doc:`../validation` dashboard as a ``documented`` row -- an honest cross-package
 comparison (same finding, different SC engine, about fifteen percent apart on the
-ATT) rather than a value-for-value ``exact`` or ``tight`` match.
+ATT), not a value-for-value ``exact`` or ``tight`` match.
 
 Verification
 ------------

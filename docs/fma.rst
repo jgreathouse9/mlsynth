@@ -54,7 +54,7 @@ it:
    the raw controls (the Hsiao-Ching-Wan approach) overfits and breaks
    down once :math:`N_0` approaches or exceeds :math:`T_0`. FMA's
    dimension reduction sidesteps this: it *benefits* from more controls
-   (they sharpen the factor estimates) rather than being destabilised by
+   (they sharpen the factor estimates) instead of being destabilised by
    them. The same single factor extraction also scales cheaply to many
    treated units and staggered timing, since it is done once.
 
@@ -284,7 +284,8 @@ both :math:`T_0` and :math:`N_0` are large enough for the factor estimates to
 converge -- but treated and control error variances need not be equal
 (:math:`\sigma_{\text{tr}} \ne \sigma_{\text{co}}` is permitted).
 
-*Remark.* This is the load-bearing relaxation: the asymptotic CI below allows
+*Remark.* This is the relaxation the result rests on: the asymptotic CI
+below allows
 unequal treated/control variances, which is exactly where the Xu (2017)
 bootstrap miscovers. The cost is needing enough data for the normal
 approximation -- the paper's simulations support :math:`N_0, T_0 \ge 30`.

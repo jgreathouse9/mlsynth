@@ -232,9 +232,9 @@ Metropolis-within-Gibbs Sampler (Algorithm 1)
 One outer iteration performs three updates in order.
 
 1. Pair update for :math:`(\gamma_i, \gamma_j, \mu_i, \mu_j)`.
-For each unordered pair :math:`i < j`, fix
-:math:`\mu_{-(i,j)}` and define the residual mass
-:math:`s = 1 - \sum_{k \neq i, j} \mu_k`. Three cases follow:
+   For each unordered pair :math:`i < j`, fix
+   :math:`\mu_{-(i,j)}` and define the residual mass
+   :math:`s = 1 - \sum_{k \neq i, j} \mu_k`. Three cases follow:
 
 * :math:`s = 0`: the simplex constraint forces
   :math:`\mu_i = \mu_j = 0`, no draw needed.
@@ -272,10 +272,10 @@ standard normal CDF and a single truncated-normal draw — no
 rejection sampling and no numerical integration.
 
 2. :math:`\phi` Gibbs draw. Plug the updated :math:`\mu`
-into the closed-form Gamma conditional above.
+   into the closed-form Gamma conditional above.
 
 3. :math:`\nu` MH steps. Repeat for :math:`n_\nu`
-iterations a log-random-walk proposal
+   iterations a log-random-walk proposal
 
 .. math::
 
@@ -330,7 +330,7 @@ percentile bands over :math:`\widehat{\tau}^{(s)}` at level
 counterfactual are computed analogously period-by-period.
 
 BVS-SS computes the counterfactual directly from the
-:math:`\boldsymbol{\mu}` posterior rather than drawing
+:math:`\boldsymbol{\mu}` posterior instead of drawing
 :math:`\mathbf{w}_\gamma` from its
 Eq. (7) conditional. The paper's empirical Section 6 uses this
 lower-variance estimator; the implementation in :mod:`mlsynth` matches

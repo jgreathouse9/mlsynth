@@ -58,8 +58,8 @@ Reach for mlSC when:
   the donor pool widens the hull by an order of magnitude
   (counties vs states), and the penalty keeps the wider hull
   from degenerating into a non-unique solution.
-* You want a single data-driven aggregation choice rather
-  than the manual "do I use state or county donors?" call.
+* You want a single data-driven aggregation choice, not the manual "do I use
+  state or county donors?" call.
   The heuristic :math:`\widehat{\lambda}` and the (forthcoming)
   cross-validation-over-time selector turn that judgment into
   a tunable parameter.
@@ -76,7 +76,7 @@ Do not use mlSC when:
   *canonical SCM* / :doc:`tssc` / :doc:`fdid`.
 * Treatment is assigned at the disaggregate level. The
   paper enforces aggregate-level assignment (A2); if the
-  policy hits a single county rather than a whole state, you
+  policy hits a single county, not a whole state, you
   want a disaggregate-target estimator (*canonical SCM*,
   :doc:`microsynth` for individual-level treatment with
   covariate balancing).
@@ -122,8 +122,8 @@ Do not use mlSC when:
   weight vector :math:`\mathbf{w}` is intrinsically a
   many-county object; you can report the implied aggregate
   weights ``results.aggregate_donor_weights`` (Bottmer's
-  :math:`w_s = \sum_{c} w_{sc}`) but those are derived
-  rather than directly optimised, and at small
+  :math:`w_s = \sum_{c} w_{sc}`) but those are derived, not directly
+  optimised, and at small
   :math:`\lambda` they will not be sparse. If the headline
   story has to be "California ≈ 0.4 Utah + 0.3 Montana +
   0.2 Nevada", canonical SC remains the cleaner
@@ -216,7 +216,7 @@ variation directly into the weight fit, so an exposed county
 influencing a non-exposed county within the same donor state
 breaks identification at the level mlSC operates on.
 
-   *Remark.* Because the weights are fit on sub-unit series rather than the
+   *Remark.* Because the weights are fit on sub-unit series, not the
    aggregate alone, contamination at the sub-unit level enters the fit
    directly. A donor sub-unit that responds to the treated aggregate's shock
    (a shared labour or media market) carries intervention signal into

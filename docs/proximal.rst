@@ -74,8 +74,8 @@ neutralized*.
 Proximal causal inference makes a different bet. It concedes that an
 unmeasured confounder remains -- here, the latent factor
 :math:`\boldsymbol{\lambda}_t` that drives both the outcomes and the timing
-of treatment -- and that you will never observe it directly. Rather than
-assume it away, it asks for two observable *shadows* of that confounder and
+of treatment -- and that you will never observe it directly. Instead of
+assuming it away, it asks for two observable *shadows* of that confounder and
 uses them to algebraically subtract the confounding from the estimate. This
 is exactly the logic epidemiologists use with negative controls to
 detect and correct hidden bias (Lipsitch et al.; Shi, Miao, Nelson and
@@ -328,8 +328,8 @@ across two tries. Useful in a vaccine roll-out study where you can build a
 synthetic-control of hospitalizations *and* model how disease pressure
 shifted, and want robustness to a misspecification of either.
 
-PIPW -- weight, don't model the outcome. *"I'd rather not commit to a
-model for the treated unit's counterfactual trajectory at all."* PIPW
+PIPW -- weight, don't model the outcome. *"I would prefer not to commit to
+a model for the treated unit's counterfactual trajectory at all."* PIPW
 estimates the effect purely by re-weighting the pre-period to look like
 the post-period (a covariate-shift / inverse-probability-style weight built
 from the proxies), with no synthetic-control trajectory. It is the natural
@@ -668,7 +668,7 @@ Assumption 5 (stationary, weakly dependent errors). The error processes
 are stationary and weakly dependent.
 
 *Remark.* This is weaker than i.i.d. errors: it permits serial correlation,
-which is why inference uses the HAC variance rather than a white-noise
+which is why inference uses the HAC variance, not a white-noise
 formula. The *latent factors themselves* may still be non-stationary.
 
 .. admonition:: Contaminated surrogates
@@ -943,7 +943,7 @@ limit theorem.
 *Remark.* This is the regularity behind the sandwich standard error below.
 It permits serial correlation and non-stationary levels, asking only that
 the errors around the bridge -- not the levels themselves -- be well
-behaved, which is why a HAC middle is used rather than an i.i.d. one.
+behaved, which is why a HAC middle is used, not an i.i.d. one.
 
 Under Assumptions 1--4 the bridge is identified from the pre-period alone,
 and its post-period mean identifies the counterfactual.

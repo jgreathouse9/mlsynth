@@ -190,8 +190,8 @@ distance-horseshoe and :math:`0.969`--:math:`0.998` for the spike-and-slab, the
 residual being Monte-Carlo error between two independent NUTS runs (amplified only
 in the extreme lower tail of the free-running counterfactual, where the model is
 numerically fragile). See the replication page :doc:`replications/bpscs`. Because
-the reference is GPL-licensed it is fetched and run at cross-check time rather
-than redistributed; the durable self-contained case
+the reference is GPL-licensed it is fetched and run at cross-check time, not
+redistributed; the durable self-contained case
 ``benchmarks/cases/bpscs_synthetic.py`` checks effect recovery and distance-based
 shrinkage on a simulated spatial panel. The estimator, config validation, the
 missing-dependency guard, effect recovery, both priors, and the result contract

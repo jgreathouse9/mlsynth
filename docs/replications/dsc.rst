@@ -56,10 +56,10 @@ tracking before treatment.
 
 .. note::
 
-   Two claims previously made here were wrong, and are corrected rather than
-   quietly dropped. The ``DiSCo`` R package *does* install in this environment
+   Two claims previously made here were wrong, and are corrected, not
+   dropped. The ``DiSCo`` R package *does* install in this environment
    (``benchmarks/R/install_discos.sh``), and the vignette's numbers do not "live
-   in figures rather than text" — the vignette is built with ``eval=FALSE`` and
+   in figures, not text" — the vignette is built with ``eval=FALSE`` and
    publishes no numbers at all. The conclusion was right, the reasons were not,
    and the wrong reasons made the situation look permanent instead of fixable.
 

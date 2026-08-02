@@ -24,7 +24,7 @@ The target
 The authors ship a Proposition 99 application with the paper
 (``EX1_CaliforniaTobaccoConsumption.R``): a panel synthetic control on the
 Abadie, Diamond & Hainmueller (2010) tobacco panel, where California raises its
-cigarette tax in 1989 and the donors are the other US states. Rather than
+cigarette tax in 1989 and the donors are the other US states. Instead of
 fitting the outcome on a simplex, BEAST balances a covariate design -- four
 economic predictors (``loginc``, ``p_cig``, ``pct15-24``, ``pc_beer``) plus
 lagged cigarette sales (1975/1980/1988) -- by an ℓ₁-penalized exponential tilt,

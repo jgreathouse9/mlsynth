@@ -24,7 +24,7 @@ of it.
 
 DRSC conditions. It estimates the counterfactual distribution of the outcome
 *given* covariates, so you can ask what the policy did to a 25-year-old with a
-high-school education specifically, rather than to the workforce on average.
+high-school education specifically, not to the workforce on average.
 
 Reach for it when all of these hold: you have micro-data (many individuals per
 unit-period, not one aggregate number), one treated unit, and a reason to think
@@ -82,7 +82,7 @@ Assumption 1 (Parallel trends in parameters). There exist weights
    \;=\; \sum_{i=2}^{J+1} w_i \bigl[\theta_{i,t}(y) - \theta_{i,T_0}(y)\bigr].
 
 Remark. This is the familiar parallel-trends idea moved into the parameter
-space of the model rather than imposed on the outcome or the CDF. That choice
+space of the model, not imposed on the outcome or the CDF. That choice
 does real work. The parameter function is linear in the common factors whereas
 the CDF is not, so the weights come out constant across the whole distribution,
 and the counterfactual is guaranteed to still be a valid distribution in the
@@ -97,7 +97,7 @@ Remark. The asymptotics run in :math:`n`, the number of individuals, with the
 donor count and the number of periods held fixed. This is unlike every other
 estimator in mlsynth, where precision comes from a long panel. Here one
 pre-period is enough for consistency, and extra pre-periods buy precision in the
-weights rather than in the distribution regressions. The practical consequence:
+weights, not in the distribution regressions. The practical consequence:
 worry about thin cells, not short panels.
 
 Assumption 3 (Pre-treatment balance). The treated unit's pre-treatment
@@ -137,7 +137,7 @@ you change it: ``n_grid`` is the number of points *requested*, and ties are
 collapsed afterwards, so the active grid is generally shorter. Wages reported
 to the cent produce a lot of ties -- on the New Jersey panel the paper's 38
 requested points leave 32 active. Passing the active count instead of the
-requested one is a silent mistake rather than a loud one: asking for 32 leaves
+requested one is a silent mistake, not a loud one: asking for 32 leaves
 28 active and moves Florida's weight from 0.515 to 0.496.
 
 Two consequences follow. Both look like faults, and neither is.

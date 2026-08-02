@@ -103,7 +103,7 @@ Do not use SpSyDiD when
   spillover channel (e.g., interference flows through an unobserved social
   or supply-chain network you cannot encode), a misspecified :math:`\mathbf{W}`
   buys biased indirect effects; consider :doc:`spillsynth`, which models
-  spillover through donor membership rather than a fixed geographic kernel.
+  spillover through donor membership, not a fixed geographic kernel.
 * Interference is global or non-local. SpSyDiD assumes exposure is a
   *local*, distance-decaying function of neighbours' treatment. General
   equilibrium effects that hit every unit equally are absorbed into the

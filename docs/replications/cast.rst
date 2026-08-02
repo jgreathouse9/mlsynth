@@ -115,7 +115,7 @@ observation indicator::
 
 Paper equation (6a) defines the residuals blockwise on the sorted staircase, so
 the mask must be sorted with the data. Three independent checks say the
-unsorted mask is a bug rather than a modelling choice:
+unsorted mask is a bug, not a modelling choice:
 
 * When the sort happens to be the identity permutation — a single adoption
   time with rows already in order — mlsynth and the reference agree on the
@@ -126,7 +126,7 @@ unsorted mask is a bug rather than a modelling choice:
   errors come out 16% to 65% too small (worst in 2021, a ratio of 1.65).
 * In Monte Carlo on a known low-rank staggered design, coverage with the
   sorted mask is closer to nominal at every panel size tested, and the gap
-  does not shrink with :math:`N` — the signature of a bug rather than a
+  does not shrink with :math:`N` — the signature of a bug, not a
   finite-sample effect:
 
   .. list-table::

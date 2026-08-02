@@ -17,7 +17,7 @@ What SBC does
 Classical synthetic control matches a treated unit to a weighted average of
 donors on the raw outcome path. When that outcome is nonstationary — a
 GDP-per-capita series with a strong trend — matching on the level can lock onto
-a spurious comovement of trends rather than a genuine common structure. The
+a spurious comovement of trends, not a genuine common structure. The
 synthetic business cycle estimator first splits every series into a slow
 *trend* and a stationary *cycle* with a Hamilton filter, forecasts the treated
 unit's post-treatment trend from its own history, and builds a synthetic
@@ -99,8 +99,8 @@ The authors' shipped wide CSV permutes its donor column labels: its
 series (verified against the canonical ``repgermany.dta``). So the paper's prose
 naming the cycle donors as "Italy, Japan, Portugal" refers, by the correct
 labels, to Italy, the Netherlands and Greece — which is exactly the donor set
-mlsynth recovers on the correctly labelled panel. Running the reference, rather
-than trusting the printed names, is what surfaces this.
+mlsynth recovers on the correctly labelled panel. Running the reference
+instead of trusting the printed names, is what surfaces this.
 
 Verification
 ------------

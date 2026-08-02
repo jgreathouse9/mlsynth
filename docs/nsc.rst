@@ -187,7 +187,7 @@ persistent identifying variation across the pre-period.
    actually move over the pre-period. A flat or fully co-trending
    pre-period (all units share one secular trend, no idiosyncratic
    shocks) starves the match of variation; an SVD on the donor
-   pre-matrix should show a clear spectrum rather than a single
+   pre-matrix should show a clear spectrum, not a single
    dominant component.
 
 A5 (overlap / continuous support). The composite predictor

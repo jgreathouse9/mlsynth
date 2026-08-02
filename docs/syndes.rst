@@ -24,7 +24,7 @@ the average-treatment-effect-on-the-treated estimator directly over the joint
 choice of treatment assignment and synthetic weights. Use it when:
 
 * you control assignment and have a panel of pre-treatment outcomes;
-* you want a small, well-chosen treated set rather than a random one;
+* you want a small, well-chosen treated set, not a random one;
 * you are willing to solve a mixed-integer program for a provably optimal design
   (or to bound the achievable :ref:`power <syndes-inference>` of one).
 
@@ -347,7 +347,7 @@ The synthetic treated / control trajectories used to populate ``post_fit`` are
 the per-unit weighted aggregates ``Y[:, j] @ treated_weights`` and
 ``Y[:, j] @ control_weights`` over the full timeline. SYNDES has no
 pre-period blank window (its inference is a moving-block permutation on the
-post-period rather than a placebo test on a held-out pre-tail), so
+post-period, not a placebo test on a held-out pre-tail), so
 ``pf.n_blank = 0`` and the power-analysis module falls back to the
 pre-period gap as its placebo proxy. Mathematically the MDE surface is the
 same Gaussian + AR(1) construction used across the family:
@@ -505,7 +505,7 @@ and defaults them to the production-friendly setting:
   and reports ``result.certificate.optimality_gap`` with the guarantee
   ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent. The per-unit
   objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
-  it returns ``certified=False`` rather than a misleading number.
+  it returns ``certified=False``, not a misleading number.
 * ``accelerate`` (default ``True``) -- inject that same two-way SDP lower bound
   back into the solve *as a valid cut* (plus a deterministic LEXSCM warm start),
   so SCIP's dual bound is lifted to the SDP bound and the ordinary ``gap_limit``
@@ -635,7 +635,7 @@ Minimizing the lifted objective over :math:`\mathbf{M} \succeq 0` and the origin
 linear constraints is the Shor / Lasserre level-1 relaxation of the cardinality-
 constrained mixed-binary QP (see [BomzeSparseQP]_ for the Shor and RLT relaxations
 of exactly this sparsity-constrained quadratic family; the coordinate-wise
-McCormick step is why we lift rather than take a perspective reformulation, which
+McCormick step is why we lift, not take a perspective reformulation, which
 for indicator quadratics gives the same bound as Shor [HanPerspShor]_). Its value
 :math:`p_{\mathrm{SDP}}` is sandwiched by
 
@@ -694,7 +694,7 @@ cut floor, the solve drops the cut and re-solves, so correctness always holds.
 With the dual bound sitting at :math:`L`, the ordinary ``gap_limit`` now measures
 against a *tight* bound: SCIP terminates as soon as the incumbent (seeded by the
 LEXSCM warm start, the same primal MAREX uses) is within ``gap_limit`` of
-:math:`L`, rather than climbing the McCormick bound for minutes to prove the same
+:math:`L` instead of climbing the McCormick bound for minutes to prove the same
 thing. The floor on the achievable gap is the SDP integrality gap itself
 (:math:`\sim 2\text{--}4\%`), so ``gap_limit`` below that will not terminate early
 -- set it at or above the certified gap you saw from ``certify``.
@@ -836,8 +836,8 @@ Design restrictions (geography, clustering, size, forcing)
 
 Because SYNDES selects the treated set by a MIP over a binary assignment vector
 :math:`D`, the geographic and clustering restrictions LEXSCM and MAREX expose
-become linear constraints on :math:`D` -- the same vocabulary, enforced exactly
-rather than by filtering enumerated candidates:
+become linear constraints on :math:`D` -- the same vocabulary, enforced
+exactly, not by filtering enumerated candidates:
 
 * ``to_be_treated`` -- units forced into the treated set
   (:math:`D_i = 1`); ``not_to_be_treated`` -- units forbidden from treatment
@@ -861,8 +861,8 @@ within each unit. Restrictions compose with each other and with ``costs`` /
 ``ic``). They are not available with ``mode="two_way_global_annealed"`` (no MIP)
 or an ``arm`` column (restrictions are global, not per-arm). Infeasible
 combinations -- forcing more units than ``K``, or forbidding so many that fewer
-than ``K`` remain treatable -- raise a translated ``MlsynthConfigError`` rather
-than leaking a solver ``INFEASIBLE``.
+than ``K`` remain treatable -- raise a translated ``MlsynthConfigError``
+instead of leaking a solver ``INFEASIBLE``.
 
 .. code-block:: python
 
@@ -932,7 +932,7 @@ very large panel prefer ``per_unit`` or scoping the panel to the region.)
 Gallery: designing the experiment on real geography
 ---------------------------------------------------
 
-Because you are designing the experiment rather than accepting an observed
+Because you are designing the experiment instead of accepting an observed
 treatment, the choice of treated units and donors is a decision variable -- so
 geography, spillover, budget, regional donor pools and forced markets all fold
 straight into one optimisation. The examples below run on the bundled US DMA
@@ -1072,8 +1072,8 @@ restriction-respecting solve with its own fit and power curve:
        print(sorted(e["markets"]), round(e["pre_fit_rmse"], 3), round(e["mde_pct"], 2))
 
 If a restriction set is jointly unsatisfiable for the requested ``K``, SYNDES
-raises a translated ``MlsynthEstimationError`` naming the restrictions rather
-than returning a broken design; if it is satisfiable but only by fewer than
+raises a translated ``MlsynthEstimationError`` naming the restrictions instead
+of returning a broken design; if it is satisfiable but only by fewer than
 ``top_K`` distinct designs, the menu simply returns however many are feasible.
 
 Solution pool (``top_K``): a menu, not one answer
@@ -1319,8 +1319,8 @@ and power is ``mde_pct`` at the realised horizon (downwards): the designs for
 which neither can be improved without worsening the other. Dominated designs --
 including, very often, the rank-1 best-fitting design, which buys its fit at the
 cost of power -- are set aside. The frontier is always exposed in
-``res.recommendation.pareto_ids`` for transparency, with cost as a tie-break
-rather than a third axis.
+``res.recommendation.pareto_ids`` for transparency, with cost as a tie-break,
+not a third axis.
 
 Second, a single recommended design picked by a GeoLift-style composite score:
 each design is dense-ranked on fit and on power (best metric ranks first, exactly

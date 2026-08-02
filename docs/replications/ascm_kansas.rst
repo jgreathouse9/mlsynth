@@ -49,7 +49,7 @@ absent from 56 of the 89 pre-treatment quarters. ``augsynth``'s
 every row, and then averages each covariate on its own with
 ``mean(x, na.rm = TRUE)`` — missing values are omitted per covariate, not per
 period. Averaging instead over the quarters in which *every* covariate is
-reported discards those 56 quarters from all six series rather than from the two
+reported discards those 56 quarters from all six series, not from the two
 that are sparse, which moves the covariate ASCM's ATT from :math:`-0.0609` to
 :math:`-0.0663`. mlsynth follows the per-covariate rule.
 

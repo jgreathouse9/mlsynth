@@ -116,7 +116,7 @@ Do not use SNN when
 * No large fully observed submatrix exists. SNN's anchor step needs a
   dense observed block; if missingness is heavy and scattered with no such
   block, prefer the nuclear-norm estimator :doc:`mcnnm`, which regularises
-  the whole matrix rather than imputing entry-by-entry.
+  the whole matrix instead of imputing entry-by-entry.
 * The design is a simple single-treated block with a clean pre-period
   and you want classic interpretable donor weights, closed-form CIs, or a
   convex-combination story. Use :doc:`si`, :doc:`tssc`, or :doc:`scmo`;

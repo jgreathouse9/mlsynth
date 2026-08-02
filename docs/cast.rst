@@ -26,7 +26,7 @@ When to use this estimator
   only the average. Reporting a per-unit effect with an interval is the
   natural output when the units are themselves of interest (states, countries,
   large accounts).
-* You want a population-weighted total rather than an unweighted mean --
+* You want a population-weighted total, not an unweighted mean --
   "how many people gained coverage", not "the average percentage-point change"
   -- with a standard error attached.
 * Your panel is reasonably large. The intervals are asymptotic; see the
@@ -181,7 +181,7 @@ into tidy ``(unit, period, effect, se, ci_lower, ci_upper)`` rows.
 Per-period aggregates. ``period_effects`` maps each post-treatment period to
 ``(effect, standard error)`` for the weighted average of the units treated by
 then. Supply ``weights`` for a population-weighted version, and set
-``renormalize_weights=False`` to report a total rather than a mean.
+``renormalize_weights=False`` to report a total, not a mean.
 
 The significance map. ``significance`` counts, per period, how many treated
 units have a significantly positive, significantly negative, or null effect at

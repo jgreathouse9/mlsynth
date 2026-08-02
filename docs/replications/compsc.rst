@@ -25,7 +25,7 @@ checked value for value. That makes Path A both possible and, here, decisive:
 all nine donor weights, both fit statistics, every cell of the effects table,
 and the placebo test are reproduced from the raw EIA file.
 
-One step had to be recovered rather than read off. Section 6.1 describes the
+One step had to be recovered, not read off. Section 6.1 describes the
 three categories as "natural gas; coal and oil; and renewables (conventional
 hydro, wind, solar, geothermal, and other)", which does not by itself determine
 where EIA's ``Other Gases``, ``Other``, ``Wood and Wood Derived Fuels``,
@@ -181,7 +181,7 @@ paper's exact p-value of :math:`4/36 = 0.111`.
 That p-value does not clear conventional thresholds, and the paper is candid
 about why: the nearest placebos are states that underwent their own gas-driven
 transitions in the 2010s. Readers should weigh the compositional shift as
-described rather than as established at the 5 percent level.
+described, not as established at the 5 percent level.
 
 A correction carried by the implementation
 ------------------------------------------
@@ -201,7 +201,7 @@ categories as baseline moves the weight vector by up to 1.16 in :math:`L_1`.
 
 ``geometry="clr"`` is therefore the default, and it does minimise what the paper
 says it wants to minimise. On the Pennsylvania panel the correction is
-substantial rather than cosmetic:
+substantial, not cosmetic:
 
 .. list-table::
    :header-rows: 1
@@ -237,7 +237,7 @@ Data
 state and category, 1990–2023, for the 43 units (Pennsylvania plus 42 donors)
 surviving the section 6.1 screens. Built from the EIA state historical table
 ``annual_generation_state.xls`` (Total Electric Power Industry). Raw megawatt
-hours are stored rather than shares, so the file is auditable directly against
+hours are stored, not shares, so the file is auditable directly against
 the EIA source; COMPSC closes each row to the simplex on ingestion.
 
 Reproducing

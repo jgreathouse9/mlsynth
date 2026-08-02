@@ -70,7 +70,7 @@ Reach for CFM when
 * you want a formal confidence band on the effect path without asserting
   parallel trends or a convex donor-weight fit;
 * you specifically suspect the intervention changed the treated unit's
-  *response* to shared shocks — a loading break — rather than adding a
+  *response* to shared shocks — a loading break — instead of adding a
   fixed increment.
 
 Do not use CFM when

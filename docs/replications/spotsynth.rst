@@ -59,7 +59,7 @@ using the screen-**excluded** donors as proximal controls, reduces that bias
    (eq. 7) and false-negative (eq. 8) screening errors. These are sensitivity
    *formulas* the analyst evaluates (the false-negative bound needs the unknown
    spillover :math:`\tau` as a sensitivity parameter); mlsynth implements the
-   debias remedy (eq. 5) rather than the bounds, so the benchmark validates the
+   debias remedy (eq. 5), not the bounds, so the benchmark validates the
    debias, not the closed-form bounds.
 
 Reproduce

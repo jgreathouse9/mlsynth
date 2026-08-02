@@ -16,7 +16,7 @@ track a treated unit near or outside that hull, and offers no mechanism for the
 "large p, small n" problem. BSCM relaxes the simplex and places a Bayesian
 shrinkage prior on the donor weights, so the counterfactual can extrapolate in a
 regularised way and every quantity comes with a posterior -- credible intervals
-that fall out of the fit rather than a separate inference step (the classical
+that fall out of the fit, not a separate inference step (the classical
 synthetic control now has its own valid inference options too; see
 :doc:`vanillasc`). It is a good choice when:
 
@@ -146,7 +146,7 @@ ordinary linear model with an intercept,
    Y_{0t} = \beta_0 + \sum_{j=1}^{J} \beta_j\, Y_{jt} + \varepsilon_t,
    \qquad \varepsilon_t \sim \mathcal{N}(0, \sigma^2), \quad t \le T_0,
 
-and regularises the weights :math:`\boldsymbol\beta` with a prior rather than a
+and regularises the weights :math:`\boldsymbol\beta` with a prior, not a
 hard constraint. The counterfactual is the fitted line carried past
 :math:`T_0`,
 
@@ -209,7 +209,7 @@ directly from one fit, with no asymptotics and no separate inference procedure,
 and this holds even when :math:`n` is small. This is not a claim that the
 frequentist synthetic control cannot do inference -- as noted above, it now can,
 several ways -- but a coherent alternative in which the interval is a byproduct
-of estimation rather than a bolt-on, and which sidesteps the instability of
+of estimation, not a bolt-on, and which sidesteps the instability of
 bootstrapping a penalised regression whose coefficients sit near zero. Second,
 the shrinkage prior is a built-in mechanism for the "large p, small n" and
 sparsity problems -- the third limitation -- so BSCM remains well posed when
@@ -273,7 +273,7 @@ is the model telling you the pre-fit is less informative than it looks. Two
 worked cases make the point. On the China anti-corruption watch panel (87
 donors, 35 pre-periods, genuinely :math:`p > n`) the horseshoe pre-RMSE equals
 the regularised simplex fit and the held-out error is close to the in-sample
-error: the shrinkage regularises rather than interpolates. On the Basque panel
+error: the shrinkage regularises, not interpolates. On the Basque panel
 (16 donors, 15 pre-periods, :math:`p \approx n`) the same estimator interpolates
 to a near-zero pre-RMSE whose held-out error is dozens of times larger: a
 cautionary case, not a validation. The difference is the number of pre-periods,
@@ -325,7 +325,7 @@ credible bands coincide. Against the forward-selected panel-data approach
 (:class:`mlsynth.PDA` with ``method="fs"``, the dataset's original benchmark) it
 selects the same dominant donor and returns the same near-null ATT. Against a
 simplex SCM the horseshoe pre-fit equals the regularised simplex fit, confirming
-that the shrinkage regularises rather than interpolates in this regime. See the
+that the shrinkage regularises, not interpolates in this regime. See the
 replication page :doc:`replications/bscm` and the durable case
 ``benchmarks/cases/bscm_china_watches.py``. The sampler, setup, inference,
 plotter and result contract are unit-tested (``mlsynth/tests/test_bscm.py``,

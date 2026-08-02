@@ -13,8 +13,8 @@ pre-treatment period. That single-outcome design faces a bias dilemma in
 the panels most applied work actually has:
 
 * Short pre-period. With few pre-treatment periods, a flexible donor
-  pool can fit the pre-period *too* well, latching onto idiosyncratic noise
-  rather than the latent factors -- an overfit that predicts poorly
+  pool can fit the pre-period *too* well, latching onto idiosyncratic noise,
+  not the latent factors -- an overfit that predicts poorly
   out-of-sample.
 * Long pre-period. Matching over many periods mitigates overfitting but
   is fragile to structural breaks in the outcome-predictor relationship,
@@ -123,7 +123,7 @@ test below reports at significance level :math:`\alpha`.
    :math:`\widehat{w}_j` / :math:`\gamma_i`; we use :math:`\mathbf{w}`.
    ``mlsynth`` builds matching variables through a spec (which outcomes,
    which period(s), and per-variable transforms ``level``/``log``/
-   ``per_capita``/``raw``) rather than a fixed list, so the same engine
+   ``per_capita``/``raw``), not a fixed list, so the same engine
    covers "match :math:`K` outcomes over :math:`T_0` periods" and "match a
    cross-section of indicators in one year".
 
@@ -660,15 +660,15 @@ We reproduce the concatenated paper's own Monte Carlo
 units (1 treated, 29 control), one post period, zero true effect, and
 :math:`Y_{it,k} = \delta_{t,k} + Z_i'\theta_{t,k} + \mu_i'\lambda_{t,k}
 + \varepsilon_{it,k}` with shared predictors :math:`Z_i` (2 observed),
-:math:`\mu_i` (4 unobserved) drawn once from :math:`U[-d, d]`, large level
-differences :math:`\delta, \theta, \lambda \sim N(\omega_k, 1)`,
-:math:`\omega_k \sim N(0, 10^2)`, and :math:`\varepsilon \sim N(0,1)`. The
-estimand is the effect on outcome 1 at :math:`t = T_0+1`; with a zero true
-effect the average absolute bias and SD of :math:`\widehat\tau` approach the
-half-normal floor :math:`\sqrt{2/\pi} \approx 0.80` and :math:`1.00` as the
-fit improves. The ``concatenated`` (de-meaned) scheme reproduces Table 1 at
-:math:`d = 1` -- bias and SD fall monotonically as :math:`K` and :math:`T_0`
-grow toward the floor (800 reps; the paper uses 5000):
+  :math:`\mu_i` (4 unobserved) drawn once from :math:`U[-d, d]`, large level
+  differences :math:`\delta, \theta, \lambda \sim N(\omega_k, 1)`,
+  :math:`\omega_k \sim N(0, 10^2)`, and :math:`\varepsilon \sim N(0,1)`. The
+  estimand is the effect on outcome 1 at :math:`t = T_0+1`; with a zero true
+  effect the average absolute bias and SD of :math:`\widehat\tau` approach the
+  half-normal floor :math:`\sqrt{2/\pi} \approx 0.80` and :math:`1.00` as the
+  fit improves. The ``concatenated`` (de-meaned) scheme reproduces Table 1 at
+  :math:`d = 1` -- bias and SD fall monotonically as :math:`K` and :math:`T_0`
+  grow toward the floor (800 reps; the paper uses 5000):
 
 .. list-table:: Average absolute bias / SD of :math:`\widehat\tau`, :math:`d=1`
    :header-rows: 1
@@ -762,7 +762,7 @@ counterfactual is otherwise swamped by the treated unit's irreducible
 post-period noise). On their supplement DGP
 :math:`Y_{it,k} = \rho\,\phi_i \mu_t + (1-\rho)\,\phi_{ik}\mu_{tk}
 + \varepsilon_{it,k}` (:math:`\rho = 0.5`, a common rank-one factor plus
-outcome-specific idiosyncratic factors), 200 reps:
+  outcome-specific idiosyncratic factors), 200 reps:
 
 .. list-table:: Pure weight bias (RMSE of :math:`\widehat\gamma` applied to structure)
    :header-rows: 1

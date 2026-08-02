@@ -14,7 +14,7 @@ Each case is a small module exposing ``run()`` (which returns a dict of metrics,
 driving everything through mlsynth's public API) and ``EXPECTED`` (a map from
 metric to a ``(value, tolerance)`` pair). The driver compares the two and a case
 that cannot find its data or an optional reference dependency raises
-``BenchmarkSkipped`` rather than failing.
+``BenchmarkSkipped`` instead of failing.
 
 Running them
 ------------
@@ -198,7 +198,7 @@ Path B — Monte Carlo / simulation
    * - ``vanillasc_carbontax``
      - VanillaSC malo + mscmt reproduce Andersson (2019) carbon-tax ATT/2005-gap (paper predictor spec)
    * - ``wiltshire_walmart``
-     - STACKEDSC on Wiltshire (2023) Section 4.2: 566 Walmart counties in six cohorts against 39 never-treated donors. Geometry rather than cells -- the paper's prose claims (excellent pre-fit, no effect at entry, decline from the following year, large negative at five years), the base-period indexing identity at 6e-16, and the per-cohort batching. Its Table 4 magnitudes are not claimed, and :doc:`replications/stackedsc` says why
+     - STACKEDSC on Wiltshire (2023) Section 4.2: 566 Walmart counties in six cohorts against 39 never-treated donors. Geometry, not cells -- the paper's prose claims (excellent pre-fit, no effect at entry, decline from the following year, large negative at five years), the base-period indexing identity at 6e-16, and the per-cohort batching. Its Table 4 magnitudes are not claimed, and :doc:`replications/stackedsc` says why
    * - ``eiv_coverage_mc``
      - Hirshberg (2021) error-in-variables SC prediction-interval coverage on a low-rank DGP
    * - ``orthsc_size_power``
@@ -324,7 +324,7 @@ A captured bundle is a directory ``benchmarks/reference/<case>/`` containing:
   needed), together with any small input data the run requires (for example
   ``GDP.csv``). A ``NOTICE`` file records provenance and licensing -- and where
   an upstream repository ships no license, only the minimal subset needed to run
-  the reference is vendored, for provenance rather than redistribution.
+  the reference is vendored, for provenance, not redistribution.
 * ``reference.out`` -- the verbatim captured stdout of the run, kept as the
   human-readable evidence of what the authors' code printed.
 * ``reference.json`` -- the parsed result, a mapping ``{"values": {...}}`` that
@@ -355,7 +355,7 @@ quantity -- from everything that would otherwise confound it.
    from a paper's by construction -- for example a time-respecting
    cross-validation against a future-leaking K-fold -- the cross-validation
    pins the solve at a single fixed setting (where the program is a unique
-   optimisation) rather than the tuned end-to-end number, and the tuned number
+   optimisation), not the tuned end-to-end number, and the tuned number
    is kept as a separate, clearly labelled pin.
 #. Capture the output with provenance. ``benchmarks/reference/generate.py`` runs
    the manifest ``command``, parses the ``== REFERENCE VALUES ==`` block into
@@ -434,4 +434,4 @@ which re-runs the captured ``command``, refreshes ``reference.out`` /
 checksums. Regeneration requires whatever the reference needs (an R toolchain
 and the named packages, or the relevant Python dependency); when that toolchain
 is absent the corresponding case raises ``BenchmarkSkipped`` at suite time
-rather than failing, and the committed bundle remains the offline record.
+instead of failing, and the committed bundle remains the offline record.

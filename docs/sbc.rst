@@ -20,13 +20,13 @@ the first procedure that is robust to it whether or not the series are
 cointegrated.
 
 Concretely, SBC is the right tool when a strong pre-period fit might be
-coincidental trending rather than genuine shared structure:
+coincidental trending, not genuine shared structure:
 
 - Marketing / business science. Brand or category sales, market
   share, or price indices after a major event — a rebrand, a pricing
   policy, a regulatory change, a competitor's entry. These series trend
-  over time, so a tight pre-event synthetic fit may reflect common growth
-  rather than a shared demand structure that will persist post-event.
+  over time, so a tight pre-event synthetic fit may reflect common growth, not
+  a shared demand structure that will persist post-event.
 - Economics. GDP per capita (the paper's German reunification and
   Hong Kong handover studies), real exchange rates, unemployment —
   canonical nonstationary macro outcomes where spurious trend-matching is
@@ -756,7 +756,7 @@ choice:
   Step 2 forecasts the treated trend univariately. If the treated
   pre-period is short or the treated trend changed character mid-
   sample, HSC's pooled CV across the pre-period is more robust.
-* You want a single, interpretable knob rather than a fixed
+* You want a single, interpretable knob, not a fixed
   decomposition. :math:`\rho^*` after fitting tells you which
   regime the data live in, on a continuous scale; SBC is a yes / no
   commitment to the cycle-only fit.
@@ -906,8 +906,7 @@ raw levels averages across both structures and, because the trend
 dominates the cycle in magnitude, leans heavily on the trend-matching
 donors. SBC separates the two, attributes a more substantial (and, in
 placebo tests, more robust) negative effect to reunification, and
-confines the post-reunification boom to roughly one year rather than
-three.
+confines the post-reunification boom to roughly one year, not three.
 
 In short: when SBC and classical SCM disagree on a nonstationary outcome,
 SBC is the more conservative answer about how much of the post-treatment

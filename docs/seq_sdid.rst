@@ -22,7 +22,7 @@ SC-type method. Five structural differences distinguish Sequential SDiD
 from the canonical SDID estimator already in :mod:`mlsynth`:
 
 * It works on aggregated cohort outcomes :math:`y_{a, t} \coloneqq
-  n_a^{-1} \sum_{i:\,A_i = a} y_{i, t}` rather than unit-level data, with
+  n_a^{-1} \sum_{i:\,A_i = a} y_{i, t}`, not unit-level data, with
   cohort shares :math:`\pi_a \coloneqq n_a / n` carrying the unit-count information.
 * Weights satisfy only the simplex sum constraint :math:`\mathbf{1}^\top\mathbf{w} = 1`
   — non-negativity is dropped.
@@ -202,7 +202,7 @@ Identifying assumptions
 
    *Remark.* Spillovers onto the comparison cohorts contaminate the
    counterfactual; when they are present use :doc:`spsydid` or
-   :doc:`spillsynth` rather than Sequential SDiD.
+   :doc:`spillsynth`, not Sequential SDiD.
 
 Algorithm 1
 ^^^^^^^^^^^

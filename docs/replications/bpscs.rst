@@ -29,7 +29,7 @@ the posterior counterfactual of the treated unit to the NumPyro estimator on the
 identical data.
 
 Because the reference repository is licensed GPL-3, its Stan code is fetched and
-run at cross-check time as an external oracle rather than copied into this
+run at cross-check time as an external oracle, not copied into this
 (MIT-licensed) project; the model was re-derived from the paper's equations, not
 transcribed from the GPL source.
 

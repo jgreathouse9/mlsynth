@@ -521,7 +521,7 @@ Algorithm 1 and the Theoretical Appendix
 
 The paper's Algorithm 1 is the abstract "SC Family of Methods" frame
 (target-side regression on donors), which TASC instantiates implicitly
-through the state-space machinery rather than as a discrete code path.
+through the state-space machinery, not as a discrete code path.
 Appendix A's Proposition A.1 (Kalman sufficiency, information loss by
 permutation invariance, dominance) is the theoretical justification
 for TASC's edge over permutation-invariant SC variants; it does not

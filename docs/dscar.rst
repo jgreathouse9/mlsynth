@@ -168,8 +168,8 @@ Do not use DSCAR when
   e.g., the alert itself changes the meteorology you match on). DSCAR is
   then biased; you need a method that models the confounder response, or a
   proximal/IV design (:doc:`proximal`, :doc:`siv`).
-* You need distributional effects (quantiles, Lorenz, tails) rather
-  than the mean ATT -- use :doc:`dsc` (Distributional Synthetic Control),
+* You need distributional effects (quantiles, Lorenz, tails), not the mean ATT
+  -- use :doc:`dsc` (Distributional Synthetic Control),
   which ships separately as :class:`mlsynth.DSC`.
 * There is interference between treated and control units beyond the
   modelled spatial error dependence (treatment spillovers onto the donor
@@ -195,7 +195,7 @@ The observed scalar outcome of unit :math:`i` at time :math:`t` is
 outcome superscripts :math:`y_{it}^N` is the no-intervention outcome and
 :math:`y_{it}^I` the outcome under the intervention, so :math:`y_{it} = y_{it}^N
 + (y_{it}^I - y_{it}^N)\,d_{it}`. The no-intervention path follows the
-auto-regressive model
+  auto-regressive model
 
 .. math::
 
@@ -286,7 +286,7 @@ The Zheng & Chen (2024) consistency theorem requires the following.
    confounders, treated and control units share the same no-intervention
    conditional mean. This is what licenses borrowing the donors' dynamics to
    impute the treated counterfactual, and -- because :math:`y_{it} = y_{it}^N`
-   before :math:`T_0` -- it is testable on the pre-period rather than merely
+   before :math:`T_0` -- it is testable on the pre-period, not merely
    assumed.
 
 3. Unaffected confounders: :math:`\mathbf{x}_{it} = \mathbf{x}_{it}^N =
@@ -454,7 +454,7 @@ Path-A regression status:
   suggesting the paper's red-alert numbers were produced with
   preprocessing the released code doesn't actually perform. The
   pytest regression ``TestPathABeijingAlerts::test_red_att_qualitative``
-  asserts the qualitative ATT bound rather than the paper's exact
+  asserts the qualitative ATT bound, not the paper's exact
   magnitude.
 
 The driver is :file:`examples/dscar/replicate_beijing_alerts.py`; run

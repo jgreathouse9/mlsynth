@@ -29,7 +29,7 @@ interior-point iterate. mlsynth adds a strictly-convex ridge
 optimum — the most diffuse synthetic control consistent with exact covariate
 balance and the best lagged-outcome fit. Because ``LowRankQP``'s interior-point
 solution is itself near that point, the two coincide to 3–4 significant
-figures, making this a genuine cross-validation rather than a comparison of
+figures, making this a genuine cross-validation, not a comparison of
 solver artifacts.
 
 Data

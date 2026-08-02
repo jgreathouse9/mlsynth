@@ -21,8 +21,8 @@ the two.
 
 MEDSC, following Mellace and Pasquini ([MellacePasquini2022]_), splits the
 synthetic-control effect into a direct effect and an indirect effect that runs
-through the mediator, using the counterfactual machinery of synthetic control
-rather than the linear structural equations of classical mediation analysis.
+through the mediator, using the counterfactual machinery of synthetic control,
+not the linear structural equations of classical mediation analysis.
 The key device is a cross-world synthetic control: alongside the ordinary
 synthetic control that reproduces the treated unit's pre-treatment outcome
 path, MEDSC builds a second control that also matches the treated unit's
@@ -175,7 +175,7 @@ RMSPE above ``placebo_cutoff`` times the treated unit's (default five) — are
 dropped, and the p-value is the treated unit's rank among the survivors. The
 placebo test speaks to the total effect, the identified estimand; the direct
 and indirect channels are reported as point paths, and their credibility rests
-on the mediation assumptions above rather than on a sampling distribution.
+on the mediation assumptions above, not on a sampling distribution.
 
 The pre-treatment RMSE of the total control (``pre_rmse_total``) is the primary
 fit diagnostic — the decomposition is only as trustworthy as the synthetic
@@ -231,7 +231,7 @@ cell — :math:`-16.8` in 1995 (paper :math:`-16.77`) and :math:`-18.0` in 2000
 qualitative signature, opening at roughly zero in 1989 and growing negative
 thereafter (durable case ``benchmarks/cases/medsc_prop99.py``). See
 :doc:`replications/medsc` for the full comparison, including why the indirect
-channel's magnitude tracks the outcome-path total rather than the paper's
+channel's magnitude tracks the outcome-path total, not the paper's
 predictor-tuned total.
 
 Core API
