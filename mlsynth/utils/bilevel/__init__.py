@@ -18,7 +18,8 @@ Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
 
 from .structure import BilevelProblem, BilevelSolution
 from .simplex import (project_simplex, project_simplex_cols,
-                      simplex_lstsq, simplex_lstsq_batch, mspe)
+                      simplex_lstsq, simplex_lstsq_batch,
+                      simplex_lstsq_loo, mspe)
 from .solver import solve_bilevel, lower_level_weights
 from .mscmt import solve_mscmt
 from .regression_v import regression_v, solve_regression
@@ -52,6 +53,7 @@ __all__ = [
     "solve_regression",
     "project_simplex_cols",
     "simplex_lstsq_batch",
+    "simplex_lstsq_loo",
     "BilevelProblem",
     "BilevelSolution",
     "BilevelSCM",
