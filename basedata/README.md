@@ -96,6 +96,23 @@ to the simplex on ingestion. The category assignment is not stated outright in
 the paper — it was recovered by matching its Table 1 balance row; see
 `docs/replications/compsc.rst`.
 
+## Okano & Kurisu (2026) functional synthetic control
+
+| File | Contents | Used by |
+|---|---|---|
+| `okano_fsc_fertility.csv` | age-specific fertility rates by country, year (1956–1975) and age (12–55): East Germany plus 20 controls, treatment 1972 | `fsc_okano` section 6.1 |
+| `okano_fsc_mortality.csv` | age-at-death quantile functions by country, year (1970–1999) and quantile level (100 points on [0.01, 0.99]): Russia plus 17 Western European controls, treatment 1991 | `fsc_okano` section 6.2 |
+| `okano_fsc_service.csv` | service-trade covariance matrices by country and quarter (2009Q1–2018Q2), stored as the 45 lower-triangle entries of the 9×9 matrix over service categories SC–SL: the UK plus 22 controls, treatment 2016Q2 | `fsc_okano` section 6.3 |
+
+Converted from the authors' `asfr.RData` / `aad.RData` / `service.RData`
+(<https://github.com/RyoOkano21/FSC>) with the `rdata` package; no R is needed to
+rebuild them. One row per (unit, time, argument), so each argument slice pivots
+through `dataprep` independently and the slices stack into the `(N, T, M)` cube
+the method wants. Underlying sources are the Human Fertility Database, the Human
+Mortality Database, and UN Trade and Development. Note that the service file
+stores the plain half-vectorisation the authors use, with no √2 on the
+off-diagonals — see `benchmarks/cases/fsc_okano.py` for why that matters.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.
