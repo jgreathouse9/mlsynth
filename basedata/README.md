@@ -77,6 +77,12 @@ solve once, offline, and pre-commits the chosen dark markets so the paper can
 load the panel and recover the same design in a single `fit`). The selection
 matches on the pre-launch sales and the seven covariates with `standardize=True`.
 
+## Walmart Supercenter entry and county employment — Wiltshire (2021, 2025)
+
+| File | What it is | Used by |
+|---|---|---|
+| `allsynth_walmart.parquet` | the `allsynth_walmart` panel shipped with Wiltshire's `allsynth` Stata package (`sysuse allsynth_walmart`), trimmed to the columns the staggered design needs: 605 counties x 1990–2005, aggregate (`emps_n10`) and retail (`emps_n44`) county employment, the ever-treated flag `supercenter` and entry year `super_year` (566 counties adopting 1995–2000 in six cohorts; 39 never-treated donors where entry was blocked), the commuting zone `czone` and 1990 population `pop90` used by the article's donor restriction and averaging weights | `examples/rolldid_allsynth_walmart.py` (ROLLDID on the article's Example 12) |
+
 ## Pennsylvania electricity generation mix — Boussim (2026)
 
 | File | What it is | Used by |
