@@ -142,9 +142,8 @@ different question.
 The base period belongs to the cohort. Every unit adopting at the same time
 shares :math:`T_{0j}`, so the indexed donor block takes one value per adoption
 time rather than one per treated unit. With six adoption years and 566 treated
-units that is six donor blocks, not 566, and each cohort becomes a single
-least-squares problem with many right-hand sides rather than :math:`N_g`
-separate ones.
+units that is six donor blocks, not 566, and every unit in a cohort is fitted
+against the same design matrix.
 
 The aggregation weights are part of the specification. Equal weighting and
 size weighting answer different questions, and neither is a default the data
@@ -160,17 +159,35 @@ close to free: under the indexing, :math:`\widehat{\tau}_{-1} = 0` by
 construction, so the remaining pre-treatment horizons are informative about fit
 rather than about level.
 
-Two things the result reports that are easy to overlook. ``design.batched``
-records whether each cohort was solved as one program; it is false when a donor
-predicate binds, since restricting donors per unit gives each unit its own
-design matrix. And ``per_unit`` carries every unit's own path and weights.
+Two things the result reports that are easy to overlook.
+``design.shared_donor_pool`` records whether every treated unit in every cohort
+faced the same donor block; it is false when a donor predicate binds, since
+restricting donors per unit gives each unit its own design matrix. And
+``per_unit`` carries every unit's own path and weights.
 
-That last one deserves a caution. With a donor pool large relative to the
-number of pre-treatment periods the individual weight vectors are not
-identified: many weightings fit the pre-period equally well while implying
-different post-treatment counterfactuals. The weighted mean is pinned down far
-better than its parts. Read ``per_unit`` for diagnosis and spread, not as a
-claim about which donors resemble a particular unit.
+That last one deserves a caution, and it is sharper than it first looks. With a
+donor pool large relative to the number of pre-treatment periods the individual
+weight vectors are not identified: many weightings fit the pre-period equally
+well while implying different post-treatment counterfactuals. This is not a
+statement about approximate solvers -- it survives solving the program exactly.
+On the Wiltshire panel a cohort has seven pre-treatment periods against 39
+donors, so the optimum is a face of dimension at least 32, and two exact solvers
+that agree on the objective to :math:`8.7 \times 10^{-6}` still return
+per-county post-treatment paths differing by up to 2.1 percentage points.
+
+The weighted mean is pinned down far better than its parts -- across three
+solvers the population-weighted aggregate moves by 0.05 percent where the
+individual paths move by 2.1 -- but it is not pinned exactly either, which is
+why the durable benchmark bands the aggregate rather than pinning a single
+solver's answer. Read ``per_unit`` for diagnosis and spread, not as a claim
+about which donors resemble a particular unit.
+
+The weights themselves come from a primal active-set method
+(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), which terminates on
+a Karush-Kuhn-Tucker certificate rather than on an iteration budget. That matters
+here: on this design a first-order method does not converge at all, leaving 20 of
+39 leave-one-out columns still improving after 20,000 iterations at any
+tolerance, and so returns a point that is simply suboptimal.
 
 Bias correction
 ---------------
@@ -281,9 +298,20 @@ it away from the null it is meant to represent. ``"donors-only"`` drops the
 treated unit, which removes that channel and recovers the per-cohort saving, at
 the price of departing from the reference implementation.
 
+On the Walmart panel the two pools give the same answer. The permutation pool
+runs 22,074 solves against the other's 234, and both report an ATT of
+:math:`-0.367` with a standard error of :math:`0.426` and a p-value of
+:math:`0.389`, agreeing on the interval to three decimals. That is not a general
+result -- with a smaller donor pool a single extra column would matter more --
+but on a pool of 39 the Zhang channel is real in principle and negligible in
+practice, so ``"donors-only"`` is a reasonable choice at a twenty-seventh of the
+cost.
+
 The whole procedure is opt-in for the same reason the reference makes it opt-in:
 its cost scales with treated units times donors, and ``allsynth`` warns that
-requesting it "will greatly extend the run-time".
+requesting it "will greatly extend the run-time". Concretely, on the paper's
+566 treated counties and 39 donors: 2.2 seconds for the point estimate alone,
+2.8 with the ``"donors-only"`` distribution, 76 with the default one.
 
 Example
 -------
@@ -309,7 +337,7 @@ Example
    res.effects.att                       # mean post-treatment effect, percent
    res.event_study.tau                   # the path, one entry per horizon
    res.design.cohorts                    # the distinct adoption times
-   res.design.batched                    # one solve per cohort?
+   res.design.shared_donor_pool          # same donor block for every unit?
    res.per_unit["18003"].tau             # one county's own path
 
 Asking for the permutation distribution as well, on a smaller donor pool so the

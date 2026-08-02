@@ -56,11 +56,11 @@ class StackedDesign(BaseModel):
         ..., description="Whether series were indexed to the base period.")
     bias_corrected: bool = Field(
         ..., description="Whether the Abadie-L'Hour correction was applied.")
-    batched: bool = Field(
+    shared_donor_pool: bool = Field(
         ..., description=(
-            "Whether each cohort was solved as one multiple-right-hand-side "
-            "program. False when a donor predicate binds, since that gives "
-            "each treated unit its own design matrix."))
+            "Whether every treated unit in every cohort faced the same donor "
+            "pool. False when a donor predicate binds, since that gives each "
+            "treated unit its own design matrix."))
 
 
 class StackedPlacebo(BaseModel):

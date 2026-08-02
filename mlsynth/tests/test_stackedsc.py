@@ -163,13 +163,32 @@ class TestBiasCorrection:
 
         assert STACKEDSCConfig.model_fields["bias_correct"].default is False
 
-    def test_it_moves_the_estimate_when_predictors_are_supplied(self):
+    def test_it_moves_the_estimate_when_the_predictors_cannot_balance(self):
+        """The correction subtracts ``(x1 - X0 w)' beta``, so it is identically
+        zero when the predictors balance -- and with one predictor inside the
+        donors' range an exact solver balances it exactly. The treated units'
+        predictor is therefore pushed outside the donors' convex hull, which is
+        the only regime where the correction does anything at all.
+        """
         df = _staggered()
         df["x1"] = df.groupby("unit").y.transform("mean")
+        df.loc[df.unit.str.startswith("x"), "x1"] *= 3.0
         plain = _fit(df=df, covariates=["x1"])
         corrected = _fit(df=df, covariates=["x1"], bias_correct=True)
         assert plain.effects.att != pytest.approx(corrected.effects.att,
                                                   rel=1e-9)
+
+    def test_it_is_identically_zero_when_the_predictors_do_balance(self):
+        """The other half of the same fact, which the previous test hid: where
+        the synthetic control matches the predictors exactly there is no
+        imbalance left to correct, so the corrected and uncorrected estimates
+        coincide to machine precision."""
+        df = _staggered()
+        df["x1"] = df.groupby("unit").y.transform("mean")
+        plain = _fit(df=df, covariates=["x1"])
+        corrected = _fit(df=df, covariates=["x1"], bias_correct=True)
+        assert plain.effects.att == pytest.approx(corrected.effects.att,
+                                                  abs=1e-12)
 
 
 # ---------------------------------------------------------------------------

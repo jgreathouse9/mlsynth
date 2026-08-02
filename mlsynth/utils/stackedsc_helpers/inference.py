@@ -65,7 +65,8 @@ import numpy as np
 from scipy.stats import norm
 
 from ...exceptions import MlsynthDataError
-from ..bilevel import bias_corrected_gaps, simplex_lstsq
+from ..bilevel import bias_corrected_gaps
+from ..bilevel.active_set import solve_simplex_qp
 from .structures import StackedPlacebo
 
 __all__ = ["cohort_placebo_paths", "sample_placebo_averages",
@@ -140,7 +141,8 @@ def cohort_placebo_paths(
                 Y_pool = np.column_stack([D[:, keep], Y[:, i]])
                 X_pool = (None if X0 is None
                           else np.column_stack([X0[:, keep], X1[:, i]]))
-            w = np.asarray(simplex_lstsq(A_pool, A[:, j]), dtype=float).ravel()
+            w = np.asarray(solve_simplex_qp(A_pool, A[:, j]),
+                           dtype=float).ravel()
             gap = D[:, j] - Y_pool @ w
             if bias_correct and X_pool is not None:
                 gap = bias_corrected_gaps(w, X0[:, j], X_pool, D[:, j], Y_pool,

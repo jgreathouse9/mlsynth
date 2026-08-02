@@ -1,11 +1,27 @@
 """The stacked-in-event-time fit: solve per cohort, average on the event clock.
 
 Every treated unit in a cohort faces the same donor block and differs only in
-its own pre-treatment target, so a cohort is one multiple-right-hand-side
-program rather than N_g programs -- see
-:func:`mlsynth.utils.bilevel.simplex.simplex_lstsq_batch`. The exception is a
-donor predicate that actually binds: it gives each treated unit its own design
-matrix, and the batching is forfeited. That is reported rather than hidden.
+its own pre-treatment target. A donor predicate that binds is the exception: it
+gives each unit its own design matrix, which the result reports as
+``shared_donor_pool = False``.
+
+The weights come from the primal active-set solver
+(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), the same one MEDSC,
+SCD and COMPSC use. That choice is load-bearing on this design rather than a
+matter of taste. A cohort has 5 to 10 pre-treatment periods against 39 donors,
+so the Gram is rank deficient by 30 or more; measured on the Wiltshire panel a
+first-order method never converged on it, with 20 of 39 leave-one-out columns
+still improving at iteration 20,000 at every tolerance from 1e-11 down to 1e-6.
+The active-set method solves the same program exactly in a bounded number of
+pivots, and on that panel is 2.8x faster on the point estimate and roughly 130x
+on the placebo layer.
+
+Exactness pins the objective, not the answer. With fewer rows than donors the
+optimum is a face, and two exact solvers land in different places on it -- on
+the Wiltshire cohorts the active set and CLARABEL agree on the objective to
+8.7e-6 while their per-county post-treatment paths differ by up to 2.1
+percentage points and the population-weighted aggregate by 0.05. Read the
+aggregate; ``docs/stackedsc.rst`` says so at more length.
 """
 
 from __future__ import annotations
@@ -23,8 +39,8 @@ from ...config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
-from ..bilevel import (bias_corrected_gaps, regression_v, simplex_lstsq,
-                       simplex_lstsq_batch)
+from ..bilevel import bias_corrected_gaps, regression_v
+from ..bilevel.active_set import solve_simplex_qp
 from .inference import placebo_inference
 from .plotter import plot_stackedsc
 from .setup import aggregation_weights, build_cohorts, event_window
@@ -77,17 +93,22 @@ def _allowed_donors(cohort, predicate):
     return allowed, binds
 
 
-def _weights_for_cohort(cohort, A, B, allowed, binds):
-    """(n_donors, n_units) weights. Batched unless the predicate binds."""
-    if not binds:
-        return simplex_lstsq_batch(A, B), True
+def _weights_for_cohort(cohort, A, B, allowed):
+    """(n_donors, n_units) weights, one exact solve per treated unit.
 
+    The design ``A`` is shared across a cohort unless a predicate binds, but
+    the active-set solver takes one target at a time, so this is a loop either
+    way. It is still the faster path: each solve terminates on a KKT
+    certificate after a handful of pivots rather than running an iteration
+    budget to exhaustion.
+    """
     cols = []
     for j, keep in enumerate(allowed):
         w = np.zeros(len(cohort.donors))
-        w[keep] = simplex_lstsq(A[:, keep], B[:, j])
+        w[keep] = np.asarray(solve_simplex_qp(A[:, keep], B[:, j]),
+                             dtype=float).ravel()
         cols.append(w)
-    return np.column_stack(cols), False
+    return np.column_stack(cols)
 
 
 def run_stackedsc(config) -> BaseEstimatorResults:
@@ -108,15 +129,15 @@ def run_stackedsc(config) -> BaseEstimatorResults:
     gamma_of = dict(zip(all_units, gammas))
 
     per_unit: Dict[str, StackedUnitFit] = {}
-    batched = True
+    shared_pool = True
     designs, pools = [], []
     for cohort in cohorts:
         A, B, _V = _design(cohort, backend)
         allowed, binds = _allowed_donors(cohort, config.donor_predicate)
         designs.append((A, B))
         pools.append(allowed)
-        W, was_batched = _weights_for_cohort(cohort, A, B, allowed, binds)
-        batched &= was_batched
+        W = _weights_for_cohort(cohort, A, B, allowed)
+        shared_pool &= not binds
         gap = cohort.Y - cohort.D @ W                      # (T, n_units)
         if config.bias_correct:
             for j in range(len(cohort.units)):
@@ -151,7 +172,8 @@ def run_stackedsc(config) -> BaseEstimatorResults:
     design = StackedDesign(
         cohorts=[c.adopt for c in cohorts], n_treated=len(all_units),
         n_donors=len(donors), backend=backend, normalized=config.normalize,
-        bias_corrected=config.bias_correct, batched=batched,
+        bias_corrected=config.bias_correct,
+        shared_donor_pool=shared_pool,
     )
 
     pooled: Dict[str, float] = {}
@@ -197,7 +219,7 @@ def run_stackedsc(config) -> BaseEstimatorResults:
                 "bias_correct_ridge": (float(config.bias_correct_ridge)
                                        if config.bias_correct else None),
                 "covariates": config.covariates,
-                "batched": batched,
+                "shared_donor_pool": shared_pool,
                 "cohorts": [c.adopt for c in cohorts],
                 "inference": config.inference,
                 "placebo_donor_pool": config.placebo_donor_pool,
