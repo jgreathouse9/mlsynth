@@ -63,10 +63,19 @@ narrative rests on:
      - decline from :math:`e = 2`
    * - direction
      - large negative by :math:`e = 5`
-     - :math:`-0.90`
+     - :math:`-0.93`
 
-The gap at :math:`e = -1` comes out at :math:`-6 \times 10^{-16}`, which is the
+The gap at :math:`e = -1` comes out at :math:`6 \times 10^{-16}`, which is the
 indexing constraint holding to machine precision rather than a fitted result.
+
+A caveat on precision that the benchmark encodes. Each cohort has five to ten
+pre-treatment periods against 39 donors, so the optimum of every weight program
+is a face rather than a point, and solving it exactly pins the objective without
+pinning the answer. Across three solvers the population-weighted aggregate moves
+by 0.05 percent -- five-year gaps of :math:`-0.904`, :math:`-0.920` and
+:math:`-0.928` -- while individual counties move by up to 2.1. So the figures
+above are quoted to two decimals and banded in the benchmark, rather than
+presented as exact.
 
 The specification, and the part of it that is not expressible
 -------------------------------------------------------------
@@ -169,14 +178,14 @@ paper's four prose claims, the two specification contrasts above, and the
 forfeited batching under a commuting-zone donor restriction.
 
 One row is a floor rather than a value. ``county_dispersion_at_five`` records
-that the per-county five-year gaps have a standard deviation of 14.1 percent
-around a weighted mean of -0.90, and it carries a deliberately wide band. Part
+that the per-county five-year gaps have a standard deviation of 14.2 percent
+around a weighted mean of -0.93, and it carries a deliberately wide band. Part
 of that spread is genuine heterogeneity across counties and part is the
 non-identification described above, so the number itself is not reproducible
 across solvers -- what would be a real regression is the dispersion collapsing,
 which would mean the per-county fits had stopped varying at all.
 
-Inference is not part of this case. The placebo layer costs 22,074 simplex
-solves in its default donor pool on this panel, well past the runtime budget,
-and the paper's p-values rest on the same unrecoverable predictor-weight rule as
-its magnitudes.
+Inference is not part of this case. The placebo layer is roughly 1.2 minutes on
+this panel in its default donor pool -- past the per-case budget, though no
+longer prohibitive -- and the paper's p-values rest on the same unrecoverable
+predictor-weight rule as its magnitudes.

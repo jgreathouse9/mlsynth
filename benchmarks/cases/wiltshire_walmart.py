@@ -56,21 +56,29 @@ the synthetic control to reproduce the treated level exactly there, so the gap
 at ``e = -1`` is zero by construction rather than by fit. It comes out at 6e-16;
 a wrong base year would break it immediately and break nothing else visibly.
 
-``batched`` records that each cohort was solved as one multiple-right-hand-side
-program. It is what makes 566 counties six solves rather than 566, and it is
-false exactly when a donor predicate binds -- also measured here.
+``shared_donor_pool`` records that every treated unit in every cohort faced the
+same donor block. It is false exactly when a donor predicate binds, which is
+also measured here.
 
 ``county_dispersion_at_five`` is the caution against reading a single county.
-The per-county five-year gaps have a standard deviation of 14.1 percent around a
-weighted mean of -0.90. Part of that is genuine heterogeneity; part is that with
+The per-county five-year gaps have a standard deviation of 14.2 percent around a
+weighted mean of -0.93. Part of that is genuine heterogeneity; part is that with
 5 to 10 pre-treatment periods against 39 donors the individual weight vectors
-are not identified at all, so two solvers reaching the same fit assign different
-weights and different post-treatment paths. The average is the estimand.
+are not identified at all. The average is the estimand.
 
-Inference is deliberately absent. The placebo layer costs 22,074 simplex solves
-in its default pool on this panel, far past the runtime budget for a case, and
-the paper's p-values rest on the same unrecoverable predictor-weight rule as its
-magnitudes.
+Which brings up the tolerances. Rank deficiency of 30-plus means the optimum is
+a *face*, so a solver pins the objective but not the point: the active-set
+method and CLARABEL agree on the objective to 8.7e-6 while their per-county
+post-treatment paths differ by up to 2.1 percentage points. That mostly washes
+out in the population-weighted aggregate -- 0.05 across the three solvers
+measured -- but not to nothing, so the aggregate rows carry bands that bracket
+solver choice rather than pinning one solver's answer. Values are centred on the
+active-set solver the estimator ships; the bands admit FISTA and CLARABEL too.
+
+Inference is deliberately absent. The placebo layer is roughly 1.2 minutes on
+this panel in its default donor pool -- past the per-case budget, though no
+longer prohibitive -- and the paper's p-values rest on the same unrecoverable
+predictor-weight rule as its magnitudes.
 
 Reference values: Wiltshire, J. C. (2023), Section 4.2 and Figure 6, for the
 prose claims; the remaining rows are this estimator's own deterministic output
@@ -135,7 +143,7 @@ def run() -> dict:
 
     # --- structural invariants ----------------------------------------
     out["base_period_gap"] = float(abs(tau[e == -1][0]))
-    out["batched"] = float(res.design.batched)
+    out["shared_donor_pool"] = float(res.design.shared_donor_pool)
     out["weights_sum_to_one"] = float(
         max(abs(sum(u.donor_weights.values()) - 1.0)
             for u in res.per_unit.values()))
@@ -185,24 +193,36 @@ def run() -> dict:
     # result says so rather than reporting a speed it did not achieve.
     czone = df.groupby("cty_fips").czone.first().to_dict()
     cz = _fit(df, donor_predicate=lambda i, d: czone[i] != czone[d])
-    out["restricted_pool_is_not_batched"] = float(not cz.design.batched)
+    out["restricted_pool_is_not_shared"] = float(not cz.design.shared_donor_pool)
     out["restricted_pool_gap_at_five"] = float(_path(cz)[1][e == 5][0])
     return out
 
 
 #: (expected, absolute tolerance).
 #:
-#: Everything here is deterministic -- no resampling, no simulation, and the
-#: simplex solve is seeded only in the trivial sense that FISTA starts from
-#: uniform weights. So tolerances cover solver drift across BLAS builds, not
-#: Monte-Carlo noise, and are correspondingly tight.
+#: Everything here is deterministic -- no resampling and no simulation -- so
+#: none of these tolerances covers Monte-Carlo noise. What the wider ones cover
+#: is solver choice.
 #:
-#: The exception is `county_dispersion_at_five`. Individual county weights are
-#: not identified on this design, so a different solver reaching the same fit
-#: reports a different spread; #341 measured up to 6.7pp of per-county movement
-#: against 0.03 on the aggregate. Its band is wide on purpose, and it is a
-#: floor-not-a-value row: what would be a real regression is the dispersion
-#: collapsing, which would mean the per-county fits had stopped varying.
+#: The counts and the three identities are exact, and are pinned at machine
+#: precision accordingly.
+#:
+#: The aggregate rows -- `gap_at_entry`, `gap_at_five`, `att`,
+#: `equal_weighted_gap_at_five`, `restricted_pool_gap_at_five` -- are not.
+#: The design is rank deficient by 30 or more, so the optimum is a face and an
+#: exact solver pins the objective without pinning the point. Measured across
+#: three solvers (the active set this estimator ships, CLARABEL, and the
+#: first-order method it used to ship): gap_at_five spans -0.904 to -0.928, att
+#: spans -0.352 to -0.367, gap_at_entry spans 0.147 to 0.159. Values are centred
+#: on the shipped solver and the bands admit all three, so a future solver
+#: change is not a spurious failure -- but a band is still tight enough to catch
+#: a real one, since the effects themselves are an order of magnitude larger.
+#: `restricted_pool_gap_at_five` gets a wider band again because a binding
+#: predicate changes each unit's design matrix, which moves the answer more.
+#:
+#: `county_dispersion_at_five` is a floor rather than a value: what would be a
+#: real regression is the dispersion collapsing, which would mean the per-county
+#: fits had stopped varying at all.
 EXPECTED = {
     # the design
     "n_treated": (566.0, 0.5),
@@ -212,7 +232,7 @@ EXPECTED = {
 
     # invariants: identities, so pinned at machine precision
     "base_period_gap": (0.0, 1e-12),
-    "batched": (1.0, 0.5),
+    "shared_donor_pool": (1.0, 0.5),
     "weights_sum_to_one": (0.0, 1e-6),
     "aggregate_is_the_weighted_mean": (0.0, 1e-9),
 
@@ -221,21 +241,21 @@ EXPECTED = {
     # effects an order of magnitude larger.
     "pre_rmse": (0.049, 0.01),
     "max_pre_gap": (0.073, 0.02),
-    "gap_at_entry": (0.158, 0.05),
+    "gap_at_entry": (0.153, 0.05),
     "declines_monotonically_after_entry": (1.0, 0.5),
-    "gap_at_five": (-0.904, 0.02),
-    "att": (-0.352, 0.02),
+    "gap_at_five": (-0.928, 0.06),
+    "att": (-0.367, 0.05),
 
     # read the average, not a county
-    "county_dispersion_at_five": (14.1, 6.0),
+    "county_dispersion_at_five": (14.2, 6.0),
 
     # specification choices
-    "equal_weighted_gap_at_five": (-1.100, 0.05),
+    "equal_weighted_gap_at_five": (-1.128, 0.06),
     "equal_weighting_keeps_the_sign": (1.0, 0.5),
     # 27x worse without the paper's outcome lags. The band is wide because the
     # point is the order of magnitude, not the figure.
-    "covariate_spec_pre_rmse": (1.354, 0.10),
-    "covariate_spec_pre_rmse_ratio": (27.5, 8.0),
-    "restricted_pool_is_not_batched": (1.0, 0.5),
-    "restricted_pool_gap_at_five": (-1.010, 0.05),
+    "covariate_spec_pre_rmse": (1.383, 0.10),
+    "covariate_spec_pre_rmse_ratio": (28.1, 8.0),
+    "restricted_pool_is_not_shared": (1.0, 0.5),
+    "restricted_pool_gap_at_five": (-0.933, 0.10),
 }
