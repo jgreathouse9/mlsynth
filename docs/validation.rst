@@ -10,8 +10,8 @@ numbers here cannot drift from what CI enforces. Each row links to the
 reference implementation, the dataset (with checksum), and the mlsynth
 case that runs the check.
 
-Coverage: **81 cross-validation checks** against original
-implementations, covering **39 of 71 estimators** -- 30 reproduce the reference to display precision, 32 to
+Coverage: **79 cross-validation checks** against original
+implementations, covering **39 of 71 estimators** -- 29 reproduce the reference to display precision, 31 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -43,9 +43,9 @@ Summary
      - 1 tight
      - 0.00041
    * - :ref:`CLUSTERSC <val-clustersc>`
-     - 2
-     - 2 exact
-     - 0
+     - 4
+     - 3 exact · 1 tight
+     - 0.036
    * - :ref:`COMPSC <val-compsc>`
      - 1
      - 1 tight
@@ -54,10 +54,6 @@ Summary
      - 1
      - 1 tight
      - 0.014
-   * - :ref:`ClusterSC <val-clustersc>`
-     - 2
-     - 1 exact · 1 tight
-     - 0.036
    * - :ref:`DPSC <val-dpsc>`
      - 1
      - 1 exact
@@ -74,10 +70,6 @@ Summary
      - 1
      - 1 exact
      - 0.00032
-   * - :ref:`LINF <val-linf>`
-     - 2
-     - 1 tight · 1 close
-     - 0.39
    * - :ref:`MAREX <val-marex>`
      - 1
      - 1 tight
@@ -127,13 +119,13 @@ Summary
      - 1 exact
      - 0
    * - :ref:`PROXIMAL <val-proximal>`
-     - 3
-     - 1 exact · 2 tight
+     - 5
+     - 3 exact · 2 tight
      - 41
    * - :ref:`RESCM <val-rescm>`
-     - 2
-     - 2 tight
-     - 0.0013
+     - 4
+     - 3 tight · 1 close
+     - 0.39
    * - :ref:`ROLLDID <val-rolldid>`
      - 1
      - 1 exact
@@ -174,10 +166,6 @@ Summary
      - 4
      - 1 exact · 1 tight · 1 close · 1 documented
      - 7.6
-   * - :ref:`SPSC <val-spsc>`
-     - 2
-     - 2 exact
-     - 0.0007
    * - :ref:`SSC <val-ssc>`
      - 1
      - 1 tight
@@ -191,25 +179,13 @@ Summary
      - 1 documented
      - 25
    * - :ref:`TSSC <val-tssc>`
-     - 1
-     - 1 tight
+     - 2
+     - 2 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
      - 18
      - 5 exact · 6 tight · 5 close · 2 documented
      - 9e+03
-   * - :ref:`fixed rank) <val-fixed-rank->`
-     - 1
-     - 1 tight
-     - 0.036
-   * - :ref:`rolling-origin CV) <val-rolling-origin-cv->`
-     - 1
-     - 1 exact
-     - 4.6e-05
-   * - :ref:`soft simplex) <val-soft-simplex->`
-     - 1
-     - 1 tight
-     - 0.00041
 
 .. _val-beast:
 
@@ -298,6 +274,18 @@ CLUSTERSC
      - 0
      - exact — matches to display precision
      - `clustersc_rpca_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/clustersc_rpca_germany.py>`__
+   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 8
+     - 0.036
+     - tight
+     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
+   * - deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
+     - —
+     - 6
+     - 0
+     - exact — matches to display precision
+     - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
    * - scpi_pkg scest(w_constr={'name':'ridge'}) + df_EST
      - ``scpi_germany.csv`` (10b150fbcc2c…)
      - 3
@@ -348,34 +336,6 @@ CSCM
      - 0.014
      - tight
      - `cscm_viszero <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cscm_viszero.py>`__
-
-.. _val-clustersc:
-
-ClusterSC
----------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
-     - ``smoking_data.csv`` (a13dd4d5d6e4…)
-     - 8
-     - 0.036
-     - tight
-     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
-   * - deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
-     - —
-     - 6
-     - 0
-     - exact — matches to display precision
-     - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
 
 .. _val-dpsc:
 
@@ -464,34 +424,6 @@ FDID
      - 0.00032
      - exact — matches to display precision
      - `fdid_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fdid_hongkong.py>`__
-
-.. _val-linf:
-
-LINF
-----
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - LinfinitySC our(method='inf'|'l1-inf') (Wang, Xing & Ye 2025), https://github.com/BioAlgs/LinfinitySC
-     - —
-     - 40
-     - 0.00041
-     - tight
-     - `linf_crossval_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/linf_crossval_ref.py>`__
-   * - LinfinitySC our(method='inf') (Wang, Xing & Ye 2025), https://github.com/BioAlgs/LinfinitySC, lambda via param_selector(method='inf', n_folds=10)
-     - ``smoking_data.csv`` (a13dd4d5d6e4…)
-     - 43
-     - 0.39
-     - close
-     - `linf_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/linf_prop99.py>`__
 
 .. _val-marex:
 
@@ -832,6 +764,18 @@ PROXIMAL
      - 0.014
      - tight
      - `proximal_panic1907 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/proximal_panic1907.py>`__
+   * - `qkrcks0218/SPSC R (single-proxy synthetic control) <https://github.com/qkrcks0218/SPSC>`__
+     - —
+     - 4
+     - 0
+     - exact — matches to display precision
+     - `spsc_panic <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spsc_panic.py>`__
+   * - `qkrcks0218/SPSC R (single-proxy synthetic control) <https://github.com/qkrcks0218/SPSC>`__
+     - —
+     - 31
+     - 0.0007
+     - exact — matches to display precision
+     - `spsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spsc_prop99.py>`__
 
 .. _val-rescm:
 
@@ -848,6 +792,18 @@ RESCM
      - max \|Δ\|
      - Verdict
      - Case
+   * - LinfinitySC our(method='inf'|'l1-inf') (Wang, Xing & Ye 2025), https://github.com/BioAlgs/LinfinitySC
+     - —
+     - 40
+     - 0.00041
+     - tight
+     - `linf_crossval_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/linf_crossval_ref.py>`__
+   * - LinfinitySC our(method='inf') (Wang, Xing & Ye 2025), https://github.com/BioAlgs/LinfinitySC, lambda via param_selector(method='inf', n_folds=10)
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 43
+     - 0.39
+     - close
+     - `linf_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/linf_prop99.py>`__
    * - scmrelax L2RelaxationCV (Liao-Shi-Zheng; github.com/metricshilab/scmrelax = github.com/YapengZheng/Relaxed_SC; MOSEK->CLARABEL; live run, captured)
      - ``balanced_gdp.csv`` (26fee37d55d9…)
      - 6
@@ -1105,34 +1061,6 @@ SPILLSYNTH
      - close
      - `spillsynth_sudan <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spillsynth_sudan.py>`__
 
-.. _val-spsc:
-
-SPSC
-----
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - `qkrcks0218/SPSC R (single-proxy synthetic control) <https://github.com/qkrcks0218/SPSC>`__
-     - —
-     - 4
-     - 0
-     - exact — matches to display precision
-     - `spsc_panic <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spsc_panic.py>`__
-   * - `qkrcks0218/SPSC R (single-proxy synthetic control) <https://github.com/qkrcks0218/SPSC>`__
-     - —
-     - 31
-     - 0.0007
-     - exact — matches to display precision
-     - `spsc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spsc_prop99.py>`__
-
 .. _val-ssc:
 
 SSC
@@ -1226,6 +1154,12 @@ TSSC
      - 0.0004
      - tight
      - `ferman_demeaned_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_demeaned_basque.py>`__
+   * - authors' _aux.R synth_control_est + synth_control_est_demean (quadprog QPs, live via Rscript)
+     - —
+     - 12
+     - 0.0003
+     - tight
+     - `ferman_pinto_mc <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_pinto_mc.py>`__
 
 .. _val-vanillasc:
 
@@ -1350,72 +1284,6 @@ VanillaSC
      - 3.6
      - close
      - `vanillasc_xval_references <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_xval_references.py>`__
-
-.. _val-fixed-rank-:
-
-fixed rank)
------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
-     - ``smoking_data.csv`` (a13dd4d5d6e4…)
-     - 8
-     - 0.036
-     - tight
-     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
-
-.. _val-rolling-origin-cv-:
-
-rolling-origin CV)
-------------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - maxkllgg/masc masc(..., nogurobi=TRUE) (LowRankQP), live run, captured
-     - ``basque_jasa.csv`` (b3f957771c8e…)
-     - 8
-     - 4.6e-05
-     - exact — matches to display precision
-     - `masc_crossval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/masc_crossval.py>`__
-
-.. _val-soft-simplex-:
-
-soft simplex)
--------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - authors' two-coordinate Gibbs (example2_fspda_2.R primitives), live run, captured
-     - ``china_watches_long.csv`` (1ce8146af9a9…)
-     - 6
-     - 0.00041
-     - tight
-     - `bvss_watches <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/bvss_watches.py>`__
 
 Benchmarked without a reference cross-check
 -------------------------------------------

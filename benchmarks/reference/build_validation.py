@@ -105,8 +105,14 @@ def _bundle_meta(case: str) -> dict:
 # map those to the estimator a reader recognises.
 _ESTIMATOR_REMAP = {
     "ridge_augment_weights": "VanillaSC",   # ascm_kansas -- ridge-augmented VanillaSC
-    "fit_en_scm": "LINF",                   # linf_* -- L-infinity SC
+    "fit_en_scm": "RESCM",                  # linf_* -- the RESCM engine's L-infinity method
     "run_pda_multitreat": "PDA",            # pda_brexit -- Panel Data Approach
+    # Labels that name the reference package or an engine method instead of the
+    # mlsynth class. Left unmapped they look like estimators the package does
+    # not export, and their checks go uncounted against coverage.
+    "ClusterSC": "CLUSTERSC",   # srho1/ClusterSC, the reference for part of CLUSTERSC
+    "LINF": "RESCM",            # the L-infinity method of the RESCM engine
+    "SPSC": "PROXIMAL",         # single-proxy SC -- proximal_helpers.spsc
 }
 
 
@@ -115,6 +121,10 @@ def _canon(est: str) -> str:
     case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``) and map
     the handful of function-name fields to the estimator a reader recognises."""
     base = est.split("(")[0].split("/")[0].strip()
+    # A field may name a variant after the estimator ("TSSC MSCa"); the first
+    # token is the estimator and the rest is the configuration.
+    if " " in base and base not in _ESTIMATOR_REMAP:
+        base = base.split()[0]
     return _ESTIMATOR_REMAP.get(base, base)
 
 
@@ -134,7 +144,13 @@ def _estimators_of(meta: dict, case: str) -> list:
             f"its metadata header, so its checks cannot be attributed. Set "
             f"`mlsynth_call['estimator']` in the case's comparison() and "
             f"regenerate the bundle.")
-    return [e for e in (_canon(part) for part in raw.split(",")) if e]
+    # Strip parenthetical config notes first: they routinely contain commas
+    # ("ClusterSC/PCR (run_pcr OLS, fixed rank)"), and splitting on those
+    # produces label fragments like "fixed rank)".
+    import re as _re
+    flat = _re.sub(r"\([^)]*\)", "", raw)
+    parts = _re.split(r"[,+]", flat)
+    return [e for e in (_canon(part) for part in parts) if e]
 
 
 def _all_estimators() -> list:
