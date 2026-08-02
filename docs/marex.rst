@@ -28,8 +28,8 @@ Reach for MAREX when:
 
 * Units are large aggregates (markets, regions, stores) and only one or a
   few can be treated.
-* You control the assignment and want to choose it well, rather than
-  estimate after the fact.
+* You control the assignment and want to choose it well, not estimate after
+  the fact.
 * Interference or equity rules out within-unit randomization, forcing
   whole-unit treatment.
 
@@ -43,7 +43,7 @@ There are :math:`N` units :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and
 :math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
 :math:`T_0`) and the experimental window
 :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. Because MAREX
-designs an experiment rather than reweighting around one already-treated unit,
+designs an experiment instead of reweighting around one already-treated unit,
 units are indexed generically by :math:`i, j \in \mathcal{N}` with no forced
 treated unit. Each unit has a pre-intervention predictor vector
 :math:`\mathbf{x}_j` (pre-period outcomes and optional covariates);
@@ -96,7 +96,7 @@ outcomes; dependence *across units* is allowed.
 
 *Remark.* These conditions keep the factor structure recoverable from the
 pre-experiment window and the noise well-behaved, so the population predictor
-mean :math:`\bar{\mathbf{x}}` is a meaningful matching target rather than an
+mean :math:`\bar{\mathbf{x}}` is a meaningful matching target, not an
 artifact of a degenerate loading matrix.
 
 Assumption 3 / 4 (fit quality). A weight vector reproducing the population
@@ -135,7 +135,7 @@ Most of the MIQP's cost is SCIP *proving* a design optimal, which grows steeply
 with the number of markets and treated units. Two options manage that. A
 ``warm_start`` (a list of treated unit labels) seeds the search with a known
 good design — for instance LEXSCM's top candidate, which solves a near-identical
-problem by lexicographic search rather than by proof:
+problem by lexicographic search, not by proof:
 ``MAREX(..., warm_start=lexscm_warm_start(lex.fit()))`` (the helper
 ``lexscm_warm_start`` lives in ``mlsynth.utils.marex_helpers.warmstart``). The
 seed is only a hint,
@@ -203,7 +203,7 @@ constraints on the MIP:
   (:math:`\sum_k z_{ik} + \sum_k z_{jk} \le 1` for same-cluster pairs), a
   no-two-from-one-cluster rule for markets that share a media buy or retail
   footprint. This is distinct from the ``cluster`` design grouping above: it adds
-  conflict constraints to the treated set rather than splitting the objective.
+  conflict constraints to the treated set instead of splitting the objective.
 * ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` -- a coverage quota
   on the treated set of one design (at least / at most this many treated per
   stratum). Use this when the design is a single cluster but the read still has to
@@ -273,7 +273,7 @@ interchangeable, and ``cluster`` is *not* made obsolete by the restrictions:
   target and donor pool: ``cluster``. This is the design's objective, not a
   constraint: each cluster ``k`` reconstructs its own predictor mean
   :math:`\overline{X}_k`. It is the SYNDES analog of that estimator's ``arm``
-  (:doc:`syndes`), but baked into the objective rather than run as separate
+  (:doc:`syndes`), but baked into the objective, not run as separate
   solves -- which is why, in MAREX, the restrictions compose *with* ``cluster``
   (they apply within each cluster) and the per-cluster cardinality ``m_min`` /
   ``m_max`` *is* the stratum quota.
@@ -737,7 +737,7 @@ LEXSCM Walmart benchmark. See :doc:`replications/marex`; run it with
    continuous-``z`` mode: the relaxation shares the design objective but drops the
    integrality that defines the selection, so its top-``m`` rounding is degenerate
    and non-deterministic for small treated counts. The authors' full 45-store
-   MIQP uses Gurobi, so the validator is Path A on a subset rather than a live R
+   MIQP uses Gurobi, so the validator is Path A on a subset, not a live R
    cross-validation.
 
 Core API

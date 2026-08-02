@@ -22,7 +22,7 @@ SC-type method. Five structural differences distinguish Sequential SDiD
 from the canonical SDID estimator already in :mod:`mlsynth`:
 
 * It works on aggregated cohort outcomes :math:`y_{a, t} \coloneqq
-  n_a^{-1} \sum_{i:\,A_i = a} y_{i, t}` rather than unit-level data, with
+  n_a^{-1} \sum_{i:\,A_i = a} y_{i, t}`, not unit-level data, with
   cohort shares :math:`\pi_a \coloneqq n_a / n` carrying the unit-count information.
 * Weights satisfy only the simplex sum constraint :math:`\mathbf{1}^\top\mathbf{w} = 1`
   — non-negativity is dropped.
@@ -170,8 +170,8 @@ Identifying assumptions
    *Remark.* It is precisely the :math:`\theta_a^\top \psi_t` term that
    defeats standard staggered-DiD: when adoption correlates with the loading
    :math:`\theta_a`, comparison cohorts do not trace the treated cohort's
-   counterfactual trend. Sequential SDiD models this term rather than assuming
-   it away, which is what buys robustness when parallel trends fails.
+   counterfactual trend. Sequential SDiD carries this term in the model, which
+   is what buys robustness when parallel trends fails.
 
 2. Large adoption cohorts. Cohort sizes :math:`n_a` grow with the sample so
    that aggregation drives the idiosyncratic noise :math:`\epsilon_{a, t}` to
@@ -202,7 +202,7 @@ Identifying assumptions
 
    *Remark.* Spillovers onto the comparison cohorts contaminate the
    counterfactual; when they are present use :doc:`spsydid` or
-   :doc:`spillsynth` rather than Sequential SDiD.
+   :doc:`spillsynth`, not Sequential SDiD.
 
 Algorithm 1
 ^^^^^^^^^^^

@@ -50,8 +50,9 @@ identical matrix. Every quantity agrees:
    * - counterfactual (43 years)
      - 1.7e-13
 
-The synthesis QP is the load-bearing step. mlsynth solves it with an exact
-active-set box solver (:func:`mlsynth.utils.src_helpers.solver.solve_box_qp`),
+The synthesis QP is the step that decides the answer. mlsynth solves it with
+an exact active-set box solver
+(:func:`mlsynth.utils.src_helpers.solver.solve_box_qp`),
 the box-``[0, 1]`` analogue of the repository's simplex active-set solver. On
 the Basque problem it reproduces ``solve.QP`` to ``2e-14`` with a KKT residual
 below ``1.5e-14`` — tighter than ``solve.QP``'s own residual — and pins the box

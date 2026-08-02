@@ -10,7 +10,7 @@ Multitask Gaussian Process synthetic control (Ben-Michael et al. 2023) models
 the no-intervention outcome of every unit as a Gaussian process whose kernel is
 separable over time and units, then reads the treated unit's counterfactual off
 the posterior. Reach for it when the untreated series are smooth functions of
-time -- trends and slow drifts rather than sharp jumps -- and you want a
+time -- trends and slow drifts, not sharp jumps -- and you want a
 counterfactual whose credible band grows the further you extrapolate past the
 intervention. It is a good choice when:
 
@@ -34,7 +34,7 @@ Do not use MTGP when:
   (NumPyro, in double precision), so it needs the ``[bayes]`` optional
   dependency (``pip install 'mlsynth[bayes]'``). For a dependency-free Bayesian
   SC use :doc:`bscm`.
-* The untreated series are jagged rather than smooth. A squared-exponential GP
+* The untreated series are jagged, not smooth. A squared-exponential GP
   will over-smooth genuine high-frequency structure; a factor model that does
   not impose temporal smoothness (:doc:`bfsc`, :doc:`fma`) is the better fit.
 
@@ -160,7 +160,7 @@ Inference and diagnostics
 MTGP is inferential by construction: ``res.inference.ci_lower`` /
 ``res.inference.ci_upper`` give the ATT credible interval, and the counterfactual
 band is on ``res.inference_detail`` (``counterfactual_lower`` /
-``counterfactual_upper``). Because the trend and factors are sampled rather than
+``counterfactual_upper``). Because the trend and factors are sampled, not
 plugged in, the band includes GP uncertainty and widens post-treatment. NUTS
 diagnostics are surfaced on ``res.weights.summary_stats`` -- ``nuts_accept_prob``,
 ``nuts_divergences``, ``max_rhat`` -- alongside the posterior-mean length-scales

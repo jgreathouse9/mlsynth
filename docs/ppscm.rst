@@ -40,7 +40,7 @@ Reach for PPSCM when
 * Several units are treated at different adoption times, with a pool of
   never-treated (or not-yet-treated) comparison units.
 * You want an ATT over relative time (an event-study path), pooling
-  information across cohorts rather than trusting each cohort's own fit.
+  information across cohorts instead of fitting each cohort alone.
 * No single donor mix matches every treated unit, so separate SCM
   leaves you with unreliable per-unit fits -- the partial-pooling dial lets
   the average fit borrow strength without abandoning unit-level fit.
@@ -90,14 +90,15 @@ Method
 PPSCM follows ``multisynth`` in three stages.
 
 1. Two-way fixed effects (``fixedeff=True``, the default). A time effect is
-the never-treated units' per-period mean; a unit effect is each unit's mean over
-its own pre-adoption window. Both are removed and the synthetic control balances
-the residuals -- the "intercept-shifted" estimator of the paper.
+   the never-treated units' per-period mean; a unit effect is each unit's
+   mean over its own pre-adoption window. Both are removed and the synthetic
+   control balances
+   the residuals -- the "intercept-shifted" estimator of the paper.
 
 2. Partially pooled QP. With per-cohort pre-treatment imbalance
-:math:`\mathbf{q}_j \coloneqq \mathbf{x}_j - \mathbf{X}_{0,j}\mathbf{w}_j`
-(residuals; the pooled imbalance aligned by relative time), the weights
-solve
+   :math:`\mathbf{q}_j \coloneqq \mathbf{x}_j - \mathbf{X}_{0,j}\mathbf{w}_j`
+   (residuals; the pooled imbalance aligned by relative time), the weights
+   solve
 
 .. math::
 
@@ -114,8 +115,9 @@ the separate-fit (``nu=0``) global and individual imbalance norms. Small
 pooled SCM.
 
 3. Choosing :math:`\nu`. With ``nu="auto"`` (default) PPSCM uses augsynth's
-triangle-inequality ratio :math:`\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}`
-from the separate fit; a float fixes it.
+   triangle-inequality ratio
+   :math:`\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}`
+   from the separate fit; a float fixes it.
 
 Assumptions / Remarks.
 
@@ -191,7 +193,7 @@ bootstrap) quantifies uncertainty *across* units for the aggregate, whereas the
 per-unit SCPI band quantifies each unit's own effect. A naive permutation over the
 QP-optimised pre-period residuals would over-reject -- the fit makes those residuals
 small, so they are not exchangeable with the post-period gaps -- which is why the
-per-unit band uses the SCPI construction rather than a residual permutation.
+per-unit band uses the SCPI construction, not a residual permutation.
 
 The two levels reconcile exactly, so the unit-level and pooled reports never
 disagree: the reported separate imbalance ``design.ind_l2`` equals

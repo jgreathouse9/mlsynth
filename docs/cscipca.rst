@@ -15,7 +15,7 @@ controls, so a convex donor-weight fit would have to extrapolate. This is the
 regime where difference-in-differences (which asserts parallel trends) and
 plain synthetic control (which pins the counterfactual to a convex combination
 of controls, and so refuses to extrapolate) are hard to justify, and where you
-would like the many covariates to do real work rather than being collapsed to a
+would like the many covariates to do real work instead of being collapsed to a
 single pre-period average.
 
 The CSC-IPCA estimator of Wang ([Wang2024]_) targets that regime by writing
@@ -43,8 +43,8 @@ free loading for each unit from its outcome history alone. CSC-IPCA instead
 projects the loadings onto the covariates, which buys three things the paper
 emphasises. It needs no convex-hull or common-support condition, so the treated
 unit can lie outside the donor range. It extracts signal from many covariates
-at once through the dimension-reducing map :math:`\boldsymbol{\Gamma}`, rather
-than from the outcome path alone. And it does not require the interactive-fixed
+at once through the dimension-reducing map :math:`\boldsymbol{\Gamma}`, not
+from the outcome path alone. And it does not require the interactive-fixed
 -effects model to be correctly specified in the covariates, because the loadings
 absorb their predictive content. The cost is that the covariates must genuinely
 carry the loading information: the method's edge over a plain factor model
@@ -60,7 +60,7 @@ Reach for CSC-IPCA when
 * the treated unit sits outside the donor convex hull, so a simplex synthetic
   control must extrapolate;
 * you distrust a hand-specified interactive-fixed-effects model and would
-  rather let covariates instrument the loadings;
+  prefer to let covariates instrument the loadings;
 * the pre-period is long relative to the number of covariates times factors.
 
 Do not use CSC-IPCA when
@@ -151,7 +151,7 @@ Estimation
 ----------
 
 The mapping and factors are estimated by alternating least squares, because the
-loadings are :math:`\mathbf{x}_{it}^\top \boldsymbol{\Gamma}` rather than a free
+loadings are :math:`\mathbf{x}_{it}^\top \boldsymbol{\Gamma}`, not a free
 :math:`\boldsymbol{\lambda}_i`, so eigendecomposition does not apply. With the
 factors held fixed the :math:`\boldsymbol{\Gamma}` step is a single linear solve
 of the :math:`LK` normal equations; with :math:`\boldsymbol{\Gamma}` fixed each

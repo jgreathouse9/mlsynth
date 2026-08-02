@@ -176,7 +176,7 @@ effective resolutions, not a difference of method.
 The benchmark therefore pins both readings. The published values verify that
 mlsynth implements this specification, bit-for-bit at the reference's own
 settings; the converged values record what the estimator actually estimates.
-Pinning only the first would quietly assert that 0.2203 is the right answer.
+Pinning only the first would assert that 0.2203 is the right answer.
 
 Durable cases & tests
 ---------------------

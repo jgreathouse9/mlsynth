@@ -79,7 +79,7 @@ for bit either.
 The honest reading: the temporal-aggregation method and its construction are
 reproduced exactly, and the estimates match to the inherent solver tolerance of
 an ill-conditioned simplex SC. mlsynth deliberately reports the
-true-optimum fit rather than cloning a specific QP solver.
+true-optimum fit instead of cloning a specific QP solver.
 
 Lower in-sample risk than LowRankQP, provably
 ---------------------------------------------

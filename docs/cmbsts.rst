@@ -28,8 +28,8 @@ features make it a natural fit for applied measurement:
 - It is a forecasting model, not a donor-weighting one. The counterfactual is a
   structural time series — trend, weekly seasonality, an optional cycle, and a
   spike-and-slab regression on control series and covariates — so it handles the
-  trends and calendar effects that dominate retail and marketing data directly,
-  rather than hoping a convex combination of donors reproduces them.
+  trends and calendar effects that dominate retail and marketing data directly
+  instead of hoping a convex combination of donors reproduces them.
 - It is Bayesian. Every quantity comes with a full posterior, so the effect on
   each series arrives with a credible interval and the regressor inclusion
   probabilities tell you which controls the model actually used.
@@ -39,7 +39,7 @@ cannibalises or boosts a known set of rival series, and you want the effect on
 the treated unit and the spillover in one coherent model. Reach for a
 single-series tool (:doc:`vanillasc`, :doc:`tasc`) when no-interference is
 credible, and for the spillover-specific :doc:`spillsynth` when you want a
-weighting estimator with an explicit spillover coefficient rather than a
+weighting estimator with an explicit spillover coefficient, not a
 Bayesian state-space forecast.
 
 Notation
@@ -91,7 +91,7 @@ The state assembles the requested components — a local level (``"trend"``),
 optionally a slope (``"slope"``), a dummy seasonal of period :math:`S`
 (``"seasonal"``), and a stochastic cycle (``"cycle"``) — with the :math:`d`
 series sharing each component's :math:`d \times d` disturbance covariance, so
-cross-series co-movement is modelled explicitly rather than assumed away. The
+cross-series co-movement carries its own parameters. The
 regression coefficient matrix :math:`\boldsymbol{\beta}` carries a spike-and-slab
 prior, so the model selects which control paths and covariates to keep. The
 disturbance covariances take conjugate Inverse-Wishart priors with scale

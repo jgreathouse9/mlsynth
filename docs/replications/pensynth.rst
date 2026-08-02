@@ -64,7 +64,7 @@ post-period ATT difference :math:`\approx 2\times10^{-3}` packs. At
 :math:`\lambda = 0.1` the synthetic California loads :math:`\approx 0.54` on Idaho,
 with a post-1989 ATT of :math:`-23.4` packs per capita matched to
 :math:`\approx 4\times10^{-4}`. With :math:`V = I` (no nested :math:`V`
-optimisation) the penalized fit is Idaho-led rather than ADH's published
+optimisation) the penalized fit is Idaho-led, not ADH's published
 Utah/Nevada pool — expected, since here the penalty, not a fitted :math:`V`,
 resolves the donor weights. As :math:`\lambda` grows the weights concentrate
 toward the nearest neighbour (Montana), reproducing the penalty's interpolation

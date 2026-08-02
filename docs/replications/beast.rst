@@ -24,7 +24,7 @@ The target
 The authors ship a Proposition 99 application with the paper
 (``EX1_CaliforniaTobaccoConsumption.R``): a panel synthetic control on the
 Abadie, Diamond & Hainmueller (2010) tobacco panel, where California raises its
-cigarette tax in 1989 and the donors are the other US states. Rather than
+cigarette tax in 1989 and the donors are the other US states. Instead of
 fitting the outcome on a simplex, BEAST balances a covariate design -- four
 economic predictors (``loginc``, ``p_cig``, ``pct15-24``, ``pc_beer``) plus
 lagged cigarette sales (1975/1980/1988) -- by an ℓ₁-penalized exponential tilt,
@@ -110,11 +110,11 @@ lunch in the high-dimensional regime the title advertises unless the sparsity
 assumption actually holds.
 
 That finding is what shaped the build. BEAST is deployed for the ``basic``
-informative-covariate regime, and the estimator carries a balance-validity guard
-(``balance_tol``) that raises :class:`~mlsynth.exceptions.MlsynthEstimationError`
-when :math:`\lvert \sum_j W_j - 1\rvert` exceeds tolerance -- turning the
-degenerate over-saturated case into an explicit error rather than a silently
-meaningless answer. ``mlsynth/tests/test_beast.py`` pins that behaviour
+informative-covariate regime, and the estimator carries a balance-validity
+guard (``balance_tol``) that raises
+:class:`~mlsynth.exceptions.MlsynthEstimationError` when :math:`\lvert \sum_j
+W_j - 1\rvert` exceeds tolerance -- turning the degenerate over-saturated case
+into an explicit error. ``mlsynth/tests/test_beast.py`` pins that behaviour
 (``test_oversaturated_regime_is_rejected``) alongside the R cross-validation of
 the basic regime.
 

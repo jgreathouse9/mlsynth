@@ -30,8 +30,8 @@ Fitting and comparing in one call
 ---------------------------------
 
 :func:`~mlsynth.utils.counterfactual_compare.compare_counterfactuals` takes
-results you have already fit. When you would rather hand over the estimators and
-let mlsynth run them,
+results you have already fit. When you would prefer to hand over the
+estimators and let mlsynth run them,
 :func:`~mlsynth.utils.counterfactual_compare.compare_estimators` is the
 one-call front-end -- the observational counterpart of the design-side
 :func:`~mlsynth.utils.design_compare.compare_methods`. You pass fully configured
@@ -67,8 +67,8 @@ one place on the standardized contract: ``counterfactual_lower`` /
 ``counterfactual_upper`` (and their ``*_simultaneous`` siblings) on
 :class:`~mlsynth.config_models.TimeSeriesResults`, aligned to ``time_periods`` and
 NaN where a method has no band, tagged with ``prediction_interval_level`` and
-``prediction_interval_kind``. The comparison reads that single field rather than
-each estimator's private band object, so a scpi band (VanillaSC / CLUSTERSC /
+``prediction_interval_kind``. The comparison reads that single field, not each
+estimator's private band object, so a scpi band (VanillaSC / CLUSTERSC /
 SparseSC / SCUL), a proximal GMM or conformal band (:doc:`proximal`), and a
 conformal ASCM band all line up the same way. Methods that report only a scalar
 ATT interval (no per-period band) appear as a line with their effect in the
@@ -85,7 +85,7 @@ three faces:
   ``counterfactual``, ``lower`` and ``upper`` (the last two empty where a method
   has no interval at that period);
 - ``summary`` -- one row per method, holding the stored ``att`` and ``pre_rmse``,
-  read off the result rather than recomputed, plus a ``window_rmse`` column when a
+  read off the result, not recomputed, plus a ``window_rmse`` column when a
   ``fit_window`` is given (the fit loss over just those periods);
 - ``observed`` -- the observed treated series, when one was supplied or could be
   taken from a standardized result;
@@ -97,7 +97,7 @@ a ``plot`` method that overlays the observed series and every method's
 counterfactual, drawing prediction intervals as per-period error bars where they
 exist; and a ``plot_weights`` method that draws the donor weights as a grouped
 bar chart, one bar per method per donor -- the same side-by-side comparison, on
-the weights rather than the paths.
+the weights, not the paths.
 
 Example: comparing different estimators on one panel
 ----------------------------------------------------
@@ -145,7 +145,7 @@ so the numbers match what each estimator reports on its own; the ``plot`` overla
 the three counterfactuals against observed cigarette sales, with the prediction
 interval shown only for the method that produced one.
 
-To compare fit over a specific window rather than the whole pre-period, pass
+To compare fit over a specific window, not the whole pre-period, pass
 ``fit_window=(low, high)``; the ``summary`` then gains a ``window_rmse`` column
 holding each method's RMSE of observed minus counterfactual over those periods,
 alongside the stored all-pre ``pre_rmse``. Observed is read off the results, so

@@ -9,7 +9,7 @@ Overview
 MicroSynth implements Robbins & Davenport (2021, *J. Stat.
 Software*), *"microsynth: Synthetic Control Methods for
 Disaggregated and Micro-Level Data in R"*. It is the user-level
-cousin of classical synthetic control: rather than reweighting a
+cousin of classical synthetic control: instead of reweighting a
 small donor pool of aggregate units (states, cities) to match a
 single treated unit's pre-trajectory, MicroSynth reweights a large
 pool of *individual control users* to match a *group* of treated
@@ -19,8 +19,7 @@ This is the right tool when:
 
 * The unit of analysis is an individual user (or household, or
   block-group) — not an aggregate region.
-* There are many treated units (typically thousands or millions)
-  rather than one.
+* There are many treated units (typically thousands or millions), not one.
 * The setting is marketing-science / ad-attribution / holdout-
   contamination measurement, where you have user-level impression
   logs and want to estimate causal lift without trusting a
@@ -261,8 +260,8 @@ the outcome in* :math:`\mathbf{X}` *).*
 Balancing only the *first moments* of :math:`\mathbf{X}` gives an unbiased
 ATT when the conditional expectation
 :math:`\mathbb{E}[Y(0) \mid \mathbf{X}]` is linear in :math:`\mathbf{X}`. If the
-expectation is nonlinear (e.g. age enters as a smooth bump rather
-than a slope), first-moment balance is not enough -- the doubly
+expectation is nonlinear (e.g. age enters as a smooth bump, not a slope),
+first-moment balance is not enough -- the doubly
 robust property of the balancing approach (Lin et al. 2023) only
 holds under linearity in *one* of the outcome or selection models.
 
@@ -454,10 +453,10 @@ least-squares fit loss, a ridge penalty, and an exact-balance map:
 
 The intercept row of :math:`\mathbf{G}_0^{\!\top}\mathbf{w} = \mathbf{h}` forces
 :math:`\mathbf{1}^{\!\top}\mathbf{w} = n_T`, so the weights sum to the treated
-count rather than to one. ``solve_panel_qp`` solves this with cvxpy's CLARABEL
+count, not to one. ``solve_panel_qp`` solves this with cvxpy's CLARABEL
 interior-point solver; an infeasible covariate target (the treated totals lie
 outside the non-negative cone spanned by the controls) raises
-:class:`~mlsynth.exceptions.MlsynthEstimationError` rather than returning a
+:class:`~mlsynth.exceptions.MlsynthEstimationError` instead of returning a
 degenerate fit.
 
 Why a ridge: non-identification of the counterfactual
@@ -521,7 +520,7 @@ Identifying assumptions (panel mode)
 the exact-balance constraint :math:`\mathbf{G}_0^{\!\top}\mathbf{w}=\mathbf{h}`
 admits a :math:`\mathbf{w}\ge\mathbf{0}` solution. *Remark.* This is the
 aggregate-SC convex-hull condition transposed to totals; when it fails CLARABEL
-reports infeasibility and the fit raises rather than returning a biased
+reports infeasibility and the fit raises instead of returning a biased
 near-solution.
 
 *Assumption B2 (pre-period fit / parallel trends).* Matching every pre-period
@@ -580,7 +579,7 @@ Simplex mode --- paired stratified bootstrap
 :func:`~mlsynth.utils.microsynth_helpers.inference.paired_bootstrap_ci` resamples
 the treated and control blocks separately with replacement, preserving the
 original :math:`(n_T, n_C)` allocation (a stratified, or "paired", bootstrap ---
-pairing the two strata rather than resampling the pooled sample, which would
+pairing the two strata instead of resampling the pooled sample, which would
 perturb the treated fraction). For replication
 :math:`b = 1, \dots, B` (``n_bootstrap``):
 

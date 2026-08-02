@@ -15,7 +15,7 @@ to draw on.
 
 SHC is due to Chen, Yang & Yang (2024). It builds on a semi-parametric
 time-series regression in which a smooth latent trend :math:`\ell_t` is a
-time-varying confounder. Rather than extrapolate an *assumed* parametric
+time-varying confounder. Instead of extrapolate an *assumed* parametric
 trend (as the interrupted-time-series, Prophet, and CausalImpact
 approaches do), SHC carries the synthetic-control idea over to a single
 series: it replaces the treated *unit* with a treated *block* and the

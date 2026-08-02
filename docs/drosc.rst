@@ -37,7 +37,7 @@ does not. The robustness radius is the dial: report the effect as a function of
 If your donors are well separated and the standard assumptions are credible, the
 plain estimators (:doc:`vanillasc`) are more efficient -- DROSC's conservatism is
 wasted. If the fragility is specifically pre-fit non-uniqueness and you only need
-a stable tie-break rather than a robust interval, :doc:`lexscm` resolves the
+a stable tie-break, not a robust interval, :doc:`lexscm` resolves the
 non-uniqueness lexicographically instead. DROSC targets a *different, robust*
 estimand; do not read its number as an estimate of the same quantity classical
 synthetic control targets when the two disagree.

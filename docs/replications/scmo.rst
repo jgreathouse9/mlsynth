@@ -20,7 +20,7 @@ Validation strategy
 
 The two SCMO papers share the German-reunification illustration and tell the
 same story from two angles: matching the synthetic control on *several related
-outcomes* — rather than a single long outcome trajectory — sharpens the
+outcomes* —, not a single long outcome trajectory — sharpens the
 identification of the latent factors and reduces post-treatment bias. The
 ``concatenated`` scheme (Tian-Lee-Panchenko, following the same stacking as Sun
 et al.) stacks the standardized pre-period outcomes; the ``averaged`` scheme
@@ -82,7 +82,7 @@ Tian et al.'s Section-3 factor model — identical to the Sun et al. replication
 package's ``Simulation1.R`` — draws :math:`N = 30` units whose outcomes share the
 unit predictors. As the number of related outcomes :math:`K` grows, the
 post-treatment **bias falls** while the **pre-treatment fit rises** toward the
-true noise floor (rather than overfitting to near-zero). mlsynth reproduces all
+true noise floor (not overfitting to near-zero). mlsynth reproduces all
 nine cells of Table 1 across :math:`T_0 \in \{1, 5, 10\}` and
 :math:`K \in \{1, 5, 10\}` (e.g. at :math:`T_0 = 5` the bias is
 :math:`1.21 / 1.04 / 1.00`, pre-fit :math:`0.46 / 0.95 / 1.02`), at
@@ -94,7 +94,7 @@ Path B — averaged regime contrast (Sun et al. Appendix D)
 ---------------------------------------------------------
 
 Sun et al. report their Monte Carlo as box plots (Figures D.1, D.2), so the
-benchmark matches the **published geometry** rather than numeric cells. Under a
+benchmark matches the **published geometry**, not numeric cells. Under a
 common factor shared across outcomes (``rho = 1``), the multi-outcome schemes
 beat the separate single-outcome SC and **averaging reduces bias**; under purely
 idiosyncratic factors (``rho = 0``), the outcomes share no signal and

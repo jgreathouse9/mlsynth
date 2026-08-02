@@ -21,7 +21,7 @@ pre-period and predicts the post-period worse.
 by out-of-sample validation. It is the right tool when you have a single
 treated unit and a sizeable donor pool and suspect that not all donors
 deserve to be in the comparison set -- when you want SCM to tell you *how many*
-and *which* donors to use, rather than assuming "more is better." Because the
+and *which* donors to use. Because the
 selection is greedy (forward stepwise), it scales linearly in the pool size,
 unlike the :math:`2^N` exhaustive subset search.
 
@@ -138,7 +138,7 @@ on the full pre-period over :math:`U_{k^\ast}` to form the counterfactual
 When ``forward_selection=False`` the selection and cross-validation are skipped:
 the estimator returns the single full bilevel solve over all donors (the
 global SCM optimum), reporting the weight-bearing donors. This is faster and is
-the right choice when you want the canonical SCM weights rather than a
+the right choice when you want the canonical SCM weights, not a
 parsimonious donor subset.
 
 Rolling-origin cross-validation. Cerulli's paper splits the pre-period once
@@ -295,7 +295,7 @@ paper's central finding, the optimal predictor weights :math:`\mathbf{V}` form a
 corner solution that places all weight on a single predictor: many
 predictors are interchangeable at the optimum (the upper-level loss is
 non-unique in :math:`\mathbf{V}`), so the bilevel solver certifies optimality at
-a corner rather than spreading weight across predictors.
+a corner instead of spreading weight across predictors.
 
 .. note::
 

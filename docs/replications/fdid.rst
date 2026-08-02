@@ -120,7 +120,7 @@ calls on one machine — the two implementations differ sharply in speed:
      - the same selection, plus inference, the all-donor DiD arm, and the typed result object
 
 mlsynth is roughly fifteen times faster while doing strictly more, because its
-forward search is matrix algebra rather than nested loops. Li's R rescans every
+forward search is matrix algebra, not nested loops. Li's R rescans every
 remaining control with a doubly nested loop, re-averaging the growing donor set
 from scratch at each step — order :math:`N^2 T` work at interpreted-loop speed.
 mlsynth scores all remaining candidates at once: each step forms the candidate

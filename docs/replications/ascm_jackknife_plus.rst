@@ -58,14 +58,14 @@ Why the two branches earn different tolerances
 
 The base simplex fit underneath every refit is a constrained quadratic program,
 solved here by mlsynth's own exact solver and in the reference by ``quadprog``
-and osqp. Two exact solvers agree to their own tolerances rather than
-bit-for-bit, so roughly 1e-7 is the floor for any quantity downstream of the QP.
+and osqp. Two exact solvers agree to their own tolerances, not bit-for-bit, so
+roughly 1e-7 is the floor for any quantity downstream of the QP.
 
 The default branch takes quantiles across all 89 drops, which averages that
 difference away and reaches 4e-9. The conservative branch instead takes the
 minimum and maximum over drops, which deliberately selects the single most
 extreme refit -- exactly where the solver difference is largest -- and lands at
-1.8e-7. Looser is correct there rather than lax: an interval built from order
+1.8e-7. Looser is correct there, not lax: an interval built from order
 statistics cannot be more reproducible than its worst-case term.
 
 Two findings
@@ -86,8 +86,9 @@ branch reaches the :math:`1-\alpha/2` quantile of
 right-skewed -- on this panel the largest absolute error is 0.037 against a 95th
 percentile of 0.013 -- the default's deeper reach into that tail dominates the
 wider min/max envelope, and the "conservative" interval comes out *tighter*. It
-is narrower at 16 of the 17 reported periods here. mlsynth reproduces this rather
-than imposing an ordering the reference does not have, and the benchmark pins the
+is narrower at 16 of the 17 reported periods here. mlsynth reproduces this
+instead of imposing an ordering the reference does not have, and the
+benchmark pins the
 branch's construction instead of a width comparison so that nobody later
 "corrects" it.
 

@@ -32,8 +32,7 @@ of the SCM optimisation honestly:
   :math:`\mathbf{w}` are chosen jointly through a bilevel program. This is
   non-convex, and the predictor weights are generically *non-identified*.
   ``VanillaSC`` solves it with a reliable backend and reports a diagnostic
-  (:math:`\text{v\_agreement}`) so that fragility is visible rather than
-  silent.
+  (:math:`\text{v\_agreement}`) so that fragility is visible, not silent.
 
 When to use this estimator
 --------------------------
@@ -47,7 +46,7 @@ When to use this estimator
   below). When :math:`\text{v\_agreement}` comes back near 1, prefer
   outcome-only or ``penalized``.
 * Staggered adoption with a clean never-treated pool, when you want the
-  convex synthetic-control answer per unit rather than SDID's
+  convex synthetic-control answer per unit, not SDID's
   trend-matching one, with prediction intervals for the per-unit ATTs,
   the event-time average and the overall ATT.
 
@@ -93,7 +92,7 @@ it deliberately.
      - Skip the optimisation and impose known donor weights, for the
        known-weights benchmark case.
 
-Inference is a menu rather than a single procedure, and the choices rest on
+Inference is a menu, not a single procedure, and the choices rest on
 different assumptions: ``placebo`` (in-space permutation), ``scpi``
 (Cattaneo-Feng-Titiunik prediction intervals, the only mode that extends to
 the staggered cross-unit predictands), ``conformal`` (Chernozhukov-Wuthrich-Zhu
@@ -255,7 +254,7 @@ The covariate path exposes four reliable solvers via ``backend=``:
     This matters before comparing numbers with a paper. Stata runs
     the Abadie-Diamond-Hainmueller nested optimisation only when the caller
     passes ``nested``, and wrappers such as ``allsynth`` forward that flag
-    rather than setting it. Most published ``synth`` estimates were
+    instead of setting it. Most published ``synth`` estimates were
     therefore produced by this rule and not by a search, so
     ``backend="mscmt"`` or ``"malo"`` will answer a different question than
     the paper asked.
@@ -264,10 +263,10 @@ The covariate path exposes four reliable solvers via ``backend=``:
     the distributed package, whose predictor-weight subroutines ship
     compiled: whether the regression is run once over all unit-period
     observations or once per pre-treatment period, and whether an intercept
-    is fitted. Both are settable (``pooled``, ``fit_intercept``) rather than
-    silently fixed, because the available evidence does not favour either
+    is fitted. Both are settable (``pooled``, ``fit_intercept``), not silently
+    fixed, because the available evidence does not favour either
     reading. Take agreement with a Stata figure to three digits as good
-    fortune rather than as a guarantee.
+    fortune, not as a guarantee.
 
 ``"mscmt"``
     Becker & Kloessner (2018): a global differential-evolution search over
@@ -387,8 +386,8 @@ several treated units they are reached through ``staggered_spec.w_constr``
 instead, and setting both is an error. ``w_constr`` solves scpi's constrained
 program on the pre-treatment outcomes, which is a different estimator from the
 bilevel predictor-weight engine, so it cannot be combined with ``covariates``,
-a non-default ``backend``, or ``oracle_weights`` -- those raise rather than
-silently picking one. ``res.method_details.parameters_used`` reports the family
+a non-default ``backend``, or ``oracle_weights`` -- those raise, not silently
+picking one. ``res.method_details.parameters_used`` reports the family
 that ran and the budget ``Q`` it used, so a fit never leaves its specification
 ambiguous.
 
@@ -426,9 +425,9 @@ and the gap intervals in ``res.inference.details``. In every case
 ``res.inference.method`` names the procedure that produced the numbers, so a band
 or p-value is never anonymous.
 
-Two guards keep the choice unambiguous rather than surprising. An unrecognized
+Two guards keep the choice unambiguous instead of surprising. An unrecognized
 ``inference=`` value raises ``MlsynthConfigError`` listing the valid ones, so a
-typo such as ``inference="scpii"`` fails loudly instead of silently disabling
+typo such as ``inference="scpii"`` raises instead of disabling
 inference. And a valid mode that cannot be computed on the given panel -- for
 example ``inference="placebo"`` with a single donor, which admits no placebo
 distribution -- emits a warning and returns an ``InferenceResults`` whose
@@ -497,8 +496,8 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     counterfactual.
 
     ``res.inference.ci_lower`` / ``ci_upper`` carry the bound on the
-    post-treatment *average* -- the row ``augsynth`` prints as ``average_att`` --
-    rather than the mean of the per-period bounds, which is a different and less
+    post-treatment *average* -- the row ``augsynth`` prints as ``average_att``
+    --, not the mean of the per-period bounds, which is a different and less
     useful quantity. The per-period band is in
     ``res.inference.details["pi_lower" / "pi_upper"]``, with the held-out errors
     themselves under ``["held_out_errors"]`` for diagnosis. There is no p-value;
@@ -512,8 +511,8 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     :math:`1-\alpha/2` of :math:`\widehat{y}^{N}_{1t}(j) + |e_j|`, so when the
     held-out errors are right-skewed the default's deeper reach into that tail
     can dominate the wider envelope and leave the "conservative" interval
-    tighter. On the Kansas panel it is narrower at 16 of 17 periods. Check rather
-    than assume. ``augsynth``'s own default is the quantile form, so that is the
+    tighter. On the Kansas panel it is narrower at 16 of 17 periods. Check,
+    not assume. ``augsynth``'s own default is the quantile form, so that is the
     default here too.
 
     Cost scales with the pre-period: one refit per pre-treatment period, so a
@@ -793,7 +792,7 @@ paper relaxes the first to nonstationary data).
    covariance-stationary.
 
    *Remark.* This is what makes the held-out pre-period gap a valid estimate of
-   the post-period bias -- the load-bearing restriction. It is plausibly
+   the post-period bias -- the restriction everything rests on. It is plausibly
    violated by a structural break shortly after :math:`T_0`; the placebo test
    (``inference="placebo"``) can be used to probe it.
 
@@ -1024,7 +1023,7 @@ not win,
 
 where :math:`R_{i,j,I;k} = \lvert S_{\text{ratio-RMSPE}}(\mathbf{y}_k, \widehat{\mathbf{y}}_k)\rvert`
 is the score of unit :math:`k` when the pool excludes :math:`\{i, j, I\}`.
-Because there are :math:`\binom{N-1}{2}` matches rather than :math:`N`, the
+Because there are :math:`\binom{N-1}{2}` matches, not :math:`N`, the
 p-value lives on an :math:`O(N^2)`-fine grid -- the granularity problem
 disappears.
 
@@ -1129,7 +1128,7 @@ assignment assumption is where care is needed.
   :math:`p_{\text{w-LTO}}(\pi)` that reweights each match by
   :math:`\pi_j\pi_k / ((1-\pi_I)^2 - \sum_{l\neq I}\pi_l^2)` and reduces to the
   naive value when :math:`\pi_i \equiv 1/N`.
-* Sensitivity analysis (the :math:`\Gamma` ). Rather than commit to
+* Sensitivity analysis (the :math:`\Gamma` ). Instead of commit to
   uniformity, one can ask *how far* from it the design could be before the
   conclusion flips. Following Rosenbaum, constrain
   :math:`\pi_i \in [\tfrac{1}{\Gamma N}, \tfrac{\Gamma}{N}]` and find the
@@ -1382,11 +1381,11 @@ effects match scpi's ``scest`` (West Germany :math:`-1.75`, Italy
 ``CI_all_gaussian`` (durable benchmark ``scpi_staggered_covariate``).
 
 The spec belongs to the staggered engine, so it needs at least two treated
-units. Passing it on a single-treated panel raises ``MlsynthConfigError``
-rather than being quietly dropped -- otherwise every field on the spec,
-``w_constr`` included, would be discarded while the fit returned the ordinary
-outcome-only result. With one treated unit, match on several series through
-``covariates`` and ``covariate_windows`` with a predictor-weight ``backend``.
+units. Passing it on a single-treated panel raises ``MlsynthConfigError``. If
+it were ignored instead, every field on the spec, ``w_constr`` included, would
+be discarded while the fit returned the ordinary outcome-only result. With one
+treated unit, match on several series through ``covariates`` and
+``covariate_windows`` with a predictor-weight ``backend``.
 
 .. note::
 

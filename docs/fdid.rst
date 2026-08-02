@@ -41,8 +41,8 @@ Li's own summary:
    all-controls parallel trend is too restrictive.
 2. It accommodates any number of controls, including :math:`N_0 > T_0`.
 3. There are no overfitting concerns -- one parameter after selection.
-4. It is computationally cheap: a greedy :math:`O(N_0^2)` search rather
-   than the :math:`2^{N_0}` subsets of the optimal procedure.
+4. It is computationally cheap: a greedy :math:`O(N_0^2)` search, not the
+   :math:`2^{N_0}` subsets of the optimal procedure.
 5. It has inference theory valid for stationary and non-stationary
    data, which SC and HCW lack.
 
@@ -225,7 +225,7 @@ pre-period residual variance :math:`T_0^{-1} \sum_{t \in \mathcal{T}_1}
    :math:`R^2`.
 
 The greedy search evaluates :math:`1 + 2 + \cdots + N_0 = N_0(N_0+1)/2`
-sub-models rather than the :math:`2^{N_0}` of the exhaustive procedure (for
+sub-models, not the :math:`2^{N_0}` of the exhaustive procedure (for
 :math:`N_0 = 60`, that is 1,830 versus :math:`1.15 \times 10^{18}`). The
 final group :math:`\widehat{\mathcal{D}}` is then plugged into the DiD formulas
 above for the ATT, its standard error, and the :math:`R^2`.
@@ -242,25 +242,25 @@ collapses each step into a handful of vectorized NumPy operations through
 three observations.
 
 1. The comparison average is updated incrementally, never rebuilt.
-Let :math:`\mathbf{m}^{(k)} \in \mathbb{R}^{T}` be the running average over
-the :math:`k` already-selected controls. Adding control :math:`c` gives the
-:math:`(k+1)`-average by a single rank-one update,
+   Let :math:`\mathbf{m}^{(k)} \in \mathbb{R}^{T}` be the running average over
+   the :math:`k` already-selected controls. Adding control :math:`c` gives the
+   :math:`(k+1)`-average by a single rank-one update,
 
 .. math::
 
    \mathbf{m}^{(k+1)} = \mathbf{m}^{(k)}
        + \frac{\mathbf{y}_c - \mathbf{m}^{(k)}}{k + 1},
 
-which is :math:`O(T)` rather than :math:`O(kT)`. This is
+which is :math:`O(T)`, not :math:`O(kT)`. This is
 :func:`~mlsynth.utils.fdid_helpers.estimation._update_synthetic_control`
 (``current_mean + (control - current_mean) / (k + 1)``).
 
 2. All candidate averages for a step are built in one matrix. At step
-:math:`k`, let :math:`\mathbf{Y}_{\mathcal{R}} \in \mathbb{R}^{T_0 \times
-|\mathcal{R}|}` stack the *pre-period* columns of the remaining candidates
-:math:`\mathcal{R}`. Every candidate :math:`(k+1)`-average -- one per
-column -- is formed simultaneously by broadcasting the running pre-period
-mean :math:`\mathbf{m}^{(k)}_{\mathcal{T}_1}`:
+   :math:`k`, let :math:`\mathbf{Y}_{\mathcal{R}} \in \mathbb{R}^{T_0 \times
+   |\mathcal{R}|}` stack the *pre-period* columns of the remaining candidates
+   :math:`\mathcal{R}`. Every candidate :math:`(k+1)`-average -- one per
+   column -- is formed simultaneously by broadcasting the running pre-period
+   mean :math:`\mathbf{m}^{(k)}_{\mathcal{T}_1}`:
 
 .. math::
 
@@ -273,14 +273,15 @@ candidates) / (k + 1)`` inside
 :func:`~mlsynth.utils.fdid_helpers.estimation._select_best_donor`.
 
 3. The intercept :math:`b_0` drops out, so scoring is pure inner
-products. This is the step that removes the per-candidate regression
-entirely. Profiling out :math:`b_0` from the DiD loss is exactly
-*centering*: the fitted residual for candidate column :math:`\ell` is
-:math:`\widehat{v}_t = (y_{1t} - \bar y_1) - (M_{t\ell} - \bar M_\ell)`. Writing
-:math:`\widetilde{\mathbf{y}} = \mathbf{y}_{1,\mathcal{T}_1} - \bar y_1`
-(precomputed once, with its norm :math:`\|\widetilde{\mathbf{y}}\|_2^2 =
-\mathrm{ss}_{\text{tot}}`), the residual sum of squares for *all*
-candidates is
+   products. This is the step that removes the per-candidate regression
+   entirely. Profiling out :math:`b_0` from the DiD loss is exactly
+   *centering*: the fitted residual for candidate column :math:`\ell` is
+   :math:`\widehat{v}_t = (y_{1t} - \bar y_1) - (M_{t\ell} - \bar
+   M_\ell)`. Writing
+   :math:`\widetilde{\mathbf{y}} = \mathbf{y}_{1,\mathcal{T}_1} - \bar y_1`
+   (precomputed once, with its norm :math:`\|\widetilde{\mathbf{y}}\|_2^2 =
+   \mathrm{ss}_{\text{tot}}`), the residual sum of squares for *all*
+   candidates is
 
 .. math::
 
@@ -435,8 +436,8 @@ Two lessons jump out:
 
 If your application reports :math:`R^2` materially below the threshold
 you would consider acceptable for a forecast (say, < 0.7), treat the
-ATT estimate as a lower bound on the magnitude of misspecification
-rather than an estimate of the causal effect, and switch to one of the
+ATT estimate as a lower bound on the magnitude of misspecification, not an
+estimate of the causal effect, and switch to one of the
 methods Li flags for the out-of-hull case: :doc:`fdid` with a different
 comparison construction is unlikely to recover it -- try the augmented
 DiD, a factor-model / interactive-fixed-effects estimator, or
@@ -514,7 +515,7 @@ mainland China as the intervention (44 pre-treatment quarters, 17 post).
    print(res.did.att, res.did.r_squared)
 
 Forward DiD keeps a small, regionally sensible subset of Hong Kong's trading
-partners rather than averaging all 24 economies, so it tracks Hong Kong's
+partners instead of averaging all 24 economies, so it tracks Hong Kong's
 pre-integration path far more closely (a higher pre-period :math:`R^2`) and
 estimates the post-integration GDP-growth effect more precisely than the
 all-controls DiD. The exact selected group and the cell-by-cell match to Li's

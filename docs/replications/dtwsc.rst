@@ -43,8 +43,8 @@ The paper's claim reproduces: warping tightens the pre-treatment fit by about
 
 Read the units before comparing any of these. ``dsc(rescale = TRUE)`` is the
 reference's default, and it maps every unit onto a common pre-treatment range
-before fitting anything, so every number R reports is in rescaled units rather
-than in GDP per capita. The mlsynth rows above are run with
+before fitting anything, so every number R reports is in rescaled units, not
+in GDP per capita. The mlsynth rows above are run with
 ``rescale_units=True`` so the whole table sits on one scale; without it mlsynth
 reports in the outcome's own units, where R's standard-SC ATT is -0.6405 and
 not -0.6027.
@@ -57,10 +57,10 @@ agree to about 0.004 on pre-RMSE and 0.03 on the ATT, which is the honest
 figure and is what ``benchmarks/cases/dtwsc_basque.py`` now pins.
 
 Do not read that ATT agreement as agreement between the counterfactual paths,
-either. Comparing the two pointwise rather than in the mean, the pre-treatment
+either. Comparing the two pointwise, not in the mean, the pre-treatment
 halves sit almost on top of each other -- worst single-period gap 0.027 warped
 and 0.036 unwarped, against a series spanning 2.18 rescaled units -- while the
-post-treatment halves reach 0.19 and 0.16. The paths cross rather than running
+post-treatment halves reach 0.19 and 0.16. The paths cross instead of running
 parallel, so most of that error cancels in the average and a 0.19 divergence
 presents as a 0.03 ATT gap.
 
@@ -94,7 +94,7 @@ warping is being tested.
    * - outlier-filter decisions
      - 13888/13888 cells
 
-These rows are pinned in ``benchmarks/cases/dtwsc_basque.py`` rather than left
+These rows are pinned in ``benchmarks/cases/dtwsc_basque.py``, not left
 as a one-off measurement, so a regression in the warping engine fails the
 benchmark.
 
@@ -102,7 +102,7 @@ Two findings
 ------------
 
 The alignment kernel is exact, across every step pattern the method uses.
-mlsynth implements them directly rather than taking a DTW dependency, so a
+mlsynth implements them directly instead of taking a DTW dependency, so a
 mistyped recursion coefficient is the kind of error that would produce a
 plausible warp and a wrong answer. Six are supported -- ``symmetricP1``,
 ``symmetricP2``, ``asymmetricP1``, ``asymmetricP2``, ``typeIc`` and
@@ -113,7 +113,7 @@ warping paths exactly, while 138 inadmissible cases raise where R errors.
 ``warp`` and ``ref_too_short``, which consume those alignments, are checked
 under all six as well.
 
-Six rather than two because of how the method is meant to be used. The authors
+Six, not two because of how the method is meant to be used. The authors
 do not fix the step pattern; they select it per run by grid search over seven,
 and the choices shipped in their replication archive span six. An
 implementation carrying only the two their published example happens to use
@@ -130,7 +130,7 @@ nothing visible until an open-ended alignment picks its endpoint -- and that
 endpoint decides which windows ``ref_too_short`` rules out of the second-phase
 search.
 
-One bit was load-bearing. An earlier version of this page recorded a residual
+One bit decided the answer. An earlier version of this page recorded a residual
 disagreement in 40 of the 13888 outlier-filter decisions and attributed it to
 floating-point ties that no implementation could be expected to reproduce. That
 was wrong, and the way it was wrong is instructive.
@@ -140,7 +140,7 @@ was wrong, and the way it was wrong is instructive.
 routinely looks like :math:`(1, 1, 7/6, 1)` -- and on such a column the fence
 evaluates to exactly :math:`7/6`, landing on the very value it is judging.
 Which side of that comparison the value falls on is then decided by the last
-bit of arithmetic, and dropping the cell rather than keeping it moves the
+bit of arithmetic, and dropping the cell instead of keeping it moves the
 column mean by :math:`1/24`.
 
 The last bit was ours to get right. R's ``stats::filter`` smooths the speeds by
@@ -153,16 +153,16 @@ what the table above now records. A tolerance on the fence does not work, and
 was tried: because the disagreements run in both directions, widening the fence
 fixes three donors and breaks four.
 
-The general lesson is about the method rather than the port. A statistic whose
+The general lesson is about the method, not the port. A statistic whose
 value turns on which side of an exactly-coincident bound a number falls is
 fragile by construction, and DSC has one in its inner loop. mlsynth reproduces
 the reference's choice here, but a cross-language check of a DSC ATT should not
 be read as validating the last digit.
 
-A second artefact is inherited from the method rather than the port. Three
+A second artefact is inherited from the method, not the port. Three
 donors' warped series end one period short of 1997, so the reference's own
 counterfactual is ``NA`` there and its ATT is really taken over 1971--1996.
-mlsynth reproduces that rather than extrapolating over it, and reports the
+mlsynth reproduces that instead of extrapolating over it, and reports the
 number of dropped periods in ``res.metadata["n_post_periods_undefined"]``.
 
 The one remaining difference
@@ -182,7 +182,7 @@ but a second derivative is small, and at those four points the disagreement
 reaches 0.083 against a series whose own scale is 0.090. Two of them sit at the
 start of the pre-treatment window the first alignment learns from.
 
-This is recorded rather than fixed, and deliberately. Closing it would take a
+This is recorded, not fixed, and deliberately. Closing it would take a
 bit-exact ``auto.arima``, not a good one. Because the outlier fence described
 above lands exactly on the values it is testing, an approximate forecast would
 fall on an arbitrary side of it and would not track the reference any more
@@ -217,7 +217,7 @@ fixed warping hyperparameters, 17 pools and 256 placebo runs:
      - 16 percent
 
 The direction and rough magnitude reproduce, but read the table as a
-comparison of two different procedures rather than a reproduction attempt. The
+comparison of two different procedures, not a reproduction attempt. The
 authors' replication archive (Dataverse ``10.7910/DVN/DIUPUA``) shows their
 placebo design differs from mlsynth's built-in one in five ways: they keep
 Spain in the donor pool where the estimator page's example drops it; they use
@@ -237,7 +237,7 @@ indeed not shown, but it is not needed -- the choices can be read directly.
 So the table above is a comparison of two procedures that happen to measure
 the same thing, not a replication of the reported statistic. Reproducing the
 published ``t`` means adopting their design wholesale -- pool, datasets,
-per-run hyperparameters, predictors, and units -- rather than tightening
+per-run hyperparameters, predictors, and units -- instead of tightening
 anything in mlsynth's own.
 
 The band does not reproduce. On this

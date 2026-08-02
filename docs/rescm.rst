@@ -25,7 +25,7 @@ each with the estimation/inference theory of its own paper:
   P(\boldsymbol{\omega})` with :math:`P` an :math:`\ell_1` / :math:`\ell_2` /
   :math:`\ell_\infty` (or mixed) penalty. The :math:`\ell_\infty` member is the
   L-infinity-norm SCM of Wang, Xing and Ye [LinfSC]_, which *spreads*
-  weight across donors (capping the largest weight) rather than concentrating
+  weight across donors (capping the largest weight) instead of concentrating
   it; classic Abadie SCM is the no-penalty (:math:`\lambda = 0`) simplex corner,
   and equal-weights/DiD is the heavy-:math:`\ell_\infty` limit
   [DoudchenkoImbens2017]_.
@@ -181,7 +181,7 @@ below).
 
 When to use. Dense, factor-driven donor structure; high dimension
 (:math:`N_0>T_0` permitted); when you want a counterfactual robust to any single
-donor's idiosyncrasies rather than a sparse, concentrated fit.
+donor's idiosyncrasies, not a sparse, concentrated fit.
 
 Relaxation branch: SCM-relaxation (Liao, Shi & Zheng)
 -----------------------------------------------------
@@ -464,7 +464,7 @@ When the assumptions bind: practical diagnostics
     distributed without natural clusters. *Diagnostic*: inspect
     the empirical CDF of ``res.fits["RELAX_ENTROPY"].donor_weights``;
     a multi-modal CDF supports the group structure, a smooth
-    CDF means the group story is rhetorical rather than real.
+    CDF means the group story is rhetorical, not real.
     If groups are not present, prefer ``RELAX_L2`` (which
     targets minimum-norm weights, no group assumption needed).
 
@@ -506,7 +506,7 @@ Reach for RESCM when:
   ``methods`` argument selects estimators by name; each maps
   to one call of the same convex engine.
 * You want HAC-based, classical-statistics inference
-  (Li 2020 two-term standard errors) on the ATT rather than a
+  (Li 2020 two-term standard errors) on the ATT, not a
   permutation or conformal procedure. See the
   finite-sample-inference caveat below.
 
@@ -557,7 +557,7 @@ Do not use RESCM when:
   analogue of the dense-vs-sparse trade-off the RESCM family
   addresses frequentistically).
 * You want predictor-level (covariate + lagged-outcome)
-  matching rather than outcome-only matching. RESCM's
+  matching, not outcome-only matching. RESCM's
   workhorse projection is on donor outcomes; for
   predictor-matching with L1 sparsity on the
   predictor-weight matrix, use :doc:`sparse_sc`.
@@ -570,7 +570,7 @@ Do not use RESCM when:
   (which exposes the HSVT rank in its results).
 * Donor selection is the bottleneck, not weight
   shrinkage. If you have a small number of donors and want
-  to *select* the best subset rather than spread weight
+  to *select* the best subset, not spread weight
   across a wide pool, use :doc:`fscm` (forward selection on
   donor units) or :doc:`pda` with ``methods=["fs"]``
   (forward-selected PDA with sample-splitting inference).

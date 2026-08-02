@@ -333,7 +333,7 @@ Verification
    Path B replication of the paper's simulation study (Section 3).
    :mod:`mlsynth.utils.ssc_helpers.replication` reproduces the authors'
    *synthetic* Monte-Carlo study -- a Path B replication, since we replicate
-   their simulation-section results rather than an empirical data set -- through
+   their simulation-section results, not an empirical data set -- through
    the public :meth:`mlsynth.SSC.fit` API. The DGP is the paper's factor model
    (:func:`~mlsynth.utils.ssc_helpers.simulation.simulate_ssc_panel`):
    ``N = 33`` units (``30`` treated, staggered over an ``S = 7`` window),
@@ -343,7 +343,7 @@ Verification
    recovers the increasing effect path, and its event-time RMSE is lowest in the
    early post-periods -- below GSC (Xu 2017) and partially-pooled SC
    (Ben-Michael et al. 2022) there -- because it builds the synthetic controls
-   from *all* units rather than only the scarce never-treated ones, which
+   from *all* units, not only the scarce never-treated ones, which
    inflate those methods' variance. The ``PAPER`` preset runs the authors' exact
    1,000-replication configuration; the ``DEMO`` preset is a faster,
    reduced-count version that reproduces the qualitative pattern.

@@ -18,7 +18,7 @@ First, it pools the treated units into one matrix regression
 :math:`\mathbf{Y}_1 = \mathbf{Y}_0\boldsymbol{\Theta} + \mathbf{E}` and
 estimates the entire donor-weight matrix
 :math:`\boldsymbol{\Theta}` jointly, borrowing strength across treated units
-rather than solving one independent, noisy fit per treated unit. Second, the
+instead of solving one independent, noisy fit per treated unit. Second, the
 loss is the nuclear norm of the residual matrix, a "square-root" (pivotal)
 objective whose optimal penalty level does not depend on the unknown noise
 variance -- so a single cross-validated :math:`\lambda` regularises the whole
@@ -52,7 +52,7 @@ Do not use MSQRT when
 * Spillovers contaminate the donor block (SUTVA fails) -- use
   :doc:`spsydid` or :doc:`spillsynth`.
 * Treatment is endogenous and you have an instrument -- use :doc:`siv`.
-* You are designing an experiment (choosing whom to treat) rather than
+* You are designing an experiment (choosing whom to treat) instead of
   estimating a retrospective effect -- use :doc:`marex`, :doc:`syndes`, or
   :doc:`lexscm`.
 
@@ -110,8 +110,8 @@ Internal solver (two-split ADMM)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The objective is convex but couples a nuclear norm and an :math:`\ell_1`
-penalty, so ``mlsynth`` solves it with a purpose-built two-split ADMM rather
-than a generic conic solver (the paper itself emphasises computational
+penalty, so ``mlsynth`` solves it with a purpose-built two-split ADMM, not a
+generic conic solver (the paper itself emphasises computational
 efficiency). Introduce two consensus blocks -- :math:`\mathbf{R} =
 \mathbf{Y}_0\boldsymbol{\Theta}` carrying the nuclear-norm term and
 :math:`\mathbf{Z} = \boldsymbol{\Theta}` carrying the :math:`\ell_1` term. With
@@ -212,7 +212,7 @@ Inference
 ---------
 
 The Shen, Song & Abadie paper establishes finite-sample *estimation-error
-bounds* for :math:`\widehat{\boldsymbol{\Theta}}` rather than a
+bounds* for :math:`\widehat{\boldsymbol{\Theta}}`, not a
 confidence-interval procedure for the treatment effect. For uncertainty
 quantification ``mlsynth`` instead uses the non-asymptotic prediction intervals
 of Cattaneo, Feng, Palomba and Titiunik [SCPI]_ (the ``scpi`` framework). Those

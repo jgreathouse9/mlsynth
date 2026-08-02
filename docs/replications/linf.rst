@@ -82,7 +82,7 @@ Note on fidelity
 
 Before this replication, mlsynth's ``LINF`` inherited the SC-family simplex
 default and a penalty short-circuit that applied a squared-:math:`\ell_2` (ridge)
-term for ``alpha == 0``, so it silently collapsed to classic SC rather than the
+term for ``alpha == 0``, so it silently collapsed to classic SC, not the
 dense Wang–Xing–Ye estimator. The benchmark surfaced both gaps; the penalized
 engine now applies the true L-infinity penalty under the unconstrained,
 intercept-shifted program, guarded by ``test_laxscm`` regression tests.

@@ -18,13 +18,13 @@ in 1972, and the effect on fertility was concentrated among women aged roughly
 age profile to a total fertility rate and that result becomes a single negative
 number; the shape of the response, which is the part a demographer would want,
 is gone. The same argument applies whenever the interesting variation is
-*within* the object rather than in its total: a policy that compresses a wage
+*within* the object, not in its total: a policy that compresses a wage
 distribution without moving its mean, a shock that reallocates trade between
 categories without changing the total.
 
 Reach for FSC when the object per unit-period is a curve, a distribution, or a
 matrix, and when you already have it in that form. If your rows are individual
-people rather than points on a grid, :doc:`dsc` is the right tool for
+people, not points on a grid, :doc:`dsc` is the right tool for
 unconditional quantile effects and :doc:`drsc` for conditional ones. If your
 object is a vector of shares summing to one, use :doc:`compsc`.
 
@@ -114,10 +114,10 @@ back in :math:`\mathcal Y` automatically, so it corresponds to a real object.
 Assumption 2 (Common grid). Every unit-period cell is observed at the same
 argument values.
 
-Remark. Enforced at ingestion rather than assumed. Objects observed on different
-grids are not comparable coordinate by coordinate, and interpolating them onto a
-common grid is a modelling choice the estimator should not make silently on your
-behalf. Do it yourself first if you need to.
+Remark. The estimator checks this at ingestion and raises when it fails.
+Objects observed on different grids are not comparable coordinate by
+coordinate, and interpolating them onto a common grid is a modelling choice
+that belongs to you. Do it yourself first if you need to.
 
 Assumption 3 (Data-generating process). The embedded control outcomes follow
 either a functional autoregression or a latent factor model, with independent
@@ -211,13 +211,13 @@ pre-treatment ones. The inversion is closed-form: the accepted set is an
 interval centred on the estimate whose half-width is a quantile of the absolute
 pre-treatment residuals. It requires :math:`\alpha > 1/(T_0 + 1)`; below that
 threshold nothing is ever excluded and the band is unbounded, which the
-estimator reports rather than returning an infinite interval.
+estimator reports instead of returning an infinite interval.
 
 Two caveats belong with any band you report from this. The weights are held
-fixed across candidate nulls rather than refit, unlike Chernozhukov, Wüthrich and
+fixed across candidate nulls, not refit, unlike Chernozhukov, Wüthrich and
 Zhu (2021); that is a deliberate choice which guarantees the band contains the
 point estimate, at the cost of the exchangeability argument that would justify
-it. And the paper conjectures asymptotic validity rather than proving it. Treat
+it. And the paper conjectures asymptotic validity instead of proving it. Treat
 the band as a descriptive uncertainty measure, not a calibrated confidence set.
 
 The placebo test recomputes everything with each donor cast as the treated unit
@@ -268,7 +268,7 @@ Verification
 Reproduced against Okano and Kurisu (2026) on the authors' own data. The
 fertility application matches the published pre-treatment fits and every donor
 weight of Table 1; the divergences on the other two applications are measured
-and explained on the replication page rather than smoothed over. See
+and explained on the replication page, not smoothed over. See
 :doc:`replications/fsc`, `benchmarks/cases/fsc_okano.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fsc_okano.py>`_
 and `benchmarks/cases/fsc_estimator.py
@@ -279,7 +279,7 @@ Not to be confused with
 
 :doc:`fscm` is Forward-Selected synthetic control (Cerulli), an entirely
 different method that happens to share three letters. :doc:`dsc` and :doc:`drsc`
-work on individual-level microdata rather than on objects supplied per cell.
+work on individual-level microdata, not on objects supplied per cell.
 :doc:`compsc` covers compositions, which are the paper's Example 5.
 
 Core API

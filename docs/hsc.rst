@@ -514,7 +514,7 @@ estimators as special cases:
   an intercept (:math:`q=1`) or intercept plus linear trend (:math:`q=2`).
 
 Interior :math:`\rho` interpolates smoothly between them — a *soft spectral
-transformation* of the data rather than a hard filter.
+transformation* of the data, not a hard filter.
 
 Counterfactual and Forecasting
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -787,7 +787,7 @@ the donor pool or idiosyncratic — exactly the regime HSC's cross-validated
        print(f"  {k:12s} {v:.3f}")
 
 Donor weights. With the SDID ridge the design leans on a *broad* mix of
-donors rather than a handful — the largest weight is Korea ≈ 0.18, followed by
+donors, not a handful — the largest weight is Korea ≈ 0.18, followed by
 Germany ≈ 0.14, the US ≈ 0.13 and Italy ≈ 0.11, with the remaining seven donors
 each contributing 0.04–0.09. This matches the paper's reported weights almost
 exactly (Korea 0.18, Germany 0.14, US 0.13, Italy 0.11, max < 0.19). Under the

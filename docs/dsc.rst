@@ -51,7 +51,7 @@ have micro-data. Three motivating regimes:
 * Repeated cross-sections with many individuals per cell. Whenever each
   ``(unit, time)`` cell is itself a sample -- households in a state-year,
   customers in a store-week, patients in a hospital-month -- DSC uses *all*
-  of that within-cell information rather than collapsing it to a mean.
+  of that within-cell information instead of collapsing it to a mean.
 
 If you only have one aggregate number per ``(unit, time)`` cell, DSC
 reduces to classical synthetic control (Gunsilius 2023, Section 3.1) and
@@ -115,11 +115,11 @@ of the donor quantile functions,
 and the quantile treatment effect is
 :math:`\widehat \tau_{1t}(q) = \widehat F^{-1}_{Y_{1t, I}}(q)
 - \widehat F^{-1}_{Y_{1t, N}}(q)`, the gap between the *observed* treated
-quantile function and its counterfactual. Averaging quantile functions
-rather than densities is what makes the synthetic unit geometrically
-faithful: a weighted average of quantile functions is itself a valid
-quantile function, so the barycenter has the same kind of support and shape
-as the target (Gunsilius 2023, Figure 1; Agueh & Carlier 2011).
+  quantile function and its counterfactual. Averaging quantile functions, not
+  densities is what makes the synthetic unit geometrically
+  faithful: a weighted average of quantile functions is itself a valid
+  quantile function, so the barycenter has the same kind of support and shape
+  as the target (Gunsilius 2023, Figure 1; Agueh & Carlier 2011).
 
 Identifying assumptions
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -166,7 +166,7 @@ that delivers the Gaussian large-sample distribution of the counterfactual
 quantile process (Proposition 2) and hence bootstrap confidence bands. It
 can be relaxed at the cost of a non-Gaussian limit (discrete case,
 Proposition 5), which is why the inference below leans on Monte-Carlo /
-permutation routines rather than closed-form critical values.
+permutation routines, not closed-form critical values.
 
 
 When the assumptions bind: practical diagnostics
@@ -234,7 +234,7 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     *Plausibly violated when* the outcome has heaps (counts, Likert
     scales, capped variables). *Diagnostic*: the point estimate is still
     fine -- but lean on the placebo permutation test
-    (``compute_inference=True``) rather than analytic bands, since the
+    (``compute_inference=True``), not analytic bands, since the
     permutation procedure is distribution-free.
 
 (e) Non-stationary donors -- weights drift across pre-periods.
@@ -286,8 +286,7 @@ When not to use DSC
   Assumption 3 and the Gaussian large-sample bands no longer apply.
   Point estimation still works, but if you need uniform confidence
   bands, switch to a model designed for discrete outcomes (or rely on
-  permutation inference and report quantile-by-quantile rather than
-  uniformly).
+  permutation inference and report quantile-by-quantile, not uniformly).
 
 * Short pre-period with rapidly moving donor distributions. DSC
   averages per-pre-period weights and so needs enough pre-periods for
@@ -337,9 +336,10 @@ default, or uniform i.i.d.) and form the pseudo-sample matrices
 squared 2-Wasserstein loss
 :math:`W_2^2(\cdot) = \int_0^1 \lvert \sum_j w_j \widehat F^{-1}_{Y_{jt}}(q)
 - \widehat F^{-1}_{Y_{1t}}(q) \rvert^2 dq` is approximated by the empirical
-risk :math:`L_t(\mathbf{w}) = M^{-1} \sum_m \lvert \widetilde Y_{1t, m} - \sum_j w_j
-\widetilde Y_{jt, m}\rvert^2`, and the per-pre-period weights solve the
-simplex-constrained quadratic program
+  risk
+  :math:`L_t(\mathbf{w}) = M^{-1} \sum_m \lvert \widetilde Y_{1t, m} - \sum_j w_j
+  \widetilde Y_{jt, m}\rvert^2`, and the per-pre-period weights solve the
+  simplex-constrained quadratic program
 
 .. math::
 

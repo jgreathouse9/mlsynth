@@ -47,7 +47,7 @@ When to use CTSC
 ^^^^^^^^^^^^^^^^
 
 * The policy variable is continuous or multi-valued (minimum wage,
-  tax rate, dosage) rather than a 0/1 indicator.
+  tax rate, dosage), not a 0/1 indicator.
 * Every unit is "treated" with a time-varying intensity, so there is
   no never-treated donor pool and comparative-case-study SC cannot be
   applied.

@@ -199,7 +199,7 @@ f_t` for every unit and period is on ``counterfactual_panel``.
 The communality diagnostic. ``communality`` reports, per unit, the fraction of
 its pre-period variance the common factors explain. A value near zero for the
 treated unit is a warning: the factor adjustment is doing almost nothing, so the
-direct effect is close to a raw pre/post difference rather than a factor-model
+direct effect is close to a raw pre/post difference, not a factor-model
 counterfactual.
 
 Example

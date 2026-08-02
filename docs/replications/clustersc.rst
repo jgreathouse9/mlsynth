@@ -170,8 +170,8 @@ this at every noise level:
 The ratio sits just above 1 throughout, matching the paper's "training error
 approximates generalization error" finding; the absolute magnitudes depend on
 the (paper-underspecified) truncation rank, so the durable check
-(``benchmarks/cases/rsc_synth_error.py``) pins the *ratio* and noise-monotonicity
-rather than Table 1's exact cells. The DGP is
+(``benchmarks/cases/rsc_synth_error.py``) pins the *ratio* and
+noise-monotonicity, not Table 1's exact cells. The DGP is
 :func:`mlsynth.utils.clustersc_helpers.simulation.simulate_rsc_panel`.
 
 Confidence-interval coverage (Shen et al.)

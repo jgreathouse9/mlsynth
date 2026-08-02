@@ -66,7 +66,7 @@ single line, ``numpyro.enable_x64()``, called in the estimator's backend shim
 before the model is built. With ``float64`` the port matches Stan to
 correlation :math:`0.99993` and R-hat :math:`1.001`--:math:`1.005` on the
 identified quantities. This is the standard trap for GP models on JAX and is the
-reason the estimator hard-enables x64 rather than leaving it to the caller.
+reason the estimator hard-enables x64 instead of leaving it to the caller.
 
 Why NumPyro, not pure numpy
 ---------------------------

@@ -509,7 +509,7 @@ The common case is the demeaned synthetic control, which is exactly ``MSCa``:
        "method": "MSCa",          # demeaned SC, no Step 1
    }).fit()
 
-This is an override rather than a preference. Step 1 is skipped, not run and
+This is an override, not a preference. Step 1 is skipped, not run and
 ignored, so ``res.selection`` is ``None`` and no recommendation is reported --
 fabricating one equal to your choice would misrepresent the test as having
 endorsed it. The variant that produced the result is still readable from
@@ -530,14 +530,14 @@ computing something it never reads.
 ``inference=False`` requires ``method``, because Step 1 is itself a subsampling
 procedure: with the subsampling off there is no way to recommend a variant, and
 no way to know which variant the reported summary should describe. Asking for
-one without the other raises rather than guessing.
+one without the other raises.
 
 Neither option changes a number. Selecting a variant returns bit-identical
 weights, counterfactual and ATT to reading that variant off a full run, and
 turning inference off leaves the point estimate untouched -- both pinned in
 ``mlsynth/tests/test_tssc_variant_select.py``. The one quantity that does move
 is the confidence interval itself: a single-variant fit draws its own
-subsampling stream rather than replaying the position the full run would have
+subsampling stream instead of replaying the position the full run would have
 reached, so the interval can differ in its last digits.
 
 Core API

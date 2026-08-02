@@ -32,7 +32,7 @@ Data
 566 treated counties in six adoption cohorts (1995 through 2000) and 39
 never-treated donor counties, over 1990-2005. The donor pool is the paper's
 identifying contribution: places where the firm revealed an intention to enter
-but did not, rather than places selected on observables.
+but did not, not places selected on observables.
 
 Effects are reported as percent changes, because county employment in the
 sample runs from about 3,900 to 866,000. Aggregation is weighted by 1990
@@ -66,16 +66,16 @@ narrative rests on:
      - :math:`-0.93`
 
 The gap at :math:`e = -1` comes out at :math:`6 \times 10^{-16}`, which is the
-indexing constraint holding to machine precision rather than a fitted result.
+indexing constraint holding to machine precision, not a fitted result.
 
 A caveat on precision that the benchmark encodes. Each cohort has five to ten
 pre-treatment periods against 39 donors, so the optimum of every weight program
-is a face rather than a point, and solving it exactly pins the objective without
+is a face, not a point, and solving it exactly pins the objective without
 pinning the answer. Across three solvers the population-weighted aggregate moves
 by 0.05 percent -- five-year gaps of :math:`-0.904`, :math:`-0.920` and
 :math:`-0.928` -- while individual counties move by up to 2.1. So the figures
-above are quoted to two decimals and banded in the benchmark, rather than
-presented as exact.
+above are quoted to two decimals and banded in the benchmark, not presented as
+exact.
 
 The specification, and the part of it that is not expressible
 -------------------------------------------------------------
@@ -104,8 +104,8 @@ it. The estimator here does not land on either figure, and the reason is a
 component that cannot be recovered from the published materials.
 
 The reference implementation calls Stata's ``synth``, whose default
-predictor-weight rule is a regression on the pre-treatment outcomes rather than
-the nested optimisation of Abadie, Diamond and Hainmueller. That rule ships as
+predictor-weight rule is a regression on the pre-treatment outcomes, not the
+nested optimisation of Abadie, Diamond and Hainmueller. That rule ships as
 a compiled Mata library with no source distributed. Its structure is recoverable
 from the library's symbol table -- scale by the pooled standard deviation, pool
 the treated unit into the regression, set the weights proportional to squared
@@ -122,7 +122,7 @@ estimated.
 Worse for a clean claim, no single rule reproduces both of the paper's columns.
 The regression rule wins the uncorrected column (:math:`-1.777` against a target
 of :math:`-1.767`); the nested search wins the corrected one. The split is
-systematic rather than noisy, because the bias correction depends on the
+systematic, not noisy, because the bias correction depends on the
 residual predictor imbalance and therefore weights predictor fit differently
 from the uncorrected estimator.
 
@@ -133,14 +133,14 @@ per-county weights for a single cohort -- a measurement, not an argument.
 Two findings from the port
 --------------------------
 
-An early version of this port regressed on raw rather than normalised
+An early version of this port regressed on raw, not normalised
 predictors, inverting the order in which the reference implementation applies
 its two steps. That single ordering error moved the five-year estimate from
 :math:`-1.43` to :math:`-1.78` on one outcome and flipped the sign on another,
 from :math:`-0.655` to :math:`+0.620` against a target of :math:`+1.112`.
 
 The lesson generalises past this paper: when a predictor-weight rule is
-involved, the order of normalisation and estimation is load-bearing, and
+involved, the order of normalisation and estimation decides the answer, and
 getting it wrong produces output that looks entirely reasonable.
 
 A second one, about the weights themselves. Each cohort has five to ten
@@ -177,7 +177,7 @@ summing to one, the aggregate being exactly the weighted mean of the parts), the
 paper's four prose claims, the two specification contrasts above, and the
 forfeited batching under a commuting-zone donor restriction.
 
-One row is a floor rather than a value. ``county_dispersion_at_five`` records
+One row is a floor, not a value. ``county_dispersion_at_five`` records
 that the per-county five-year gaps have a standard deviation of 14.2 percent
 around a weighted mean of -0.93, and it carries a deliberately wide band. Part
 of that spread is genuine heterogeneity across counties and part is the

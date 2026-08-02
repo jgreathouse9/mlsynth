@@ -42,7 +42,7 @@ What agreed already
 
 The lambda grid and the selection rule were faithful and are now pinned.
 ``create_lambda_list`` builds ``lambda_max * scaler^k`` for ``k`` in
-``0..n_lambda``, which is :math:`n_{\lambda}+1` points rather than
+``0..n_lambda``, which is :math:`n_{\lambda}+1` points, not
 :math:`n_{\lambda}` -- an easy off-by-one to inherit from R's
 ``seq(0:n_lambda) - 1``. ``lambda_max`` is the squared largest singular value of
 the centered control matrix, and matches to 1e-13 on the outcome-only
@@ -101,7 +101,7 @@ value per unit. augsynth omits missing values column-wise
 ``model.frame``); the harness was omitting them row-wise, discarding every quarter
 in which either of the two annually reported revenue series was missing. On the
 Kansas panel that is 56 of 89 pre-treatment quarters, thrown away from all six
-covariates rather than from the two that are sparse, which put ``lambda_max`` at
+covariates, not from the two that are sparse, which put ``lambda_max`` at
 128.4583 against augsynth's 128.6077. The wrong fold count happened to select a
 point on that already-wrong grid that landed nearer augsynth's answer.
 

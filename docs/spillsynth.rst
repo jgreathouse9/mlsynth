@@ -120,7 +120,7 @@ leave-one-out SCM fits produce the :math:`N \times N` weight matrix
 :math:`\mathbf{B}` (with :math:`\mathbf{B}_{ii} = 0`) and the length-:math:`N`
 intercept vector :math:`\mathbf{a}`; :math:`\mathbf{u}_t \coloneqq \mathbf{Y}_t
 - (\mathbf{a} + \mathbf{B}\,\mathbf{Y}_t)` is the stacked SCM specification
-error and :math:`\mathbf{I}` the identity.
+  error and :math:`\mathbf{I}` the identity.
 
 The spillover structure is encoded in the :math:`N \times k` matrix
 :math:`\mathbf{A}`; the reduced coefficient vector is :math:`\boldsymbol{\gamma}`
@@ -161,7 +161,7 @@ a large-:math:`T_0` tool. Part (d) is the genuine identification condition --
 it fails only when the spillover structure is pathologically aligned with the
 SCM weight pattern (Section 3.4.1 of the paper); the fit container exposes
 ``cd.cond_AMA`` as a numerical diagnostic so a near-singular
-:math:`\mathbf{A}' \mathbf{M} \mathbf{A}` is visible rather than silent.
+:math:`\mathbf{A}' \mathbf{M} \mathbf{A}` shows up as a large value.
 
 The paper shows that Assumption 1 is satisfied by factor-model DGPs
 under two alternative regularity conditions on the common factors:
@@ -743,8 +743,8 @@ Proposition 2 (Cao-Dowd v3). Under Assumption 3,
 :math:`\Pr(\kappa_A > \widehat q^A_{\kappa, 1 - \alpha}) \to \Pr(\|(\mathbf{I} -
 \boldsymbol{\Gamma}_A) \mathbf{u}_{T_0+1} + (\mathbf{I} - \boldsymbol{\Gamma}_A)(\mathbf{I} - \mathbf{B}) \boldsymbol{\tau}\| \geq q^A_{\kappa, 1
 - \alpha})`. When :math:`\mathbf{A}` is correctly specified the deterministic
-term vanishes and the rejection probability converges to the nominal
-:math:`\alpha`.
+  term vanishes and the rejection probability converges to the nominal
+  :math:`\alpha`.
 
 SPILLSYNTH always populates this test:
 
@@ -1334,7 +1334,7 @@ carried zero weight. The inclusive inversion removes exactly that term.
 Asymptotically (growing pre-period, factor-model donors) the SC weights are
 consistent and :math:`\widehat\theta` is asymptotically unbiased for the true
 effects -- the same large-:math:`T_0` logic as standard SCM, applied to the
-whole affected set jointly rather than to the treated unit alone.
+whole affected set jointly, not to the treated unit alone.
 
 The implementation exposes :math:`\det\Omega` as the key diagnostic. Values
 near zero warn that the cross-weights are near-degenerate (the affected unit
@@ -1342,7 +1342,7 @@ and the treated are near-mutual nearest neighbours), so the inverse amplifies
 noise; values near one mean little cross-contamination and a mild correction.
 The inclusive-vs-restricted pre-RMSPE (``pre_rmspe`` vs
 ``pre_rmspe_restricted``) quantifies the fit gained by *keeping* the affected
-units in the pool rather than dropping them.
+units in the pool instead of dropping them.
 
 Inference
 ^^^^^^^^^
@@ -1379,7 +1379,8 @@ they buy identification differently.
   it lets the data's own cross-weights define the contamination and inverts
   them. Prefer it when (a) each affected unit *can* be given a good synthetic
   control (it lies in the donor hull), (b) you are unwilling to commit to an
-  :math:`\mathbf{A}`-matrix and would rather the mixing be estimated, (c) the affected
+  :math:`\mathbf{A}`-matrix and would prefer the mixing to be estimated,
+  (c) the affected
   set is *small*, so :math:`\Omega` is small and safely invertible, or (d) you
   want the per-affected-unit spillover effects as a transparent by-product of
   one linear solve.
@@ -1388,7 +1389,8 @@ The two rest on *different* assumptions -- a correctly specified spillover
 structure (Cao-Dowd) versus an invertible cross-weight system and
 synthesizable affected units (inclusive) -- which makes them natural
 robustness companions. Run both: agreement is reassuring, and
-disagreement localizes the load-bearing assumption (the :math:`\mathbf{A}`-matrix, or
+disagreement localizes the assumption in question (the
+:math:`\mathbf{A}`-matrix, or
 the :math:`\Omega`-invertibility / affected-unit fit). When the spillover's
 shape is unknown, the inclusive method is the lighter-assumption default;
 when the shape is known and inference matters, Cao-Dowd is the sharper tool.
@@ -1605,7 +1607,7 @@ Country is a rich industrial region whose synthetic leans on Cataluna and
 Madrid, so the four poorer neighbours receive near-zero donor weight and there
 is little contamination to undo (contrast West Germany, where Austria is a
 heavy donor and the correction bites). The cross-weight system is essentially
-a diagnostic that *confirms* those regions are not load-bearing donors.
+a diagnostic that *confirms* those regions carry no weight.
 Second, the result is robust to the malo/mscmt choice once the predictors
 are rich enough to bind -- with only a few weak covariates mscmt's global
 ``V`` search collapses to a corner (a badly-fitting single-predictor
@@ -1650,7 +1652,7 @@ Assumptions
 * (G1) Partial interference (Sobel 2006; paper Assumption 1).
   Interference occurs only *within* a unit's cluster, never between clusters.
   This is what makes the far clusters clean controls and is the method's
-  load-bearing assumption -- it must be defensible from the geography /
+  assumption everything rests on -- it must be defensible from the geography /
   network of the application.
 * (G2) Correctly partitioned clusters. The treated unit's cluster (its
   affected mates) is correctly identified; every other cluster is genuinely
@@ -1828,7 +1830,7 @@ treatment status, so all cross-unit transmission flows through the SAR term
    *Remark.* This is the substantive identifying restriction. It says
    interference is *mediated by observed outcomes propagating along the spatial
    network* -- a tax cuts California sales, which (through cross-border shopping)
-   move Nevada's sales -- rather than by an unobserved shock that happens to hit
+   move Nevada's sales --, not by an unobserved shock that happens to hit
    treated and neighbours together. If a confounder drives both, ``rho`` would
    absorb it and the spillover would be mis-attributed; choose
    :math:`\mathbf{W}` to encode the *channel* you believe in (geography, trade).
@@ -1929,7 +1931,7 @@ When to use it
 ^^^^^^^^^^^^^^
 
 Reach for ``method='sar'`` when (i) interference plausibly runs through a
-*known, dense* network (geography, trade, supply chains) rather than a small set
+*known, dense* network (geography, trade, supply chains), not a small set
 of named neighbours; (ii) the spillover effects on the untreated units are
 themselves of interest; and (iii) you want Bayesian credible intervals from
 short pre-treatment panels. If instead only a handful of units are exposed and

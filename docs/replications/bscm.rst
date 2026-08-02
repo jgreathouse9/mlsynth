@@ -99,7 +99,7 @@ last few pre-treatment years, where the true effect is zero) shows a
 generalisation error dozens of times larger than the in-sample fit. The China
 watch panel, with more than twice the pre-periods, does not suffer this: its
 held-out error is close to its in-sample error. The lesson, and the reason this
-replication is anchored on the watch panel rather than Basque, is that
+replication is anchored on the watch panel, not Basque, is that
 overfitting in these models is governed by the absolute number of pre-periods.
 Judge a BSCM fit by held-out or leave-one-out prediction and by the width of the
 credible band, never by the in-sample pre-RMSE. The durable case is

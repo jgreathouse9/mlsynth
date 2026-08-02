@@ -116,7 +116,7 @@ Why mlsynth is not checked against those numbers
 
 Because reproducing them means reproducing a defect the package's own maintainer
 has since corrected. The reference bundle therefore runs ``tidysynth`` 0.2.0,
-the current release, and the table above is recorded here as history rather than
+the current release, and the table above is recorded here as history, not
 pinned anywhere.
 
 Running the current release surfaces two further problems, both documented in
@@ -134,8 +134,8 @@ passes ``"ipop"`` explicitly, which is what the package does either way.
 It cannot fit four of the fifteen reserves. ``ipop`` fails outright on Valmiki,
 Biligiri Rangaswamy Temple, Sariska and Anamalai with a computationally singular
 system, on panels the older build fitted without complaint. Those failures are
-captured in ``failures.csv`` and counted in the case rather than dropped
-quietly, because a reference that hid them would overstate how much of the paper
+captured in ``failures.csv`` and counted in the case, because a reference
+that hid them would overstate how much of the paper
 the current package can still reproduce.
 
 The estimates differ, and the reason is identification
@@ -181,14 +181,14 @@ synthetic over every post-treatment year — on the headline reserve the two are
 produced entirely plausible numbers; the reference comparison is what caught it,
 and a test now pins the distinction.
 
-How much of the disagreement is real ambiguity rather than one side being wrong
+How much of the disagreement is real ambiguity, not one side being wrong
 can be measured. Among all synthetic controls fitting the pre-period within two
 percent of the best attainable, the avoided loss on the headline reserve can lie
 anywhere in [2768, 2922] ha; widen to ten percent and the range is [2594, 3026].
 mlsynth's 2,825 ha sits inside the tight band and the published 2,645 ha inside
 the wider one, so both are defensible readings of the same data. The current
 ``tidysynth``'s 1,999 ha falls outside even a fifty-percent band, which is what
-marks it as a poor fit rather than a rival answer. That diagnostic is not yet a
+marks it as a poor fit, not a rival answer. That diagnostic is not yet a
 library feature; it is tracked in
 `issue #310 <https://github.com/jgreathouse9/mlsynth/issues/310>`_.
 

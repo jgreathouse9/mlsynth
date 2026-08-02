@@ -63,7 +63,7 @@ difference-in-differences, which *differences trajectories over time*, so
 two markets with identical totals but different seasonal shapes are not
 interchangeable for it even though scalar matching scores them as a
 perfect match. In trending, seasonal data — which is essentially all
-geo-marketing data — matching on shape rather than on a single number is
+geo-marketing data — matching on shape, not on a single number is
 what makes the post-period comparison valid. (The simulation at the end
 of this page quantifies the gap: when geos share a baseline mean but
 differ in shape, PANGEO recovers the effect ~30× more precisely than a
@@ -83,7 +83,7 @@ What is a supergeo?
 
 Geo experiments differ from ordinary A/B tests in one decisive way: the
 experimental units are a *small* number of *large, heterogeneous* aggregates
---- markets, regions, DMAs --- rather than many exchangeable individuals.
+--- markets, regions, DMAs ---, not many exchangeable individuals.
 Randomising treatment across a handful of dissimilar markets routinely
 produces treatment and control groups with very different baseline
 characteristics, and the resulting post-randomisation bias does not average
@@ -91,7 +91,7 @@ away over the single assignment a practitioner actually runs (Abadie & Zhao
 2026). Classic matched-pair designs help, but with heterogeneous geos there
 may be *no* good one-to-one match for a given market.
 
-A supergeo resolves this by relaxing the unit of matching. Rather than
+A supergeo resolves this by relaxing the unit of matching. Instead of
 insisting that single geos match, geos are pooled into composite aggregates:
 a supergeo is simply a bundle of geos treated as one unit, with outcome equal
 to their (population-weighted) mean. Composite units can be made comparable
@@ -248,8 +248,8 @@ The concrete failure / stall modes:
 
 In short: PANGEO improves the *plausibility* of parallel trends by
 construction and *quantifies the residual risk* (parallelism
-:math:`R^2`, MDE), but it inherits DiD's identifying assumption rather
-than removing it. Treat a low parallelism :math:`R^2` or a large MDE as
+:math:`R^2`, MDE), but it inherits DiD's identifying assumption instead of
+removing it. Treat a low parallelism :math:`R^2` or a large MDE as
 the design telling you the experiment is fragile.
 
 Stage 1 --- the supergeo design
@@ -313,15 +313,15 @@ Clustering partition (default, ``fast=True``). Geo-experiment panels almost
 always have cluster structure: markets fall into a handful of latent types
 that move together up to a level shift (shared seasonality, regional demand,
 category-level trends). When that structure is present the best supergeos are
-just groups of same-type geos, which can be found by clustering rather than by
+just groups of same-type geos, which can be found by clustering, not by
 combinatorial search. The default solver --- an analogue of OSD (Shaw 2025)
 for the trajectory objective --- forms the supergeos in five plain steps:
 
 #. Level removal. Each geo's pre-period trajectory has its own time-mean
    subtracted, leaving the *shape* :math:`y_{it}-\bar y_i`. This is the same
    demeaning as the score :eq:`score`: two geos moving in parallel at any
-   level become identical, so the grouping targets parallel trends rather
-   than matching levels.
+   level become identical, so the grouping targets parallel trends instead of
+   matching levels.
 #. Embedding. The shapes are projected onto their leading principal
    components (denoising; under the factor model :eq:`factor` the shapes span
    the factor space, which PCA recovers).
@@ -393,7 +393,7 @@ of a candidate split and :math:`\bar g` for its estimation-window mean,
 * ``"r2"`` --- the scale-free criterion
   :math:`1-R^2 = \sum_t(g_t-\bar g)^2 / \sum_t(\bar Y_{A,t}-\overline{\bar Y_A})^2`,
   so every pair counts equally (FDID's :math:`R^2` criterion, optimised
-  *exactly* by the program rather than greedily).
+  *exactly* by the program, not greedily).
 * ``"weighted"`` --- a recency-weighted residual SS
   :math:`\sum_t w_t (g_t-\bar g_w)^2`, the level removed at the weighted mean
   :math:`\bar g_w`, with weights :math:`w_t=\rho_{\mathrm{dec}}^{\,T_0-1-t}`
@@ -450,7 +450,7 @@ set-partitioning path (``fast=False``) reports the number of candidate
 supergeo pairs :math:`|\mathcal F|`, the MIP objective, optimality gap and
 dual bound, node/iteration counts, and the solve time. When no exact cover
 exists the raised error names the structural obstruction (units that appear in
-no admissible pair, or an odd-arm/even-pair parity clash) rather than a generic
+no admissible pair, or an odd-arm/even-pair parity clash), not a generic
 failure.
 
 Balancing baseline covariates
@@ -518,7 +518,7 @@ model used at evaluation* (:eq:`adid`) --- fit on the estimation window
      \coloneqq \frac{1}{|\mathcal B|-1}\sum_{t\in\mathcal B} \widehat e_{p,t}^2 .
 
 Using the evaluation model here (the augmented-DiD residual by default,
-or the plain level-removed gap when ``att_augment=False``) rather than a
+or the plain level-removed gap when ``att_augment=False``), not a
 fixed recipe keeps the projected MDE and the realised standard error
 (:eq:`adidvar`) coherent. The :math:`X`-period effect for the pair then has
 variance :math:`\widehat\sigma_p^2\,[f(X,\rho)+f(T_0,\rho)]`, where
@@ -596,7 +596,7 @@ counterfactual is the pre-period least-squares projection
    \qquad t = 1,\dots,T_0 .
 
 This *augments* plain DiD in two ways: the control scale :math:`\delta_2` is
-estimated rather than fixed at :math:`1`, and a linear time trend
+estimated, not fixed at :math:`1`, and a linear time trend
 :math:`\gamma t` is included (``att_augment`` and ``att_trend``, both default
 ``True``). With regressor :math:`\mathbf{x}_t=(1,\,y^{C}_t,\,t)^{\top}` and OLS
 estimate :math:`\widehat{\boldsymbol{\delta}}`, the per-period effect and the ATT are

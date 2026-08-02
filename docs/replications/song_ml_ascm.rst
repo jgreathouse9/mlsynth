@@ -19,7 +19,7 @@ Ridge ASCM — clean winter heating in China (Song et al. 2023)
 Why two reference bases
 -----------------------
 
-This page carries two comparisons rather than one, because the obvious single
+This page carries two comparisons, not one, because the obvious single
 comparison cannot answer the question anyone actually has.
 
 The authors' method is a two-stage pipeline they call ML-ASCM: a random-forest
@@ -49,16 +49,16 @@ So the case measures three quantities:
      - loose
      - Path A — the sum of the two above
 
-The third is bounded by the first two, which is checkable rather than asserted,
-and each fails independently. That matters: with only the published basis, a real
+The third is bounded by the first two, which the case checks, and each fails
+independently. That matters: with only the published basis, a real
 regression in mlsynth could hide inside a tolerance widened to accommodate the
 known drift.
 
 What is reproduced
 ------------------
 
-The design is transcribed from the authors' ``main_result.R`` rather than
-inferred from the paper's prose. For each of 8 heating-year windows (1 May to
+The design is transcribed from the authors' ``main_result.R``, not inferred
+from the paper's prose. For each of 8 heating-year windows (1 May to
 30 April) and each of 8 treatment groups, treatment is marked from 23 October of
 the starting year, the fit runs against a fixed pool of 37 southern control
 cities, and the whole thing repeats for each of 16 pollutant series. That is
@@ -142,7 +142,7 @@ percent. 2016 accounts for about 40 percent of the non-reproducing cells.
 The pre-treatment imbalance is the quantity that localises this. It agrees to
 :math:`6.2 \times 10^{-4}` on every cell, 2016 included. The same optimum value
 is reached even where the reported effect differs, which places the disagreement
-in the ridge penalty rather than in the fit.
+in the ridge penalty, not in the fit.
 
 The cause is reference-version drift. The authors ran whatever ``augsynth`` was
 current in 2022–2023, and its ridge cross-validation has changed since — see
@@ -172,7 +172,7 @@ Against the live ``augsynth`` 0.2.0 run on the same 30 stratified cells:
      - :math:`5.8 \times 10^{-10}`
      - all 30 cells, degenerate one included
 
-The ATT and imbalance rows are a solver floor rather than a modelling difference.
+The ATT and imbalance rows are a solver floor, not a modelling difference.
 ``augsynth`` solves the simplex program with ``quadprog`` and mlsynth with an
 active-set method; the residual disagreement runs in both directions, which is
 what a floor looks like and what a systematic difference would not.
@@ -188,13 +188,13 @@ pool being used as its own treated unit, so it lies inside the donors' convex
 hull by construction and the simplex optimum is not unique. Its ``scaled_l2`` is
 :math:`6.3 \times 10^{-6}` against :math:`6.0 \times 10^{-3}` for the next
 smallest of the 30 — a factor of 964, so calling it degenerate is reading the
-data rather than choosing a threshold.
+data instead of choosing a threshold.
 
 On the objective actually being minimised, mlsynth is the closer of the two:
 its pre-treatment imbalance is :math:`2.1 \times 10^{-15}` where ``augsynth``
 stops at :math:`4.9 \times 10^{-5}`. Both effectively fit perfectly and then
 extrapolate from different members of the same optimal set. The case pins each
-side's own imbalance rather than the difference between them, so the cell is
+side's own imbalance, not the difference between them, so the cell is
 reported.
 
 Two corrections
@@ -255,7 +255,7 @@ Durable cases & tests
 
   Both sides read the same file. The R script slices
   ``basedata/song_ml_ascm_china.parquet`` directly through ``nanoparquet``,
-  rather than a CSV export of it, so the two implementations cannot end up
+  not a CSV export of it, so the two implementations cannot end up
   comparing different inputs — a failure that has already happened once in this
   project, where an R script and its Python counterpart silently ran 33 donors
   against 37. The window and treatment-date arithmetic is duplicated between the

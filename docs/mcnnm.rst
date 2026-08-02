@@ -22,9 +22,9 @@ to one restriction, MC-NNM performs well whether the panel is wide
 (``N >> T``), tall (``T >> N``), or roughly square (``N ~ T``) -- settings
 where synthetic control, DiD, or vertical regression each individually
 degrade. Reach for it when you have a single treated unit *or* many, a single
-adoption date *or* staggered adoption, and you would rather regularize the
+adoption date *or* staggered adoption, and you would prefer to regularize the
 latent structure than assume which comparison (units vs. periods) is the right
-one. The cost is that the estimand is a low-rank *imputation* rather than an
+one. The cost is that the estimand is a low-rank *imputation*, not an
 interpretable set of donor weights.
 
 Do not use MCNNM when
@@ -166,7 +166,7 @@ staggered-aware aggregations beyond the overall ATT:
   non-negative keys are the dynamic effects).
 
 With multiple adoption times, ``display_graphs=True`` draws an event-study
-plot (effect vs. time-since-adoption) rather than a single calendar trajectory,
+plot (effect vs. time-since-adoption), not a single calendar trajectory,
 so cohorts at different event times are not blended.
 
 Inference
@@ -222,7 +222,7 @@ Verification
    Hainmueller [ABADIE2010]_ and with the synthetic-control / SNN estimates
    elsewhere in ``mlsynth``. The jackknife confidence interval excludes zero.
 
-   Regime robustness. Because MC-NNM regularizes rather than restricts, the
+   Regime robustness. Because MC-NNM regularizes, not restricts, the
    same estimator runs unchanged on wide (``N >> T``), tall (``T >> N``) and
    square panels and on staggered adoption, where the unconfoundedness / SC /
    DiD special cases (paper Theorem 1) individually break down.

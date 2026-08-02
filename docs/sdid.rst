@@ -215,7 +215,7 @@ Unit weights are chosen so the treated unit's pre-treatment path is
 (Abadie et al., 2010) make this work inside a fixed-effects regression:
 
 1. an intercept :math:`w_0` is allowed, so the weights need only
-   make trends *parallel* rather than coincident -- the unit fixed effects
+   make trends *parallel*, not coincident -- the unit fixed effects
    :math:`\alpha_i` absorb any constant level gap; and
 2. a ridge penalty :math:`\zeta^2 \|\mathbf{w}\|_2^2` is added (with
    :math:`\zeta = (N_{tr} T_{post})^{1/4}\widehat{\sigma}`, :math:`\widehat{\sigma}`
@@ -340,7 +340,7 @@ single-treated, short-horizon one on identical outcomes. That is the default,
 and it is what :math:`\zeta` means everywhere else on this page.
 
 It is not, however, universal. A published SDID analysis may set the penalty
-itself, and the value it sets is part of the specification rather than a
+itself, and the value it sets is part of the specification, not a
 detail: at :math:`\zeta = 0` the program is the unpenalised simplex least
 squares, which fits the pre-period more closely and tends to put weight on
 fewer donors, while as :math:`\zeta \to \infty` the objective is dominated by
@@ -510,7 +510,7 @@ Two-DataFrame and Single-Cohort Convergence
 
 When the panel has a single treated unit (e.g., California in the
 Proposition 99 study), :func:`mlsynth.utils.datautils.dataprep` returns
-a single-treated payload rather than a cohorts dict. The
+a single-treated payload, not a cohorts dict. The
 :func:`mlsynth.utils.sdid_helpers.setup.prepare_sdid_inputs` helper
 unifies both shapes into a single ``cohorts_dict`` keyed by adoption
 period *index* (1-based), which is what the cohort estimator's
@@ -613,7 +613,7 @@ mean outcome over the non-target subgroup rows in that group-by-time cell
 only one parallel-trends assumption). A difference-in-differences on :math:`W`
 recovers the triple-difference effect, so running SDID on :math:`W` over the
 target subgroup gives the synthetic triple difference -- the counterfactual is a
-weighted combination of control states rather than a parallel-trends
+weighted combination of control states, not a parallel-trends
 extrapolation.
 
 To switch this on, pass ``subgroup`` (the column naming the subgroup dimension)
@@ -661,7 +661,7 @@ nowhere to go. If that covariate also drives the outcome, it sits in the
 residual the synthetic control is trying to match, and the estimate absorbs it.
 
 Three answers exist in the literature and mlsynth implements all three. They are
-different estimators, so the method is named explicitly rather than inferred:
+different estimators, so the method is named explicitly, not inferred:
 ``covariates`` takes a dictionary keyed by ``"adjust"``, ``"optimized"`` or
 ``"match"``.
 
@@ -693,7 +693,7 @@ and subtract only the covariate part, evaluated on the whole panel:
 Ordinary SDID then runs on :math:`\tilde y`. The weight programs never see a
 covariate.
 
-Three details are load-bearing, and each is the opposite of a natural-looking
+Three details decide the answer, and each is the opposite of a natural-looking
 alternative.
 
 The regression is fit on :math:`\mathcal{U}` but applied to
@@ -751,7 +751,7 @@ vectors on the simplex, with :math:`\zeta` the same ridge the covariate-free
 estimator uses.
 
 The intercepts are not decoration. Without them :math:`\boldsymbol{\beta}` can
-lower the objective by shifting the level of a covariate rather than by
+lower the objective by shifting the level of a covariate, not by
 explaining the outcome, and the minimiser runs off to wherever that shift is
 largest.
 
@@ -772,7 +772,7 @@ Each cohort's fitted coefficient is available on its payload as
 ``optimized_beta``.
 
 The reference implementation does not reach the minimum, and mlsynth reproduces
-that rather than correcting it. ``synthdid`` alternates a Frank-Wolfe step on
+that instead of correcting it. ``synthdid`` alternates a Frank-Wolfe step on
 each weight vector with a :math:`1/t` gradient step on
 :math:`\boldsymbol{\beta}`. Since :math:`\sum_{t \le n} 1/t` grows like
 :math:`\log n`, the total distance :math:`\boldsymbol{\beta}` can travel is
@@ -805,14 +805,14 @@ the curvature, so a covariate whose dispersion is far from the outcome's makes
 the first step overshoot, and the iteration diverges instead of converging
 slowly. mlsynth therefore scales each covariate to unit dispersion before
 descending and undoes the scaling on the fitted coefficient. That is part of
-reproducing the reference rather than a numerical nicety layered on it: without
+reproducing the reference, not a numerical nicety layered on it: without
 it, a panel whose income covariate has seventy times the outcome's dispersion
 returns an estimate eleven orders of magnitude too large.
 
 Because :math:`\ell` is very nearly flat in :math:`\boldsymbol{\beta}` -- on the
 panel above it moves from 20.973 at :math:`\beta = 0` to 20.922 at its
 minimum near :math:`\beta = 1.05`, a quarter of one percent -- this early stop
-is load-bearing. It acts as
+decides the answer. It acts as
 shrinkage toward zero on a direction the data barely identify. Minimising
 :math:`\ell` properly is a different estimator: it returns :math:`\beta = 8.4`
 on one cohort of that panel and moves the ATT to 8.011, against the 8.051 every
@@ -820,9 +820,9 @@ published ``optimized`` result was computed with. So mlsynth fits
 :math:`\boldsymbol{\beta}` with the reference's own iteration at its own default
 cap, and then solves the weight programs exactly, as it does everywhere else.
 This is the one place in the SDID implementation where a deliberately inexact
-solver is ported rather than replaced, and
+solver is ported, not replaced, and
 :func:`mlsynth.utils.sdid_helpers.covariates.sdid_covariate_objective` is public
-so the claim can be checked rather than believed.
+so the claim can be checked.
 
 Matching on the covariates (de Brabander et al. 2025)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -912,7 +912,7 @@ irrelevant. The reason is visible in the two displays above: with all periods in
 problem scores, so any weight moved onto :math:`\mathbf{Z}` can only make the
 outer fit worse.
 
-On the Brexit panel the reference shows this is a gradient rather than a switch.
+On the Brexit panel the reference shows this is a gradient, not a switch.
 Writing :math:`\pi = \sum_{r > m} v_r^{\ast}` for the share of
 :math:`\mathbf{V}^{\ast}` on the covariate rows:
 
@@ -1012,7 +1012,7 @@ caveat about controlling for variables that are themselves affected by the
 treatment. Fitting on :math:`\mathcal{U}` guards against the treated units' own
 response contaminating :math:`\widehat{\boldsymbol{\beta}}` or
 :math:`\mathbf{z}`, but it cannot rescue a covariate that is a channel of the
-effect rather than a nuisance.
+effect, not a nuisance.
 
 One structural requirement fails silently. Matching
 needs the treated unit inside the convex hull of the controls on the matched
@@ -1032,8 +1032,8 @@ against `benchmarks/reference/sdid_kranz/
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/sdid_kranz/reference.R>`_.
 
 The ``match`` path is checked against the authors' own ``Synth`` code on the
-Brexit panel at :math:`\mathbf{w}^{\ast}` and :math:`\mathbf{V}^{\ast}` rather
-than the ATT -- their construction takes :math:`\mathbf{w}^{\ast}` from one fit
+Brexit panel at :math:`\mathbf{w}^{\ast}` and :math:`\mathbf{V}^{\ast}`, not
+the ATT -- their construction takes :math:`\mathbf{w}^{\ast}` from one fit
 and the time weights from another, so an ATT comparison could not say which
 moved. Correlation of the weight vectors is 0.998 under ``"last"``. See
 `test_sdid_match_seam.py

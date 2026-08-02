@@ -35,7 +35,7 @@ Do not use this estimator when
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * You have no untreated units to spare as instruments. ORTHSC sets aside a
-  subset of the never-treated units as instruments rather than controls; with a
+  subset of the never-treated units as instruments, not controls; with a
   tiny donor pool that price is too high -- use placebo inference
   (:doc:`vanillasc`) or a conformal interval instead.
 * Either the pre-period or the post-period is very short. The size control is

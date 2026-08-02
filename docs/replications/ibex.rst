@@ -25,7 +25,7 @@ counterpart built from a weighted average of untreated European countries that
 tracks it before the intervention.
 
 The authors follow Ferman, Pinto and Possebom (2020) and match on all
-pre-treatment outcome lags rather than a hand-picked set of covariates. Their
+pre-treatment outcome lags, not a hand-picked set of covariates. Their
 replication code (``01_functions/sc.R``) solves the canonical
 Abadie-Diamond-Hainmueller program: choose donor weights
 :math:`\mathbf{w}` on the simplex (non-negative, summing to one) that minimise

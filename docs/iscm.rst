@@ -18,7 +18,7 @@ weighted average of donors).
 
 ISCM relaxes this with two ideas:
 
-1. Synthetic controls for every unit. Rather than fitting one
+1. Synthetic controls for every unit. Instead of fitting one
    synthetic control for the treated unit, ISCM builds one for *all*
    units. The treatment effect is then identified even when the treated
    unit is *outside* the convex hull -- because it can still appear *as a

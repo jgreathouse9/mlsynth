@@ -53,7 +53,7 @@ When to use this estimator
   weight fit from the noise the raw donors carry.
 * The treated unit comes from a plausible latent subgroup of the donor
   pool that you cannot easily isolate by hand. The clustering pre-step
-  formalises the subgroup decision rather than leaving it to manual
+  formalises the subgroup decision instead of leaving it to manual
   pre-screening.
 * You want robustness to sparse, heavy-tailed donor outliers (a donor
   with a one-time policy shock or recording error). The RPCA family's
@@ -185,7 +185,7 @@ matters in a synthetic-control panel.
    :math:`\mathrm{rank}(\mathbf{M}) = r = O(\log T) < T`.
 
    *Remark.* This is the assumption that lets PCR/HSVT work at all --
-   and it earns the synthetic control rather than assuming it: under
+   and it delivers the synthetic control as a theorem: under
    this model an (approximate) linear SC :math:`\mathbf{w}^\ast`
    provably *exists* (Agarwal et al. 2021, Prop. 4.1), so the existence
    of a synthetic combination need not be imposed as an axiom as in
@@ -354,7 +354,7 @@ Two paper-extensible weight solvers live alongside the OLS default:
   Robust Synthetic Control of Amjad, Shah & Shen [Amjad2018]_: replace
   the point-estimate OLS with a Gaussian posterior over the weights
   (Bayesian linear regression on the HSVT-denoised donors), which
-  yields calibrated uncertainty directly rather than by resampling.
+  yields calibrated uncertainty directly, not by resampling.
   Concretely,
 
   .. math::
@@ -539,12 +539,12 @@ Stiefel-manifold gradient projection otherwise.
 
 The practical effect for donor selection is that fGRC keeps the donors
 that track the treated unit's *co-movement* once the shared trend is
-removed, rather than the donors that happen to sit at a similar overall
+removed, not the donors that happen to sit at a similar overall
 level. On the West German panel, ``cluster_method="fgrc"`` with
 ``fgrc_k=2`` isolates a coherent seven-donor core led by France and the
 United States, and it is on that clustered pool -- not the full donor
 set -- that the denoising step gives its best pre-period fit. The number
-of clusters ``fgrc_k`` is set directly (default ``2``) rather than by a
+of clusters ``fgrc_k`` is set directly (default ``2``), not by a
 silhouette search, because the goal is one coherent pool for a single
 treated unit, not a full partition of the panel; the subspace dimensions
 ``fgrc_c1`` / ``fgrc_c2`` and the B-spline resolution ``fgrc_knots`` /
@@ -616,7 +616,7 @@ it from the matrix shape alone: PCP takes
 Candes-Li-Ma-Wright (2011) value that guarantees *exact* recovery of the
 low-rank-plus-sparse split, and HQF stops at a fixed cumulative-energy
 share. Neither rule looks at the donor spectrum, and both optimise
-decomposition identifiability rather than counterfactual fit -- the
+decomposition identifiability, not counterfactual fit -- the
 distinction the robust-SC literature draws between recovering
 :math:`\mathbf{L}` exactly and predicting :math:`\mathbf{y}_1` well.
 
@@ -710,14 +710,14 @@ counterfactual.
     deviates from the signal).
 
     *Plausibly violated when* you have a panel with structural
-    outliers (a donor with a one-time policy shock spike) rather
-    than i.i.d. Gaussian noise. *Diagnostic*: residualise each
+    outliers (a donor with a one-time policy shock spike), not i.i.d. Gaussian
+    noise. *Diagnostic*: residualise each
     donor against the rank-:math:`r` HSVT reconstruction and
     histogram the residuals; sparse heavy tails are a red flag.
     The fix is the RPCA-SC family -- robust :math:`\mathbf{L} + \mathbf{S}`
     decomposition explicitly separates the low-rank signal from
     the sparse outliers, so heavy-tailed donor noise is absorbed
-    into :math:`\mathbf{S}` rather than contaminating :math:`\mathbf{L}`.
+    into :math:`\mathbf{S}` instead of contaminating :math:`\mathbf{L}`.
 
 (c) Approximate linear SC (A3). The treated signal lies
     (approximately) in the span of the denoised donor signals.
@@ -840,8 +840,8 @@ RSC) when:
 
 Reach for RPCA-SC when:
 
-* The donor matrix has sparse heavy-tailed outliers rather
-  than uniform Gaussian noise -- a few donors with one-time
+* The donor matrix has sparse heavy-tailed outliers, not uniform Gaussian
+  noise -- a few donors with one-time
   policy shocks, structural breaks, or recording errors. The
   :math:`\mathbf{L} + \mathbf{S}` decomposition explicitly absorbs these into
   :math:`\mathbf{S}`, leaving a clean :math:`\mathbf{L}` for the weight fit.
@@ -1658,8 +1658,8 @@ fit residual* (not the total target variance, which conflates signal
 with noise); the point counterfactual is the *posterior-mean
 projection* (not a Monte-Carlo median of draws); and both the point
 estimate and the credible band are projected through the *de-noised*
-rank-:math:`r` donor matrix, so the band reflects the signal subspace
-rather than raw-donor noise in the weight null space.
+rank-:math:`r` donor matrix, so the band reflects the signal subspace, not
+raw-donor noise in the weight null space.
 
 .. code-block:: python
 
@@ -1761,7 +1761,7 @@ design choices, not discrepancies: mlsynth denoises the *pre-period*
 donor block for the weight fit (the Amjad-Shah-Shen [Amjad2018]_
 convention, ``project_denoised=False`` by default) where the
 reference code denoises the full :math:`Y_0` once, and mlsynth's
-clustering features come from the pre-period SVD rather than the full
+clustering features come from the pre-period SVD, not the full
 panel. Set ``project_denoised=True`` to match the reference code's
 projection convention.
 

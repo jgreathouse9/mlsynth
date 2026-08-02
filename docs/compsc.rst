@@ -6,7 +6,7 @@ When to use it
 
 Reach for COMPSC when the outcome is a composition — a vector of shares that
 sum to a whole — a single unit is treated, and what you care about is the
-*relative* structure of the mix rather than any one share on its own. An
+*relative* structure of the mix, not any one share on its own. An
 electricity generation mix split across gas, coal and renewables; a marketing
 budget split across channels; brand share within a product category; a modal
 split across car, transit and bicycle; vote share across parties. The defining
@@ -112,7 +112,7 @@ exactly:
    = V^{0}_{k,j,t} - V^{0}_{p,j,t} =: \tilde{V}^{0}_{k,j,t}.
 
 The observable log-ratios *are* the preference parameters governing choice. That
-is why a factor model is imposed on them rather than on the shares, and why the
+is why a factor model is imposed on them, not on the shares, and why the
 donor weights read as preference similarity: a donor earns weight to the extent
 that its population's relative preferences track the treated unit's.
 
@@ -199,7 +199,7 @@ simplex,
 
 where :math:`\ell` is the configured log-ratio map. Because the coordinate
 equations share the unit loadings :math:`\mu_j`, they stack into a single
-regression with :math:`(p-1) T_0` scalar observations rather than :math:`T_0`
+regression with :math:`(p-1) T_0` scalar observations, not :math:`T_0`
 vector-valued ones — the multi-outcome stacking of Sun, Ben-Michael and Feller
 (2025), which :doc:`scmo` implements for general multiple outcomes.
 
@@ -215,7 +215,7 @@ weighted geometric mean:
 with :math:`\mathcal{C}` the closure (renormalisation). Standard synthetic
 control takes the arithmetic mean of the donors; COMPSC takes the geometric
 mean. The result is a valid composition automatically — strictly positive,
-summing to one — so the share effects sum to zero by construction rather than by
+summing to one — so the share effects sum to zero by construction, not by
 correction.
 
 Estimands

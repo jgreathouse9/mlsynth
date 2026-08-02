@@ -11,7 +11,7 @@ policies do not arrive that way. A retail chain opens stores in hundreds of
 counties over a decade; a state law is adopted by different municipalities in
 different years; a firm rolls a change out market by market. Each treated unit
 gets its own intervention date, and the question is what happened on average,
-measured from each unit's own treatment date rather than from the calendar.
+measured from each unit's own treatment date, not from the calendar.
 
 STACKEDSC fits a separate synthetic control for every treated unit against a
 common pool of never-treated donors, then lines the resulting effect paths up
@@ -71,7 +71,7 @@ estimators use, and it is deliberate: a not-yet-treated donor contributes
 untreated information early and treated information later, which contaminates
 long-horizon effects precisely where they are largest. The cost is a smaller
 donor pool. In the motivating application the pool is 39 counties for 566
-treated ones, and it is constructed rather than residual -- the donors are
+treated ones, and it is constructed, not residual -- the donors are
 places where the firm tried to open and was blocked, which is what makes them
 comparable.
 
@@ -134,14 +134,14 @@ under the constraint
 
 where :math:`v_i \coloneqq w_i \, y_{j,T_{0j}} / y_{i,T_{0j}}`. In words: the
 synthetic control must reproduce the treated unit's base-period level exactly.
-That is why :math:`\widehat{\tau}_{-1}` is identically zero rather than merely
+That is why :math:`\widehat{\tau}_{-1}` is identically zero, not merely
 small, and it is a different feasible set from the ordinary simplex on levels.
 Setting ``normalize=False`` gives the level-scale estimator, which answers a
 different question.
 
 The base period belongs to the cohort. Every unit adopting at the same time
 shares :math:`T_{0j}`, so the indexed donor block takes one value per adoption
-time rather than one per treated unit. With six adoption years and 566 treated
+time, not one per treated unit. With six adoption years and 566 treated
 units that is six donor blocks, not 566, and every unit in a cohort is fitted
 against the same design matrix.
 
@@ -156,8 +156,8 @@ Diagnostics
 
 The pre-treatment portion of the event study is the main diagnostic, and it is
 close to free: under the indexing, :math:`\widehat{\tau}_{-1} = 0` by
-construction, so the remaining pre-treatment horizons are informative about fit
-rather than about level.
+construction, so the remaining pre-treatment horizons are informative about
+fit, not about level.
 
 Two things the result reports that are easy to overlook.
 ``design.shared_donor_pool`` records whether every treated unit in every cohort
@@ -178,13 +178,13 @@ per-county post-treatment paths differing by up to 2.1 percentage points.
 The weighted mean is pinned down far better than its parts -- across three
 solvers the population-weighted aggregate moves by 0.05 percent where the
 individual paths move by 2.1 -- but it is not pinned exactly either, which is
-why the durable benchmark bands the aggregate rather than pinning a single
+why the durable benchmark bands the aggregate instead of pinning a single
 solver's answer. Read ``per_unit`` for diagnosis and spread, not as a claim
 about which donors resemble a particular unit.
 
 The weights themselves come from a primal active-set method
 (:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), which terminates on
-a Karush-Kuhn-Tucker certificate rather than on an iteration budget. That matters
+a Karush-Kuhn-Tucker certificate, not on an iteration budget. That matters
 here: on this design a first-order method does not converge at all, leaving 20 of
 39 leave-one-out columns still improving after 20,000 iterations at any
 tolerance, and so returns a point that is simply suboptimal.
@@ -232,9 +232,9 @@ the estimate uses,
 
 The number of distinct averages is :math:`\prod_j |\mathcal{N}_0|`, which for
 39 donors and 566 treated units is :math:`39^{566}`, so :math:`S` of them are
-sampled rather than enumerated (``n_placebo_samples``, default 1000).
+sampled, not enumerated (``n_placebo_samples``, default 1000).
 
-Two statistics come off that distribution. The first ranks a ratio rather than a
+Two statistics come off that distribution. The first ranks a ratio, not a
 level, so that an average which already fits badly before treatment is not
 credited for a large gap after it. With :math:`\underline{E}` the earliest
 reported horizon, write
@@ -286,9 +286,9 @@ defeats the purpose of computing both.
 placebos' donor pools. The default ``"permutation"`` says yes, following the
 reference implementation, on the logic that under the permutation the treated
 unit is a control like any other. It has two consequences. The placebo path
-becomes a property of the pair :math:`(j, i)` rather than of the cohort, so the
+becomes a property of the pair :math:`(j, i)`, not of the cohort, so the
 number of solves is the number of treated units times the pool size -- for the
-Walmart panel, :math:`566 \times 39` rather than :math:`6 \times 39`. And under
+Walmart panel, :math:`566 \times 39`, not :math:`6 \times 39`. And under
 the alternative, the treated unit's post-treatment path carries the very effect
 being tested, so any weight the placebo puts on it pulls that placebo's gap away
 from zero and widens the null distribution. This is the stacked-case power loss
@@ -404,7 +404,7 @@ Not to be confused with
 :doc:`ppscm` also handles staggered adoption but partially pools across treated
 units, shrinking each unit's fit toward a common one; STACKEDSC fits every unit
 separately and pools only at the averaging step. :doc:`sdid` handles staggered
-adoption through cohort-level time weights rather than per-unit event-time
+adoption through cohort-level time weights, not per-unit event-time
 stacking.
 
 Core API

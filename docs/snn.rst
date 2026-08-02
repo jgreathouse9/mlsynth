@@ -47,8 +47,8 @@ To impute entry :math:`(i, j)`, SNN combines nearest neighbors
 SNN generalises Synthetic Interventions (Agarwal et al. 2021b, the
 :class:`mlsynth.SI` estimator), which itself generalises classic
 synthetic control: the same PCR machinery is applied, but the anchor
-submatrix is found *per entry* rather than assuming a fixed treated/donor
-block, so SNN handles arbitrary (block-structured) MNAR patterns.
+submatrix is found *per entry*, with no fixed treated/donor block, so SNN
+handles arbitrary (block-structured) MNAR patterns.
 
 Why panel data is a natural fit
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -116,7 +116,7 @@ Do not use SNN when
 * No large fully observed submatrix exists. SNN's anchor step needs a
   dense observed block; if missingness is heavy and scattered with no such
   block, prefer the nuclear-norm estimator :doc:`mcnnm`, which regularises
-  the whole matrix rather than imputing entry-by-entry.
+  the whole matrix instead of imputing entry-by-entry.
 * The design is a simple single-treated block with a clean pre-period
   and you want classic interpretable donor weights, closed-form CIs, or a
   convex-combination story. Use :doc:`si`, :doc:`tssc`, or :doc:`scmo`;

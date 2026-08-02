@@ -62,7 +62,7 @@ Reach for SPOTSYNTH when:
   screen is built to catch exactly this (the semi-synthetic
   demonstrations below).
 * You want a principled, data-driven donor screen with explicit
-  sensitivity bounds on the bias from selection errors, rather than an ad
+  sensitivity bounds on the bias from selection errors, not an ad
   hoc "drop the weird-looking donor" rule.
 
 Use the default ``forecast="loo"`` for applied work -- a mostly-valid
@@ -90,8 +90,8 @@ Do not use SPOTSYNTH when:
   identification gain; a canonical SC (:doc:`tssc`, :doc:`fdid`) is the
   more honest default.
 * Interference runs treated-to-treated or is structural across many
-  units rather than a few contaminated donors. For spillover-aware
-  *estimands* (rather than donor cleaning) see :doc:`spsydid` and
+  units, not a few contaminated donors. For spillover-aware
+  *estimands* (not donor cleaning) see :doc:`spsydid` and
   :doc:`spillsynth`.
 
 Notation
@@ -437,7 +437,7 @@ pattern is identical either way.
 
    On validating this SC model. Because the authors' Stan was unavailable, we
    implemented the model from the *published specification* (the p.12 equations
-   above) rather than from their code, and validated our NUTS fit against
+   above), not from their code, and validated our NUTS fit against
    exact grid quadrature of the posterior -- ground truth, not another
    sampler. On 2- and 3-donor problems the posterior means of the weights and of
    :math:`\sigma_y` match the deterministic numerical integral to
@@ -457,8 +457,7 @@ Bias when the screen errs: sensitivity analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The screen can make two kinds of error, and the paper bounds the SC bias
-each induces (so the analyst can gauge robustness rather than trust the
-selection blindly).
+each induces, so the analyst can gauge how much the screen's choice matters.
 
 * False positive (a *valid* donor excluded). If the excluded donors
   were proxies for a relevant latent, dropping them reintroduces omitted-

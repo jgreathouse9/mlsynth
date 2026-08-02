@@ -10,7 +10,7 @@ The synthetic control (SC) method of Abadie and co-authors [ABADIE2010]_
 builds a counterfactual for one treated unit as a weighted average of donor
 units that reproduces the treated unit's pre-treatment outcome path. When the
 outcome is measured at high frequency -- monthly births, daily sales, weekly
-visits -- a practitioner faces a choice that quietly changes the answer: match
+visits -- a practitioner faces a choice that changes the answer: match
 the donors on the raw high-frequency series, or first average it into coarser
 intervals (say, yearly) and match on those?
 
@@ -123,8 +123,8 @@ Choosing nu and the Imbalance Frontier
 
 The optimal :math:`\nu` depends on unknown factor-model quantities and is
 infeasible to compute. Following the paper, SCTA defaults to the equal-weight
-heuristic :math:`\nu = 0.5` and asks you to assess sensitivity rather than
-trust a single number. Passing a ``frontier`` grid traces the imbalance
+heuristic :math:`\nu = 0.5` and asks you to assess sensitivity, not trust a
+single number. Passing a ``frontier`` grid traces the imbalance
 frontier: for each :math:`\nu` it reports the disaggregated and aggregated
 pre-treatment RMSE, the two axes of Figure 1 in the paper. A good
 :math:`\nu` is one where both imbalances are small; a frontier that collapses
@@ -190,7 +190,7 @@ R reference. Because the joint fit's base simplex is ill-conditioned on a large
 donor pool, the per-unit weight vector is solver-dependent: mlsynth reaches the
 true optimum of the :math:`\mathbf{V}`-weighted objective, while ``augsynth``'s
 interior-point solver lands a few percent short, so the estimates agree to
-solver tolerance rather than bit for bit (plain :math:`\nu = 0.5`:
+solver tolerance, not bit for bit (plain :math:`\nu = 0.5`:
 :math:`{\approx}\,19{,}800` vs :math:`18{,}918`; ridge: :math:`{\approx}\,12{,}500`
 vs :math:`12{,}982`, annualised). See the dedicated page
 :doc:`replications/scta`.

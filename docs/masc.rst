@@ -21,8 +21,8 @@ Reach for MASC when:
   both worries are alive, MASC's :math:`\widehat{\varphi}` trades
   them off in a data-driven way.
 * You can't decide a priori whether SC or matching is more
-  appropriate. The CV gives you a defensible answer rather
-  than the practitioner's eyeball "I'll use SC because that's
+  appropriate. The CV gives you a defensible answer, not the practitioner's
+  eyeball "I'll use SC because that's
   what the paper said".
 * The pre-period is long enough for rolling-origin
   cross-validation to discriminate the two biases (KMPT

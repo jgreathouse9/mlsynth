@@ -16,7 +16,7 @@ Song (2025).
 The idea is a two-step one. First collapse the microdata to a survey-weighted
 mean per group and period, so that a panel of group means emerges from the
 individual records. Then run a synthetic control on those means -- but on their
-*within-group differences* rather than their levels. Differencing off a
+*within-group differences*, not their levels. Differencing off a
 pre-period baseline removes each group's fixed level, so the donor weights are
 fit on de-trended trajectories; this is the "D" in SCD, and it nests classical
 synthetic control (no differencing) and a difference-in-differences style
@@ -45,7 +45,7 @@ When to use this estimator
 If you only have one aggregated outcome per unit and period, use the aggregate
 synthetic-control estimators (:doc:`vanillasc`, :doc:`clustersc`) -- there are no
 individuals to form the :math:`\sqrt{n}` band. If you care about the whole
-counterfactual *distribution* rather than the group mean, use :doc:`dsc`.
+counterfactual *distribution*, not the group mean, use :doc:`dsc`.
 
 Notation
 --------
@@ -379,8 +379,8 @@ SCD is cross-validated, value for value, against a from-scratch base-R
 reproduction of the estimator (point weights, effect path, corrected RC standard
 error, weight-variance trace, and confidence-set membership decisions) on the
 Arizona LAWA CPS extract, for all three differencing schemes. The upstream
-package is GPL, so the method is reproduced on public-domain CPS microdata rather
-than vendored. Every quantity matches to solver tolerance
+package is GPL, so the method is reproduced on public-domain CPS microdata,
+not vendored. Every quantity matches to solver tolerance
 (:math:`\sim 10^{-9}`). See the durable benchmark case
 `benchmarks/cases/scd_cps.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scd_cps.py>`_

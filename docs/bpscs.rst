@@ -21,8 +21,8 @@ spatial distance to the treated unit. Reach for it when:
 * You want a full posterior credible band on the counterfactual and the effect,
   not a single line.
 * You have per-unit spatial coordinates and baseline covariates, and you want the
-  donor down-weighting to be data-driven from those rather than a hand-picked
-  exclusion list.
+  donor down-weighting to come from those, not from a hand-picked exclusion
+  list.
 
 Do not use BPSCS when:
 
@@ -190,8 +190,8 @@ distance-horseshoe and :math:`0.969`--:math:`0.998` for the spike-and-slab, the
 residual being Monte-Carlo error between two independent NUTS runs (amplified only
 in the extreme lower tail of the free-running counterfactual, where the model is
 numerically fragile). See the replication page :doc:`replications/bpscs`. Because
-the reference is GPL-licensed it is fetched and run at cross-check time rather
-than redistributed; the durable self-contained case
+the reference is GPL-licensed it is fetched and run at cross-check time, not
+redistributed; the durable self-contained case
 ``benchmarks/cases/bpscs_synthetic.py`` checks effect recovery and distance-based
 shrinkage on a simulated spatial panel. The estimator, config validation, the
 missing-dependency guard, effect recovery, both priors, and the result contract

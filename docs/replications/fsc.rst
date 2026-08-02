@@ -57,7 +57,7 @@ a maximum deviation of 0.000. The cross-validated penalties of Remark 5
 reproduce too: mortality lands on 5.889182 to eight digits and service on
 0.001864 against a printed 0.00186.
 
-Four details of the reference code are load-bearing, and none is visible from
+Four details of the reference code decide the answer, and none is visible from
 the paper alone.
 
 The rounding. ``FSCM`` returns ``round(weight_scm, 4)``, and the rounding is
@@ -80,7 +80,7 @@ lands the mortality figure at 0.0640 where the published value is 0.0634.
 The covariance outcome is a plain half-vectorisation, with no :math:`\sqrt 2` on
 the off-diagonals. The Frobenius metric of the paper's Example 3 counts each
 off-diagonal entry twice, so that map is not an isometry and 39.3429 is a vech
-norm rather than a Frobenius one. The same weights scored under Example 3's own
+norm, not a Frobenius one. The same weights scored under Example 3's own
 metric give 51.9613.
 
 Table 1 also contains an arithmetic slip: the Switzerland entry of 0.089 makes the FSC column sum to 1.089, which the simplex
@@ -93,7 +93,7 @@ What the shipped estimator reproduces
 
 :class:`mlsynth.FSC` matches the fertility application exactly — 0.1259 before
 augmentation and 0.0687 after, from the standard configuration with the penalty
-cross-validated rather than supplied. That is the paper's flagship application
+cross-validated, not supplied. That is the paper's flagship application
 and the one its Example 1 is built around.
 
 The other two diverge.
@@ -119,9 +119,9 @@ comparator is 51.9613 — the authors' own weights scored under Frobenius — an
 mlsynth attains 51.7665, which is what re-optimising under the correct metric
 should do.
 
-Both are corrections rather than discrepancies, and both are pinned in the
-estimator benchmark so a future change to either surfaces as a failure rather
-than drifting quietly.
+Both are corrections, not discrepancies, and both are pinned in the
+estimator benchmark so a future change to either surfaces as a failure instead
+of drifting.
 
 The penalty needs one more note, because getting it wrong caused a real bug
 here. The cross-validation objective of Remark 5 is nearly flat near its

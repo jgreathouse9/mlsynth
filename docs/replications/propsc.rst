@@ -39,8 +39,8 @@ Path A — Spain "Just Transition" (Table 2)
 
 Bogatyrev and Stoetzer re-examine Bolet, Green and González-Eguino (2024): the
 electoral effect of a compensatory "Just Transition Agreement" in Spanish
-coal-mining municipalities, estimated on the full vector of party vote shares
-rather than one party at a time. The panel (``basedata/spain_propsc.csv`` — 525
+coal-mining municipalities, estimated on the full vector of party vote shares,
+not one party at a time. The panel (``basedata/spain_propsc.csv`` — 525
 municipalities over five elections 2008–2019, 109 treated in 2019, party shares
 in percentage points with VOX coded zero before its 2013 founding) is exported
 from the article's Harvard Dataverse archive (doi:10.7910/DVN/MPUEIC).

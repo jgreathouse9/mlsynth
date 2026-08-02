@@ -19,8 +19,8 @@ Compared with the canonical SCM data-driven :math:`\mathbf{V}` choice (a
 cross-validated grid search over diagonal :math:`\mathbf{V}` minimizing
 pre-period MSE), SparseSC
 
-* selects predictors explicitly via L1 sparsity rather than
-  implicitly via small but nonzero :math:`v_p`-weights;
+* selects predictors explicitly via L1 sparsity, not implicitly via small but
+  nonzero :math:`v_p`-weights;
 * picks the L1 penalty :math:`\lambda` on a held-out validation
   block of the pre-period (a 75/25 train/validation split by
   default, which matches the 14/5-year split Vives used in the
@@ -53,8 +53,8 @@ When to use this estimator
 --------------------------
 
 Reach for SparseSC when you have one treated unit, a rich predictor
-set, and you want the fit to tell you *which* predictors matter rather
-than carry all of them with small but nonzero weights. The lasso
+set, and you want the fit to tell you *which* predictors matter, not carry all
+of them with small but nonzero weights. The lasso
 penalty on the predictor-importance vector drives the uninformative
 predictors to exactly zero, so the synthetic control's explanation of
 the treated pre-trajectory is interpretable in terms of a small,
@@ -68,7 +68,7 @@ weight and the story is muddy. SparseSC prunes the over-rich set down
 to the handful that actually drive the pre-law fit, selects the L1
 penalty on a held-out validation block, and reads the policy effect as
 the post-law gap -- with a conformal interval calibrated on the
-validation residuals rather than a coarse donor-permutation grid.
+validation residuals, not a coarse donor-permutation grid.
 
 Notation
 --------
@@ -411,7 +411,7 @@ the residuals (validation-period residuals look like the
 no-treatment counterfactual's noise). On Prop 99 the conformal
 95% CI is typically :math:`[-20, -18]` versus the placebo's much
 wider bounds, because conformal leverages the actual model's
-residual structure rather than donor-level heterogeneity.
+residual structure, not donor-level heterogeneity.
 
 Abadie-style placebo (opt-in)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

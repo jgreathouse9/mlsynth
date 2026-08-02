@@ -17,7 +17,7 @@ The question
 In April 1992 New Jersey raised its minimum wage from $4.25 to $5.05 while the
 federal floor stayed at $4.25. Card and Krueger studied the employment effects
 of the same reform; this application asks a different question, about the wage
-distribution rather than about jobs. Specifically: for which kinds of worker did
+distribution, not about jobs. Specifically: for which kinds of worker did
 the increase bite, and where in their wage distribution?
 
 That is a question an average cannot answer, and it is also one an
@@ -168,7 +168,7 @@ partially cancel the way rounding does, moves them by 0.12 to 0.17. Either way
 That asymmetry is the signature of near-collinearity: the weight vector is
 poorly determined while the fitted counterfactual is well determined. It is why
 the estimator requires float64 inputs, and why a benchmark built on this should
-lean on the estimands rather than on individual weights if it ever has to choose.
+lean on the estimands, not on individual weights if it ever has to choose.
 
 Reproducing it
 --------------
@@ -180,5 +180,5 @@ Reproducing it
 The author's own script output is stored alongside the data as
 ``results_empirics.csv``, and an independent port written from the paper's
 equations is kept as ``independent_port.py``. Both reproduce the tables, which
-is what makes the target implementation-independent rather than a re-run of one
+is what makes the target implementation-independent, not a re-run of one
 author's code.

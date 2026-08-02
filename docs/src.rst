@@ -17,8 +17,8 @@ relaxes that restriction in a disciplined way and is a good choice when:
 * You have a single treated unit and a donor pool with real heterogeneity, and
   a simplex synthetic control leaves a visible pre-treatment gap.
 * You are willing to let the counterfactual extrapolate a little beyond the
-  donor hull, but want the amount of extrapolation regularised rather than
-  unbounded (as an unconstrained regression would give).
+  donor hull, but want the amount of extrapolation regularised, not unbounded
+  (as an unconstrained regression would give).
 * You want a deterministic, reproducible estimate. By default SRC's weights are
   pinned by the risk criterion, not by an Abadie predictor-weight (``V``) search,
   so there is no optimiser-seed dependence. (The paper's covariate + ``V``-search
@@ -181,7 +181,7 @@ identifies :math:`\widehat{\mathbf{w}}`.
    variance given above, which recovers the true :math:`\sigma^2` to within a
    few percent. mlsynth follows the reference implementation (cross-validated to
    :math:`< 2\text{e-}13`; see Verification), and reads the printed eq. 19 as an
-   uncorrected typo rather than the estimator the paper's own non-degenerate
+   uncorrected typo, not the estimator the paper's own non-degenerate
    Basque results were produced with.
 
 Assumptions
@@ -247,7 +247,7 @@ screened pool is smaller than the pre-period, so the fit is well posed and
 :math:`\widehat{\sigma}^2 > 0`. On the 1975-treated Basque panel
 (:math:`T_0 = 20`, :math:`N_0 = 16`) screening keeps :math:`k = 8` donors and
 lifts :math:`\widehat{\sigma}^2` by roughly two orders of magnitude, so the
-penalty is active rather than switched off.
+penalty is active, not switched off.
 
 A shape-based alternative: ``screen="fpca"``. SIRS ranks donors by marginal
 dependence; ``screen="fpca"`` instead selects an economically coherent peer
@@ -319,7 +319,7 @@ This prints::
 The Basque Country tracks its SRC counterfactual to a pre-period RMSE of about
 0.048 (thousand-1986-USD per capita), then diverges steadily -- the familiar
 Abadie-Gardeazabal shape of the economic cost of ETA terrorism -- recovered
-here by the box-weighted matched controls rather than a simplex.
+here by the box-weighted matched controls, not a simplex.
 
 This deterministic Algorithm 1 is *not* the specification behind the
 paper's Basque table: it selects Murcia / Madrid / Castilla y León and a mean

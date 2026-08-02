@@ -7,12 +7,12 @@ A synthetic control that tracks the treated unit exactly before the
 intervention looks like the best possible outcome. Sometimes it carries less
 information than it appears to: the fit criterion may be satisfied by a whole
 family of donor weightings that disagree about the counterfactual, in which case
-the number you are about to report was settled by your solver rather than by
+the number you are about to report was settled by your solver, not by
 your panel.
 
 This page explains when that happens, how to check for it in a few lines, and
 what to do about it. It is written around a published example, so the failure is
-concrete rather than hypothetical.
+concrete, not hypothetical.
 
 The problem
 -----------
@@ -45,7 +45,7 @@ path — not by the data.
 
 This is not an edge case in the wide-panel regime. It is the generic outcome
 whenever a large donor pool is matched on a short pre-period, and a perfect
-pre-treatment fit is its signature rather than its refutation.
+pre-treatment fit is its signature, not its refutation.
 
 One caveat changes what to conclude: none of
 this says a large donor pool is bad. See `Adding donors is not the problem`_
@@ -129,8 +129,7 @@ away by fixing a rule.
 
 So the two readings fit together. The polytope is real, and which point you land
 on is not determined by fit. What follows is not "use fewer donors" but "decide
-the rule, and report it" -- and given a rule, more donors can help rather than
-hurt.
+the rule, and report it" -- and given a rule, more donors can help, not hurt.
 
 How much does the rule matter? On the panel below, every one of these tracks the
 pre-treatment path to within about thirteen cents a month, on contributions
@@ -159,16 +158,16 @@ averaging some ``$66,000`` a month:
 A spread of about ``$17,000`` across four defensible-looking routes, none of
 which is meaningfully distinguishable on pre-treatment fit. Note what the last row is not: an
 argument that its answer is wrong. It is that nothing in that analysis names the
-rule, so the number came from an optimiser's path rather than from a modelling
+rule, so the number came from an optimiser's path, not from a modelling
 choice anyone made deliberately.
 
 Two things this comparison does *not* show. Spiess et al. measure average
 imputation risk over randomly chosen donor subsets, which is a different question
 from the spread of estimates at a fixed donor set -- their result can hold while
 this interval stays wide. And mlsynth's own outcome-only default is an
-interior-point solution: deterministic and reproducible, but a solver artifact
-rather than a rule anyone chose. If the identified interval is wide, choose the
-rule explicitly rather than inheriting that one.
+interior-point solution: deterministic and reproducible, but a solver
+artifact, not a rule anyone chose. If the identified interval is wide,
+choose the rule explicitly instead of inheriting that one.
 
 A worked example
 ----------------
@@ -214,7 +213,7 @@ sharply that bites.
 
 The trimmed specifications are identified and cluster tightly, and they agree
 with the headline. The substantive conclusion survives — but it survives on the
-robustness check rather than on the main specification, which by itself
+robustness check, not on the main specification, which by itself
 identifies the sign and not the magnitude. That distinction matters
 explicitly in any write-up, and it is exactly what the diagnostic surfaces.
 
@@ -275,7 +274,7 @@ regime: see :doc:`clustersc`, :doc:`sparse_sc`, :doc:`rescm`, :doc:`fscm` and
 
 Do not reach for :doc:`masc` here. It trades extrapolation bias against
 interpolation bias and is the right tool when the hull condition *fails*. That
-is the opposite problem: too few fits rather than too many.
+is the opposite problem: too few fits, not too many.
 
 The other failure
 -----------------

@@ -46,7 +46,7 @@ seed reproduces the private output exactly.
 * output perturbation (Algorithm 2): the private coefficients and the private
   counterfactual match the authors' ``PrivateSC`` to :math:`\sim 10^{-11}`;
 * objective perturbation (Algorithm 3): mlsynth solves the perturbed program in
-  closed form (the perturbed normal equations) rather than through cvxpy, and
+  closed form (the perturbed normal equations), not through cvxpy, and
   the private weights and counterfactual still match to :math:`\sim 10^{-11}`.
 
 The deterministic noise scales -- the coefficient sensitivity
