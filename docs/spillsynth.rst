@@ -161,7 +161,7 @@ a large-:math:`T_0` tool. Part (d) is the genuine identification condition --
 it fails only when the spillover structure is pathologically aligned with the
 SCM weight pattern (Section 3.4.1 of the paper); the fit container exposes
 ``cd.cond_AMA`` as a numerical diagnostic so a near-singular
-:math:`\mathbf{A}' \mathbf{M} \mathbf{A}` is visible rather than silent.
+:math:`\mathbf{A}' \mathbf{M} \mathbf{A}` shows up as a large value.
 
 The paper shows that Assumption 1 is satisfied by factor-model DGPs
 under two alternative regularity conditions on the common factors:

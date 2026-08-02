@@ -13,7 +13,8 @@ prior, design-time question: you are about to run an experiment, you
 have a panel of pre-treatment outcomes, and you must decide *which units to
 treat* (and how to weight the rest into a synthetic comparison) so that the
 treatment-effect estimate is as precise as possible. It is a sibling of
-:doc:`syndes` — both choose the treated set rather than assume it — but where
+:doc:`syndes` — both choose the treated set as part of the design — but
+where
 SYNDES solves a mixed-integer program, SPCD reformulates the design as a
 phase-synchronization problem and solves it with a spectrally-initialized
 power method that converges *globally* under standard linear-factor models,

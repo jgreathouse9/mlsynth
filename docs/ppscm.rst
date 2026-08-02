@@ -40,7 +40,7 @@ Reach for PPSCM when
 * Several units are treated at different adoption times, with a pool of
   never-treated (or not-yet-treated) comparison units.
 * You want an ATT over relative time (an event-study path), pooling
-  information across cohorts rather than trusting each cohort's own fit.
+  information across cohorts instead of fitting each cohort alone.
 * No single donor mix matches every treated unit, so separate SCM
   leaves you with unreliable per-unit fits -- the partial-pooling dial lets
   the average fit borrow strength without abandoning unit-level fit.

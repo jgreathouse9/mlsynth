@@ -530,7 +530,7 @@ computing something it never reads.
 ``inference=False`` requires ``method``, because Step 1 is itself a subsampling
 procedure: with the subsampling off there is no way to recommend a variant, and
 no way to know which variant the reported summary should describe. Asking for
-one without the other raises rather than guessing.
+one without the other raises.
 
 Neither option changes a number. Selecting a variant returns bit-identical
 weights, counterfactual and ATT to reading that variant off a full run, and

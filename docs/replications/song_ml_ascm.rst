@@ -49,8 +49,8 @@ So the case measures three quantities:
      - loose
      - Path A — the sum of the two above
 
-The third is bounded by the first two, which is checkable rather than asserted,
-and each fails independently. That matters: with only the published basis, a real
+The third is bounded by the first two, which the case checks, and each fails
+independently. That matters: with only the published basis, a real
 regression in mlsynth could hide inside a tolerance widened to accommodate the
 known drift.
 

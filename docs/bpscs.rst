@@ -21,8 +21,8 @@ spatial distance to the treated unit. Reach for it when:
 * You want a full posterior credible band on the counterfactual and the effect,
   not a single line.
 * You have per-unit spatial coordinates and baseline covariates, and you want the
-  donor down-weighting to be data-driven from those rather than a hand-picked
-  exclusion list.
+  donor down-weighting to come from those, not from a hand-picked exclusion
+  list.
 
 Do not use BPSCS when:
 

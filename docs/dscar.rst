@@ -144,7 +144,7 @@ Reach for DSCAR when
   stations, neighbouring stores) -- DSCAR's theory accommodates this where
   classic placebo inference does not.
 * You want to test unconfoundedness / model specification on the
-  pre-period rather than assume it, and you want a placebo test that is
+  pre-period, and you want a placebo test that is
   normalised to handle treated/control variance asymmetry.
 
 Do not use DSCAR when

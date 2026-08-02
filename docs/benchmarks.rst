@@ -387,7 +387,7 @@ Regenerate both with
 What running the authors' code surfaced
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Executing the reference rather than trusting a printed table repeatedly turned
+Executing the reference, instead of comparing against a printed table, turned
 up things a number-for-number comparison could not have. In each case the
 discrepancy was traced to its cause, and mlsynth was found to be at the
 correct optimum.

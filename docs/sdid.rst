@@ -822,7 +822,7 @@ cap, and then solves the weight programs exactly, as it does everywhere else.
 This is the one place in the SDID implementation where a deliberately inexact
 solver is ported rather than replaced, and
 :func:`mlsynth.utils.sdid_helpers.covariates.sdid_covariate_objective` is public
-so the claim can be checked rather than believed.
+so the claim can be checked.
 
 Matching on the covariates (de Brabander et al. 2025)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

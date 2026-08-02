@@ -91,7 +91,7 @@ The state assembles the requested components — a local level (``"trend"``),
 optionally a slope (``"slope"``), a dummy seasonal of period :math:`S`
 (``"seasonal"``), and a stochastic cycle (``"cycle"``) — with the :math:`d`
 series sharing each component's :math:`d \times d` disturbance covariance, so
-cross-series co-movement is modelled explicitly rather than assumed away. The
+cross-series co-movement carries its own parameters. The
 regression coefficient matrix :math:`\boldsymbol{\beta}` carries a spike-and-slab
 prior, so the model selects which control paths and covariates to keep. The
 disturbance covariances take conjugate Inverse-Wishart priors with scale

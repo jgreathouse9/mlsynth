@@ -114,10 +114,10 @@ back in :math:`\mathcal Y` automatically, so it corresponds to a real object.
 Assumption 2 (Common grid). Every unit-period cell is observed at the same
 argument values.
 
-Remark. Enforced at ingestion rather than assumed. Objects observed on different
-grids are not comparable coordinate by coordinate, and interpolating them onto a
-common grid is a modelling choice the estimator should not make silently on your
-behalf. Do it yourself first if you need to.
+Remark. The estimator checks this at ingestion and raises when it fails.
+Objects observed on different grids are not comparable coordinate by
+coordinate, and interpolating them onto a common grid is a modelling choice
+that belongs to you. Do it yourself first if you need to.
 
 Assumption 3 (Data-generating process). The embedded control outcomes follow
 either a functional autoregression or a latent factor model, with independent

@@ -134,8 +134,8 @@ passes ``"ipop"`` explicitly, which is what the package does either way.
 It cannot fit four of the fifteen reserves. ``ipop`` fails outright on Valmiki,
 Biligiri Rangaswamy Temple, Sariska and Anamalai with a computationally singular
 system, on panels the older build fitted without complaint. Those failures are
-captured in ``failures.csv`` and counted in the case rather than dropped
-quietly, because a reference that hid them would overstate how much of the paper
+captured in ``failures.csv`` and counted in the case, because a reference
+that hid them would overstate how much of the paper
 the current package can still reproduce.
 
 The estimates differ, and the reason is identification

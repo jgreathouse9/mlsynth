@@ -185,7 +185,7 @@ matters in a synthetic-control panel.
    :math:`\mathrm{rank}(\mathbf{M}) = r = O(\log T) < T`.
 
    *Remark.* This is the assumption that lets PCR/HSVT work at all --
-   and it earns the synthetic control rather than assuming it: under
+   and it delivers the synthetic control as a theorem: under
    this model an (approximate) linear SC :math:`\mathbf{w}^\ast`
    provably *exists* (Agarwal et al. 2021, Prop. 4.1), so the existence
    of a synthetic combination need not be imposed as an axiom as in

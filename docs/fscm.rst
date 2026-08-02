@@ -21,7 +21,7 @@ pre-period and predicts the post-period worse.
 by out-of-sample validation. It is the right tool when you have a single
 treated unit and a sizeable donor pool and suspect that not all donors
 deserve to be in the comparison set -- when you want SCM to tell you *how many*
-and *which* donors to use, rather than assuming "more is better." Because the
+and *which* donors to use. Because the
 selection is greedy (forward stepwise), it scales linearly in the pool size,
 unlike the :math:`2^N` exhaustive subset search.
 

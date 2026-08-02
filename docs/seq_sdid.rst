@@ -170,8 +170,8 @@ Identifying assumptions
    *Remark.* It is precisely the :math:`\theta_a^\top \psi_t` term that
    defeats standard staggered-DiD: when adoption correlates with the loading
    :math:`\theta_a`, comparison cohorts do not trace the treated cohort's
-   counterfactual trend. Sequential SDiD models this term rather than assuming
-   it away, which is what buys robustness when parallel trends fails.
+   counterfactual trend. Sequential SDiD carries this term in the model, which
+   is what buys robustness when parallel trends fails.
 
 2. Large adoption cohorts. Cohort sizes :math:`n_a` grow with the sample so
    that aggregation drives the idiosyncratic noise :math:`\epsilon_{a, t}` to

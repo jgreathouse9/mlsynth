@@ -457,8 +457,7 @@ Bias when the screen errs: sensitivity analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The screen can make two kinds of error, and the paper bounds the SC bias
-each induces (so the analyst can gauge robustness rather than trust the
-selection blindly).
+each induces, so the analyst can gauge how much the screen's choice matters.
 
 * False positive (a *valid* donor excluded). If the excluded donors
   were proxies for a relevant latent, dropping them reintroduces omitted-

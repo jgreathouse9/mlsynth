@@ -110,11 +110,11 @@ lunch in the high-dimensional regime the title advertises unless the sparsity
 assumption actually holds.
 
 That finding is what shaped the build. BEAST is deployed for the ``basic``
-informative-covariate regime, and the estimator carries a balance-validity guard
-(``balance_tol``) that raises :class:`~mlsynth.exceptions.MlsynthEstimationError`
-when :math:`\lvert \sum_j W_j - 1\rvert` exceeds tolerance -- turning the
-degenerate over-saturated case into an explicit error rather than a silently
-meaningless answer. ``mlsynth/tests/test_beast.py`` pins that behaviour
+informative-covariate regime, and the estimator carries a balance-validity
+guard (``balance_tol``) that raises
+:class:`~mlsynth.exceptions.MlsynthEstimationError` when :math:`\lvert \sum_j
+W_j - 1\rvert` exceeds tolerance -- turning the degenerate over-saturated case
+into an explicit error. ``mlsynth/tests/test_beast.py`` pins that behaviour
 (``test_oversaturated_regime_is_rejected``) alongside the R cross-validation of
 the basic regime.
 
