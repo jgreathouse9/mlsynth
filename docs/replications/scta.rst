@@ -180,10 +180,10 @@ and with no import from ``mlsynth.utils.scta_helpers``, and solves it with
 primal active-set QP. Two independent constructions and two independent solvers
 then have to agree.
 
-The panel is the monthly wholesale day-ahead electricity price used by
-the :doc:`ibex` replication: 22 European countries, 2015-01 to 2023-12, with Spain treated by
-the June-2022 Iberian exception mechanism. Portugal is treated by the same
-mechanism and is dropped, leaving 20 clean donors and 89 pre-treatment months —
+The panel is the monthly wholesale day-ahead electricity price used by the
+:doc:`ibex` replication: 22 European countries, 2015-01 to 2023-12, with Spain
+treated by the June-2022 Iberian exception mechanism. Portugal is treated by the
+same mechanism and is dropped, leaving 20 clean donors and 89 pre-treatment months —
 seven whole years plus a five-month tail, the same ragged-block shape as the
 paper's Texas application (six years plus three months). :math:`K = 12`.
 
