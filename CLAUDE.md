@@ -106,6 +106,17 @@ migration or refactor PR.
   (`\mathbf{}` in math). For emphasis use wording, not weight; for terms-of-art
   use ``literal`` or *italic* sparingly. (Table content and section headings are
   fine; the rule is about emphasis in prose.)
+- No self-referential framing. Never tell the reader that something is worth
+  stating, worth knowing, worth noting, deserves mention, needs to be precise
+  about, or is being recorded/flagged/emphasized. If it did not merit inclusion
+  it would not be on the page, so the announcement is pure filler and reads as
+  padding. Delete the frame and assert the thing: "The other two diverge, and by
+  amounts worth stating." becomes "The other two diverge."; "One detail is worth
+  recording: X." becomes "X."; "It is worth being precise about the norm here."
+  becomes the precise statement of the norm. The same goes for "importantly",
+  "note that", "crucially", and "interestingly" — cut them. This applies to docs
+  pages, module and function docstrings, benchmark-case prose, and commit
+  messages alike.
 - Write for a non-expert reader: assume the reader wants to learn what the
   method is and does, not that they already know synthetic control. Define
   jargon on first use.
