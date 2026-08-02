@@ -8,11 +8,18 @@ Overview
 
 ``VanillaSC`` is the *standard* synthetic control method (Abadie &
 Gardeazabal 2003; Abadie, Diamond & Hainmueller 2010, 2015), built on
-mlsynth's self-contained bilevel engine. It estimates the effect on a
-single treated unit by constructing a weighted average of donor units --
-the *synthetic control* -- that tracks the treated unit's pre-treatment
-path, and reads the effect as the post-treatment gap between the treated
-unit and its synthetic counterpart.
+mlsynth's self-contained bilevel engine. It constructs a weighted average
+of donor units -- the *synthetic control* -- that tracks a treated unit's
+pre-treatment path, and reads the effect as the post-treatment gap between
+the treated unit and its synthetic counterpart.
+
+It covers both regimes. With one treated unit this is the canonical
+estimator. With several, adopting at possibly different times, it fits one
+synthetic control per treated unit on the never-treated pool over that
+unit's own pre-period and aggregates into the four causal predictands of
+Cattaneo, Feng, Palomba and Titiunik (2025); the switch is automatic from
+the treatment column, and no extra configuration is required. See
+:ref:`vanillasc-staggered` below.
 
 What distinguishes this implementation is how it treats the two regimes
 of the SCM optimisation honestly:
@@ -39,6 +46,63 @@ When to use this estimator
   enough that the problem is well-conditioned (see the replications
   below). When :math:`\text{v\_agreement}` comes back near 1, prefer
   outcome-only or ``penalized``.
+* Staggered adoption with a clean never-treated pool, when you want the
+  convex synthetic-control answer per unit rather than SDID's
+  trend-matching one, with prediction intervals for the per-unit ATTs,
+  the event-time average and the overall ATT.
+
+What the page covers beyond the canonical estimator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default is the Abadie simplex, and each of the following departs from
+it deliberately.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 74
+
+   * - Option
+     - What it buys
+   * - ``w_constr``
+     - Weight-constraint family beyond the simplex: ``ols`` (unconstrained,
+       extrapolating), ``lasso`` (:math:`\|\mathbf{w}\|_1 \le Q`),
+       ``ridge`` (:math:`\|\mathbf{w}\|_2 \le Q`, budget estimated from
+       the data) or ``L1-L2``. Relaxing the simplex admits treated units
+       outside the donors' convex hull, at the cost of extrapolation.
+   * - ``augment="ridge"``
+     - Augmented SCM (Ben-Michael, Feller & Rothstein 2021): a ridge
+       bias-correction over the simplex base, with :math:`\lambda` chosen
+       by leave-one-period-out CV under augsynth's 1-SE rule.
+   * - ``bias_correct``
+     - The Abadie-L'Hour (2021) correction for residual predictor
+       imbalance, subtracting
+       :math:`(\mathbf{x}_1 - \mathbf{X}_0\mathbf{w})^\top
+       \boldsymbol{\beta}_t` from the gap.
+   * - ``backend="penalized"``
+     - The Abadie-L'Hour penalised program, which trades pre-treatment fit
+       against donor-to-treated discrepancy; the penalty is chosen by
+       ``penalized_cv`` or fixed with ``penalized_lambda``.
+   * - ``fit_window``
+     - Restrict the outcome objective to a sub-range of the pre-period
+       (MSCMT's ``times.dep``) while predictors keep their own windows.
+   * - ``staggered_spec``
+     - Multi-feature matching for the staggered design, mirroring
+       ``scpi``'s ``scdataMulti`` -- covariate adjustment terms, a global
+       constant, and cointegration differencing.
+   * - ``oracle_weights``
+     - Skip the optimisation and impose known donor weights, for the
+       known-weights benchmark case.
+
+Inference is a menu rather than a single procedure, and the choices rest on
+different assumptions: ``placebo`` (in-space permutation), ``scpi``
+(Cattaneo-Feng-Titiunik prediction intervals, the only mode that extends to
+the staggered cross-unit predictands), ``conformal`` (Chernozhukov-Wuthrich-Zhu
+test inversion, augsynth's default for ASCM), ``conformal_split`` (the
+constant-width band matching R ``Synth``), ``lto`` (Lei-Sudijono leave-two-out
+refined placebo), ``ttest`` (the debiased SC t-test for the ATT), ``eiv``
+(Hirshberg 2021 error-in-variables intervals), and ``jackknife_plus``
+(augsynth's leave-one-pre-period-out refits, requires ``augment="ridge"``).
+The :ref:`inference section <vanillasc-inference>` sets out what each assumes.
 
 A concrete example: a state passes a tobacco-control law and you want its
 effect on cigarette sales. There is one treated state, a long pre-law
@@ -343,6 +407,8 @@ when :math:`\mathbf{V}` is well identified and large (up to 1) when the predicto
 weights -- and the donor weights they imply -- are fragile. A large value
 is a warning that the covariate-matched solution should not be
 over-interpreted.
+
+.. _vanillasc-inference:
 
 Inference
 ---------
@@ -1115,6 +1181,8 @@ pre-treatment fit on ten of eleven reserves; the estimates themselves are
 not matched, for reasons set out in :doc:`replications/lamba_tigers`
 (``benchmarks/cases/lamba_tigers.py``).
 
+.. _vanillasc-staggered:
+
 Staggered adoption: multiple treated units
 -------------------------------------------
 
@@ -1477,11 +1545,11 @@ Configuration
 Engine
 ------
 
-.. automodule:: mlsynth.utils.vanillasc_helpers.engine
+.. automodule:: mlsynth.utils.vanillasc_helpers.pipeline
    :members:
    :undoc-members:
 
-.. automodule:: mlsynth.utils.vanillasc_helpers.pipeline
+.. automodule:: mlsynth.utils.vanillasc_helpers.staggered
    :members:
    :undoc-members:
 
