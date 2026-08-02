@@ -384,7 +384,7 @@ unsafe on nonstationary macro series: a convex combination of donors can track
 the treated unit's pre-period through *coincidental* co-movement of unit-specific
 stochastic trends, giving an excellent in-sample fit with no out-of-sample
 validity -- the *spurious synthetic control* problem (Shi, Xi and Xie, 2025; Liu
-and Xu, 2026), an instance of spurious regression that, crucially, does *not* go
+and Xu, 2026), an instance of spurious regression that does *not* go
 away as the pre-period lengthens. So plain :doc:`vanillasc` is appropriate only
 when the outcome is stationary (or its stochastic trend is genuinely shared
 across units). The two fixes differ in how much they assume. :doc:`sbc` (Shi, Xi
@@ -674,7 +674,7 @@ weighted-average counterfactual is not even well defined; it carries them into a
 Hilbert space through a distance-preserving embedding, runs the ordinary simplex
 fit there, and maps back. It also carries the ridge augmentation of :doc:`vanillasc`
 into that space, which is what lets it close a pre-treatment gap the simplex
-cannot. Note the sharp boundary against its neighbours: :doc:`dsc` and
+cannot. The boundary against its neighbours is sharp: :doc:`dsc` and
 :doc:`drsc` want individual-level microdata and give you quantile effects from
 it, whereas FSC wants the object already assembled per cell; and :doc:`compsc`
 handles the compositional case, which FSC's framework covers in principle but

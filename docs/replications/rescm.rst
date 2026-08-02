@@ -78,7 +78,7 @@ cross-validated :math:`\tau`, the L2 relaxation's post-period error against the
 **oracle counterfactual** is :math:`\approx 0.43` of classic SC's (median over
 reps), and it beats SC in :math:`\approx 73\%` of reps.
 
-Two calibration points are essential and worth remembering:
+Two calibration points are essential:
 
 * **Measure against the oracle counterfactual, not the noisy realization.** The
   realized :math:`y_0` carries the treated unit's own idiosyncratic noise, an

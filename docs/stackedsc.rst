@@ -165,7 +165,7 @@ faced the same donor block; it is false when a donor predicate binds, since
 restricting donors per unit gives each unit its own design matrix. And
 ``per_unit`` carries every unit's own path and weights.
 
-That last one deserves a caution, and it is sharper than it first looks. With a
+That last one carries a caution, sharper than it first looks. With a
 donor pool large relative to the number of pre-treatment periods the individual
 weight vectors are not identified: many weightings fit the pre-period equally
 well while implying different post-treatment counterfactuals. This is not a

@@ -81,7 +81,7 @@ drifts while this still holds, the drift is in the weight search and nowhere
 else.
 
 The fitted layer runs the estimators for real, with tolerances that are stated
-and defended rather than chosen to pass.
+and defended.
 
 The recorded layer states what the data do not determine, instead of pinning it.
 
@@ -122,7 +122,7 @@ Why one row is looser than the others
 -------------------------------------
 
 Study 2's SCM lands at -40.500 against a published -42.500, and that gap is
-recorded rather than tuned away.
+recorded.
 
 The donor set is the published one, and the weights agree to about a percentage
 point:
@@ -186,7 +186,7 @@ it is pinned. What is asserted instead of the weights is the non-identification
 itself — that the published weights are *not* the best pre-treatment fit — so
 that if the situation ever changes, the case fails and this page gets revisited.
 
-This is worth stating plainly because a reader of the paper cannot see it from
+A reader of the paper cannot see this from
 the published figures. A synthetic control with a near-perfect pre-treatment fit
 on three periods looks convincing, and a weight vector reported to three decimals
 looks determined. Neither impression survives the check above.

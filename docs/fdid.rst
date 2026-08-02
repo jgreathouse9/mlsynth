@@ -52,7 +52,7 @@ Forward Selection vs. Matching and Weighting
 Every synthetic-control-family estimator answers the same question --
 *what comparison reproduces the treated unit's untreated path?* -- but each
 makes a different structural bet about the comparison. Forward DiD's bet is
-distinctive and worth stating plainly:
+distinctive:
 
    A *subset* of the controls shares the treated unit's trend; find that
    subset and average it with equal weights.
@@ -159,8 +159,8 @@ constant level shift:
    \qquad t = 1, \ldots, T,
 
 with :math:`b_0` an unknown intercept and :math:`v_t` a zero-mean,
-weakly dependent error. Crucially, :math:`y_{1t}^N` and
-:math:`\bar{y}_{\mathcal{D}, t}` may each be non-stationary (trending)
+weakly dependent error. Both :math:`y_{1t}^N` and
+:math:`\bar{y}_{\mathcal{D}, t}` may be non-stationary (trending)
 provided their *difference* is stationary -- this is the Forward DiD
 parallel-trends condition. The intercept is estimated by least squares on
 the pre-period,
@@ -344,7 +344,7 @@ be i.i.d. or the levels :math:`y_{1t}^N` to be stationary.
 .. admonition:: When not to use Forward DiD
 
    Assumption 1 fails when no subset of controls can track the treated
-   unit -- most importantly when the treated unit lies *outside the range*
+   unit -- above all when the treated unit lies *outside the range*
    of the controls (e.g. its outcome trends upward more steeply than every
    control's). Equal weights cannot extrapolate beyond the controls, so no
    selection rescues it. In that regime Li points to methods that let the

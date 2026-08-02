@@ -118,7 +118,7 @@ with :math:`\mathbb{E}[\mathbf{x}_t \epsilon_t] = \mathbf{0}`. PDA fits
 :math:`t \in \mathcal{T}_2`. The per-period treatment effect is
 :math:`\tau_t = y_{1t} - \widehat{y}_{1t}` and the ATE
 :math:`\widehat{\tau} = \mathcal{E}_{\mathcal{T}_2}(\tau_t)`. The methods
-differ in how they estimate :math:`\boldsymbol{\beta}` and, crucially, in the
+differ in how they estimate :math:`\boldsymbol{\beta}` and in the
 inference theory each paper proves for :math:`\widehat{\tau}`.
 
 Original best subset (``hcw``, Hsiao-Ching-Wan)
@@ -357,7 +357,7 @@ condition usable in high dimension: the high-dimensional pieces pay only a
 and a sequential CLT applies.
 
 *Remark.* The coefficient estimator is consistent for the oracle target
-(Theorem 1) and -- importantly -- the prediction error is asymptotically
+(Theorem 1) and the prediction error is asymptotically
 *irrelevant to heteroskedasticity* (Theorem 2): unlike the coefficient MSE,
 the out-of-sample MSE does not depend on the noise heterogeneity
 :math:`\psi_{\max}`. This is what licenses the HAC-based CLT for the ATE.
@@ -625,7 +625,7 @@ variant):
   T_0)})` rates for the sample moments.
 
 This is what makes pre-period sample moments converge at the
-high-dimensional rate and -- crucially -- what makes the
+high-dimensional rate and what makes the
 pre-period and post-period asymptotically independent, which
 is the engine behind fs-PDA's sample-splitting inference and the
 two-term HAC variance in l2 / lasso.

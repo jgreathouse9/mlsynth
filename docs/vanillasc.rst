@@ -252,7 +252,7 @@ The covariate path exposes four reliable solvers via ``backend=``:
     down-weighted, and the units a predictor happens to be measured in
     cannot matter.
 
-    This is worth knowing before comparing numbers with a paper. Stata runs
+    This matters before comparing numbers with a paper. Stata runs
     the Abadie-Diamond-Hainmueller nested optimisation only when the caller
     passes ``nested``, and wrappers such as ``allsynth`` forward that flag
     rather than setting it. Most published ``synth`` estimates were
@@ -278,7 +278,7 @@ The covariate path exposes four reliable solvers via ``backend=``:
 
 ``"malo"``
     Malo et al. (2024): a staged corner search. Fast and exact when the
-    optimum is a predictor corner -- but note that when a *lagged outcome*
+    optimum is a predictor corner -- but when a *lagged outcome*
     is among the predictors, the loss-minimising corner puts all weight on
     that lag, collapsing the inner match to pure outcome-fitting (it
     drifts toward the outcome floor).
@@ -488,7 +488,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     cannot predict when it is hidden is evidence that the post-treatment
     prediction is also uncertain, and the interval widens accordingly.
 
-    Two things about it are worth knowing before comparing numbers with R. The
+    Two things about it matter before comparing numbers with R. The
     ridge penalty is selected once on the full pre-period and then reused by
     every refit -- ``augsynth`` pins it before resampling, so no refit re-runs
     cross-validation. And the quantiles are taken on the counterfactual scale
@@ -719,7 +719,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     \mathbf{x}_e'\widehat{\boldsymbol{\theta}}` is asymptotically normal with an
     estimable variance :math:`\sigma_\tau = \sigma_e\, p_{\text{eff}}^{-1/2}`,
     where :math:`p_{\text{eff}} = 1/\|\widehat{\boldsymbol{\theta}}\|^2` is the
-    weights' participation ratio -- and crucially *without* assuming
+    weights' participation ratio -- and *without* assuming
     time-stationarity, unit-exchangeability, or the absence of weak factors, the
     invariants the placebo test and earlier theory rely on.
 
@@ -1084,7 +1084,7 @@ approximate-placebo bound :math:`(\lfloor N\alpha\rfloor + 1)/N`, and for the
 levels and sizes typical of SCM applications (:math:`\alpha \in \{0.01, 0.02\}`
 for :math:`6 < N < 200`; :math:`\alpha = 0.05` for most :math:`N`) it is
 *identical* to it -- so switching to LTO costs nothing in worst-case Type-I
-error. Crucially, the placebo bound is *tight* whereas the LTO bound generally
+error. The placebo bound is *tight* whereas the LTO bound generally
 is not: in practice the LTO test's actual Type-I error is often strictly
 below :math:`\alpha`, i.e. it can be unconditionally valid even when
 :math:`\alpha < 1/N`.
@@ -1289,7 +1289,7 @@ term (the irreducible forecast error), and the band is
   -- averaged across the units at each event time -- to give the out-of-sample
   bounds for the averaged forecast.
 
-A scaling subtlety is worth stating because it controls the width of the
+A scaling subtlety controls the width of the
 event-time band. The average of :math:`\iota` independent per-unit in-sample
 errors has an interval that scales as :math:`1/\iota`. The ``scpi`` package, by
 contrast, scales its published time-aggregated in-sample interval as
@@ -1597,7 +1597,7 @@ backends. Running each of the three canonical studies under both ``mscmt`` and
 ``malo`` (``alpha=0.05`` -> 90% intervals, ``scpi_sims=200``, ``seed=1``) gives
 the table below. The ATT prediction interval excludes zero in every case,
 and the two backends agree to within Monte-Carlo / weight-choice differences --
-a useful robustness cross-check. Note the ``v_agreement`` column: for Prop 99
+a useful robustness cross-check. In the ``v_agreement`` column: for Prop 99
 and Germany under ``mscmt`` the predictor weights are non-identified
 (:math:`\approx 1`), so those intervals should be read with the caveat above.
 

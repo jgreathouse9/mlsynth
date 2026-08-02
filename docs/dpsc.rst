@@ -139,7 +139,7 @@ conditions differential privacy needs.
    sensitivity bound below assumes it. Unbounded or heavy-tailed donors break
    the guarantee and must be clipped before fitting.
 
-Note that differential privacy is a property of the release *mechanism*, not of
+Differential privacy is a property of the release *mechanism*, not of
 the data-generating process, so DPSC needs no homoskedasticity or
 exchangeability assumption for its privacy guarantee -- those enter only when
 one interprets the ATT causally, exactly as in the non-private synthetic
@@ -248,7 +248,7 @@ standard deviation dropped roughly threefold as the pool grew from 5 to 20
 donors and continued down thereafter, while the output mechanism stayed one to
 two orders of magnitude larger. This is the concrete sense in which DPSC is a
 large-donor-pool method: prefer the objective mechanism, and add donors when you
-can. Note the pre-period length enters :math:`\Delta` *linearly*, so lengthening
+can. The pre-period length enters :math:`\Delta` *linearly*, so lengthening
 :math:`T_0` raises the noise budget faster than widening the pool -- the
 "more data helps" intuition applies cleanly to donors under the objective
 mechanism, not to the pre-period.

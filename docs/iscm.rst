@@ -152,7 +152,7 @@ unit. The Ibragimov-Muller approach forms a t-statistic from their
 weighted spread and calibrates the p-value with a sign-flip (Rademacher)
 randomization test on the weighted deviations
 :math:`v_i(\widehat{\tau}_i - \tau_0)`. This is conservative but valid
-with very few units -- though note the achievable p-value floor is about
+with very few units -- though the achievable p-value floor is about
 :math:`2/2^{|C|}`, so a handful of contributing units cannot reach
 conventional thresholds (exactly the small-donor-pool limitation Powell
 highlights).

@@ -174,7 +174,7 @@ period. The defining contrast with a proxy:
   sharpen or extend the estimate.
 
 Loosely: a proxy cleans up the *denominator* (confounding); a surrogate
-informs the *numerator* (the effect). Crucially, a surrogate may itself
+informs the *numerator* (the effect). A surrogate may itself
 be affected by the treatment -- that is fine, because it is removed from
 the donor pool and used only to learn the effect's trajectory, never to
 build the counterfactual.
@@ -526,7 +526,7 @@ Per-period counterfactual bands (PIOID)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The GMM sandwich above summarises uncertainty in the ATT. Shi et al. [ProxSCM]_,
-Section 3.2, note that after fitting the outcome bridge the residual process
+Section 3.2, after fitting the outcome bridge the residual process
 :math:`e_t = y_{1t} - h(W_{Dt})` is a standard time series, and adapt three
 inference routes to it -- conformal permutation (Section 3.2.1, following
 Chernozhukov, Wüthrich & Zhu [CWZ2021P]_), scpi-style prediction intervals

@@ -151,7 +151,7 @@ the imputed path explode; the posterior *mean* of the effect is therefore not a
 usable summary (a handful of draws dominate it). BPSCS reports the posterior
 *median* for the counterfactual and the ATT, which is stable to that tail; the
 credible band's far edge is genuinely wide in the late post-period and is
-reported as such rather than papered over.
+reported as such.
 
 Example
 -------

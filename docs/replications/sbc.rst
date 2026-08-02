@@ -91,8 +91,8 @@ mlsynth attains) is Greece-dominant with an effect near :math:`-952`. The two
 solutions select the same donor set; they differ only because one solver
 reaches the optimum and the other does not.
 
-A note on the donor labels
---------------------------
+The donor labels
+----------------
 
 The authors' shipped wide CSV permutes its donor column labels: its
 ``Japan`` and ``Portugal`` columns actually hold the Netherlands' and Greece's

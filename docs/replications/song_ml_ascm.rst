@@ -195,10 +195,10 @@ its pre-treatment imbalance is :math:`2.1 \times 10^{-15}` where ``augsynth``
 stops at :math:`4.9 \times 10^{-5}`. Both effectively fit perfectly and then
 extrapolate from different members of the same optimal set. The case pins each
 side's own imbalance rather than the difference between them, so the cell is
-reported rather than quietly dropped.
+reported.
 
-Two corrections worth recording
--------------------------------
+Two corrections
+---------------
 
 Both are about this explanation, and the second was made while fixing the first.
 

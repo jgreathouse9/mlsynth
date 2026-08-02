@@ -121,7 +121,7 @@ its critical value comes from sliding a length-:math:`S` window across the
 :math:`T_0` pre-treatment residuals to form :math:`T_0 - S` placebo realisations
 of the estimator under the null. Under a stationarity/ergodicity assumption on
 the prediction error the test has asymptotically correct size as
-:math:`T \to \infty` -- crucially without point-identifying :math:`\boldsymbol{\tau}`.
+:math:`T \to \infty`, without point-identifying :math:`\boldsymbol{\tau}`.
 ``mlsynth`` reports, for the overall ATT and each event-time ATT, a band (the
 point estimate plus the placebo distribution's quantiles) and a two-sided
 p-value, on :class:`~mlsynth.utils.ssc_helpers.structures.SSCBand`.

@@ -171,10 +171,10 @@ forty-four donors carry weight on the headline reserve, the smallest about
 :math:`V` search is mildly seed-sensitive on short pre-periods: Udanti moves
 about 21 ha (1.4 percent) across seeds, while Nawegaon–Nagzira and
 Similipal–Hadagarh are stable to about 1e-5. The benchmark's tolerances are set
-from that measured spread rather than guessed.
+from that measured spread.
 
-A note on the estimand, since it is easy to get wrong. The paper's avoided loss
-is the terminal-year gap, synthetic minus observed in 2020. That is not
+The estimand is the paper's avoided loss: the terminal-year gap, synthetic
+minus observed in 2020. That is not
 :attr:`~mlsynth.config_models.EffectsResults.att`, which averages observed minus
 synthetic over every post-treatment year — on the headline reserve the two are
 +2825 and −1491. An earlier draft of this case substituted one for the other and
@@ -202,6 +202,6 @@ forest than their counterfactuals. What is fragile is the third digit, and
 anyone quoting a specific hectare figure should know it moves by hundreds of
 hectares depending on which build of which package produced it.
 
-For mlsynth's purposes the case pins two things worth pinning: that the panel
+For mlsynth's purposes the case pins two things: that the panel
 construction is exactly right, and that the estimator handles a staggered,
 per-reserve, zone-restricted design without incident.

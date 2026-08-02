@@ -328,7 +328,7 @@ cannot reject) with sampling noise (:math:`z\, \widehat{\mathrm{se}}_t`), and th
 two shares :math:`\kappa` and :math:`\alpha - \kappa` add to :math:`\alpha` by
 Bonferroni.
 
-A note on the RC standard error. The published reference code builds the
+On the RC standard error: the published reference code builds the
 treated/donor multiplier :math:`c_{G_i}` with an indexing expression that, in R,
 silently drops the treated rows and misaligns the donor weights; mlsynth uses
 the corrected length-:math:`(K+1)` lookup (matching the reference's own

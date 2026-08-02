@@ -200,7 +200,7 @@ one, so it gets fitted harder for reasons that have nothing to do with how much
 its path resembles the treated unit's. Equalising the ranges first makes the fit
 a comparison of shape.
 
-Two consequences are worth knowing. The warp does not move: the alignment runs
+Two consequences follow. The warp does not move: the alignment runs
 on a normalised series, which an affine map leaves untouched, so only the
 control changes. And the effect comes back in the rescaled units, not the
 outcome's own -- divide by the treated unit's multiplier to read it as GDP per

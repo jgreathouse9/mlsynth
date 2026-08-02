@@ -10,7 +10,7 @@ STACKEDSC -- Walmart Supercenters and local employment (Wiltshire 2023)
 :Replication type: Path A -- the paper's empirical result on the author's data.
 :Status: Partial. The event-study shape and the qualitative finding reproduce;
    the point estimates do not match cell for cell, and the reason is recorded
-   below rather than tuned away.
+   below.
 
 The question
 ------------
@@ -91,7 +91,7 @@ for a donor.
 The benchmark therefore matches on the pre-treatment outcome path, which is a
 superset of four lags of it, and which is the specification that delivers the
 paper's stated pre-treatment fit. The covariate specification as expressible
-today is measured alongside it rather than quietly dropped: its pre-treatment
+today is measured alongside it: its pre-treatment
 RMSE is 1.354 against 0.049, a factor of 27. That ratio is pinned, so a future
 option for base-period-relative covariate windows can be seen to close it.
 

@@ -47,7 +47,7 @@ This is not an edge case in the wide-panel regime. It is the generic outcome
 whenever a large donor pool is matched on a short pre-period, and a perfect
 pre-treatment fit is its signature rather than its refutation.
 
-A caveat worth stating immediately, because it changes what to conclude: none of
+One caveat changes what to conclude: none of
 this says a large donor pool is bad. See `Adding donors is not the problem`_
 below. What it says is that the objective stops choosing for you, so something
 else must — and you should know what.
@@ -215,7 +215,7 @@ sharply that bites.
 The trimmed specifications are identified and cluster tightly, and they agree
 with the headline. The substantive conclusion survives — but it survives on the
 robustness check rather than on the main specification, which by itself
-identifies the sign and not the magnitude. That distinction is worth making
+identifies the sign and not the magnitude. That distinction matters
 explicitly in any write-up, and it is exactly what the diagnostic surfaces.
 
 What to do about it
@@ -263,7 +263,7 @@ uniqueness at no meaningful cost in fit:
 Ten donors at :math:`\lambda = 10^{-6}` is exactly the :math:`T_0 + 1` bound,
 and the estimate is stable across four orders of magnitude of :math:`\lambda`.
 
-Three other routes are worth knowing:
+Three other routes:
 
 Trim the donor pool, as above, following Abadie and Vives-i-Bastida — the
 simplest fix and the one to reach for when a principled similarity ranking is
@@ -290,7 +290,7 @@ In the same study, the second treated senator is in exactly that position:
 exact interpolation is infeasible at every donor-pool size, and his
 pre-treatment RMSE is roughly ``$12,600`` on an outcome of that order. A poor
 pre-treatment fit is easier to notice than a suspiciously perfect one, which is
-part of why the perfect-fit case deserves a deliberate check.
+part of why the perfect-fit case needs a deliberate check.
 
 References
 ----------

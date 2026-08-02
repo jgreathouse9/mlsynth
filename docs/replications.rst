@@ -180,8 +180,7 @@ Canonical workhorses
   questions. mlsynth matches the pinned package; the published artifact does
   not, on a tail present in every heating year and on all 128 cells of 2016.
   The pre-treatment imbalance agrees everywhere, which places the drift in the
-  ridge penalty rather than the fit. Status: done, with the drift quantified
-  rather than absorbed into a tolerance.
+  ridge penalty rather than the fit. Status: done; the drift is quantified.
   → dedicated page: :doc:`replications/song_ml_ascm`; durable case
   ``song_ml_ascm``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)

@@ -22,8 +22,8 @@ datasets, and the authors' saved outputs. mlsynth's port is checked against a
 live run of that R -- first confirming the R reproduces the authors' saved
 outputs, then matching the Python port to the R cell by cell.
 
-Two facts make a clean value-for-value comparison possible and are worth stating
-because a naive re-implementation would miss them:
+Two facts make a clean value-for-value comparison possible, and a naive
+re-implementation would miss them:
 
 * The large-N EM factor analysis stops at R's default relative tolerance
   (``tol = 1e-6``), which on the Beijing panel is an *early* stop -- roughly 25
@@ -83,7 +83,7 @@ Honest caveats
   rather than R's ``sample()``.
 * The counterfactual for a treated unit that is nearly orthogonal to the common
   factors (low ``communality``) is close to a raw before-after difference; RRSC
-  surfaces this as a diagnostic rather than hiding it. For Israel-Palestine the
+  surfaces this as a diagnostic. For Israel-Palestine the
   two common factors explain only about 3% of the pre-period variance, so its
   direct-effect estimate is essentially a level shift with a small factor
   adjustment -- a limitation of the data, not the port.

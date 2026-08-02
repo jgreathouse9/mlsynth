@@ -155,8 +155,8 @@ to have a positive intercept, so it never exposed the problem. The fix frees the
 intercept; the regression is pinned in
 ``mlsynth/tests/test_tssc.py::TestFreeIntercept``.
 
-A note on the calibration
--------------------------
+The calibration
+---------------
 
 The value-for-value tie above is exact and independent of any calibration detail.
 The Table 1 *magnitudes*, though, depend on the calibrated factor model. The

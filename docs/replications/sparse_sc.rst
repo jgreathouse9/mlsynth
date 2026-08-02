@@ -301,10 +301,10 @@ the latitude of that unspecified constant, B = 60 Monte-Carlo noise, and a
 coarser (21-point) penalty grid. The *ordering* and the *robustness/selection*
 mechanism — the paper's actual claims — reproduce.
 
-A note on optimisation (and grid resolution)
----------------------------------------------
+Optimisation and grid resolution
+---------------------------------
 
-Two implementation facts surface naturally here and are worth recording:
+Two implementation facts surface naturally here:
 
 * **Grid resolution does the heavy lifting.** A coarse 21-point grid lands at
   :math:`-20.8` packs with pre-RMSE 4.77 and 25 predictors retained — the penalty

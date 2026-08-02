@@ -374,7 +374,7 @@ its keep in the paper's mostly-invalid stress regime, where ``loo`` inverts
 is the honest limit: no forecast screen separates signal from a contaminated
 consensus that creeps in slowly.
 
-A note on CUSUM. A cumulative-sum statistic on the lagged residuals can
+On CUSUM: a cumulative-sum statistic on the lagged residuals can
 rescue ``lag`` on individual gradual real panels (it telescopes the increments
 back into the level), but the power analysis disqualifies it as a general
 default: in the shared-factor DGP it is swamped by the common innovation and

@@ -65,7 +65,7 @@ estimates match the published digits (West Germany −1.85, Italy −1.12, overa
 A scaling discrepancy in the published in-sample band
 -----------------------------------------------------
 
-Reproducing the event-time band surfaced a discrepancy worth recording. For the
+Reproducing the event-time band surfaced a discrepancy. For the
 time predictand the average effect over :math:`\iota` treated units has, under
 independent per-unit weight-estimation errors, an in-sample interval that scales
 as :math:`1/\iota`. The ``scpi`` package, however, divides the predictand matrix

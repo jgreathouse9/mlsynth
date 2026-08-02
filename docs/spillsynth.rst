@@ -1327,14 +1327,14 @@ Under (A4), :math:`\theta(t) = \Omega^{-1}\mathrm{gap}(t)` is identified; the
 paper solves it by Cramer's rule (the :math:`m=1` closed form above is the
 :math:`2\times2` special case).
 
-The point is that the naive SCM gap on the treated unit silently absorbs the
-bias term :math:`\sum_k w_1^{(k)}\theta_k(t)` -- the spillovers it borrows
-from the affected donors -- and would equal :math:`\theta_1` only if those
-donors carried zero weight. The inclusive inversion removes exactly that
-term. Asymptotically (growing pre-period, factor-model donors) the SC weights
-are consistent and :math:`\widehat\theta` is asymptotically unbiased for the
-true effects -- the same large-:math:`T_0` logic as standard SCM, applied to
-the whole affected set jointly rather than to the treated unit alone.
+The naive SCM gap on the treated unit silently absorbs the bias term
+:math:`\sum_k w_1^{(k)}\theta_k(t)` -- the spillovers it borrows from the
+affected donors -- and would equal :math:`\theta_1` only if those donors
+carried zero weight. The inclusive inversion removes exactly that term.
+Asymptotically (growing pre-period, factor-model donors) the SC weights are
+consistent and :math:`\widehat\theta` is asymptotically unbiased for the true
+effects -- the same large-:math:`T_0` logic as standard SCM, applied to the
+whole affected set jointly rather than to the treated unit alone.
 
 The implementation exposes :math:`\det\Omega` as the key diagnostic. Values
 near zero warn that the cross-weights are near-degenerate (the affected unit
@@ -1944,7 +1944,7 @@ DMAs, or the promotion shifts demand in neighbouring markets through a shared
 distribution or media footprint, those "control" markets are themselves
 contaminated, and the synthetic counterfactual is pulled toward the treated
 market's own shock. That biases the measured lift (typically *toward zero*, as
-in the simulation table below) and, just as importantly, *hides* the
+in the simulation table below) and equally *hides* the
 cannibalisation or halo landing on nearby markets. ``method='sar'`` with
 :math:`\mathbf{W}` set to DMA adjacency (or co-shopping / shared-media weights)
 de-biases the treated-market lift and returns a per-market spillover map --

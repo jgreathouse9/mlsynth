@@ -687,7 +687,7 @@ figures 2-7 settings) — matching the paper's qualitative findings.
    Two faithfulness details from their R code: ``rnorm(N, 0, noise.variance)``
    passes the value as a *standard deviation*, so the figures' "variance"
    1/5/10 are SDs; and the R code uses random population weights :math:`f_j`
-   whereas the 2026 paper (and ``mlsynth``) use :math:`f_j = 1/J`. Also note that
+   whereas the 2026 paper (and ``mlsynth``) use :math:`f_j = 1/J`. Also,
    the *unconstrained* ``standard`` design (formulation 5) is degenerate —
    many disjoint splits match :math:`\bar X` equally well, so the realised
    design (and hence a single ATE estimate) is solver-dependent; the

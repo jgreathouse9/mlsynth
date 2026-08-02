@@ -96,7 +96,7 @@ redistributed with the ibex repository, so this replication pins the offline,
 fully reproducible day-ahead-price result. The CPI outcomes use the same
 estimator and the same specification; only the input data differs.
 
-A note on the snapshot: the ibex ``sc_series`` output extends the day-ahead
+On the snapshot: the ibex ``sc_series`` output extends the day-ahead
 series to March 2024, while the committed input snapshot ends December 2023. The
 donor weights depend only on the shared January-2015 to May-2022 pre-treatment
 window, so they match exactly; the average post-treatment gap reported above is

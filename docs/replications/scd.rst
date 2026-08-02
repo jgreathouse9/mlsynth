@@ -57,7 +57,7 @@ value for value.
 The honest findings
 -------------------
 
-Two things surfaced in the replication and are worth recording.
+Two things surfaced in the replication.
 
 First, a bug in the reference RC standard error. The upstream
 ``gen_hat_sigma_squared_RC`` forms its treated/donor multiplier as
