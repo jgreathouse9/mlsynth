@@ -88,6 +88,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SPOTSYNTH** — Spillover-detecting synthetic control.  (config: SPOTSYNTHConfig)
 - **SRC** — Synthetic Regressing Control estimator.  (config: SRCConfig)
 - **SSC** — Staggered Synthetic Control estimator.  (config: SSCConfig)
+- **STACKEDSC** — Stacked-in-event-time synthetic control for staggered adoption.
 - **SYNDES** — Synthetic Design (Doudchenko et al. 2021) estimator.  (config: SYNDESConfig)
 - **SYNDESPower** — Per-horizon MDE table for a fitted SYNDES design.
 - **SYNDESRecommendation** — Outcome of scoring a SYNDES pool.

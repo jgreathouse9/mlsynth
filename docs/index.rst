@@ -308,6 +308,7 @@ headline numbers.
    sdid
    seq_sdid
    ppscm
+   stackedsc
    cscm
    ssc
    cast

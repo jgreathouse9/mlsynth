@@ -83,6 +83,7 @@ from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
 from .estimators.vanillasc import VanillaSC
 from .estimators.spillsynth import SPILLSYNTH
+from .estimators.stackedsc import STACKEDSC
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
@@ -103,6 +104,7 @@ from .utils.truncated_history import (
 from .spec import save_spec, load_spec
 
 __all__ = [
+    "STACKEDSC",
     "save_spec",
     "load_spec",
     "plot_spcd_design",
