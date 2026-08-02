@@ -158,6 +158,30 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default=None,
         description="Per-covariate inclusive (start, end) averaging window.",
     )
+    bias_correct: bool = Field(
+        default=False,
+        description=(
+            "Apply the Abadie-L'Hour (2021) correction for residual predictor "
+            "imbalance: subtract (X1 - X0 W)' beta_t from the gap, with beta_t "
+            "the ridge slope of the donor outcome on the donor predictors. "
+            "Reach for it when the synthetic control does not balance the "
+            "predictors well and the leftover imbalance plausibly moves the "
+            "outcome -- it is what Stata's `allsynth bcorrect` does, and on "
+            "Wiltshire's (2023) panel it roughly doubles the estimate. "
+            "Requires `covariates`; the correction is identically zero when "
+            "the predictors already balance."),
+    )
+    bias_correct_ridge: float = Field(
+        default=1e-2, ge=0.0,
+        description=(
+            "Ridge penalty on the bias-correction slope. Ignored unless "
+            "`bias_correct`. The penalty is what keeps a weakly-explanatory "
+            "predictor set from injecting noise instead of removing bias: an "
+            "unregularised slope is large exactly when the predictors explain "
+            "the outcome poorly. 0 recovers ordinary least squares; a large "
+            "value shrinks the correction to nothing, recovering the "
+            "uncorrected fit."),
+    )
     fit_window: Optional[Tuple[Any, Any]] = Field(
         default=None,
         description="Inclusive (start, end) time window over which the synthetic "
@@ -433,5 +457,20 @@ class VanillaSCConfig(BaseEstimatorConfig):
         if clashes:
             raise ValueError(
                 "w_constr cannot be combined with " + "; ".join(clashes) + "."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _bias_correction_needs_predictors(self):
+        """The correction is a function of predictor imbalance, so with no
+        predictors there is nothing to correct. Raise rather than silently
+        returning the raw gap, which is what asking for it and not getting it
+        would otherwise look like."""
+        if self.bias_correct and not self.covariates:
+            raise ValueError(
+                "bias_correct=True needs covariates: the correction subtracts "
+                "(X1 - X0 W)' beta from the gap, and with no predictors that "
+                "term does not exist. Supply `covariates`, or leave "
+                "bias_correct=False."
             )
         return self

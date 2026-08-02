@@ -22,7 +22,7 @@ from ...exceptions import (MlsynthConfigError, MlsynthDataError,
 from ..datautils import dataprep
 from ..helperutils import IndexSet
 from ..results_helpers import build_effect_submodels, make_weights_results
-from ..bilevel import BilevelSCM
+from ..bilevel import BilevelSCM, bias_corrected_gaps
 
 _EPS = 1e-12
 
@@ -379,7 +379,15 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             )
 
     counterfactual = res.counterfactual(Y0)
-    gap = y - counterfactual
+    if config.bias_correct:
+        # Abadie-L'Hour: remove the part of the gap attributable to residual
+        # predictor imbalance. X1/X0 are the *standardised* predictors the
+        # weights were solved in, which is the space the correction requires.
+        gap = bias_corrected_gaps(res.W, X1, X0, y, Y0,
+                                  ridge=config.bias_correct_ridge)
+        counterfactual = y - gap
+    else:
+        gap = y - counterfactual
     pre_r, post_r, ratio_tr = _rmspe_ratio(y, counterfactual, pre)
 
     mode = config.inference
@@ -747,6 +755,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "backend": res.backend,
                 "augment": config.augment,
                 "covariates": covariates,
+                "bias_correct": config.bias_correct,
+                "bias_correct_ridge": (
+                    float(config.bias_correct_ridge)
+                    if config.bias_correct else None
+                ),
                 "canonical_v": config.canonical_v,
                 "v_agreement": res.v_agreement,
                 # How concentrated the returned V is (participation ratio).
