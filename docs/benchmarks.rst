@@ -249,6 +249,8 @@ Cross-validation against reference implementations
      - vs LIVE pensynth wsoll1 (Rscript+LowRankQP): penalized SC weights/ATT on Prop 99 (skips if absent)
    * - ``linf_crossval_ref``
      - LINF vs LinfinitySC (skips if absent)
+   * - ``scta_ibex_xval``
+     - SCTA vs an independent build of the Sun-Ben-Michael-Feller Sec. 2 stacked design solved by cvxpy/CLARABEL (ibex monthly day-ahead price, Spain treated): ATT across the nu grid to 5e-12, ridge-augmented ATT to 2.7e-10, and the imbalance frontier's two monotonicities
    * - ``mcnnm_prop99``
      - vs authors' MCPanel R (mcnnm_cv; ATT + California counterfactual path)
    * - ``microsynth_seattle``

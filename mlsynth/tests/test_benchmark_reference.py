@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from benchmarks.compare import BenchmarkSkipped
 from benchmarks.reference import load_reference, reference_value
 from benchmarks.reference import _fetch
 from benchmarks.reference.generate import _parse_values
@@ -296,3 +297,61 @@ class TestTheBrabanderCasesActuallyRun:
         cases_dir = _ROOT / "benchmarks" / "cases"
         assert not (cases_dir / "_brabander_brexit.py").exists()
         assert (_ROOT / "benchmarks" / "brabander_common.py").exists()
+
+
+class TestTheBrazilContrastCrossChecksWithoutR:
+    """The standard-vs-proximal contrast must be capturable where R is absent.
+
+    ``brazil_vaccine_scm_vs_proximal`` cross-checks two proximal cells -- the
+    outcome bridge ``h`` and the single-instrument ``DR[A]`` -- against the
+    authors' ``analysis.Rmd``. It originally resolved them by running R live,
+    which is the strongest evidence and also means the case can never be
+    captured in CI, where there is no R. The same two cells are already pinned
+    by the sibling ``dr_proximal_brazil`` capture, so they are committed here as
+    a bundle and the live run becomes the preferred path, not the only one.
+    """
+
+    def test_the_captured_bundle_carries_both_proximal_cells(self):
+        vals = load_reference("brazil_vaccine_scm_vs_proximal")["values"]
+        assert set(vals) == {"outcome_bridge_h", "DR_A"}
+
+    def test_the_bundle_agrees_with_the_sibling_capture(self):
+        """The two bundles pin the same R run, so they cannot drift apart."""
+        import csv
+
+        vals = load_reference("brazil_vaccine_scm_vs_proximal")["values"]
+        sibling = (_ROOT / "benchmarks" / "reference" / "dr_proximal_brazil"
+                   / "comparison.csv").read_text().splitlines()
+        rows = {r["quantity"]: r for r in
+                csv.DictReader([ln for ln in sibling if not ln.startswith("#")])}
+        assert float(rows["outcome_bridge_h"]["reference"]) == pytest.approx(
+            vals["outcome_bridge_h"], abs=1e-6)
+        assert float(rows["DR[A10_B99_nopneumo]"]["reference"]) == pytest.approx(
+            vals["DR_A"], abs=1e-6)
+
+    def test_provenance_names_where_the_values_came_from(self):
+        prov = json.loads((_ROOT / "benchmarks" / "reference"
+                           / "brazil_vaccine_scm_vs_proximal"
+                           / "provenance.json").read_text())
+        assert prov["captured_from"].endswith("dr_proximal_brazil/comparison.csv")
+        for entry in prov["data"]:
+            h = hashlib.sha256((_ROOT / entry["path"]).read_bytes()).hexdigest()
+            assert h == entry["sha256"], f"stale reference: {entry['path']} changed"
+
+    def test_reference_resolution_prefers_live_r_and_falls_back(self, monkeypatch):
+        from benchmarks.cases import brazil_vaccine_scm_vs_proximal as case
+
+        monkeypatch.setattr(case, "_reference_live",
+                            lambda: {"outcome_bridge_h": -1.0, "DR_A": -2.0})
+        live = case._reference()
+        assert live["values"] == {"outcome_bridge_h": -1.0, "DR_A": -2.0}
+        assert "live" in live["impl"]
+
+        def absent():
+            raise BenchmarkSkipped("Rscript not on PATH")
+
+        monkeypatch.setattr(case, "_reference_live", absent)
+        captured = case._reference()
+        assert captured["values"] == load_reference(
+            "brazil_vaccine_scm_vs_proximal")["values"]
+        assert "captured" in captured["impl"]

@@ -192,8 +192,16 @@ true optimum of the :math:`\mathbf{V}`-weighted objective, while ``augsynth``'s
 interior-point solver lands a few percent short, so the estimates agree to
 solver tolerance, not bit for bit (plain :math:`\nu = 0.5`:
 :math:`{\approx}\,19{,}800` vs :math:`18{,}918`; ridge: :math:`{\approx}\,12{,}500`
-vs :math:`12{,}982`, annualised). See the dedicated page
-:doc:`replications/scta`.
+vs :math:`12{,}982`, annualised).
+
+The Texas panel does not ship with the library, so the durable check is a second
+cross-validation on one that does: `benchmarks/cases/scta_ibex_xval.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`_
+rebuilds the paper's Section 2 design from the equations, solves it with
+``cvxpy``/CLARABEL, and matches SCTA's ATT to :math:`5\times 10^{-12}` across the
+:math:`\nu` grid and its ridge-augmented ATT to :math:`2.7\times 10^{-10}`. See
+the dedicated page :doc:`replications/scta`, and :doc:`validation` for the
+side-by-side table.
 
 Core API
 --------

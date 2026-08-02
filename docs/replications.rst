@@ -266,6 +266,11 @@ Generalising the estimand, treatment, or unit
   reaches the true optimum of the ill-conditioned simplex, so the estimates
   match augsynth to solver tolerance (plain :math:`\approx 19800` vs
   :math:`18918`; ridge :math:`\approx 12500` vs :math:`12982`, annualised).
+  The Texas panel does not ship, so the durable case ``scta_ibex_xval``
+  cross-validates the same estimator against an independent build of the
+  paper's design solved by ``cvxpy``/CLARABEL, on the monthly ibex day-ahead
+  price panel: ATT to :math:`5\times 10^{-12}` across the :math:`\nu` grid,
+  ridge-augmented ATT to :math:`2.7\times 10^{-10}`.
   → dedicated page: :doc:`replications/scta`.
 * :doc:`rescm` -- SCM-relaxation (Liao, Shi & Zheng 2026).
   Path A: Brexit / UK real GDP -- the L2 relaxation's cumulative

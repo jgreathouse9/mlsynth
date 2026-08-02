@@ -10,9 +10,9 @@ numbers here cannot drift from what CI enforces. Each row links to the
 reference implementation, the dataset (with checksum), and the mlsynth
 case that runs the check.
 
-Coverage: **79 cross-validation checks** against original
-implementations, covering **39 of 71 estimators** -- 29 reproduce the reference to display precision, 31 to
-within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **83 cross-validation checks** against original
+implementations, covering **40 of 71 estimators** -- 31 reproduce the reference to display precision, 33 to
+within two percent. Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 What the denominator counts: exported estimator classes. That is
 auditable, and it is not the same as a count of methods. Several classes
@@ -129,8 +129,8 @@ Summary
      - 1 exact
      - 0
    * - :ref:`PROXIMAL <val-proximal>`
-     - 5
-     - 3 exact · 2 tight
+     - 6
+     - 3 exact · 3 tight
      - 41
    * - :ref:`RESCM <val-rescm>`
      - 4
@@ -156,6 +156,10 @@ Summary
      - 1
      - 1 tight
      - 0.011
+   * - :ref:`SCTA <val-scta>`
+     - 1
+     - 1 exact
+     - 1e-06
    * - :ref:`SCUL <val-scul>`
      - 1
      - 1 tight
@@ -193,8 +197,8 @@ Summary
      - 2 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 18
-     - 5 exact · 6 tight · 5 close · 2 documented
+     - 20
+     - 6 exact · 7 tight · 5 close · 2 documented
      - 9e+03
 
 .. _val-beast:
@@ -756,6 +760,12 @@ PROXIMAL
      - max \|Δ\|
      - Verdict
      - Case
+   * - R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13), captured
+     - ``pnas_brazil_age9.csv`` (f625dedd208b…)
+     - 3
+     - 1
+     - tight
+     - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
    * - R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13)
      - —
      - 4
@@ -936,6 +946,28 @@ SCMO
      - 0.011
      - tight
      - `scmo_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scmo_germany.py>`__
+
+.. _val-scta:
+
+SCTA
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - independent implementation of Sun, Ben-Michael & Feller (2024) Sec. 2 stacked design, solved by cvxpy/CLARABEL
+     - ``ibex_day_ahead_price.csv`` (18c69704e7ee…)
+     - 9
+     - 1e-06
+     - exact — matches to display precision
+     - `scta_ibex_xval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`__
 
 .. _val-scul:
 
@@ -1198,6 +1230,12 @@ VanillaSC
      - 0.028
      - tight
      - `brabander_brexit_table1 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brabander_brexit_table1.py>`__
+   * - R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13), captured
+     - ``pnas_brazil_age9.csv`` (f625dedd208b…)
+     - 3
+     - 1
+     - tight
+     - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
    * - `R package scinference (sc.cf t-test, live run, captured) <https://github.com/kwuthrich/scinference>`__
      - ``carbontax_data.dta`` (815787c1e448…)
      - 3
@@ -1228,6 +1266,12 @@ VanillaSC
      - 9e+03
      - documented — see notes
      - `lamba_tigers <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lamba_tigers.py>`__
+   * - tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), live run, captured
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 6
+     - 0
+     - exact — matches to display precision
+     - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
    * - Malo et al. scm.corner (SCM-Debug, live run, captured)
      - ``basque_mscmt.csv`` (3aca35dc9b55…)
      - 3
@@ -1366,37 +1410,9 @@ paper instead -- see :doc:`replications` and each estimator's page.
    * - SparseSC
      - `sparse_sc_prop99 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sparse_sc_prop99.py>`__
 
-Validated, but not re-runnable
-------------------------------
-
-These estimators are cross-validated against a reference on the
-paper's own data, and the comparison is written up, but no
-benchmark case or captured bundle exists -- so CI does not re-run
-it and a regression would not be caught here:
-
-* SCTA -- :doc:`replications/scta`
-
 No durable benchmark
 --------------------
 
 Neither a reference bundle, a registered benchmark case, nor a
 replication page, so nothing guards these against regression: ``ISCM``, ``MUSC``, ``RMSI``.
-
-Pending capture
----------------
-
-These cross-validation cases are wired up but their reference had
-not been captured when this page was last generated; the daily
-action records them once its toolchain provisions.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 50
-
-   * - Case
-     - Reference
-   * - `brazil_vaccine_scm_vs_proximal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brazil_vaccine_scm_vs_proximal.py>`__
-     - —
-   * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
-     - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
 
