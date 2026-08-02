@@ -114,8 +114,61 @@ def _canon(est: str) -> str:
     """Canonical estimator label: strip the descriptive backend/config suffix the
     case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``) and map
     the handful of function-name fields to the estimator a reader recognises."""
-    base = (est or "?").split("(")[0].split("/")[0].strip() or "?"
+    base = est.split("(")[0].split("/")[0].strip()
     return _ESTIMATOR_REMAP.get(base, base)
+
+
+def _estimators_of(meta: dict, case: str) -> list:
+    """Every estimator a bundle checks.
+
+    A case may compare more than one -- ``brabander_brexit_table1`` runs seven
+    estimators across four mlsynth classes -- so the field is a comma-separated
+    list and the case appears under each. An empty field used to fall back to
+    ``"?"``, which produced an unnamed dashboard row carrying real checks that
+    no reader could attribute; that is a defect in the bundle, and is raised.
+    """
+    raw = (meta.get("estimator") or "").strip()
+    if not raw:
+        raise ValueError(
+            f"benchmarks/reference/{case}/comparison.csv has no `estimator` in "
+            f"its metadata header, so its checks cannot be attributed. Set "
+            f"`mlsynth_call['estimator']` in the case's comparison() and "
+            f"regenerate the bundle.")
+    return [e for e in (_canon(part) for part in raw.split(",")) if e]
+
+
+def _all_estimators() -> list:
+    """Every estimator class mlsynth exports, so coverage is measured against
+    the package instead of against the corpus that happens to exist."""
+    import inspect
+    import mlsynth
+    return sorted(n for n in mlsynth.__all__
+                  if inspect.isclass(getattr(mlsynth, n, None))
+                  and hasattr(getattr(mlsynth, n), "fit"))
+
+
+def _benchmarked() -> dict:
+    """``{estimator: [case, ...]}`` over the registered benchmark cases.
+
+    Matched on the class name, the ``<name>_helpers`` package and the
+    ``estimators.<name>`` module, because a case can drive an estimator through
+    its helpers without naming the class -- ``cfm`` does exactly that.
+    """
+    import re
+    from benchmarks import registry
+    out: dict = {}
+    for name, mod in registry.CASES.items():
+        f = ROOT / (mod.replace(".", "/") + ".py")
+        if not f.exists():
+            continue
+        src = f.read_text()
+        for e in _all_estimators():
+            pats = (rf"\b{re.escape(e)}\b",
+                    rf"\b{re.escape(e.lower())}_helpers\b",
+                    rf"\bestimators\.{re.escape(e.lower())}\b")
+            if any(re.search(pt, src) for pt in pats):
+                out.setdefault(e, []).append(name)
+    return out
 
 
 def collect() -> dict:
@@ -129,9 +182,10 @@ def collect() -> dict:
         max_abs = max((abs(float(r["abs_diff"])) for r in rows
                        if _is_num(r["abs_diff"])), default=float("nan"))
         bundle = _bundle_meta(case)
+        ests = _estimators_of(meta, case)
         rec = {
             "case": case,
-            "estimator": _canon(meta.get("estimator", "?")),
+            "estimator": ests[0],
             "reference_impl": meta.get("reference_impl", "?"),
             "reference_version": meta.get("reference_version", ""),
             "paper": bundle.get("paper", ""),
@@ -144,7 +198,8 @@ def collect() -> dict:
             "verdict": verdict,
             "rows": rows,
         }
-        by_est.setdefault(rec["estimator"], []).append(rec)
+        for e in ests:
+            by_est.setdefault(e, []).append({**rec, "estimator": e})
     for recs in by_est.values():
         recs.sort(key=lambda r: r["case"])
     return by_est
@@ -203,6 +258,20 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
     n_checks = sum(len(by_est[e]) for e in ests)
     n_exact = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "exact")
     n_tight = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "tight")
+    all_est = _all_estimators()
+    bench = _benchmarked()
+    xval = set(ests)
+    n_covered = sum(1 for e in all_est if e in xval)
+    bench_only = [e for e in all_est if e not in xval and e in bench]
+    # An estimator can be cross-validated in prose without a registered case or
+    # a captured bundle -- SCTA against augsynth on the Texas SB8 panel is the
+    # example. That is validation, but it is not re-runnable, so it is reported
+    # as its own state instead of being lumped in with the unguarded ones.
+    reps = {f.stem for f in (ROOT / "docs" / "replications").glob("*.rst")}
+    documented = [e for e in all_est
+                  if e not in xval and e not in bench and e.lower() in reps]
+    neither = [e for e in all_est if e not in xval and e not in bench
+               and e.lower() not in reps]
 
     L = [
         ".. _validation:",
@@ -210,14 +279,15 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
         "Validation dashboard",
         "====================",
         "",
-        "Every estimator in mlsynth is checked against the original authors' code",
-        "on real data. This page is generated from the pinned reference bundles the",
-        "test suite asserts against, so the numbers here cannot drift from what CI",
-        "enforces. Each row links to the reference implementation, the dataset (with",
-        "checksum), and the mlsynth case that runs the check.",
+        "mlsynth estimators are checked against the original authors' code on",
+        "real data wherever a runnable reference exists. This page is generated",
+        "from the pinned reference bundles the test suite asserts against, so the",
+        "numbers here cannot drift from what CI enforces. Each row links to the",
+        "reference implementation, the dataset (with checksum), and the mlsynth",
+        "case that runs the check.",
         "",
         f"Coverage: **{n_checks} cross-validation checks** against original",
-        f"implementations across **{len(ests)} estimators** -- "
+        f"implementations, covering **{n_covered} of {len(all_est)} estimators** -- "
         f"{n_exact} reproduce the reference to display precision, {n_tight} to",
         "within two percent."
         + (f" A further {len(pend)} are captured on the next daily run"
@@ -275,6 +345,41 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
                 f"     - `{r['case']} <{GH}/benchmarks/cases/{r['case']}.py>`__",
             ]
         L.append("")
+
+    # Estimators validated by a paper replication instead of a cell-by-cell
+    # cross-check. They belong here because they are benchmarked, and this page
+    # is otherwise read as the whole validation picture.
+    if bench_only and not only:
+        L += ["Benchmarked without a reference cross-check",
+              "-------------------------------------------", "",
+              "These estimators carry a durable benchmark case but no reference",
+              "bundle, because no runnable reference implementation exists or its",
+              "output cannot be captured. They are validated against the source",
+              "paper instead -- see :doc:`replications` and each estimator's page.",
+              "", ".. list-table::", "   :header-rows: 1", "   :widths: 22 78",
+              "", "   * - Estimator", "     - Benchmark case(s)"]
+        for e in bench_only:
+            cases = " \u00b7 ".join(
+                f"`{c} <{GH}/benchmarks/cases/{c}.py>`__" for c in sorted(bench[e]))
+            L += [f"   * - {e}", f"     - {cases}"]
+        L += [""]
+
+    if documented and not only:
+        L += ["Validated, but not re-runnable",
+              "------------------------------", "",
+              "These estimators are cross-validated against a reference on the",
+              "paper's own data, and the comparison is written up, but no",
+              "benchmark case or captured bundle exists -- so CI does not re-run",
+              "it and a regression would not be caught here:", ""]
+        for e in documented:
+            L += [f"* {e} -- :doc:`replications/{e.lower()}`"]
+        L += [""]
+
+    if neither and not only:
+        L += ["No durable benchmark", "--------------------", "",
+              "Neither a reference bundle, a registered benchmark case, nor a",
+              "replication page, so nothing guards these against regression: "
+              + ", ".join(f"``{e}``" for e in neither) + ".", ""]
 
     # Honesty: cross-validation cases whose comparison.csv is not captured yet.
     if pend and not only:
