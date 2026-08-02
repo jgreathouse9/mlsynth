@@ -117,6 +117,54 @@ migration or refactor PR.
   "note that", "crucially", and "interestingly" — cut them. This applies to docs
   pages, module and function docstrings, benchmark-case prose, and commit
   messages alike.
+  - The frame hides in more than the obvious openers. Also cut "worth" plus a
+    gerund in any form ("worth keeping", "worth recording", "worth having",
+    "worth flagging", "worth restating", "worth repeating", "worth surfacing",
+    "worth remembering", "worth getting right"), "deserves emphasis", "deserves
+    a caution", "bears repeating", and "is easy to get wrong / overlook / miss".
+    A section titled "A note on X" is the same move as a heading: name the thing
+    ("A note on tightness" is "Tightness"; "Two findings worth keeping" is "Two
+    findings"). Ordinary senses of the word stay — "no covariates worth
+    balancing on", "post weeks are worth far fewer than pre weeks".
+- No "rather", ever. The word is banned in docs prose, docstrings, benchmark
+  prose and commit messages. It is an absolute rule so it can be checked with a
+  grep, not argued about case by case. Rewrite:
+  - `X rather than Y` -> `X, not Y` when Y is a noun phrase ("a face, not a
+    point"; "in seconds, not minutes"), or `X instead of Y` when Y is a gerund.
+  - `Rather than X, Y` -> `Instead of X, Y`.
+  - `would rather X` -> `would prefer to X`.
+  - The only exemption is quoted material: the SYNDES authors wrote "rather
+    strong assumptions", and changing words inside quotation marks misquotes
+    the source.
+  This subsumes the conduct-foil problem it replaced. Constructions like
+  "documented rather than tuned away", "reported as such rather than papered
+  over", "surfaces this as a diagnostic rather than hiding it" and "enforced at
+  ingestion rather than assumed" all named an alternative nobody would have
+  chosen, so they praised the choice instead of stating the fact. With the word
+  gone, the positive form is forced: "documented"; "the estimator checks this at
+  ingestion and raises when it fails".
+- No "quietly" or "loudly". Whether a check raises or returns silently is an
+  implementation concern; these pages are about econometrics. "the fit fails
+  loudly instead of dropping a criterion" is "the fit raises instead of dropping
+  a criterion"; "a choice that quietly changes the answer" is "a choice that
+  changes the answer".
+- No "load-bearing". Say what the sentence claims: "the relaxation the result
+  rests on", "three details decide the answer", "the step that decides the
+  answer".
+- Sweeping for all of the above:
+
+  ```
+  \brather\b|\bquietly\b|\bloudly\b|load.bearing
+  \bworth\b|\bdeserves?\b|^A note on
+  \b(crucially|importantly|interestingly)\b|\bnote that\b
+  ```
+
+  The first line should return only quoted material. The other two need
+  reading: ordinary senses of "worth" stay, and "Zheng (2025) note that ..."
+  reports what an author wrote. When rewriting at scale, substitute in place so
+  only the affected lines change -- reflowing whole paragraphs produces a diff
+  nobody can review -- and re-check that bullet continuations kept their
+  hanging indent, which a naive line-join silently destroys.
 - Write for a non-expert reader: assume the reader wants to learn what the
   method is and does, not that they already know synthetic control. Define
   jargon on first use.
