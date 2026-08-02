@@ -780,7 +780,7 @@ interchangeable. Pick by what you actually want:
 
 A constraint cannot split one design into ``K`` independent designs, so ``arm``
 is not a special case of the quota -- it is a different object (``K`` estimands
-and ``K`` disjoint donor pools). Note the asymmetry with MAREX: there the
+and ``K`` disjoint donor pools). The asymmetry with MAREX: there the
 restrictions compose *with* ``cluster`` (they apply within each cluster), because
 ``cluster`` lives in the objective; in SYNDES ``arm`` runs separate solves and
 does **not** combine with the restriction fields -- to get both, loop a
@@ -910,7 +910,7 @@ Two convenience knobs (and one escape hatch) fill :math:`B`:
   label, entry :math:`[i, j] > 0` forbids :math:`j` as a donor for :math:`i`),
   combined with the above by union. The fully general form.
 
-A subtlety worth knowing: the global modes share *one* donor vector across all
+A subtlety: the global modes share *one* donor vector across all
 treated units, so ``donor_region_col`` there forces the treated set into a
 single region (one donor vector cannot be same-region as treated units from two
 regions). The ``per_unit`` mode gives each treated unit its own synthetic

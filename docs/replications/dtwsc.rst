@@ -98,8 +98,8 @@ These rows are pinned in ``benchmarks/cases/dtwsc_basque.py`` rather than left
 as a one-off measurement, so a regression in the warping engine fails the
 benchmark.
 
-Two findings worth keeping
---------------------------
+Two findings
+------------
 
 The alignment kernel is exact, across every step pattern the method uses.
 mlsynth implements them directly rather than taking a DTW dependency, so a
@@ -122,18 +122,18 @@ California one and 50 percent of the German one -- so the omission was not a
 matter of completeness but of whether the paper's own procedure is reachable at
 all.
 
-One detail was worth getting right rather than approximating. Normalisation is
-not uniform across the patterns: the symmetric ones divide the accumulated cost
-by the query plus reference length, the asymmetric ones by the query's, and
-``mori2006`` by the reference's. Treating that as a two-way choice leaves every
-path correct and every normalised distance wrong, which changes nothing
-visible until an open-ended alignment picks its endpoint -- and that endpoint
-decides which windows ``ref_too_short`` rules out of the second-phase search.
+Normalisation is not uniform across the patterns: the symmetric ones divide the
+accumulated cost by the query plus reference length, the asymmetric ones by the
+query's, and ``mori2006`` by the reference's. Treating that as a two-way choice
+leaves every path correct and every normalised distance wrong, which changes
+nothing visible until an open-ended alignment picks its endpoint -- and that
+endpoint decides which windows ``ref_too_short`` rules out of the second-phase
+search.
 
 One bit was load-bearing. An earlier version of this page recorded a residual
 disagreement in 40 of the 13888 outlier-filter decisions and attributed it to
 floating-point ties that no implementation could be expected to reproduce. That
-was wrong, and the way it was wrong is worth keeping.
+was wrong, and the way it was wrong is instructive.
 
 ``second_dtw`` discards outlying speeds with a type-7 :math:`Q_3 + 3\,
 \mathrm{IQR}` fence. The speeds are small-denominator rationals, so a column
@@ -240,7 +240,7 @@ published ``t`` means adopting their design wholesale -- pool, datasets,
 per-run hyperparameters, predictors, and units -- rather than tightening
 anything in mlsynth's own.
 
-The band does not reproduce, and that is worth stating plainly. On this
+The band does not reproduce. On this
 specification the warped band comes out marginally wider than the unwarped one
 -- 2.436 against 2.296, or 0.3 percent -- where the paper reports it narrower.
 

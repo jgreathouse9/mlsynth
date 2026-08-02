@@ -588,7 +588,7 @@ Output::
      1995: gap = -22.62  CI=(-46.03, +0.78)        # paper: -24.5
      2000: gap = -27.01  CI=(-54.31, +0.29)        # paper: -28.7
 
-Two things are worth flagging about this replication.
+Two things about this replication:
 
 * The selected :math:`(a^*, b^*) = (0.3, 0.7)` is grid-stable
   across seeds 42, 789, 1000, 2024 and one grid step away from

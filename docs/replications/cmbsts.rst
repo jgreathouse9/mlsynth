@@ -93,7 +93,7 @@ the lower credible bound across (the package and the port land on opposite sides
 The published strict significance on all three pairs uses the ``MarketMatching``
 controls at ``niter = 2200``.
 
-A reference-implementation difference worth noting: ``CausalMBSTS`` adds a single
+A reference-implementation difference: ``CausalMBSTS`` adds a single
 observation-noise draw per posterior draw and recycles it across the forecast
 horizon, so that noise does not average out of the temporal-average effect and
 widens its credible interval. The mlsynth port reproduces this behaviour to match

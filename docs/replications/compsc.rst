@@ -225,8 +225,8 @@ substantial rather than cosmetic:
 
 The corrected fit is the better one on the paper's own criterion, and it moves
 the headline effect down by about fifteen percent. Every result carries
-``baseline_sensitivity`` so this divergence is visible at the point of use
-rather than buried. Users reproducing the published article should set
+``baseline_sensitivity`` so this divergence is visible at the point of use.
+Users reproducing the published article should set
 ``geometry="alr"`` with ``baseline="renewables"``; users doing new work should
 leave the default alone.
 

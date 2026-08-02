@@ -321,7 +321,7 @@ The Basque Country tracks its SRC counterfactual to a pre-period RMSE of about
 Abadie-Gardeazabal shape of the economic cost of ETA terrorism -- recovered
 here by the box-weighted matched controls rather than a simplex.
 
-Note that this deterministic Algorithm 1 is *not* the specification behind the
+This deterministic Algorithm 1 is *not* the specification behind the
 paper's Basque table: it selects Murcia / Madrid / Castilla y León and a mean
 ATT of about :math:`-0.86`, whereas the paper (Table 5 / Figure 1) reports
 Rioja / Madrid / Cantabria and an ATT reaching :math:`\approx -1.9`. The

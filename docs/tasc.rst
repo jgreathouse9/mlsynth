@@ -181,7 +181,7 @@ restatement is:
     :math:`\mathbf{R}` full rank, :math:`d \ll \min(N_0, T)`. The
     signal is low-rank with rank :math:`d` (the latent-state
     dimension); the noise :math:`\mathbf{r}_t` is Gaussian with a
-    positive-definite covariance. Importantly, :math:`\mathbf{R}` does
+    positive-definite covariance. :math:`\mathbf{R}` does
     NOT have to be diagonal: TASC handles correlated cross-donor noise
     via the full :math:`\mathbf{R}` (set ``diagonal_R = False`` in the
     config).
@@ -197,7 +197,7 @@ restatement is:
 (d) No unobserved confounders that affect donors AND treated
     unit between :math:`T_0` and :math:`T_0 + 1`. This is the
     standard SC unconfoundedness assumption, not specific to TASC,
-    but worth restating: TASC's counterfactual is informative about
+    and restated here: TASC's counterfactual is informative about
     the treatment effect only if any post-period shock to the donor
     pool is also reflected in what the target would have done absent
     treatment.

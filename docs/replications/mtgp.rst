@@ -54,8 +54,8 @@ a specification gap. A coregionalization model is rotation/sign non-identified,
 so the raw loadings do not mix (Stan flags this too); the identified quantities
 -- the counterfactual, the ATT, and the length-scales -- mix cleanly and match.
 
-The one build note that matters
--------------------------------
+The build requirement
+---------------------
 
 The GP Cholesky needs double precision. JAX defaults to ``float32``, whose
 machine epsilon (:math:`\approx 10^{-7}`) is larger than the :math:`10^{-9}`

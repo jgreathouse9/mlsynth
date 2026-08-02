@@ -132,7 +132,7 @@ a closed form -- no solver, no iteration:
         {\mathbf{1}'\widehat G^{-1}\mathbf{1}} .
 
 The grid :math:`\{y_l\}_{l=1}^{m}` is a set of quantiles of the pooled outcome
-between ``grid_lo`` and ``grid_hi``. One detail there is worth knowing before
+between ``grid_lo`` and ``grid_hi``. One detail there matters before
 you change it: ``n_grid`` is the number of points *requested*, and ties are
 collapsed afterwards, so the active grid is generally shorter. Wages reported
 to the cent produce a lot of ties -- on the New Jersey panel the paper's 38
@@ -140,8 +140,7 @@ requested points leave 32 active. Passing the active count instead of the
 requested one is a silent mistake rather than a loud one: asking for 32 leaves
 28 active and moves Florida's weight from 0.515 to 0.496.
 
-Two consequences deserve stating plainly, because both look like faults and
-neither is.
+Two consequences follow. Both look like faults, and neither is.
 
 Negative weights are normal. Non-negativity is deliberately dropped
 (Doudchenko and Imbens), which lets the synthetic unit sit outside the donor
@@ -190,8 +189,8 @@ With two or more pre-periods, parallel trends is testable directly by treating
 an earlier period as a pseudo-post period and asking whether the same machinery
 finds an effect where none can exist.
 
-One reproducibility caveat, worth knowing before comparing numbers across
-machines. The simulated critical values require a matrix square root of the
+One reproducibility caveat before comparing numbers across machines. The
+simulated critical values require a matrix square root of the
 estimated kernel, obtained from an eigendecomposition. Eigenvector *signs* are
 implementation-defined, so a different LAPACK build produces a different factor
 and hence a different realisation from identical Gaussian draws, even with the

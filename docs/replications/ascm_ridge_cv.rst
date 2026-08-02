@@ -91,9 +91,8 @@ What the fix exposed
 --------------------
 
 Fixing the cross-validation made the covariate cells of :doc:`ascm_kansas`
-disagree *more*, from about 0.002 to 0.005 on the ATT. That is worth stating
-plainly, because the surface reading is the opposite: it was a cancellation being
-removed, not a regression.
+disagree *more*, from about 0.002 to 0.005 on the ATT. The surface reading is
+the opposite: it was a cancellation being removed, not a regression.
 
 Two independent errors had been partly offsetting each other. The fold off-by-one
 was one; the other was in how the benchmark aggregated auxiliary covariates to one

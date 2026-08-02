@@ -253,7 +253,7 @@ across units, and a covariate-balance term is folded into the iteration matrix:
 where :math:`s` rescales :math:`\mathbf{X} \mathbf{X}^\top` to match the trace ("energy") of
 :math:`\mathbf{Y}_0 \mathbf{Y}_0^\top`, so ``covariate_weight = 1`` weights covariates equally to
 the outcomes, ``> 1`` upweights them, and ``0`` (or omitting ``covariates``)
-recovers the outcome-only design. Crucially this keeps the iteration matrix a
+recovers the outcome-only design. This keeps the iteration matrix a
 quadratic form :math:`\mathbf{W}^\top \mathbf{M} \mathbf{W}` with the *same* phase-synchronization
 structure, so the spectral solver and the global-optimality theory are
 unchanged -- the design now drives the weighted treated and control groups to
@@ -498,7 +498,7 @@ recovering group membership and recovering the weights can be separated.
 Theorem 2 (equivalence to phase synchronization). The design problem is
 symbolically identical to a phase-synchronization problem on the matrix
 :math:`(\mathbf{A}^\top \mathbf{A})^{-1}`. *In words:* SPCD inherits the entire fast-solver
-toolkit developed for phase synchronization — most importantly the
+toolkit developed for phase synchronization -- above all the
 spectrally-initialized generalized power method.
 
 Theorem 3 (global convergence). Under Assumptions 1–2, if :math:`\sigma`
@@ -630,7 +630,7 @@ The MDE computation depends only on :math:`\mathbf{r}_B`, not on
 ``enable_inference=True`` and the holdout window is large enough (at least
 ``min_blank_size`` periods, default 5). The conformal CI only runs when
 :math:`\mathbf{Y}_{\text{post}}` is supplied; otherwise the ATT and CI are reported as
-``None`` (honest absence rather than a silent zero).
+``None``, an absence rather than a zero.
 
 Opting Out
 ^^^^^^^^^^

@@ -81,10 +81,10 @@ Donor-weight L1 distance :math:`\approx 10^{-4}`, the intercept agrees to
 :math:`\approx 10^{-5}`, and the ATT to :math:`\approx 4\times10^{-4}` -- the
 residual is just the two QP solvers' tolerances.
 
-A note on identification (why 1975, not 1970)
----------------------------------------------
+Identification: why 1975, not 1970
+----------------------------------
 
-The paper is about *imperfect* pre-treatment fit, so it is worth being explicit
+The paper is about *imperfect* pre-treatment fit, so to be explicit
 about when the demeaned-SC estimate is even well-defined. With a 1970 cutoff the
 Basque panel is rank-deficient -- sixteen donors against fifteen pre-treatment
 years, :math:`C > n`. The demeaned-SC weights are then *not unique*: many weight

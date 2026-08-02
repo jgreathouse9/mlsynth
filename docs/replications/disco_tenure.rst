@@ -22,8 +22,8 @@ and no numbers. Its single quantitative claim is that a placebo permutation test
 fails to reject. That is one bit of information, and a materially wrong
 implementation could satisfy it.
 
-The R package cannot supply more, and the reason is worth stating because it is
-not obvious. Its weight solver draws the quadrature points at random —
+The R package cannot supply more, and the reason is not obvious. Its weight
+solver draws the quadrature points at random —
 ``DiSCo_weights_reg`` calls ``runif(M)`` — so the fitted weights are a Monte
 Carlo estimate. On the Dube panel it disagrees with itself across seeds by up to
 0.119, while sitting 0.044 from mlsynth. No tolerance against a single run of it

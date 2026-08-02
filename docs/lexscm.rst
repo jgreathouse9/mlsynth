@@ -176,7 +176,7 @@ shocks :math:`\varepsilon_{j, t}`.
    :math:`\bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j \approx 0`.
 
    *Remark.* This is the design analogue of the SCM convex-hull condition, and it
-   is the only substantive requirement. Crucially it is not imposed as an
+   is the only substantive requirement. It is not imposed as an
    axiom: the *achieved* imbalance
    :math:`\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\rVert` is a
    measurable goodness-of-fit quantity, reported for every design, on which
@@ -1416,7 +1416,7 @@ person, and the program carries a hard :math:`\$10\text{M}` knapsack
 The constraints can genuinely conflict: requiring coverage of all five
 divisions *and* only above-median markets *and* a $10M cap asks for five large
 (expensive) markets that the budget cannot afford, so the fit fails loudly
-rather than silently dropping a criterion.
+instead of dropping a criterion.
 
 .. code-block:: python
 

@@ -315,7 +315,7 @@ Choosing the unit-weight penalty
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The term :math:`T_0 \zeta^2 \|\mathbf{w}\|_2^2` in the unit-weight program is
-the one free quantity in the two displays above, and it is worth being explicit
+the one free quantity in the two displays above, and to be explicit
 about what sets it. Arkhangelsky et al. (2021) calibrate it to the noise the
 weights are being asked not to chase,
 
@@ -719,7 +719,7 @@ Optimising jointly with the weights (Arkhangelsky et al. 2021)
 The second answer does not estimate :math:`\boldsymbol{\beta}` first. It
 estimates it at the same time as the weights, from one objective in
 :math:`(\boldsymbol{\beta}, \boldsymbol{\omega}, \boldsymbol{\lambda})`. This is
-footnote 4 of Arkhangelsky et al. and, importantly for reading applied work, it
+footnote 4 of Arkhangelsky et al., and for reading applied work it
 is the default in Stata's ``sdid``: a paper whose code says ``covariates(x)``
 and nothing else used this, not the Kranz projection above.
 
@@ -761,7 +761,7 @@ times (refer to Kranz (2022))", and it is sensitive to covariates with high
 dispersion. Reach for ``optimized`` when the goal is to reproduce a published
 specification that used it, and for ``adjust`` when you are choosing freshly.
 
-Two properties of this estimator are worth stating plainly, because both are
+Two properties of this estimator are easy to miss, and both are
 easy to get wrong and one is genuinely surprising.
 
 In a staggered design the coefficient is fitted separately for each adoption
@@ -796,7 +796,7 @@ logarithmic in the iteration cap, and on real panels the cap binds while
      - 0.278
      - 0.339
 
-One consequence is worth stating on its own, because it is easy to assume the
+One consequence stands on its own, because it is easy to assume the
 opposite. The exact minimiser of :math:`\ell` is scale-equivariant: multiply a
 covariate by :math:`c` and its coefficient divides by :math:`c`, leaving
 :math:`\mathbf{x}^{\top}\boldsymbol{\beta}` and the estimate untouched. A
@@ -888,7 +888,7 @@ outcome alone:
    \qquad
    \mathbf{w}^{\ast} = \mathbf{w}(\mathbf{V}^{\ast}).
 
-Note the asymmetry, which is easy to miss and decides everything below: the
+The asymmetry decides everything below: the
 inner problem matches on :math:`\mathcal{M}`, but the outer problem always
 scores :math:`\mathbf{V}` against the full pre-period :math:`\ddot{\mathbf{y}}`.
 
@@ -1014,7 +1014,7 @@ response contaminating :math:`\widehat{\boldsymbol{\beta}}` or
 :math:`\mathbf{z}`, but it cannot rescue a covariate that is a channel of the
 effect rather than a nuisance.
 
-One structural requirement is worth stating because it fails silently. Matching
+One structural requirement fails silently. Matching
 needs the treated unit inside the convex hull of the controls on the matched
 rows. Where it does not hold, the solution of the inner program sits at a vertex
 of :math:`\Delta^{N_{co}}` and :math:`\mathbf{V}` cannot move it, so the

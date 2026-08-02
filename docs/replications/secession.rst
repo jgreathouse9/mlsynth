@@ -77,8 +77,8 @@ Under the in-space placebo, Catalonia is the extreme case (RMSPE-ratio
 the Faroe result is weaker -- consistent with the paper treating Catalonia as the
 cleaner test. The Catalonia synthetic leans on South Tyrol.
 
-A note on tightness
--------------------
+Tightness
+---------
 
 This is a *close* reproduction, not a value-for-value one. The reference is a
 different implementation -- ``SyntheticControlMethods`` optimises predictor

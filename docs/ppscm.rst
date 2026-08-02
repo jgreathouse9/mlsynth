@@ -201,7 +201,7 @@ aggregate ``effects.att``. This makes it a one-line switch to serve either
 request -- pooled error via ``design.ind_l2`` / ``global_l2`` and the aggregate
 ATT, or per-unit estimates and their in-sample error via ``results.per_unit``.
 
-A caveat worth surfacing to whoever reads the unit-level numbers: at a high
+A caveat for whoever reads the unit-level numbers: at a high
 :math:`\nu` (heavily pooled), the per-unit synthetic controls fit poorly, so a
 unit's ``att`` is only as trustworthy as its ``prefit_rmspe`` -- read the two
 together, and prefer a lower :math:`\nu` (toward separate SCM) when unit-level

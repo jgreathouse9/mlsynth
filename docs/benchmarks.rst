@@ -389,8 +389,8 @@ What running the authors' code surfaced
 
 Executing the reference rather than trusting a printed table repeatedly turned
 up things a number-for-number comparison could not have. In each case the
-discrepancy was traced to its cause rather than absorbed into a loose
-tolerance, and mlsynth was found to be at the correct optimum.
+discrepancy was traced to its cause, and mlsynth was found to be at the
+correct optimum.
 
 * Synthetic Business Cycle (``sbc_germany``). The Hamilton detrending and trend
   forecast match the authors' ``Germany.R`` to about :math:`10^{-8}`, but the
@@ -411,8 +411,8 @@ tolerance, and mlsynth was found to be at the correct optimum.
   Both implementations solve hard-singular-value-thresholding plus regression,
   but tslib forms the rank-:math:`k` subspace from the stacked donor-and-treated
   matrix while mlsynth de-noises the donor matrix alone (the Amjad-Shah-Shen
-  convention). Each is exact for its own convention; the small gap is
-  documented rather than tuned away.
+  convention). Each is exact for its own convention, and the small gap is
+  documented.
 * L-infinity synthetic control (``linf_prop99``). With more donors than
   pre-periods the :math:`\ell_\infty`-minimising weight vector is genuinely
   non-unique, so individual weights are not identified. The case cross-validates

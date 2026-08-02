@@ -507,7 +507,7 @@ Reach for RESCM when:
   to one call of the same convex engine.
 * You want HAC-based, classical-statistics inference
   (Li 2020 two-term standard errors) on the ATT rather than a
-  permutation or conformal procedure. Note the
+  permutation or conformal procedure. See the
   finite-sample-inference caveat below.
 
 Do not use RESCM when:

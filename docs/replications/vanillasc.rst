@@ -161,7 +161,7 @@ methods relate across the three canonical datasets, which mlsynth reproduces:
      - NA
      - 1.1
 
-Three relations are worth internalising:
+Three relations hold:
 
 * **LTO can change the conclusion (German).** The exact placebo p-value of 0.059
   does *not* reject at 0.05, but the naive LTO (0.042) and powered LTO (0.03)
@@ -206,7 +206,7 @@ Run on a V-free objective -- ``Synth`` driven with a uniform ``custom.v``, which
 collapses its inner problem to the same quadratic program mlsynth solves with
 ``backend="outcome-only"`` -- the two implementations again place California
 third, with a per-unit correlation of :math:`0.994` across the placebo pool.
-Two differences are worth recording. mlsynth reaches a pre-treatment sum of
+Two differences stand out. mlsynth reaches a pre-treatment sum of
 squares of :math:`52.13` against ``Synth``'s :math:`55.70`, a 6.4 percent lower
 value of the objective ``Synth`` is itself minimising; and ``Synth``'s ``ipop``
 solver aborts on one donor (Nebraska, reporting a computationally singular

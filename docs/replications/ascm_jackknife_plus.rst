@@ -68,8 +68,8 @@ extreme refit -- exactly where the solver difference is largest -- and lands at
 1.8e-7. Looser is correct there rather than lax: an interval built from order
 statistics cannot be more reproducible than its worst-case term.
 
-Two findings worth keeping
---------------------------
+Two findings
+------------
 
 The penalty is pinned across refits, and this is not obvious from the paper.
 ``augsynth.R`` stores the fitted ridge penalty into ``extra_args`` before any

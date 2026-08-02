@@ -191,7 +191,7 @@ accurate of the seven by a wide margin, and cases (ii) and (iii) are the least
 accurate — roughly twice the error of plain SC. Since the three cases are the
 same estimator, that spread is a statement about bookkeeping.
 
-One caveat the paper itself makes, and worth repeating here: cases (ii) and
+One caveat the paper itself makes: cases (ii) and
 (iii) are evaluated four quarters past the placebo date while the other five are
 evaluated one quarter past, so part of their larger error is the longer horizon
 rather than the convention. Case (i) against case (ii) is the clean comparison,
@@ -222,10 +222,9 @@ time-weighted pre-treatment gap,
 which is mlsynth's ``intercept_adjust=True`` series. Reading the default
 un-adjusted counterfactual compares a different quantity to the paper's number
 and costs about 0.05 percentage points on Table 1 — small enough to look like a
-minor disagreement rather than the wrong estimand, which is exactly what makes
-it worth stating.
+minor disagreement rather than the wrong estimand.
 
-One discrepancy in the authors' own package is worth recording. Both scripts set
+There is a discrepancy in the authors' own package. Both scripts set
 MASC's cross-validation with a variable named ``min_value_five``, computed as
 ``T_pre - 5``, which selects five folds. The published cells do not come from
 that setting; they come from the fold counts stated in the table notes — eighty

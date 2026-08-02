@@ -150,7 +150,7 @@ fitted Hamilton coefficients to its observed lags:
    \qquad
    T_0 + 1 \;\leq\; t \;\leq\; T_0 + h.
 
-Two points deserve emphasis. First, the intercept
+First, the intercept
 :math:`\widehat\alpha_{1,0}` *is* applied — the forecast extrapolates the
 full estimated trend. (The paper's display equation omits
 :math:`\widehat\alpha_{1,0}`, but the authors' replication code includes it,

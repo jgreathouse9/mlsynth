@@ -142,7 +142,7 @@ Assumptions
 
    Remark. The loadings being shared across categories is what licenses fitting
    one weight vector to all of them, and what makes the stacking below an
-   efficiency gain rather than an assumption of convenience. Note the factor
+   efficiency gain, not an assumption of convenience. The factor
    model sits on the log-ratios, not on the shares: because the transform is
    nonlinear, a factor model on one does not imply a factor model on the other,
    and the utilities are the economically primitive object.

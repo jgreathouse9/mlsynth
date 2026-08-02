@@ -329,7 +329,7 @@ percentile bands over :math:`\widehat{\tau}^{(s)}` at level
 :math:`1 - \mathrm{ci\_alpha}` (default 95 %). Pointwise bands on the
 counterfactual are computed analogously period-by-period.
 
-Note that BVS-SS computes the counterfactual directly from the
+BVS-SS computes the counterfactual directly from the
 :math:`\boldsymbol{\mu}` posterior rather than drawing
 :math:`\mathbf{w}_\gamma` from its
 Eq. (7) conditional. The paper's empirical Section 6 uses this

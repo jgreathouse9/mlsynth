@@ -153,12 +153,12 @@ mlsynth ships the sorted-mask variance.
 What this costs the published significance counts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The correction has a substantive consequence, and it is worth stating plainly.
-Table 1's per-year counts of significantly positive, negative and null states
-are computed at :math:`\alpha = 0.01` from the reference package's standard
-errors. Pair mlsynth's point estimates with *those* errors and all eight rows
-reproduce exactly -- confirming the estimator, the staircase mask and the
-aggregation all agree, and that the standard error is the only divergence.
+The correction has a substantive consequence. Table 1's per-year counts of
+significantly positive, negative and null states are computed at :math:`\alpha
+= 0.01` from the reference package's standard errors. Pair mlsynth's point
+estimates with *those* errors and all eight rows reproduce exactly --
+confirming the estimator, the staircase mask and the aggregation all agree, and
+that the standard error is the only divergence.
 
 Use mlsynth's corrected errors at the same :math:`\alpha`, however, and only
 two of the eight rows still match: the errors are on average 1.36 times larger,

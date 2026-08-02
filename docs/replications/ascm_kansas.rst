@@ -42,8 +42,8 @@ covariate model is ``augsynth``'s documented spec,
 with each covariate transformed per row and aggregated to one pre-period mean per
 unit.
 
-How that aggregation treats missing values decides the covariate cells, so it is
-worth being explicit. The two revenue series are reported annually and so are
+How that aggregation treats missing values decides the covariate cells. The two
+revenue series are reported annually and so are
 absent from 56 of the 89 pre-treatment quarters. ``augsynth``'s
 ``extract_covariates`` passes ``na.action = NULL`` to ``model.frame``, keeping
 every row, and then averages each covariate on its own with
@@ -116,15 +116,15 @@ monotone in :math:`|\text{ATT}|` (the un-augmented SCM is the conservative end).
 The joint-null conformal :math:`p`-value for ridge ASCM (:math:`0.071`) is also
 reproduced to Monte-Carlo precision.
 
-A note on the residualized penalty — the one cell that is not exact, and
-deliberately so. After residualizing out :math:`K` covariates the residual Gram is
+The residualized penalty is the one cell that is not exact, and deliberately
+so. After residualizing out :math:`K` covariates the residual Gram is
 rank-deficient (:math:`T_0` rows, rank :math:`\le J - K`), so a cross-validation
 on the residuals is ill-posed and drifts to the grid floor. mlsynth tunes the
 penalty on the **outcome scale** instead — where ``augsynth``'s residual CV lands
 anyway. The instability is visible in the package's own output: its live value
 here is :math:`-0.0528` / :math:`0.0576` while the published vignette table
 reports :math:`-0.055` / :math:`0.067`. mlsynth's :math:`-0.0564` / :math:`0.0608`
-sits between them and is stable across reruns, which is the property worth having
+sits between them and is stable across reruns, which is the property needed
 when the reference itself is not reproducible.
 
 Path B — coverage and bias reduction (Section 7)

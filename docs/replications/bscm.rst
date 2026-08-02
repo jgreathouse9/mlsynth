@@ -79,12 +79,13 @@ benchmark -- picks the same dominant donor and returns the same near-null ATT.
 All three intervals cross zero: no statistically credible effect on this
 residualised watch-demand series in this configuration.
 
-A robustness note that cuts in the port's favour. With :math:`p = 87` donors the
-horseshoe posterior is a difficult funnel-shaped geometry; the reference Stan run
-reports divergent transitions and a maximum :math:`\widehat{R}` of about 1.02
-even at ``adapt_delta = 0.999``. The block Gibbs with auxiliary variables has no
-funnel to fall into, so it mixed cleanly and still landed on the reference
-answer -- on this benchmark the pure-numpy sampler is the more robust of the two.
+A robustness result that cuts in the port's favour. With :math:`p = 87` donors
+the horseshoe posterior is a difficult funnel-shaped geometry; the reference
+Stan run reports divergent transitions and a maximum :math:`\widehat{R}` of
+about 1.02 even at ``adapt_delta = 0.999``. The block Gibbs with auxiliary
+variables has no funnel to fall into, so it mixed cleanly and still landed on
+the reference answer -- on this benchmark the pure-numpy sampler is the more
+robust of the two.
 
 Overfitting — a cautionary counter-example (Basque)
 ---------------------------------------------------

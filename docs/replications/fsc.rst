@@ -19,7 +19,7 @@ correctly understood here?
 runs :class:`mlsynth.FSC` itself. It answers a different question: does the
 estimator mlsynth ships land on the paper's results? It does on one application
 exactly, and diverges on the other two for reasons that are measured and stated
-below rather than tuned away.
+below.
 
 What the reference port reproduces
 ----------------------------------
