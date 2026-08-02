@@ -68,6 +68,24 @@ narrative rests on:
 The gap at :math:`e = -1` comes out at :math:`-6 \times 10^{-16}`, which is the
 indexing constraint holding to machine precision rather than a fitted result.
 
+The specification, and the part of it that is not expressible
+-------------------------------------------------------------
+
+Appendix A.2 matches on ten covariate averages plus four outcome lags. The
+covariate averages are over an absolute window -- the five years before any unit
+is treated -- which ``covariate_windows`` expresses directly. The outcome lags
+are relative to each cohort's own base period, which it does not: a covariate is
+one value per unit, and a donor serves all six cohorts with six different base
+periods, so no single column can carry "the outcome two years before treatment"
+for a donor.
+
+The benchmark therefore matches on the pre-treatment outcome path, which is a
+superset of four lags of it, and which is the specification that delivers the
+paper's stated pre-treatment fit. The covariate specification as expressible
+today is measured alongside it rather than quietly dropped: its pre-treatment
+RMSE is 1.354 against 0.049, a factor of 27. That ratio is pinned, so a future
+option for base-period-relative covariate windows can be seen to close it.
+
 What does not reproduce, and why
 --------------------------------
 
@@ -141,3 +159,24 @@ Reproducing it
 .. code-block:: bash
 
    python benchmarks/run_benchmarks.py --case wiltshire_walmart
+
+The case is `benchmarks/cases/wiltshire_walmart.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/wiltshire_walmart.py>`_.
+It runs in about 45 seconds and pins twenty-one quantities: the design's counts,
+the three structural identities (the base-period gap at 6e-16, the weights
+summing to one, the aggregate being exactly the weighted mean of the parts), the
+paper's four prose claims, the two specification contrasts above, and the
+forfeited batching under a commuting-zone donor restriction.
+
+One row is a floor rather than a value. ``county_dispersion_at_five`` records
+that the per-county five-year gaps have a standard deviation of 14.1 percent
+around a weighted mean of -0.90, and it carries a deliberately wide band. Part
+of that spread is genuine heterogeneity across counties and part is the
+non-identification described above, so the number itself is not reproducible
+across solvers -- what would be a real regression is the dispersion collapsing,
+which would mean the per-county fits had stopped varying at all.
+
+Inference is not part of this case. The placebo layer costs 22,074 simplex
+solves in its default donor pool on this panel, well past the runtime budget,
+and the paper's p-values rest on the same unrecoverable predictor-weight rule as
+its magnitudes.
