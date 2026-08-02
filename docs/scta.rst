@@ -122,13 +122,29 @@ Choosing nu and the Imbalance Frontier
 --------------------------------------
 
 The optimal :math:`\nu` depends on unknown factor-model quantities and is
-infeasible to compute. Following the paper, SCTA defaults to the equal-weight
-heuristic :math:`\nu = 0.5` and asks you to assess sensitivity, not trust a
-single number. Passing a ``frontier`` grid traces the imbalance
-frontier: for each :math:`\nu` it reports the disaggregated and aggregated
-pre-treatment RMSE, the two axes of Figure 1 in the paper. A good
-:math:`\nu` is one where both imbalances are small; a frontier that collapses
-to one axis tells you aggregation is buying (or costing) you signal.
+infeasible to compute. The paper asks you to assess sensitivity instead of
+trusting a single number, and reports three reference cases: aggregates only,
+months only, and equal weight between them.
+
+Equal weight is :math:`\nu = 1`. The :math:`\lfloor T_0/K \rfloor` aggregate
+rows carry total weight :math:`\lfloor T_0/K \rfloor \cdot K\nu`, which is
+:math:`T_0 \nu` when :math:`K` divides :math:`T_0`, against :math:`T_0` for the
+disaggregated rows — so the two halves of the objective balance at
+:math:`\nu = 1`. On the Texas panel that is 72 against 75, the slack being the
+three-month tail that belongs to no whole block.
+
+``nu`` defaults to :math:`0.5`, which puts the aggregates at just under half the
+weight of the months. Earlier versions of this page called that the paper's
+equal-weight heuristic. It is not: :math:`0.5` is where the equal-weight case
+falls on the horizontal axis of the paper's Figure 3, which plots
+:math:`\texttt{year\_wt} / (\texttt{year\_wt} + 1)`, and the knob value there is
+:math:`\texttt{year\_wt} = 1`. Set ``nu=1.0`` for the paper's equal-weight fit.
+
+Passing a ``frontier`` grid traces the imbalance frontier: for each
+:math:`\nu` it reports the disaggregated and aggregated pre-treatment RMSE, the
+two axes of Figure 1 in the paper. A good :math:`\nu` is one where both
+imbalances are small; a frontier that collapses to one axis tells you
+aggregation is buying (or costing) you signal.
 
 Inference and Diagnostics
 -------------------------
@@ -165,7 +181,7 @@ Example
        "df": df, "outcome": "y", "treat": "treat",
        "unitid": "unit", "time": "time",
        "block_length": 4,            # K = 4 high-frequency periods per block
-       "nu": 0.5,                    # equal weight on aggregated and disaggregated
+       "nu": 1.0,                    # equal weight on aggregated and disaggregated
        "frontier": [0.0, 0.5, 1.0, 2.0],
    }
    results = SCTA(config).fit()

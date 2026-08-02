@@ -144,6 +144,29 @@ minimum. The numbers that appeared to support it — an excess of 4.9 percent at
 ``year_wt = 0.5`` rising to 23.7 percent — are real, and are the linear column
 above: they measure ``augsynth``'s weights against the wrong program.
 
+A third thing the mapping corrects
+----------------------------------
+
+The paper's equal-weight case is ``year_wt = 1``. The authors' code says so
+directly: the variable holding that fit is named ``plt_equal``, its panel in
+Figure 2 is titled "Yearly + Monthly Births", and Figure 3 plots the estimate
+against :math:`\texttt{year\_wt}/(\texttt{year\_wt}+1)`, on which
+``year_wt = 1`` sits at :math:`0.5`.
+
+SCTA's ``nu`` defaulted to :math:`0.5` and this documentation called that the
+paper's equal-weight heuristic. It is not — :math:`0.5` is the position of the
+equal-weight case on that axis, not the knob value. On mlsynth's own convention
+the check is arithmetic and does not need the paper at all: the
+:math:`\lfloor T_0/K \rfloor` aggregate rows carry total weight
+:math:`\lfloor T_0/K \rfloor \cdot K\nu` against :math:`T_0` for the
+disaggregated rows, so the halves balance at :math:`\nu = 1`. On this panel that
+is 72 against 75, the slack being the three-month tail. At :math:`\nu = 0.5` the
+aggregates carry 36 against 75.
+
+The default is unchanged pending a decision, since moving it changes every
+existing caller's answer; the documentation now states what the value is and
+what the paper's case would be.
+
 Cross-validation, at the mapped knob
 ------------------------------------
 
