@@ -43,10 +43,18 @@ def prepare_src_inputs(
     treated_label = treated_units[0]
     intervention_time = treated_rows[time].min()
 
+    # Donors are the units whose treatment column is all zeros. Totalling it
+    # once per unit with a groupby costs one pass over the panel; asking
+    # ``df.loc[df[unitid] == u, treat]`` per unit costs one pass *per unit*,
+    # which is the whole panel scanned J times. ``sort=False`` plus the reindex
+    # keeps the donor order as first-appearance, which downstream code reads
+    # positionally.
     all_units = list(df[unitid].unique())
+    treat_totals = (df.groupby(unitid, sort=False)[treat].sum()
+                    .reindex(all_units).to_numpy())
     donors = [
-        u for u in all_units
-        if u != treated_label and df.loc[df[unitid] == u, treat].sum() == 0
+        u for u, total in zip(all_units, treat_totals)
+        if u != treated_label and total == 0
     ]
     if len(donors) == 0:
         raise MlsynthDataError("SRC: donor pool is empty.")

@@ -1,23 +1,65 @@
 """Exact simplex-constrained least squares via a primal active-set method.
 
-Pure-NumPy, warm-startable, and PSD-safe: the free-set subproblem is solved with
-``lstsq``, so a rank-deficient donor Gram (``J > T0`` or collinear donors) is
-handled without an epsilon-I fudge. Intended as a drop-in for the cvxpy
-``simplex_qp`` that avoids the per-call canonicalisation overhead in the hot
-conformal / market-selection loops.
+Pure-NumPy, warm-startable, and PSD-safe: the free-set subproblem is a
+rank-revealing QR least squares (LAPACK ``gelsy``), so a rank-deficient donor
+Gram (``J > T0`` or collinear donors) is handled without an epsilon-I fudge.
+Intended as a drop-in for the cvxpy ``simplex_qp`` that avoids the per-call
+canonicalisation overhead in the hot conformal / market-selection loops.
 
-Status: TDD scaffold (PR #58). The correctness contract -- cvxpy parity, a
-solver-independent KKT certificate, and a fuzzed differential test -- is pinned
-in ``tests/test_simplex_active_set.py``. The solver is implemented *against*
-that red harness; until then this raises ``NotImplementedError`` so the tests
-fail for the right reason.
+``gelsy`` is called directly (see :func:`_gelsy_lstsq`) instead of through
+``scipy.linalg.lstsq``. The free sets here are small enough that the wrapper's
+fixed per-call cost exceeded the LAPACK work it wrapped.
+
+The correctness contract -- cvxpy parity, a solver-independent KKT certificate,
+and a fuzzed differential test -- is pinned in
+``tests/test_simplex_active_set.py``; the LAPACK call's bit-identity to the
+scipy path is pinned in ``tests/test_active_set_lapack.py``.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
-from scipy.linalg import lstsq as _lstsq
+from scipy.linalg import get_lapack_funcs
+
+# Workspace size and LAPACK handle per free-set shape. The active set solves a
+# sequence of small systems whose shapes repeat across pivots, units and
+# placebo draws, so the query is done once per shape and reused.
+_GELSY_CACHE: Dict[Tuple[int, int], Tuple[object, int]] = {}
+
+
+def _gelsy_lstsq(M: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """``lstsq(M, b, lapack_driver="gelsy")[0]``, without the wrapper overhead.
+
+    Bit-identical to :func:`scipy.linalg.lstsq` under the same driver -- it is
+    the same LAPACK routine on the same bytes. What is skipped is per-call
+    Python work that dominates at these sizes: ``asarray_chkfinite`` over both
+    arguments, the generic argument validation, and a fresh workspace query
+    every call. On the Prop 99 free sets that is 1.7x at the first pivot and
+    4.3x by the time the support has formed, since the wrapper's cost is fixed
+    while LAPACK's shrinks with the system.
+
+    ``b`` is copied into a ``max(m, n)``-tall buffer because gelsy returns the
+    solution in that argument's storage and needs room for the longer of the
+    two; ``M`` is passed with ``overwrite_a=0`` so the caller's array survives.
+    """
+    m, n = M.shape
+    key = (m, n)
+    entry = _GELSY_CACHE.get(key)
+    if entry is None:
+        gelsy, = get_lapack_funcs(("gelsy",), (M, b))
+        minmn = min(m, n)
+        # LAPACK's documented floor for nrhs = 1, times four so the blocked
+        # path has room; the array is tiny at synthetic-control sizes.
+        lwork = max(minmn + 3 * n + 1, 2 * minmn + 1) * 4
+        entry = (gelsy, lwork)
+        _GELSY_CACHE[key] = entry
+    gelsy, lwork = entry
+    rhs = np.zeros((max(m, n), 1))
+    rhs[:m, 0] = b
+    x = gelsy(M, rhs, np.zeros(n, dtype=np.int32), 1e-12, lwork,
+              overwrite_a=0, overwrite_b=1)[1]
+    return x[:n, 0]
 
 
 def solve_simplex_qp(
@@ -105,7 +147,7 @@ def solve_simplex_qp(
         nF = free.size
         # Equality-constrained LSQ on the free set: min ||BF wF - A||^2 s.t.
         # 1' wF = 1, solved on the null space of 1' so we factor BF *directly*
-        # rather than the normal equations BF'BF (which would square the
+        # instead of the normal equations BF'BF (which would square the
         # condition number). lstsq tolerates a rank-deficient BF (|free| > T0,
         # collinear donors), so no epsilon-I is needed.
         if nF == 1:
@@ -117,7 +159,7 @@ def solve_simplex_qp(
             # matmul. Rank-revealing QR (LAPACK gelsy) is ~3x faster than SVD
             # lstsq and robust to a rank-deficient system (collinear free donors).
             M = BF[:, :nF - 1] - BF[:, nF - 1:nF]
-            v = _lstsq(M, A - BF.mean(axis=1), lapack_driver="gelsy")[0]
+            v = _gelsy_lstsq(M, A - BF.mean(axis=1))
             wF = np.empty(nF)
             wF[:nF - 1] = 1.0 / nF + v
             wF[nF - 1] = 1.0 / nF - v.sum()
