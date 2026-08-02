@@ -6,7 +6,7 @@ period, then averaged on a common event clock under user-supplied weights.
 
 Three things about this estimator drive the tests below.
 
-The normalisation is not cosmetic. Rescaling unit ``j`` and every donor to
+Rescaling unit ``j`` and every donor to
 ``b_j`` and imposing ``sum(w) = 1`` is algebraically the same as fitting on
 levels under the constraint ``sum_j v_j b_j = b_1`` -- the synthetic control
 must reproduce the treated unit's base-period level exactly. That is why the
@@ -22,8 +22,7 @@ path is what detects it.
 Aggregation weights are part of the specification. Wiltshire uses 1990
 population "so each tau_e is not overly-affected by large percentage effects in
 small counties" (fn 28), and reports that equal weighting gives the same pattern
-with different magnitudes. An estimator that silently equal-weights is answering
-a different question.
+with different magnitudes, so the weighting fixes which question is answered.
 """
 from __future__ import annotations
 
@@ -174,6 +173,48 @@ class TestBiasCorrection:
 
 
 # ---------------------------------------------------------------------------
+class TestTheBackend:
+    """``auto`` resolves to the outcome path without predictors and to Stata
+    ``synth``'s regression rule with them; naming one overrides that."""
+
+    def test_auto_resolves_by_whether_predictors_were_given(self):
+        df = _staggered()
+        df["x1"] = df.groupby("unit").y.transform("mean")
+        assert _fit().method_details.parameters_used["backend"] == \
+            "outcome-only"
+        assert _fit(df=df, covariates=["x1"]).method_details.parameters_used[
+            "backend"] == "regression"
+
+    def test_naming_one_overrides_the_resolution(self):
+        df = _staggered()
+        df["x1"] = df.groupby("unit").y.transform("mean")
+        res = _fit(df=df, covariates=["x1"], backend="outcome-only")
+        assert res.method_details.parameters_used["backend"] == "outcome-only"
+
+    def test_the_searching_backends_weight_predictors_uniformly_here(self):
+        """``malo`` and ``mscmt`` search ``V`` at the estimator level; the
+        stacked design solves one program per cohort, so it uses equal
+        predictor weights and reports which rule ran."""
+        df = _staggered()
+        df["x1"] = df.groupby("unit").y.transform("mean")
+        df["x2"] = df.groupby("unit").y.transform("std")
+        res = _fit(df=df, covariates=["x1", "x2"], backend="malo")
+        assert res.method_details.parameters_used["backend"] == "malo"
+        assert np.isfinite(res.effects.att)
+
+
+# ---------------------------------------------------------------------------
+class TestPlotting:
+    def test_the_estimator_renders_when_asked(self, tmp_path):
+        import matplotlib
+        matplotlib.use("Agg")
+
+        out = tmp_path / "es.png"
+        _fit(display_graphs=True, save=str(out))
+        assert out.exists()
+
+
+# ---------------------------------------------------------------------------
 class TestEdgeCases:
     def test_a_single_treated_unit_works(self):
         res = _fit(df=_staggered(n_treated=1, cohorts=(7,)))
@@ -188,6 +229,45 @@ class TestEdgeCases:
     def test_every_cohort_is_represented(self):
         res = _fit(df=_staggered(n_treated=6, cohorts=(5, 7, 9)))
         assert {u.adoption_time for u in res.per_unit.values()} == {5, 7, 9}
+
+
+# ---------------------------------------------------------------------------
+class TestTheEventWindow:
+    """The default window is the one every cohort can supply; ``n_lags`` and
+    ``n_leads`` only tighten it further."""
+
+    def test_the_default_is_the_window_common_to_every_cohort(self):
+        res = _fit(df=_staggered(cohorts=(6, 8)))
+        e = np.asarray(res.event_study.horizons, int)
+        assert e.min() == -6 and e.max() == 3
+
+    def test_leads_and_lags_tighten_it(self):
+        res = _fit(n_lags=2, n_leads=2)
+        e = np.asarray(res.event_study.horizons, int)
+        np.testing.assert_array_equal(e, [-2, -1, 0, 1])
+
+    def test_they_cannot_widen_it(self):
+        res = _fit(n_lags=99, n_leads=99)
+        e = np.asarray(res.event_study.horizons, int)
+        assert e.min() == -6 and e.max() == 3
+
+    def test_normalization_can_be_turned_off_for_a_level_scale_fit(self):
+        """Without the indexing the gap at ``e = -1`` is a fitted residual
+        rather than an identity, so it is generally nonzero."""
+        res = _fit(normalize=False)
+        e = np.asarray(res.event_study.horizons, int)
+        tau = np.asarray(res.event_study.tau, float)
+        assert res.design.normalized is False
+        assert abs(float(tau[e == -1][0])) > 0.0
+
+    def test_a_covariate_window_restricts_the_averaging_period(self):
+        df = _staggered()
+        df["x1"] = df.y.astype(float)
+        early = _fit(df=df, covariates=["x1"],
+                     covariate_windows={"x1": (0, 2)})
+        late = _fit(df=df, covariates=["x1"],
+                    covariate_windows={"x1": (3, 5)})
+        assert early.effects.att != pytest.approx(late.effects.att, rel=1e-12)
 
 
 # ---------------------------------------------------------------------------
@@ -222,3 +302,92 @@ class TestFailuresAreReported:
 
         with pytest.raises((MlsynthConfigError, ValueError), match="covariat"):
             _fit(bias_correct=True)
+
+    def test_a_window_naming_an_unknown_covariate_is_an_error(self):
+        from mlsynth.exceptions import MlsynthConfigError
+
+        df = _staggered()
+        df["x1"] = df.groupby("unit").y.transform("mean")
+        with pytest.raises((MlsynthConfigError, ValueError), match="x9"):
+            _fit(df=df, covariates=["x1"], covariate_windows={"x9": (0, 4)})
+
+    def test_a_panel_with_no_treated_rows_is_an_error(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered()
+        df["treat"] = 0
+        with pytest.raises((MlsynthDataError, ValueError)):
+            _fit(df=df)
+
+    def test_a_missing_aggregation_weight_is_an_error(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered()
+        df.loc[df.unit == "x0", "w"] = np.nan
+        with pytest.raises((MlsynthDataError, ValueError), match="missing"):
+            _fit(df=df, agg_weights="w")
+
+    def test_a_negative_aggregation_weight_is_an_error(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered()
+        df.loc[df.unit == "x0", "w"] = -3.0
+        with pytest.raises((MlsynthDataError, ValueError), match="negative"):
+            _fit(df=df, agg_weights="w")
+
+    def test_aggregation_weights_that_sum_to_zero_are_an_error(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered()
+        df["w"] = 0.0
+        with pytest.raises((MlsynthDataError, ValueError), match="zero"):
+            _fit(df=df, agg_weights="w")
+
+    def test_a_covariate_with_an_empty_window_is_an_error(self):
+        """A predictor averaged over a window containing no observations has no
+        value to match on, so the window is rejected rather than filled in."""
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered()
+        df["x1"] = df.t.astype(float)
+        with pytest.raises((MlsynthDataError, ValueError), match="x1"):
+            _fit(df=df, covariates=["x1"],
+                 covariate_windows={"x1": (900, 999)})
+
+    def test_a_cohort_treated_from_the_first_period_has_no_base_year(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered(n_treated=2, cohorts=(0,))
+        with pytest.raises((MlsynthDataError, ValueError)):
+            _fit(df=df)
+
+    def test_a_zero_outcome_at_the_base_period_cannot_be_indexed(self):
+        """Indexing divides by the base-period level, so a zero there has no
+        percent scale to express the effect on."""
+        from mlsynth.exceptions import MlsynthDataError
+
+        df = _staggered()
+        df.loc[(df.unit == "x0") & (df.t == 5), "y"] = 0.0
+        with pytest.raises((MlsynthDataError, ValueError), match="base"):
+            _fit(df=df)
+
+    def test_no_common_post_period_is_an_error(self):
+        """Tested on the window helper directly. A cohort whose base period is
+        the last observed row supplies no post horizon at all, and the balanced
+        window is then empty. A well-formed treatment column cannot produce it
+        -- the adoption period is itself observed, so ``e = 0`` always exists
+        -- but the helper is the guard on that, so it is exercised here."""
+        from mlsynth.exceptions import MlsynthDataError
+        from mlsynth.utils.stackedsc_helpers.setup import Cohort, event_window
+
+        T = 6
+        c = Cohort(adopt=99, base_period=T - 1, units=["x0"], donors=["d0"],
+                   Y=np.zeros((T, 1)), D=np.zeros((T, 1)), t0_index=T - 1)
+        with pytest.raises(MlsynthDataError, match="post"):
+            event_window([c], None, None)
+
+    def test_a_predicate_that_empties_a_pool_is_an_error(self):
+        """A treated unit with no admissible donor has no synthetic control at
+        all, so the predicate names the unit it emptied."""
+        with pytest.raises(ValueError, match="x0"):
+            _fit(donor_predicate=lambda i, d: i != "x0")

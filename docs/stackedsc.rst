@@ -120,8 +120,8 @@ and the reported effect is a weighted average over treated units,
    \widehat{\tau}_e \coloneqq \sum_{j \in \mathcal{N}_1} \gamma_j \tau_{je},
    \qquad \gamma_j \ge 0, \quad \sum_{j} \gamma_j = 1 .
 
-Three properties of this construction deserve stating plainly, because each
-looks like an implementation detail and none is.
+Three properties of this construction each look like an implementation detail
+and change the estimand.
 
 The indexing changes the constraint, not just the units. Dividing unit
 :math:`j` and every donor by their own value at :math:`T_{0j}` while requiring
@@ -189,8 +189,101 @@ to that imbalance:
 with :math:`\boldsymbol{\beta}_e` the ridge-regression slope of the donor
 outcome on the donor predictors. The correction is identically zero when the
 predictors balance, and the ridge is what keeps a weakly explanatory predictor
-set from injecting noise in place of removing bias. This is not a refinement
-around the edges: in the motivating application it roughly doubles the estimate.
+set from injecting noise in place of removing bias. In the motivating
+application the correction roughly doubles the estimate.
+
+Inference
+---------
+
+Setting ``inference="placebo"`` runs the procedure Wiltshire uses. With one
+treated unit the in-space placebo test of Abadie, Diamond and Hainmueller (2010)
+has an obvious comparison set: reassign treatment to each donor in turn and see
+how unusual the real gap path looks among the fakes. With many treated units the
+estimate is already an average, so the comparison has to be against other
+averages.
+
+Fix a treated unit :math:`j` and a donor :math:`i \in \mathcal{N}_0`. Refit the
+synthetic control with :math:`i` cast as treated at :math:`j`'s adoption time
+:math:`g_j`, giving a placebo gap path :math:`\tau_e^{(j,i)}`. A placebo average
+draws one donor :math:`i_j` per treated unit and averages under the same weights
+the estimate uses,
+
+.. math::
+
+   \widehat{\tau}^{\,s}_e \coloneqq \sum_{j \in \mathcal{N}_1}
+   \gamma_j \, \tau_e^{(j,\,i_j^s)} .
+
+The number of distinct averages is :math:`\prod_j |\mathcal{N}_0|`, which for
+39 donors and 566 treated units is :math:`39^{566}`, so :math:`S` of them are
+sampled rather than enumerated (``n_placebo_samples``, default 1000).
+
+Two statistics come off that distribution. The first ranks a ratio rather than a
+level, so that an average which already fits badly before treatment is not
+credited for a large gap after it. With :math:`\underline{E}` the earliest
+reported horizon, write
+
+.. math::
+
+   R_s(E) \coloneqq
+   \frac{(E+1)^{-1} \sum_{e=0}^{E} (\widehat{\tau}^{\,s}_e)^2}
+        {|\underline{E}|^{-1} \sum_{e=\underline{E}}^{-1}
+         (\widehat{\tau}^{\,s}_e)^2} ,
+   \qquad
+   p_E \coloneqq \frac{1}{S+1} \sum_{s=1}^{S}
+   \mathbf{1}\bigl\{ R_s(E) \ge R_0(E) \bigr\} ,
+
+where :math:`s = 0` denotes the estimate itself. The second reads the spread of
+the sampled averages as a standard error, following Algorithm 4 of Arkhangelsky
+et al. (2021):
+
+.. math::
+
+   \widehat{V}_e \coloneqq \frac{1}{S} \sum_{s=1}^{S}
+   \bigl(\widehat{\tau}^{\,s}_e - \bar{\tau}_e\bigr)^2 ,
+   \qquad
+   \widehat{\tau}_e \pm z_{\alpha/2} \sqrt{\widehat{V}_e} .
+
+The ranking assumes nothing about the shape of the null distribution; the
+interval assumes homoskedasticity across units and asymptotic normality, which
+with many treated units follows from each average being a sum of independent
+draws. Both are reported because both are informative and they can disagree.
+
+Two mechanical caveats. Under the base-period indexing
+:math:`\widehat{\tau}_{-1} = 0` for every path including the placebos, so a
+reported pre-window of that single period leaves the ratio :math:`0/0`; the
+RMSPE p-values are then NaN and say so. And :math:`p_E` does not count the
+estimate in its own numerator, matching the reference implementation, so a
+p-value of exactly zero is attainable.
+
+One statistical caveat, which is why the two are reported side by side. A donor
+is usually easier to reconstruct from the other donors than a treated unit is
+from any of them, so the placebo averages tend to fit their pre-treatment window
+better than the estimate fits its own. Their denominators are smaller, their
+ratios :math:`R_s(E)` correspondingly larger, and :math:`p_E` is pushed up: the
+ranking can be indecisive on a panel where the interval is not. Hahn and Shi
+(2017) and Ferman and Pinto (2017) discuss size distortion in placebo tests more
+generally. Reading whichever of the two statistics is the more favourable
+defeats the purpose of computing both.
+
+``placebo_donor_pool`` chooses whether the treated unit itself joins each of its
+placebos' donor pools. The default ``"permutation"`` says yes, following the
+reference implementation, on the logic that under the permutation the treated
+unit is a control like any other. It has two consequences. The placebo path
+becomes a property of the pair :math:`(j, i)` rather than of the cohort, so the
+number of solves is the number of treated units times the pool size -- for the
+Walmart panel, :math:`566 \times 39` rather than :math:`6 \times 39`. And under
+the alternative, the treated unit's post-treatment path carries the very effect
+being tested, so any weight the placebo puts on it pulls that placebo's gap away
+from zero and widens the null distribution. This is the stacked-case power loss
+Zhang (2019, section 3.1) describes: as the number of treated units grows,
+genuinely treated units enter the null distribution more and more often, moving
+it away from the null it is meant to represent. ``"donors-only"`` drops the
+treated unit, which removes that channel and recovers the per-cohort saving, at
+the price of departing from the reference implementation.
+
+The whole procedure is opt-in for the same reason the reference makes it opt-in:
+its cost scales with treated units times donors, and ``allsynth`` warns that
+requesting it "will greatly extend the run-time".
 
 Example
 -------
@@ -218,6 +311,50 @@ Example
    res.design.cohorts                    # the distinct adoption times
    res.design.batched                    # one solve per cohort?
    res.per_unit["18003"].tau             # one county's own path
+
+Asking for the permutation distribution as well, on a smaller donor pool so the
+example runs quickly:
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import STACKEDSC
+
+   rng = np.random.default_rng(0)
+   F = rng.normal(size=(12, 2)).cumsum(axis=0)          # two common factors
+   rows = []
+   for k in range(10):                                  # never-treated donors
+       load, base = rng.normal(size=2), 100 + 20 * rng.random()
+       rows += [{"unit": f"d{k}", "t": t, "adopt": np.nan,
+                 "y": base + F[t] @ load + rng.normal() * 0.05}
+                for t in range(12)]
+   for k in range(5):                                   # treated, two cohorts
+       g = (6, 8)[k % 2]
+       load, base = rng.normal(size=2), 100 + 20 * rng.random()
+       rows += [{"unit": f"x{k}", "t": t, "adopt": float(g),
+                 "y": (base + F[t] @ load + rng.normal() * 0.05)
+                      * (0.9 if t >= g else 1.0)}
+                for t in range(12)]
+   df = pd.DataFrame(rows)
+   df["treat"] = ((~df.adopt.isna()) & (df.t >= df.adopt)).astype(int)
+
+   res = STACKEDSC({
+       "df": df, "outcome": "y", "treat": "treat",
+       "unitid": "unit", "time": "t",
+       "inference": "placebo", "n_placebo_samples": 200, "seed": 0,
+       "display_graphs": False,
+   }).fit()
+
+   print(res.effects.att, res.inference.p_value)     # ATT and its p-value
+   print(res.inference.ci)                           # (lower, upper) for the ATT
+   print(res.placebo.rmspe_p)                        # RMSPE-ranked p by horizon
+   print(res.placebo.se)                             # placebo spread by horizon
+   print(res.placebo.placebo_averages.shape)         # (200, n_horizons)
+
+On this panel the interval is decisive and the ranking is not, for the reason
+given above: the donors reconstruct one another almost exactly, so every placebo
+average has a near-perfect pre-treatment fit and a large :math:`R_s(E)`.
 
 Verification
 ------------
@@ -255,4 +392,7 @@ Core API
    :members:
 
 .. autoclass:: mlsynth.utils.stackedsc_helpers.structures.StackedUnitFit
+   :members:
+
+.. autoclass:: mlsynth.utils.stackedsc_helpers.structures.StackedPlacebo
    :members:

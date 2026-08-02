@@ -63,6 +63,57 @@ class StackedDesign(BaseModel):
             "each treated unit its own design matrix."))
 
 
+class StackedPlacebo(BaseModel):
+    """The permutation distribution and the two statistics read off it.
+
+    ``paths`` holds every placebo gap path, one block per treated unit with a
+    row per donor in that unit's pool; ``placebo_averages`` holds the ``S``
+    sampled averages built from them. Both are kept because the RMSPE ranking
+    and the variance interval are computed from the averages, while the
+    individual paths are what a reader plots behind the estimate.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+
+    horizons: np.ndarray = Field(
+        ..., description="Event time e, matching the event study.")
+    n_samples: int = Field(..., description="S, placebo averages sampled.")
+    n_fits: int = Field(
+        ..., description="Simplex programs solved to build the placebo paths.")
+    donor_pool: str = Field(
+        ..., description="Whether the treated unit joined each placebo's pool.")
+    placebo_averages: np.ndarray = Field(
+        ..., description="(S, n_horizons) sampled placebo average gaps.")
+    paths: Dict[str, np.ndarray] = Field(
+        ..., description=(
+            "Placebo gap paths per treated unit, (n_donors, n_horizons), "
+            "keyed by treated unit id as a string."))
+    se: np.ndarray = Field(
+        ..., description="Placebo standard deviation at each horizon.")
+    ci_lower: np.ndarray = Field(
+        ..., description="Lower placebo-variance interval by horizon.")
+    ci_upper: np.ndarray = Field(
+        ..., description="Upper placebo-variance interval by horizon.")
+    p_variance: np.ndarray = Field(
+        ..., description=(
+            "Two-sided normal p-value by horizon, NaN where the placebo "
+            "spread is degenerate (as at e = -1, where every gap is zero)."))
+    rmspe_actual: Dict[int, float] = Field(
+        ..., description=(
+            "Post-over-pre mean squared gap ratio for the estimate, keyed by "
+            "the last post horizon E it runs through."))
+    rmspe_p: Dict[int, float] = Field(
+        ..., description="RMSPE-ranked p-value at each E.")
+    att_se: float = Field(
+        ..., description="Placebo standard deviation of the post-period ATT.")
+    att_p_value: float = Field(
+        ..., description="Two-sided placebo-variance p-value for the ATT.")
+    att_ci_lower: float = Field(..., description="Lower interval for the ATT.")
+    att_ci_upper: float = Field(..., description="Upper interval for the ATT.")
+    confidence_level: float = Field(
+        ..., description="1 - alpha, the interval's nominal coverage.")
+
+
 class STACKEDSCResults(BaseEstimatorResults):
     """What :meth:`mlsynth.STACKEDSC.fit` returns.
 
@@ -83,3 +134,8 @@ class STACKEDSCResults(BaseEstimatorResults):
     design: Optional[StackedDesign] = Field(
         default=None, description="What the fit did, as opposed to what was "
                                   "requested.")
+    placebo: Optional[StackedPlacebo] = Field(
+        default=None, description=(
+            "The sampled-placebo-average permutation distribution and its two "
+            "statistics. None unless `inference='placebo'` was requested; the "
+            "same object is also reachable as `inference.details`."))

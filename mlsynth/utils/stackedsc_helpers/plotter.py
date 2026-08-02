@@ -1,9 +1,8 @@
 """Plotting helper for STACKEDSC: the stacked event study.
 
-The per-unit paths are drawn behind the aggregate rather than omitted. With a
-donor pool small relative to the pre-window the individual weight vectors are
-not identified even where their weighted mean is, so the spread is a property
-of the design worth seeing, not clutter to hide.
+With a donor pool small relative to the pre-window the individual weight
+vectors are not identified even where their weighted mean is. The per-unit
+paths are drawn behind the aggregate so that the resulting spread is visible.
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ def plot_stackedsc(
     save: Union[bool, str, dict] = False,
     show_units: bool = True,
     max_units: int = 200,
+    max_placebos: int = 200,
 ) -> None:
     """Render the weighted event-time effect path.
 
@@ -39,6 +39,10 @@ def plot_stackedsc(
         Cap on how many per-unit paths are drawn, so a panel with hundreds of
         treated units stays legible. The cap is stated in the legend rather
         than applied silently.
+    max_placebos : int
+        Cap on how many sampled placebo averages are drawn when
+        ``results.placebo`` is populated. The placebo-variance interval is
+        drawn from all ``S`` of them regardless of this cap.
     """
     import matplotlib.pyplot as plt
 
@@ -46,11 +50,25 @@ def plot_stackedsc(
     e = np.asarray(es.horizons, float)
     tau = np.asarray(es.tau, float)
     units = list(results.per_unit.values())
+    pb = results.placebo
     unit_label = ("percent of base level" if results.design.normalized
                   else "outcome units")
 
     with mlsynth_style():
         fig, ax = plt.subplots(figsize=(7.5, 5))
+        if pb is not None:
+            P = np.asarray(pb.placebo_averages, float)[:max_placebos]
+            for k, row in enumerate(P):
+                ax.plot(e, row, color="#c8b6a6", linewidth=0.5, alpha=0.30,
+                        zorder=0,
+                        label=(f"sampled placebo averages "
+                               f"({len(P)} of {pb.n_samples} shown)"
+                               if k == 0 else None))
+            ax.fill_between(e, np.asarray(pb.ci_lower, float),
+                            np.asarray(pb.ci_upper, float),
+                            color="#1428A0", alpha=0.13, zorder=2,
+                            label=(f"{100 * pb.confidence_level:.0f}% "
+                                   f"placebo-variance interval"))
         if show_units and units:
             drawn = units[:max_units]
             for k, u in enumerate(drawn):
@@ -61,9 +79,10 @@ def plot_stackedsc(
                         label=(f"per treated unit "
                                f"({len(drawn)} of {len(units)} shown)"
                                if k == 0 else None))
+        headline = f"weighted mean (ATT {results.effects.att:.3f}"
+        headline += (f", p = {pb.att_p_value:.3f})" if pb is not None else ")")
         ax.plot(e, tau, marker="o", color="#1428A0", linewidth=2.0, zorder=3,
-                label=(f"weighted mean (ATT "
-                       f"{results.effects.att:.3f})"))
+                label=headline)
         ax.axhline(0.0, color="black", linewidth=0.8, linestyle="--")
         # The intervention lands between e = -1 and e = 0, so the rule goes
         # between them rather than on a period that is itself observed.

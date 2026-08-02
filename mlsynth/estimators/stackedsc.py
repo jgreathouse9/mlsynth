@@ -8,8 +8,8 @@ pool, each fitted on series indexed to 100 at that unit's own final
 pre-treatment period, then averaged on a shared event clock under weights the
 caller supplies.
 
-Why the indexing is not cosmetic
---------------------------------
+What the indexing does
+----------------------
 
 Rescaling the treated unit and every donor to their own base-period value and
 requiring the weights to sum to one is algebraically the same as fitting on
@@ -26,6 +26,16 @@ The base period belongs to the adoption time, so units adopting together share
 one normalised donor block. On the paper's panel that is six blocks for 566
 treated counties, which is what makes each cohort a single
 multiple-right-hand-side program instead of hundreds of separate solves.
+
+Inference
+---------
+
+``inference="placebo"`` runs the paper's sampled-placebo-average procedure:
+recast every donor as treated at each treated unit's adoption time, then sample
+averages of the resulting placebo paths to form a permutation distribution.
+Both statistics the reference implementation reports come off it -- an
+RMSPE-ranked p-value at each horizon and a placebo-variance interval. It is
+opt-in because its cost is the number of treated units times the pool size.
 
 When to reach for it
 --------------------
@@ -62,6 +72,9 @@ class STACKEDSC:
     STACKEDSCResults
         Event-time ATT under the supplied aggregation weights, the per-treated
         unit fits it averages, and a design block recording what the fit did.
+        With ``inference="placebo"`` the ``placebo`` field carries the
+        permutation distribution and its statistics, and the standard
+        ``inference`` block carries the headline ones for the ATT.
     """
 
     def __init__(self, config: Union[STACKEDSCConfig, Dict[str, Any]]) -> None:

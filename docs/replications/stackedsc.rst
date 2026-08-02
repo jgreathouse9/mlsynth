@@ -103,8 +103,8 @@ So this replication claims the shape and the sign, and does not claim the
 magnitudes. Closing the gap requires running ``allsynth`` once and capturing the
 per-county weights for a single cohort -- a measurement, not an argument.
 
-One finding worth keeping
--------------------------
+Two findings from the port
+--------------------------
 
 An early version of this port regressed on raw rather than normalised
 predictors, inverting the order in which the reference implementation applies
@@ -124,6 +124,16 @@ per-county weight vectors are not identified, and two solvers that both reach
 the optimum can differ by several percentage points on an individual county
 while agreeing on the average to within 0.03. Read the aggregate; do not read a
 single county's weights as that county's synthetic control.
+
+Inference
+---------
+
+The estimator implements the paper's sampled-placebo-average procedure
+(``inference="placebo"``), described on :doc:`../stackedsc`. It is not part of
+what this page claims: the p-values the paper reports rest on the same
+predictor-weight rule the point estimates do, so a replication of them is
+blocked behind the same missing measurement. Running it on the paper's panel
+costs 566 x 39 simplex solves under the default donor pool.
 
 Reproducing it
 --------------

@@ -18,12 +18,14 @@ from ...config_models import (
     BaseEstimatorResults,
     EffectsResults,
     FitDiagnosticsResults,
+    InferenceResults,
     MethodDetailsResults,
     TimeSeriesResults,
     WeightsResults,
 )
 from ..bilevel import (bias_corrected_gaps, regression_v, simplex_lstsq,
                        simplex_lstsq_batch)
+from .inference import placebo_inference
 from .plotter import plot_stackedsc
 from .setup import aggregation_weights, build_cohorts, event_window
 from .structures import (STACKEDSCResults, StackedDesign,
@@ -57,25 +59,35 @@ def _design(cohort, backend: str):
     return cohort.X0 * root, cohort.X1 * root, V
 
 
-def _weights_for_cohort(cohort, backend, predicate):
-    """(n_donors, n_units) weights. Batched unless a predicate binds."""
-    A, B, V = _design(cohort, backend)
+def _allowed_donors(cohort, predicate):
+    """Donor column indices available to each treated unit, and whether the
+    predicate actually removes any."""
+    full = list(range(len(cohort.donors)))
     if predicate is None:
-        return simplex_lstsq_batch(A, B), V, True
-
-    cols = []
-    binds = False
-    for j, unit in enumerate(cohort.units):
+        return [full] * len(cohort.units), False
+    allowed, binds = [], False
+    for unit in cohort.units:
         keep = [k for k, d in enumerate(cohort.donors) if predicate(unit, d)]
         if not keep:
             raise ValueError(
                 f"donor_predicate excludes every donor for treated unit "
                 f"{unit!r}.")
-        binds |= len(keep) < len(cohort.donors)
+        binds |= len(keep) < len(full)
+        allowed.append(keep)
+    return allowed, binds
+
+
+def _weights_for_cohort(cohort, A, B, allowed, binds):
+    """(n_donors, n_units) weights. Batched unless the predicate binds."""
+    if not binds:
+        return simplex_lstsq_batch(A, B), True
+
+    cols = []
+    for j, keep in enumerate(allowed):
         w = np.zeros(len(cohort.donors))
         w[keep] = simplex_lstsq(A[:, keep], B[:, j])
         cols.append(w)
-    return np.column_stack(cols), V, not binds
+    return np.column_stack(cols), False
 
 
 def run_stackedsc(config) -> BaseEstimatorResults:
@@ -97,9 +109,13 @@ def run_stackedsc(config) -> BaseEstimatorResults:
 
     per_unit: Dict[str, StackedUnitFit] = {}
     batched = True
+    designs, pools = [], []
     for cohort in cohorts:
-        W, _V, was_batched = _weights_for_cohort(cohort, backend,
-                                                 config.donor_predicate)
+        A, B, _V = _design(cohort, backend)
+        allowed, binds = _allowed_donors(cohort, config.donor_predicate)
+        designs.append((A, B))
+        pools.append(allowed)
+        W, was_batched = _weights_for_cohort(cohort, A, B, allowed, binds)
         batched &= was_batched
         gap = cohort.Y - cohort.D @ W                      # (T, n_units)
         if config.bias_correct:
@@ -144,6 +160,20 @@ def run_stackedsc(config) -> BaseEstimatorResults:
         for d, v in f.donor_weights.items():
             pooled[d] = pooled.get(d, 0.0) + f.agg_weight * v
 
+    placebo = None
+    inference = InferenceResults()
+    if config.inference == "placebo":
+        placebo = placebo_inference(cohorts, designs, pools, grid, tau,
+                                    gamma_of, config)
+        inference = InferenceResults(
+            p_value=placebo.att_p_value,
+            ci_lower=placebo.att_ci_lower, ci_upper=placebo.att_ci_upper,
+            standard_error=placebo.att_se,
+            confidence_level=placebo.confidence_level,
+            method="placebo (sampled placebo averages)",
+            details=placebo,
+        )
+
     results = STACKEDSCResults(
         effects=EffectsResults(att=att, additional_effects={
             "event_study": {int(e): float(t) for e, t in zip(grid, tau)}}),
@@ -169,9 +199,15 @@ def run_stackedsc(config) -> BaseEstimatorResults:
                 "covariates": config.covariates,
                 "batched": batched,
                 "cohorts": [c.adopt for c in cohorts],
+                "inference": config.inference,
+                "placebo_donor_pool": config.placebo_donor_pool,
+                "n_placebo_samples": (int(config.n_placebo_samples)
+                                      if config.inference == "placebo"
+                                      else None),
             }),
+        inference=inference,
         additional_outputs={"donor_names": donors},
-        per_unit=per_unit, event_study=event, design=design,
+        per_unit=per_unit, event_study=event, design=design, placebo=placebo,
     )
     if config.display_graphs or config.save:
         plot_stackedsc(results, save=config.save)

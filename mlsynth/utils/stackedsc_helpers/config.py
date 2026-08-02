@@ -34,8 +34,8 @@ class STACKEDSCConfig(BaseEstimatorConfig):
             "Column holding the per-treated-unit aggregation weight gamma_i, "
             "constant within a unit. None gives equal weights. Wiltshire uses "
             "1990 population; the pattern of results holds under equal "
-            "weighting with different magnitudes, so this changes the "
-            "estimand and is worth stating rather than defaulting silently."),
+            "weighting with different magnitudes. The choice changes the "
+            "estimand."),
     )
     normalize: bool = Field(
         default=True,
@@ -43,11 +43,11 @@ class STACKEDSCConfig(BaseEstimatorConfig):
             "Index the outcome for each treated unit and its donors to 100 at "
             "that unit's final pre-treatment period, so effects read as "
             "percent changes and are comparable across units of very "
-            "different size. This is not a display choice: with weights "
-            "summing to one it constrains the synthetic control to reproduce "
-            "the treated unit's base-period level exactly, which is why the "
-            "gap at e = -1 is identically zero. Turning it off gives a "
-            "level-scale stacked SCM, which is a different estimator."),
+            "different size. With weights summing to one the indexing "
+            "constrains the synthetic control to reproduce the treated unit's "
+            "base-period level exactly, which is why the gap at e = -1 is "
+            "identically zero. Turning it off gives a level-scale stacked "
+            "SCM, a different estimator."),
     )
     n_leads: Optional[int] = Field(
         default=None, gt=0,
@@ -110,6 +110,51 @@ class STACKEDSCConfig(BaseEstimatorConfig):
             "binds forces a per-unit design matrix and forfeits the "
             "per-cohort batching."),
     )
+
+    inference: Literal["none", "placebo"] = Field(
+        default="none",
+        description=(
+            "'placebo' runs Wiltshire's sampled-placebo-average procedure: "
+            "recast every donor as treated at each treated unit's adoption "
+            "time, then sample averages of those placebo paths to form a "
+            "permutation distribution. The cost is the number of treated "
+            "units times the pool size, so it is opt-in -- the reference "
+            "implementation likewise requires `pvalues()` and warns that "
+            "specifying it 'will greatly extend the run-time'."),
+    )
+    n_placebo_samples: int = Field(
+        default=1000, ge=30,
+        description=(
+            "Number S of placebo averages sampled from the product of the "
+            "donor pools. The reference implementation requires at least 30 "
+            "and uses 1000 whenever the placebo-variance statistics are "
+            "requested, which is the default here."),
+    )
+    placebo_donor_pool: Literal["permutation", "donors-only"] = Field(
+        default="permutation",
+        description=(
+            "Whether the treated unit joins each of its placebos' donor "
+            "pools. 'permutation' does, following the reference "
+            "implementation ('i and the remaining untreated units "
+            "collectively constituting the donor pool for each j'), and makes "
+            "the placebo path a property of the (treated unit, donor) pair. It "
+            "also lets a placebo put weight on a genuinely treated unit, whose "
+            "post-treatment path carries the effect being tested -- the "
+            "stacked-case power loss of Zhang (2019, section 3.1). "
+            "'donors-only' drops it, which removes that channel, makes the "
+            "path a property of the cohort, and cuts the solve count by the "
+            "number of treated units per cohort, at the price of departing "
+            "from the reference."),
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description=(
+            "Level of the placebo-variance interval; ignored unless "
+            "`inference='placebo'`. The reference reports 95 percent."),
+    )
+    seed: int = Field(
+        default=0,
+        description="Seed for drawing the placebo averages.")
 
     model_config = {"arbitrary_types_allowed": True, "extra": "forbid"}
 
