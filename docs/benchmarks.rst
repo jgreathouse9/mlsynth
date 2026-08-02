@@ -195,6 +195,8 @@ Path B — Monte Carlo / simulation
      - ORTHSC carbon-tax ATT/p/K/CI (Fry; Andersson 2019 data, vs live R)
    * - ``vanillasc_carbontax``
      - VanillaSC malo + mscmt reproduce Andersson (2019) carbon-tax ATT/2005-gap (paper predictor spec)
+   * - ``wiltshire_walmart``
+     - STACKEDSC on Wiltshire (2023) Section 4.2: 566 Walmart counties in six cohorts against 39 never-treated donors. Geometry rather than cells -- the paper's prose claims (excellent pre-fit, no effect at entry, decline from the following year, large negative at five years), the base-period indexing identity at 6e-16, and the per-cohort batching. Its Table 4 magnitudes are not claimed, and :doc:`replications/stackedsc` says why
    * - ``eiv_coverage_mc``
      - Hirshberg (2021) error-in-variables SC prediction-interval coverage on a low-rank DGP
    * - ``orthsc_size_power``
