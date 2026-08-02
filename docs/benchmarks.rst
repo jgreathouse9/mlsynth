@@ -57,6 +57,8 @@ Path A — empirical replications
      - CWZ 2025 Table 5 carbon-tax debiased t-test
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
+   * - ``fsc_okano``
+     - Okano-Kurisu (2026) functional SC, all three applications from the authors' data: pre-treatment fits for the plain and ridge-augmented estimator in each (fertility curves 0.1259/0.0687, age-at-death distributions 0.2092/0.0634, trade covariance matrices 39.3429/20.0639) plus every weight of Tables 1-3. Pre-build validation -- mlsynth has no FSC estimator yet, so the case pins a reference port
    * - ``song_ml_ascm``
      - Song et al. (2023) clean winter heating in China, the ridge-ASCM half of their ML-ASCM: 30 stratified cells of their 1024-fit design, carried against two reference bases -- a live augsynth 0.2.0 run (tight) and the authors' published ``main_result.csv`` (loose, with the drift between the two pinned as its own row)
    * - ``dscar_beijing``

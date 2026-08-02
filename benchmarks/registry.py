@@ -162,6 +162,7 @@ CASES = {
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)
     "compsc_pennsylvania": "benchmarks.cases.compsc_pennsylvania",  # Path A: Boussim 2026 Pennsylvania AEPS -- Table 1 weights, all of Table 2, and the sec 6.4 placebo (p=0.111) reproduced from public EIA generation data
+    "fsc_okano": "benchmarks.cases.fsc_okano",  # Path A (pre-build): Okano-Kurisu 2026 functional SC -- all three applications, both fits each, and Tables 1-3 reproduced from the authors' data
     "vanillasc_xval_references": "benchmarks.cases.vanillasc_xval_references",  # cross-val vs Synth (uniform V) + tidysynth (ADH spec): placebo rank/p-value agreement, plus recorded solver-quality gaps
 }
 
