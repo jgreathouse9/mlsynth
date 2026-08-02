@@ -14,6 +14,16 @@ Coverage: **79 cross-validation checks** against original
 implementations, covering **39 of 71 estimators** -- 29 reproduce the reference to display precision, 31 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
+What the denominator counts: exported estimator classes. That is
+auditable, and it is not the same as a count of methods. Several classes
+nest a family -- CLUSTERSC covers Robust SC, principal-component
+regression, a Bayesian variant and a convex one -- so one covered row can
+stand for several validated methods. A method can also be reachable from
+more than one class: TSSC fits the baseline VanillaSC synthetic control as
+one of its variants, so an uncovered class need not be an unvalidated
+method. Take the ratio as a bound on class-level coverage and the
+per-estimator sections below for what is actually checked.
+
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
 **documented** (looser, with a stated reason on the estimator's replication
