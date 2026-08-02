@@ -25,6 +25,7 @@ from __future__ import annotations
 import numpy as np
 
 from .mscmt import solve_mscmt
+from .regression_v import solve_regression
 from .penalized import solve_penalized
 from .simplex import mspe
 from .stages import (
@@ -55,10 +56,12 @@ def solve_bilevel(
     ----------
     prob : BilevelProblem
         Outcome and predictor matrices.
-    method : {"malo", "mscmt", "penalized"}
+    method : {"malo", "mscmt", "regression", "penalized"}
         Which backend to use. ``"malo"`` (default) runs the staged corner
         search; ``"mscmt"`` runs the global differential-evolution outer
-        search; ``"penalized"`` runs the Abadie-L'Hour penalized estimator
+        search; ``"regression"`` uses Stata ``synth``'s default closed-form
+        regression rule (no outer search); ``"penalized"`` runs the
+        Abadie-L'Hour penalized estimator
         with leave-one-out ``lambda`` selection. The default preserves the
         historical behaviour of every existing caller.
     **kwargs
@@ -74,6 +77,8 @@ def solve_bilevel(
     BilevelSolution
     """
     method = str(method).lower()
+    if method == "regression":
+        return solve_regression(prob, **kwargs)
     if method == "mscmt":
         return solve_mscmt(prob, **kwargs)
     if method == "penalized":
@@ -81,7 +86,8 @@ def solve_bilevel(
     if method == "malo":
         return _solve_malo(prob, **kwargs)
     raise ValueError(
-        f"Unknown bilevel method {method!r}; expected 'malo', 'mscmt' or 'penalized'."
+        f"Unknown bilevel method {method!r}; expected 'malo', 'mscmt', "
+        f"'regression' or 'penalized'."
     )
 
 

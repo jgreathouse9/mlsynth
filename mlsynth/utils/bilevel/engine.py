@@ -30,13 +30,16 @@ from .determine_v import canonical_v_diagnostics
 from .solver import solve_bilevel
 from .ridge_augment import simplex_qp
 
-_BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "penalized")
+_BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "regression",
+             "penalized")
 # Keyword arguments each bilevel backend accepts (others are filtered out so a
 # single ``solver_kwargs`` blob can be passed regardless of backend).
 _SOLVER_KWARGS = {
     "mscmt": {"lb", "maxiter", "popsize", "tol", "seed", "polish", "feas_tol",
               "prune_shady"},
     "malo": {"feas_tol", "eps_corner", "refine", "refine_gap_tol"},
+    "regression": {"normalize", "include_treated", "pooled", "fit_intercept",
+                   "max_iter", "tol"},
     "penalized": {"lam", "cv", "lam_grid", "max_iter", "tol"},
 }
 _EPS = 1e-10
@@ -225,7 +228,7 @@ class BilevelSCM:
             # backend's predictor-weight search is neither needed nor used; keep
             # the base cheap. Covariates still flow to the ridge layer below.
             backend = "outcome-only"
-        if backend in ("malo", "mscmt") and not has_cov:
+        if backend in ("malo", "mscmt", "regression") and not has_cov:
             raise ValueError(
                 f"backend {backend!r} needs covariates (X1/X0); for outcome-only "
                 "matching use backend='outcome-only' or 'penalized'."

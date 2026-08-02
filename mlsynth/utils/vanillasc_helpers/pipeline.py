@@ -212,6 +212,30 @@ def _covariate_balance(
     }
 
 
+def _v_concentration(V) -> Tuple[Optional[int], Optional[float]]:
+    """How concentrated are the predictor weights, and is ``V`` pinned down?
+
+    ``V`` is generically non-identified -- several predictor-weight vectors can
+    attain the same upper-level loss -- and backends differ in which member of
+    that set they return: a corner search lands on a sparse one, a global search
+    on a dense one, a closed-form rule on whatever the data imply. The returned
+    weights alone do not make that visible, so two numbers are reported.
+
+    ``n_weighted`` counts the predictors above a fixed tolerance, which is easy
+    to read but depends on the tolerance. ``effective`` is the participation
+    ratio :math:`1 / \sum_h v_h^2`: no tolerance, equal to ``K`` for uniform
+    weights and ``1`` for a corner, moving continuously in between. Prefer it.
+    """
+    if V is None:
+        return None, None
+    v = np.asarray(V, dtype=float).ravel()
+    if v.size == 0:
+        return None, None
+    ss = float(np.sum(v ** 2))
+    effective = float(1.0 / ss) if ss > 1e-12 else None
+    return int(np.sum(v > 1e-6)), effective
+
+
 def _rmspe_ratio(y: np.ndarray, cf: np.ndarray, pre: int) -> Tuple[float, float, float]:
     """(pre_rmspe, post_rmspe, ratio) for an outcome/counterfactual pair."""
     gap = y - cf
@@ -702,6 +726,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 {n: float(v) for n, v in zip(res.predictor_names, res.V)}
                 if res.V is not None else None
             ),
+            "n_predictors_weighted": _v_concentration(res.V)[0],
+            "v_effective_count": _v_concentration(res.V)[1],
             "v_agreement": res.v_agreement,
         },
     )
@@ -723,6 +749,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "covariates": covariates,
                 "canonical_v": config.canonical_v,
                 "v_agreement": res.v_agreement,
+                # How concentrated the returned V is (participation ratio).
+                # Near 1 means the fit rests on a single predictor, which under
+                # V's non-identification is a property of the backend's search
+                # as much as of the data -- see _v_concentration.
+                "v_effective_count": _v_concentration(res.V)[1],
                 "penalized_lambda": (
                     float(res.diagnostics["lambda"])
                     if res.backend == "penalized"

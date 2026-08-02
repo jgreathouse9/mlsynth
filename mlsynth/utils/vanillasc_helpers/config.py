@@ -92,7 +92,7 @@ class VanillaSCConfig(BaseEstimatorConfig):
 
     Parameters
     ----------
-    backend : {"auto", "outcome-only", "malo", "mscmt", "penalized"}
+    backend : {"auto", "outcome-only", "malo", "mscmt", "regression", "penalized"}
         Predictor-weight backend. ``"auto"`` (default) uses ``"outcome-only"``
         (convex simplex fit on pre-treatment outcomes) when no covariates are
         given, and ``"mscmt"`` (global differential-evolution ``V`` search)
@@ -145,7 +145,8 @@ class VanillaSCConfig(BaseEstimatorConfig):
         slow backends.
     """
 
-    backend: Literal["auto", "outcome-only", "malo", "mscmt", "penalized"] = Field(
+    backend: Literal["auto", "outcome-only", "malo", "mscmt", "regression",
+                     "penalized"] = Field(
         default="auto",
         description="Predictor-weight backend (see class docstring).",
     )
