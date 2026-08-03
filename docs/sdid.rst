@@ -558,10 +558,19 @@ The reduction is not always available, and
 where the design has full column rank. SDID's designs are overdetermined --
 pre-periods by donors for the unit weights, donors by pre-periods for the time
 weights -- so they qualify, and the batched and one-at-a-time solvers return the
-same weights and not merely the same fit. On a rank-deficient design they would
-not: the optimum is then a face, every point of it is optimal, and the two
-solvers land in different places. Each draw is checked, and one that fails falls
-back to the one-at-a-time solve.
+same weights and not merely the same fit. Each draw is checked, and one that
+fails falls back to the one-at-a-time solve.
+
+What that test is standing in for is whether the minimiser is a point or a face.
+Where it is a face, every point of it is optimal and two exact solvers may
+return different weights -- the same fit, a different donor table. Full column
+rank rules that out, which is why the test is written on the shape; but it is
+sufficient and not necessary, and the gap matters for panels with more donors
+than pre-treatment periods. There the minimiser is usually still unique, because
+the objective is flat along a direction only where that direction is feasible at
+the solution, and synthetic-control solutions are too sparse for one to be.
+:func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles it
+exactly, on the support, once a solution is in hand.
 
 Two-DataFrame and Single-Cohort Convergence
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

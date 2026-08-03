@@ -5,16 +5,24 @@ its own pre-treatment target. A donor predicate that binds is the exception: it
 gives each unit its own design matrix, which the result reports as
 ``shared_donor_pool = False``.
 
-The weights come from the primal active-set solver
-(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), the same one MEDSC,
-SCD and COMPSC use. That choice is load-bearing on this design rather than a
-matter of taste. A cohort has 5 to 10 pre-treatment periods against 39 donors,
-so the Gram is rank deficient by 30 or more; measured on the Wiltshire panel a
-first-order method never converged on it, with 20 of 39 leave-one-out columns
-still improving at iteration 20,000 at every tolerance from 1e-11 down to 1e-6.
-The active-set method solves the same program exactly in a bounded number of
-pivots, and on that panel is 2.8x faster on the point estimate and roughly 130x
-on the placebo layer.
+The weights come from an active-set solver, the same family MEDSC, SCD and
+COMPSC use. That choice decides whether this estimator works at all. A cohort
+has 5 to 10 pre-treatment periods against 39 donors, so the Gram is rank
+deficient by 30 or more; measured on the Wiltshire panel a first-order method
+never converged on it, with 20 of 39 leave-one-out columns still improving at
+iteration 20,000 at every tolerance from 1e-11 down to 1e-6. The active-set
+method solves the same program exactly in a bounded number of pivots, and on
+that panel is 2.8x faster on the point estimate and roughly 130x on the placebo
+layer.
+
+Because the units in a pool share their design, the cohort's programs are one
+family: they differ only in the target, so their Gram matrices differ by
+rank-one pieces of a single cross product. The batched active set
+(:func:`mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design`) solves them
+together, verifies each, and re-solves the ambiguous ones with the
+single-problem active set
+(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`) so the weights are
+the same points the loop returned.
 
 Exactness pins the objective, not the answer. With fewer rows than donors the
 optimum is a face, and two exact solvers land in different places on it -- on
@@ -40,7 +48,7 @@ from ...config_models import (
     WeightsResults,
 )
 from ..bilevel import bias_corrected_gaps, regression_v
-from ..bilevel.active_set import solve_simplex_qp
+from ..bilevel.minnorm import solve_simplex_shared_design
 from .inference import placebo_inference
 from .plotter import plot_stackedsc
 from .setup import aggregation_weights, build_cohorts, event_window
@@ -94,21 +102,33 @@ def _allowed_donors(cohort, predicate):
 
 
 def _weights_for_cohort(cohort, A, B, allowed):
-    """(n_donors, n_units) weights, one exact solve per treated unit.
+    """(n_donors, n_units) weights for a cohort's treated units.
 
-    The design ``A`` is shared across a cohort unless a predicate binds, but
-    the active-set solver takes one target at a time, so this is a loop either
-    way. It is still the faster path: each solve terminates on a KKT
-    certificate after a handful of pivots rather than running an iteration
-    budget to exhaustion.
+    The units sharing a donor pool share a design and differ only in their own
+    target, which is one batch: their Grams are ``A'A`` shifted by rank-one
+    pieces of ``A'B``, so the whole group costs one Gram and one cross product
+    and the active set runs it in lockstep
+    (:func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design`). With no
+    predicate that is the entire cohort in one solve; with one that binds it is
+    one solve per distinct pool, down to a batch of one per unit in the worst
+    case.
+
+    The batch verifies each member and re-solves the ambiguous ones with the
+    one-at-a-time active set, so the weights are the same points the loop
+    returned. That is the operative constraint here: with fewer pre-periods than
+    donors the optimum is usually a face, and STACKEDSC reports these weights
+    per unit and builds each counterfactual from them.
     """
-    cols = []
+    groups: Dict[tuple, List[int]] = {}
     for j, keep in enumerate(allowed):
-        w = np.zeros(len(cohort.donors))
-        w[keep] = np.asarray(solve_simplex_qp(A[:, keep], B[:, j]),
-                             dtype=float).ravel()
-        cols.append(w)
-    return np.column_stack(cols)
+        groups.setdefault(tuple(keep), []).append(j)
+
+    W = np.zeros((len(cohort.donors), len(allowed)))
+    for keep, units in groups.items():
+        cols = list(keep)
+        W[np.ix_(cols, units)] = solve_simplex_shared_design(
+            A[:, cols], B[:, units]).T
+    return W
 
 
 def run_stackedsc(config) -> BaseEstimatorResults:

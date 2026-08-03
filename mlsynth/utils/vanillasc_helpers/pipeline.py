@@ -670,7 +670,30 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # In-space placebo inference (Abadie): reassign treatment to each donor.
     if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []
-        for j in range(J):
+        # The outcome-only refits are one leave-one-out family over the donor
+        # matrix, so they are solved together. Restricted to the case where a
+        # refit is exactly that one simplex QP: no covariates to weight, no
+        # augmentation layer over the base, and a backend that reduces to it.
+        # ``solve_simplex_loo_exact`` certifies each member and re-solves the
+        # rest with ``simplex_qp``, the same solver the engine calls below, so
+        # the ranks this p-value is built from are unchanged.
+        loo_W = None
+        if (engine is not None and not covariates and engine.augment != "ridge"
+                and str(config.backend) in ("auto", "outcome-only")):
+            from ..bilevel.minnorm import solve_simplex_loo_exact
+            from ..bilevel.ridge_augment import simplex_qp
+            try:
+                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)
+            except Exception:  # pragma: no cover - fall back to the loop
+                loo_W = None
+        if loo_W is not None:
+            for j in range(J):
+                others = [k for k in range(J) if k != j]
+                cfj = Y0[:, others] @ loo_W[j, others]
+                _, _, ratio_j = _rmspe_ratio(Y0[:, j], cfj, pre)
+                if np.isfinite(ratio_j):
+                    ratios.append(ratio_j)
+        for j in ([] if loo_W is not None else range(J)):
             others = [k for k in range(J) if k != j]
             yj = Y0[:, j]
             Y0j = Y0[:, others]

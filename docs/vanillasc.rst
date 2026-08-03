@@ -477,6 +477,22 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     truncated pre-treatment windows to see whether the effect is robust to how
     far back the fit reaches.
 
+    Without covariates the :math:`N_0` refits are solved together. Each one fits
+    a column of the donor matrix from the remaining columns, so the family is
+    carried by a single :math:`\mathbf{Y}_0^\top \mathbf{Y}_0`: deleting a donor
+    deletes a row and a column of it, and each target is itself a column, so no
+    product with the data is needed per refit. On a 38-donor, 19-period panel the
+    call runs in 0.025s against 0.205s, and on a 119-donor pool in 0.137s against
+    5.6s.
+
+    The p-value is a rank, so the refits have to come back where they were and
+    not merely optimal. Two exact solvers can differ on a refit whose minimiser
+    is a face -- the same fit, other weights -- so each is checked with
+    :func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` and any that
+    is not settled is re-solved with the solver the loop used. Refits that are
+    not a plain simplex fit keep the loop: covariate matching, and the ridge
+    layer of Augmented SCM.
+
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
     by inversion. For a sharp null :math:`H_0:\ \tau_t = \tau_0` the post-period

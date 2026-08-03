@@ -74,10 +74,90 @@ now returns and the back-compat guarantee.
   `mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides this from the
   design before anything is solved, and a rank-deficient one keeps the
   one-penalty-at-a-time solve. It states both failure modes the reduction has --
-  the other being a genuinely rank-deficient design, where both solvers are
-  optimal but land on different points of the optimal face, which is why the same
-  batching is not available to STACKEDSC. Pinned by
+  the other being a design whose minimiser is a face and not a point, where
+  both solvers are optimal but land in different places. Pinned by
   `tests/test_mlsc_crossval_batch.py`.
+
+- VanillaSC solves its in-space placebo as one leave-one-out family when there
+  are no covariates. The refits fit each column of the donor matrix from the
+  others, so the family falls out of a single `Y0' Y0` -- deleting a donor
+  deletes a row and a column of it, and each target is itself a column -- and
+  `mlsynth.utils.bilevel.minnorm.solve_simplex_loo_exact` assembles them with no
+  product with the data per refit. The default no-covariate call is where this
+  lands: a Proposition 99 fit is 0.007s with inference off and 0.205s with it on,
+  94 percent of that in the solver.
+
+      38 donors x 19 pre     0.209s -> 0.025s     8.5x
+      48 donors x 89 pre     0.394s -> 0.038s    10.2x
+      119 donors x 30 pre    5.617s -> 0.137s    41.0x
+
+  The p-value is a rank statistic over these fits, so each member is verified
+  with `simplex_optimum_is_unique` and any whose minimiser is a face is
+  re-solved with the single-problem active set the loop used -- a different
+  exact solver has an equal claim there, and the published ranks came from that
+  one. p-value, rank, RMSPE ratio and ATT are identical on every panel tried.
+  Refits that are not a plain simplex fit keep the loop (covariates, ridge
+  augmentation, the penalized backend), which `tests/test_vanillasc_placebo_batch.py`
+  asserts by disabling the family solver and requiring the answer not to move.
+
+- STACKEDSC solves each cohort's weight programs as one shared-design family.
+  Every treated unit in a donor pool faces the same design and differs only in
+  its own pre-treatment target, so with `c_j = A' b_j` and `s_j = b_j' b_j` the
+  `j`-th Gram is `A'A - c_j 1' - 1 c_j' + s_j 1 1'`: one Gram and one cross
+  product carry the group, and
+  `mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design` runs it in
+  lockstep. A donor predicate that binds gives one batch per distinct pool, down
+  to a batch of one per unit. On a Wiltshire cohort of 89 units against 39
+  donors the outcome-only design goes 396ms -> 43ms, 9.3x. The covariate design
+  does not batch (see below) and is unchanged.
+
+- STACKEDSC's placebo layer solves each pool as a leave-one-out family. Casting
+  every donor as treated in turn and refitting against the rest is one matrix's
+  columns fitted against one another, which `solve_simplex_loo_exact` assembles
+  from a single `M' M`. Under `donors-only` that matrix is the cohort's design
+  and the family is shared by the cohort; under `permutation` -- the default,
+  following the reference implementation -- the treated unit's column is
+  appended, a donor to every placebo and a target to none. On the Walmart panel
+  that is 22,074 programs in 21s where the loop takes 101s, 4.8x, with the
+  RMSPE-ranked p-values bit-identical and every other reported statistic
+  unchanged to 1e-11.
+
+- `mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal` certifies a simplex
+  weight vector against the design it claims to solve, from the KKT conditions
+  on `B'(Bw - A)`. The batched solvers now require it as well as uniqueness
+  before standing in for the one-at-a-time solve. Uniqueness alone was not
+  enough, and the gap is not academic: the Gram reduction squares the condition
+  number, so a design merely awkward at `cond(B) ~ 1e7` -- covariates measured
+  in different units -- gives a Gram at the edge of float64, and the batched
+  active set then converges on that Gram to a point that does not solve the
+  program it came from. On the covariate specification of the Wiltshire panel
+  that is 62 of 76 members of a cohort, with a KKT residual of 7e-3 where the
+  design-form solver leaves 6e-10; nothing computed from the Gram reveals it.
+  Those members now fall back and the reported effects are unchanged to 1e-9.
+
+- `solve_simplex_loo_exact` and `solve_simplex_shared_design` take a `fallback`
+  solver, since which one-at-a-time solve a batch stands in for is part of the
+  contract. STACKEDSC calls the primal active set directly; VanillaSC's engine
+  calls it through a wrapper that escalates to CVXPY when the active set reports
+  failure on itself, and on a design pathological enough to trip that hatch the
+  two disagree. Each call site now names its own.
+
+- `mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles, after
+  solving, whether a simplex least-squares minimiser is the only one -- the
+  question that decides whether the batched and one-at-a-time solvers can stand
+  in for each other. `gram_reduction_is_safe` answers it from the design's shape
+  and is sound but far from tight: rank deficiency is only a precondition for a
+  face, since the objective is flat along a direction only where that direction
+  is also feasible at the solution, which needs a support large relative to the
+  design's rank. Synthetic-control solutions are sparse, so the ordinary
+  geometry -- more donors than pre-treatment periods -- usually has a unique
+  minimiser after all. On the Proposition 99 placebo family all 38 solves do, at
+  37 donors against 19 pre-periods, and the shape test admits none of them; on
+  STACKEDSC's Walmart data 85.5 percent of 2264 real solves do, against the
+  blanket "not available" an earlier synthetic probe suggested. The predicate
+  checks the design restricted to the weakly-active set, costs nothing
+  measurable next to the solve, and is asserted against what the two solvers
+  actually return in `tests/test_simplex_uniqueness.py`.
 
 - VanillaSC's `mscmt` backend (the default when covariates are supplied) solves
   its inner donor-weight program exactly, and for a whole outer-search
