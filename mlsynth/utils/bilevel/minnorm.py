@@ -434,3 +434,84 @@ def solve_simplex_minnorm_batch(
     if return_info:
         return W, {"iterations": iterations, "converged": converged}
     return W
+
+
+def solve_simplex_loo_exact(
+    M: np.ndarray,
+    *,
+    n_targets: Optional[int] = None,
+    return_info: bool = False,
+):
+    """Leave-one-out simplex least squares over the columns of ``M``, exactly.
+
+    For each ``j`` solves ``min ||M[:, k != j] w - M[:, j]||^2`` on the simplex.
+    This is the shape of an in-space placebo test, where every donor is cast as
+    treated in turn against the others.
+
+    The family is carried by one Gram. Deleting a column deletes a row and a
+    column of ``M' M``, and each target is itself a column of ``M``, so the cross
+    term is a column of that same Gram: with ``Mg = M' M``, the ``j``-th
+    problem's Gram is ``Mg[a,b] - Mg[a,j] - Mg[j,b] + Mg[j,j]`` over the
+    remaining indices. No product with the data occurs per problem, and the
+    batched active set then certifies the whole family together.
+
+    Every member is checked with :func:`simplex_optimum_is_unique` and the ones
+    whose minimiser is a face -- where two exact solvers may return different
+    weights for the same fit -- are re-solved with the single-problem active set
+    of :mod:`~mlsynth.utils.bilevel.active_set`. So the result is not merely
+    optimal but identical to solving the family one at a time, which matters
+    here: the placebo p-value is a rank statistic over these fits, and the
+    library's published ranks came from that solver.
+
+    Parameters
+    ----------
+    M : np.ndarray, shape (m, J)
+        Columns to fit against one another; ``J >= 2``.
+    n_targets : int, optional
+        How many leading columns are cast as treated. Columns beyond it stay in
+        every donor pool without being a target themselves. Defaults to ``J``.
+    return_info : bool
+        If ``True`` also return ``{"n_problems", "n_fallback"}``.
+
+    Returns
+    -------
+    np.ndarray, shape (n_targets, J)
+        Row ``j`` holds the weights fitting ``M[:, j]``, with ``W[j, j]`` zero.
+    """
+    from .active_set import solve_simplex_qp
+
+    M = np.asarray(M, dtype=float)
+    if M.ndim != 2:
+        raise ValueError(f"M must be 2-D (m, J); got shape {M.shape}.")
+    J = M.shape[1]
+    if J < 2:
+        raise ValueError(
+            f"M has {J} column(s); leaving one out needs at least two, since the "
+            f"remaining columns are what the left-out one is fitted against.")
+    n = J if n_targets is None else int(n_targets)
+    if not 1 <= n <= J:
+        raise ValueError(f"n_targets must be between 1 and {J}; got {n}.")
+
+    Mg = M.T @ M
+    keep = ~np.eye(J, dtype=bool)[:n]                      # (n, J)
+    idx = np.argsort(~keep, axis=1, kind="stable")[:, :J - 1]   # donors per target
+    rows = np.arange(n)[:, None]
+    # G_j from the Gram alone: the deleted column enters only through its own
+    # row, column and diagonal entry.
+    G = (Mg[idx[:, :, None], idx[:, None, :]]
+         - Mg[idx, np.arange(n)[:, None]][:, :, None]
+         - Mg[np.arange(n)[:, None], idx][:, None, :]
+         + Mg[np.arange(n), np.arange(n)][:, None, None])
+    Wc = solve_simplex_minnorm_batch(0.5 * (G + np.swapaxes(G, 1, 2)))
+
+    W = np.zeros((n, J))
+    np.put_along_axis(W, idx, Wc, axis=1)
+    n_fallback = 0
+    for j in range(n):
+        cols = idx[j]
+        if not simplex_optimum_is_unique(M[:, cols], M[:, j], W[j, cols]):
+            W[j, cols] = solve_simplex_qp(M[:, cols], M[:, j])
+            n_fallback += 1
+    if return_info:
+        return W, {"n_problems": n, "n_fallback": n_fallback}
+    return W
