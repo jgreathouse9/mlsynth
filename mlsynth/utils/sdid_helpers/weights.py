@@ -50,10 +50,11 @@ the objective near the optimum is nearly flat. See ``TestSynthdidsEarlyStop`` in
 
 import numbers
 import numpy as np
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
 
 
 def _solve_intercept_simplex(
@@ -93,6 +94,81 @@ def _solve_intercept_simplex(
     weights = solve_simplex_qp(design_c, target_c)
     intercept = target_mean - float(col_mean @ weights)
     return intercept, weights
+
+
+def solve_intercept_simplex_many(
+    problems: Sequence[Tuple[np.ndarray, np.ndarray, float]]
+) -> List[Tuple[float, np.ndarray]]:
+    """:func:`_solve_intercept_simplex` for a family of problems at once.
+
+    Placebo inference refits the same program once per draw -- 500 times by
+    default -- and the draws differ only in which donors are in the design, what
+    the target is, and how large the ridge is. None of that needs a fresh
+    factorisation. Centring is per column, so it survives subsetting; the ridge
+    augmentation carries no target rows, so with the weights summing to one it
+    enters the Gram as ``+ ridge I``; and the whole family's Grams are therefore
+    a broadcast off quantities formed once. The batched active set then
+    certifies a shape-group in a handful of linear solves.
+
+    Parameters
+    ----------
+    problems : sequence of (design, target, ridge)
+        One entry per solve, as :func:`_solve_intercept_simplex` takes them.
+        Entries may differ in shape; they are grouped before solving.
+
+    Returns
+    -------
+    list of (intercept, weights)
+        In the order given, identical to solving them one at a time.
+
+    Notes
+    -----
+    A group is batched only where
+    :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` passes on its
+    centred design, and solved one at a time otherwise. Forming the Gram squares
+    the design's condition number, and on a rank-deficient design the optimum is
+    a face whose points the two solvers pick differently -- the same fit, other
+    weights. SDID's own designs are overdetermined (pre-periods by donors for the
+    unit weights, donors by pre-periods for the time weights) and so land on the
+    safe side; the guard is on the design, not on the caller.
+    """
+    from ..bilevel.minnorm import simplex_gram, solve_simplex_minnorm_batch
+
+    out: List[Optional[Tuple[float, np.ndarray]]] = [None] * len(problems)
+    groups: Dict[Tuple[int, int], List[int]] = {}
+    prepared: List[Optional[Tuple[np.ndarray, np.ndarray, float, np.ndarray, float]]] = []
+
+    for i, (design, target, ridge) in enumerate(problems):
+        design = np.asarray(design, dtype=float)
+        target = np.asarray(target, dtype=float).ravel()
+        ridge = float(ridge)
+        col_mean = design.mean(axis=0)
+        design_c = design - col_mean[None, :]
+        J = design_c.shape[1]
+        # The safety test is on the design the solve actually sees, ridge block
+        # included: a ridge large enough to condition the problem is what makes
+        # an otherwise rank-deficient design safe, and one too small to do that
+        # is precisely the case the guard exists to catch.
+        augmented = (np.vstack([design_c, np.sqrt(ridge) * np.eye(J)])
+                     if ridge > 0.0 else design_c)
+        if J == 1 or not gram_reduction_is_safe(augmented):
+            out[i] = _solve_intercept_simplex(design, target, ridge)
+            prepared.append(None)
+            continue
+        prepared.append((design_c, target - float(target.mean()), ridge,
+                         col_mean, float(target.mean())))
+        groups.setdefault(design_c.shape, []).append(i)
+
+    for shape, idx in groups.items():
+        J = shape[1]
+        G = np.stack([simplex_gram(prepared[i][0], prepared[i][1]) for i in idx])
+        G += np.array([prepared[i][2] for i in idx])[:, None, None] * np.eye(J)[None]
+        W = solve_simplex_minnorm_batch(G)
+        for slot, i in enumerate(idx):
+            w = W[slot]
+            out[i] = (prepared[i][4] - float(prepared[i][3] @ w), w)
+
+    return [o for o in out]  # type: ignore[misc]
 
 
 def fit_time_weights(
