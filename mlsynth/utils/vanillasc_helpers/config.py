@@ -217,6 +217,16 @@ class VanillaSCConfig(BaseEstimatorConfig):
     mscmt_popsize: int = Field(
         default=15, ge=1, description="mscmt differential-evolution population size.",
     )
+    mscmt_tol: float = Field(
+        default=1e-6, gt=0.0,
+        description="Relative tolerance stopping the mscmt outer search: it ends "
+                    "when the population's spread in pre-fit MSPE falls below "
+                    "this fraction of the mean. It is an estimate-precision "
+                    "choice -- at the default the donor weights are within about "
+                    "1e-5 of where an exhaustive search leaves them, three orders "
+                    "finer than the four decimals the replications compare to. "
+                    "Tighten it to spend more of the budget on digits below that.",
+    )
     mscmt_prune_shady: bool = Field(
         default=True,
         description="mscmt: drop shady donors (Becker-Kloessner sunny-donor "

@@ -31,6 +31,62 @@ now returns and the back-compat guarantee.
   Covered by `tests/test_spec.py`, including a parametrized check that `load_spec`
   resolves and behaves gracefully for every estimator the package ships.
 
+### Changed
+- VanillaSC's `mscmt` backend (the default when covariates are supplied) solves
+  its inner donor-weight program exactly, and for a whole outer-search
+  generation at once. Because the weights sum to one the design matrix drops out
+  of the inner objective: `X1 - X0 w = R w` for `R = X1 1' - X0`, so the
+  V-weighted predictor loss is the quadratic form `w' G(V) w` with
+  `G(V) = sum_p v_p r_p r_p'`, and the donor weights are the minimum-norm point
+  in the convex hull of the donors' predictor discrepancies (Wolfe 1976), which
+  an active set over the donors solves exactly and finitely. `G` is linear in
+  `V`, so the `P` rank-one pieces are formed once, a differential-evolution
+  generation of Grams is one matrix product against them, and the active set
+  certifies the generation in a handful of batched linear solves -- the data
+  never enters the search loop. This replaces a per-candidate Lawson-Hanson NNLS
+  whose sum-to-one constraint was a big-M penalty row, so the equality is now
+  exact and the inner solution exactly scale-free in `V`, as the outer objective
+  assumes. On the Abadie-Gardeazabal Basque specification the bilevel fit runs
+  in 1.0s against 1.7s and the default call (in-space placebo, 17 refits) in
+  22s against 26s, with the MSCMT reference weights unchanged
+  (`benchmarks/cases/mscmt_basque.py`). The new solver is
+  `mlsynth.utils.bilevel.minnorm` (`simplex_gram`, `solve_simplex_minnorm`,
+  `solve_simplex_minnorm_batch`), covered by `tests/test_simplex_minnorm.py` and
+  `tests/test_simplex_minnorm_perf.py`. `solve_mscmt` gains an `inner_max_iter`
+  cap and reports `metadata["inner_unconverged"]`, warning once when an inner
+  solve scored a candidate without certifying. MEDSC and `determine_v`, which
+  share the `_inner_weights` primitive, inherit the exact solve; their pinned
+  replications are unchanged.
+
+  Each generation is solved cold. Seeding each candidate's active set from the
+  previous generation's weights cuts the inner work by about a third, and it was
+  measured and rejected: where the inner optimum is a face and not a point, the
+  member returned would then depend on the search's history, and members of that
+  face tie on predictor fit while differing on outcome fit, so the outer
+  objective would stop being a function of `V`. On the Lamba et al. tiger
+  reserves that showed as a seed spread of 5e-2 ha on a 2825 ha effect, against
+  2e-6 ha cold (`tests/test_lamba_tigers.py`, which is the guard).
+
+- The `mscmt` outer search stops on a tolerance calibrated to the estimate, and
+  that tolerance is reachable: `VanillaSCConfig` gains `mscmt_tol`, and its
+  default (and `solve_mscmt`'s) moves from `1e-10` to `1e-6`. scipy ends
+  differential evolution when the population's spread in pre-fit MSPE falls
+  below `atol + tol * |mean|`, and with `atol = 0` that is purely relative. At
+  `1e-10`, on the Abadie-Gardeazabal Basque specification whose mean energy is a
+  pre-fit MSPE of 0.0043, the rule asked 195 candidate predictor weightings to
+  agree to 4.3e-13 -- thirteen significant figures. Tracing the search shows the
+  donor weights reach 1e-5 of their final position by generation 93 and move by
+  1e-8 over the 120 generations after that; many panels never reach the
+  threshold at all and simply exhaust `maxiter`. The new default stops around
+  generation 100, leaving the weights and the ATT within 5e-6 of where the old
+  one left them -- three orders finer than the four decimals the MSCMT
+  replication compares to. On Basque the default call runs in 12.7s against
+  22.5s (and 26.5s before both changes), the bilevel fit in 0.57s against 1.04s.
+  Agreement with the captured MSCMT R run is unchanged, marginally closer on
+  three of its four pinned quantities. MASC and MEDSC share `solve_mscmt` and
+  inherit the default; their replications are unchanged. Pinned by
+  `tests/test_mscmt_search_budget.py`.
+
 ## [1.0.0] - 2026-06-20
 
 First stable release, published to PyPI (``pip install mlsynth``).

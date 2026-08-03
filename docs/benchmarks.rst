@@ -287,6 +287,8 @@ Cross-validation against reference implementations
      - vs authors' repo
    * - ``ssc_guanajuato``
      - vs jcao0/staggered_synthetic_control (criminality Sec 4)
+   * - ``mscmt_solver``
+     - vs cvxpy (CLARABEL) on the MSCMT inner simplex program: the batched active set never finishes above the interior-point optimum across the Basque candidate weightings, and its work bounds are pinned as iteration counts, which are machine independent where wall-clock is not. Also pins what the default ``mscmt_tol`` costs the estimate against an exhaustive search
 
 The captured reference corpus
 -----------------------------

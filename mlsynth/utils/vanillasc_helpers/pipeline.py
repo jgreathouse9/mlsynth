@@ -367,6 +367,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             residualize=config.residualize,
             maxiter=config.mscmt_maxiter,
             popsize=config.mscmt_popsize,
+            tol=config.mscmt_tol,
             prune_shady=config.mscmt_prune_shady,
             cv=config.penalized_cv,
             **penalized_lam_kwargs,
