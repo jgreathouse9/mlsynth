@@ -78,6 +78,28 @@ now returns and the back-compat guarantee.
   both solvers are optimal but land in different places. Pinned by
   `tests/test_mlsc_crossval_batch.py`.
 
+- VanillaSC solves its in-space placebo as one leave-one-out family when there
+  are no covariates. The refits fit each column of the donor matrix from the
+  others, so the family falls out of a single `Y0' Y0` -- deleting a donor
+  deletes a row and a column of it, and each target is itself a column -- and
+  `mlsynth.utils.bilevel.minnorm.solve_simplex_loo_exact` assembles them with no
+  product with the data per refit. The default no-covariate call is where this
+  lands: a Proposition 99 fit is 0.007s with inference off and 0.205s with it on,
+  94 percent of that in the solver.
+
+      38 donors x 19 pre     0.209s -> 0.025s     8.5x
+      48 donors x 89 pre     0.394s -> 0.038s    10.2x
+      119 donors x 30 pre    5.617s -> 0.137s    41.0x
+
+  The p-value is a rank statistic over these fits, so each member is verified
+  with `simplex_optimum_is_unique` and any whose minimiser is a face is
+  re-solved with the single-problem active set the loop used -- a different
+  exact solver has an equal claim there, and the published ranks came from that
+  one. p-value, rank, RMSPE ratio and ATT are identical on every panel tried.
+  Refits that are not a plain simplex fit keep the loop (covariates, ridge
+  augmentation, the penalized backend), which `tests/test_vanillasc_placebo_batch.py`
+  asserts by disabling the family solver and requiring the answer not to move.
+
 - `mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles, after
   solving, whether a simplex least-squares minimiser is the only one -- the
   question that decides whether the batched and one-at-a-time solvers can stand
