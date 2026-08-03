@@ -464,6 +464,21 @@ on :py:attr:`SDIDInference.method`.
   placebo iterations whose :math:`|\widehat\tau^{\,*}_{att}|` is at least as
   large as the observed :math:`|\widehat{ATT}|`.
 
+  The :math:`B` draws are solved together. Each draw poses the same two weight
+  programs on a different column subset of the same donor matrix, and nothing in
+  that needs its own factorisation: the intercept is profiled out by centring,
+  which is done column by column and so survives subsetting; the ridge
+  :math:`T_{pre}\zeta^2` is folded in as extra rows carrying no target, so with
+  the weights summing to one it enters as :math:`+\,T_{pre}\zeta^2 \mathbf{I}`
+  even though :math:`\zeta` is recomputed for every draw. Section
+  :ref:`sdid-batched-weights` sets out the reduction the batch rests on. All
+  :math:`B` draws are then one call to an active set that certifies them
+  together, which on Proposition 99 at the default :math:`B = 500` takes the fit
+  from 1.77s to 0.75s. The draws are made in the order the one-at-a-time version
+  made them, so the same controls are cast as pseudo-treated; the ATT is
+  unchanged bit for bit, and the placebo standard error moves in its eleventh
+  significant figure.
+
 ``jackknife`` (Algorithm 3)
   The fitted unit weights :math:`\widehat\omega` and time weights
   :math:`\widehat\lambda` are held fixed and each unit is left out in turn; the
@@ -504,6 +519,49 @@ languages).
    Truncated History diagnostic (:doc:`truncated_history`), which re-estimates
    SDID on truncated pre-treatment windows. It reproduces the California
    Proposition 99 left-TH profile of Spoelstra et al. (2025) to the decimal.
+
+.. _sdid-batched-weights:
+
+How the Placebo Draws Are Solved Together
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both SDID weight programs minimise a squared error over the simplex, and the
+placebo procedure solves them :math:`B` times over. What makes the repetition
+avoidable is that the simplex constraint removes the design matrix from the
+problem. Writing the centred design as :math:`\mathbf{B}` and the centred target
+as :math:`\mathbf{a}`, and using :math:`\mathbf{1}^\top\mathbf{w} = 1`,
+
+.. math::
+
+   \mathbf{B}\mathbf{w} - \mathbf{a}
+   \;=\; \mathbf{B}\mathbf{w} - \mathbf{a}\,(\mathbf{1}^\top\mathbf{w})
+   \;=\; (\mathbf{B} - \mathbf{a}\mathbf{1}^\top)\,\mathbf{w},
+
+so with :math:`\mathbf{R} = \mathbf{B} - \mathbf{a}\mathbf{1}^\top` and
+:math:`\mathbf{G} = \mathbf{R}^\top\mathbf{R}` the objective is the quadratic
+form :math:`\mathbf{w}^\top \mathbf{G}\, \mathbf{w}`. Geometrically the weights
+are the point of least norm in the convex hull of the columns of
+:math:`\mathbf{R}` -- each column being one donor's discrepancy from the target
+-- which is Wolfe's (1976) problem [wolfe1976]_, and an active set over the
+donors solves it exactly and in finitely many steps.
+
+A whole family of these is then carried by its :math:`\mathbf{G}` matrices
+alone, which for the placebo draws are a submatrix of one Gram formed once plus
+terms in the target and the ridge. The active set runs the family in lockstep:
+each iteration is a single batched linear solve over the current supports, so
+:math:`B` draws cost what the hardest single draw costs and not :math:`B` times
+what the average one costs.
+
+The reduction is not always available, and
+:func:`mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides. Forming
+:math:`\mathbf{G}` squares the design's condition number, which is free only
+where the design has full column rank. SDID's designs are overdetermined --
+pre-periods by donors for the unit weights, donors by pre-periods for the time
+weights -- so they qualify, and the batched and one-at-a-time solvers return the
+same weights and not merely the same fit. On a rank-deficient design they would
+not: the optimum is then a face, every point of it is optimal, and the two
+solvers land in different places. Each draw is checked, and one that fails falls
+back to the one-at-a-time solve.
 
 Two-DataFrame and Single-Cohort Convergence
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1157,6 +1215,10 @@ Kranz, S. (2022). "Synthetic Difference-in-Differences with Time-Varying
 Covariates." Working paper; implemented in the `xsynthdid
 <https://github.com/skranz/xsynthdid>`_ R package. The two-step adjustment
 behind SDID's ``covariates`` option.
+
+.. [wolfe1976] Wolfe, P. (1976). "Finding the Nearest Point in a Polytope."
+   *Mathematical Programming* 11:128-149. The minimum-norm-point active set the
+   batched weight solve rests on.
 
 .. [Zhuang2024] Zhuang, C. C. (2024). "A Way to Synthetic Triple
    Difference." `arXiv:2409.12353 <https://arxiv.org/abs/2409.12353>`_.
