@@ -111,6 +111,17 @@ now returns and the back-compat guarantee.
   donors the outcome-only design goes 396ms -> 43ms, 9.3x. The covariate design
   does not batch (see below) and is unchanged.
 
+- STACKEDSC's placebo layer solves each pool as a leave-one-out family. Casting
+  every donor as treated in turn and refitting against the rest is one matrix's
+  columns fitted against one another, which `solve_simplex_loo_exact` assembles
+  from a single `M' M`. Under `donors-only` that matrix is the cohort's design
+  and the family is shared by the cohort; under `permutation` -- the default,
+  following the reference implementation -- the treated unit's column is
+  appended, a donor to every placebo and a target to none. On the Walmart panel
+  that is 22,074 programs in 21s where the loop takes 101s, 4.8x, with the
+  RMSPE-ranked p-values bit-identical and every other reported statistic
+  unchanged to 1e-11.
+
 - `mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal` certifies a simplex
   weight vector against the design it claims to solve, from the KKT conditions
   on `B'(Bw - A)`. The batched solvers now require it as well as uniqueness

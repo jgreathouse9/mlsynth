@@ -192,6 +192,18 @@ of 89 counties against 39 donors that is 43ms where the one-at-a-time solve
 takes 396ms. A donor predicate that binds gives each pool its own batch, down to
 a batch of one per unit when no two units share a pool.
 
+The placebo layer poses the same question in a different shape, and it is where
+the estimator's time actually goes: casting each donor in a pool as treated and
+refitting against the rest is 566 x 39 = 22,074 programs on the Wiltshire panel.
+That family is a leave-one-out family over a single matrix -- deleting a column
+deletes a row and a column of :math:`\mathbf{M}^\top\mathbf{M}`, and each
+target is itself a column of :math:`\mathbf{M}` -- so no product with the data
+occurs per refit either. Under ``donors-only`` the matrix is the cohort's design
+and the family is shared by the whole cohort. Under ``permutation``, where the
+treated unit is itself a control, its column is appended: a donor to every
+placebo and a target to none. The layer runs in 21s where solving one at a time
+takes 101s, and the RMSPE-ranked p-values are identical.
+
 Two things have to hold before a batched answer may be reported in place of the
 one-at-a-time answer, and the weights make both strict. STACKEDSC reports
 :math:`\mathbf{w}_j^\ast` per unit and builds each counterfactual from it, so
