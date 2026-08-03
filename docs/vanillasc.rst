@@ -293,9 +293,20 @@ The covariate path exposes four reliable solvers via ``backend=``:
     :math:`\mathbf{r}_p \mathbf{r}_p^\top` are formed once and a whole
     generation of candidates is one matrix product away, after which the active
     set certifies the entire generation in a handful of batched linear solves.
-    The data itself never enters the search loop. On the Basque specification
-    below a fit takes about a second; the in-space placebo multiplies that by
-    the donor count.
+    The data itself never enters the search loop.
+
+    How long the search runs is set by ``mscmt_tol``, which ends it once the
+    population's spread in pre-treatment MSPE falls below that fraction of its
+    mean. This is a statement about how precisely you want the estimate, so the
+    default is calibrated to what the estimate does. On the Basque
+    specification below the donor weights are within :math:`10^{-5}` of their
+    final position by generation 93, and the next 120 generations move them by
+    :math:`10^{-8}` -- past the last digit the weights are reported or
+    cross-validated at. The default stops around generation 100, within about
+    :math:`5 \times 10^{-6}` of an exhaustive search on both the weights and the
+    ATT. Tighten it to spend the budget on digits below that. A fit on the
+    Basque specification takes about half a second; the in-space placebo
+    multiplies that by the donor count.
 
 ``"malo"``
     Malo et al. (2024): a staged corner search. Fast and exact when the

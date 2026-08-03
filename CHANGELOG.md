@@ -67,6 +67,26 @@ now returns and the back-compat guarantee.
   reserves that showed as a seed spread of 5e-2 ha on a 2825 ha effect, against
   2e-6 ha cold (`tests/test_lamba_tigers.py`, which is the guard).
 
+- The `mscmt` outer search stops on a tolerance calibrated to the estimate, and
+  that tolerance is reachable: `VanillaSCConfig` gains `mscmt_tol`, and its
+  default (and `solve_mscmt`'s) moves from `1e-10` to `1e-6`. scipy ends
+  differential evolution when the population's spread in pre-fit MSPE falls
+  below `atol + tol * |mean|`, and with `atol = 0` that is purely relative. At
+  `1e-10`, on the Abadie-Gardeazabal Basque specification whose mean energy is a
+  pre-fit MSPE of 0.0043, the rule asked 195 candidate predictor weightings to
+  agree to 4.3e-13 -- thirteen significant figures. Tracing the search shows the
+  donor weights reach 1e-5 of their final position by generation 93 and move by
+  1e-8 over the 120 generations after that; many panels never reach the
+  threshold at all and simply exhaust `maxiter`. The new default stops around
+  generation 100, leaving the weights and the ATT within 5e-6 of where the old
+  one left them -- three orders finer than the four decimals the MSCMT
+  replication compares to. On Basque the default call runs in 12.7s against
+  22.5s (and 26.5s before both changes), the bilevel fit in 0.57s against 1.04s.
+  Agreement with the captured MSCMT R run is unchanged, marginally closer on
+  three of its four pinned quantities. MASC and MEDSC share `solve_mscmt` and
+  inherit the default; their replications are unchanged. Pinned by
+  `tests/test_mscmt_search_budget.py`.
+
 ## [1.0.0] - 2026-06-20
 
 First stable release, published to PyPI (``pip install mlsynth``).

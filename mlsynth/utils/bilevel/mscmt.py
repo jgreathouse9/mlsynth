@@ -131,7 +131,7 @@ def solve_mscmt(
     lb: float = 1e-8,
     maxiter: int = 300,
     popsize: int = 15,
-    tol: float = 1e-10,
+    tol: float = 1e-6,
     seed: int = 0,
     polish: bool = True,
     feas_tol: float = 1e-8,
@@ -152,8 +152,27 @@ def solve_mscmt(
         ``log10(V) in [log10(lb), 0]^K``; the objective is scale-free in
         ``V`` so the upper bound ``0`` (i.e. ``max V = 1``) is a free
         normalisation.
-    maxiter, popsize, tol, seed, polish
+    maxiter, popsize, seed, polish
         Forwarded to :func:`scipy.optimize.differential_evolution`.
+    tol : float
+        Relative tolerance stopping the outer search, forwarded to
+        :func:`scipy.optimize.differential_evolution`, which ends when the
+        population's spread in pre-fit MSPE falls below ``tol`` times its mean
+        (scipy's ``atol`` stays at its ``0`` default, so the rule is purely
+        relative).
+
+        The value is a statement about how precisely the estimate is wanted, so
+        it is set from what the estimate does. On the Abadie-Gardeazabal Basque
+        specification the mean energy is a pre-fit MSPE of about 0.0043; the
+        donor weights reach 1e-5 of their final position by generation 93 and
+        move by 1e-8 over the 120 generations after that. The default stops the
+        search around generation 100, where the weights and the ATT sit within
+        about 5e-6 of an exhaustive search's -- three orders finer than the four
+        decimals the MSCMT replication compares to, and past the last digit the
+        estimate is reported at. The previous ``1e-10`` asked 195 candidate
+        predictor weightings to agree to 4.3e-13, thirteen significant figures,
+        which most panels never reach: the search then spent its whole
+        ``maxiter`` budget refining digits nobody reads.
     feas_tol : float
         Tolerance for the shared Section 3.1 / MSCMT Eq. 13 feasibility
         certificate (fast exact exit).
