@@ -32,6 +32,27 @@ now returns and the back-compat guarantee.
   resolves and behaves gracefully for every estimator the package ships.
 
 ### Changed
+- SDID solves its placebo draws' weights as one family. Placebo inference
+  (Arkhangelsky et al. 2021, Algorithm 4) refits both weight programs once per
+  draw and `B` defaults to 500, which is where an SDID fit spends its time: 84
+  percent of `sdid_prop99`'s wall clock was inside the simplex solver. The draws
+  differ only in which donors are in the design, what the target is, and how
+  large the ridge is, and none of that needs its own factorisation -- centring is
+  per column so it survives subsetting, and the ridge augmentation carries no
+  target rows so with the weights summing to one it enters the Gram as
+  `+ ridge I`. `estimate_placebo_variance` now draws every assignment first,
+  solves the family through the new
+  `mlsynth.utils.sdid_helpers.weights.solve_intercept_simplex_many`, then
+  replays; the draws are built in the order the old loop used them, so the RNG
+  stream is untouched and the same controls are cast as pseudo-treated. On
+  Prop 99 at `B = 500` a fit runs in 0.75s against 1.77s, with the ATT unchanged
+  bit for bit and the placebo standard error moving in its eleventh significant
+  figure. `sdid_prop99`, `sdid_ddd_hpv` and `seq_sdid_mc` all pass. Available to
+  SDID because its weight designs are overdetermined, so
+  `gram_reduction_is_safe` passes and the batched and one-at-a-time solvers
+  return the same weights and not merely the same fit; it is checked per problem
+  regardless. Pinned by `tests/test_sdid_weights_batch.py`.
+
 - mlSC scores its penalty grid in one pass under `lambda_est="cross-validation"`.
   Folding a penalty into the design as a `sqrt(lambda sigma_y^2) R` augmentation
   adds rows carrying no target, so with the weights summing to one the augmented
