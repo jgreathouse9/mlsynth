@@ -157,3 +157,10 @@ def test_the_fallback_solver_is_the_callers_own():
     W, info = solve_simplex_shared_design(A, B, fallback=spy, return_info=True)
     assert len(seen) == info["n_fallback"] > 0
     np.testing.assert_allclose(W, _loop(A, B), atol=1e-7)
+
+
+def test_rejects_a_higher_dimensional_target_block():
+    from mlsynth.utils.bilevel.minnorm import solve_simplex_shared_design
+
+    with pytest.raises(ValueError, match="2-D"):
+        solve_simplex_shared_design(np.ones((5, 3)), np.ones((5, 2, 2)))

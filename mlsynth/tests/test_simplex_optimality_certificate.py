@@ -148,3 +148,13 @@ def test_rejects_a_mismatched_length():
     B, A = _design(rng, 12, 4), _design(rng, 12, 1).ravel()
     with pytest.raises(ValueError, match="len"):
         simplex_point_is_optimal(B, A, np.array([0.5, 0.5]))
+
+
+def test_rejects_a_non_matrix_design():
+    with pytest.raises(ValueError, match="2-D"):
+        simplex_point_is_optimal(np.ones(5), np.ones(5), np.ones(5))
+
+
+def test_rejects_a_mismatched_target_length():
+    with pytest.raises(ValueError, match="len"):
+        simplex_point_is_optimal(np.ones((5, 3)), np.ones(4), np.ones(3) / 3.0)
