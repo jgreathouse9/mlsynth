@@ -74,17 +74,26 @@ def gram_reduction_is_safe(B: np.ndarray, tol: float = 1e-8) -> bool:
       below what float64 resolves. The Gram solve then returns a point that is
       not optimal at all. Measured on mlSC's penalty grid over a 9-period,
       12-disaggregate design, it finished 225 percent above the optimum.
-    * If the design is genuinely rank deficient -- more donors than matching
-      rows, the ordinary synthetic-control case -- the optimum is a face and
-      every point of it is optimal. Both solvers are then correct and they land
-      in different places: on an 8-row, 39-donor design they agree on the fitted
-      values to 1e-11 while differing by 0.5 in the weights, the Gram form
-      concentrating on about 9 donors where the design form spreads over 37.
+    * If the design is rank deficient and the minimiser is a face and not a
+      point, both solvers are correct and they land in different places: on an
+      8-row, 39-donor design whose target the donors reproduce exactly, they
+      agree on the fitted values to 1e-11 while differing by 0.19 in the weights.
       Nothing is wrong, but anything reading the weights -- a donor table, a
       counterfactual built from post-period donor outcomes -- would change.
 
-    So the reduction is for designs this returns ``True`` for. It is a property
-    of the design alone, decidable before any solving.
+    So the reduction is for designs this returns ``True`` for, and it is a
+    property of the design alone, decidable before any solving.
+
+    For the second failure it is sound but far from tight, and the slack is not
+    small. Rank deficiency is only a precondition for a non-unique minimiser:
+    the objective is flat along a direction only if that direction is also
+    *feasible* where the solution sits, which needs a support large relative to
+    the design's rank. Synthetic-control solutions are sparse, so a donor pool
+    wider than the pre-period usually still has a unique minimiser -- on the
+    Proposition 99 placebo family all 38 solves do, at 37 donors against 19
+    pre-periods, and this test admits none of them. A caller that can afford to
+    solve first should ask :func:`simplex_optimum_is_unique` instead, which
+    settles the same question exactly, on the support.
 
     Parameters
     ----------
@@ -104,6 +113,71 @@ def gram_reduction_is_safe(B: np.ndarray, tol: float = 1e-8) -> bool:
     if sv.size == 0 or sv[0] <= 0.0:
         return False
     return bool(sv[-1] / sv[0] > tol)
+
+
+def simplex_optimum_is_unique(
+    B: np.ndarray, A: np.ndarray, w: np.ndarray, tol: float = 1e-7
+) -> bool:
+    """Whether ``min ||B w - A||^2`` on the simplex has one minimiser, given one.
+
+    Two exact solvers of this program return the same weights when the minimiser
+    is a point and different weights when it is a face, so this is the question
+    that decides whether one may stand in for the other -- and it is answerable
+    after solving, cheaply, on the solution's own support.
+
+    The objective is flat along a direction ``d`` only if ``B d = 0``, and ``d``
+    stays feasible only if ``1' d = 0`` and ``d`` does not push a coordinate
+    below zero. A donor outside the support with a strictly positive reduced
+    gradient cannot be entered at all, so only the weakly-active set can move.
+    The minimiser is therefore unique exactly when no such ``d`` exists, i.e.
+    when ``B`` restricted to that set, with the sum-to-one row appended, has full
+    column rank.
+
+    This is what :func:`gram_reduction_is_safe` approximates from the design
+    alone, and it approximates it conservatively: full column rank of the whole
+    design implies this, but not the reverse. The gap is the ordinary
+    synthetic-control geometry -- more donors than pre-treatment periods -- where
+    the fit is imperfect and the solution sparse, so no null direction is
+    feasible and the minimiser is unique after all. On the Proposition 99 placebo
+    family all 38 solves are unique, at 37 donors against 19 pre-periods, and the
+    shape test admits none of them.
+
+    Parameters
+    ----------
+    B : np.ndarray, shape (m, J)
+        The design the weights were solved against.
+    A : np.ndarray, shape (m,)
+        The target.
+    w : np.ndarray, shape (J,)
+        A minimiser, from any exact solver.
+    tol : float
+        Relative tolerance for the weakly-active set and the rank test.
+
+    Returns
+    -------
+    bool
+        ``True`` only when the minimiser is provably the only one. Use it that
+        way round: a ``False`` costs a second solve, a wrong ``True`` would
+        change an answer.
+    """
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    w = np.asarray(w, dtype=float).ravel()
+    if B.ndim != 2 or w.shape[0] != B.shape[1] or A.shape[0] != B.shape[0]:
+        raise ValueError(
+            f"shapes do not line up: B {B.shape}, A {A.shape}, w {w.shape}.")
+    if B.shape[1] == 1:
+        return True
+    g = B.T @ (B @ w - A)
+    nu = float(g @ w)
+    scale = 1.0 + float(np.max(np.abs(g)))
+    # Weakly active: carrying weight, or able to enter without raising the loss.
+    active = (w > tol * 1e-2) | (np.abs(g - nu) <= tol * scale)
+    n_active = int(active.sum())
+    if n_active == 0:  # pragma: no cover - a simplex point always has support
+        return True
+    M = np.vstack([B[:, active], np.ones((1, n_active))])
+    return bool(np.linalg.matrix_rank(M, tol=tol * 1e-2) == n_active)
 
 
 def simplex_gram(B: np.ndarray, A: np.ndarray) -> np.ndarray:

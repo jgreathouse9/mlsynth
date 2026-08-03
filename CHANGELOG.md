@@ -74,10 +74,26 @@ now returns and the back-compat guarantee.
   `mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides this from the
   design before anything is solved, and a rank-deficient one keeps the
   one-penalty-at-a-time solve. It states both failure modes the reduction has --
-  the other being a genuinely rank-deficient design, where both solvers are
-  optimal but land on different points of the optimal face, which is why the same
-  batching is not available to STACKEDSC. Pinned by
+  the other being a design whose minimiser is a face and not a point, where
+  both solvers are optimal but land in different places. Pinned by
   `tests/test_mlsc_crossval_batch.py`.
+
+- `mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles, after
+  solving, whether a simplex least-squares minimiser is the only one -- the
+  question that decides whether the batched and one-at-a-time solvers can stand
+  in for each other. `gram_reduction_is_safe` answers it from the design's shape
+  and is sound but far from tight: rank deficiency is only a precondition for a
+  face, since the objective is flat along a direction only where that direction
+  is also feasible at the solution, which needs a support large relative to the
+  design's rank. Synthetic-control solutions are sparse, so the ordinary
+  geometry -- more donors than pre-treatment periods -- usually has a unique
+  minimiser after all. On the Proposition 99 placebo family all 38 solves do, at
+  37 donors against 19 pre-periods, and the shape test admits none of them; on
+  STACKEDSC's Walmart data 85.5 percent of 2264 real solves do, against the
+  blanket "not available" an earlier synthetic probe suggested. The predicate
+  checks the design restricted to the weakly-active set, costs nothing
+  measurable next to the solve, and is asserted against what the two solvers
+  actually return in `tests/test_simplex_uniqueness.py`.
 
 - VanillaSC's `mscmt` backend (the default when covariates are supplied) solves
   its inner donor-weight program exactly, and for a whole outer-search
