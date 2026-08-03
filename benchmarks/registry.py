@@ -164,6 +164,7 @@ CASES = {
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)
     "compsc_pennsylvania": "benchmarks.cases.compsc_pennsylvania",  # Path A: Boussim 2026 Pennsylvania AEPS -- Table 1 weights, all of Table 2, and the sec 6.4 placebo (p=0.111) reproduced from public EIA generation data
     "fsc_okano": "benchmarks.cases.fsc_okano",  # Path A (reference port): Okano-Kurisu 2026 functional SC -- all three applications, both fits each, and Tables 1-3 reproduced exactly from the authors' data
+    "fsc_estimator": "benchmarks.cases.fsc_estimator",  # Path A: mlsynth.FSC itself on the same three applications -- fertility exact, and the mortality/service divergences measured and pinned
     "vanillasc_xval_references": "benchmarks.cases.vanillasc_xval_references",  # cross-val vs Synth (uniform V) + tidysynth (ADH spec): placebo rank/p-value agreement, plus recorded solver-quality gaps
     "wiltshire_walmart": "benchmarks.cases.wiltshire_walmart",  # Path A (geometry, not cells): Wiltshire 2023 sec 4.2 stacked SCM on 566 Walmart counties -- the paper's prose claims (pre-fit, no effect at entry, decline from e=2, large negative at e=5) plus the base-period indexing identity; magnitudes not claimed, see docs/replications/stackedsc.rst
 }

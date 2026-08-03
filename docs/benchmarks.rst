@@ -59,6 +59,8 @@ Path A — empirical replications
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
      - Okano-Kurisu (2026) functional SC, all three applications from the authors' data: pre-treatment fits for the plain and ridge-augmented estimator in each (fertility curves 0.1259/0.0687, age-at-death distributions 0.2092/0.0634, trade covariance matrices 39.3429/20.0639) plus every weight of Tables 1-3, reproduced exactly by a port of the authors' R code
+   * - ``fsc_estimator``
+     - :doc:`fsc` itself on the same three applications: fertility exact (0.1259/0.0687), mortality exact on the plain leg and 0.0630 against 0.0634 on the augmented one, and the trade application under the Frobenius isometry Example 3 specifies rather than the authors' plain vech. The two divergences are corrections and are pinned with their measured size; also pins the scale-free penalty search
    * - ``song_ml_ascm``
      - Song et al. (2023) clean winter heating in China, the ridge-ASCM half of their ML-ASCM: 30 stratified cells of their 1024-fit design, carried against two reference bases -- a live augsynth 0.2.0 run (tight) and the authors' published ``main_result.csv`` (loose, with the drift between the two pinned as its own row)
    * - ``dscar_beijing``
