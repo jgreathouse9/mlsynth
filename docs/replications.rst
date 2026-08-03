@@ -259,13 +259,20 @@ Generalising the estimand, treatment, or unit
   :math:`+60.4` to :math:`+51.1` points.
   → dedicated page: :doc:`replications/compsc`.
 
-* :doc:`scta` -- temporal aggregation for SC, cross-validated against
-  ``augsynth`` on the Texas SB8 study (Sun-Ben-Michael-Feller 2024). The
-  construction is exact (fed augsynth's weights, the combined :math:`\nu = 0.5`
-  ATT reproduces to the digit, :math:`18917.86`); run end to end, mlsynth
-  reaches the true optimum of the ill-conditioned simplex, so the estimates
-  match augsynth to solver tolerance (plain :math:`\approx 19800` vs
-  :math:`18918`; ridge :math:`\approx 12500` vs :math:`12982`, annualised).
+* :doc:`scta` -- temporal aggregation for SC (Sun-Ben-Michael-Feller 2024).
+  Path A on the authors' Texas SB8 panel and code, cross-validated against
+  ``augsynth`` 0.2.0, their own package (durable: ``scta_texas_sb8``). The two
+  libraries spell the aggregation knob differently and the difference is a
+  square: SCTA scales the matching rows by :math:`\sqrt{\mathbf{V}}`, weighting
+  an aggregate row by :math:`K\nu` as the paper writes it, while ``augsynth``
+  scales the columns by :math:`\mathbf{V}` and solves with the weight matrix
+  set to the identity, weighting it by :math:`(K\nu)^2`. At the implied mapping
+  :math:`\nu = K \cdot \texttt{year\_wt}^2` the estimates agree to 0.11
+  percent across the grid, and the residual is a second convention difference
+  in what the unit fixed effect averages over. On an identical design and
+  objective the two solvers agree to OSQP's 1e-8. A second case,
+  ``scta_ibex_xval``, checks the construction against an independent build
+  solved by ``cvxpy``/CLARABEL and needs no R.
   → dedicated page: :doc:`replications/scta`.
 * :doc:`rescm` -- SCM-relaxation (Liao, Shi & Zheng 2026).
   Path A: Brexit / UK real GDP -- the L2 relaxation's cumulative

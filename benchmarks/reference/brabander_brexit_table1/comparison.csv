@@ -1,7 +1,7 @@
 # case: brabander_brexit_table1
 # generated_at: 2026-08-01T09:06:04Z
 # mlsynth_version: 1.0.0
-# estimator: 
+# estimator: VanillaSC, DSC, SDID, MASC
 # config: {}
 # reference_impl: 
 # reference_version: 

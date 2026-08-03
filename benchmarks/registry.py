@@ -46,6 +46,8 @@ CASES = {
     "scmo_germany": "benchmarks.cases.scmo_germany",            # Path A: Tian et al. West Germany balance
     "scmo_concatenated_mc": "benchmarks.cases.scmo_concatenated_mc",  # Path B: Tian Table 1 / Sun Sim1
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
+    "scta_ibex_xval": "benchmarks.cases.scta_ibex_xval",        # cross-val: SCTA vs an independent build of Sun-Ben-Michael-Feller Sec. 2 solved by cvxpy/CLARABEL (ibex monthly day-ahead price, ES treated), plain + ridge-augmented
+    "scta_texas_sb8": "benchmarks.cases.scta_texas_sb8",        # Path A + cross-val vs augsynth 0.2.0 on the authors' Texas SB8 panel: pins the nu = K*year_wt^2 knob mapping (augsynth weights the objective by V^2), the demeaning-basis residual, and the Figure 1 frontier
     "rescm_brexit": "benchmarks.cases.rescm_brexit",            # Path A: SCM-relaxation Brexit/UK GDP (2016Q3)
     "rescm_brexit_2020": "benchmarks.cases.rescm_brexit_2020",  # Path A: SCM-relaxation Brexit robustness (2020Q1)
     "brabander_brexit_table1": "benchmarks.cases.brabander_brexit_table1",      # Path A: de Brabander et al. 2025 Table 1, all 14 cells (SC/DSC/SDID i-iii/MASC/ASCM, 2016Q3, no covariates)

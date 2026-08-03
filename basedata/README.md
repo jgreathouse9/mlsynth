@@ -113,6 +113,26 @@ Mortality Database, and UN Trade and Development. Note that the service file
 stores the plain half-vectorisation the authors use, with no √2 on the
 off-diagonals — see `benchmarks/cases/fsc_okano.py` for why that matters.
 
+## Texas SB8 and monthly live births — Sun, Ben-Michael & Feller (2024)
+
+| File | Contents | Used by |
+|---|---|---|
+| `texas_sb8_births.csv` | monthly live-birth counts by US state, 2016–2022, with the breakdowns the source ships (race/ethnicity, payer, marital status, maternal age): 51 states × 84 months | `scta_texas_sb8` |
+
+The authors' `compileddata.csv` verbatim, from the replication package for
+"Temporal Aggregation for the Synthetic Control Method" (AEA P&P 114: 614–617).
+They are secondary users: the counts are CDC WONDER Natality 2016–2022
+(expanded), public domain, as compiled by Bell, Stuart & Gemmill (2023, *JAMA*
+330(3):281–282), and the package licenses users to download, copy and modify it.
+
+The benchmark annualises `all_births` by a factor of 12 and treats Texas from
+April 2022, which is the `.rmd`'s `year_mth >= 2022.25`. That leaves 75
+pre-treatment months — six whole calendar years plus a three-month tail, the
+ragged-block case — and nine post-treatment months. The authors' construction is
+transcribed in `benchmarks/reference/scta_texas_sb8/reference.R`, which needs R
+with `augsynth` and `dplyr`; the Python case reads the captured bundle instead
+and runs no R.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.

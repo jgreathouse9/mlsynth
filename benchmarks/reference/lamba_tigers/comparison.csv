@@ -1,9 +1,9 @@
 # case: lamba_tigers
 # generated_at: 2026-07-31T09:43:45Z
 # mlsynth_version: 1.0.0
-# estimator: 
+# estimator: VanillaSC
 # config: {}
-# reference_impl: R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst rather than pinned
+# reference_impl: R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst, not pinned
 # reference_version: R version 4.3.3 (2024-02-29)
 # reference_generated_at: 2026-07-30T20:42:50Z
 quantity,mlsynth,reference,abs_diff

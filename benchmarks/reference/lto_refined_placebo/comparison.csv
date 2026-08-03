@@ -1,0 +1,14 @@
+# case: lto_refined_placebo
+# generated_at: 2026-08-02T14:46:18Z
+# mlsynth_version: 1.0.0
+# estimator: VanillaSC (inference='lto')
+# config: {"inference": "lto", "panels": ["Prop99", "W.Germany", "Basque"]}
+# reference_impl: tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), live run, captured
+# reference_version: Sudijono & Lei (2023/2025) arXiv:2401.07152, on in-repo panels
+quantity,mlsynth,reference,abs_diff
+Prop99: naive LTO p-value,0.103841,0.103841,0.0
+Prop99: treated losses / pairs,73/703,73/703,0
+W.Germany: naive LTO p-value,0.008333,0.008333,0.0
+W.Germany: treated losses / pairs,1/120,1/120,0
+Basque: naive LTO p-value,0.691667,0.691667,0.0
+Basque: treated losses / pairs,83/120,83/120,0

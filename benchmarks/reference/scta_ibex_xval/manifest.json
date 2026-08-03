@@ -1,0 +1,10 @@
+{
+  "case": "scta_ibex_xval",
+  "title": "SCTA vs an independent build of the temporal-aggregation design, solved by cvxpy/CLARABEL",
+  "paper": "Sun, Ben-Michael & Feller (2024), 'Temporal Aggregation for the Synthetic Control Method', AEA P&P 114: 614-617",
+  "reference_impl": "independent implementation of Sun, Ben-Michael & Feller (2024) Sec. 2 stacked design, solved by cvxpy/CLARABEL",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/run_benchmarks.py --case scta_ibex_xval",
+  "data": ["basedata/ibex_day_ahead_price.csv"],
+  "note": "The reference lives in the case module itself: the paper's four-step recipe rebuilt from the equations, with no import from mlsynth.utils.scta_helpers, and solved by an interior-point conic solver where mlsynth uses a primal active-set QP. The panel is the ibex monthly day-ahead electricity price with Spain treated in June 2022, not the paper's Texas SB8 live-birth panel, which is not redistributable here; docs/replications/scta.rst records what each of the two checks covers."
+}

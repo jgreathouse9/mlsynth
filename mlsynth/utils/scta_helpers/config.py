@@ -31,7 +31,7 @@ class SCTAConfig(BaseEstimatorConfig):
     )
     nu: float = Field(
         default=0.5,
-        description="Weight on the aggregated objective relative to the disaggregated one. Enters V as diag(K*nu on the aggregate rows, 1 on the disaggregated rows). nu=0 -> disaggregated SC; the paper's default heuristic is 0.5 with sensitivity over a range.",
+        description="Weight on the aggregated objective relative to the disaggregated one. Enters V as diag(K*nu on the aggregate rows, 1 on the disaggregated rows). nu=0 -> disaggregated SC. The two halves of the objective carry equal total weight at nu=1 (the aggregate rows contribute floor(T0/K)*K*nu against T0 for the months), which is the paper's equal-weight case; the default 0.5 leaves the aggregates at just under half the months' weight. The paper asks for sensitivity over a range, not a single value -- pass `frontier` to trace it.",
     )
     augment: Optional[Literal["ridge"]] = Field(
         default=None,
