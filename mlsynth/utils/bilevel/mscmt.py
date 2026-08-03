@@ -74,6 +74,19 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
     batched form of the same solver over a whole population; this single-problem
     form serves the single-predictor path, :mod:`determine_v`, and callers that
     need one ``W*(V)``.
+
+    Solve a *family* of ``W*(V)`` through
+    :func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm_batch`, not by
+    calling this in a loop. The batched solver amortises its per-iteration
+    numpy work over the whole batch, so at a batch of one that work is all
+    overhead: this call costs about 0.4 ms on a 13-predictor, 17-donor problem
+    where the penalised NNLS it replaced cost 0.02 ms, and where a loop over a
+    population would cost a small fraction of either. The exchange is worth it
+    at the call sites that exist -- :mod:`determine_v` and MEDSC make tens of
+    calls per fit, tens of milliseconds against fits of hundreds, and MEDSC's
+    Prop 99 replication runs in the same 2 seconds it did before -- and it buys
+    an exact equality constraint in place of a big-M penalty. It would not be
+    worth it in a loop over thousands.
     """
     R = _predictor_discrepancies(prob)
     V = np.clip(np.asarray(V, dtype=float).ravel(), 0.0, None)
