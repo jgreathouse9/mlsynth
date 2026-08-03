@@ -1559,6 +1559,12 @@ in ``mlsynth/tests/test_vanillasc_ascm.py::test_augsynth_kansas_ladder_public_ap
 vs augsynth) and ``augsynth_calibrated`` (Path B), locked in
 ``mlsynth/tests/test_bilevel_ridge.py``.
 
+The solver underneath the covariate backends is validated on its own terms by
+`mscmt_solver <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/mscmt_solver.py>`__,
+which checks the batched active set against cvxpy's interior-point solver on the
+Basque predictor weightings, pins its work as iteration counts, and records what
+the default ``mscmt_tol`` costs the estimate against an exhaustive search.
+
 Core API
 --------
 

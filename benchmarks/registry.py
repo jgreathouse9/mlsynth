@@ -80,6 +80,7 @@ CASES = {
     "mtgp_california": "benchmarks.cases.mtgp_california",          # cross-val vs replication-package Stan run LIVE via rstan (California APPS, homicide rates 1997-2018, treated 2007) -- needs [bayes] + rstan
     "bpscs_synthetic": "benchmarks.cases.bpscs_synthetic",           # self-contained: BPSCS effect recovery + distance-based shrinkage on a simulated spatial-spillover panel (GPL reference not shipped) -- needs [bayes]
     "mscmt_basque": "benchmarks.cases.mscmt_basque",          # cross-val vs R MSCMT: AG Basque, fit_window=(1960,1969)
+    "mscmt_solver": "benchmarks.cases.mscmt_solver",          # cross-val vs cvxpy: the MSCMT inner simplex solver, exactness + work bounds
     "lamba_tigers": "benchmarks.cases.lamba_tigers",          # cross-val vs tidysynth 0.2.0: Lamba et al. 2023 tiger reserves, staggered per-reserve SCM with zone-restricted donor pools
     "malo_prop99": "benchmarks.cases.malo_prop99",            # Path A: Malo et al. 2024 Table 1 bilevel optimum (Prop 99)
     "malo_basque": "benchmarks.cases.malo_basque",            # cross-val vs scm.corner: AG Basque bilevel optimum, beats MSCMT

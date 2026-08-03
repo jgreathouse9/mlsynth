@@ -285,6 +285,15 @@ def solve_simplex_minnorm_batch(
         # corral improves the fit exactly when (Gw)_j < nu. Bring in the most
         # improving one, or certify. Only the corral columns of G are touched,
         # since w is zero elsewhere.
+        #
+        # One at a time, which is what makes the iteration count scale with the
+        # size of the optimal support: on the Basque placebo panels it runs from
+        # 9 iterations where two donors carry the fit to 33 where six do. Adding
+        # the top-m violators together to shorten that was measured and does not
+        # work -- Wolfe's guarantee that an added vertex takes positive weight
+        # covers one addition, and with several the blocked step drops the ones
+        # that did not, so the corral oscillates. Every Basque panel then ran to
+        # the iteration cap and finished 1-2 percent above the optimum.
         f = np.flatnonzero(interior)
         if f.size:
             af, idf = a[f], idx[f]
