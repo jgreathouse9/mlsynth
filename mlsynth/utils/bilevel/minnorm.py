@@ -42,7 +42,7 @@ mlsynth.utils.bilevel.active_set.solve_simplex_qp : the single-problem,
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -113,6 +113,70 @@ def gram_reduction_is_safe(B: np.ndarray, tol: float = 1e-8) -> bool:
     if sv.size == 0 or sv[0] <= 0.0:
         return False
     return bool(sv[-1] / sv[0] > tol)
+
+
+def simplex_point_is_optimal(
+    B: np.ndarray, A: np.ndarray, w: np.ndarray, tol: float = 1e-7
+) -> bool:
+    """Whether ``w`` solves ``min ||B w - A||^2`` on the simplex, checked on ``B``.
+
+    With ``g = B'(B w - A)`` and ``nu = g' w``, the KKT conditions for this
+    program are ``g_j >= nu`` for every donor, with equality wherever ``w_j > 0``.
+    Feasibility plus that inequality is a certificate: it is computed from the
+    design and the target, so it holds whatever solver produced ``w`` and
+    whatever form that solver worked in.
+
+    Which is the point of it here. The Gram reduction squares the condition
+    number -- ``G = R'R`` for ``R = B - A 1'`` -- so a design that is merely
+    awkward at ``cond(B) ~ 1e7``, as covariates measured in different units are,
+    gives a ``G`` that is singular in float64. The batched solver then converges
+    on that ``G``, correctly, to a point that does not solve the program ``G``
+    came from, and nothing computed from ``G`` can tell. On the covariate
+    specification of the Wiltshire panel that is 62 of 76 members of a cohort,
+    with a KKT residual of 7e-3 where the design-form solver leaves 6e-10.
+
+    Optimality and uniqueness are separate questions, and standing one solver in
+    for another needs both: see :func:`simplex_optimum_is_unique`. A point may be
+    optimal on a face, or be a near-miss for a unique optimum.
+
+    Parameters
+    ----------
+    B : np.ndarray, shape (m, J)
+        The design the weights are claimed to solve.
+    A : np.ndarray, shape (m,)
+        The target.
+    w : np.ndarray, shape (J,)
+        The candidate weights.
+    tol : float
+        Relative tolerance, applied to the reduced gradient's own magnitude, and
+        absolutely to simplex feasibility.
+
+    Returns
+    -------
+    bool
+        ``True`` only when ``w`` is feasible and satisfies the KKT conditions.
+    """
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    w = np.asarray(w, dtype=float).ravel()
+    if B.ndim != 2:
+        raise ValueError(f"B must be a 2-D (m, J) matrix; got shape {B.shape}.")
+    if w.shape[0] != B.shape[1]:
+        raise ValueError(
+            f"len(w)={w.shape[0]} must equal B's column count {B.shape[1]}.")
+    if A.shape[0] != B.shape[0]:
+        raise ValueError(
+            f"len(A)={A.shape[0]} must equal B's row count {B.shape[0]}.")
+    if not np.all(np.isfinite(w)):
+        return False
+    if w.min() < -_W_TOL or abs(w.sum() - 1.0) > 1e-9:
+        return False
+    g = B.T @ (B @ w - A)
+    if not np.all(np.isfinite(g)):  # pragma: no cover - overflow on absurd input
+        return False
+    nu = float(g @ w)
+    scale = 1.0 + float(np.max(np.abs(g)))
+    return bool(float(g.min()) >= nu - tol * scale)
 
 
 def simplex_optimum_is_unique(
@@ -436,10 +500,23 @@ def solve_simplex_minnorm_batch(
     return W
 
 
+def _reproduces_the_loop(B: np.ndarray, A: np.ndarray, w: np.ndarray) -> bool:
+    """Whether a batched answer may stand in for the one-at-a-time solve.
+
+    Both halves are needed and neither implies the other. ``w`` has to solve the
+    program as posed on the design, which the Gram form can fail to do when
+    ``cond(B)^2`` exceeds float64; and the program has to have one solution, or
+    two exact solvers land in different places on a face.
+    """
+    return (simplex_point_is_optimal(B, A, w)
+            and simplex_optimum_is_unique(B, A, w))
+
+
 def solve_simplex_loo_exact(
     M: np.ndarray,
     *,
     n_targets: Optional[int] = None,
+    fallback: Optional[Callable] = None,
     return_info: bool = False,
 ):
     """Leave-one-out simplex least squares over the columns of ``M``, exactly.
@@ -455,13 +532,16 @@ def solve_simplex_loo_exact(
     remaining indices. No product with the data occurs per problem, and the
     batched active set then certifies the whole family together.
 
-    Every member is checked with :func:`simplex_optimum_is_unique` and the ones
-    whose minimiser is a face -- where two exact solvers may return different
-    weights for the same fit -- are re-solved with the single-problem active set
-    of :mod:`~mlsynth.utils.bilevel.active_set`. So the result is not merely
-    optimal but identical to solving the family one at a time, which matters
-    here: the placebo p-value is a rank statistic over these fits, and the
-    library's published ranks came from that solver.
+    Every member is then certified against its own design: the returned point
+    has to satisfy the KKT conditions there (:func:`simplex_point_is_optimal`,
+    which the Gram form can fail when ``cond(M)^2`` exceeds float64) and its
+    optimum has to be a point and not a face
+    (:func:`simplex_optimum_is_unique`, since on a face two exact solvers land
+    in different places). Members failing either are re-solved with the
+    single-problem active set of :mod:`~mlsynth.utils.bilevel.active_set`. So
+    the result is not merely optimal but identical to solving the family one at
+    a time, which matters here: the placebo p-value is a rank statistic over
+    these fits, and the library's published ranks came from that solver.
 
     Parameters
     ----------
@@ -470,6 +550,13 @@ def solve_simplex_loo_exact(
     n_targets : int, optional
         How many leading columns are cast as treated. Columns beyond it stay in
         every donor pool without being a target themselves. Defaults to ``J``.
+    fallback : callable, optional
+        ``(B, A) -> w``, the one-at-a-time solver this batch is standing in for,
+        used on members that fail certification. Defaults to
+        :func:`~mlsynth.utils.bilevel.active_set.solve_simplex_qp`. Pass the
+        caller's own: VanillaSC's engine reaches that solver through a wrapper
+        that escalates to CVXPY when it reports failure on itself, and the two
+        can disagree exactly where the certification fails.
     return_info : bool
         If ``True`` also return ``{"n_problems", "n_fallback"}``.
 
@@ -478,7 +565,8 @@ def solve_simplex_loo_exact(
     np.ndarray, shape (n_targets, J)
         Row ``j`` holds the weights fitting ``M[:, j]``, with ``W[j, j]`` zero.
     """
-    from .active_set import solve_simplex_qp
+    if fallback is None:
+        from .active_set import solve_simplex_qp as fallback
 
     M = np.asarray(M, dtype=float)
     if M.ndim != 2:
@@ -492,10 +580,9 @@ def solve_simplex_loo_exact(
     if not 1 <= n <= J:
         raise ValueError(f"n_targets must be between 1 and {J}; got {n}.")
 
-    Mg = M.T @ M
     keep = ~np.eye(J, dtype=bool)[:n]                      # (n, J)
     idx = np.argsort(~keep, axis=1, kind="stable")[:, :J - 1]   # donors per target
-    rows = np.arange(n)[:, None]
+    Mg = M.T @ M
     # G_j from the Gram alone: the deleted column enters only through its own
     # row, column and diagonal entry.
     G = (Mg[idx[:, :, None], idx[:, None, :]]
@@ -509,9 +596,95 @@ def solve_simplex_loo_exact(
     n_fallback = 0
     for j in range(n):
         cols = idx[j]
-        if not simplex_optimum_is_unique(M[:, cols], M[:, j], W[j, cols]):
-            W[j, cols] = solve_simplex_qp(M[:, cols], M[:, j])
+        if not _reproduces_the_loop(M[:, cols], M[:, j], W[j, cols]):
+            W[j, cols] = np.asarray(fallback(M[:, cols], M[:, j]),
+                                    dtype=float).ravel()
             n_fallback += 1
     if return_info:
         return W, {"n_problems": n, "n_fallback": n_fallback}
+    return W
+
+
+def solve_simplex_shared_design(
+    A: np.ndarray,
+    B: np.ndarray,
+    *,
+    fallback: Optional[Callable] = None,
+    return_info: bool = False,
+):
+    """Simplex least squares for many targets against one shared design.
+
+    Solves ``min ||A w - b_j||^2`` on the simplex for every column ``b_j`` of
+    ``B``. This is the shape a cohort of treated units poses when they are
+    fitted against a common donor pool.
+
+    One design means the family costs one Gram plus one cross product. With
+    ``c_j = A' b_j`` and ``s_j = b_j' b_j``, the ``j``-th problem's Gram is
+
+        ``G_j = A'A - c_j 1' - 1 c_j' + s_j 1 1'``,
+
+    so ``A'A`` and ``A'B`` formed once carry the whole set, and the batched
+    active set then runs the cohort in lockstep.
+
+    Every member is then certified against the design: the returned point has to
+    satisfy the KKT conditions there (:func:`simplex_point_is_optimal`) and its
+    optimum has to be a point and not a face (:func:`simplex_optimum_is_unique`).
+    Members failing either are re-solved one at a time. The weights are reported
+    per treated unit and the counterfactuals are built from them, so the batch
+    has to reproduce the one-at-a-time solve and not merely tie with it. The
+    optimality test is what covariate matching needs: predictors in different
+    units push ``cond(A)`` to 1e7 and the Gram past what float64 keeps, and
+    there most of the group falls back and the batch buys nothing. On the
+    outcome-only design it is 89 members with 6 falling back, at 43ms against
+    the loop's 396ms.
+
+    Parameters
+    ----------
+    A : np.ndarray, shape (m, J)
+        Design shared by every target.
+    B : np.ndarray, shape (m, k) or (m,)
+        Targets, one per column. A 1-D array is one target.
+    fallback : callable, optional
+        ``(B, A) -> w``, the one-at-a-time solver this batch is standing in for,
+        used on members that fail certification. Defaults to
+        :func:`~mlsynth.utils.bilevel.active_set.solve_simplex_qp`, which is
+        what STACKEDSC calls.
+    return_info : bool
+        If ``True`` also return ``{"n_problems", "n_fallback"}``.
+
+    Returns
+    -------
+    np.ndarray, shape (k, J)
+        Row ``j`` holds the weights fitting ``B[:, j]``.
+    """
+    if fallback is None:
+        from .active_set import solve_simplex_qp as fallback
+
+    A = np.asarray(A, dtype=float)
+    B = np.asarray(B, dtype=float)
+    if A.ndim != 2:
+        raise ValueError(f"A must be 2-D (m, J); got shape {A.shape}.")
+    if B.ndim == 1:
+        B = B[:, None]
+    if B.ndim != 2:
+        raise ValueError(f"B must be 2-D (m, k) or 1-D (m,); got shape {B.shape}.")
+    if B.shape[0] != A.shape[0]:
+        raise ValueError(
+            f"B has {B.shape[0]} rows but A has {A.shape[0]}; the targets and "
+            f"the design must be measured over the same rows.")
+
+    k = B.shape[1]
+    AtA = A.T @ A
+    C = (A.T @ B).T                                        # (k, J), row j is c_j
+    s = np.einsum("ij,ij->j", B, B)                        # (k,)
+    G = AtA[None] - C[:, :, None] - C[:, None, :] + s[:, None, None]
+    W = solve_simplex_minnorm_batch(0.5 * (G + np.swapaxes(G, 1, 2)))
+
+    n_fallback = 0
+    for j in range(k):
+        if not _reproduces_the_loop(A, B[:, j], W[j]):
+            W[j] = np.asarray(fallback(A, B[:, j]), dtype=float).ravel()
+            n_fallback += 1
+    if return_info:
+        return W, {"n_problems": int(B.shape[1]), "n_fallback": n_fallback}
     return W

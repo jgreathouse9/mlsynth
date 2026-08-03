@@ -674,15 +674,16 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # matrix, so they are solved together. Restricted to the case where a
         # refit is exactly that one simplex QP: no covariates to weight, no
         # augmentation layer over the base, and a backend that reduces to it.
-        # ``solve_simplex_loo_exact`` verifies each member and re-solves the
-        # ambiguous ones with the same active set the loop below would have
-        # used, so the ranks this p-value is built from are unchanged.
+        # ``solve_simplex_loo_exact`` certifies each member and re-solves the
+        # rest with ``simplex_qp``, the same solver the engine calls below, so
+        # the ranks this p-value is built from are unchanged.
         loo_W = None
         if (engine is not None and not covariates and engine.augment != "ridge"
                 and str(config.backend) in ("auto", "outcome-only")):
             from ..bilevel.minnorm import solve_simplex_loo_exact
+            from ..bilevel.ridge_augment import simplex_qp
             try:
-                loo_W = solve_simplex_loo_exact(Y0[:pre])
+                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)
             except Exception:  # pragma: no cover - fall back to the loop
                 loo_W = None
         if loo_W is not None:

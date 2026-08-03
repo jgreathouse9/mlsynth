@@ -100,6 +100,37 @@ now returns and the back-compat guarantee.
   augmentation, the penalized backend), which `tests/test_vanillasc_placebo_batch.py`
   asserts by disabling the family solver and requiring the answer not to move.
 
+- STACKEDSC solves each cohort's weight programs as one shared-design family.
+  Every treated unit in a donor pool faces the same design and differs only in
+  its own pre-treatment target, so with `c_j = A' b_j` and `s_j = b_j' b_j` the
+  `j`-th Gram is `A'A - c_j 1' - 1 c_j' + s_j 1 1'`: one Gram and one cross
+  product carry the group, and
+  `mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design` runs it in
+  lockstep. A donor predicate that binds gives one batch per distinct pool, down
+  to a batch of one per unit. On a Wiltshire cohort of 89 units against 39
+  donors the outcome-only design goes 396ms -> 43ms, 9.3x. The covariate design
+  does not batch (see below) and is unchanged.
+
+- `mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal` certifies a simplex
+  weight vector against the design it claims to solve, from the KKT conditions
+  on `B'(Bw - A)`. The batched solvers now require it as well as uniqueness
+  before standing in for the one-at-a-time solve. Uniqueness alone was not
+  enough, and the gap is not academic: the Gram reduction squares the condition
+  number, so a design merely awkward at `cond(B) ~ 1e7` -- covariates measured
+  in different units -- gives a Gram at the edge of float64, and the batched
+  active set then converges on that Gram to a point that does not solve the
+  program it came from. On the covariate specification of the Wiltshire panel
+  that is 62 of 76 members of a cohort, with a KKT residual of 7e-3 where the
+  design-form solver leaves 6e-10; nothing computed from the Gram reveals it.
+  Those members now fall back and the reported effects are unchanged to 1e-9.
+
+- `solve_simplex_loo_exact` and `solve_simplex_shared_design` take a `fallback`
+  solver, since which one-at-a-time solve a batch stands in for is part of the
+  contract. STACKEDSC calls the primal active set directly; VanillaSC's engine
+  calls it through a wrapper that escalates to CVXPY when the active set reports
+  failure on itself, and on a design pathological enough to trip that hatch the
+  two disagree. Each call site now names its own.
+
 - `mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles, after
   solving, whether a simplex least-squares minimiser is the only one -- the
   question that decides whether the batched and one-at-a-time solvers can stand

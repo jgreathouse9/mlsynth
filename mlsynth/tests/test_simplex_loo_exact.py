@@ -12,7 +12,7 @@ is a column of that same Gram. No product with the data appears per problem.
 What the family gives up is uniqueness in general -- for some ``j`` the minimiser
 may be a face, and then the batched and one-at-a-time solvers are both right and
 disagree. Since the placebo p-value is a rank statistic over these fits, that has
-to be settled per member rather than assumed, so each is verified and the
+to be settled per member and not assumed, so each is verified and the
 ambiguous ones fall back to the solver that produced the library's existing
 numbers. These tests pin exactly that.
 """
@@ -175,3 +175,24 @@ def test_identical_donors_still_returns_simplex_rows():
     for j, w in enumerate(W):
         assert w[j] == 0.0
         assert abs(w.sum() - 1.0) < 1e-9
+
+
+def test_the_fallback_solver_is_the_callers_own():
+    """VanillaSC's engine reaches the active set through a wrapper that escalates
+    to CVXPY when the active set reports failure on itself. A batch standing in
+    for the engine's placebo loop has to re-solve with that wrapper, not with
+    the bare active set underneath it."""
+    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+
+    seen = []
+
+    def spy(B, a):
+        seen.append(B.shape[1])
+        return simplex_qp(B, a)
+
+    rng = np.random.default_rng(11)
+    base = np.cumsum(rng.normal(size=(5, 4)), axis=0) + 20.0
+    M = np.hstack([base, base @ rng.dirichlet(np.ones(4), size=16).T])
+    W, info = solve_simplex_loo_exact(M, fallback=spy, return_info=True)
+    assert len(seen) == info["n_fallback"] > 0
+    np.testing.assert_allclose(W, _loop(M), atol=1e-7)
