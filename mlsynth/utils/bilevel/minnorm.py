@@ -61,6 +61,51 @@ _KKT_TOL = 1e-10
 _W_TOL = 1e-12
 
 
+def gram_reduction_is_safe(B: np.ndarray, tol: float = 1e-8) -> bool:
+    """Whether ``B`` may be replaced by its Gram without changing the answer.
+
+    Forming ``G`` squares the design's condition number, and that is only free
+    where the design has full column rank. Two things go wrong when it does not,
+    and they are different failures:
+
+    * If the design is rank deficient only because of a small regulariser -- a
+      uniqueness ridge, a near-zero penalty at the end of a grid -- then that
+      regulariser is the only thing separating the columns, and squaring puts it
+      below what float64 resolves. The Gram solve then returns a point that is
+      not optimal at all. Measured on mlSC's penalty grid over a 9-period,
+      12-disaggregate design, it finished 225 percent above the optimum.
+    * If the design is genuinely rank deficient -- more donors than matching
+      rows, the ordinary synthetic-control case -- the optimum is a face and
+      every point of it is optimal. Both solvers are then correct and they land
+      in different places: on an 8-row, 39-donor design they agree on the fitted
+      values to 1e-11 while differing by 0.5 in the weights, the Gram form
+      concentrating on about 9 donors where the design form spreads over 37.
+      Nothing is wrong, but anything reading the weights -- a donor table, a
+      counterfactual built from post-period donor outcomes -- would change.
+
+    So the reduction is for designs this returns ``True`` for. It is a property
+    of the design alone, decidable before any solving.
+
+    Parameters
+    ----------
+    B : np.ndarray, shape (m, J)
+        The design the reduction would be applied to.
+    tol : float
+        Smallest acceptable ratio of the smallest to the largest singular value.
+
+    Returns
+    -------
+    bool
+    """
+    B = np.asarray(B, dtype=float)
+    if B.ndim != 2 or B.shape[0] < B.shape[1]:
+        return False
+    sv = np.linalg.svd(B, compute_uv=False)
+    if sv.size == 0 or sv[0] <= 0.0:
+        return False
+    return bool(sv[-1] / sv[0] > tol)
+
+
 def simplex_gram(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     """Gram matrix ``G`` with ``w' G w == ||B w - A||^2`` on the simplex.
 

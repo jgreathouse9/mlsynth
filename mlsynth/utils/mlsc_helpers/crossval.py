@@ -25,10 +25,17 @@ broadcast off them, and a batched active set
 the whole grid in a handful of linear solves. On the Bottmer et al. panel (108
 training periods, 90 disaggregate controls, 56 grid points) that is 0.20s against
 4.15s for the same solves one at a time, with the held-out scores agreeing to
-4e-16 and the same penalty selected. Every grid point is strictly convex (the
-``lambda = 0`` point via the ridge floor), so each optimum is unique and the
-batch cannot land anywhere the loop would not have. An explicit ``solver`` routes
-through cvxpy instead.
+4e-16 and the same penalty selected.
+
+That holds while ``X_train`` has full column rank, and only while. Forming the
+Gram squares the design's condition number, and at the small-penalty end of the
+grid the augmentation is a ``1e-8`` uniqueness ridge -- so if the columns are not
+already separated, that ridge is what separates them, and squaring puts it below
+what float64 resolves. On a 9-period, 12-disaggregate panel the Gram form then
+finished 225 percent above the optimum at ``lambda = 1e-8`` and selected a
+different penalty. :func:`_gram_is_safe` decides this from the design before any
+solving, and a rank-deficient training design keeps the one-at-a-time
+design-form solve. An explicit ``solver`` routes through cvxpy instead.
 """
 from __future__ import annotations
 
@@ -61,28 +68,19 @@ def _holdout_mse_native(
 
 
 def _gram_is_safe(X_train: np.ndarray) -> bool:
-    """Whether the grid can be solved through the Gram form without losing the
-    answer at the small-penalty end.
+    """Whether this grid can be scored through the Gram form.
 
-    Forming ``G`` squares the design's condition number, and on this grid the
-    design is ``[X; sqrt(p) R]`` with ``p`` running down to zero, where the
-    augmentation is a ``1e-8`` uniqueness ridge. If ``X_train`` is already of
-    full column rank the ridge is irrelevant -- ``G_X`` is positive definite on
-    its own and well conditioned -- and squaring costs nothing that matters. If
-    it is not, the ridge is the *only* thing separating the columns, and
-    squaring puts it below the precision that separates them: measured on a
-    9-period, 12-disaggregate panel the Gram form then finished 225 percent
-    above the optimum at ``lambda = 1e-8``, where on a full-rank 108-period, 90-
-    disaggregate panel it agrees to 4e-16. So the rank decides, and the
-    rank-deficient case keeps the one-at-a-time design-form solve.
+    Defers to :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe`,
+    which owns the condition: forming ``G`` squares the design's condition
+    number, and the grid's small-penalty end leaves a ``1e-8`` uniqueness ridge
+    as the only thing separating the columns. Where ``X_train`` already has full
+    column rank that ridge is irrelevant and the two paths agree to 4e-16; where
+    it does not, the Gram form finished 225 percent above the optimum on a
+    9-period, 12-disaggregate panel.
     """
-    X = np.asarray(X_train, dtype=float)
-    if X.shape[0] < X.shape[1]:
-        return False
-    sv = np.linalg.svd(X, compute_uv=False)
-    if sv.size == 0 or sv[0] <= 0.0:
-        return False
-    return bool(sv[-1] / sv[0] > 1e-8)
+    from ..bilevel.minnorm import gram_reduction_is_safe
+
+    return gram_reduction_is_safe(X_train)
 
 
 def _grid_weights(
