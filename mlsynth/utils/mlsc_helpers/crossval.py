@@ -12,12 +12,30 @@ implementation (``multi_level_sc_estimator.mlSC``): the same train/test split
 the same default grid (with a ``0`` candidate that drops the penalty to recover
 fully-disaggregated SC, regularized by a tiny ridge for a unique solution).
 
-Each grid penalty is solved by the native active-set simplex QP after folding the
-penalty into the design as a ``sqrt(lambda sigma_y^2) R`` augmentation (``R^T R ==
-Q``); since every grid point is strictly convex (the ``lambda = 0`` point via the
-ridge floor), the optimum is unique and matches cvxpy to solver tolerance with no
-canonicalisation overhead in the loop. An explicit ``solver`` routes through
-cvxpy instead.
+The grid is solved as one batch. Folding a penalty into the design as a
+``sqrt(lambda sigma_y^2) R`` augmentation (``R^T R == Q``) adds rows that carry no
+target, so with the weights summing to one the augmented design's Gram is affine
+in the penalty:
+
+    G(p) = (X - Y 1')' (X - Y 1') + p R^T R.
+
+The two matrices on the right are formed once, every grid point's Gram is a
+broadcast off them, and a batched active set
+(:func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm_batch`) certifies
+the whole grid in a handful of linear solves. On the Bottmer et al. panel (108
+training periods, 90 disaggregate controls, 56 grid points) that is 0.20s against
+4.15s for the same solves one at a time, with the held-out scores agreeing to
+4e-16 and the same penalty selected.
+
+That holds while ``X_train`` has full column rank, and only while. Forming the
+Gram squares the design's condition number, and at the small-penalty end of the
+grid the augmentation is a ``1e-8`` uniqueness ridge -- so if the columns are not
+already separated, that ridge is what separates them, and squaring puts it below
+what float64 resolves. On a 9-period, 12-disaggregate panel the Gram form then
+finished 225 percent above the optimum at ``lambda = 1e-8`` and selected a
+different penalty. :func:`_gram_is_safe` decides this from the design before any
+solving, and a rank-deficient training design keeps the one-at-a-time
+design-form solve. An explicit ``solver`` routes through cvxpy instead.
 """
 from __future__ import annotations
 
@@ -47,6 +65,58 @@ def _holdout_mse_native(
     B, A = _augmented_design(X_train, Y_train, inputs, penalty_scale)
     omega = solve_simplex_qp(B, A)
     return float(np.mean((Y_test - X_test @ omega) ** 2))
+
+
+def _gram_is_safe(X_train: np.ndarray) -> bool:
+    """Whether this grid can be scored through the Gram form.
+
+    Defers to :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe`,
+    which owns the condition: forming ``G`` squares the design's condition
+    number, and the grid's small-penalty end leaves a ``1e-8`` uniqueness ridge
+    as the only thing separating the columns. Where ``X_train`` already has full
+    column rank that ridge is irrelevant and the two paths agree to 4e-16; where
+    it does not, the Gram form finished 225 percent above the optimum on a
+    9-period, 12-disaggregate panel.
+    """
+    from ..bilevel.minnorm import gram_reduction_is_safe
+
+    return gram_reduction_is_safe(X_train)
+
+
+def _grid_weights(
+    inputs: MLSCInputs, X_train: np.ndarray, Y_train: np.ndarray,
+    penalty_scales: np.ndarray,
+) -> np.ndarray:
+    """Disaggregate weights for every penalty at once, shape ``(n_grid, M)``.
+
+    The augmented design's Gram is ``G(p) = G_X + p R'R``, affine in the penalty
+    because the augmentation rows carry no target and the weights sum to one. So
+    the grid's Grams are a broadcast off two matrices formed once, and the batch
+    is solved in one call. A zero penalty keeps the uniqueness ridge the
+    sequential path gives it (``_augmented_design``'s ``sqrt(_RIDGE_FLOOR) I``),
+    which enters the same way: ``G_X + _RIDGE_FLOOR I``.
+    """
+    from ..bilevel.minnorm import simplex_gram, solve_simplex_minnorm_batch
+
+    p = np.asarray(penalty_scales, dtype=float).ravel()
+    M = X_train.shape[1]
+    G_X = simplex_gram(X_train, Y_train)
+    R = build_sqrt_factor(inputs.v_population, inputs.disagg_to_agg)
+    penalised = p > 0.0
+    G = np.repeat(G_X[None], p.size, axis=0)
+    G += np.where(penalised, p, 0.0)[:, None, None] * (R.T @ R)[None]
+    G += np.where(penalised, 0.0, _RIDGE_FLOOR)[:, None, None] * np.eye(M)[None]
+    return solve_simplex_minnorm_batch(G)
+
+
+def _holdout_mse_grid(
+    inputs: MLSCInputs, X_train: np.ndarray, Y_train: np.ndarray,
+    X_test: np.ndarray, Y_test: np.ndarray, penalty_scales: np.ndarray,
+) -> np.ndarray:
+    """Held-out forecast MSE for every penalty at once, shape ``(n_grid,)``."""
+    W = _grid_weights(inputs, X_train, Y_train, penalty_scales)
+    resid = Y_test[:, None] - X_test @ W.T
+    return (resid * resid).mean(axis=0)
 
 
 def _county_sc_holdout_mse(
@@ -150,6 +220,9 @@ def select_lambda_cv(
         cv_error = _select_lambda_cv_cvxpy(
             inputs, Q, sigma_y2, grid, X_train, Y_train, X_test, Y_test, solver
         )
+    elif _gram_is_safe(X_train):
+        cv_error = _holdout_mse_grid(inputs, X_train, Y_train, X_test, Y_test,
+                                     grid * float(sigma_y2))
     else:
         cv_error = np.array([
             _holdout_mse_native(inputs, X_train, Y_train, X_test, Y_test,

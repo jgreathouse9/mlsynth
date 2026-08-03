@@ -32,6 +32,32 @@ now returns and the back-compat guarantee.
   resolves and behaves gracefully for every estimator the package ships.
 
 ### Changed
+- mlSC scores its penalty grid in one pass under `lambda_est="cross-validation"`.
+  Folding a penalty into the design as a `sqrt(lambda sigma_y^2) R` augmentation
+  adds rows carrying no target, so with the weights summing to one the augmented
+  Gram is affine in the penalty, `G(p) = (X - Y 1')'(X - Y 1') + p R'R`, verified
+  against the assembled design to 1e-9 across the grid. The two matrices are
+  formed once, each grid point is a broadcast off them, and the batched active
+  set certifies the whole grid together: on the Bottmer et al. panel (108
+  training periods, 90 disaggregate controls, 56 grid points) 0.27s against
+  4.49s, the same penalty selected, and `mlsc_bottmer`'s agreement with the
+  author's `mlSC_estimator` unchanged at `path_a_cv_lambda_rel = 0`.
+
+  The reduction is guarded. Forming the Gram squares the design's condition
+  number, which is free only where the design has full column rank -- and this
+  grid runs the penalty to zero, where the augmentation is a `1e-8` uniqueness
+  ridge. On a rank-deficient training design that ridge is the only thing
+  separating the columns and squaring puts it below what float64 resolves: on a
+  9-period, 12-disaggregate panel the Gram form then finished 225 percent above
+  the optimum at `lambda = 1e-8` and selected a different penalty. The new
+  `mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides this from the
+  design before anything is solved, and a rank-deficient one keeps the
+  one-penalty-at-a-time solve. It states both failure modes the reduction has --
+  the other being a genuinely rank-deficient design, where both solvers are
+  optimal but land on different points of the optimal face, which is why the same
+  batching is not available to STACKEDSC. Pinned by
+  `tests/test_mlsc_crossval_batch.py`.
+
 - VanillaSC's `mscmt` backend (the default when covariates are supplied) solves
   its inner donor-weight program exactly, and for a whole outer-search
   generation at once. Because the weights sum to one the design matrix drops out

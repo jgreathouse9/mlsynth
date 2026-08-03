@@ -132,6 +132,56 @@ def test_gram_rejects_a_non_matrix_design():
 
 
 # --------------------------------------------------------------------------- #
+# 1b. When the reduction is safe to use at all
+# --------------------------------------------------------------------------- #
+def test_gram_reduction_is_safe_only_on_a_full_column_rank_design():
+    """Forming ``G`` squares the design's condition number, so the reduction is
+    only faithful where the design has full column rank. The guard says so."""
+    from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+
+    rng = np.random.default_rng(0)
+    assert gram_reduction_is_safe(rng.normal(size=(40, 12))) is True
+    assert gram_reduction_is_safe(rng.normal(size=(8, 39))) is False
+    collinear = rng.normal(size=(40, 6))
+    collinear[:, 5] = collinear[:, 0]
+    assert gram_reduction_is_safe(collinear) is False
+    assert gram_reduction_is_safe(np.zeros((5, 3))) is False
+
+
+def test_full_rank_designs_agree_with_the_design_form_on_the_weights():
+    """Where the guard passes, the two exact solvers return the same weights and
+    not merely the same fit -- which is what makes swapping them safe."""
+    rng = np.random.default_rng(1)
+    from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+
+    for m, J in [(40, 20), (30, 12), (60, 25)]:
+        B, A = _rand(rng, m, J)
+        assert gram_reduction_is_safe(B)
+        w_gram = solve_simplex_minnorm(simplex_gram(B, A))
+        w_design = solve_simplex_qp(B, A)
+        assert np.allclose(w_gram, w_design, atol=1e-6)
+
+
+def test_rank_deficient_designs_agree_on_the_fit_but_not_the_weights():
+    """The other side of the guard, stated as a fact and not an aspiration: on a
+    face the two solvers land in different places, both optimal. The Gram form
+    concentrates the weight; the design form spreads it. Anything reading the
+    weights themselves -- a donor table, a counterfactual built from post-period
+    donor outcomes -- would change if it swapped one for the other."""
+    rng = np.random.default_rng(2)
+    from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+
+    B = np.cumsum(rng.normal(size=(8, 39)), axis=0) + 10.0
+    A = B @ rng.dirichlet(np.ones(39)) + 0.05 * rng.normal(size=8)
+    assert not gram_reduction_is_safe(B)
+    w_gram = solve_simplex_minnorm(simplex_gram(B, A))
+    w_design = solve_simplex_qp(B, A)
+    assert np.allclose(B @ w_gram, B @ w_design, atol=1e-7)     # same fit
+    assert np.abs(w_gram - w_design).max() > 0.05               # different point
+    assert (w_gram > 1e-9).sum() < (w_design > 1e-9).sum()      # and sparser
+
+
+# --------------------------------------------------------------------------- #
 # 2. Smoke
 # --------------------------------------------------------------------------- #
 def test_smoke_single_returns_feasible_weights():

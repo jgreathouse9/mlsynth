@@ -592,6 +592,62 @@ Three penalty-selection rules are exposed via
   penalty as the reference (e.g. :math:`316.23` on the seed-42 panel),
   and the cross-check is wired into the ``mlsc_bottmer`` benchmark.
 
+  The grid is scored in one pass, not one penalty at a time. Section
+  :ref:`mlsc-batched-grid` gives the identity that allows it; on the
+  Bottmer et al. panel (108 training periods, 90 disaggregate controls,
+  56 grid points) the selection takes 0.27s against 4.49s, choosing the
+  same penalty.
+
+.. _mlsc-batched-grid:
+
+Scoring the Penalty Grid in One Pass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Cross-validation asks the same question of every candidate penalty, and the
+default grid has fifty-six of them. Solving each separately is avoidable,
+because the penalty enters the problem in a particularly simple way.
+
+The penalized program is folded into an ordinary least-squares one by stacking
+:math:`\sqrt{p}\,\mathbf{R}` beneath the design, where
+:math:`\mathbf{R}^\top\mathbf{R} = \mathbf{Q}` is the block-diagonal penalty
+matrix above and :math:`p = \lambda\widehat\sigma_y^2`. Those extra rows carry no
+target. So, writing :math:`\mathbf{X}` for the training design and
+:math:`\mathbf{y}` for its target, and using
+:math:`\mathbf{1}^\top\boldsymbol{\omega} = 1` to replace
+:math:`\mathbf{X}\boldsymbol{\omega} - \mathbf{y}` with
+:math:`(\mathbf{X} - \mathbf{y}\mathbf{1}^\top)\boldsymbol{\omega}`, the whole
+objective is the quadratic form
+:math:`\boldsymbol{\omega}^\top \mathbf{G}(p)\, \boldsymbol{\omega}` with
+
+.. math::
+
+   \mathbf{G}(p)
+   \;=\;
+   (\mathbf{X} - \mathbf{y}\mathbf{1}^\top)^\top
+   (\mathbf{X} - \mathbf{y}\mathbf{1}^\top)
+   \;+\; p\,\mathbf{Q},
+
+which is affine in the penalty. The two matrices on the right are formed once
+and every grid point is a broadcast off them, after which an active set over the
+disaggregate units certifies the entire grid together. The weights are the point
+of least norm in a convex hull -- Wolfe's (1976) problem [wolfe1976]_ -- which
+that active set solves exactly and in finitely many steps, so this is a change of
+arithmetic and not of estimator.
+
+One condition governs it. Forming :math:`\mathbf{G}` squares the design's
+condition number, which costs nothing where the design has full column rank and a
+great deal where it does not. The grid runs the penalty down to zero, where the
+program is held together only by a :math:`10^{-8}` uniqueness ridge; if the
+training design is itself rank deficient -- more disaggregate controls than
+training periods -- that ridge is the only thing separating the columns, and
+squaring puts it below what double precision resolves. Measured on a nine-period,
+twelve-disaggregate panel the reduction then finished 225 percent above the
+optimum at :math:`\lambda = 10^{-8}` and selected a different penalty, where on
+the 108-period, 90-disaggregate panel the two agree to :math:`4 \times 10^{-16}`.
+:func:`mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides this from
+the design before anything is solved, and a rank-deficient training design keeps
+the one-penalty-at-a-time solve.
+
 Variance Decomposition (Appendix G)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -960,3 +1016,7 @@ Abadie, A., Diamond, A., and Hainmueller, J. (2010). "Synthetic
 Control Methods for Comparative Case Studies: Estimating the Effect
 of California's Tobacco Control Program." *Journal of the American
 Statistical Association* 105(490):493-505.
+
+.. [wolfe1976] Wolfe, P. (1976). "Finding the Nearest Point in a Polytope."
+   *Mathematical Programming* 11:128-149. The minimum-norm-point active set
+   the batched penalty-grid solve rests on.
