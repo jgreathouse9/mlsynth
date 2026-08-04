@@ -98,6 +98,7 @@ At a glance
      + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + unit sizes differ by orders of magnitude, want % effects ─► STACKEDSC
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+     + latent factors, unit-specific loadings, never-treated pool ─► GSYNTH
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
      + missing cells / gaps              ─► MCNNM
@@ -822,9 +823,24 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   already tracks the cohorts on levels -- keeping interpretable, non-extrapolating
   weights and the finite-sample CFPT intervals, with no DiD intercept or
   reweighted periods.
+* Staggered, with a never-treated pool, and you believe the units co-move
+  through *latent common factors* with unit-specific sensitivities --
+  :doc:`gsynth` (Xu 2017). It fits an interactive fixed effects model on the
+  never-treated units alone, then places each treated unit in that estimated
+  factor space using its own pre-adoption history, so the counterfactual comes
+  from a projection onto factors and not from a weighted average of donors. No
+  convex-hull condition binds and staggered dates need no special handling.
+  It selects the factor count by a deterministic leave-one-pre-period-out
+  cross-validation and reports a parametric-bootstrap interval. Prefer it over
+  :doc:`sdid` when the treated units' *responses* to common shocks differ (so
+  a common time effect is indefensible), and over staggered :doc:`vanillasc`
+  when the treated units sit outside the donors' hull; prefer either of those
+  when you want interpretable donor weights, which a factor projection does
+  not produce. It requires a never-treated pool and absorbing adoption.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
-* Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
-  staggered missingness natively).
+* Staggered *and* missing cells / gaps, or *every* unit eventually treated --
+  :doc:`mcnnm` (matrix completion handles staggered missingness natively and
+  needs no never-treated pool, which is where :doc:`gsynth` stops).
 * Exposure defined by a within-unit *subgroup* (a triple difference), and you
   distrust parallel trends across that third dimension -- :doc:`sdid` in its
   synthetic triple-difference mode (``subgroup`` / ``target_subgroup``; Zhuang
@@ -1029,6 +1045,9 @@ A reverse lookup: the symptom, and the method named for it.
    * - Many treated, staggered adoption
      - :doc:`sdid`, :doc:`vanillasc` (simplex SC per unit, CFPT intervals),
        :doc:`rolldid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
+   * - Staggered, never-treated pool, latent factors with unit-specific
+       loadings
+     - :doc:`gsynth`
    * - Staggered, long pre-period, few never-treated (event study)
      - :doc:`ssc`
    * - Designing for the ATT

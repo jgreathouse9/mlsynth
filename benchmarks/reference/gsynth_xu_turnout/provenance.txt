@@ -1,0 +1,8 @@
+fect: 2.4.5
+commit: eccc9731ad74d049b22a3e769393c6a6c47b33bd
+nanoparquet: 0.5.1
+R: 4.3.3
+panel: basedata/xu_edr_turnout.parquet
+ranks: 0-5
+call: fect(method='gsynth', force='two-way', CV=FALSE, se=FALSE)
+cv:   fect(method='gsynth', CV=TRUE, cv.method='loo')

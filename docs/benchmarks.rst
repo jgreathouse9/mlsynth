@@ -68,6 +68,16 @@ Path A — empirical replications
        the printed table (loose: within half its last printed digit). Live
        ``augsynth`` reproduces the table, so the two references agree and the
        live rows bind
+   * - ``gsynth_xu_turnout``
+     - Xu (2017, Political Analysis) Table 2 columns (3) and (4), on the
+       author's own EDR/turnout panel: both ATTs (5.13, 4.90) and both
+       covariate coefficients (0.15, -1.05) reproduce within half the last
+       printed digit, and against a commit-pinned ``fect`` 2.4.5 run the
+       agreement is 7.7e-14 on the ATT, 4.8e-11 on the coefficients and 8.9e-14
+       across 396 event-time points, over every rank from zero to five on both
+       specifications. Algorithm 1's criterion is pinned alongside, because the
+       ATT is not monotone in the rank and the rule that picks it decides the
+       headline number
    * - ``song_ml_ascm``
      - Song et al. (2023) clean winter heating in China, the ridge-ASCM half of their ML-ASCM: 30 stratified cells of their 1024-fit design, carried against two reference bases -- a live augsynth 0.2.0 run (tight) and the authors' published ``main_result.csv`` (loose, with the drift between the two pinned as its own row)
    * - ``dscar_beijing``

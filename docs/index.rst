@@ -298,6 +298,7 @@ headline numbers.
    tasc
    fma
    cfm
+   gsynth
    cscipca
    dscar
    dtwsc
