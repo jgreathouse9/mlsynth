@@ -76,6 +76,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ascm_jackknife_plus
    replications/ascm_ridge_cv
    replications/song_ml_ascm
+   replications/bilgel_turkey_lockdown
    replications/pensynth
    replications/sparse_sc
    replications/nsc
@@ -183,6 +184,15 @@ Canonical workhorses
   ridge penalty, not the fit. Status: done; the drift is quantified.
   → dedicated page: :doc:`replications/song_ml_ascm`; durable case
   ``song_ml_ascm``.
+* :doc:`ppscm` -- Bilgel (2022, Econometrics Journal), Covid-19 lockdowns and
+  social distancing in Turkey. Path A on the author's deposited replication
+  package: all six mobility ATTs of Table 3, column 1, from ``multisynth`` at
+  ``nu = 0.5``. PPSCM reproduces every one to within half the paper's last
+  printed digit -- the largest distance is 0.0023, on estimates spanning -53.10
+  to +12.02 -- with wild-bootstrap standard errors agreeing to 0.8-3.2 percent.
+  Status: done.
+  → dedicated page: :doc:`replications/bilgel_turkey_lockdown`; durable case
+  ``bilgel_turkey_lockdown``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. Path A: the KMPT Section-5
   Basque Country / ETA-terrorism study on ``basque_jasa.csv``,

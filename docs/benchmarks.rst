@@ -59,6 +59,15 @@ Path A — empirical replications
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
      - Okano-Kurisu (2026) functional SC, all three applications from the authors' data: pre-treatment fits for the plain and ridge-augmented estimator in each (fertility curves 0.1259/0.0687, age-at-death distributions 0.2092/0.0634, trade covariance matrices 39.3429/20.0639) plus every weight of Tables 1-3, reproduced exactly by a port of the authors' R code
+   * - ``bilgel_turkey_lockdown``
+     - Bilgel (2022, Econometrics Journal) Table 3 column 1, from the author's
+       replication package: all six mobility ATTs for Turkey's Covid-19 lockdowns
+       under PPSCM at ``nu = 0.5``, carried against two reference bases -- a
+       commit-pinned ``augsynth`` 0.2.0 run of the author's own ``multisynth``
+       call (tight: 1.5e-4 on the ATTs, 4.1e-4 across 102 event-time points) and
+       the printed table (loose: within half its last printed digit). Live
+       ``augsynth`` reproduces the table, so the two references agree and the
+       live rows bind
    * - ``song_ml_ascm``
      - Song et al. (2023) clean winter heating in China, the ridge-ASCM half of their ML-ASCM: 30 stratified cells of their 1024-fit design, carried against two reference bases -- a live augsynth 0.2.0 run (tight) and the authors' published ``main_result.csv`` (loose, with the drift between the two pinned as its own row)
    * - ``dscar_beijing``
