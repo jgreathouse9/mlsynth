@@ -1,0 +1,7 @@
+augsynth: 0.2.0
+commit: 7a90ea48877fae7925a72cb50bc03a315bc7c042
+nanoparquet: 0.5.1
+R: 4.3.3
+panel: basedata/bilgel_turkey_lockdown.parquet
+outcomes: 6
+call: multisynth(mobility ~ lockdown, id, eday, nu = 0.5), set.seed(1234)
