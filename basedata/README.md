@@ -113,6 +113,19 @@ Mortality Database, and UN Trade and Development. Note that the service file
 stores the plain half-vectorisation the authors use, with no √2 on the
 off-diagonals — see `benchmarks/cases/fsc_okano.py` for why that matters.
 
+## Election Day Registration and voter turnout — Xu (2017)
+
+| File | Contents | Used by |
+|---|---|---|
+| `xu_edr_turnout.parquet` | state-level turnout in US presidential elections, 1920–2012 (24 quadrennial periods × 47 states), with the `policy_edr` treatment and the `policy_mail_in` / `policy_motor` covariates | GSYNTH Table 2 replication and benchmark |
+
+The panel behind Xu (2017) Table 2, taken from `turnout.rda` in
+<https://github.com/xuyiqing/fect> and written to Parquet unchanged — no R is
+needed to rebuild it. Nine states adopt EDR (three in 1976, three in 1996, two in
+2008, one in 2012) and thirty-eight never do, which is the 9 / 38 / 1,128 split
+the table's header row reports. Adoption is absorbing, so the never-treated
+thirty-eight are the donor pool the estimator's factor space comes from.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.

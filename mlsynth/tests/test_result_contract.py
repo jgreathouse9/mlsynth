@@ -29,7 +29,7 @@ _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
     DTWSC,
-    BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
+    BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
     MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
@@ -172,6 +172,7 @@ OBSERVATIONAL = [
     pytest.param(NSC, {"a": 0.0, "b": 0.0}, id="NSC"),
     pytest.param(FMA, {}, id="FMA"),
     pytest.param(CFM, {"n_factors": 1}, id="CFM"),
+    pytest.param(GSYNTH, {"r": 1, "inference": False}, id="GSYNTH"),
     pytest.param(CSCIPCA, {"df": _make_cscipca_panel(),
                            "covariates": ["x0", "x1", "x2"], "n_factors": 2,
                            "inference": False}, id="CSCIPCA"),
