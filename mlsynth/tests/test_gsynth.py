@@ -302,6 +302,47 @@ class TestForce:
                 for f in ("none", "unit", "time", "two-way")}
         assert len({round(v, 9) for v in atts.values()}) == 4
 
+    # fect 2.4.5, method="gsynth", r=2, on the vendored Xu turnout panel. These
+    # are reference values, not values this implementation produced: a change
+    # that alters what any setting sweeps out moves one of them.
+    _FECT_R2 = {"none": 8.7337025497, "unit": 5.4947978847,
+                "time": 5.4455352964, "two-way": 5.1304931630}
+
+    @pytest.mark.skipif(not TURNOUT.exists(), reason="turnout panel not vendored")
+    @pytest.mark.parametrize("force", ["none", "unit", "time", "two-way"])
+    def test_matches_the_reference_at_each_setting(self, turnout, force):
+        res = GSYNTH(dict(df=turnout, unitid="abb", time="year",
+                          outcome="turnout", treat="policy_edr", r=2,
+                          force=force, inference=False,
+                          display_graphs=False)).fit()
+        assert abs(res.att - self._FECT_R2[force]) < 1e-6
+
+    @pytest.mark.skipif(not TURNOUT.exists(), reason="turnout panel not vendored")
+    def test_the_settings_are_far_apart_on_real_data(self, turnout):
+        """The four span 3.6 percentage points here, so a setting that swept
+        out the wrong thing could not hide inside solver noise."""
+        got = [GSYNTH(dict(df=turnout, unitid="abb", time="year",
+                           outcome="turnout", treat="policy_edr", r=2,
+                           force=f, inference=False, display_graphs=False)).fit().att
+               for f in ("none", "unit", "time", "two-way")]
+        assert max(got) - min(got) > 3.0
+
+    def test_the_intercept_is_counted_against_the_pre_period(self, staggered):
+        """At the boundary, a setting carrying an intercept needs one more
+        pre-period than one without, and says so instead of solving something
+        singular."""
+        df, _ = staggered
+        inputs = prepare_gsynth_inputs(df, "y", "d", "unit", "time")
+        r = inputs.min_pre_periods
+        with pytest.raises(MlsynthEstimationError, match="regressors"):
+            gsc_fit(inputs, r=r, force="two-way")
+        with pytest.raises(MlsynthEstimationError, match="regressors"):
+            gsc_fit(inputs, r=r, force="unit")
+        # Without one, exactly r regressors fit in r pre-periods.
+        for f in ("none", "time"):
+            with pytest.raises(MlsynthEstimationError, match="regressors"):
+                gsc_fit(inputs, r=r + 1, force=f)
+
     def test_rank_ceiling_follows_the_intercept(self, staggered):
         """A setting with an intercept column spends one more regressor, so it
         can identify one fewer factor."""

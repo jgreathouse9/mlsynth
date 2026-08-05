@@ -230,11 +230,12 @@ def interactive_fixed_effects(
     for slot, k in enumerate(keep):
         beta[k] = beta_k[slot]
 
+    # An effect the setting excludes was never accumulated, so both terms are
+    # still the zeros they were initialized to and no guard is needed here.
     return ControlFit(
         mu=float(mu_Y - mu_X @ beta),
-        alpha=(alpha_Y - alpha_X @ beta) if has_unit_effects(force)
-        else np.zeros(N),
-        xi=(xi_Y - xi_X @ beta) if has_time_effects(force) else np.zeros(T),
+        alpha=alpha_Y - alpha_X @ beta,
+        xi=xi_Y - xi_X @ beta,
         beta=beta,
         factor=factor,
         lam=lam,
