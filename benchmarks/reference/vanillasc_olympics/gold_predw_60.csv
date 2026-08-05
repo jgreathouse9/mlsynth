@@ -1,0 +1,36 @@
+variable,weight
+COVID-19 vaccination,7.157116965644591e-5
+Human mobility (groceries and pharmacies),1.1350913659019972e-4
+Human mobility (parks),1.6154936941579308e-4
+Human mobility (residential),0.0010637749275288811
+Human mobility (retail and recreation),3.380035790080135e-4
+Human mobility (transit stations),0.0013593269337389797
+Human mobility (workplaces),9.744370335422932e-4
+Number of tests for COVID-19,2.736473467211023e-5
+Precipitation,0.0015281275868335928
+Stringency index,1.586885434214731e-4
+Temparature,1.303113910097051e-4
+Age,0.017128852163953538
+Asia flag,1.662267573486038e-4
+Diabetes prevalence,1.6142261146506038e-4
+Electoral democracy index,9.44179140236002e-4
+Gross domestic product (GDP),9.049964658487377e-4
+Health expenditure,0.0014923301429658898
+Houseshold size,0.003594619079605096
+Human Development Index,0.01003514408749035
+Infant mortality rate,0.0029519371945819907
+International migrant stock,1.1352524935720156e-4
+Number of hospital beds,8.312141581074401e-5
+PM2.5,6.815888687570938e-4
+Population (0-14),0.012181462369489375
+Population (65-),0.0051511956565732115
+Population density,4.919895618682328e-5
+Surface area,1.4244418333855802e-4
+Unemployment rate,0.0034992550791501397
+life_expectancy,1.4133256403303535e-4
+5-week lagged cases,0.09960357325917966
+4-week lagged cases,0.17305816225353762
+3-week lagged cases,0.15147533439513355
+2-week lagged cases,0.22723545971497347
+1-week lagged cases,0.18108435513740875
+0-week lagged cases,0.10219361884815789

@@ -126,6 +126,29 @@ needed to rebuild it. Nine states adopt EDR (three in 1976, three in 1996, two i
 the table's header row reports. Adoption is absorbing, so the never-treated
 thirty-eight are the donor pool the estimator's factor space comes from.
 
+## Tokyo 2020 Olympics and COVID-19 — Yoneoka et al. (2022)
+
+| File | Contents | Used by |
+|---|---|---|
+| `yoneoka_olympics_covid.parquet` | daily COVID-19 confirmed cases per million (7-day moving average) by country and a 50-day integer time index (`date2` 25–74, ending 2021-08-13): Japan plus the 42 donor countries the paper lists, with the 30 predictor columns the authors' specification uses | VanillaSC Tokyo Olympics replication and benchmark |
+
+Sliced from `Synthetic_Olympic/data/df.csv` in
+<https://github.com/kingqwert/R> at commit `bde42e2`, restricted to the paper's
+analysis window (`date2 < 75`) and written to Parquet unchanged — no R is needed
+to rebuild it. The frame is 43 × 50 and balanced on the outcome; three predictor
+columns carry a few missing cells, which the authors' `mean(..., na.rm = TRUE)`
+predictors absorb.
+
+Japan is treated from the opening ceremony. The authors' `tidysynth` call sets
+`i_time = 53`, which in that package is the last pre-treatment period, so the
+treatment indicator built from this file is `date2 > 53`.
+
+`benchmarks/reference/vanillasc_olympics/reference.R` reads this same file
+through `nanoparquet`, so the R and Python sides of the comparison cannot run on
+different inputs. The authors' own committed outputs — weights, balance table
+and placebo p-values at all three intervention timings — are vendored beside it
+under `authors/`.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.

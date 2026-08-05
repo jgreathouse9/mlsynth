@@ -1220,6 +1220,15 @@ replication page, :doc:`replications/vanillasc`, for the full datasets, code and
 donor-weight tables. These are locked as regression tests in
 ``mlsynth/tests/test_vanillasc_replications.py``.
 
+A daily, noisier study checks the same machinery outside the annual panels:
+Yoneoka et al. (2022) estimate the effect of the Tokyo 2020 Olympics on
+COVID-19 incidence in Japan, from 42 donor countries and 34 predictors. The
+paper's cumulative figures reproduce to the digit (143,072 observed against
+89,210 counterfactual) and its placebo p-value exactly, at a six-fold better
+pre-treatment fit than the reference. Its donor weights do not reproduce, in
+either implementation, and :doc:`replications/vanillasc_olympics` sets out what
+that does and does not change (``benchmarks/cases/vanillasc_olympics.py``).
+
 A fourth, more demanding check runs the estimator over a staggered,
 per-unit-donor-pool design: Lamba et al. (2023) fit one synthetic control
 per Indian tiger reserve, with adoption spread over nine years and a donor

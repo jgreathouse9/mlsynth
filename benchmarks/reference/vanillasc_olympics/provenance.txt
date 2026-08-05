@@ -1,0 +1,9 @@
+tidysynth: 0.2.0
+commit: 58eda583ea28645a3531cd769b7852ff504656df (edunford/tidysynth)
+Synth: 1.1.10
+LowRankQP: 1.0.6
+nanoparquet: 0.5.1
+R: 4.3.3
+panel: basedata/yoneoka_olympics_covid.parquet
+timings: 46,53,60
+call: tidysynth, 34 predictors, optimization_method=CG, quadopt=LowRankQP
