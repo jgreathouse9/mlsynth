@@ -82,6 +82,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/sparse_sc
    replications/nsc
    replications/sdid
+   replications/sdid_euets
    replications/brabander_brexit
    replications/mcnnm
    replications/spsydid

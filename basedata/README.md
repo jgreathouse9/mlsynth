@@ -146,6 +146,25 @@ out. `benchmarks/reference/gsynth_av_laws/reference.R` reads this same file
 through `nanoparquet`, so the R and Python sides of the comparison cannot run on
 different inputs.
 
+## EU emissions trading system and air pollution — Basaglia, Grunau & Drupp (2024)
+
+| File | Contents | Used by |
+|---|---|---|
+| `euets_cobenefits.parquet` | annual `log(emissions)` of three air pollutants (SO2, PM2.5, NOx, tagged by `pollutant`) for EU-25 countries split into ETS-regulated and unregulated sectors, 1990–2021, with the `treat_post` indicator (regulated sectors from 2005) and the `log_gdp` / `log_gdp_2` controls | SDID EU ETS co-benefits replication and benchmark |
+
+Concatenated from `Stata_SDID/data_in/{so2,pm25,nox}_gscm_data.csv` in
+<https://github.com/ccs282/EU_ETS_Co_Benefits> and written to Parquet unchanged
+— no Stata or R is needed to rebuild it. Each pollutant is 50 units (25 countries
+× regulated/unregulated) by 32 years.
+
+The frame is unbalanced as shipped: Estonia, Latvia, Lithuania and Slovenia enter
+in 1995, Slovakia in 1992, Hungary in 1991, and the United Kingdom leaves after
+2019. The gaps are all leading or trailing, so nothing can be interpolated. The
+authors' generalized synthetic control runs on the panel as it stands; their SDID
+do-file drops the six late-entering countries and caps at 2019 to reach a
+balanced 38 × 30 sample, which is what `benchmarks/cases/sdid_euets.py`
+reconstructs.
+
 ## Tokyo 2020 Olympics and COVID-19 — Yoneoka et al. (2022)
 
 | File | Contents | Used by |
