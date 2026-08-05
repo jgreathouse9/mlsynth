@@ -18,7 +18,8 @@ CASES = {
     "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)
     "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)
     "medsc_prop99": "benchmarks.cases.medsc_prop99",    # Path A: Mellace-Pasquini 2022 Prop99 mediation, cross-world direct effect (1995/2000 = -16.8/-18.0) + negative growing indirect price channel
-    "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs authors' synthdid R (Prop 99)
+    "sdid_prop99": "benchmarks.cases.sdid_prop99",
+    "sdid_euets": "benchmarks.cases.sdid_euets",  # Path A: Basaglia-Grunau-Drupp 2024 PNAS EU ETS co-benefits, the SDID robustness half -- three pollutants reproduce the authors' Stata sdid log to 3e-4 once the covariate row rule matches; records that Stata's projected fits beta on never-treated units only while Kranz (and mlsynth) use every untreated row      # cross-val vs authors' synthdid R (Prop 99)
     "sdid_ddd_hpv": "benchmarks.cases.sdid_ddd_hpv",    # Path A: SDID synthetic triple difference (Zhuang 2024) on Virginia HPV mandate (Feldman-Semprini 2026); SC-DDD +1.559 / naive SC-DD +0.252 vs Stata sdid
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo

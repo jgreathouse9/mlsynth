@@ -138,6 +138,15 @@ Path A — empirical replications
      - scpi single-unit CFT-2021 prediction intervals, German reunification: levels + cointegrated bands + weights
    * - ``secession_scm``
      - VanillaSC reproduces Schulte et al. (2026) lost-autonomy SCM: post-trigger secessionist surge, Catalonia 2010 / Faroe 1994 (tracks authors' SyntheticControlMethods synthetic)
+   * - ``sdid_euets``
+     - Basaglia, Grunau and Drupp (2024, PNAS) EU ETS co-benefits, the synthetic
+       DiD robustness half, from the authors' own replication package: all three
+       pollutants (SO2, PM2.5, NOx) reproduce the five-decimal values in their
+       committed Stata log to 3e-4 once the covariate projection uses the
+       reference's row rule. The page records why that qualifier is needed --
+       Stata's ``projected`` fits the covariate coefficients on never-treated
+       units only, while Kranz (2022), whom it cites, and mlsynth use every
+       untreated row; the gap is 0.055 on PM2.5 and is pinned in its own row
    * - ``sparse_sc_prop99``
      - L1 predictor selection (Prop 99)
    * - ``spcd_prop99``
