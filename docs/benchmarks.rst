@@ -163,6 +163,17 @@ Path A — empirical replications
      - Brooklyn showroom (Li-Shankar)
    * - ``vanillasc_prop99``
      - canonical ADH 2010 Prop 99
+   * - ``vanillasc_olympics``
+     - Yoneoka et al. (2022, BMJ Open) Tokyo 2020 Olympics and COVID-19
+       incidence, from the authors' own replication package: the cumulative
+       143,072 observed against 89,210 counterfactual (+60.4%) reproduce to the
+       digit and the Fisher p-value exactly, with the estimand window recovered
+       from the script. Carried against a second base -- a commit-pinned
+       ``tidysynth`` 0.2.0 run of the authors' script -- which does not return
+       their committed donor weights (0.183 apart, Germany 0.547 against 0.730)
+       while returning the same p-value at all three intervention timings. The
+       weights are recorded, not gated; mlsynth matches the inference exactly at
+       a six-fold better pre-treatment fit
 
 Path B — Monte Carlo / simulation
 ---------------------------------
