@@ -126,6 +126,26 @@ needed to rebuild it. Nine states adopt EDR (three in 1976, three in 1996, two i
 the table's header row reports. Adoption is absorbing, so the never-treated
 thirty-eight are the donor pool the estimator's factor space comes from.
 
+## Age verification laws and search behavior — Lang et al. (2026)
+
+| File | Contents | Used by |
+|---|---|---|
+| `lang_av_laws.parquet` | weekly Google Trends search interest by state, 2022-01-01 to 2024-10-31 (149 weeks × 46 states), for four search terms tagged by `outcome`: `pornhub`, `xvideos`, `vpn`, `porn`, with the `post_treat` adoption indicator | GSYNTH age-verification cross-validation benchmark |
+
+Sliced from `data/{pornhub,xvideos,vpn,porn}.csv` in
+<https://github.com/davidnathanlang/internet_regulation_synth_project> at commit
+`38ab54b`, restricted to the paper's analysis window (`time == "2022-01-01
+2024-10-31"`) and dropping the five states the authors' own
+`03_preregistered_hypotheses.R` drops (ND, MO, AZ, OH, GA). Each of the four
+frames is 46 × 149 and balanced; 14 states adopt across staggered dates and 32
+never do, and adoption is absorbing.
+
+The slice is byte-identical across the two committed vintages of the upstream
+data that contain this window, so it does not depend on which one is checked
+out. `benchmarks/reference/gsynth_av_laws/reference.R` reads this same file
+through `nanoparquet`, so the R and Python sides of the comparison cannot run on
+different inputs.
+
 ## Tokyo 2020 Olympics and COVID-19 — Yoneoka et al. (2022)
 
 | File | Contents | Used by |

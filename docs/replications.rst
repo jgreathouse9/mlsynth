@@ -120,6 +120,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/microsynth_baltimore
    replications/cfm
    replications/gsynth
+   replications/gsynth_av_laws
    replications/cscipca
    replications/medsc
 

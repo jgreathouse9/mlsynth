@@ -78,6 +78,18 @@ Path A — empirical replications
        specifications. Algorithm 1's criterion is pinned alongside, because the
        ATT is not monotone in the rank and the rule that picks it decides the
        headline number
+   * - ``gsynth_av_laws``
+     - Lang et al. (2026) state age-verification laws, from the authors' own
+       replication package: four Google Trends outcomes by four ``force``
+       settings by ranks zero to five, 96 fits, against a commit-pinned
+       ``gsynth`` 1.2.1 -- the version the authors ran, and the last release
+       before the package became a shell over ``fect``. The overall ATT, the
+       paper's estimand window and the pre-treatment MAE all agree to 6.4e-14,
+       Algorithm 1's criterion to 1.3e-12 over the same 96 cells, and its
+       selected rank in all sixteen outcome-by-force combinations. Table 2 is
+       carried loosely alongside: three of four ATTs within 0.15, the fourth
+       0.70 out because the published rank is not the one the paper's own
+       cross-validation selects
    * - ``song_ml_ascm``
      - Song et al. (2023) clean winter heating in China, the ridge-ASCM half of their ML-ASCM: 30 stratified cells of their 1024-fit design, carried against two reference bases -- a live augsynth 0.2.0 run (tight) and the authors' published ``main_result.csv`` (loose, with the drift between the two pinned as its own row)
    * - ``dscar_beijing``
