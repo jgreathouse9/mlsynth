@@ -1,0 +1,10 @@
+gsynth: 1.2.1
+commit: e4525ad7d01e0cb8edf4adc1d2a403007ff341d5 (tag 1.2.1)
+nanoparquet: 0.5.1
+R: 4.3.3
+panel: basedata/lang_av_laws.parquet
+outcomes: pornhub,xvideos,vpn,porn
+forces: none,unit,time,two-way
+ranks: 0-5
+call: gsynth(hits ~ post_treat, se=FALSE, seed=12345, CV=FALSE)
+cv:   gsynth(..., CV=TRUE, r=c(0,5))

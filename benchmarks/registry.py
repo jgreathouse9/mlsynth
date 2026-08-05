@@ -144,6 +144,7 @@ CASES = {
     "ascm_jackknife_plus": "benchmarks.cases.ascm_jackknife_plus",  # cross-val vs augsynth inf_type="jackknife+": per-period bounds on Kansas, both branches
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
     "gsynth_xu_turnout": "benchmarks.cases.gsynth_xu_turnout",  # Path A (Xu 2017 PA Table 2 cols 3-4) + cross-val vs live fect 2.4.5: GSYNTH on the EDR/turnout panel, r=0..5 grid and Algorithm 1
+    "gsynth_av_laws": "benchmarks.cases.gsynth_av_laws",  # cross-val vs pinned gsynth 1.2.1 (Lang et al. 2026 age-verification laws): 96-fit outcome x force x rank grid, Algorithm 1 criterion and selected rank, published Table 2 loose
     "bilgel_turkey_lockdown": "benchmarks.cases.bilgel_turkey_lockdown",  # Path A (Bilgel 2022 EctJ Table 3 col.1): PPSCM vs multisynth nu=0.5, six mobility outcomes, Turkey lockdowns
     "song_ml_ascm": "benchmarks.cases.song_ml_ascm",          # Path A (Song et al. 2023 published main_result.csv, loose) + cross-val vs live augsynth 0.2.0 (tight): China clean winter heating, 30 stratified cells
     "pensynth_prop99": "benchmarks.cases.pensynth_prop99",  # cross-val vs LIVE pensynth wsoll1 (Rscript+LowRankQP) on Prop 99 penalized SC (skips if absent)
