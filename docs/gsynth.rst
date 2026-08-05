@@ -349,13 +349,20 @@ Verification
 
 GSYNTH reproduces Xu (2017) Table 2 columns (3) and (4) on the author's own
 data, and matches a live ``fect`` 2.4.5 reference across every rank from
-zero to five on both specifications. All four ``force`` settings match that
-reference to 6.4e-14 over 48 fits, on the turnout panel and on a weekly
-46-state panel with staggered adoption. See :doc:`replications/gsynth` for the
+zero to five on both specifications. See :doc:`replications/gsynth` for the
 cell-by-cell comparison and for what the replication turned up about rank
 selection, and the durable case
 `benchmarks/cases/gsynth_xu_turnout.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/gsynth_xu_turnout.py>`_.
+
+A second case takes the estimator to a panel six times longer, at weekly
+frequency, with ten staggered adoption dates: the state age-verification laws
+of Lang et al. (2026). All four ``force`` settings match a commit-pinned
+``gsynth`` 1.2.1 to 6.4e-14 over 96 fits, and Algorithm 1 selects the same rank
+in all sixteen outcome-by-force combinations. See
+:doc:`replications/gsynth_av_laws` and
+`benchmarks/cases/gsynth_av_laws.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/gsynth_av_laws.py>`_.
 
 Core API
 --------
