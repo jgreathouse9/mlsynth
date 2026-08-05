@@ -68,7 +68,7 @@ def _control_fitted_and_residuals(inputs: GSYNTHInputs, fit) -> tuple:
 
 def _prediction_error_pool(
     inputs: GSYNTHInputs, r: int, n_draws: int, rng: np.random.Generator,
-    *, two_way: bool, tol: float, max_iter: int,
+    *, force: str, tol: float, max_iter: int,
 ) -> np.ndarray:
     """Loop 1: prediction errors for a unit the control model did not fit.
 
@@ -108,7 +108,7 @@ def _prediction_error_pool(
             covariate_names=inputs.covariate_names,
         )
         try:
-            out = gsc_fit(pseudo, r, two_way=two_way, tol=tol, max_iter=max_iter)
+            out = gsc_fit(pseudo, r, force=force, tol=tol, max_iter=max_iter)
         except (MlsynthEstimationError, np.linalg.LinAlgError):
             continue
         pool.append(out.effect)
@@ -128,7 +128,7 @@ def parametric_bootstrap(
     n_bootstrap: int = 200,
     alpha: float = 0.05,
     seed: int = 0,
-    two_way: bool = True,
+    force: str = "two-way",
     tol: float = 1e-5,
     max_iter: int = 500,
 ) -> GSYNTHInference:
@@ -149,7 +149,7 @@ def parametric_bootstrap(
         Two-sided significance level.
     seed : int
         Seed for the resampling.
-    two_way, tol, max_iter
+    force, tol, max_iter
         Passed through to the refits.
 
     Returns
@@ -168,7 +168,7 @@ def parametric_bootstrap(
 
     pool = _prediction_error_pool(
         inputs, r, n_bootstrap, rng,
-        two_way=two_way, tol=tol, max_iter=max_iter)
+        force=force, tol=tol, max_iter=max_iter)
     n_pool = pool.shape[2]
 
     es = event_study_from_effect(fit.effect, inputs.adoption_index)
@@ -189,8 +189,8 @@ def parametric_bootstrap(
         boot = _rebuild(inputs, Y)
         try:
             control_boot = fit_control_model(
-                boot, r, two_way=two_way, tol=tol, max_iter=max_iter)
-            out = gsc_fit(boot, r, two_way=two_way, tol=tol, max_iter=max_iter,
+                boot, r, force=force, tol=tol, max_iter=max_iter)
+            out = gsc_fit(boot, r, force=force, tol=tol, max_iter=max_iter,
                           control_fit=control_boot)
         except (MlsynthEstimationError, np.linalg.LinAlgError):
             continue

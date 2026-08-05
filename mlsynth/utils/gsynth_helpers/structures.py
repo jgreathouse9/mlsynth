@@ -131,15 +131,16 @@ class GSYNTHFit:
     n_post_cells : int
         How many cells that mean is taken over.
     loadings : np.ndarray
-        Treated-unit loadings, shape ``(N_tr, r + 1)`` under two-way effects --
-        the trailing column is the unit effect, estimated jointly with the
-        loadings off the pre-periods.
+        Treated-unit loadings, shape ``(N_tr, r + 1)`` when ``force`` carries
+        unit effects -- the trailing column is the unit effect, estimated
+        jointly with the loadings off the pre-periods -- and ``(N_tr, r)``
+        otherwise.
     unit_effects : np.ndarray
         That trailing column on its own, shape ``(N_tr,)``; zeros when additive
         unit effects are off.
     factors_used : np.ndarray
-        The regressor matrix Step 2 projects onto, shape ``(T, r + 1)`` under
-        two-way effects: the estimated factors with a column of ones appended.
+        The regressor matrix Step 2 projects onto: the estimated factors, with
+        a column of ones appended when ``force`` carries unit effects.
     control_fit : ControlFit
         The Step 1 fit these were built from.
     """
@@ -164,8 +165,8 @@ class GSYNTHDesign:
         Factor count used.
     r_source : {"cv", "user"}
         Whether Algorithm 1 chose it or the caller fixed it.
-    two_way : bool
-        Whether additive unit and period effects were included.
+    force : {"none", "unit", "time", "two-way"}
+        Which additive effects were included.
     beta : np.ndarray
         Covariate coefficients, shape ``(p,)``.
     covariate_names : tuple of str
@@ -193,7 +194,7 @@ class GSYNTHDesign:
 
     r_selected: int
     r_source: str
-    two_way: bool
+    force: str
     beta: np.ndarray
     covariate_names: Tuple[str, ...]
     dropped_covariates: Tuple[str, ...]
@@ -443,7 +444,7 @@ class GSYNTHResults(BaseEstimatorResults):
             parameters_used={
                 "r": int(self.design.r_selected),
                 "r_source": self.design.r_source,
-                "two_way": bool(self.design.two_way),
+                "force": self.design.force,
                 "covariates": list(self.design.covariate_names),
             }))
         return self

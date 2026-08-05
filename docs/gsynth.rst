@@ -134,12 +134,60 @@ Step 3 imputes and differences:
 :math:`\widehat{Y}_{it}(0) = \mathbf{x}_{it}^\top \widehat{\boldsymbol{\beta}}
 + \widehat{\boldsymbol{\lambda}}_i^\top \widehat{\mathbf{f}}_t`.
 
-Under two-way effects a column of ones is appended to
+When unit effects are in the specification a column of ones is appended to
 :math:`\widehat{\mathbf{F}}` before Step 2, so a treated unit's own level is
 estimated jointly with its loadings off its pre-periods. The control units'
 unit effects say nothing about the level of a unit outside that group, so
 this is the only place :math:`\alpha_i` for :math:`i \in \mathcal{T}` can
 come from.
+
+Which additive effects
+----------------------
+
+The ``force`` option chooses which of :math:`\alpha_i` and :math:`\xi_t`
+accompany the factors, named and coded as in gsynth and fect:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 20 20 44
+
+   * - ``force``
+     - unit effects
+     - period effects
+     - what it means
+   * - ``"none"``
+     - no
+     - no
+     - the grand mean and the factors carry everything
+   * - ``"unit"``
+     - yes
+     - no
+     - levels differ across units, common shocks left to the factors
+   * - ``"time"``
+     - no
+     - yes
+     - a common time path, with unit levels left to the factors
+   * - ``"two-way"``
+     - yes
+     - yes
+     - the default, and the specification Xu (2017) Table 2 reports
+
+An effect that is switched off is not estimated and not removed, so it stays
+in the residual and the factors absorb what they can of it. The choice
+therefore moves the estimate instead of merely relabelling it, and it moves
+the estimate most where the pre-treatment fit is worst. Applied work varies
+it deliberately: Lang et al. (2026) run their preregistered specification at
+``force="none"`` and sweep all four in a multiverse.
+
+Two settings differ in what they can identify, not only in what they fit. A
+treated unit with :math:`T_0` pre-periods supports :math:`T_0` regressors in
+Step 2, and under ``"unit"`` or ``"two-way"`` one of those is the intercept.
+So the largest rank the cross-validation will consider is one lower for those
+two than for ``"none"`` and ``"time"``.
+
+``two_way`` was the first release's spelling of this option. It still
+resolves — ``True`` to ``"two-way"`` and ``False`` to ``"time"`` — with a
+``DeprecationWarning``. Passing both is an error.
 
 Assumptions
 -----------
@@ -282,7 +330,9 @@ Example
    res.per_unit["MN"].prefit_rmse   # how well one state's pre-period is tracked
 
 Passing ``r`` fixes the count instead, and ``design.cv`` is then ``None``
-because no selection was run.
+because no selection was run. Adding ``"force": "none"`` drops the additive
+effects and leaves the factors to carry them, which is how a good deal of
+applied work runs this estimator; ``design.force`` records the setting used.
 
 ``time_series`` carries the treated-average observed and imputed paths in
 calendar time, with the gap between them; ``event_study`` carries the same
@@ -299,7 +349,9 @@ Verification
 
 GSYNTH reproduces Xu (2017) Table 2 columns (3) and (4) on the author's own
 data, and matches a live ``fect`` 2.4.5 reference across every rank from
-zero to five on both specifications. See :doc:`replications/gsynth` for the
+zero to five on both specifications. All four ``force`` settings match that
+reference to 6.4e-14 over 48 fits, on the turnout panel and on a weekly
+46-state panel with staggered adoption. See :doc:`replications/gsynth` for the
 cell-by-cell comparison and for what the replication turned up about rank
 selection, and the durable case
 `benchmarks/cases/gsynth_xu_turnout.py

@@ -91,7 +91,7 @@ class GSYNTH:
         self.covariates = config.covariates
         self.r = config.r
         self.r_max: int = config.r_max
-        self.two_way: bool = config.two_way
+        self.force: str = config.force
         self.run_inference: bool = config.inference
         self.n_bootstrap: int = config.n_bootstrap
         self.alpha: float = config.alpha
@@ -111,14 +111,14 @@ class GSYNTH:
             # ----- Rank -----
             if self.r is None:
                 cv = cross_validate_rank(
-                    inputs, r_max=self.r_max, two_way=self.two_way,
+                    inputs, r_max=self.r_max, force=self.force,
                     tol=self.tol, max_iter=self.max_iter)
                 r, source = cv.r_selected, "cv"
             else:
                 cv, r, source = None, int(self.r), "user"
 
             # ----- Steps 1-3 -----
-            fit = gsc_fit(inputs, r, two_way=self.two_way, tol=self.tol,
+            fit = gsc_fit(inputs, r, force=self.force, tol=self.tol,
                           max_iter=self.max_iter)
             control = fit.control_fit
             es = event_study_from_effect(fit.effect, inputs.adoption_index)
@@ -127,7 +127,7 @@ class GSYNTH:
             if self.run_inference:
                 inference = parametric_bootstrap(
                     inputs, fit, r, n_bootstrap=self.n_bootstrap,
-                    alpha=self.alpha, seed=self.seed, two_way=self.two_way,
+                    alpha=self.alpha, seed=self.seed, force=self.force,
                     tol=self.tol, max_iter=self.max_iter)
             else:
                 inference = GSYNTHInference(
@@ -139,7 +139,7 @@ class GSYNTH:
             design = GSYNTHDesign(
                 r_selected=int(r),
                 r_source=source,
-                two_way=bool(self.two_way),
+                force=self.force,
                 beta=np.asarray(control.beta, dtype=float),
                 covariate_names=names,
                 dropped_covariates=tuple(names[k] for k in control.dropped),
