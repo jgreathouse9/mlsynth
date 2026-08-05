@@ -174,16 +174,24 @@ class TestInteractiveFixedEffects:
         np.testing.assert_allclose(fit.beta, beta_true, atol=1e-6)
 
     def test_factor_space_is_recovered(self):
-        """The estimated factors span the true factor space."""
+        """The estimated factors span the true factor space.
+
+        The factors are centered so the panel's grand mean is zero. Under
+        ``force="none"`` the grand mean is the one thing still swept out, and
+        removing a nonzero one from a rank-2 matrix would raise its rank and
+        tilt the estimated space away from the truth.
+        """
         rng = np.random.default_rng(6)
         T, N = 30, 40
-        F, lam = rng.standard_normal((T, 2)), rng.standard_normal((N, 2))
+        F = rng.standard_normal((T, 2))
+        F -= F.mean(axis=0)
+        lam = rng.standard_normal((N, 2))
         Y = F @ lam.T
-        fit = interactive_fixed_effects(Y, np.empty((T, N, 0)), 2, two_way=False)
+        assert abs(Y.mean()) < 1e-12
+        fit = interactive_fixed_effects(Y, np.empty((T, N, 0)), 2, force="none")
         # Projection onto the estimated space leaves the true factors alone.
         P = fit.factor @ np.linalg.pinv(fit.factor)
-        Fc = F - F.mean(axis=1, keepdims=True) * 0  # F itself, kept explicit
-        np.testing.assert_allclose(P @ Fc, Fc, atol=1e-7)
+        np.testing.assert_allclose(P @ F, F, atol=1e-7)
 
     def test_time_invariant_covariate_is_dropped(self):
         """A covariate with no within variation cannot be identified and is
@@ -206,6 +214,184 @@ class TestInteractiveFixedEffects:
             rng.standard_normal((T, N)), rng.standard_normal((T, N, 1)), 1,
             max_iter=3)
         assert fit.niter <= 3
+
+
+class TestForce:
+    """The four additive-effect specifications, following gsynth's ``force``.
+
+    ``"none"`` removes the grand mean only, ``"unit"`` adds unit effects,
+    ``"time"`` adds period effects, ``"two-way"`` adds both. The intercept
+    column that Step 2 uses to identify a treated unit's own level belongs to
+    the settings that carry unit effects.
+    """
+
+    @staticmethod
+    def _additive(seed=11, T=14, N=11):
+        rng = np.random.default_rng(seed)
+        alpha, xi = rng.standard_normal(N), rng.standard_normal(T)
+        return 4.0, alpha, xi, 4.0 + alpha[None, :] + xi[:, None]
+
+    def test_none_removes_only_the_grand_mean(self):
+        mu, alpha, xi, Y = self._additive()
+        T, N = Y.shape
+        fit = interactive_fixed_effects(Y, np.empty((T, N, 0)), 0, force="none")
+        assert abs(fit.mu - Y.mean()) < 1e-12
+        np.testing.assert_allclose(fit.alpha, 0.0, atol=1e-12)
+        np.testing.assert_allclose(fit.xi, 0.0, atol=1e-12)
+
+    def test_unit_recovers_unit_effects_only(self):
+        mu, alpha, xi, Y = self._additive()
+        T, N = Y.shape
+        fit = interactive_fixed_effects(Y, np.empty((T, N, 0)), 0, force="unit")
+        np.testing.assert_allclose(fit.alpha, alpha - alpha.mean(), atol=1e-9)
+        np.testing.assert_allclose(fit.xi, 0.0, atol=1e-12)
+
+    def test_time_recovers_period_effects_only(self):
+        mu, alpha, xi, Y = self._additive()
+        T, N = Y.shape
+        fit = interactive_fixed_effects(Y, np.empty((T, N, 0)), 0, force="time")
+        np.testing.assert_allclose(fit.xi, xi - xi.mean(), atol=1e-9)
+        np.testing.assert_allclose(fit.alpha, 0.0, atol=1e-12)
+
+    def test_two_way_recovers_both(self):
+        mu, alpha, xi, Y = self._additive()
+        T, N = Y.shape
+        fit = interactive_fixed_effects(Y, np.empty((T, N, 0)), 0, force="two-way")
+        recon = fit.mu + fit.alpha[None, :] + fit.xi[:, None]
+        np.testing.assert_allclose(recon, Y, atol=1e-9)
+
+    def test_a_pure_unit_panel_is_exact_under_unit(self):
+        """With no period variation, ``unit`` fits the panel and ``time``
+        cannot."""
+        rng = np.random.default_rng(12)
+        T, N = 10, 9
+        alpha = rng.standard_normal(N)
+        Y = 2.0 + alpha[None, :] + np.zeros((T, 1))
+        X = np.empty((T, N, 0))
+        exact = interactive_fixed_effects(Y, X, 0, force="unit")
+        recon = np.broadcast_to(exact.mu + exact.alpha[None, :], Y.shape)
+        np.testing.assert_allclose(recon, Y, atol=1e-9)
+        loose = interactive_fixed_effects(Y, X, 0, force="time")
+        assert np.abs(Y - loose.mu - loose.xi[:, None]).max() > 1e-3
+
+    @pytest.mark.parametrize("force,cols", [("none", 0), ("time", 0),
+                                            ("unit", 1), ("two-way", 1)])
+    def test_intercept_column_iff_unit_effects(self, staggered, force, cols):
+        df, _ = staggered
+        inputs = prepare_gsynth_inputs(df, "y", "d", "unit", "time")
+        out = gsc_fit(inputs, r=2, force=force)
+        assert out.factors_used.shape[1] == 2 + cols
+        if cols:
+            np.testing.assert_allclose(out.factors_used[:, -1], 1.0)
+        else:
+            np.testing.assert_allclose(out.unit_effects, 0.0)
+
+    @pytest.mark.parametrize("force", ["none", "unit", "time", "two-way"])
+    def test_every_setting_runs_end_to_end(self, staggered, force):
+        df, effect = staggered
+        res = GSYNTH(_cfg(df, r=2, force=force)).fit()
+        assert res.design.force == force
+        assert np.isfinite(res.att)
+        assert abs(res.att - effect) < 0.5
+
+    def test_the_settings_disagree(self, staggered):
+        """A DGP with both additive effects separates the four; a setting that
+        omits one leaves it in the residual."""
+        df, _ = staggered
+        atts = {f: GSYNTH(_cfg(df, r=2, force=f)).fit().att
+                for f in ("none", "unit", "time", "two-way")}
+        assert len({round(v, 9) for v in atts.values()}) == 4
+
+    # fect 2.4.5, method="gsynth", r=2, on the vendored Xu turnout panel. These
+    # are reference values, not values this implementation produced: a change
+    # that alters what any setting sweeps out moves one of them.
+    _FECT_R2 = {"none": 8.7337025497, "unit": 5.4947978847,
+                "time": 5.4455352964, "two-way": 5.1304931630}
+
+    @pytest.mark.skipif(not TURNOUT.exists(), reason="turnout panel not vendored")
+    @pytest.mark.parametrize("force", ["none", "unit", "time", "two-way"])
+    def test_matches_the_reference_at_each_setting(self, turnout, force):
+        res = GSYNTH(dict(df=turnout, unitid="abb", time="year",
+                          outcome="turnout", treat="policy_edr", r=2,
+                          force=force, inference=False,
+                          display_graphs=False)).fit()
+        assert abs(res.att - self._FECT_R2[force]) < 1e-6
+
+    @pytest.mark.skipif(not TURNOUT.exists(), reason="turnout panel not vendored")
+    def test_the_settings_are_far_apart_on_real_data(self, turnout):
+        """The four span 3.6 percentage points here, so a setting that swept
+        out the wrong thing could not hide inside solver noise."""
+        got = [GSYNTH(dict(df=turnout, unitid="abb", time="year",
+                           outcome="turnout", treat="policy_edr", r=2,
+                           force=f, inference=False, display_graphs=False)).fit().att
+               for f in ("none", "unit", "time", "two-way")]
+        assert max(got) - min(got) > 3.0
+
+    def test_the_intercept_is_counted_against_the_pre_period(self, staggered):
+        """At the boundary, a setting carrying an intercept needs one more
+        pre-period than one without, and says so instead of solving something
+        singular."""
+        df, _ = staggered
+        inputs = prepare_gsynth_inputs(df, "y", "d", "unit", "time")
+        r = inputs.min_pre_periods
+        with pytest.raises(MlsynthEstimationError, match="regressors"):
+            gsc_fit(inputs, r=r, force="two-way")
+        with pytest.raises(MlsynthEstimationError, match="regressors"):
+            gsc_fit(inputs, r=r, force="unit")
+        # Without one, exactly r regressors fit in r pre-periods.
+        for f in ("none", "time"):
+            with pytest.raises(MlsynthEstimationError, match="regressors"):
+                gsc_fit(inputs, r=r + 1, force=f)
+
+    def test_rank_ceiling_follows_the_intercept(self, staggered):
+        """A setting with an intercept column spends one more regressor, so it
+        can identify one fewer factor."""
+        df, _ = staggered
+        inputs = prepare_gsynth_inputs(df, "y", "d", "unit", "time")
+        without = max(cross_validate_rank(inputs, r_max=99, force="time").mspe)
+        with_ = max(cross_validate_rank(inputs, r_max=99, force="two-way").mspe)
+        assert without == with_ + 1 == inputs.min_pre_periods - 1
+
+
+class TestForceConfig:
+    def test_default_is_two_way(self, staggered):
+        df, _ = staggered
+        assert GSYNTHConfig(**_cfg(df)).force == "two-way"
+
+    def test_invalid_force_rejected(self, staggered):
+        df, _ = staggered
+        with pytest.raises(MlsynthConfigError):
+            GSYNTH(_cfg(df, force="both"))
+
+    @pytest.mark.parametrize("flag,expected", [(True, "two-way"), (False, "time")])
+    def test_two_way_alias_maps_and_warns(self, staggered, flag, expected):
+        """``two_way`` is the superseded spelling; it still resolves, so code
+        written against the first release keeps working."""
+        df, _ = staggered
+        with pytest.warns(DeprecationWarning, match="two_way"):
+            cfg = GSYNTHConfig(**_cfg(df, two_way=flag))
+        assert cfg.force == expected
+
+    def test_helper_guards_a_bad_force(self):
+        """The config rejects it first, so this guards a direct caller of the
+        numerical layer."""
+        rng = np.random.default_rng(13)
+        with pytest.raises(ValueError, match="force must be one of"):
+            interactive_fixed_effects(rng.standard_normal((8, 6)),
+                                      np.empty((8, 6, 0)), 1, force="twoway")
+
+    def test_supplying_both_is_rejected(self, staggered):
+        df, _ = staggered
+        with pytest.raises(MlsynthConfigError, match="both"):
+            GSYNTH(_cfg(df, force="none", two_way=True))
+
+    def test_alias_reproduces_the_old_default(self, staggered):
+        """The superseded ``two_way=True`` path and the new default agree, so
+        the change moves no existing result."""
+        df, _ = staggered
+        with pytest.warns(DeprecationWarning):
+            old = GSYNTH(_cfg(df, r=2, two_way=True)).fit().att
+        assert old == GSYNTH(_cfg(df, r=2)).fit().att
 
 
 class TestGscFit:
@@ -272,7 +458,7 @@ class TestGscFit:
         alone, and the treated units carry no separate level."""
         df, _ = staggered
         inputs = prepare_gsynth_inputs(df, "y", "d", "unit", "time")
-        out = gsc_fit(inputs, r=2, two_way=False)
+        out = gsc_fit(inputs, r=2, force="time")
         assert out.factors_used.shape[1] == 2
         np.testing.assert_allclose(out.unit_effects, 0.0)
 
@@ -325,7 +511,7 @@ class TestCrossValidateRank:
         """Without an intercept there is one fewer regressor to identify."""
         df, _ = staggered
         inputs = prepare_gsynth_inputs(df, "y", "d", "unit", "time")
-        cv = cross_validate_rank(inputs, r_max=99, two_way=False)
+        cv = cross_validate_rank(inputs, r_max=99, force="time")
         assert max(cv.mspe) == inputs.min_pre_periods - 1
 
     def test_no_scorable_rank_raises(self, staggered):

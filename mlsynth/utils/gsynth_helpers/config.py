@@ -6,7 +6,8 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+import warnings
+from typing import Any, List, Literal, Optional
 
 from pydantic import Field, model_validator
 
@@ -38,10 +39,19 @@ class GSYNTHConfig(BaseEstimatorConfig):
         Largest rank the cross-validation considers. The estimator lowers this
         further when the shortest treated pre-period history cannot identify
         that many loadings.
-    two_way : bool
-        Include additive unit and period effects alongside the factors. This is
-        the specification Table 2 reports and the default everywhere in the
-        paper.
+    force : {"none", "unit", "time", "two-way"}
+        Which additive effects accompany the factors, named and coded as in
+        gsynth and fect: ``"none"`` keeps the grand mean alone, ``"unit"`` adds
+        unit effects, ``"time"`` adds period effects, ``"two-way"`` adds both.
+        Two-way is the specification Xu (2017) Table 2 reports and the default
+        here. An effect that is switched off is not removed from the panel, so
+        the factors absorb it; the choice moves the estimate, and applied work
+        varies it deliberately.
+    two_way : bool or None
+        Superseded by ``force``, and kept so code written against the first
+        release keeps running: ``True`` resolves to ``"two-way"`` and ``False``
+        to ``"time"``, with a :class:`DeprecationWarning`. Supplying both is an
+        error.
     inference : bool
         Run Algorithm 2, the parametric bootstrap.
     n_bootstrap : int
@@ -70,9 +80,20 @@ class GSYNTHConfig(BaseEstimatorConfig):
         default=5, ge=0,
         description="Largest rank the cross-validation considers.",
     )
-    two_way: bool = Field(
-        default=True,
-        description="Include additive unit and period effects.",
+    force: Literal["none", "unit", "time", "two-way"] = Field(
+        default="two-way",
+        description=(
+            "Which additive effects accompany the factors, as in gsynth: none, "
+            "unit, time, or two-way. Reach for a setting other than two-way "
+            "when the specification you are matching used one."
+        ),
+    )
+    two_way: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Superseded by force; True maps to two-way and False to time, with "
+            "a DeprecationWarning."
+        ),
     )
     inference: bool = Field(
         default=True,
@@ -97,6 +118,24 @@ class GSYNTHConfig(BaseEstimatorConfig):
         default=500, ge=1,
         description="Iteration cap for the alternating least squares.",
     )
+
+    @model_validator(mode="after")
+    def resolve_force_alias(cls, values: Any) -> Any:
+        if values.two_way is not None:
+            if "force" in values.model_fields_set:
+                raise MlsynthConfigError(
+                    "force and two_way both given; two_way is the superseded "
+                    "spelling, so pass force alone."
+                )
+            resolved = "two-way" if values.two_way else "time"
+            warnings.warn(
+                f"two_way is superseded by force; two_way={values.two_way} "
+                f"means force={resolved!r}.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            object.__setattr__(values, "force", resolved)
+        return values
 
     @model_validator(mode="after")
     def check_gsynth_params(cls, values: Any) -> Any:

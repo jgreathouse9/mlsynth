@@ -14,9 +14,16 @@ swept out by demeaning first, so the factor step sees only the interactive part;
 what remains alternates between a pooled regression for ``\\beta`` and principal
 components for ``(F, \\Lambda)`` until the coefficient vector stops moving.
 
+Which additive effects are present is the ``force`` setting, named and coded as
+in gsynth and fect: ``"none"`` keeps the grand mean alone, ``"unit"`` adds
+:math:`\\alpha_i`, ``"time"`` adds :math:`\\xi_t`, and ``"two-way"`` adds both.
+An effect that is switched off is not estimated and not removed, so it stays in
+the residual for the factors to absorb -- which is why the choice moves the
+answer instead of merely relabelling it.
+
 The two coefficient-free cases are closed form: with no covariates the factors
 are the principal components of the demeaned panel, and with ``r = 0`` the fit
-is the two-way within estimator.
+is the corresponding within estimator.
 """
 
 from __future__ import annotations
@@ -25,6 +32,19 @@ from dataclasses import dataclass, field
 from typing import Tuple
 
 import numpy as np
+
+#: The additive-effect specifications, as gsynth and fect name them.
+FORCE_OPTIONS = ("none", "unit", "time", "two-way")
+
+
+def has_unit_effects(force: str) -> bool:
+    """Whether ``force`` carries unit effects (gsynth's codes 1 and 3)."""
+    return force in ("unit", "two-way")
+
+
+def has_time_effects(force: str) -> bool:
+    """Whether ``force`` carries period effects (gsynth's codes 2 and 3)."""
+    return force in ("time", "two-way")
 
 
 @dataclass(frozen=True)
@@ -36,9 +56,11 @@ class ControlFit:
     mu : float
         Grand mean.
     alpha : np.ndarray
-        Control-unit effects, shape ``(N_co,)``. Zero when ``two_way`` is off.
+        Control-unit effects, shape ``(N_co,)``. Zero unless ``force`` carries
+        unit effects.
     xi : np.ndarray
-        Period effects, shape ``(T,)``.
+        Period effects, shape ``(T,)``. Zero unless ``force`` carries period
+        effects.
     beta : np.ndarray
         Covariate coefficients, shape ``(p,)``, with zeros in the positions of
         any covariate dropped for want of within variation.
@@ -113,7 +135,7 @@ def interactive_fixed_effects(
     X: np.ndarray,
     r: int,
     *,
-    two_way: bool = True,
+    force: str = "two-way",
     tol: float = 1e-5,
     max_iter: int = 500,
 ) -> ControlFit:
@@ -127,8 +149,8 @@ def interactive_fixed_effects(
         Covariates, shape ``(T, N_co, p)``; ``p = 0`` is allowed.
     r : int
         Number of factors.
-    two_way : bool
-        Include additive unit effects alongside the period effects.
+    force : {"none", "unit", "time", "two-way"}
+        Which additive effects to include.
     tol : float
         Convergence tolerance on the coefficient vector.
     max_iter : int
@@ -137,7 +159,16 @@ def interactive_fixed_effects(
     Returns
     -------
     ControlFit
+
+    Raises
+    ------
+    ValueError
+        If ``force`` is not one of the four settings. The configuration layer
+        rejects a bad value first; this guards direct callers.
     """
+    if force not in FORCE_OPTIONS:
+        raise ValueError(
+            f"force must be one of {list(FORCE_OPTIONS)}; got {force!r}.")
     T, N = Y.shape
     p = int(X.shape[2]) if X.size or X.ndim == 3 else 0
 
@@ -151,19 +182,20 @@ def interactive_fixed_effects(
         XX -= mu_X
 
     alpha_Y, alpha_X = np.zeros(N), np.zeros((N, p))
-    if two_way:
+    if has_unit_effects(force):
         alpha_Y = YY.mean(axis=0)
         YY -= alpha_Y[None, :]
         if p:
             alpha_X = XX.mean(axis=0)
             XX -= alpha_X[None, :, :]
 
-    xi_Y = YY.mean(axis=1)
-    YY -= xi_Y[:, None]
-    xi_X = np.zeros((T, p))
-    if p:
-        xi_X = XX.mean(axis=1)
-        XX -= xi_X[:, None, :]
+    xi_Y, xi_X = np.zeros(T), np.zeros((T, p))
+    if has_time_effects(force):
+        xi_Y = YY.mean(axis=1)
+        YY -= xi_Y[:, None]
+        if p:
+            xi_X = XX.mean(axis=1)
+            XX -= xi_X[:, None, :]
 
     # A covariate with no within variation left is collinear with the fixed
     # effects. It contributes nothing and would make X'X singular, so it is
@@ -198,9 +230,11 @@ def interactive_fixed_effects(
     for slot, k in enumerate(keep):
         beta[k] = beta_k[slot]
 
+    # An effect the setting excludes was never accumulated, so both terms are
+    # still the zeros they were initialized to and no guard is needed here.
     return ControlFit(
         mu=float(mu_Y - mu_X @ beta),
-        alpha=(alpha_Y - alpha_X @ beta) if two_way else np.zeros(N),
+        alpha=alpha_Y - alpha_X @ beta,
         xi=xi_Y - xi_X @ beta,
         beta=beta,
         factor=factor,

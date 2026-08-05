@@ -41,13 +41,23 @@ from typing import Dict, Optional
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from .ife import ControlFit, interactive_fixed_effects
+from .ife import (
+    ControlFit,
+    has_unit_effects,
+    interactive_fixed_effects,
+)
 from .structures import GSYNTHCrossValidation, GSYNTHFit, GSYNTHInputs
 
 
-def _regressors(fit: ControlFit, T: int, two_way: bool) -> np.ndarray:
-    """The matrix Step 2 projects the treated pre-periods onto."""
-    if two_way:
+def _regressors(fit: ControlFit, T: int, force: str) -> np.ndarray:
+    """The matrix Step 2 projects the treated pre-periods onto.
+
+    A column of ones joins the factors exactly when ``force`` carries unit
+    effects. The control units' unit effects say nothing about the level of a
+    unit outside that group, so a treated unit's own level has to be estimated
+    alongside its loadings, off its own pre-periods.
+    """
+    if has_unit_effects(force):
         return np.hstack([fit.factor, np.ones((T, 1))])
     return fit.factor
 
@@ -65,31 +75,32 @@ def _treated_residual(inputs: GSYNTHInputs, fit: ControlFit) -> np.ndarray:
     return U - fit.mu - fit.xi[:, None]
 
 
-def _rank_ceiling(inputs: GSYNTHInputs, two_way: bool) -> int:
+def _rank_ceiling(inputs: GSYNTHInputs, force: str) -> int:
     """Largest rank the shortest treated pre-period history can identify.
 
     A unit with ``T0`` pre-periods supports ``T0`` regressors, one of which is
-    the intercept under two-way effects. One fewer than that keeps the loading
+    the intercept when unit effects are on. One fewer than that keeps the loading
     regression overdetermined, which is what the cross-validation needs so a
     period can be held back.
     """
-    return max(int(inputs.min_pre_periods) - (2 if two_way else 1), 0)
+    return max(int(inputs.min_pre_periods)
+               - (2 if has_unit_effects(force) else 1), 0)
 
 
 def fit_control_model(
-    inputs: GSYNTHInputs, r: int, *, two_way: bool = True,
+    inputs: GSYNTHInputs, r: int, *, force: str = "two-way",
     tol: float = 1e-5, max_iter: int = 500,
 ) -> ControlFit:
     """Run Step 1 on the never-treated units."""
     co = inputs.control_index
     return interactive_fixed_effects(
         inputs.Y[:, co], inputs.X[:, co, :], r,
-        two_way=two_way, tol=tol, max_iter=max_iter,
+        force=force, tol=tol, max_iter=max_iter,
     )
 
 
 def gsc_fit(
-    inputs: GSYNTHInputs, r: int, *, two_way: bool = True,
+    inputs: GSYNTHInputs, r: int, *, force: str = "two-way",
     tol: float = 1e-5, max_iter: int = 500,
     control_fit: Optional[ControlFit] = None,
 ) -> GSYNTHFit:
@@ -101,8 +112,8 @@ def gsc_fit(
         Preprocessed panel.
     r : int
         Number of factors.
-    two_way : bool
-        Include additive unit and period effects.
+    force : {"none", "unit", "time", "two-way"}
+        Which additive effects to include.
     tol, max_iter : float, int
         Passed to the Step 1 alternating least squares.
     control_fit : ControlFit, optional
@@ -120,19 +131,19 @@ def gsc_fit(
         regression has regressors, or if that regression is singular.
     """
     T = inputs.T
-    k = int(r) + (1 if two_way else 0)
+    k = int(r) + (1 if has_unit_effects(force) else 0)
     shortest = int(inputs.min_pre_periods)
     if k > shortest:
         raise MlsynthEstimationError(
             f"r = {r} needs {k} regressors per treated unit but the shortest "
             f"pre-treatment history is {shortest} period(s); lower r to at most "
-            f"{max(shortest - (1 if two_way else 0), 0)}."
+            f"{max(shortest - (1 if has_unit_effects(force) else 0), 0)}."
         )
 
     fit = control_fit if control_fit is not None else fit_control_model(
-        inputs, r, two_way=two_way, tol=tol, max_iter=max_iter)
+        inputs, r, force=force, tol=tol, max_iter=max_iter)
     U = _treated_residual(inputs, fit)
-    F = _regressors(fit, T, two_way)
+    F = _regressors(fit, T, force)
 
     loadings = np.zeros((inputs.n_treated, F.shape[1]))
     for j, t0 in enumerate(inputs.adoption_index):
@@ -150,7 +161,8 @@ def gsc_fit(
     effect = U - F @ loadings.T
     counterfactual = inputs.Y[:, inputs.treated_index] - effect
     post = inputs.D[:, inputs.treated_index] > 0
-    unit_effects = loadings[:, -1] if two_way else np.zeros(inputs.n_treated)
+    unit_effects = (loadings[:, -1] if has_unit_effects(force)
+                    else np.zeros(inputs.n_treated))
 
     return GSYNTHFit(
         effect=effect,
@@ -165,7 +177,7 @@ def gsc_fit(
 
 
 def cross_validate_rank(
-    inputs: GSYNTHInputs, *, r_max: int = 5, two_way: bool = True,
+    inputs: GSYNTHInputs, *, r_max: int = 5, force: str = "two-way",
     tol: float = 1e-5, max_iter: int = 500,
 ) -> GSYNTHCrossValidation:
     """Algorithm 1: leave-one-period-out selection of the factor count.
@@ -177,8 +189,8 @@ def cross_validate_rank(
     r_max : int
         Largest rank considered. Lowered to what the shortest treated
         pre-period history can identify.
-    two_way : bool
-        Include additive unit and period effects.
+    force : {"none", "unit", "time", "two-way"}
+        Which additive effects to include.
     tol, max_iter : float, int
         Passed to the Step 1 alternating least squares.
 
@@ -192,16 +204,16 @@ def cross_validate_rank(
         If no rank could be scored, which happens when no treated unit has a
         pre-period history long enough to hold a period back from.
     """
-    ceiling = min(int(r_max), _rank_ceiling(inputs, two_way))
+    ceiling = min(int(r_max), _rank_ceiling(inputs, force))
     T = inputs.T
 
     mspe: Dict[int, float] = {}
     scored: Dict[int, int] = {}
     for r in range(0, ceiling + 1):
-        fit = fit_control_model(inputs, r, two_way=two_way, tol=tol,
+        fit = fit_control_model(inputs, r, force=force, tol=tol,
                                 max_iter=max_iter)
         U = _treated_residual(inputs, fit)
-        F = _regressors(fit, T, two_way)
+        F = _regressors(fit, T, force)
         k = F.shape[1]
 
         sse, n = 0.0, 0
