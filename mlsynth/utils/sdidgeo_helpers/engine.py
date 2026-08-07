@@ -46,7 +46,8 @@ import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..sdid_helpers.weights import (
-    compute_regularization, fit_time_weights, unit_weights)
+    _solve_intercept_simplex, compute_regularization, fit_time_weights,
+    unit_weights)
 
 
 @dataclass
@@ -182,17 +183,35 @@ def placebo_sigma(y, Y0, n_pre: int, start: int, end: int, *,
 
     rng = np.random.default_rng(seed)
     taus: List[float] = []
+    # Consecutive draws differ only in which donors were reassigned, so the
+    # previous draw's weights seed the next one's active set. Shapes are
+    # constant within a placement, so the chain never breaks. The seed only
+    # changes how many pivots a solve takes: solve_simplex_qp discards one that
+    # is infeasible or the wrong length, so the optimum is untouched.
+    prev_omega = prev_lam = None
     for _ in range(int(n_draws)):
         idx = rng.choice(n_donors, size=int(n_tr), replace=False)
         mask = np.ones(n_donors, dtype=bool)
         mask[idx] = False
         pseudo_y = Y0[:, idx].mean(axis=1)
+        pY0 = Y0[:, mask]
+        pre = pY0[:n_pre]
         try:
-            fit = sdid_fit_once(pseudo_y, Y0[:, mask], n_pre, start, end,
-                                n_tr=n_tr)
+            zeta = compute_regularization(pre, int(end - start + 1), int(n_tr))
+            # Posed exactly as unit_weights / fit_time_weights pose them, so a
+            # chained draw solves the same programs the unchained one did.
+            _, omega = _solve_intercept_simplex(
+                pre, pseudo_y[:n_pre], n_pre * float(zeta) ** 2,
+                warm_start=prev_omega)
+            _, lam = _solve_intercept_simplex(
+                pre.T, pY0[start:end + 1].mean(axis=0), 0.0,
+                warm_start=prev_lam)
         except (MlsynthConfigError, MlsynthDataError, ValueError):
             continue  # a degenerate draw contributes nothing
-        taus.append(sdid_att(fit, pseudo_y, start, end))
+        prev_omega, prev_lam = omega, lam
+        bias = float(lam @ pseudo_y[:n_pre] - lam @ (pre @ omega))
+        gap = pseudo_y - (pY0 @ omega + bias)
+        taus.append(float(np.mean(gap[start:end + 1])))
 
     if len(taus) < 3:
         return float("nan")

@@ -536,3 +536,51 @@ class TestMultipleTreatmentSizes:
     def test_size_exceeding_the_panel_raises(self, panel):
         with pytest.raises(MlsynthConfigError):
             self._design(panel, [2, 500])
+
+
+class TestPlaceboWarmStart:
+    """The placebo loop chains its warm start; the sigma must not move.
+
+    Consecutive draws differ only in which donors were reassigned, so each
+    draw's weights seed the next. ``solve_simplex_qp`` discards an infeasible
+    or wrongly sized seed, so the chain can only change pivot count -- and
+    ``sdid_fit_once`` still solves each placement cold, which gives an
+    independent path to the same number.
+    """
+
+    @staticmethod
+    def _cold_sigma(y, Y0, n_pre, start, end, *, n_draws, n_tr, seed):
+        """The same draws, each refit from scratch through ``sdid_fit_once``."""
+        Y0 = np.asarray(Y0, dtype=float)
+        rng = np.random.default_rng(seed)
+        taus = []
+        for _ in range(n_draws):
+            idx = rng.choice(Y0.shape[1], size=n_tr, replace=False)
+            mask = np.ones(Y0.shape[1], dtype=bool)
+            mask[idx] = False
+            pseudo_y = Y0[:, idx].mean(axis=1)
+            fit = sdid_fit_once(pseudo_y, Y0[:, mask], n_pre, start, end,
+                                n_tr=n_tr)
+            taus.append(sdid_att(fit, pseudo_y, start, end))
+        return float(np.std(np.asarray(taus), ddof=1))
+
+    @pytest.mark.parametrize("sim", [1, 3, 5])
+    def test_chained_sigma_matches_cold_refitting(self, wide, sim):
+        units = list(wide.columns)
+        candidate = frozenset(units[:2])
+        treated = aggregate_treated(wide, candidate, how="mean").to_numpy()
+        donors = donor_matrix(wide, candidate).to_numpy()
+        n_pre = wide.shape[0] - 14 - sim + 1
+        start, end = n_pre, n_pre + 13
+        kw = dict(n_draws=40, n_tr=2, seed=0)
+        assert placebo_sigma(treated, donors, n_pre, start, end,
+                             **kw) == pytest.approx(
+            self._cold_sigma(treated, donors, n_pre, start, end, **kw),
+            rel=1e-9)
+
+    def test_still_deterministic_across_calls(self, arrays):
+        treated, donors, _, _, _, n_pre, start, end = arrays
+        kw = dict(n_draws=30, n_tr=2, seed=4)
+        first = placebo_sigma(treated, donors, n_pre, start, end, **kw)
+        second = placebo_sigma(treated, donors, n_pre, start, end, **kw)
+        assert first == second
