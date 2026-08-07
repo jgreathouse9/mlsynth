@@ -56,6 +56,11 @@ from .utils.counterfactual_compare import (
     plot_counterfactual_comparison,
 )
 from .estimators.spcd import SPCD
+from .estimators.sdidgeo import SDIDGEO
+from .utils.sdidgeo_helpers.plotter import (
+    plot_mde_ranking,
+    plot_sdidgeo_design,
+)
 from .estimators.tasc import TASC
 from .estimators.cmbsts import CMBSTS
 from .estimators.sbc import SBC
@@ -146,6 +151,9 @@ __all__ = [
     "MAREX",
     "LEXSCM",
     "SPCD",
+    "SDIDGEO",
+    "plot_sdidgeo_design",
+    "plot_mde_ranking",
     "TASC",
     "CMBSTS",
     "SBC", "BVSS", "BSCM", "BFSC", "MVBBSC", "MTGP", "BPSCS",
