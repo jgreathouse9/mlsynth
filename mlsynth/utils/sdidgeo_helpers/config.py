@@ -68,13 +68,13 @@ class SDIDGEOConfig(BaseMAREXConfig):
     power_threshold: float = Field(
         default=0.8, description="Power an effect must exceed to count as detected."
     )
-    holdout_placements: int = Field(
+    n_validation_backtests: int = Field(
         default=8,
-        description="Extra lookback placements, deeper in history, used only to "
+        description="Extra backtests, deeper in history, used only to "
         "re-score the winning region after it has been chosen. The reported "
         "MDE is the smallest in a field of candidates, so it is optimistic for "
         "the same reason the best of many noisy estimates is: the region most "
-        "likely to be picked is the one that got lucky. These placements take "
+        "likely to be picked is the one that got lucky. These backtests take "
         "no part in the selection, so the MDE they give for the winner is not "
         "selected on and is the number to plan against. Set to 0 to skip, at "
         "the cost of having only the optimistic figure.",
@@ -149,10 +149,10 @@ class SDIDGEOConfig(BaseMAREXConfig):
         if not 0.0 < self.power_threshold < 1.0:
             raise MlsynthConfigError(
                 f"power_threshold must be in (0, 1); got {self.power_threshold}.")
-        if self.holdout_placements < 0:
+        if self.n_validation_backtests < 0:
             raise MlsynthConfigError(
-                "holdout_placements must be >= 0; got "
-                f"{self.holdout_placements}.")
+                "n_validation_backtests must be >= 0; got "
+                f"{self.n_validation_backtests}.")
         if self.n_draws < 3:
             raise MlsynthConfigError(
                 "n_draws must be at least 3 for a placebo standard error; got "

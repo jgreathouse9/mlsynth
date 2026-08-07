@@ -1,4 +1,4 @@
-"""Lookback-window arithmetic for GeoLift market-selection power simulation.
+"""Backtest-window arithmetic for SDIDGEO market-selection power simulation.
 
 The power analysis slides a fixed-length pseudo-treatment window back from the
 end of the historical panel, one period at a time, and fits the SCM once per

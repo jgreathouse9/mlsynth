@@ -21,7 +21,7 @@ from .candidates import generate_candidate_markets
 from .config import SDIDGEOConfig
 from .engine import sdid_fit_once
 from .shaping import aggregate_treated, donor_matrix
-from .simulate import simulate_lookback
+from .simulate import simulate_backtest
 from .similarity import rank_markets_by_correlation
 from .structures import CandidateDesign, MarketSearch, SDIDGEOResults
 
@@ -61,35 +61,35 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
 
 
 
-def holdout_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
+def planning_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
                 power_table: pd.DataFrame) -> Optional[float]:
-    """The winner's MDE re-scored on placements that did not choose it.
+    """The winner's MDE re-scored on backtests that did not choose it.
 
     ``compute_rank`` hands back the smallest MDE in the field, and the smallest
     of many noisy estimates is optimistic: the region most likely to be picked
     is the one whose estimate happened to come out low. Re-scoring the winner on
-    placements held back from the search removes that, because those placements
+    backtests held back from the search removes that, because those backtests
     played no part in selecting it -- the same reason a region fixed in advance
-    is calibrated at any lookback depth.
+    is calibrated at any backtest count.
 
-    Placements ``lookback_window + 1 .. lookback_window + holdout_placements``
+    Backtests ``n_backtests + 1 .. n_backtests + n_validation_backtests``
     sit deeper in history, so their pseudo-treatment windows differ from every
     window the search used. Returns ``None`` when the panel cannot carry them.
     """
-    if config.holdout_placements < 1:
+    if config.n_validation_backtests < 1:
         return None
     n_periods = Ywide.shape[0]
     longest = max(config.durations)
-    deepest = config.lookback_window + config.holdout_placements
+    deepest = config.n_backtests + config.n_validation_backtests
     if longest + deepest - 1 >= n_periods:
-        return None  # the panel cannot carry the extra placements
+        return None  # the panel cannot carry the extra backtests
 
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
     donors = donor_matrix(Ywide, candidate).to_numpy()
     rows: List[dict] = []
     for duration in config.durations:
-        for sim in range(config.lookback_window + 1, deepest + 1):
-            for row in simulate_lookback(
+        for sim in range(config.n_backtests + 1, deepest + 1):
+            for row in simulate_backtest(
                 treated, donors, n_periods, duration, sim, config.effect_sizes,
                 n_draws=config.n_draws, n_tr=len(candidate), seed=config.seed,
             ):
@@ -102,7 +102,7 @@ def holdout_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
     mde_table = compute_mde(held, power_threshold=config.power_threshold)
     values = mde_table["mde"].dropna()
     if values.empty:
-        return None  # nothing detectable on the held-back placements
+        return None  # nothing detectable on the held-back backtests
     # Across durations, the design deploys the one it ranked best; take the
     # smallest magnitude, matching how compute_rank reads a candidate's row.
     return float(values.loc[values.abs().idxmin()])
@@ -201,9 +201,9 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         winning = shortlist.sort_values("rank").iloc[0]["candidate"]
         winner = designs[winning]
         winner_units = sorted(map(str, winning))
-        # Scored only now, and only for the winner, so the placements behind it
+        # Scored only now, and only for the winner, so the backtests behind it
         # cannot have influenced which region was picked.
-        winner.mde_holdout = holdout_mde(Ywide, winning, config, power_table)
+        winner.mde_planning = planning_mde(Ywide, winning, config, power_table)
 
     search = MarketSearch(shortlist=shortlist, power_table=power_table,
                           candidates=list(designs.values()), winner=winner)
@@ -222,14 +222,17 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
             "pre_periods": prep["pre_periods"],
             "post_col": prep["post_col"],
             "n_draws": config.n_draws,
-            "winner_mde": (float(winner.mde) if winner is not None
-                           and winner.mde is not None else None),
-            # The same region scored on placements that did not select it. Plan
+            # The smallest MDE in the field, so the region most likely to be
+            # picked is the one whose estimate came out low by luck.
+            "winner_mde_optimistic": (
+                float(winner.mde) if winner is not None
+                and winner.mde is not None else None),
+            # The same region scored on backtests that did not select it. Plan
             # against this one; winner_mde is the optimistic end.
-            "winner_mde_holdout": (
-                float(winner.mde_holdout) if winner is not None
-                and winner.mde_holdout is not None else None),
-            "holdout_placements": config.holdout_placements,
+            "winner_mde_planning": (
+                float(winner.mde_planning) if winner is not None
+                and winner.mde_planning is not None else None),
+            "n_validation_backtests": config.n_validation_backtests,
         },
         search=search,
     )

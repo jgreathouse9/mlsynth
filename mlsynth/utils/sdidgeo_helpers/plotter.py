@@ -64,10 +64,18 @@ def _power_panel(ax, result, power_threshold):
     if winner_design is not None and winner_design.mde is not None:
         mde = float(winner_design.mde)
         ax.axvline(mde, color="red", ls=":", lw=1.4, zorder=2)
-        # Anchored above the curve so it clears the legend in the lower right.
+        # Anchored above the curve so it clears the legend below.
         ax.annotate(f"MDE {mde:+.2f}", xy=(mde, 1.0),
                     xytext=(5, -12), textcoords="offset points",
                     color="red", fontsize=9, va="top", ha="left")
+        # The planning figure sits beside it, so the gap between what the
+        # search selected and what it can be held to is visible.
+        if winner_design.mde_planning is not None:
+            plan = float(winner_design.mde_planning)
+            ax.axvline(plan, color="darkorange", ls="-.", lw=1.4, zorder=2)
+            ax.annotate(f"planning {plan:+.2f}", xy=(plan, 1.0),
+                        xytext=(5, -26), textcoords="offset points",
+                        color="darkorange", fontsize=9, va="top", ha="left")
 
     ax.set_xlabel("Injected effect size (proportional lift)")
     ax.set_ylabel("Power (detection rate across backtests)")
@@ -139,10 +147,15 @@ def plot_sdidgeo_design(
         _power_panel(axes[0], result, power_threshold)
         _fit_panel(axes[1], result)
         units = " + ".join(result.selected_units or ())
-        mde = result.metadata.get("winner_mde")
         title = f"SDIDGEO design — {units}"
-        if mde is not None:
-            title += f"   (MDE {mde:+.2f})"
+        # Both figures, since the optimistic one is what the search selected on
+        # and the planning one is what to budget against.
+        optimistic = result.metadata.get("winner_mde_optimistic")
+        planning = result.metadata.get("winner_mde_planning")
+        if optimistic is not None:
+            title += f"   MDE {optimistic:+.2f} selected"
+            if planning is not None:
+                title += f", {planning:+.2f} planning"
         fig.suptitle(title, fontsize=12)
         return _finish(fig, save_path, show)
 

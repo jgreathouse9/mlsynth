@@ -74,7 +74,7 @@ class TestWindows:
             start, end = backtest_treatment_window(105, 14, sim)
             assert end - start + 1 == 14
 
-    def test_placement_off_the_panel_raises(self):
+    def test_backtest_off_the_panel_raises(self):
         with pytest.raises(MlsynthConfigError, match="runs off the start"):
             backtest_pre_periods(20, 15, 10)
 
@@ -187,7 +187,7 @@ class TestInjectEffect:
             inject_effect(np.arange(10.0), window[0], window[1], 0.1)
 
 
-class TestSimulateLookback:
+class TestSimulateBacktest:
     def test_row_schema_and_one_row_per_effect_size(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
         rows = simulate_backtest(treated, donors, n_periods, duration, sim,
@@ -586,12 +586,12 @@ class TestPlaceboWarmStart:
         assert first == second
 
 
-class TestHoldoutMDE:
-    """The winner's MDE is a selected minimum; the holdout one is not.
+class TestPlanningMDE:
+    """The winner's MDE is a selected minimum; the validation one is not.
 
     ``compute_rank`` returns the smallest MDE in the field, so the region most
     likely to be picked is the one whose estimate came out low by luck. The
-    holdout placements sit deeper in history and take no part in the search, so
+    validation backtests sit deeper in history and take no part in the search, so
     re-scoring the winner on them gives a figure that was not selected on.
     """
 
@@ -600,59 +600,59 @@ class TestHoldoutMDE:
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14],
             effect_sizes=[-0.2, -0.1, 0.0, 0.1, 0.2],
-            lookback_window=4, holdout_placements=4, n_draws=20, seed=0,
+            n_backtests=4, n_validation_backtests=4, n_draws=20, seed=0,
         )
         args.update(kw)
         return SDIDGEO(SDIDGEOConfig(**args)).fit()
 
     def test_both_numbers_are_reported(self, panel):
         result = self._design(panel)
-        assert result.metadata["winner_mde"] is not None
-        assert result.metadata["winner_mde_holdout"] is not None
-        assert result.metadata["holdout_placements"] == 4
-        assert result.search.winner.mde_holdout == pytest.approx(
-            result.metadata["winner_mde_holdout"])
+        assert result.metadata["winner_mde_optimistic"] is not None
+        assert result.metadata["winner_mde_planning"] is not None
+        assert result.metadata["n_validation_backtests"] == 4
+        assert result.search.winner.mde_planning == pytest.approx(
+            result.metadata["winner_mde_planning"])
 
-    def test_holdout_is_an_effect_size_from_the_grid(self, panel):
+    def test_planning_mde_is_an_effect_size_from_the_grid(self, panel):
         result = self._design(panel)
         grid = [-0.2, -0.1, 0.0, 0.1, 0.2]
-        assert float(result.metadata["winner_mde_holdout"]) in grid
+        assert float(result.metadata["winner_mde_planning"]) in grid
 
     def test_disabled_by_zero(self, panel):
-        result = self._design(panel, holdout_placements=0)
-        assert result.metadata["winner_mde_holdout"] is None
-        assert result.search.winner.mde_holdout is None
-        assert result.metadata["winner_mde"] is not None
+        result = self._design(panel, n_validation_backtests=0)
+        assert result.metadata["winner_mde_planning"] is None
+        assert result.search.winner.mde_planning is None
+        assert result.metadata["winner_mde_optimistic"] is not None
 
     def test_only_the_winner_is_rescored(self, panel):
-        """Scoring every candidate on the holdout would reintroduce selection."""
+        """Scoring every candidate on the validation would reintroduce selection."""
         result = self._design(panel)
         rescored = [c for c in result.search.candidates
-                    if c.mde_holdout is not None]
+                    if c.mde_planning is not None]
         assert len(rescored) == 1
         assert rescored[0].units == result.selected_units
 
-    def test_none_when_the_panel_cannot_carry_the_placements(self, panel):
-        # 105 periods; duration 14 with lookback 8 needs 8 more placements to
+    def test_none_when_the_panel_cannot_carry_the_backtests(self, panel):
+        # 105 periods; duration 14 with 8 backtests needs 8 more backtests to
         # reach depth 16, which fits -- so ask for a depth the panel cannot hold.
-        result = self._design(panel, lookback_window=4, holdout_placements=200)
-        assert result.metadata["winner_mde_holdout"] is None
-        assert result.metadata["winner_mde"] is not None
+        result = self._design(panel, n_backtests=4, n_validation_backtests=200)
+        assert result.metadata["winner_mde_planning"] is None
+        assert result.metadata["winner_mde_optimistic"] is not None
 
-    def test_holdout_uses_placements_the_search_did_not(self, panel):
-        """Changing only the holdout depth must not move the selection."""
-        a = self._design(panel, holdout_placements=4)
-        b = self._design(panel, holdout_placements=6)
+    def test_validation_uses_backtests_the_search_did_not(self, panel):
+        """Changing only the validation depth must not move the selection."""
+        a = self._design(panel, n_validation_backtests=4)
+        b = self._design(panel, n_validation_backtests=6)
         assert a.selected_units == b.selected_units
-        assert a.metadata["winner_mde"] == b.metadata["winner_mde"]
+        assert a.metadata["winner_mde_optimistic"] == b.metadata["winner_mde_optimistic"]
 
     @pytest.mark.parametrize("bad", [-1, -10])
-    def test_negative_holdout_raises(self, panel, bad):
-        with pytest.raises(MlsynthConfigError, match="holdout_placements"):
-            self._design(panel, holdout_placements=bad)
+    def test_negative_validation_backtests_raises(self, panel, bad):
+        with pytest.raises(MlsynthConfigError, match="n_validation_backtests"):
+            self._design(panel, n_validation_backtests=bad)
 
     def test_reproducible(self, panel):
         a = self._design(panel)
         b = self._design(panel)
-        assert (a.metadata["winner_mde_holdout"]
-                == b.metadata["winner_mde_holdout"])
+        assert (a.metadata["winner_mde_planning"]
+                == b.metadata["winner_mde_planning"])

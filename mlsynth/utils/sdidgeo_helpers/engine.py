@@ -59,7 +59,7 @@ class SDIDFit:
     omega : np.ndarray, shape (J,)
         Unit (donor) weights; non-negative and summing to one.
     lam : np.ndarray, shape (T0,)
-        Time weights over the placement's pre-period.
+        Time weights over the backtest's pre-period.
     bias_correction : float
         ``lambda' y_pre - lambda' Y0_pre omega``, the difference-in-differences
         level term that turns ``Y0 @ omega`` into a counterfactual path.
@@ -90,7 +90,7 @@ class SDIDFit:
 
 def sdid_fit_once(y, Y0, n_pre: int, start: int, end: int,
                   n_tr: int = 1) -> SDIDFit:
-    """Fit SDID once on the placement ``[:n_pre]`` / ``[start:end+1]``.
+    """Fit SDID once on the backtest ``[:n_pre]`` / ``[start:end+1]``.
 
     Parameters
     ----------
@@ -126,7 +126,7 @@ def sdid_fit_once(y, Y0, n_pre: int, start: int, end: int,
         raise MlsynthDataError("SDID needs at least one donor unit.")
     if not (0 < n_pre <= start <= end < y.shape[0]):
         raise MlsynthConfigError(
-            f"invalid placement: n_pre={n_pre}, window=[{start}, {end}] for a "
+            f"invalid backtest window: n_pre={n_pre}, window=[{start}, {end}] for a "
             f"panel of length {y.shape[0]}.")
 
     y_pre, Y0_pre = y[:n_pre], Y0[:n_pre]
@@ -135,7 +135,7 @@ def sdid_fit_once(y, Y0, n_pre: int, start: int, end: int,
     _, lam = fit_time_weights(Y0_pre, Y0[start:end + 1].mean(axis=0))
     if omega is None or lam is None:  # pragma: no cover - solver failure
         raise MlsynthConfigError(
-            "an SDID weight program failed to converge on this placement.")
+            "an SDID weight program failed to converge on this backtest.")
     omega = np.asarray(omega, dtype=float).ravel()
     lam = np.asarray(lam, dtype=float).ravel()
 
@@ -185,7 +185,7 @@ def placebo_sigma(y, Y0, n_pre: int, start: int, end: int, *,
     taus: List[float] = []
     # Consecutive draws differ only in which donors were reassigned, so the
     # previous draw's weights seed the next one's active set. Shapes are
-    # constant within a placement, so the chain never breaks. The seed only
+    # constant within a backtest, so the chain never breaks. The seed only
     # changes how many pivots a solve takes: solve_simplex_qp discards one that
     # is infeasible or the wrong length, so the optimum is untouched.
     prev_omega = prev_lam = None
