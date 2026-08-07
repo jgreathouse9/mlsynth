@@ -67,10 +67,11 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     n_periods = Ywide.shape[0]
     units = list(Ywide.columns)
 
-    if config.treatment_size >= len(units):
+    sizes = config.treatment_sizes
+    if max(sizes) >= len(units):
         raise MlsynthConfigError(
-            f"treatment_size ({config.treatment_size}) must leave at least one "
-            f"donor market; the panel has {len(units)}.")
+            f"every treatment_size must leave at least one donor market; the "
+            f"panel has {len(units)} and the largest requested is {max(sizes)}.")
 
     longest = max(config.durations)
     if longest + config.lookback_window - 1 >= n_periods:
@@ -86,14 +87,23 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         raise MlsynthDataError(f"markets not found in the panel: {unknown}.")
 
     ranked = rank_markets_by_correlation(Ywide)
-    candidates = generate_candidate_markets(
-        ranked, config.treatment_size,
-        to_be_treated=config.to_be_treated,
-        not_to_be_treated=config.not_to_be_treated,
-        run_stochastic=config.run_stochastic,
-        stochastic_mode=config.stochastic_mode,
-        rng=config.seed,
-    )
+    # One nomination pass per requested size, pooled into a single field. A
+    # size-3 region competes with a size-2 one on the same ranking, which is
+    # the point of scanning sizes together.
+    candidates: List[frozenset] = []
+    seen = set()
+    for size in sizes:
+        for candidate in generate_candidate_markets(
+            ranked, size,
+            to_be_treated=config.to_be_treated,
+            not_to_be_treated=config.not_to_be_treated,
+            run_stochastic=config.run_stochastic,
+            stochastic_mode=config.stochastic_mode,
+            rng=config.seed,
+        ):
+            if candidate not in seen:
+                seen.add(candidate)
+                candidates.append(candidate)
     if not candidates:
         raise MlsynthConfigError(
             "no candidate test region satisfies the constraints; relax "
@@ -108,6 +118,11 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     shortlist = compute_rank(power_table,
                              power_threshold=config.power_threshold,
                              budget=config.budget)
+    if not shortlist.empty:
+        # Surface the region size next to its MDE, so a size scan is readable
+        # without unpacking the candidate frozensets.
+        shortlist.insert(1, "treatment_size",
+                         shortlist["candidate"].map(len).astype(int))
 
     # Deployable fit per candidate, with the design window at the end of history.
     deploy_duration = max(config.durations)
@@ -151,6 +166,7 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         metadata={
             "n_candidates": len(designs),
             "treatment_size": config.treatment_size,
+            "treatment_sizes": sizes,
             "pre_periods": prep["pre_periods"],
             "post_col": prep["post_col"],
             "n_draws": config.n_draws,

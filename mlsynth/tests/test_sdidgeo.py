@@ -455,3 +455,84 @@ class TestPlots:
             plot_sdidgeo_design(result)
         with pytest.raises(ValueError, match="shortlist is empty"):
             plot_mde_ranking(result)
+
+
+class TestMultipleTreatmentSizes:
+    """``treatment_size`` accepts a list, scanning several region sizes at once.
+
+    GeoLift's ``N = c(2, 3, 4)``: candidates of every requested size are
+    generated, scored on the same grid, and ranked against each other, so a
+    three-market region competes with a two-market one on its MDE.
+    """
+
+    def _design(self, panel, size, **kw):
+        args = dict(
+            df=panel, unitid="location", time="date", outcome="Y",
+            treatment_size=size, durations=[14],
+            effect_sizes=[-0.2, -0.1, 0.0, 0.1, 0.2],
+            lookback_window=2, n_draws=15, seed=0,
+        )
+        args.update(kw)
+        return SDIDGEO(SDIDGEOConfig(**args)).fit()
+
+    def test_scalar_still_works(self, panel):
+        result = self._design(panel, 2)
+        assert len(result.selected_units) == 2
+        assert {len(c.units) for c in result.search.candidates} == {2}
+
+    def test_list_generates_every_requested_size(self, panel):
+        result = self._design(panel, [2, 3, 4])
+        assert {len(c.units) for c in result.search.candidates} == {2, 3, 4}
+
+    def test_shortlist_reports_the_size_of_each_candidate(self, panel):
+        result = self._design(panel, [2, 3])
+        shortlist = result.power
+        assert "treatment_size" in shortlist.columns
+        for _, row in shortlist.iterrows():
+            assert row["treatment_size"] == len(row["candidate"])
+        assert set(shortlist["treatment_size"]) <= {2, 3}
+
+    def test_sizes_are_ranked_against_each_other(self, panel):
+        """One ranking over the pooled field, not one ranking per size."""
+        result = self._design(panel, [2, 3, 4])
+        shortlist = result.power
+        assert shortlist["rank"].is_monotonic_increasing
+        assert len(shortlist) == shortlist["rank"].count()
+        # The winner is whichever size scored best, so its size must be one of
+        # the requested ones and need not be the smallest.
+        assert len(result.selected_units) in {2, 3, 4}
+
+    def test_metadata_records_the_scanned_sizes(self, panel):
+        result = self._design(panel, [2, 4])
+        assert result.metadata["treatment_sizes"] == [2, 4]
+
+    def test_duplicates_and_order_are_normalised(self, panel):
+        result = self._design(panel, [3, 2, 3])
+        assert result.metadata["treatment_sizes"] == [2, 3]
+
+    def test_each_size_uses_its_own_treated_count(self, panel):
+        """A three-market region must be fit as three treated units.
+
+        ``n_tr`` feeds the SDID ridge as ``(n_tr * T_post)^(1/4)``, so a size
+        mix that ignored it would regularise every candidate identically.
+        """
+        result = self._design(panel, [2, 4])
+        by_size = {len(c.units): c for c in result.search.candidates}
+        assert set(by_size) == {2, 4}
+        for size, design in by_size.items():
+            assert len(design.units) == size
+            assert not set(design.units) & set(design.weights.donor_weights)
+
+    def test_forced_markets_larger_than_a_size_raise(self, panel):
+        units = sorted(panel["location"].unique())
+        with pytest.raises(MlsynthConfigError, match="to_be_treated"):
+            self._design(panel, [2, 3], to_be_treated=units[:3])
+
+    @pytest.mark.parametrize("bad", [[], [0], [2, -1], [2, 0]])
+    def test_invalid_sizes_raise(self, panel, bad):
+        with pytest.raises(MlsynthConfigError):
+            self._design(panel, bad)
+
+    def test_size_exceeding_the_panel_raises(self, panel):
+        with pytest.raises(MlsynthConfigError):
+            self._design(panel, [2, 500])

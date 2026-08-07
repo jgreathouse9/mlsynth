@@ -210,7 +210,7 @@ Example
 
    design = SDIDGEO(SDIDGEOConfig(
        df=df, unitid="location", time="date", outcome="Y",
-       treatment_size=2,
+       treatment_size=[2, 3, 4, 5],
        durations=[14],
        effect_sizes=[round(x, 2) for x in np.arange(-0.30, 0.35, 0.05)],
        lookback_window=5,
@@ -248,6 +248,38 @@ are sparse: on this panel 7 of 91 pre-days carry any weight.
 ``design.report`` is ``None``. It is the slot for the realized effect and
 stays empty until the experiment has run and post-treatment outcomes
 exist.
+
+Scanning several region sizes
+-----------------------------
+
+``treatment_size`` takes a list, so one run can score two-market regions
+against five-market ones (GeoLift's ``N = c(2, 3, 4, 5)``). Candidates are
+nominated once per size, pooled, and ranked together, so the shortlist
+answers how large a test region has to be and which markets it should
+contain at the same time. A ``treatment_size`` column carries each
+candidate's size, and ``metadata["treatment_sizes"]`` the sizes scanned.
+
+Each candidate is fit with its own treated count, which enters the SDID
+ridge as :math:`(N_{\mathrm{tr}} T_{\mathrm{post}})^{1/4}`, so a
+five-market region is regularised more strongly than a two-market one on
+the same panel.
+
+Scanning sizes 2 through 5 on the test panel gives 123 candidates, and
+the best of each size:
+
+.. code-block:: text
+
+    size  candidate                                                          mde  scaled_l2
+       5  columbus + jacksonville + milwaukee + minneapolis + new orleans   0.10      0.370
+       4  columbus + jacksonville + milwaukee + minneapolis                 0.15      0.290
+       2  atlanta + nashville                                               0.15      0.324
+       3  atlanta + chicago + nashville                                     0.15      0.325
+
+Bigger regions detect smaller lifts, which is the usual trade: five
+markets carry more volume than two, so the same proportional effect is
+easier to see. Set against that, a larger test region costs more to run
+and holds out more of the country from the control pool. The scan prices
+that choice instead of assuming it.
 
 Plots
 -----
