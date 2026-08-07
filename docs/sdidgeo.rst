@@ -38,7 +38,7 @@ What Distinguishes It
 The market-selection loop follows GeoLift, Meta's geo-experiment
 package: anchor a candidate region at each market, add that market's
 most correlated neighbours, sweep effect sizes over several backward
-placements, and rank by a composite score. What changes is the estimator
+backtests, and rank by a composite score. What changes is the estimator
 doing the scoring.
 
 GeoLift scores with augmented synthetic control, which matches the
@@ -72,7 +72,7 @@ treated average and :math:`\mathbf{Y}_{0}` for the
 :math:`T \times |\mathcal{C}|` donor matrix.
 
 A pseudo-experiment is a pre/post split of the observed history. For a
-duration :math:`D` and a placement :math:`s = 1, \dots, S`, the pretend
+duration :math:`D` and a backtest :math:`s = 1, \dots, S`, the pretend
 treatment runs over periods
 
 .. math::
@@ -114,14 +114,14 @@ Assumptions
    ``geoex_dataprep``, which raises when the panel is ragged.
 
    *Remark.* A market that starts reporting halfway through cannot serve
-   as a donor for a placement that begins before it exists, and silently
-   dropping it would change the donor pool between placements.
+   as a donor for a backtest that begins before it exists, and silently
+   dropping it would change the donor pool between backtests.
 
 2. The history is untreated.
 
    The simulation reuses observed periods as pretend post-periods, so
    those periods must carry no real treatment effect. If a campaign ran
-   in month three, placements overlapping it inherit its effect and
+   in month three, backtests overlapping it inherit its effect and
    report power that the design will not reproduce.
 
    *Remark.* Where a genuine post-period exists, name it with
@@ -175,7 +175,7 @@ permutation test. The conformal argument needs the residuals to be
 exchangeable across the matching window, and synthetic DiD's time
 weights exist because pre-periods are not interchangeable.
 
-Power at an effect size is the detection rate across placements. The
+Power at an effect size is the detection rate across backtests. The
 minimum detectable effect is the smallest magnitude whose power exceeds
 ``power_threshold``, taking the smaller of the detectable positive and
 negative effects. Candidates are then ranked on a composite of three
@@ -213,7 +213,7 @@ Example
        treatment_size=[2, 3, 4, 5],
        durations=[14],
        effect_sizes=[round(x, 2) for x in np.arange(-0.30, 0.35, 0.05)],
-       lookback_window=5,
+       n_backtests=5,
        n_draws=100,
        seed=0,
        n_jobs=-1,
@@ -237,7 +237,7 @@ candidate regions:
        detroit + new orleans        14 -0.15    1.0      0.530   5.0
 
 Read that as: a 15% lift in Atlanta and Nashville together would be
-detected at the 10% level in essentially every placement tried.
+detected at the 10% level in essentially every backtest tried.
 Anything smaller would not be, so an experiment expecting a 5% lift needs
 a longer test, a bigger region, or a different metric.
 
@@ -307,7 +307,7 @@ Verification
 
 The engine is cross-validated against mlsynth's own :doc:`sdid`
 implementation: ``tests/test_sdidgeo.py`` asserts that the ATT SDIDGEO
-scores a placement with matches ``SDID(...).fit()`` on the same panel and
+scores a backtest with matches ``SDID(...).fit()`` on the same panel and
 window. The two structural properties the effect sweep relies on are
 checked against brute-force recomputation in the same file, so the
 shortcut is proved and not assumed.

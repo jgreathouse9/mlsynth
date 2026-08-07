@@ -1,6 +1,6 @@
 """One pseudo-experiment for SDIDGEO market-selection scoring.
 
-A single lookback placement: fit SDID on the placement's pre-period, take the
+A single backtest: fit SDID on the backtest's pre-period, take the
 placebo standard error once, then sweep the effect sizes. Because neither SDID
 weight program reads the treated post block (see
 :mod:`~mlsynth.utils.sdidgeo_helpers.engine`), the sweep is exact arithmetic on
@@ -18,7 +18,7 @@ import numpy as np
 
 from ...exceptions import MlsynthConfigError
 from .engine import normal_p_value, placebo_sigma, sdid_att, sdid_fit_once
-from .windows import lookback_pre_periods, lookback_treatment_window
+from .windows import backtest_pre_periods, backtest_treatment_window
 
 
 def inject_effect(treated, start: int, end: int, es: float) -> np.ndarray:
@@ -43,13 +43,13 @@ def inject_effect(treated, start: int, end: int, es: float) -> np.ndarray:
     return out
 
 
-def simulate_lookback(
+def simulate_backtest(
     treated, donors, n_periods: int, duration: int, sim: int, effect_sizes,
     *, n_draws: int = 200, n_tr: int = 1, seed: int = 0,
     cpic: Optional[float] = None, treated_total: Optional[np.ndarray] = None,
     analytic: bool = True,
 ) -> List[dict]:
-    """Simulate one lookback placement across a grid of effect sizes.
+    """Simulate one backtest across a grid of effect sizes.
 
     Parameters
     ----------
@@ -58,7 +58,7 @@ def simulate_lookback(
     donors : array-like, shape (n_periods, J)
         Donor pool over the full panel.
     n_periods, duration, sim : int
-        Panel length, pseudo-treatment duration, and lookback placement index.
+        Panel length, pseudo-treatment duration, and backtest index.
     effect_sizes : iterable of float
         Effect sizes to sweep.
     n_draws : int
@@ -87,11 +87,11 @@ def simulate_lookback(
     Raises
     ------
     MlsynthConfigError
-        If the placement runs off the start of the panel, or ``treated`` /
+        If the backtest runs off the start of the panel, or ``treated`` /
         ``donors`` do not have ``n_periods`` rows.
     """
-    n_pre = lookback_pre_periods(n_periods, duration, sim)
-    start, end = lookback_treatment_window(n_periods, duration, sim)
+    n_pre = backtest_pre_periods(n_periods, duration, sim)
+    start, end = backtest_treatment_window(n_periods, duration, sim)
 
     treated_arr = np.asarray(treated, dtype=float).ravel()
     donors_arr = np.asarray(donors, dtype=float)

@@ -8,7 +8,7 @@ detected it. The region with the smallest reliably detectable effect wins.
 
 The market-selection loop follows GeoLift (Meta's geo-experiment package):
 anchor a candidate at each market and take its most correlated neighbours,
-sweep effect sizes over backward placements, then rank by a composite of the
+sweep effect sizes over backward backtests, then rank by a composite of the
 minimum detectable effect, the power at that effect, and how faithfully the
 estimator recovers the injected lift.
 
@@ -48,7 +48,7 @@ class SDIDGEO:
     >>> design = SDIDGEO(SDIDGEOConfig(          # doctest: +SKIP
     ...     df=df, unitid="location", time="date", outcome="Y",
     ...     treatment_size=2, durations=[14],
-    ...     effect_sizes=[-0.1, 0.0, 0.1, 0.2], lookback_window=5,
+    ...     effect_sizes=[-0.1, 0.0, 0.1, 0.2], n_backtests=5,
     ... )).fit()
     >>> design.selected_units                     # doctest: +SKIP
     ['chicago', 'portland']

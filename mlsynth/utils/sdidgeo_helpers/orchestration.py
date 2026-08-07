@@ -29,7 +29,7 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
                duration: int) -> CandidateDesign:
     """Deployable SDID design for one candidate, fit on the full pre-period.
 
-    The scoring stage fits each lookback placement; this fits the design the
+    The scoring stage fits each backtest; this fits the design the
     experiment will actually deploy, with the pseudo-treatment window sitting at
     the end of the observed history.
     """
@@ -74,11 +74,11 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
             f"panel has {len(units)} and the largest requested is {max(sizes)}.")
 
     longest = max(config.durations)
-    if longest + config.lookback_window - 1 >= n_periods:
+    if longest + config.n_backtests - 1 >= n_periods:
         raise MlsynthConfigError(
-            f"the deepest lookback placement (duration {longest}, sim "
-            f"{config.lookback_window}) leaves no pre-period in a panel of "
-            f"{n_periods} periods. Shorten durations or lookback_window.")
+            f"the deepest backtest (duration {longest}, sim "
+            f"{config.n_backtests}) leaves no pre-period in a panel of "
+            f"{n_periods} periods. Shorten durations or n_backtests.")
 
     forced = list(config.to_be_treated or ())
     unknown = [u for u in forced + list(config.not_to_be_treated or ())
@@ -110,7 +110,7 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
             "to_be_treated / not_to_be_treated or the treatment_size.")
 
     cube = run_simulations(
-        Ywide, candidates, config.durations, config.lookback_window,
+        Ywide, candidates, config.durations, config.n_backtests,
         config.effect_sizes, n_draws=config.n_draws, seed=config.seed,
         cpic=config.cpic, n_jobs=config.n_jobs,
     )

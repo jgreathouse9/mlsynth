@@ -26,11 +26,11 @@ from mlsynth.config_models import DesignResult, SDIDGEOConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.sdidgeo_helpers.engine import (
     placebo_sigma, sdid_att, sdid_fit_once)
-from mlsynth.utils.sdidgeo_helpers.simulate import inject_effect, simulate_lookback
+from mlsynth.utils.sdidgeo_helpers.simulate import inject_effect, simulate_backtest
 from mlsynth.utils.sdidgeo_helpers.batch import run_simulations
 from mlsynth.utils.sdidgeo_helpers.shaping import aggregate_treated, donor_matrix
 from mlsynth.utils.sdidgeo_helpers.windows import (
-    lookback_pre_periods, lookback_treatment_window)
+    backtest_pre_periods, backtest_treatment_window)
 
 DATA = Path(__file__).resolve().parents[2] / "basedata" / "geolift_test_data.csv"
 EFFECT_SIZES = [-0.20, -0.10, 0.0, 0.10, 0.20]
@@ -51,37 +51,37 @@ def wide(panel):
 
 @pytest.fixture(scope="module")
 def arrays(wide):
-    """One candidate's treated series, donor pool, and placement."""
+    """One candidate's treated series, donor pool, and backtest."""
     units = list(wide.columns)
     candidate = frozenset(units[:2])
     treated = aggregate_treated(wide, candidate, how="mean").to_numpy()
     donors = donor_matrix(wide, candidate).to_numpy()
     n_periods = wide.shape[0]
     duration, sim = 14, 3
-    n_pre = lookback_pre_periods(n_periods, duration, sim)
-    start, end = lookback_treatment_window(n_periods, duration, sim)
+    n_pre = backtest_pre_periods(n_periods, duration, sim)
+    start, end = backtest_treatment_window(n_periods, duration, sim)
     return treated, donors, n_periods, duration, sim, n_pre, start, end
 
 
 class TestWindows:
-    def test_lookback_matches_geolift_arithmetic(self):
-        assert lookback_pre_periods(100, 15, 1) == 85
-        assert lookback_treatment_window(100, 15, 1) == (85, 99)
-        assert lookback_treatment_window(100, 15, 5) == (81, 95)
+    def test_backtest_window_matches_geolift_arithmetic(self):
+        assert backtest_pre_periods(100, 15, 1) == 85
+        assert backtest_treatment_window(100, 15, 1) == (85, 99)
+        assert backtest_treatment_window(100, 15, 5) == (81, 95)
 
     def test_post_block_length_is_always_the_duration(self):
         for sim in range(1, 6):
-            start, end = lookback_treatment_window(105, 14, sim)
+            start, end = backtest_treatment_window(105, 14, sim)
             assert end - start + 1 == 14
 
     def test_placement_off_the_panel_raises(self):
         with pytest.raises(MlsynthConfigError, match="runs off the start"):
-            lookback_pre_periods(20, 15, 10)
+            backtest_pre_periods(20, 15, 10)
 
     @pytest.mark.parametrize("bad", [0, -1, 2.5, True])
     def test_non_positive_integers_raise(self, bad):
         with pytest.raises(MlsynthConfigError):
-            lookback_pre_periods(100, 15, bad)
+            backtest_pre_periods(100, 15, bad)
 
 
 class TestEngineInvariants:
@@ -190,7 +190,7 @@ class TestInjectEffect:
 class TestSimulateLookback:
     def test_row_schema_and_one_row_per_effect_size(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
-        rows = simulate_lookback(treated, donors, n_periods, duration, sim,
+        rows = simulate_backtest(treated, donors, n_periods, duration, sim,
                                  EFFECT_SIZES, n_draws=20, n_tr=2, seed=0)
         assert len(rows) == len(EFFECT_SIZES)
         expected = {"sim", "duration", "effect_size", "p_value",
@@ -202,7 +202,7 @@ class TestSimulateLookback:
 
     def test_p_value_peaks_at_no_effect(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
-        rows = simulate_lookback(treated, donors, n_periods, duration, sim,
+        rows = simulate_backtest(treated, donors, n_periods, duration, sim,
                                  EFFECT_SIZES, n_draws=40, n_tr=2, seed=0)
         p = {r["effect_size"]: r["p_value"] for r in rows}
         assert p[0.0] == max(p.values())
@@ -211,22 +211,22 @@ class TestSimulateLookback:
     def test_deterministic_under_a_fixed_seed(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
         kw = dict(n_draws=20, n_tr=2, seed=7)
-        a = simulate_lookback(treated, donors, n_periods, duration, sim,
+        a = simulate_backtest(treated, donors, n_periods, duration, sim,
                               EFFECT_SIZES, **kw)
-        b = simulate_lookback(treated, donors, n_periods, duration, sim,
+        b = simulate_backtest(treated, donors, n_periods, duration, sim,
                               EFFECT_SIZES, **kw)
         assert [r["p_value"] for r in a] == [r["p_value"] for r in b]
 
     def test_investment_is_nan_without_cpic(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
-        rows = simulate_lookback(treated, donors, n_periods, duration, sim,
+        rows = simulate_backtest(treated, donors, n_periods, duration, sim,
                                  [0.1], n_draws=10, n_tr=2, seed=0)
         assert np.isnan(rows[0]["investment"])
 
     def test_investment_scales_with_cpic_and_effect(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
         total = treated * 2.0
-        rows = simulate_lookback(treated, donors, n_periods, duration, sim,
+        rows = simulate_backtest(treated, donors, n_periods, duration, sim,
                                  [0.1, 0.2], n_draws=10, n_tr=2, seed=0,
                                  cpic=3.0, treated_total=total)
         assert rows[1]["investment"] == pytest.approx(
@@ -235,7 +235,7 @@ class TestSimulateLookback:
     def test_mismatched_panel_length_raises(self, arrays):
         treated, donors, n_periods, duration, sim, *_ = arrays
         with pytest.raises(MlsynthConfigError, match="n_periods"):
-            simulate_lookback(treated[:-1], donors, n_periods, duration, sim,
+            simulate_backtest(treated[:-1], donors, n_periods, duration, sim,
                               EFFECT_SIZES, n_draws=10, n_tr=2, seed=0)
 
 
@@ -254,9 +254,9 @@ class TestRunSimulations:
         assert cube.empty and "p_value" in cube.columns
 
     @pytest.mark.parametrize("bad", [0, -3, 2.5, True])
-    def test_bad_lookback_window_raises(self, wide, bad):
+    def test_bad_n_backtests_raises(self, wide, bad):
         units = list(wide.columns)
-        with pytest.raises(MlsynthConfigError, match="lookback_window"):
+        with pytest.raises(MlsynthConfigError, match="n_backtests"):
             run_simulations(wide, [frozenset(units[:2])], [14], bad,
                             EFFECT_SIZES, n_draws=10)
 
@@ -265,7 +265,7 @@ class TestConfigValidation:
     def _base(self, panel, **kw):
         args = dict(df=panel, unitid="location", time="date", outcome="Y",
                     treatment_size=2, durations=[14], effect_sizes=[0.1],
-                    lookback_window=2)
+                    n_backtests=2)
         args.update(kw)
         return SDIDGEOConfig(**args)
 
@@ -278,7 +278,7 @@ class TestConfigValidation:
 
     @pytest.mark.parametrize("kw", [
         {"durations": []}, {"durations": [0]}, {"effect_sizes": []},
-        {"lookback_window": 0}, {"alpha": 0.0}, {"alpha": 1.0},
+        {"n_backtests": 0}, {"alpha": 0.0}, {"alpha": 1.0},
         {"power_threshold": 1.5}, {"treatment_size": 0}, {"n_draws": 2},
     ])
     def test_invalid_values_raise(self, panel, kw):
@@ -297,7 +297,7 @@ class TestEndToEnd:
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14], effect_sizes=[-0.15, -0.10, 0.0,
                                                             0.10, 0.15, 0.20],
-            lookback_window=3, n_draws=25, seed=0,
+            n_backtests=3, n_draws=25, seed=0,
         )).fit()
 
     def test_returns_a_design_result(self, result):
@@ -338,7 +338,7 @@ class TestEndToEnd:
     def test_reproducible(self, panel):
         kw = dict(df=panel, unitid="location", time="date", outcome="Y",
                   treatment_size=2, durations=[14], effect_sizes=[0.0, 0.15],
-                  lookback_window=2, n_draws=15, seed=3)
+                  n_backtests=2, n_draws=15, seed=3)
         a = SDIDGEO(SDIDGEOConfig(**kw)).fit()
         b = SDIDGEO(SDIDGEOConfig(**kw)).fit()
         assert a.selected_units == b.selected_units
@@ -349,7 +349,7 @@ class TestEndToEnd:
         res = SDIDGEO(SDIDGEOConfig(
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14], effect_sizes=[0.0, 0.15],
-            lookback_window=2, n_draws=15, seed=0,
+            n_backtests=2, n_draws=15, seed=0,
             to_be_treated=[forced], not_to_be_treated=[banned],
         )).fit()
         assert forced in res.selected_units
@@ -362,7 +362,7 @@ class TestDegenerateInputs:
             SDIDGEO(SDIDGEOConfig(
                 df=panel, unitid="location", time="date", outcome="Y",
                 treatment_size=500, durations=[14], effect_sizes=[0.1],
-                lookback_window=2, n_draws=15,
+                n_backtests=2, n_draws=15,
             )).fit()
 
     def test_duration_longer_than_the_panel_raises(self, panel):
@@ -370,7 +370,7 @@ class TestDegenerateInputs:
             SDIDGEO(SDIDGEOConfig(
                 df=panel, unitid="location", time="date", outcome="Y",
                 treatment_size=2, durations=[500], effect_sizes=[0.1],
-                lookback_window=2, n_draws=15,
+                n_backtests=2, n_draws=15,
             )).fit()
 
     def test_unknown_forced_market_raises(self, panel):
@@ -378,7 +378,7 @@ class TestDegenerateInputs:
             SDIDGEO(SDIDGEOConfig(
                 df=panel, unitid="location", time="date", outcome="Y",
                 treatment_size=2, durations=[14], effect_sizes=[0.1],
-                lookback_window=2, n_draws=15, to_be_treated=["atlantis"],
+                n_backtests=2, n_draws=15, to_be_treated=["atlantis"],
             )).fit()
 
     def test_candidate_with_no_donors_left_raises(self, wide):
@@ -406,7 +406,7 @@ class TestPlots:
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14],
             effect_sizes=[-0.2, -0.1, 0.0, 0.1, 0.2],
-            lookback_window=3, n_draws=20, seed=0,
+            n_backtests=3, n_draws=20, seed=0,
         )).fit()
         fig = plot_sdidgeo_design(result, power_threshold=0.8)
         assert len(fig.axes) == 2
@@ -421,7 +421,7 @@ class TestPlots:
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14],
             effect_sizes=[-0.2, -0.1, 0.0, 0.1, 0.2],
-            lookback_window=3, n_draws=20, seed=0,
+            n_backtests=3, n_draws=20, seed=0,
         )).fit()
         fig = plot_mde_ranking(result, top=5)
         bars = fig.axes[0].patches
@@ -433,7 +433,7 @@ class TestPlots:
         result = SDIDGEO(SDIDGEOConfig(
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14], effect_sizes=[0.0, 0.15],
-            lookback_window=2, n_draws=15, seed=0,
+            n_backtests=2, n_draws=15, seed=0,
         )).fit()
         table = result.search.power_table
         assert not table.empty
@@ -448,7 +448,7 @@ class TestPlots:
         result = SDIDGEO(SDIDGEOConfig(
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=2, durations=[14], effect_sizes=[0.0],
-            lookback_window=2, n_draws=15, seed=0,
+            n_backtests=2, n_draws=15, seed=0,
         )).fit()
         assert result.selected_units is None
         with pytest.raises(ValueError, match="no winning design"):
@@ -470,7 +470,7 @@ class TestMultipleTreatmentSizes:
             df=panel, unitid="location", time="date", outcome="Y",
             treatment_size=size, durations=[14],
             effect_sizes=[-0.2, -0.1, 0.0, 0.1, 0.2],
-            lookback_window=2, n_draws=15, seed=0,
+            n_backtests=2, n_draws=15, seed=0,
         )
         args.update(kw)
         return SDIDGEO(SDIDGEOConfig(**args)).fit()
@@ -544,7 +544,7 @@ class TestPlaceboWarmStart:
     Consecutive draws differ only in which donors were reassigned, so each
     draw's weights seed the next. ``solve_simplex_qp`` discards an infeasible
     or wrongly sized seed, so the chain can only change pivot count -- and
-    ``sdid_fit_once`` still solves each placement cold, which gives an
+    ``sdid_fit_once`` still solves each backtest cold, which gives an
     independent path to the same number.
     """
 

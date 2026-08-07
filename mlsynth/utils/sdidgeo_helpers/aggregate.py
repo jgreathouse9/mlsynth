@@ -3,8 +3,8 @@
 Pure array/groupby reductions on the long p-value cube from
 :func:`run_simulations`, faithful to ``GeoLiftMarketSelection``:
 
-1. :func:`compute_power` -- collapse the lookback dimension: power = detection
-   rate, plus the lookback-averaged metrics.
+1. :func:`compute_power` -- collapse the backtest dimension: power = detection
+   rate, plus the backtest-averaged metrics.
 2. :func:`compute_mde` -- the minimum detectable effect per (candidate,
    duration), with GeoLift's signed positive/negative selection.
 
@@ -24,10 +24,10 @@ _POWER_COLUMNS = [
 
 
 def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
-    """Collapse the lookback (``sim``) dimension into power + averaged metrics.
+    """Collapse the backtest (``sim``) dimension into power + averaged metrics.
 
-    Power is the detection rate ``mean(p_value < alpha)`` over the lookback
-    placements; the other quantities are averaged over the same placements
+    Power is the detection rate ``mean(p_value < alpha)`` over the backtest
+    backtests; the other quantities are averaged over the same backtests
     (``scaled_l2`` / ``pre_rmspe`` are constant across ``sim`` only if the panel
     is, so they are averaged for generality).
 
@@ -56,7 +56,7 @@ def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
         pre_rmspe=("pre_rmspe", "mean"),
     )
     if has_investment:
-        # investment = cpic * es * volume is constant across lookback placements.
+        # investment = cpic * es * volume is constant across backtests.
         aggs["investment"] = ("investment", "mean")
     # sort=False: candidate keys are frozensets (unorderable).
     return tmp.groupby(

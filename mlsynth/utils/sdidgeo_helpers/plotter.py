@@ -70,9 +70,9 @@ def _power_panel(ax, result, power_threshold):
                     color="red", fontsize=9, va="top", ha="left")
 
     ax.set_xlabel("Injected effect size (proportional lift)")
-    ax.set_ylabel("Power (detection rate across placements)")
+    ax.set_ylabel("Power (detection rate across backtests)")
     ax.set_ylim(-0.03, 1.03)
-    ax.set_title("Simulated power across lookback placements")
+    ax.set_title("Simulated power across backtests")
     ax.legend(frameon=False, loc="lower center", fontsize=8)
 
 

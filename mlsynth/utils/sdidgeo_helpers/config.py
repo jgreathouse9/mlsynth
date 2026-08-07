@@ -55,9 +55,9 @@ class SDIDGEOConfig(BaseMAREXConfig):
     effect_sizes: List[float] = Field(
         ..., description="Effect sizes to inject, as proportional lifts."
     )
-    lookback_window: int = Field(
+    n_backtests: int = Field(
         default=5,
-        description="Backward pseudo-treatment placements per (candidate, "
+        description="backtests per (candidate, "
         "duration).",
     )
 
@@ -129,9 +129,9 @@ class SDIDGEOConfig(BaseMAREXConfig):
                 "durations must be a non-empty list of positive integers.")
         if not self.effect_sizes:
             raise MlsynthConfigError("effect_sizes must be non-empty.")
-        if self.lookback_window < 1:
+        if self.n_backtests < 1:
             raise MlsynthConfigError(
-                f"lookback_window must be >= 1; got {self.lookback_window}.")
+                f"n_backtests must be >= 1; got {self.n_backtests}.")
         if not 0.0 < self.alpha < 1.0:
             raise MlsynthConfigError(
                 f"alpha must be in (0, 1); got {self.alpha}.")
