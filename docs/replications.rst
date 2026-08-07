@@ -49,6 +49,7 @@ below; the catalogue entries link to a dedicated page where one exists.
 .. toctree::
    :hidden:
    :caption: Dedicated replication pages
+   replications/sdidgeo
 
    replications/drsc
    replications/fsc
