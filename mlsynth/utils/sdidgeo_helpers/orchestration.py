@@ -15,12 +15,13 @@ import pandas as pd
 from ...config_models import WeightsResults
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..datautils import geoex_dataprep
-from .aggregate import compute_power, compute_rank
+from .aggregate import compute_mde, compute_power, compute_rank
 from .batch import run_simulations
 from .candidates import generate_candidate_markets
 from .config import SDIDGEOConfig
 from .engine import sdid_fit_once
 from .shaping import aggregate_treated, donor_matrix
+from .simulate import simulate_lookback
 from .similarity import rank_markets_by_correlation
 from .structures import CandidateDesign, MarketSearch, SDIDGEOResults
 
@@ -57,6 +58,54 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
         pre_rmspe=fit.pre_rmspe,
         scaled_l2=fit.scaled_l2,
     )
+
+
+
+def holdout_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
+                power_table: pd.DataFrame) -> Optional[float]:
+    """The winner's MDE re-scored on placements that did not choose it.
+
+    ``compute_rank`` hands back the smallest MDE in the field, and the smallest
+    of many noisy estimates is optimistic: the region most likely to be picked
+    is the one whose estimate happened to come out low. Re-scoring the winner on
+    placements held back from the search removes that, because those placements
+    played no part in selecting it -- the same reason a region fixed in advance
+    is calibrated at any lookback depth.
+
+    Placements ``lookback_window + 1 .. lookback_window + holdout_placements``
+    sit deeper in history, so their pseudo-treatment windows differ from every
+    window the search used. Returns ``None`` when the panel cannot carry them.
+    """
+    if config.holdout_placements < 1:
+        return None
+    n_periods = Ywide.shape[0]
+    longest = max(config.durations)
+    deepest = config.lookback_window + config.holdout_placements
+    if longest + deepest - 1 >= n_periods:
+        return None  # the panel cannot carry the extra placements
+
+    treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
+    donors = donor_matrix(Ywide, candidate).to_numpy()
+    rows: List[dict] = []
+    for duration in config.durations:
+        for sim in range(config.lookback_window + 1, deepest + 1):
+            for row in simulate_lookback(
+                treated, donors, n_periods, duration, sim, config.effect_sizes,
+                n_draws=config.n_draws, n_tr=len(candidate), seed=config.seed,
+            ):
+                row["candidate"] = candidate
+                rows.append(row)
+    if not rows:  # pragma: no cover - guarded by the depth check above
+        return None
+
+    held = compute_power(pd.DataFrame(rows), alpha=config.alpha)
+    mde_table = compute_mde(held, power_threshold=config.power_threshold)
+    values = mde_table["mde"].dropna()
+    if values.empty:
+        return None  # nothing detectable on the held-back placements
+    # Across durations, the design deploys the one it ranked best; take the
+    # smallest magnitude, matching how compute_rank reads a candidate's row.
+    return float(values.loc[values.abs().idxmin()])
 
 
 def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
@@ -152,6 +201,9 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         winning = shortlist.sort_values("rank").iloc[0]["candidate"]
         winner = designs[winning]
         winner_units = sorted(map(str, winning))
+        # Scored only now, and only for the winner, so the placements behind it
+        # cannot have influenced which region was picked.
+        winner.mde_holdout = holdout_mde(Ywide, winning, config, power_table)
 
     search = MarketSearch(shortlist=shortlist, power_table=power_table,
                           candidates=list(designs.values()), winner=winner)
@@ -172,6 +224,12 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
             "n_draws": config.n_draws,
             "winner_mde": (float(winner.mde) if winner is not None
                            and winner.mde is not None else None),
+            # The same region scored on placements that did not select it. Plan
+            # against this one; winner_mde is the optimistic end.
+            "winner_mde_holdout": (
+                float(winner.mde_holdout) if winner is not None
+                and winner.mde_holdout is not None else None),
+            "holdout_placements": config.holdout_placements,
         },
         search=search,
     )

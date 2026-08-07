@@ -38,6 +38,11 @@ class CandidateDesign:
         Stitched in from the shortlist: the minimum detectable effect, the power
         at that effect, and the composite rank. ``None`` when the candidate
         cleared no effect size.
+    mde_holdout : float or None
+        The winner's MDE re-scored on placements that took no part in choosing
+        it. ``mde`` is the smallest in a field of candidates and so is
+        optimistic; this one is not selected on. Set only on the winner, and
+        ``None`` when ``holdout_placements`` is 0 or the panel is too short.
     """
 
     units: List
@@ -50,6 +55,7 @@ class CandidateDesign:
     mde: Optional[float] = None
     power: Optional[float] = None
     rank: Optional[float] = None
+    mde_holdout: Optional[float] = None
 
 
 @dataclass
