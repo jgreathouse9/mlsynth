@@ -349,6 +349,7 @@ headline numbers.
    marex
    syndes
    pangeo
+   sdidgeo
    spcd
    musc
    rolldid

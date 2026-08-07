@@ -947,6 +947,14 @@ left over -- as in a geo roll-out?
   matches on the full pre-period *trajectory* for a downstream
   difference-in-differences read.
 
+* Scoring by simulated power on your own history -- :doc:`sdidgeo` slides a
+  pretend treatment window backwards through the panel, injects a lift of known
+  size, and ranks candidate test regions by the smallest lift it reliably
+  detects. It scores with synthetic difference-in-differences, so the design is
+  chosen by the estimator that will analyse the result, and a level gap between
+  the test region and its donors is differenced out instead of having to be
+  matched.
+
 Q3.4 · Are you planning a marketing geo-lift test -- pick which markets to treat
 so the untreated markets form a clean control, often under a budget?
 
@@ -1057,7 +1065,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Designing a geo roll-out (no pure donors)
      - :doc:`pangeo`
    * - Designing a geo-lift test (pick markets, one or many cells)
-     - :doc:`syndes`, :doc:`lexscm`, :doc:`marex`
+     - :doc:`sdidgeo`, :doc:`syndes`, :doc:`lexscm`, :doc:`marex`
 
 When in doubt, fit two or three of the candidate methods and compare the
 counterfactuals and ATTs. Disagreement is itself diagnostic: it usually means
