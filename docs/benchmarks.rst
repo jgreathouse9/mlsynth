@@ -59,6 +59,8 @@ Path A — empirical replications
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
      - Okano-Kurisu (2026) functional SC, all three applications from the authors' data: pre-treatment fits for the plain and ridge-augmented estimator in each (fertility curves 0.1259/0.0687, age-at-death distributions 0.2092/0.0634, trade covariance matrices 39.3429/20.0639) plus every weight of Tables 1-3, reproduced exactly by a port of the authors' R code
+   * - ``fsc_estimator``
+     - :doc:`fsc` itself on the same three applications: fertility exact (0.1259/0.0687), mortality exact on the plain leg and 0.0630 against 0.0634 on the augmented one, and the trade application under the Frobenius isometry Example 3 specifies, not the authors' plain vech. The two divergences are corrections and are pinned with their measured size; also pins the scale-free penalty search
    * - ``bilgel_turkey_lockdown``
      - Bilgel (2022, Econometrics Journal) Table 3 column 1, from the author's
        replication package: all six mobility ATTs for Turkey's Covid-19 lockdowns
