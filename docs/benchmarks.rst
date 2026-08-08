@@ -200,6 +200,8 @@ Path B — Monte Carlo / simulation
      - CWZ 2025 Table 3 application-based Monte Carlo
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
+   * - ``dsc_mc``
+     - Zhang, Zhang & Zhang (2024) Section 5.1, the asymptotics Monte Carlo behind the Algorithm 1 :doc:`dsc` implements. Targets digitised from the paper's vector-PDF figures, since Section 5 prints no tables. Both theorems' geometry reproduces across sixteen points -- risk ratio falling to 1 in M, weight error falling in M, the larger donor pool converging more slowly -- and the risk ratio matches the published figure to 0.0017 at every cell with M >= 200. The two cells at M = 50 sit above it by 0.006 and 0.028, and the weight-error curve is steeper in the paper; both distances are reported, and :doc:`replications/dsc_mc` says why
    * - ``ferman_manyperiods``
      - VanillaSC recovers the factor structure as J, T0 grow (Ferman 2021 JASA Table 1): weight on the treated factor group → 1, se(α) shrinks while OLS's grows; mlsynth == R ``solve.QP`` value-for-value
    * - ``ferman_pinto_mc``

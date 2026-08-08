@@ -431,6 +431,29 @@ run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
    is resolved, treat the vignette's ``p > 0.05`` as the only externally
    anchored quantity in this benchmark.
 
+A second benchmark (``benchmarks/cases/dsc_mc.py``) supplies the external
+numeric anchor the Dube case lacks, from the Monte Carlo of the paper whose
+Algorithm 1 this estimator implements: Zhang, Zhang & Zhang (2024), Section 5.1.
+Across sixteen points it reproduces the geometry of both theorems -- the risk
+ratio :math:`\bar R_{T_1}(\widehat w) / \inf_w \bar R_{T_1}(w)` falling
+monotonically to 1 as the draw count grows, the weight error
+:math:`\| \widehat w - w^{\mathrm{opt}} \|` falling with it, and the larger
+donor pool converging more slowly -- and matches the published risk ratio to
+0.0017 at every cell with :math:`M \ge 200`. See :doc:`replications/dsc_mc`; run
+it with ``python benchmarks/run_benchmarks.py --case dsc_mc``.
+
+.. note::
+
+   Path B under scenario 1: the paper releases no code, no data, and no table,
+   so the design is reconstructed from prose and the targets are digitised from
+   the figures in its arXiv source. It is a partial cell match. The two
+   risk-ratio cells at :math:`M = 50` sit above the published curve, by 0.006
+   and 0.028, and the weight-error curve is steeper in the paper than in the
+   reconstruction. Both distances are reported by the case as numbers. The design also generates its pseudo-samples directly, so it
+   validates the weight solver and the :math:`\lambda_t` aggregation, not the
+   quantile-estimation step that :doc:`replications/dsc` and
+   :doc:`replications/disco_tenure` cover.
+
 Core API
 --------
 

@@ -117,6 +117,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cmbsts
    replications/marex
    replications/dsc
+   replications/dsc_mc
    replications/disco_tenure
    replications/dtwsc
    replications/microsynth
@@ -323,11 +324,14 @@ Generalising the estimand, treatment, or unit
   Cao & Chadefaux's R package ``conflictlab/dsc`` on the Basque panel --
   pre-RMSE 0.0705 exact, ATT within 0.23 percent
   (:doc:`replications/dtwsc`).
-* :doc:`dsc` -- Distributional SC. Path B: Gunsilius (2023)
-  Figure 4 reproduction -- the 2-Wasserstein-squared distance
-  collapses at :math:`J = 30` against the rough fit at
-  :math:`J = 4`, and a location-shift planted effect of
-  :math:`+1.5` is recovered.
+* :doc:`dsc` -- Distributional SC. Path A: the ``DiSCo`` vignette's Dube (2019)
+  minimum-wage application, Alaska treated in 2003 -- pre-period 2-Wasserstein
+  fit 0.038 and the vignette's stated failure to reject at both post years
+  (:doc:`replications/dsc`). Path B: the Zhang, Zhang & Zhang (2024) asymptotics
+  Monte Carlo, whose Algorithm 1 the estimator implements -- both theorems'
+  geometry reproduces across sixteen points, and the risk ratio matches the
+  published figure to 0.0017 at every cell with :math:`M \ge 200`
+  (:doc:`replications/dsc_mc`).
 * :doc:`si` -- Synthetic Interventions. Path A: California
   Proposition 99 multi-arm counterfactual reproduces the paper's
   reported control/tax-only/full-program values 75.8 / 57.5 / 59.1.
