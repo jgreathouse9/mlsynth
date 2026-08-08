@@ -356,6 +356,21 @@ Koksma-Hlawka inequality the QMC approximation error is
 :math:`O(\log M / M)` for Halton / Sobol vs. :math:`O(M^{-1/2})` for i.i.d.
 draws.
 
+Relaxing the simplex. :math:`\Delta^{N_0}` is the set :math:`\mathcal{H}` of
+Zhang, Zhang & Zhang (2026), and it is the default because it keeps the
+synthetic unit a weighted average of observed donors, which is what makes the
+counterfactual interpretable. Setting ``weight_constraint="sum_to_one"`` drops
+non-negativity and keeps :math:`\sum_j w_j = 1` with :math:`w_j \le 1`, the
+feasible set the reference ``DiSCos`` package uses by default. The larger set
+can only lower the fitted loss, and it permits extrapolation beyond the donors'
+convex hull: a treated quantile function lying outside that hull becomes
+reachable, at the cost of a synthetic unit that subtracts one donor's
+distribution from another's. Zhang, Zhang & Zhang (2026) discuss the same
+relaxation as a bounded set :math:`[-C_L, C_U]^{N_0}`, noting that the
+sum-to-unity restriction is what continues to do the work once non-negativity
+goes. Reach for it when the pre-period fit under the simplex is poor and the
+diagnostics above point to the treated unit sitting outside the hull.
+
 Step 3 -- Aggregate over the pre-period. The final weight is a convex
 combination :math:`\widehat{\mathbf{w}} = \sum_{t \in \mathcal{T}_1} \lambda_t
 \mathbf{w}_t`, with :math:`\lambda_t \ge 0` and :math:`\sum_t \lambda_t = 1`.
