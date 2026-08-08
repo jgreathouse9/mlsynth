@@ -118,6 +118,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/marex
    replications/dsc
    replications/dsc_mc
+   replications/dsc_disco_xval
    replications/disco_tenure
    replications/dtwsc
    replications/microsynth
@@ -331,7 +332,11 @@ Generalising the estimand, treatment, or unit
   Monte Carlo, whose Algorithm 1 the estimator implements -- both theorems'
   geometry reproduces across sixteen points, and the risk ratio matches the
   published figure to 0.0017 at every cell with :math:`M \ge 200`
-  (:doc:`replications/dsc_mc`).
+  (:doc:`replications/dsc_mc`). Cross-validation: against the authors' ``DiSCos``
+  R package on the Dube panel, in both feasible sets -- mlsynth sits 0.0079
+  (simplex) and 0.0103 (sum-to-one) from the mean of 40 reference seeds, inside
+  the reference's own across-seed spread of 0.0160 and 0.0300, which settles
+  issue #304 (:doc:`replications/dsc_disco_xval`).
 * :doc:`si` -- Synthetic Interventions. Path A: California
   Proposition 99 multi-arm counterfactual reproduces the paper's
   reported control/tax-only/full-program values 75.8 / 57.5 / 59.1.

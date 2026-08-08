@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **75 cross-validation checks** against original
-implementations across **42 estimators** -- 29 reproduce the reference to display precision, 27 to
+Coverage: **76 cross-validation checks** against original
+implementations across **43 estimators** -- 29 reproduce the reference to display precision, 28 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -69,6 +69,10 @@ Summary
      - 1
      - 1 exact
      - 0
+   * - :ref:`DSC <val-dsc>`
+     - 1
+     - 1 tight
+     - 0.01
    * - :ref:`FDID <val-fdid>`
      - 1
      - 1 exact
@@ -435,6 +439,28 @@ DROSC
      - 0
      - exact — matches to display precision
      - `drosc_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/drosc_basque.py>`__
+
+.. _val-dsc:
+
+DSC
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - Davidvandijcke/DiSCos DiSCo(), mean of 40 seeds at M = 10,000 (the package's runif quadrature makes a single run a Monte Carlo draw)
+     - ``dube_minwage.parquet`` (b93b3cbff573…)
+     - 66
+     - 0.01
+     - tight
+     - `dsc_disco_xval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dsc_disco_xval.py>`__
 
 .. _val-fdid:
 

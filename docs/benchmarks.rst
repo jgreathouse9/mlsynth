@@ -57,6 +57,8 @@ Path A — empirical replications
      - CWZ 2025 Table 5 carbon-tax debiased t-test
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
+   * - ``dsc_disco_xval``
+     - DSC against the authors' ``DiSCos`` R package on the Dube panel, in both feasible sets. The reference draws its quadrature points with ``runif``, so a single run is not a target; this scores mlsynth against the mean of 40 seeds at M = 10,000 and reads the across-seed spread as the yardstick. Max donor-weight gap 0.0079 (simplex) and 0.0103 (sum-to-one) against reference seed standard deviations of 0.0160 and 0.0300 -- closer to the reference's centre than the reference is to itself, which settles issue #304
    * - ``fsc_okano``
      - Okano-Kurisu (2026) functional SC, all three applications from the authors' data: pre-treatment fits for the plain and ridge-augmented estimator in each (fertility curves 0.1259/0.0687, age-at-death distributions 0.2092/0.0634, trade covariance matrices 39.3429/20.0639) plus every weight of Tables 1-3, reproduced exactly by a port of the authors' R code
    * - ``fsc_estimator``
