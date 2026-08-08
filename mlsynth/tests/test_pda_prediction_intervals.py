@@ -23,7 +23,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.exceptions import (
+    MlsynthConfigError,
+    MlsynthDataError,
+    MlsynthEstimationError,
+)
 from mlsynth.utils.inferutils import pda_prediction_intervals
 
 
@@ -226,6 +230,180 @@ class TestFailures:
         with pytest.raises(MlsynthDataError):
             pda_prediction_intervals(y, X[:, 0], 40, counterfactual=cf, support=[0],
                                      refit=lambda yb: (cf, [0]), n_boot=10)
+
+
+# ---------------------------------------------------------------------------
+# Degenerate bootstrap draws (saturated refits)
+# ---------------------------------------------------------------------------
+
+# A short pre-period with a wide donor pool, so a support can saturate it.
+_SAT_T0, _SAT_T1, _SAT_P = 12, 4, 20
+_SAT_SPARSE = [0, 1, 2]
+_SAT_FULL = list(range(_SAT_T0 - 1))     # |support| + intercept == T0
+
+
+def _sat_dgp(seed=11):
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((_SAT_T0 + _SAT_T1, _SAT_P))
+    y = X[:, 0] - 0.5 * X[:, 1] + rng.standard_normal(_SAT_T0 + _SAT_T1) * 0.5
+    return y, X
+
+
+class _SaturatingRefit:
+    """Refit whose support saturates the pre-period on the first ``k`` calls.
+
+    A support of size ``T0 - 1`` plus an intercept interpolates ``T0``
+    observations, leaving a residual variance of order 1e-30 -- tiny but not
+    exactly zero, so the ``se_star > 0`` guard does not catch it. The
+    post-period is a genuine extrapolation and its error stays O(1), so the
+    studentized statistic ``e_star / se_star`` reaches ~1e15. Forward selection
+    does this on about 5% of draws at ``T0 = 30``; here it is deterministic.
+    """
+
+    def __init__(self, X, T0, k):
+        self.X, self.T0, self.k, self.calls = X, T0, k, 0
+
+    def __call__(self, y_boot):
+        self.calls += 1
+        support = _SAT_FULL if self.calls <= self.k else _SAT_SPARSE
+        return (_ols_fit(y_boot, self.X, self.T0, support),
+                np.asarray(support, dtype=int))
+
+
+class TestDegenerateBootstrapDraws:
+    """A saturated refit carries no information about out-of-sample error.
+
+    Jiang et al.'s theory assumes the selected support stays sparse relative to
+    ``T0``; a refit that interpolates violates that, and dividing by its
+    vanishing residual scale produces an interval wide enough to cover
+    unconditionally. Such draws are excluded from the quantiles and counted in
+    the result.
+    """
+
+    def _setup(self, k, n_boot=99):
+        y, X = _sat_dgp()
+        cf = _fit(y, X, _SAT_T0, _SAT_SPARSE)
+        return y, X, cf, _SaturatingRefit(X, _SAT_T0, k), n_boot
+
+    # -- premise: the saturated refit is the pathology ------------------------
+
+    def test_saturated_refit_interpolates_but_extrapolates_badly(self):
+        y, X = _sat_dgp()
+        cf, support = _SaturatingRefit(X, _SAT_T0, k=1)(y)
+        s2 = float(np.mean((y[:_SAT_T0] - cf[:_SAT_T0]) ** 2))
+        assert len(support) + 1 == _SAT_T0        # saturated, intercept included
+        assert 0.0 < s2 < 1e-20                   # tiny, so se_star > 0 passes
+        assert np.abs(y[_SAT_T0:] - cf[_SAT_T0:]).mean() > 1.0   # O(1) numerator
+
+    # -- invariants ----------------------------------------------------------
+
+    def test_degenerate_draws_are_counted(self):
+        y, X, cf, refit, n_boot = self._setup(k=7)
+        out = pda_prediction_intervals(
+            y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE, refit=refit,
+            n_boot=n_boot, seed=1)
+        assert out["n_degenerate"] == 7
+        assert out["n_boot_effective"] == n_boot - 7
+        assert out["n_boot"] == n_boot          # the requested count is unchanged
+
+    def test_interval_stays_finite_despite_degenerate_draws(self):
+        y, X, cf, refit, n_boot = self._setup(k=20)
+        out = pda_prediction_intervals(
+            y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE, refit=refit,
+            n_boot=n_boot, seed=1)
+        e = out["effect"]
+        for key in ("eq_lower", "eq_upper", "sy_lower", "sy_upper"):
+            assert np.all(np.isfinite(e[key])), key
+        assert (e["eq_lower"] <= e["eq_upper"] + 1e-9).all()
+        assert (e["sy_lower"] <= e["sy_upper"] + 1e-9).all()
+
+    def test_width_comparable_to_a_clean_run(self):
+        # Excluding the degenerate draws must leave the interval on the same
+        # scale as one where none occurred -- not orders of magnitude wider.
+        y, X, cf, refit, n_boot = self._setup(k=20)
+        dirty = pda_prediction_intervals(
+            y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE, refit=refit,
+            n_boot=n_boot, seed=1)
+        clean = pda_prediction_intervals(
+            y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE,
+            refit=_make_refit(X, _SAT_T0, _SAT_SPARSE), n_boot=n_boot, seed=1)
+        wd = float(dirty["effect"]["eq_upper"][0] - dirty["effect"]["eq_lower"][0])
+        wc = float(clean["effect"]["eq_upper"][0] - clean["effect"]["eq_lower"][0])
+        assert 0.2 < wd / wc < 5.0, f"width ratio {wd / wc:.3g}"
+
+    # -- the guard is a no-op when nothing degenerates ------------------------
+
+    def test_clean_path_unchanged(self):
+        # Pinned from the implementation before the guard existed: on data where
+        # no draw degenerates the intervals must be identical, to the bit.
+        y, X = _dgp(7)
+        support = [0, 1, 2, 3]
+        cf = _fit(y, X, 40, support)
+        out = pda_prediction_intervals(
+            y, X, 40, counterfactual=cf, support=support,
+            refit=_make_refit(X, 40, support), n_boot=199, seed=42)
+        assert out["n_degenerate"] == 0
+        assert out["n_boot_effective"] == 199
+        np.testing.assert_allclose(
+            out["effect"]["eq_lower"],
+            [-1.148044173333, -0.710756198779, -1.475381568738,
+             -1.379849220776, -1.628921193323, -1.473219215610])
+        np.testing.assert_allclose(
+            out["effect"]["eq_upper"],
+            [1.028535794298, 1.477007898191, 0.923063871361,
+             0.952722049167, 0.749210506010, 0.664584840508])
+        np.testing.assert_allclose(
+            out["effect"]["sy_upper"],
+            [0.872494477313, 1.413704825787, 0.860925699272,
+             0.859676346861, 0.775951061707, 0.548522138988])
+
+    # -- edge cases ----------------------------------------------------------
+
+    def test_all_draws_degenerate_raises(self):
+        y, X, cf, refit, n_boot = self._setup(k=99)
+        with pytest.raises(MlsynthEstimationError, match="degenerate"):
+            pda_prediction_intervals(
+                y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE,
+                refit=refit, n_boot=n_boot, seed=1)
+
+    def test_single_surviving_draw_raises(self):
+        # Two draws are the minimum from which a quantile can be formed.
+        y, X, cf, refit, n_boot = self._setup(k=98)
+        with pytest.raises(MlsynthEstimationError, match="degenerate"):
+            pda_prediction_intervals(
+                y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE,
+                refit=refit, n_boot=n_boot, seed=1)
+
+    def test_two_surviving_draws_succeed(self):
+        y, X, cf, refit, n_boot = self._setup(k=97)
+        out = pda_prediction_intervals(
+            y, X, _SAT_T0, counterfactual=cf, support=_SAT_SPARSE, refit=refit,
+            n_boot=n_boot, seed=1)
+        assert out["n_boot_effective"] == 2
+        assert np.all(np.isfinite(out["effect"]["eq_lower"]))
+
+    def test_interpolating_point_estimator_raises(self):
+        # sigma^2 = 0 leaves no residual scale to studentize against at all.
+        y, X = _dgp(3)
+        with pytest.raises(MlsynthEstimationError, match="pre-period"):
+            pda_prediction_intervals(
+                y, X, 40, counterfactual=y.copy(), support=[0, 1, 2, 3],
+                refit=_make_refit(X, 40, [0, 1, 2, 3]), n_boot=49, seed=1)
+
+    # -- the failure is reported, not swallowed ------------------------------
+
+    def test_degenerate_count_surfaces_through_the_estimator(self):
+        # The engine's count must reach the PDA result, so a user can see that
+        # some draws were dropped without instrumenting the engine.
+        from mlsynth import PDA
+
+        df = _pda_panel(seed=2)
+        res = PDA(_pda_cfg(df, method="fs", prediction_intervals=True,
+                           pi_n_boot=99, pi_seed=0)).fit()
+        pi = res.fits["fs"].prediction_intervals
+        assert "n_degenerate" in pi and "n_boot_effective" in pi
+        assert pi["n_degenerate"] >= 0
+        assert pi["n_boot_effective"] + pi["n_degenerate"] == pi["n_boot"]
 
 
 class TestIndependentBootstrap:

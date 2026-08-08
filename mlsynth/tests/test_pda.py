@@ -605,8 +605,13 @@ def test_forward_select_degenerate_no_selection(monkeypatch):
     assert np.allclose(cf2, np.mean(y[:20]))
 
 
-def test_forward_select_runs_full_t0_iterations(monkeypatch):
-    """Every step keeps improving the IC -> the range(T0) loop cap is the exit."""
+def test_forward_select_runs_to_the_saturation_cap(monkeypatch):
+    """Every step keeps improving the IC -> the saturation cap is the exit.
+
+    Before the cap this ran to ``T0`` and returned 5 parameters on 4
+    observations. The budget is ``T0 - 1 - intercept``, so the fit keeps a
+    residual degree of freedom however hard the IC pushes.
+    """
     import mlsynth.utils.pda_helpers.fs.estimation as fs_est
     # sigma^2 strictly shrinks as more columns are added, so IC always improves
     monkeypatch.setattr(fs_est, "_ols_sigma2", lambda y, Z: 1.0 / Z.shape[1])
@@ -614,7 +619,8 @@ def test_forward_select_runs_full_t0_iterations(monkeypatch):
     X = rng.normal(0, 1, (4, 6))                       # N=6 > T0=4
     y = rng.normal(0, 1, 4)
     sel, beta, intercept, cf = forward_select(y, X, T0=4, intercept=True)
-    assert len(sel) == 4                                # selected once per iteration
+    assert len(sel) == 2                                # T0 - 1 - intercept
+    assert len(sel) + 1 <= 4 - 1                        # a residual df survives
     assert cf.shape == (4,)
 
 
@@ -677,3 +683,88 @@ def test_plot_pda_failure_warns():
     with pytest.warns(UserWarning, match="PDA plotting failed"):
         plot_pda(_toy_results_for_plot(), outcome="Value", time="Period",
                  counterfactual_color=[], save=False)   # empty list -> modulo-by-zero
+
+
+# ======================================================================
+# fs saturation cap
+# ======================================================================
+class TestForwardSelectionCap:
+    """Forward selection must leave the pre-period fit at least one residual df.
+
+    The IC rule cannot stop a run toward interpolation on its own: the criterion
+    carries ``log(s2)``, which diverges to -inf as the fit approaches an exact
+    one, so every further donor "improves" it. Unchecked, selection reaches
+    ``T0`` donors -- ``T0 + 1`` parameters with an intercept -- and the residual
+    variance collapses to ~1e-31. The Jiang et al. prediction intervals then
+    divide by that scale, so the cap is what keeps them finite.
+    """
+
+    @staticmethod
+    def _noise(T0, N, seed):
+        rng = np.random.default_rng(seed)
+        return (rng.standard_normal(T0 + 5),
+                rng.standard_normal((T0 + 5, N)))
+
+    @pytest.mark.parametrize("T0,N,seed", [(10, 30, 0), (10, 30, 1), (12, 40, 3)])
+    @pytest.mark.parametrize("intercept", [False, True])
+    def test_never_saturates_the_pre_period(self, T0, N, seed, intercept):
+        y, X = self._noise(T0, N, seed)
+        sel, _, _, cf = forward_select(y, X, T0, intercept=intercept)
+        n_params = len(sel) + int(intercept)
+        assert n_params <= T0 - 1, f"{n_params} params on {T0} observations"
+        assert np.mean((y[:T0] - cf[:T0]) ** 2) > 1e-12    # not interpolated
+
+    def test_cap_clears_the_engine_degeneracy_threshold(self):
+        # The contract between the two layers: a capped fit must leave a residual
+        # scale the interval engine accepts, so the point fit never trips the
+        # guard in pda_prediction_intervals. The cap forbids interpolation; it
+        # does not promise a well-conditioned fit, and at T0 - 1 - intercept
+        # donors the residual df is thin -- the margin here is ~3 orders, not
+        # comfortable, which is why the engine guard stays as the backstop.
+        from mlsynth.utils.inferutils import _INTERPOLATION_TOL
+
+        y, X = self._noise(12, 40, 3)
+        _, _, _, cf = forward_select(y, X, 12, intercept=True)
+        s2 = float(np.mean((y[:12] - cf[:12]) ** 2))
+        assert s2 > _INTERPOLATION_TOL * max(float(np.var(y[:12])), 1.0)
+
+    def test_informative_selection_is_unchanged(self):
+        # The cap binds only on runaway fits; a sparse signal is picked as before.
+        rng = np.random.default_rng(11)
+        X = rng.normal(0, 1, (40, 6))
+        y = 2.0 * X[:, 0] - 1.5 * X[:, 3] + rng.normal(0, 0.1, 40)
+        sel, _, _, _ = forward_select(y, X, T0=40)
+        assert 0 in sel and 3 in sel
+        assert len(sel) < 40 - 1
+
+    def test_tiny_pre_period_still_returns(self):
+        # T0 = 3 leaves room for one donor without an intercept; the cap must
+        # not drive the budget to zero or negative.
+        y, X = self._noise(3, 8, 5)
+        sel, beta, _, cf = forward_select(y, X, 3, intercept=False)
+        assert len(sel) <= 2
+        assert cf.shape == (8,) and np.all(np.isfinite(cf))
+
+    def test_prediction_intervals_survive_a_saturating_panel(self):
+        # End to end: the panel that made the engine raise must now produce a
+        # finite interval, because the point fit no longer interpolates.
+        from mlsynth import PDA
+
+        rng = np.random.default_rng(3)
+        T0, T1, N = 12, 4, 40
+        rows = []
+        for t in range(T0 + T1):
+            rows.append({"ID": 1, "Period": t, "Value": float(rng.standard_normal()),
+                         "IsTreated": int(t >= T0)})
+            for j in range(N):
+                rows.append({"ID": j + 2, "Period": t,
+                             "Value": float(rng.standard_normal()), "IsTreated": 0})
+        df = pd.DataFrame(rows)
+        res = PDA({"df": df, "outcome": "Value", "treat": "IsTreated",
+                   "unitid": "ID", "time": "Period", "method": "fs",
+                   "prediction_intervals": True, "pi_n_boot": 99, "pi_seed": 0,
+                   "display_graphs": False}).fit()
+        e = res.fits["fs"].prediction_intervals["effect"]
+        assert np.all(np.isfinite(e["eq_lower"])) and np.all(np.isfinite(e["eq_upper"]))
+        width = float(e["eq_upper"][0] - e["eq_lower"][0])
+        assert 0.0 < width < 1e3, f"width {width:.3g}"
