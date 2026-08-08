@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-08-08T14:15:36Z",
+  "git_sha": "657bc2855bb6cae1e9509f7b490c9957776ef882",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/dmlfm_germany/reference.R",
+  "data": [
+    {
+      "path": "basedata/repgermany.dta",
+      "sha256": "afa8cbb2812c11b45243c3523c8801b4450b5c18ab2149a3fa07f4cd7005c24e"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "pblasso": "1.0.8",
+    "haven": "installed"
+  },
+  "pblasso_source": {
+    "origin": "packages/pblasso_1.0.8.tar.gz inside the authors' replication package (Harvard Dataverse doi:10.7910/DVN/B6SWA1)",
+    "sha256": "355571369c3247eb5d5f9365b9ae54376a0960ee6819d44c09e46631ef8f2043",
+    "note": "Not on CRAN and not the same code as github.com/liulch/bpCausal, which is a later rename with a different argument list."
+  },
+  "seeds": [
+    1234,
+    1,
+    2,
+    3,
+    4
+  ],
+  "spec_source": "replication/2_ex_adh2015.R lines 118-160"
+}
