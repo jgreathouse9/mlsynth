@@ -35,6 +35,9 @@ def forward_select(
     Returns ``(selected_indices, beta_full, intercept, counterfactual)`` where
     ``beta_full`` is an ``N``-vector with zeros off the selected support.
 
+    Selection is capped at ``T0 - 1 - intercept`` donors so the pre-period fit
+    keeps a residual degree of freedom; see the comment on ``max_selected``.
+
     Parameters
     ----------
     intercept : bool, default False
@@ -57,7 +60,14 @@ def forward_select(
 
     selected: List[int] = []
     remaining = list(range(N))
-    for _ in range(T0):
+    # Leave at least one residual degree of freedom. The IC cannot enforce this
+    # itself: it carries log(s2), which diverges to -inf as the fit approaches an
+    # exact one, so every further donor keeps "improving" it and selection runs
+    # to T0 -- T0 + 1 parameters once the intercept is counted. The resulting
+    # residual variance is ~1e-31, which is the scale the Jiang et al. prediction
+    # intervals studentize against.
+    max_selected = max(0, T0 - 1 - int(intercept))
+    for _ in range(max_selected):
         if not remaining:
             break
         best_j, best_s2 = None, np.inf
