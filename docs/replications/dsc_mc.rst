@@ -259,12 +259,21 @@ and five of the eight within 0.0025. The published curve spans 1.003 to 1.027,
 so those are small fractions of the effect being plotted.
 
 The two cells at :math:`M = 50` are where the curves part, and the pattern says
-what is happening: the gap grows as the draw count falls toward the donor count.
-At :math:`J = 50, M = 50` the donor matrix is square, the constrained fit is
-close to interpolating, and the reconstruction sits 0.0285 high. More broadly,
-the published curves depend on the donor pool much less than the reconstruction
-does -- the paper's :math:`J = 50` ratio at :math:`M = 50` is only 0.0036 above
-its :math:`J = 20` ratio, against 0.0260 here.
+where to look: the gap grows as the draw count falls toward the donor count. At
+:math:`J = 50, M = 50` the donor matrix is square, its condition number is
+2.0e4, and the reconstruction sits 0.0285 high. More broadly, the published
+curves depend on the donor pool much less than the reconstruction does -- the
+paper's :math:`J = 50` ratio at :math:`M = 50` is only 0.0036 above its
+:math:`J = 20` ratio, against 0.0260 here.
+
+Near-degeneracy makes the solver the obvious suspect, and it has been ruled out.
+Handed the identical matrices, mlsynth's solver and the reference's -- CLARABEL
+against ``pracma::lsqlincon`` under DiSCo's own argument construction -- return
+weights agreeing to 3e-9, at that square cell as much as at the
+well-conditioned ones, with the population risk at each agreeing to six
+decimals. Whatever separates the two curves at :math:`M = 50` sits upstream of
+the weight solve, in the design specification. The comparison is
+``benchmarks/reference/dsc_mc/`` and needs the R reference.
 
 The weight-error half is not a cell match.
 
