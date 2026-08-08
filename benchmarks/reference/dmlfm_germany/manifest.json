@@ -6,7 +6,9 @@
   "path_type": "cross-validation",
   "status": "reference-only -- mlsynth has no DM-LFM estimator yet. This bundle is the oracle a future port validates against; there is no benchmarks/cases entry.",
   "command": "Rscript benchmarks/reference/dmlfm_germany/reference.R",
-  "data": ["basedata/repgermany.dta"],
+  "data": [
+    "basedata/repgermany.dta"
+  ],
   "outputs": {
     "gold_summary.csv": "per-seed overall ATT, credible interval, pre-treatment gap summaries, sigma2, runtime",
     "gold_att_by_year.csv": "per-seed, per-year ATT with 95% credible bounds",
@@ -16,10 +18,14 @@
     "montecarlo_single_treated.csv": "the authors' own saved Monte Carlo output (tempdata/sim_single_{X,r3,r8}.RData): bias, sd, RMSE, coverage and runtime for synth, gsynth and the Bayesian DM-LFM across 3 designs x 6 cases"
   },
   "targets": {
-    "att_1990_2003": -1602.8,
-    "att_sd_across_seeds": 18.0,
-    "att_range_across_seeds": [-1621.0, -1580.6],
+    "att_1990_2003": -1597.9,
+    "att_sd_across_seeds": 38.7,
+    "att_range_across_seeds": [
+      -1639.4,
+      -1509.2
+    ],
+    "seeds": 10,
     "pre_treatment_gap_maxabs": 117.0,
-    "tolerance_note": "MCMC noise only; five seeds at niter=25000, burn=5000. A port matching within +/- 54 (3 sd) reproduces the estimator."
+    "tolerance_note": "MCMC noise only, ten seeds at niter=25000, burn=5000. The spread is wide relative to the effect: compare a port on means across several seeds, not on a single run. An eight-seed port run agreeing at Welch p=0.16 with variances agreeing at F-test p=0.42 reproduces the estimator."
   }
 }

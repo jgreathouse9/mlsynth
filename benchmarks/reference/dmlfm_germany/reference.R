@@ -20,7 +20,7 @@ library(haven)
 library(pblasso)
 source("code/summary_function.R")
 
-SEEDS <- c(1234, 1, 2, 3, 4)
+SEEDS <- c(1234, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 OUT <- "gold"
 dir.create(OUT, showWarnings = FALSE)
 

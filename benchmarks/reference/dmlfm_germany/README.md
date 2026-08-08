@@ -36,20 +36,37 @@ narrows the credible intervals.
 
 | quantity | value |
 |---|---|
-| ATT 1990–2003 | −1602.8, sd 18.0 across five seeds |
-| range across seeds | [−1621.0, −1580.6] |
-| pre-treatment gap | mean 3.7, max abs 117.0 |
+| ATT 1990–2003 | −1597.9, sd 38.7 across ten seeds |
+| range across seeds | [−1639.4, −1509.2] |
+| pre-treatment gap | max abs 117.0 |
 | gap 1990 / 1993 / 2003 | +457 / −173 / −4117 |
 
-A port landing within ±54 (three seed-to-seed standard deviations) reproduces
-the estimator. Per-year tolerances widen with horizon: sd 7.3 at 1990, 69.8 at
-2003.
+The seed-to-seed spread is wide relative to the effect, so compare a port on
+means across several seeds, not on one run. The first five seeds gave sd 18.0
+and the next five gave 54.7; treating the former as the tolerance would reject
+a correct port. The current port agrees at Welch p = 0.16 on means and F-test
+p = 0.42 on variances, over eight runs against these ten.
 
 Factor loadings cannot be compared directly. The sampler permutes factor labels
 each iteration (`permute`, `blasso.cpp:454`), so only the sorted spectrum of
 `|omega_gamma|` is invariant. Across seeds it reads 3247, 901, 524, 395, 305,
 202, 163, 152, 111, 89, with rank-wise coefficients of variation between 0.12
 and 0.25 — consistent with the paper's report of four to six active factors.
+
+## Seams verified against the reference
+
+The port is pinned to pblasso at two levels, both in
+`mlsynth/tests/test_dmlfm_against_pblasso.py`.
+
+Design: every object the sampler consumes -- `y`, `X`, `A`, the treated blocks,
+the unit and time codes, the group-break vectors and the time-sort permutation
+-- matches element-wise to machine precision on this panel.
+
+Draws: each conditional draw factors into a deterministic mean and covariance
+plus a normal, and those halves match at 1e-10 -- `genXY`, `sampleN` including
+its flat prior on the first coefficient, both `genTildeZ` forms, `genTildeTau`,
+`getREfit`, `getFactorFit`, `samplePhi`, `iterGenAlpha`'s per-unit posterior,
+and `iterGenXi`'s per-period posterior with its first-period case.
 
 ## Monte Carlo
 
