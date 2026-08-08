@@ -837,6 +837,20 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   when the treated units sit outside the donors' hull; prefer either of those
   when you want interpretable donor weights, which a factor projection does
   not produce. It requires a never-treated pool and absorbing adoption.
+* A factor structure, but you want the *uncertainty* as a posterior and you do
+  not know which covariates matter or how many factors to use --
+  :doc:`dmlfm` (Pang, Liu & Xu 2022). It is the Bayesian sibling of
+  :doc:`gsynth`: the same latent-factor logic, but each covariate's coefficient
+  may vary by unit, by time, or neither, and a shrinkage prior on the loading
+  scales drops the factors the data will not support, so neither the covariate
+  set nor the factor count needs a cross-validation step. The counterfactual is
+  a posterior predictive draw, so the credible band is read off directly.
+  Choose it over :doc:`gsynth` for those features, not for accuracy: on the
+  authors' own simulations DMLFM has the lower RMSE in six of eighteen cells
+  and the higher in twelve, with coverage closer to nominal in seven against
+  gsynth's ten, at eleven to eighty seconds a fit against under two. It needs a
+  balanced panel, one treated unit in this implementation, and about twenty
+  pre-treatment periods before its frequentist properties settle.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
 * Staggered *and* missing cells / gaps, or *every* unit eventually treated --
   :doc:`mcnnm` (matrix completion handles staggered missingness natively and

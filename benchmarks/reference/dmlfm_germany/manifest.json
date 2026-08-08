@@ -4,7 +4,7 @@
   "paper": "Pang, X., Liu, L., & Xu, Y. (2022), 'A Bayesian Alternative to Synthetic Control for Comparative Case Studies', Political Analysis 30(2):269-288; Abadie, Diamond & Hainmueller (2015) for the German reunification data",
   "reference_impl": "R package pblasso 1.0.8, shipped in the authors' replication package (packages/pblasso_1.0.8.tar.gz). This is the version behind the published figures; the public liulch/bpCausal repository is a later rename and is NOT the same code.",
   "path_type": "cross-validation",
-  "status": "reference-only -- mlsynth has no DM-LFM estimator yet. This bundle is the oracle a future port validates against; there is no benchmarks/cases entry.",
+  "status": "active -- the oracle for mlsynth.DMLFM; the comparison lives in benchmarks/cases/dmlfm_germany.py",
   "command": "Rscript benchmarks/reference/dmlfm_germany/reference.R",
   "data": [
     "basedata/repgermany.dta"

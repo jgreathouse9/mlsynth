@@ -93,7 +93,7 @@ def _sample_sub_alpha(mu: np.ndarray, S: np.ndarray, k2: int, r: int,
     unit ``i`` (1-based) loads on at most the first ``i`` factors. The tail
     entries stay exactly zero and the leading block is drawn conditional on
     them. This makes the fit depend on the order of units, which is a property
-    of the estimator and is reproduced here rather than smoothed away.
+    of the estimator, and it is reproduced here.
     """
     k = mu.shape[0]
     out = np.zeros(k)

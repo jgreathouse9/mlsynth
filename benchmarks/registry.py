@@ -63,6 +63,7 @@ CASES = {
     "nsc_prop99": "benchmarks.cases.nsc_prop99",                # cross-val vs Tian's NSC.R (Prop 99 Table 2)
     "nsc_mc": "benchmarks.cases.nsc_mc",                        # Path B: nonlinear coverage + error-shrinks-with-J
     "vanillasc_prop99": "benchmarks.cases.vanillasc_prop99",  # Path A: canonical ADH 2010 Prop 99
+    "dmlfm_germany": "benchmarks.cases.dmlfm_germany",  # cross-val vs pinned pblasso 1.0.8 (Pang, Liu & Xu 2022, German reunification): design objects exact, covariate scaling exact, ATT on a mean across seeds since the sampler spread is wide
     "vanillasc_olympics": "benchmarks.cases.vanillasc_olympics",  # Path A (Yoneoka et al. 2022 BMJ Open, Tokyo 2020 Olympics -> COVID cases: 143072/89210 cumulative exact) + cross-val vs pinned tidysynth 0.2.0; records that the authors' donor weights are no longer reproducible (0.183) while the p-value is
     "ibex_dap": "benchmarks.cases.ibex_dap",                  # cross-val vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price (Haro Ruiz-Schult-Wunder 2024), weights value-for-value
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
