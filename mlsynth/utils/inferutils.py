@@ -348,6 +348,14 @@ def _hac_matrix(g: np.ndarray, K: int) -> np.ndarray:
     return phi
 
 
+# A fit that leaves this share or less of the reference variance has
+# interpolated its pre-period: there is no residual scale left to studentize
+# against. The separation is stark in practice -- a saturated OLS fit leaves a
+# relative residual variance of order 1e-30, while the sparse fits the method
+# assumes leave order 1e-1 -- so the exact cut-off is not delicate.
+_INTERPOLATION_TOL = 1e-12
+
+
 def _prediction_variance(
     X_pre_Q: np.ndarray, resid_pre: np.ndarray, X_post_Q: np.ndarray, K: int,
 ) -> Optional[np.ndarray]:
@@ -438,12 +446,25 @@ def pda_prediction_intervals(
     Returns
     -------
     dict
-        ``alpha``, ``n_boot``, ``post_periods`` (``T1``), ``studentization``
-        (``"sandwich"`` | ``"sigma2"``), ``se`` ((T1,) :math:`\sqrt{V_t +
-        \sigma^2}`), and two blocks ``effect`` (for :math:`\Delta_t`) and
-        ``counterfactual`` (for :math:`Y_t`), each a dict of ``point``,
-        ``eq_lower``/``eq_upper`` (equal-tailed) and ``sy_lower``/``sy_upper``
-        (symmetric), all ``(T1,)`` arrays.
+        ``alpha``, ``n_boot`` (requested), ``n_degenerate`` and
+        ``n_boot_effective`` (see below), ``post_periods`` (``T1``),
+        ``studentization`` (``"sandwich"`` | ``"sigma2"``), ``se`` ((T1,)
+        :math:`\sqrt{V_t + \sigma^2}`), and two blocks ``effect`` (for
+        :math:`\Delta_t`) and ``counterfactual`` (for :math:`Y_t`), each a dict
+        of ``point``, ``eq_lower``/``eq_upper`` (equal-tailed) and
+        ``sy_lower``/``sy_upper`` (symmetric), all ``(T1,)`` arrays.
+
+    Notes
+    -----
+    A bootstrap draw whose refit saturates the pre-period -- a selected support
+    as large as ``T0``, which forward selection reaches on a few percent of
+    draws -- interpolates it, leaving a residual scale of order 1e-15 against an
+    O(1) post-period extrapolation error. The studentized statistic then reaches
+    ~1e15 and carries the quantiles with it, producing an interval wide enough
+    to cover unconditionally. Theorem 3.1 assumes the selected support stays
+    sparse relative to ``T0``, which such a draw violates, so it takes no part
+    in the quantiles and is counted in ``n_degenerate``; ``n_boot_effective`` is
+    the number that did. Reaching fewer than two usable draws raises.
 
     Raises
     ------
@@ -451,6 +472,10 @@ def pda_prediction_intervals(
         If ``n_boot < 2``, ``alpha`` is out of ``(0, 1)``, or ``T1 = T - T0 < 1``.
     MlsynthDataError
         If array shapes are inconsistent.
+    MlsynthEstimationError
+        If the point estimator interpolates the pre-period (no residual scale to
+        studentize against), or if fewer than two non-degenerate bootstrap draws
+        remain.
     """
     if not isinstance(n_boot, (int, np.integer)) or n_boot < 2:
         raise MlsynthConfigError(f"n_boot must be an integer >= 2; got {n_boot!r}.")
@@ -481,6 +506,14 @@ def pda_prediction_intervals(
 
     resid_pre = y[:T0] - counterfactual[:T0]
     sigma2 = float(np.mean(resid_pre ** 2))
+    y_pre_var = float(np.var(y[:T0]))
+    if sigma2 <= _INTERPOLATION_TOL * max(y_pre_var, 1.0):
+        raise MlsynthEstimationError(
+            "the point estimator interpolates the pre-period (residual variance "
+            f"{sigma2:.3g} against outcome variance {y_pre_var:.3g}), so there "
+            "is no residual scale to studentize the bootstrap against. The "
+            "support is saturated: refit with fewer donors than pre-periods."
+        )
 
     # Original-sample studentization scale.
     s2 = sigma2
@@ -493,6 +526,12 @@ def pda_prediction_intervals(
     # Bootstrap.
     resid_centered = resid_pre - resid_pre.mean()
     S = np.empty((n_boot, T1))
+    # A draw whose refit saturates the bootstrap pre-period leaves a residual
+    # scale of order 1e-15 while its post-period extrapolation error stays O(1),
+    # so the studentized statistic reaches ~1e15 and drags the quantiles with
+    # it. The theory assumes the selected support stays sparse relative to T0,
+    # which such a draw violates, so it is excluded and counted.
+    degenerate = np.zeros(n_boot, dtype=bool)
     for b in range(n_boot):
         if dependent:
             e_pre = (L @ rng.standard_normal(T0)) * resid_pre
@@ -512,9 +551,26 @@ def pda_prediction_intervals(
         ) if supp_star.size else None
         se_star = np.sqrt((Vt_star if Vt_star is not None else 0.0) + s2_star)
         e_star_post = y_star[T0:] - cf_star[T0:]
+        if s2_star <= _INTERPOLATION_TOL * sigma2 or not np.all(
+            np.isfinite(se_star)
+        ):
+            degenerate[b] = True
+            S[b] = 0.0          # excluded below; keeps the array finite
+            continue
         S[b] = e_star_post / np.where(se_star > 0, se_star, np.inf)
 
-    # Quantiles per post-period.
+    n_degenerate = int(degenerate.sum())
+    S = S[~degenerate]
+    if S.shape[0] < 2:
+        raise MlsynthEstimationError(
+            f"{n_degenerate} of {n_boot} bootstrap draws were degenerate "
+            f"(the refit interpolated the bootstrap pre-period), leaving "
+            f"{S.shape[0]} from which no quantile can be formed. The support is "
+            "saturating: refit with fewer donors than pre-periods, or raise "
+            "n_boot."
+        )
+
+    # Quantiles per post-period, over the non-degenerate draws.
     xi_lo = np.quantile(S, alpha / 2.0, axis=0)
     xi_hi = np.quantile(S, 1.0 - alpha / 2.0, axis=0)
     zeta = np.quantile(np.abs(S), 1.0 - alpha, axis=0)
@@ -540,6 +596,8 @@ def pda_prediction_intervals(
     return {
         "alpha": float(alpha),
         "n_boot": int(n_boot),
+        "n_degenerate": n_degenerate,
+        "n_boot_effective": int(n_boot - n_degenerate),
         "post_periods": int(T1),
         "studentization": studentization,
         "se": se if np.ndim(se) else np.full(T1, float(se)),
