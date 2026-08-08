@@ -4,8 +4,11 @@ Path B (Monte Carlo; scenario 1 -- paper only, no code, no data, and no table).
 Reproduces the model-free simulation of Zhang, L., Zhang, X. & Zhang, X. (2024),
 *"Asymptotic Properties of the Distributional Synthetic Controls"*
 (arXiv:2405.00953v3), the paper whose Algorithm 1 :class:`mlsynth.DSC` follows.
-It is the estimator's first externally anchored numeric check: the existing
-``dsc_dube`` case is Path A with mlsynth's own output pinned on five of six rows.
+It complements ``disco_tenure``, which reproduces the ``disco`` Stata Journal
+article's published weights bit-for-bit and is what establishes that mlsynth
+implements this specification. That case runs on an empirical panel, where there
+is no known truth; here the optimum is closed-form at all sixteen points, so the
+two quantities the theorems concern can be measured against it directly.
 
 What the design measures
 ------------------------

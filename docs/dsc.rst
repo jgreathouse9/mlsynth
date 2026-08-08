@@ -431,9 +431,10 @@ run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
    is resolved, treat the vignette's ``p > 0.05`` as the only externally
    anchored quantity in this benchmark.
 
-A second benchmark (``benchmarks/cases/dsc_mc.py``) supplies the external
-numeric anchor the Dube case lacks, from the Monte Carlo of the paper whose
-Algorithm 1 this estimator implements: Zhang, Zhang & Zhang (2024), Section 5.1.
+A third benchmark (``benchmarks/cases/dsc_mc.py``) runs the Monte Carlo of the
+paper whose Algorithm 1 this estimator implements, Zhang, Zhang & Zhang (2024)
+Section 5.1, where the optimum is known in closed form and the empirical cases'
+lack of a ground truth does not bind.
 Across sixteen points it reproduces the geometry of both theorems -- the risk
 ratio :math:`\bar R_{T_1}(\widehat w) / \inf_w \bar R_{T_1}(w)` falling
 monotonically to 1 as the draw count grows, the weight error

@@ -21,16 +21,23 @@ DSC asymptotics Monte Carlo (Zhang, Zhang & Zhang 2024)
 Why this case exists
 --------------------
 
-:class:`mlsynth.DSC` implements Algorithm 1 of this paper. Until now its only
-validation was :doc:`dsc`, a Path A reproduction of the Dube (2019)
-minimum-wage application, and that case is weaker than it looks: five of its six
-rows are mlsynth's own output pinned against regression, and the single
-externally anchored quantity is a placebo p-value exceeding 0.05, which is one
-bit of information. This case is the estimator's first external numeric anchor.
+:class:`mlsynth.DSC` implements Algorithm 1 of this paper, so this is the
+estimator's own source simulation.
 
-It also validates a different thing. The Dube case exercises the whole pipeline
-on one dataset; this one exercises the two steps the paper's theorems are about,
-across sixteen points of a design where the right answer is known exactly.
+It complements, and does not replace, the external check DSC already has.
+:doc:`disco_tenure` reproduces the ``disco`` Stata Journal article's published
+donor weights bit-for-bit at the reference's own settings (five weights to 5e-5,
+the effects table to 5e-4), which is what establishes that mlsynth implements
+this specification. What that case cannot do is say whether the specification
+converges where the theory says it should, because on an empirical panel there
+is no known truth to converge to.
+
+This case supplies that. The optimum is available in closed form at every one of
+its sixteen points, so the two quantities the theorems are about can be measured
+against it directly. It also isolates a narrower target: the design hands the
+estimator its pseudo-samples, so what is exercised is the weight solver and the
+:math:`\lambda_t` aggregation, not the quantile-estimation step the empirical
+cases cover.
 
 What the paper proves, and what the simulation shows
 ----------------------------------------------------
