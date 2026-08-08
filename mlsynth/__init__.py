@@ -77,6 +77,7 @@ from .estimators.beast import BEAST
 from .estimators.dpsc import DPSC
 from .estimators.drsc import DRSC
 from .estimators.fsc import FSC
+from .estimators.dmlfm import DMLFM
 from .estimators.dsc import DSC
 from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
@@ -180,6 +181,7 @@ __all__ = [
     "plot_compare_pareto",
     "DRSC",
     "FSC",
+    "DMLFM",
     "DSC",
     "DROSC",
     "SpSyDiD",
