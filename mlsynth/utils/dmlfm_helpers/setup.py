@@ -120,9 +120,22 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
     tr_rows = np.flatnonzero(df[cfg.unitid].to_numpy() == treated_units[0])
     fit_rows = np.flatnonzero(d == 0)
 
+    # blasso_default.R:88-91 divides every covariate by its pooled standard
+    # deviation before fitting -- no centring, denominator n-1. The scaling is
+    # what keeps the time-varying coefficient block from dominating the factor
+    # term when a covariate is large in level: on this panel ``pgdp`` runs to
+    # five figures, and unscaled it absorbs the common structure the factors
+    # are meant to carry.
+    scales = np.ones(len(covs))
+    if covs and cfg.scale_covariates:
+        scales = df[covs].to_numpy(float).std(axis=0, ddof=1)
+        if np.any(scales == 0):
+            zero = [c for c, s in zip(covs, scales) if s == 0]
+            raise MlsynthDataError(f"covariates with zero variance: {zero}")
+
     def blocks(rows):
-        cov = df.loc[df.index[rows], covs].to_numpy(float) if covs else np.zeros(
-            (len(rows), 0))
+        cov = (df.loc[df.index[rows], covs].to_numpy(float) / scales if covs
+               else np.zeros((len(rows), 0)))
         ones = np.ones((len(rows), 1))
         X = np.hstack([ones, cov])
         Z = (np.hstack([ones, cov]) if cfg.re in ("unit", "both")

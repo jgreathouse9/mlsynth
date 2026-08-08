@@ -169,3 +169,47 @@ def test_time_state_step_posterior_moments(fx2):
         assert np.allclose(prec, arr(fx2["prec"][t]), atol=TOL), f"precision t={t}"
         assert np.allclose(np.linalg.inv(prec) @ mu, arr(fx2["mu"][t]).ravel(),
                            atol=TOL), f"mean t={t}"
+
+
+FIX3 = pathlib.Path(__file__).parent / "fixtures" / "dmlfm" / "covariate_scaling.json"
+
+
+@pytest.fixture(scope="module")
+def fx3():
+    if not FIX3.exists():  # pragma: no cover - fixture is committed
+        pytest.skip("pblasso fixtures not generated")
+    return json.loads(FIX3.read_text())
+
+
+def test_covariate_scaling_matches_reference(fx3):
+    """blasso_default.R:88-91 divides each covariate by its pooled standard
+    deviation, denominator n-1, no centring.
+
+    This was the root cause of the port's first mismatch on the German panel.
+    Without it a covariate that is large in level -- ``pgdp`` runs to five
+    figures here -- lets the time-varying coefficient block absorb the common
+    structure the factor term should carry, which collapses the loading scales
+    and leaves the counterfactual tracking the donors through the post-period.
+    """
+    import pandas as pd
+    d = pd.read_stata("basedata/repgermany.dta", convert_categoricals=False)
+    d = d.sort_values(["index", "year"])
+    # the Stata columns are single precision; R reads them as double, so the
+    # per-unit means must be accumulated in float64 to compare
+    num = d.select_dtypes("number").columns
+    d[num] = d[num].astype("float64")
+    old = d.copy()
+    for i in d["index"].unique():
+        m = d["index"] == i
+        s = old[old["index"] == i]
+        d.loc[m, "pgdp"] = s.gdp.mean()
+        d.loc[m, "trade"] = s.trade.mean()
+        d.loc[m, "inflation"] = s.infrate.mean()
+        d.loc[m, "industry"] = s.industry.mean()
+        d.loc[m, "schooling"] = s.schooling.mean()
+        d.loc[m, "invest"] = np.nanmean(
+            s[["invest60", "invest70", "invest80"]].to_numpy())
+    covs = fx3["covariates"]
+    got = d[covs].to_numpy(float).std(axis=0, ddof=1)
+    assert np.allclose(got, arr(fx3["scales"]), rtol=1e-9), (
+        f"scales differ: {got} vs {arr(fx3['scales'])}")

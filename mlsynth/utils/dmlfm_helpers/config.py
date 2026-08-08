@@ -35,6 +35,13 @@ class DMLFMConfig(BaseEstimatorConfig):
             "Upper bound on the number of factors. Shrinkage on the loading "
             "scales switches unneeded factors off, so this is a ceiling, not a "
             "choice of the factor count."))
+    scale_covariates: bool = Field(
+        default=True,
+        description=(
+            "Divide each covariate by its pooled standard deviation before "
+            "fitting, as the reference implementation does. Without it a "
+            "covariate that is large in level lets the varying-coefficient "
+            "block absorb structure the factor term should carry."))
     ar1: bool = Field(
         default=True,
         description="Give the time-varying coefficients and factors AR(1) dynamics.")
