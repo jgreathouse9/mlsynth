@@ -327,7 +327,7 @@ Generalising the estimand, treatment, or unit
 * :doc:`dsc` -- Distributional SC. Path A: the ``DiSCo`` vignette's Dube (2019)
   minimum-wage application, Alaska treated in 2003 -- pre-period 2-Wasserstein
   fit 0.038 and the vignette's stated failure to reject at both post years
-  (:doc:`replications/dsc`). Path B: the Zhang, Zhang & Zhang (2024) asymptotics
+  (:doc:`replications/dsc`). Path B: the Zhang, Zhang & Zhang (2026) asymptotics
   Monte Carlo, whose Algorithm 1 the estimator implements -- both theorems'
   geometry reproduces across sixteen points, and the risk ratio matches the
   published figure to 0.0017 at every cell with :math:`M \ge 200`

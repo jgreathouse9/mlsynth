@@ -1,4 +1,4 @@
-# DSC Path-B targets — Zhang, Zhang & Zhang (2024), Section 5.1
+# DSC Path-B targets — Zhang, Zhang & Zhang (2026), Section 5.1
 
 `benchmarks/cases/dsc_mc.py` is scored against Figures 1 and 2 of
 [arXiv:2405.00953v3](https://arxiv.org/abs/2405.00953). Section 5 of that paper

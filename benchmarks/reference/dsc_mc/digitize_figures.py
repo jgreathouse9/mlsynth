@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Recover the plotted values from the figures of arXiv:2405.00953v3, Section 5.
 
-Section 5 of Zhang, Zhang & Zhang (2024) prints no tables: its four panels are
+Section 5 of Zhang, Zhang & Zhang (2026) prints no tables: its four panels are
 figures, and the numbers behind them appear nowhere in the text. The arXiv
 source ships those panels as vector PDFs written by R 4.2.2, so each series
 survives as an explicit polyline in the page content stream, alongside the

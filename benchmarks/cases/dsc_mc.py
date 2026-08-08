@@ -1,7 +1,7 @@
-"""DSC Path-B: the asymptotics Monte Carlo (Zhang, Zhang & Zhang 2024, Sec. 5.1).
+"""DSC Path-B: the asymptotics Monte Carlo (Zhang, Zhang & Zhang 2026, Sec. 5.1).
 
 Path B (Monte Carlo; scenario 1 -- paper only, no code, no data, and no table).
-Reproduces the model-free simulation of Zhang, L., Zhang, X. & Zhang, X. (2024),
+Reproduces the model-free simulation of Zhang, L., Zhang, X. & Zhang, X. (2026),
 *"Asymptotic Properties of the Distributional Synthetic Controls"*
 (arXiv:2405.00953v3), the paper whose Algorithm 1 :class:`mlsynth.DSC` follows.
 It complements ``disco_tenure``, which reproduces the ``disco`` Stata Journal

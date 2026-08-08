@@ -1,10 +1,10 @@
 .. _replication-dsc-mc:
 
-DSC asymptotics Monte Carlo (Zhang, Zhang & Zhang 2024)
+DSC asymptotics Monte Carlo (Zhang, Zhang & Zhang 2026)
 ========================================================
 
 :Estimator: :doc:`../dsc` -- :class:`mlsynth.DSC`
-:Source: Zhang, L., Zhang, X. and Zhang, X. (2024), *"Asymptotic Properties of
+:Source: Zhang, L., Zhang, X. and Zhang, X. (2026), *"Asymptotic Properties of
    the Distributional Synthetic Controls,"* `arXiv:2405.00953v3
    <https://arxiv.org/abs/2405.00953>`_ -- the model-free Monte Carlo of
    Section 5.1 (Figures 1 and 2).

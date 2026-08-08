@@ -432,7 +432,7 @@ run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
    anchored quantity in this benchmark.
 
 A third benchmark (``benchmarks/cases/dsc_mc.py``) runs the Monte Carlo of the
-paper whose Algorithm 1 this estimator implements, Zhang, Zhang & Zhang (2024)
+paper whose Algorithm 1 this estimator implements, Zhang, Zhang & Zhang (2026)
 Section 5.1, where the optimum is known in closed form and the empirical cases'
 lack of a ground truth does not bind.
 Across sixteen points it reproduces the geometry of both theorems -- the risk

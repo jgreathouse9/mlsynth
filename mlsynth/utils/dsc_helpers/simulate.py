@@ -1,7 +1,7 @@
-"""Data-generating process for the DSC Path-B benchmark (Zhang et al. 2024, Sec. 5.1).
+"""Data-generating process for the DSC Path-B benchmark (Zhang et al. 2026, Sec. 5.1).
 
 Re-implements the model-free Monte Carlo of Zhang, L., Zhang, X. & Zhang, X.
-(2024), *"Asymptotic Properties of the Distributional Synthetic Controls"*
+(2026), *"Asymptotic Properties of the Distributional Synthetic Controls"*
 (arXiv:2405.00953v3), the paper whose Algorithm 1 mlsynth's :class:`~mlsynth.DSC`
 follows. The design exists to illustrate the paper's two theorems, and both are
 measured against a population quantity this module supplies in closed form:
