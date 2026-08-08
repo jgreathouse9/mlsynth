@@ -16,9 +16,15 @@ treatment effect (QTE) at any quantile :math:`q \in (0, 1)`, and any
 functional of the distribution (Lorenz curves, Gini coefficients,
 interquartile ranges, stochastic-dominance comparisons).
 
-The method is due to Gunsilius (2023); mlsynth's implementation is
-validated against the author's reference ``DiSCo`` R package, and the
-large-sample theory is from Zhang, Zhang & Zhang (2026). The core idea is
+The method is due to Gunsilius (2023), and mlsynth implements the algorithm as
+Zhang, Zhang & Zhang (2026) specify it -- the paper that also supplies the
+large-sample theory. Validation is against the deterministic Stata command of
+Gunsilius & Van Dijcke, whose published weights mlsynth reproduces bit-for-bit
+(:doc:`replications/disco_tenure`), and against the ``DiSCo`` R package averaged
+over seeds (:doc:`replications/dsc_disco_xval`). The averaging is not optional:
+that package draws its quadrature points with ``runif``, so a single run's
+weights are a Monte Carlo estimate that moves with the seed, by up to 0.119 on
+the Dube panel. The core idea is
 the 2-Wasserstein barycenter: the natural
 generalization of a weighted average from points on the real line to
 probability distributions. Averaging quantile functions (not densities)
