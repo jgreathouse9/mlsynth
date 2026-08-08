@@ -1,0 +1,67 @@
+# DM-LFM reference bundle (Pang, Liu & Xu 2022)
+
+Oracle material for a future port of the dynamic multilevel latent factor model.
+mlsynth has no DM-LFM estimator, so there is no `benchmarks/cases` entry yet;
+this directory holds what a port validates against.
+
+## What is here
+
+`reference.R` reproduces the DM-LFM half of the authors' `2_ex_adh2015.R` at five
+seeds and writes the gold CSVs. It needs `pblasso` 1.0.8, which ships inside the
+replication package as `packages/pblasso_1.0.8.tar.gz` and installs with
+`R CMD INSTALL`. The public `github.com/liulch/bpCausal` repository is a later
+rename with a different argument list, and searching every commit reachable from
+all refs finds none of the arguments the paper's scripts pass, so it is not a
+substitute.
+
+## The specification
+
+Six time-invariant covariates, each the unit's mean over all 44 years
+(`pgdp`, `trade`, `inflation`, `industry`, `schooling`, `invest`, the last
+pooling `invest60/70/80`); `Xname = Aname` so each enters with both a constant
+coefficient and a time-varying one; `Zname = NULL`; `re = "time"`; `r = 10`;
+AR(1) on the time-varying terms; `niter = 25000`, `burn = 5000`; flat priors on
+the coefficients (`xlasso = zlasso = alasso = 0`) with shrinkage only on the
+factor loadings (`flasso = 1`).
+
+Two details a port has to match and neither is stated in the paper. The
+covariate means run over the whole sample, post-treatment years included, so the
+treated unit's covariates use post-treatment outcomes; `dataprep`'s
+`covariate_aggregation="pre_mean"` will not reproduce them. And the counterfactual
+draw adds `rnorm(sd = sqrt(sigma2))` on top of the mean function
+(`blasso_core.R:538`), making it a posterior predictive draw; omitting the noise
+narrows the credible intervals.
+
+## Targets
+
+| quantity | value |
+|---|---|
+| ATT 1990–2003 | −1602.8, sd 18.0 across five seeds |
+| range across seeds | [−1621.0, −1580.6] |
+| pre-treatment gap | mean 3.7, max abs 117.0 |
+| gap 1990 / 1993 / 2003 | +457 / −173 / −4117 |
+
+A port landing within ±54 (three seed-to-seed standard deviations) reproduces
+the estimator. Per-year tolerances widen with horizon: sd 7.3 at 1990, 69.8 at
+2003.
+
+Factor loadings cannot be compared directly. The sampler permutes factor labels
+each iteration (`permute`, `blasso.cpp:454`), so only the sorted spectrum of
+`|omega_gamma|` is invariant. Across seeds it reads 3247, 901, 524, 395, 305,
+202, 163, 152, 111, 89, with rank-wise coefficients of variation between 0.12
+and 0.25 — consistent with the paper's report of four to six active factors.
+
+## Monte Carlo
+
+`montecarlo_single_treated.csv` is the authors' own saved output from
+`tempdata/sim_single_{X,r3,r8}.RData`: bias, standard deviation, RMSE, coverage
+and runtime for `synth`, `gsynth` and the Bayesian DM-LFM across three designs
+and six cases.
+
+Both factor-model methods dominate `synth` everywhere (RMSE 1.8–3.7 against
+3.4–6.2). Against `gsynth` the picture is narrower than the abstract suggests:
+DM-LFM has lower RMSE in 6 of 18 cells and higher in 12, and its coverage is
+closer to nominal in 7 of 18 while `gsynth` is closer in 10. The cells DM-LFM
+wins are concentrated in the eight-factor design, matching the paper's own text
+that the advantage appears "when the number of factors is large and each of them
+produces relatively weak signals." Runtime is 11–80 seconds against 0.3–1.8.
