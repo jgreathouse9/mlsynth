@@ -38,7 +38,11 @@ from .quantiles import (
     sample_quantile_grid,
 )
 from .structures import DSCInputs, DSCResults, QTECurve
-from .weights import solve_simplex_weights, wasserstein_loss_at_weights
+from .weights import (
+    solve_simplex_weights,
+    solve_sum_to_one_weights,
+    wasserstein_loss_at_weights,
+)
 
 
 def run_dsc(
@@ -51,6 +55,7 @@ def run_dsc(
     lambda_weights: Optional[Sequence[float]] = None,
     qte_quantiles: Optional[Sequence[float]] = None,
     n_qte_points: int = 99,
+    weight_constraint: str = "simplex",
     compute_inference: bool = False,
     inference_grid_points: int = 200,
     random_state: int = 0,
@@ -75,6 +80,9 @@ def run_dsc(
     lambda_method : {"uniform", "recency"}
         Default aggregation rule for the pre-period weights. Ignored
         if ``lambda_weights`` is provided explicitly.
+    weight_constraint : {"simplex", "sum_to_one"}
+        Feasible set for the donor weights. See
+        :class:`~mlsynth.config_models.DSCConfig`.
     lambda_decay : float
         Geometric decay for ``lambda_method="recency"``.
     lambda_weights : sequence of float, optional
@@ -111,6 +119,14 @@ def run_dsc(
 
     V = sample_quantile_grid(M=M, method=grid_method, random_state=random_state)
 
+    if weight_constraint not in ("simplex", "sum_to_one"):
+        raise MlsynthEstimationError(
+            f"weight_constraint must be 'simplex' or 'sum_to_one', "
+            f"got {weight_constraint!r}."
+        )
+    solve = (solve_simplex_weights if weight_constraint == "simplex"
+             else solve_sum_to_one_weights)
+
     # ------------------------------------------------------------------
     # Steps 1 & 2: per-pre-period simplex regression on pseudo-samples.
     # ------------------------------------------------------------------
@@ -121,7 +137,7 @@ def run_dsc(
     pre_period_labels = inputs.time_labels[:T0]
     for i, t in enumerate(pre_period_labels):
         donor_mat, treated_vec = build_pseudo_sample_matrix(inputs, t, V)
-        w_t = solve_simplex_weights(donor_mat, treated_vec)
+        w_t = solve(donor_mat, treated_vec)
         period_weight_matrix[i] = w_t
         period_loss[i] = wasserstein_loss_at_weights(donor_mat, treated_vec, w_t)
 
@@ -221,6 +237,7 @@ def run_dsc(
             M=M,
             grid_method=grid_method,
             lam=lam,
+            weight_constraint=weight_constraint,
             n_eval=inference_grid_points,
             random_state=random_state,
         )
