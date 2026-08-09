@@ -2,13 +2,12 @@
 
 :meth:`mlsynth.SDIDGEO.fit` chooses a test region before the experiment runs, so
 its result is a design with an empty ``report`` slot. This module fills that
-slot: apply the chosen region's pre-period SDID fit across the full panel and
-package the realized effect into the standardized result models.
+slot: apply the chosen region's pre-period fit across the full panel and package
+the realized effect into the standardized result models.
 
-The readout uses the estimator and the null the design scored itself with --
-synthetic DiD plus the placebo standard error of Arkhangelsky et al.'s Algorithm
-4 -- because SDIDGEO's claim is that the design is chosen by the estimator that
-will analyse the result. A minimum detectable effect computed one way and a
+The readout runs on the same engine the design scored itself with, whichever
+that was, because SDIDGEO's claim is that the design is chosen by the estimator
+that will analyse the result. A minimum detectable effect computed one way and a
 readout computed another would leave the reported power describing a test nobody
 ran.
 
@@ -34,7 +33,7 @@ from ...config_models import (
     WeightsResults,
 )
 from ...exceptions import MlsynthConfigError
-from .engine import normal_p_value, placebo_sigma, sdid_att, sdid_fit_once
+from .engines import resolve_engine
 from .shaping import aggregate_treated, donor_matrix
 
 
@@ -49,6 +48,8 @@ def realize_design(
     n_draws: int = 200,
     seed: int = 0,
     cpic: Optional[float] = None,
+    engine: str = "sdid",
+    engine_kwargs: Optional[dict] = None,
 ) -> BaseEstimatorResults:
     """Realize one candidate design on the full (pre + post) panel.
 
@@ -112,13 +113,15 @@ def realize_design(
     donors_df = donor_matrix(Ywide_full, candidate, exclude=exclude)
     donors = donors_df.to_numpy()
 
+    eng = resolve_engine(engine)
     start, end = pre_periods, n_periods - 1
-    fit = sdid_fit_once(treated, donors, pre_periods, start, end,
-                        n_tr=len(members))
-    tau = sdid_att(fit, treated, start, end)
-    sigma = placebo_sigma(treated, donors, pre_periods, start, end,
-                          n_draws=n_draws, n_tr=len(members), seed=seed)
-    p_value = normal_p_value(tau, sigma)
+    ekw = dict(engine_kwargs or {})
+    fit = eng.fit_once(treated, donors, pre_periods, start, end, len(members),
+                       **ekw)
+    tau = eng.att(fit, treated, start, end)
+    p_value, inf_details = eng.point_inference(
+        fit, treated, donors, pre_periods, start, end,
+        n_draws=n_draws, n_tr=len(members), seed=seed, **ekw)
 
     # Reporting scale. The statistic is a ratio, so it is scale-free and the
     # p-value is unmoved; only the reported paths change units.
@@ -129,7 +132,8 @@ def realize_design(
 
     # Cost tracks the summed incremental outcome across the treated markets,
     # whatever scale the paths are reported in.
-    incremental = float(np.sum(fit.tau_path(treated)[pre_periods:])) * len(members)
+    tau_path = treated - fit.counterfactual
+    incremental = float(np.sum(tau_path[pre_periods:])) * len(members)
     cost = float(cpic) * incremental if cpic is not None else None
 
     return BaseEstimatorResults(
@@ -143,27 +147,25 @@ def realize_design(
         ),
         inference=InferenceResults(
             p_value=float(p_value),
-            method="placebo",
+            method=str(inf_details.get("method", engine)),
             confidence_level=1.0 - alpha,
-            details={
-                "sigma": float(sigma) if sigma is not None else float("nan"),
-                "att_mean_scale": float(tau),
-                "n_draws": int(n_draws),
-            },
+            details={**inf_details, "att_mean_scale": float(tau)},
         ),
         weights=WeightsResults(
             donor_weights={str(name): float(w)
-                           for name, w in zip(donors_df.columns, fit.omega)},
-            time_weights={period: float(w)
-                          for period, w in zip(Ywide_full.index[:pre_periods],
-                                               fit.lam)},
+                           for name, w in zip(donors_df.columns,
+                                              fit.donor_weights)},
+            time_weights=({period: float(w)
+                           for period, w in zip(Ywide_full.index[:pre_periods],
+                                                fit.time_weights)}
+                          if fit.time_weights is not None else None),
             summary_stats={
                 "how": how,
                 "treated_markets": members,
-                "zeta": float(fit.zeta),
-                "bias_correction": float(fit.bias_correction),
+                "engine": engine,
                 "cpic": cpic,
                 "cost": cost,
+                **{k: float(v) for k, v in fit.extras.items()},
             },
         ),
         fit_diagnostics=FitDiagnosticsResults(

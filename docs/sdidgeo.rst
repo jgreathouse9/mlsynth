@@ -437,12 +437,18 @@ panel and window. The two structural properties the effect sweep relies
 on are checked against brute-force recomputation in the same file, so
 the shortcut is proved and not assumed.
 
-The nomination stage could be cross-validated and is not yet. Which
-candidate regions get nominated depends on correlation ranking and
-anchor-plus-neighbours, not on what scores them, so the stage is
-estimator-independent and comparable against live R
-``GeoLiftMarketSelection`` on ``basedata/geolift_test_data.csv``. That
-case is not written.
+The harness is cross-validated. With ``engine="augsynth"`` selected,
+SDIDGEO reproduces the market selection GeoLift itself publishes: on the
+walkthrough panel, all five of its top-ranked designs come back with the
+same rank, minimum detectable effect, CPIC investment and
+``abs_lift_in_zero``, fourteen quantities value for value
+(`benchmarks/cases/sdidgeo_augsynth_geolift.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sdidgeo_augsynth_geolift.py>`_).
+This reaches further than the engine: nomination, the backtest windows,
+effect injection, the power sweep, the MDE rule and the composite rank
+are shared code, so a divergence anywhere in that stack would move a
+rank or an investment. It is also what licenses reading the two engines
+against each other, since the harness around them is the same.
 
 The composition is self-validated. Whether an MDE from SDID-scored
 backtests means what it claims has no external referent, so

@@ -27,7 +27,7 @@ from .constraints import (
     unit_attribute_map,
 )
 from .feasibility import audit_sdidgeo_feasibility
-from .engine import sdid_fit_once
+from .engines import resolve_engine
 from .shaping import aggregate_treated, donor_matrix
 from .simulate import simulate_backtest
 from .realize import realize_design
@@ -36,7 +36,9 @@ from .structures import CandidateDesign, MarketSearch, SDIDGEOResults
 
 
 def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
-               duration: int, exclude=None, how: str = "mean") -> CandidateDesign:
+               duration: int, exclude=None, how: str = "mean",
+               engine: str = "sdid",
+               engine_kwargs: Optional[dict] = None) -> CandidateDesign:
     """Deployable SDID design for one candidate, fit on the full pre-period.
 
     The scoring stage fits each backtest; this fits the design the
@@ -53,15 +55,18 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
     donors = donors_df.to_numpy()
     start = n_pre
     end = min(n_pre + duration - 1, Ywide.shape[0] - 1)
-    fit = sdid_fit_once(treated, donors, n_pre, start, end,
-                        n_tr=len(candidate))
+    fit = resolve_engine(engine).fit_once(treated, donors, n_pre, start, end,
+                                          len(candidate),
+                                          **(engine_kwargs or {}))
     # SDID carries two weight vectors, so both go into the standard container:
     # donors over markets, and lambda over the pre-period dates.
     weights = WeightsResults(
         donor_weights={str(name): float(w)
-                       for name, w in zip(donors_df.columns, fit.omega)},
-        time_weights={period: float(w)
-                      for period, w in zip(Ywide.index[:n_pre], fit.lam)},
+                       for name, w in zip(donors_df.columns, fit.donor_weights)},
+        time_weights=({period: float(w)
+                       for period, w in zip(Ywide.index[:n_pre],
+                                            fit.time_weights)}
+                      if fit.time_weights is not None else None),
     )
     return CandidateDesign(
         units=sorted(map(str, candidate)),
@@ -100,12 +105,16 @@ def planning_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
 
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
     donors = donor_matrix(Ywide, candidate, exclude=exclude).to_numpy()
+    # The validation backtests score on the same engine and settings the search
+    # used, so the planning MDE is comparable with the one it corrects.
+    ekw = engine_settings(config)
     rows: List[dict] = []
     for duration in config.durations:
         for sim in range(config.n_backtests + 1, deepest + 1):
             for row in simulate_backtest(
                 treated, donors, n_periods, duration, sim, config.effect_sizes,
                 n_draws=config.n_draws, n_tr=len(candidate), seed=config.seed,
+                engine=config.engine, engine_kwargs=ekw,
             ):
                 row["candidate"] = candidate
                 rows.append(row)
@@ -122,8 +131,23 @@ def planning_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
     return float(values.loc[values.abs().idxmin()])
 
 
+def engine_settings(config: SDIDGEOConfig) -> dict:
+    """The engine-specific settings bundle for ``config``.
+
+    One bundle whichever engine runs: each engine reads what applies to it and
+    ignores the rest, so the pipeline never branches on which is active.
+    """
+    kw: dict = {"inference": config.inference}
+    if config.engine == "augsynth":
+        kw.update(ns=config.ns, conformal_type=config.conformal_type,
+                  fixed_effects=bool(config.fixed_effects),
+                  augment=config.augment)
+    return kw
+
+
 def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     """Run the full SDIDGEO market-selection design from a config."""
+    ekw = engine_settings(config)
     prep = geoex_dataprep(config.df, config.unitid, config.time,
                           config.outcome, post_col=config.post_col)
     Ywide = prep["Ywide"]
@@ -250,6 +274,7 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         Ywide, candidates, config.durations, config.n_backtests,
         config.effect_sizes, n_draws=config.n_draws, seed=config.seed,
         cpic=config.cpic, n_jobs=config.n_jobs, excluded=excluded,
+        engine=config.engine, engine_kwargs=ekw,
     )
     power_table = compute_power(cube, alpha=config.alpha)
     shortlist = compute_rank(power_table,
@@ -266,7 +291,8 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     n_pre_deploy = n_periods - deploy_duration
     designs: Dict[frozenset, CandidateDesign] = {
         c: design_fit(Ywide, c, n_pre_deploy, deploy_duration,
-                      exclude=excluded.get(c), how=config.how)
+                      exclude=excluded.get(c), how=config.how,
+                      engine=config.engine, engine_kwargs=ekw)
         for c in candidates
     }
 
@@ -310,7 +336,8 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
             report = realize_design(
                 full, winning, n_periods, how=config.how,
                 exclude=excluded.get(winning), alpha=config.alpha,
-                n_draws=config.n_draws, seed=config.seed, cpic=config.cpic)
+                n_draws=config.n_draws, seed=config.seed, cpic=config.cpic,
+            engine=config.engine, engine_kwargs=ekw)
 
     return SDIDGEOResults(
         report=report,
