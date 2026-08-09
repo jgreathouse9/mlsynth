@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 import numpy as np
 
 from .. import Engine, EngineFit
+from .....exceptions import MlsynthConfigError
 from ...engine import (
     normal_p_value,
     placebo_sigma,
@@ -27,8 +28,13 @@ from ...engine import (
 )
 
 
-def fit_once(y, Y0, n_pre: int, start: int, end: int, n_tr: int) -> EngineFit:
-    """Fit SDID on the pre-period and predict across the panel."""
+def fit_once(y, Y0, n_pre: int, start: int, end: int, n_tr: int,
+             **_ignored: Any) -> EngineFit:
+    """Fit SDID on the pre-period and predict across the panel.
+
+    Settings belonging to another engine are ignored, so the pipeline can pass
+    one bundle whichever engine is running.
+    """
     fit = sdid_fit_once(y, Y0, n_pre, start, end, n_tr=n_tr)
     return EngineFit(
         counterfactual=fit.counterfactual,
@@ -49,7 +55,8 @@ def att(fit: EngineFit, y, start: int, end: int) -> float:
 def sweep_p_values(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int,
     effect_sizes: Iterable[float], *, n_draws: int = 200, n_tr: int = 1,
-    seed: int = 0, analytic: bool = True,
+    seed: int = 0, analytic: bool = True, inference: str = "placebo",
+    **_ignored: Any,
 ) -> Dict[str, Any]:
     """Test every effect size on one backtest.
 
@@ -58,7 +65,16 @@ def sweep_p_values(
     by ``effect_size x mean(treated_post)`` instead of refitting: the fit uses
     pre-period data alone, so injecting into the post window moves the ATT by
     exactly that amount and leaves the counterfactual untouched.
+
+    Keyword arguments belonging to another engine are ignored, so the pipeline
+    can pass one settings bundle whichever engine is running.
     """
+    if inference != "placebo":
+        raise MlsynthConfigError(
+            f"the sdid engine supports inference='placebo' only; got "
+            f"{inference!r}. Conformal inference assumes the pre-period "
+            "residuals are exchangeable, and SDID's time weights exist to say "
+            "they are not.")
     y = np.asarray(y, dtype=float).ravel()
     Y0 = np.asarray(Y0, dtype=float)
     tau0 = att(fit, y, start, end)
@@ -81,6 +97,7 @@ def sweep_p_values(
 def point_inference(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int, *,
     n_draws: int = 200, n_tr: int = 1, seed: int = 0,
+    inference: str = "placebo", **_ignored: Any,
 ) -> Tuple[float, Dict[str, Any]]:
     """One window's test, for the realized readout."""
     y = np.asarray(y, dtype=float).ravel()

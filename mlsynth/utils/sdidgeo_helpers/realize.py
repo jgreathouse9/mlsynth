@@ -49,6 +49,7 @@ def realize_design(
     seed: int = 0,
     cpic: Optional[float] = None,
     engine: str = "sdid",
+    engine_kwargs: Optional[dict] = None,
 ) -> BaseEstimatorResults:
     """Realize one candidate design on the full (pre + post) panel.
 
@@ -114,11 +115,13 @@ def realize_design(
 
     eng = resolve_engine(engine)
     start, end = pre_periods, n_periods - 1
-    fit = eng.fit_once(treated, donors, pre_periods, start, end, len(members))
+    ekw = dict(engine_kwargs or {})
+    fit = eng.fit_once(treated, donors, pre_periods, start, end, len(members),
+                       **ekw)
     tau = eng.att(fit, treated, start, end)
     p_value, inf_details = eng.point_inference(
         fit, treated, donors, pre_periods, start, end,
-        n_draws=n_draws, n_tr=len(members), seed=seed)
+        n_draws=n_draws, n_tr=len(members), seed=seed, **ekw)
 
     # Reporting scale. The statistic is a ratio, so it is scale-free and the
     # p-value is unmoved; only the reported paths change units.

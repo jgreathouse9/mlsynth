@@ -114,10 +114,43 @@ class SDIDGEOConfig(BaseMAREXConfig):
     engine: str = Field(
         default="sdid",
         description="Estimator that scores each candidate. 'sdid' weights "
-        "donors and pre-periods together and tests against the placebo "
-        "standard error. The rest of the design -- nomination, backtests, "
-        "power, MDE, ranking, constraints -- is the same whichever engine "
-        "runs.",
+        "donors and pre-periods together; 'augsynth' is the ridge-augmented "
+        "synthetic control GeoLift uses. The rest of the design -- nomination, "
+        "backtests, power, MDE, ranking, constraints -- is the same whichever "
+        "engine runs.",
+    )
+    inference: Optional[str] = Field(
+        default=None,
+        description="Null the detection test is taken against. 'placebo' "
+        "reassigns donors as pretend-treated and needs only a donor-built "
+        "counterfactual, so it suits either engine. 'conformal' permutes "
+        "pre-period residuals and is available on 'augsynth' alone, since "
+        "SDID's time weights exist to say pre-periods are not exchangeable. "
+        "Absent, each engine takes its own default: placebo for sdid, "
+        "conformal for augsynth, which is GeoLift's choice.",
+    )
+    ns: int = Field(
+        default=1000,
+        description="Conformal permutations behind each p-value (augsynth "
+        "only). The cost sits inside the effect sweep, since a conformal test "
+        "moves with the injected effect and cannot be hoisted out of it.",
+    )
+    conformal_type: str = Field(
+        default="iid",
+        description="Conformal permutation scheme (augsynth only): 'iid' or "
+        "'block'.",
+    )
+    fixed_effects: Optional[bool] = Field(
+        default=None,
+        description="Unit fixed effects (augsynth only). Demeans every unit by "
+        "its own pre-period mean so the fit matches shapes and the donor pool "
+        "cannot absorb a treated-unit level shift. Defaults to True on the "
+        "augsynth path, which is GeoLift's default.",
+    )
+    augment: Optional[str] = Field(
+        default="ridge",
+        description="Augmentation layer (augsynth only): 'ridge' for Augmented "
+        "SCM, None for plain simplex SCM with an intercept.",
     )
 
     # --- simulation grid ---
@@ -238,6 +271,37 @@ class SDIDGEOConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 f"unknown engine {self.engine!r}; available engines are "
                 f"{sorted(ENGINE_NAMES)}.")
+        if self.inference is not None and self.inference not in (
+                "placebo", "conformal"):
+            raise MlsynthConfigError(
+                f"inference must be 'placebo' or 'conformal'; got "
+                f"{self.inference!r}.")
+        if self.engine == "sdid" and self.inference == "conformal":
+            raise MlsynthConfigError(
+                "the sdid engine cannot use conformal inference: the "
+                "permutation argument needs the pre-period residuals to be "
+                "exchangeable across the matching window, and SDID's time "
+                "weights exist precisely to say they are not. Use "
+                "engine='augsynth' for conformal, or inference='placebo'.")
+        if self.engine != "augsynth":
+            for name in ("fixed_effects",):
+                if getattr(self, name) is not None:
+                    raise MlsynthConfigError(
+                        f"{name} is an augsynth-only setting; got engine="
+                        f"{self.engine!r}. Drop it or set engine='augsynth'.")
+        # Resolve the engine's default null once, so the rest of the pipeline
+        # never has to ask which engine it is running.
+        if self.inference is None:
+            self.inference = ("conformal" if self.engine == "augsynth"
+                              else "placebo")
+        if self.engine == "augsynth" and self.fixed_effects is None:
+            self.fixed_effects = True     # augsynth's fixedeff, GeoLift's default
+        if self.conformal_type not in ("iid", "block"):
+            raise MlsynthConfigError(
+                f"conformal_type must be 'iid' or 'block'; got "
+                f"{self.conformal_type!r}.")
+        if self.ns < 2:
+            raise MlsynthConfigError(f"ns must be >= 2; got {self.ns}.")
         if self.how not in ("sum", "mean"):
             raise MlsynthConfigError(
                 f"how must be 'sum' or 'mean'; got {self.how!r}.")

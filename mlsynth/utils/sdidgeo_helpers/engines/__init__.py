@@ -78,10 +78,13 @@ def resolve_engine(name: str) -> Engine:
     if name == "sdid":
         from .sdid import ENGINE as _sdid
         return _sdid
+    if name == "augsynth":
+        from .augsynth import ENGINE as _augsynth
+        return _augsynth
     raise MlsynthConfigError(
         f"unknown engine {name!r}; available engines are {sorted(ENGINE_NAMES)}.")
 
 
-ENGINE_NAMES = frozenset({"sdid"})
+ENGINE_NAMES = frozenset({"sdid", "augsynth"})
 
 __all__ = ["Engine", "EngineFit", "ENGINE_NAMES", "resolve_engine"]
