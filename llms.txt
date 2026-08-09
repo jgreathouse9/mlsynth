@@ -51,6 +51,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
 - **FSC** — Functional synthetic control estimator.
 - **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
+- **GEOX** — Geo experiment design by simulated power.  (config: GEOXConfig)
 - **GSYNTH** — Generalized synthetic control (Xu 2017) estimator.  (config: GSYNTHConfig)
 - **HSC** — Harmonic Synthetic Control (HSC) estimator.  (config: HSCConfig)
 - **ISCM** — Imperfect Synthetic Controls estimator.  (config: ISCMConfig)

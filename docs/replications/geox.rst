@@ -10,23 +10,26 @@ question, and it cannot be answered on the panel the design was fit on,
 because the backtests reuse those very periods.
 
 This page is not a replication, and the distinction matters for how the
-numbers below should be read. GEOX is an original construction:
-GeoLift's market-selection loop with Arkhangelsky et al.'s estimator
-doing the scoring. No paper publishes that pairing, so there is no
-empirical result to reproduce, no simulation table to match, and no
-reference implementation to agree with. What follows imposes ground
-truth on a data-generating process defined in the case itself and asks
-whether GEOX's own claim survives it.
+numbers below should be read. It studies the default pairing: GeoLift's
+market-selection loop with Arkhangelsky et al.'s estimator doing the
+scoring, which is ``engine="sdid"``. No paper publishes that pairing, so
+there is no empirical result to reproduce, no simulation table to match,
+and no reference implementation to agree with. What follows imposes
+ground truth on a data-generating process defined in the case itself and
+asks whether GEOX's own claim survives it.
 
 The external validation GEOX does have sits on either side of this
 study. The engine is cross-validated against the authors' ``synthdid``
 R package on Proposition 99 (:doc:`sdid`) and against Stata ``sdid`` on
-the EU ETS panel (:doc:`sdid_euets`). The nomination stage is
-estimator-independent -- correlation ranking and anchor-plus-neighbours
-do not depend on what scores the candidates -- so it can be checked
-against live R ``GeoLiftMarketSelection`` on the GeoLift walkthrough
-panel; that case is not yet written. Neither covers the composition,
-which is what this study measures.
+the EU ETS panel (:doc:`sdid_euets`). The harness around it is
+cross-validated against GeoLift itself: run with ``engine="augsynth"``,
+GEOX reproduces the market selection GeoLift publishes on its
+walkthrough panel, fourteen quantities value for value
+(`benchmarks/cases/geox_augsynth_geolift.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_augsynth_geolift.py>`_),
+which covers nomination, the backtest windows, injection, the power
+sweep, the MDE rule and the composite rank. Neither covers the
+composition scored by SDID, which is what this study measures.
 
 The case is `benchmarks/cases/geox_mc.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_mc.py>`_.

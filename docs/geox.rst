@@ -106,8 +106,11 @@ so :math:`s = 1` ends flush with the last observed period and each
 increment slides the window one period earlier. Everything before
 :math:`T_0` is the pre-period.
 
-Synthetic DiD chooses unit weights :math:`\omega` over donors and time
-weights :math:`\lambda` over pre-periods, and estimates
+What the engine supplies is a counterfactual path for :math:`y_t` fitted
+on the pre-period alone, and :math:`\hat\tau` is the average gap against
+it over the window. The default engine is synthetic DiD, which chooses
+unit weights :math:`\omega` over donors and time weights
+:math:`\lambda` over pre-periods, and estimates
 
 .. math::
 
@@ -120,8 +123,17 @@ weights :math:`\lambda` over pre-periods, and estimates
 Both weight vectors are non-negative and sum to one. Rearranged, the
 counterfactual path is
 :math:`\mathbf{Y}_{0}\omega + \big(\lambda' y_{\mathrm{pre}} - \lambda'
-\mathbf{Y}_{0,\mathrm{pre}}\omega\big)`, and :math:`\hat\tau` is the
-average gap against it over the window.
+\mathbf{Y}_{0,\mathrm{pre}}\omega\big)`.
+
+The augsynth engine has no :math:`\lambda`. It weights donors alone, and
+every pre-period counts equally: simplex synthetic-control weights first,
+then a ridge augmentation that corrects the pre-period imbalance those
+weights leave, which is what takes :math:`\omega` off the simplex. With
+``fixed_effects`` (its default, augsynth's ``fixedeff``) every unit is
+demeaned by its own pre-period mean before fitting and the level comes
+back as an intercept, so its counterfactual path is
+:math:`\alpha + \mathbf{Y}_{0}\omega`. Everything downstream of the path
+is the same for both engines.
 
 An effect of size :math:`e` is injected multiplicatively,
 :math:`y_t \mapsto (1 + e)\, y_t` on the window, matching GeoLift's
@@ -246,17 +258,22 @@ it is firing on its own drift. Under conformal both columns are
 series and is not analytic in the effect size.
 
 Two properties keep the sweep cheap, and both are consequences of where
-the weights get their information. The unit-weight program reads the
-treated pre-period, the time-weight program reads only donors, and the
-ridge reads only donors and counts, so no program sees the treated post
-block. Injecting an effect there cannot move :math:`\omega` or
-:math:`\lambda`, which makes
+the fit gets its information. Every weight program reads the pre-period
+only -- SDID's unit weights read the treated pre-period, its time weights
+and ridge read donors and counts, augsynth's ridge reads the pre-period
+matching matrices -- so none of them sees the treated post block.
+Injecting an effect there cannot move the weights, which makes
 
 .. math:: \hat\tau(e) = \hat\tau(0) + e \cdot \bar y_{\mathrm{post}}
 
 exact. The placebo draws reassign control markets, so
 :math:`\hat\sigma` does not depend on :math:`e` either. One fit and one
 placebo run therefore cover the whole grid of effect sizes.
+
+Conformal gives up the second property and keeps the first. Its p-value
+tests the injected series against permutations of the pre-period
+residuals, so it moves with :math:`e` and is recomputed at every grid
+point. That, and not the fit, is where the augsynth path's cost sits.
 
 Example
 -------
@@ -273,7 +290,7 @@ Example
 
    design = GEOX(GEOXConfig(
        df=df, unitid="location", time="date", outcome="Y",
-       treatment_size=[2, 3, 4, 5],
+       treatment_size=2,
        durations=[14],
        effect_sizes=[round(x, 2) for x in np.arange(-0.30, 0.35, 0.05)],
        n_backtests=5,
@@ -283,7 +300,8 @@ Example
    )).fit()
 
    print(design.selected_units)
-   print(design.metadata["winner_mde"])
+   print(design.metadata["winner_mde_optimistic"])   # 0.15
+   print(design.metadata["winner_mde_planning"])     # 0.10
    print(design.power.head())
 
 On the 40-market, 105-day panel this selects ``atlanta`` and
@@ -304,6 +322,22 @@ detected at the 10% level in essentially every backtest tried.
 Anything smaller would not be, so an experiment expecting a 5% lift needs
 a longer test, a bigger region, or a different metric.
 
+The two MDEs in ``metadata`` are the same quantity measured on different
+backtests. ``winner_mde_optimistic`` is what the scan produced, and it is
+the smallest MDE in a field of candidates -- the region most likely to be
+picked is the one whose estimate happened to come out low, so selection
+biases it downward. ``winner_mde_planning`` re-scores the winning region
+on backtests deeper in history that took no part in choosing it, which is
+why it is the one to plan against.
+
+That correction is a tendency across panels, not an inequality on any
+one. Here it comes out lower, 0.10 against 0.15, because the held-out
+windows are different windows and carry their own noise. The bias it
+corrects, and how it shrinks as ``n_backtests`` grows, are measured
+directly in :doc:`replications/geox`. ``n_validation_backtests`` sets how
+many held-out backtests the re-scoring gets; zero turns it off and leaves
+``winner_mde_planning`` as ``None``.
+
 ``design.design_weights`` carries both weight vectors, ``donor_weights``
 over markets and ``time_weights`` over pre-period dates. The time weights
 are sparse: on this panel 7 of 91 pre-days carry any weight.
@@ -322,10 +356,11 @@ answers how large a test region has to be and which markets it should
 contain at the same time. A ``treatment_size`` column carries each
 candidate's size, and ``metadata["treatment_sizes"]`` the sizes scanned.
 
-Each candidate is fit with its own treated count, which enters the SDID
-ridge as :math:`(N_{\mathrm{tr}} T_{\mathrm{post}})^{1/4}`, so a
-five-market region is regularised more strongly than a two-market one on
-the same panel.
+Each candidate is fit with its own treated count. Under ``engine="sdid"``
+that count enters the ridge as
+:math:`(N_{\mathrm{tr}} T_{\mathrm{post}})^{1/4}`, so a five-market
+region is regularised more strongly than a two-market one on the same
+panel.
 
 Scanning sizes 2 through 5 on the test panel gives 123 candidates, and
 the best of each size:
