@@ -535,6 +535,100 @@ with no setter, so assigning to them raises `AttributeError`, *not*
 
 ---
 
+# Four Instruments, Four Questions
+
+Testing `mlsynth` uses four instruments, and they are not interchangeable. Each
+answers a different question, and whether one can catch a given defect follows
+from which question it asks.
+
+| Instrument | Question it answers | Varies | Holds fixed |
+| --- | --- | --- | --- |
+| `coverage` | Did the suite execute this line? | — | — |
+| `pytest` example tests | Does *this* input give the expected output? | — | inputs and code |
+| `hypothesis` property tests | Does the invariant hold across the *input domain*? | inputs | code |
+| `cosmic-ray` mutation runs | Are the *assertions* strong enough to notice? | code | inputs |
+
+Status: `pytest`, `pytest-cov`, `pytest-xdist` and `coverage` are wired up and
+run in CI. `hypothesis` and `cosmic-ray` are not yet dependencies. This section
+fixes the contract before they land, so the styles do not blur once they do.
+
+## Two of them are complements, not substitutes
+
+Hypothesis varies the inputs and holds the code fixed, so it finds inputs the
+code mishandles. Mutation runs vary the code and reuse your inputs, so they find
+assertions too weak to separate right from wrong. Neither subsumes the other,
+and the library has a case on each side.
+
+Mutation alone is not enough. `pcr_weights` divided by a singular value with no
+cutoff, so a design whose numerical rank fell below the requested rank returned
+NaN or weights of order `1e14`. Three mutants on that line — `/` to `*`, a
+perturbed denominator, the division deleted — were all killed by the suite that
+existed at the time. The line scored 100 percent while carrying the defect,
+because the fault was an omission and there is no line to mutate into a missing
+guard. The defect lived in the input domain, which mutation runs do not explore.
+
+Property tests alone are not enough. `assert w is not None` holds for every
+generated input forever. Only a mutant demonstrates that such an assertion
+separates nothing.
+
+The composition rule follows:
+
+> Hypothesis supplies the inputs; mutation runs audit whether the properties you
+> asserted are strong enough to notice the code being wrong.
+
+A mutant surviving a property-backed suite says something specific: no property
+separates correct behaviour from this corruption. That is a specification gap,
+not a missing fixture.
+
+## Which instrument for which test
+
+Choose by what the test claims.
+
+* A **number** — a paper's reported value, a reference implementation's cell, a
+  pinned regression — is a `pytest` example. Generated inputs carry no known
+  truth, so the replication contract stays example-based.
+* A **property** — symmetry, positive semi-definiteness, feasibility,
+  normalization, monotonicity, equivariance, or a differential equality between
+  two implementations — is a `hypothesis` test. Asserting it at one fixture
+  tests an example; asserting it over the domain tests the claim.
+* A **named edge case** stays a `pytest` example even when a property test
+  covers the same ground. Named edges are documentation, and `@example` pins
+  one inside a property test when both are wanted.
+
+Layer 1 helpers are the first target for property tests: pure functions, no
+solver, no DGP, microseconds per call. Layer 4 `fit()` contracts are the last —
+there is no known truth to assert a generated panel against.
+
+## Metamorphic properties, for statistical code
+
+Exact properties are scarce in econometric kernels. Metamorphic relations — how
+an output must respond to a transformation of the input — are abundant, and are
+where property testing earns its keep here:
+
+* scale: `Y -> cY` scales the ATT by `c` and leaves the weights unchanged
+* location: adding a constant to every outcome leaves the weights unchanged
+* permutation: relabelling donors permutes the weight vector identically
+* duplication: duplicating a donor leaves the fitted counterfactual unchanged
+* monotonicity: pre-period fit is non-decreasing in a regularisation penalty
+* differential: two implementations of one program agree to solver tolerance
+
+## Standing constraints (decide once, not per test)
+
+* **Determinism.** Fixed seeds are already required above; property tests
+  inherit it. Any run feeding a mutation score must set `derandomize=True`,
+  because a flakily-killed mutant corrupts the score.
+* **Runtime multiplies.** A mutation run executes the suite once per mutant and
+  a property test runs many examples per call, so composing them naively costs
+  a multiple of the suite per mutant. Mutation targets the fast deterministic
+  layers only, never `fit()`.
+* **Solver noise.** `cvxpy` / SCS results move at tolerance. Property tolerances
+  come from measured solver spread, not a guessed constant.
+* **Equivalent mutants are real.** A surviving mutant is a question, not a
+  defect. Do not chase a perfect score. Record accepted survivors and the reason
+  they are accepted, the way `# pragma: no cover` records unreachable branches.
+
+---
+
 # Preferred Testing Patterns
 
 ## Prefer Parametrization
