@@ -49,7 +49,7 @@ _raw_share = st.floats(min_value=0.0, max_value=1e3,
 
 
 @st.composite
-def simplex_vectors(draw, min_size: int = 1, max_size: int = 12) -> np.ndarray:
+def simplex_vectors(draw, min_size: int = 1, max_size: int = 40) -> np.ndarray:
     """A population-share vector: non-negative, summing to one."""
     size = draw(st.integers(min_value=min_size, max_value=max_size))
     raw = np.asarray(draw(st.lists(_raw_share, min_size=size, max_size=size)))
@@ -101,7 +101,7 @@ def test_the_kernel_is_exactly_the_population_ray(v):
 
     The kernel being no larger than the population ray is what makes every
     other weight direction penalised. Written as equality: the weaker ``<=``
-    was the cautious guess, and 3000 draws at block sizes up to 12, including
+    was the cautious guess, and 3000 draws at block sizes up to 40, including
     shares within 1e-16 of a corner, produce no numerical-rank violation.
     """
     assert np.linalg.matrix_rank(build_block(v), tol=1e-9) == v.size - 1
