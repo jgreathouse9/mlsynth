@@ -140,7 +140,8 @@ CASES = {
     "dscar_beijing": "benchmarks.cases.dscar_beijing",      # Path A: DSCAR Beijing PM2.5 alerts (Zheng-Chen)
     "msqrt_sim": "benchmarks.cases.msqrt_sim",                # Path B: MSQRT unbiasedness + RMSE noise-floor (Shen-Song-Abadie Sec 6)
     "dsc_dube": "benchmarks.cases.dsc_dube",
-    "dsc_mc": "benchmarks.cases.dsc_mc",                      # Path B: DSC asymptotics MC (Zhang-Zhang-Zhang 2024 Sec 5.1, Figures 1-2 digitised) -- risk ratio -> 1 and weight error shrinking in M, at J = 20 and 50
+    "dsc_mc": "benchmarks.cases.dsc_mc",                      # Path B: DSC asymptotics MC (Zhang-Zhang-Zhang 2026 Sec 5.1, Figures 1-2 digitised) -- risk ratio -> 1 and weight error shrinking in M, at J = 20 and 50
+    "dsc_disco_xval": "benchmarks.cases.dsc_disco_xval",  # cross-val vs Davidvandijcke/DiSCos on the Dube panel; settles issue #304
     "disco_tenure": "benchmarks.cases.disco_tenure",  # cross-val vs the disco Stata Journal published weights (deterministic reference; the R package's are a Monte Carlo draw)                  # Path A: DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
     "dtwsc_basque": "benchmarks.cases.dtwsc_basque",          # Cross-validation: DTWSC warp vs the conflictlab/dsc R package on Basque
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
