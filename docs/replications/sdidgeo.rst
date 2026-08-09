@@ -9,8 +9,26 @@ transfers to an experiment that has not happened yet is a separate
 question, and it cannot be answered on the panel the design was fit on,
 because the backtests reuse those very periods.
 
-Path B, on a constructed data-generating process. The case is
-`benchmarks/cases/sdidgeo_mc.py
+This page is not a replication, and the distinction matters for how the
+numbers below should be read. SDIDGEO is an original construction:
+GeoLift's market-selection loop with Arkhangelsky et al.'s estimator
+doing the scoring. No paper publishes that pairing, so there is no
+empirical result to reproduce, no simulation table to match, and no
+reference implementation to agree with. What follows imposes ground
+truth on a data-generating process defined in the case itself and asks
+whether SDIDGEO's own claim survives it.
+
+The external validation SDIDGEO does have sits on either side of this
+study. The engine is cross-validated against the authors' ``synthdid``
+R package on Proposition 99 (:doc:`sdid`) and against Stata ``sdid`` on
+the EU ETS panel (:doc:`sdid_euets`). The nomination stage is
+estimator-independent -- correlation ranking and anchor-plus-neighbours
+do not depend on what scores the candidates -- so it can be checked
+against live R ``GeoLiftMarketSelection`` on the GeoLift walkthrough
+panel; that case is not yet written. Neither covers the composition,
+which is what this study measures.
+
+The case is `benchmarks/cases/sdidgeo_mc.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sdidgeo_mc.py>`_.
 
 Design
@@ -67,7 +85,7 @@ At a backtest count of 16 the design's claim holds out of sample: it
 promises 0.80 and delivers 0.77, on periods it never saw.
 
 The winner's curse on the selected region
-----------------------------------------
+-----------------------------------------
 
 The design reports the smallest MDE in a field of candidates, and the
 smallest of many noisy estimates is optimistic. Sweeping the backtests
@@ -123,9 +141,9 @@ Size sits above nominal
 The realized size of 0.135 exceeds the nominal 0.10, and the benchmark
 pins the realized value. The placebo draws reassign two of 28 donors per
 draw, so they overlap heavily and the resulting standard error is
-slightly optimistic. This is recorded and not tuned away: it is a
-property of the placebo procedure on a thin donor pool, and it is the
-same caution the estimator's fifth assumption states. A design with a
-donor pool comfortably larger than its test region will not see it as
-sharply. Pinning 0.135 with a band of 0.055 means a regression that
+slightly optimistic. This is a property of the placebo procedure on a
+thin donor pool, and it is the same caution the estimator's fifth
+assumption states. A design with a donor pool comfortably larger than
+its test region will not see it as sharply. Pinning 0.135 with a band
+of 0.055 means a regression that
 pushed size to 0.20 fails here.

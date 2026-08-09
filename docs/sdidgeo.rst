@@ -312,11 +312,36 @@ window. The two structural properties the effect sweep relies on are
 checked against brute-force recomputation in the same file, so the
 shortcut is proved and not assumed.
 
-A durable benchmark case is not yet attached. Ranking a design against an
-external reference needs known ground truth, since no published
-implementation pairs synthetic DiD with GeoLift's market-selection loop;
-the natural route is a Path B simulation that injects a known lift and
-scores recovery.
+No published implementation pairs synthetic DiD with GeoLift's
+market-selection loop, so SDIDGEO has no replication path in the sense
+the other estimators do: nothing to reproduce, no simulation table to
+match, no reference to agree with. Its validation is assembled from
+three pieces instead, and they are not equally strong.
+
+The engine is cross-validated. mlsynth's synthetic DiD matches the
+authors' ``synthdid`` R package on Proposition 99 and Stata ``sdid`` on
+the EU ETS panel, and ``tests/test_sdidgeo.py`` asserts that the ATT
+SDIDGEO scores a backtest with matches ``SDID(...).fit()`` on the same
+panel and window. The two structural properties the effect sweep relies
+on are checked against brute-force recomputation in the same file, so
+the shortcut is proved and not assumed.
+
+The nomination stage could be cross-validated and is not yet. Which
+candidate regions get nominated depends on correlation ranking and
+anchor-plus-neighbours, not on what scores them, so the stage is
+estimator-independent and comparable against live R
+``GeoLiftMarketSelection`` on ``basedata/geolift_test_data.csv``. That
+case is not written.
+
+The composition is self-validated. Whether an MDE from SDID-scored
+backtests means what it claims has no external referent, so
+`benchmarks/cases/sdidgeo_mc.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sdidgeo_mc.py>`_
+imposes ground truth on a constructed factor DGP and measures size at
+the null, out-of-sample power at the reported MDE, and the gap between
+the selected winner's MDE and a region fixed in advance. See
+:doc:`replications/sdidgeo`. This is the weakest of the three, because
+the DGP and the claim come from the same place.
 
 Core API
 --------

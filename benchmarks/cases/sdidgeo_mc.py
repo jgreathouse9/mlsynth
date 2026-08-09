@@ -1,4 +1,22 @@
-"""SDIDGEO Path B: does the design's minimum detectable effect mean what it says?
+"""SDIDGEO design calibration: does the minimum detectable effect mean what it says?
+
+This is not a replication. SDIDGEO is an original construction -- GeoLift's
+market-selection loop with Arkhangelsky et al.'s estimator doing the scoring --
+and no paper publishes that pairing, so there is no empirical result to
+reproduce (Path A), no simulation table to match (Path B), and no reference
+implementation to agree with (cross-validation). The case imposes ground truth
+on a data-generating process defined here and asks whether SDIDGEO's own claim
+survives contact with it. That is weaker than a replication and is labelled as
+such.
+
+What external validation exists sits on either side of this case, not in it.
+The engine is cross-validated: ``sdid_prop99`` against the authors' synthdid R,
+``sdid_euets`` and ``sdid_ddd_hpv`` against Stata ``sdid``. The nomination stage
+is estimator-independent -- correlation ranking and anchor-plus-neighbours do
+not depend on what scores the candidates -- so it can be checked against live R
+``GeoLiftMarketSelection`` on ``basedata/geolift_test_data.csv``; that case is
+not yet written. What remains is the composition, and the composition is what
+this case measures.
 
 SDIDGEO's output is a falsifiable claim -- "region R detects a lift of size m
 with probability ``power_threshold`` at level ``alpha``" -- estimated by
