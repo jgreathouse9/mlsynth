@@ -235,11 +235,27 @@ def test_rmse_and_std_satisfy_the_bias_variance_identity(residuals):
 
 
 @given(residuals=_series(), scale=_nonzero_scale)
+@example(residuals=np.full(3, 263862.5), scale=170.2006956476681)
 def test_rmse_and_std_are_non_negative_and_scale_by_the_magnitude(residuals, scale):
+    """Both are homogeneous of degree one, to float64 precision.
+
+    The precision qualifier is the whole content of the tolerance here.
+    Equivariance is exact in real arithmetic but only holds to about
+    ``eps * max|c r|`` in float64, because scaling shifts where the centering
+    inside ``np.std`` loses bits: ``std([263862.5] * 3)`` is exactly 0, while
+    ``std(170.2 * [263862.5] * 3)`` is 7.5e-9. An absolute tolerance ignores
+    the data's magnitude and calls that a failure, so the bound is taken
+    relative to the scaled data instead.
+    """
     assert fit.rmse(residuals) >= 0.0
     assert fit.std(residuals) >= 0.0
-    assert fit.rmse(scale * residuals) == _approx(scale * fit.rmse(residuals))
-    assert fit.std(scale * residuals) == _approx(scale * fit.std(residuals))
+
+    magnitude = float(scale * np.abs(residuals).max(initial=0.0))
+    tol = 1e-9 * max(1.0, magnitude)
+    assert fit.rmse(scale * residuals) == _approx(
+        scale * fit.rmse(residuals), abs=tol)
+    assert fit.std(scale * residuals) == _approx(
+        scale * fit.std(residuals), abs=tol)
 
 
 @given(residuals=_series(), shift=_shift)
