@@ -110,6 +110,16 @@ class SDIDGEOConfig(BaseMAREXConfig):
         "panel is treated as pre-period history to simulate over.",
     )
 
+    # --- scoring engine ---
+    engine: str = Field(
+        default="sdid",
+        description="Estimator that scores each candidate. 'sdid' weights "
+        "donors and pre-periods together and tests against the placebo "
+        "standard error. The rest of the design -- nomination, backtests, "
+        "power, MDE, ranking, constraints -- is the same whichever engine "
+        "runs.",
+    )
+
     # --- simulation grid ---
     durations: List[int] = Field(
         ..., description="Treatment durations (periods) to scan."
@@ -223,6 +233,11 @@ class SDIDGEOConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "stochastic_mode must be 'global' or 'per_anchor'; got "
                 f"{self.stochastic_mode!r}.")
+        from .engines import ENGINE_NAMES
+        if self.engine not in ENGINE_NAMES:
+            raise MlsynthConfigError(
+                f"unknown engine {self.engine!r}; available engines are "
+                f"{sorted(ENGINE_NAMES)}.")
         if self.how not in ("sum", "mean"):
             raise MlsynthConfigError(
                 f"how must be 'sum' or 'mean'; got {self.how!r}.")

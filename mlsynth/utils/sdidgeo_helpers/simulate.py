@@ -17,7 +17,7 @@ from typing import List, Optional
 import numpy as np
 
 from ...exceptions import MlsynthConfigError
-from .engine import normal_p_value, placebo_sigma, sdid_att, sdid_fit_once
+from .engines import resolve_engine
 from .windows import backtest_pre_periods, backtest_treatment_window
 
 
@@ -47,7 +47,7 @@ def simulate_backtest(
     treated, donors, n_periods: int, duration: int, sim: int, effect_sizes,
     *, n_draws: int = 200, n_tr: int = 1, seed: int = 0,
     cpic: Optional[float] = None, treated_total: Optional[np.ndarray] = None,
-    analytic: bool = True,
+    analytic: bool = True, engine: str = "sdid",
 ) -> List[dict]:
     """Simulate one backtest across a grid of effect sizes.
 
@@ -100,31 +100,27 @@ def simulate_backtest(
             f"treated and donors must both have n_periods={n_periods} rows; got "
             f"{treated_arr.shape[0]} and {donors_arr.shape[0]}.")
 
-    fit = sdid_fit_once(treated_arr, donors_arr, n_pre, start, end, n_tr=n_tr)
-    tau0 = sdid_att(fit, treated_arr, start, end)
-    post_baseline = float(np.mean(treated_arr[start:end + 1]))
+    eng = resolve_engine(engine)
+    fit = eng.fit_once(treated_arr, donors_arr, n_pre, start, end, n_tr)
     cf_post_mean = float(np.mean(fit.counterfactual[start:end + 1]))
 
-    # Invariant to the injected effect, so one run serves the whole sweep.
-    sigma = placebo_sigma(treated_arr, donors_arr, n_pre, start, end,
-                          n_draws=n_draws, n_tr=n_tr, seed=seed)
+    # The engine owns the effect grid: what can be hoisted out of it (a placebo
+    # draw) and what cannot (a conformal permutation) differs by procedure.
+    swept = eng.sweep_p_values(fit, treated_arr, donors_arr, n_pre, start, end,
+                               list(effect_sizes), n_draws=n_draws, n_tr=n_tr,
+                               seed=seed, analytic=analytic)
 
     total_arr = (np.asarray(treated_total, dtype=float).ravel()
                  if treated_total is not None else treated_arr)
     window_volume = float(np.sum(total_arr[start:end + 1]))
 
     rows: List[dict] = []
-    for es in effect_sizes:
-        if analytic:
-            tau = tau0 + float(es) * post_baseline
-        else:
-            tau = sdid_att(fit, inject_effect(treated_arr, start, end, es),
-                           start, end)
+    for es, tau, p_value in zip(effect_sizes, swept["tau"], swept["p_value"]):
         rows.append({
             "sim": sim,
             "duration": duration,
             "effect_size": float(es),
-            "p_value": normal_p_value(tau, sigma),
+            "p_value": p_value,
             "placebo_mean_effect": tau,
             "detected_lift": (tau / cf_post_mean if cf_post_mean != 0.0
                               else float("nan")),
