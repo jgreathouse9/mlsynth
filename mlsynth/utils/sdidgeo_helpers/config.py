@@ -7,7 +7,7 @@ plus panel validation) and adds the market-selection knobs.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from pydantic import Field, model_validator
 
@@ -32,6 +32,59 @@ class SDIDGEOConfig(BaseMAREXConfig):
         default=None,
         description="Markets barred from any candidate; they remain donors.",
     )
+    # --- design constraints ---
+    # Each rule reduces to where the search may look. Cluster / adjacency build a
+    # conflict graph, which acts twice: no candidate may contain two conflicting
+    # markets, and a treated market's conflict-neighbours are dropped from its
+    # own donor pool. Strata and the size band filter the treated side only.
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit column naming each market's cluster (DMA, state). "
+        "Markets sharing a cluster conflict: no candidate region may hold two "
+        "of them, and each one's cluster-mates leave its donor pool.",
+    )
+    adjacency: Optional[Any] = Field(
+        default=None,
+        description="Square DataFrame of pairwise spillover strengths, indexed "
+        "and columned by market label. Entries above spillover_threshold mark "
+        "a conflict. Combines with cluster_col by logical OR.",
+    )
+    spillover_threshold: float = Field(
+        default=0.0,
+        description="Off-diagonal adjacency entries strictly above this mark a "
+        "conflicting pair.",
+    )
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit column naming each market's stratum, for coverage "
+        "quotas. Needs min_per_stratum and/or max_per_stratum to bind.",
+    )
+    min_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Treat at least this many markets in every stratum that "
+        "holds an eligible market.",
+    )
+    max_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Treat at most this many markets in any one stratum.",
+    )
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit column carrying each market's size, for the "
+        "treated-unit size band. Needs min_size and/or max_size to bind.",
+    )
+    min_size: Optional[float] = Field(
+        default=None,
+        description="Treated-market size floor (inclusive) -- a power or "
+        "operational minimum. Smaller markets stay available as donors.",
+    )
+    max_size: Optional[float] = Field(
+        default=None,
+        description="Treated-market size ceiling (inclusive). A market far "
+        "larger than the donors cannot sit inside their convex hull, so the "
+        "ceiling encodes synthesizability. Larger markets stay donors.",
+    )
+
     run_stochastic: bool = Field(
         default=False,
         description="Sample each candidate's neighbours from adjacent "
@@ -161,6 +214,34 @@ class SDIDGEOConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "stochastic_mode must be 'global' or 'per_anchor'; got "
                 f"{self.stochastic_mode!r}.")
+        if self.spillover_threshold < 0.0:
+            raise MlsynthConfigError(
+                "spillover_threshold must be >= 0; got "
+                f"{self.spillover_threshold}.")
+        size_bounds = self.min_size is not None or self.max_size is not None
+        if size_bounds and self.size_col is None:
+            raise MlsynthConfigError(
+                "min_size/max_size need size_col: without a size column there "
+                "is no market size to band.")
+        if (self.min_size is not None and self.max_size is not None
+                and self.min_size > self.max_size):
+            raise MlsynthConfigError(
+                f"min_size ({self.min_size}) exceeds max_size ({self.max_size}); "
+                "the size band is empty.")
+        quota = self.min_per_stratum is not None or self.max_per_stratum is not None
+        if quota and self.stratum_col is None:
+            raise MlsynthConfigError(
+                "min_per_stratum/max_per_stratum need stratum_col: without a "
+                "stratum column there is nothing to count coverage over.")
+        for name, value in (("min_per_stratum", self.min_per_stratum),
+                            ("max_per_stratum", self.max_per_stratum)):
+            if value is not None and value < 0:
+                raise MlsynthConfigError(f"{name} must be >= 0; got {value}.")
+        if (self.min_per_stratum is not None and self.max_per_stratum is not None
+                and self.min_per_stratum > self.max_per_stratum):
+            raise MlsynthConfigError(
+                f"min_per_stratum ({self.min_per_stratum}) exceeds "
+                f"max_per_stratum ({self.max_per_stratum}); no count satisfies both.")
         if self.budget is not None and self.cpic is None:
             raise MlsynthConfigError(
                 "budget needs cpic: without a cost per incremental conversion "

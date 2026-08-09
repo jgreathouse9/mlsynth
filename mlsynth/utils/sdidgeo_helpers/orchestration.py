@@ -19,6 +19,14 @@ from .aggregate import compute_mde, compute_power, compute_rank
 from .batch import run_simulations
 from .candidates import generate_candidate_markets
 from .config import SDIDGEOConfig
+from .constraints import (
+    admissible_candidates,
+    build_conflict_graph,
+    conflict_neighbors,
+    eligible_by_size,
+    unit_attribute_map,
+)
+from .feasibility import audit_sdidgeo_feasibility
 from .engine import sdid_fit_once
 from .shaping import aggregate_treated, donor_matrix
 from .simulate import simulate_backtest
@@ -27,15 +35,18 @@ from .structures import CandidateDesign, MarketSearch, SDIDGEOResults
 
 
 def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
-               duration: int) -> CandidateDesign:
+               duration: int, exclude=None) -> CandidateDesign:
     """Deployable SDID design for one candidate, fit on the full pre-period.
 
     The scoring stage fits each backtest; this fits the design the
     experiment will actually deploy, with the pseudo-treatment window sitting at
     the end of the observed history.
+
+    ``exclude`` drops the candidate's conflict-neighbours from its donor pool
+    (the spillover exclusion restriction).
     """
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
-    donors_df = donor_matrix(Ywide, candidate)
+    donors_df = donor_matrix(Ywide, candidate, exclude=exclude)
     donors = donors_df.to_numpy()
     start = n_pre
     end = min(n_pre + duration - 1, Ywide.shape[0] - 1)
@@ -62,7 +73,7 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
 
 
 def planning_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
-                power_table: pd.DataFrame) -> Optional[float]:
+                power_table: pd.DataFrame, exclude=None) -> Optional[float]:
     """The winner's MDE re-scored on backtests that did not choose it.
 
     ``compute_rank`` hands back the smallest MDE in the field, and the smallest
@@ -85,7 +96,7 @@ def planning_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
         return None  # the panel cannot carry the extra backtests
 
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
-    donors = donor_matrix(Ywide, candidate).to_numpy()
+    donors = donor_matrix(Ywide, candidate, exclude=exclude).to_numpy()
     rows: List[dict] = []
     for duration in config.durations:
         for sim in range(config.n_backtests + 1, deepest + 1):
@@ -135,6 +146,49 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     if unknown:
         raise MlsynthDataError(f"markets not found in the panel: {unknown}.")
 
+    # Size band -- a treated-eligibility filter on the nomination pool only.
+    # Out-of-band markets stay available as donors.
+    not_treated = set(config.not_to_be_treated or ())
+    size_ineligible: set = set()
+    if config.size_col is not None and (
+        config.min_size is not None or config.max_size is not None
+    ):
+        size_map = unit_attribute_map(config.df, config.unitid, config.size_col)
+        eligible = eligible_by_size(units, size_map, min_size=config.min_size,
+                                    max_size=config.max_size)
+        size_ineligible = set(units) - set(eligible)
+
+    eligible_for_treatment = [u for u in units
+                              if u not in (not_treated | size_ineligible)]
+    if size_ineligible and len(eligible_for_treatment) < max(sizes):
+        raise MlsynthConfigError(
+            f"the size band leaves only {len(eligible_for_treatment)} market(s) "
+            f"eligible for treatment, fewer than the largest treatment_size "
+            f"({max(sizes)}). Widen the size band.")
+
+    # Conflict graph (cluster_col + adjacency): the independent-set filter on
+    # candidates, and the spillover donor exclusion applied per candidate.
+    conflict = None
+    if config.cluster_col is not None or config.adjacency is not None:
+        cluster_map = (
+            unit_attribute_map(config.df, config.unitid, config.cluster_col)
+            if config.cluster_col is not None else None)
+        conflict = build_conflict_graph(
+            units, cluster_map=cluster_map, adjacency=config.adjacency,
+            spillover_threshold=config.spillover_threshold)
+
+    # Stratum quotas: a coverage filter on the nominated regions.
+    stratum_map = None
+    required_strata = None
+    has_quota = (config.min_per_stratum is not None
+                 or config.max_per_stratum is not None)
+    if config.stratum_col is not None and has_quota:
+        stratum_map = unit_attribute_map(config.df, config.unitid,
+                                         config.stratum_col)
+        if config.min_per_stratum is not None:
+            required_strata = {stratum_map[u] for u in eligible_for_treatment
+                               if u in stratum_map}
+
     ranked = rank_markets_by_correlation(Ywide)
     # One nomination pass per requested size, pooled into a single field. A
     # size-3 region competes with a size-2 one on the same ranking, which is
@@ -145,7 +199,8 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         for candidate in generate_candidate_markets(
             ranked, size,
             to_be_treated=config.to_be_treated,
-            not_to_be_treated=config.not_to_be_treated,
+            not_to_be_treated=(sorted(not_treated | size_ineligible,
+                                      key=str) or None),
             run_stochastic=config.run_stochastic,
             stochastic_mode=config.stochastic_mode,
             rng=config.seed,
@@ -158,10 +213,40 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
             "no candidate test region satisfies the constraints; relax "
             "to_be_treated / not_to_be_treated or the treatment_size.")
 
+    if conflict is not None or (stratum_map is not None and has_quota):
+        candidates = admissible_candidates(
+            candidates, conflict=conflict, stratum_map=stratum_map,
+            min_per_stratum=config.min_per_stratum,
+            max_per_stratum=config.max_per_stratum,
+            required_strata=required_strata)
+        if not candidates:
+            # Report which constraint bound the search, itemised in
+            # have-vs-need shape. Audit the smallest requested size: if that
+            # one cannot be met, no larger one can either.
+            audit_sdidgeo_feasibility(
+                eligible_for_treatment, min(sizes), conflict=conflict,
+                stratum_map=stratum_map,
+                min_per_stratum=config.min_per_stratum,
+                max_per_stratum=config.max_per_stratum,
+                required_strata=required_strata)
+            raise MlsynthConfigError(  # pragma: no cover - audit covers the common cases
+                "no candidate test region satisfies the design constraints "
+                "(treatment_size may exceed the clusters/strata available to "
+                "cover, or the forced-in markets may interfere). Relax a "
+                "constraint or the treatment_size.")
+
+    # Each candidate's spillover exclusion: its conflict-neighbours may not
+    # enter its own synthetic control.
+    excluded: Dict[frozenset, frozenset] = {
+        c: (conflict_neighbors(c, conflict) if conflict is not None
+            else frozenset())
+        for c in candidates
+    }
+
     cube = run_simulations(
         Ywide, candidates, config.durations, config.n_backtests,
         config.effect_sizes, n_draws=config.n_draws, seed=config.seed,
-        cpic=config.cpic, n_jobs=config.n_jobs,
+        cpic=config.cpic, n_jobs=config.n_jobs, excluded=excluded,
     )
     power_table = compute_power(cube, alpha=config.alpha)
     shortlist = compute_rank(power_table,
@@ -177,7 +262,8 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     deploy_duration = max(config.durations)
     n_pre_deploy = n_periods - deploy_duration
     designs: Dict[frozenset, CandidateDesign] = {
-        c: design_fit(Ywide, c, n_pre_deploy, deploy_duration)
+        c: design_fit(Ywide, c, n_pre_deploy, deploy_duration,
+                      exclude=excluded.get(c))
         for c in candidates
     }
 
@@ -203,7 +289,8 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         winner_units = sorted(map(str, winning))
         # Scored only now, and only for the winner, so the backtests behind it
         # cannot have influenced which region was picked.
-        winner.mde_planning = planning_mde(Ywide, winning, config, power_table)
+        winner.mde_planning = planning_mde(Ywide, winning, config, power_table,
+                                           exclude=excluded.get(winning))
 
     search = MarketSearch(shortlist=shortlist, power_table=power_table,
                           candidates=list(designs.values()), winner=winner)

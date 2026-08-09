@@ -281,6 +281,70 @@ easier to see. Set against that, a larger test region costs more to run
 and holds out more of the country from the control pool. The scan prices
 that choice instead of assuming it.
 
+Design constraints
+------------------
+
+``to_be_treated`` and ``not_to_be_treated`` name individual markets. The
+constraint fields express rules instead, and each one narrows where the
+search may look.
+
+Interference. Two markets interfere when treating both contaminates the
+comparison, either because they share a media market or because one
+spills into the other. ``cluster_col`` names a per-market column (a DMA,
+a state) and makes markets sharing a value conflict. ``adjacency`` takes
+a square DataFrame of pairwise spillover strengths, and any off-diagonal
+entry above ``spillover_threshold`` is a conflict. Supplying both takes
+the union.
+
+A conflict binds twice. No candidate region may hold two conflicting
+markets, so the treated set is an independent set of the conflict graph.
+And a treated market's conflicting partners are dropped from its own
+donor pool, since a market contaminated by the treatment cannot serve as
+its own control. The second half is the exclusion restriction, and it
+applies to the backtests that score the candidate as well as to the
+deployed fit, so the reported MDE reflects the pool the experiment will
+actually have.
+
+Coverage. ``stratum_col`` names a grouping the test region has to
+represent, with ``min_per_stratum`` requiring at least that many treated
+markets in every stratum holding an eligible market, and
+``max_per_stratum`` capping any one stratum. Use this when the region has
+to span regions or store formats instead of concentrating wherever the
+correlations happen to be highest.
+
+Size band. ``size_col`` with ``min_size`` and ``max_size`` bounds which
+markets may be treated, both ends inclusive. The floor is a power or
+operational minimum. The ceiling encodes synthesizability: a market far
+larger than every donor cannot sit inside their convex hull, and the
+scaled :math:`L^2` imbalance grows accordingly. Markets outside the band
+stay available as donors, since the band restricts treatment eligibility
+alone.
+
+.. code-block:: python
+
+    config = SDIDGEOConfig(
+        df=df, unitid="location", time="date", outcome="Y",
+        treatment_size=[2, 3],
+        durations=[14], effect_sizes=[0.05, 0.10, 0.15, 0.20],
+        cluster_col="dma",             # no two treated markets in one DMA
+        stratum_col="region", min_per_stratum=1,   # every region represented
+        size_col="volume", min_size=5_000,         # skip markets too small to power
+    )
+
+When no combination of markets satisfies the constraints, the failure
+names which constraint bound the search, in have-versus-need form, so a
+design that cannot be run says why:
+
+.. code-block:: text
+
+    MlsynthConfigError: SDIDGEO design is infeasible -- the binding constraint(s):
+      - spillover/cluster: the largest conflict-free treated set is 2 <
+        treatment_size=3. Relax the cluster/adjacency constraint, widen the
+        candidate pool, or reduce treatment_size.
+
+Every constraint is off by default, and with none configured the search
+runs exactly as it does above.
+
 Plots
 -----
 
