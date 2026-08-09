@@ -30,12 +30,13 @@ from .feasibility import audit_sdidgeo_feasibility
 from .engine import sdid_fit_once
 from .shaping import aggregate_treated, donor_matrix
 from .simulate import simulate_backtest
+from .realize import realize_design
 from .similarity import rank_markets_by_correlation
 from .structures import CandidateDesign, MarketSearch, SDIDGEOResults
 
 
 def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
-               duration: int, exclude=None) -> CandidateDesign:
+               duration: int, exclude=None, how: str = "mean") -> CandidateDesign:
     """Deployable SDID design for one candidate, fit on the full pre-period.
 
     The scoring stage fits each backtest; this fits the design the
@@ -45,6 +46,8 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
     ``exclude`` drops the candidate's conflict-neighbours from its donor pool
     (the spillover exclusion restriction).
     """
+    # The fit runs on the mean whatever the reporting scale, so every candidate
+    # is scored on the series the MDE describes.
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
     donors_df = donor_matrix(Ywide, candidate, exclude=exclude)
     donors = donors_df.to_numpy()
@@ -263,7 +266,7 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     n_pre_deploy = n_periods - deploy_duration
     designs: Dict[frozenset, CandidateDesign] = {
         c: design_fit(Ywide, c, n_pre_deploy, deploy_duration,
-                      exclude=excluded.get(c))
+                      exclude=excluded.get(c), how=config.how)
         for c in candidates
     }
 
@@ -295,8 +298,22 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
     search = MarketSearch(shortlist=shortlist, power_table=power_table,
                           candidates=list(designs.values()), winner=winner)
 
+    # A genuine post period means the experiment has run, so the design can be
+    # read out. geoex_dataprep truncates to the pre-period when post_col is set,
+    # so the design reproduces identically on a pre-only or a full panel; the
+    # readout needs the periods that truncation removed, and re-preps without it.
+    report = None
+    if winner_units is not None and config.post_col is not None:
+        full = geoex_dataprep(config.df, config.unitid, config.time,
+                              config.outcome)["Ywide"]
+        if full.shape[0] > n_periods:
+            report = realize_design(
+                full, winning, n_periods, how=config.how,
+                exclude=excluded.get(winning), alpha=config.alpha,
+                n_draws=config.n_draws, seed=config.seed, cpic=config.cpic)
+
     return SDIDGEOResults(
-        report=None,  # realized once post-treatment outcomes are observed
+        report=report,
         power=shortlist,
         selected_units=winner_units,
         assignment=({"treated": winner_units}
