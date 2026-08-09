@@ -66,10 +66,6 @@ def config_for(name: str):
 def main() -> None:
     names = [n for n in mlsynth.__all__ if n[:1].isupper()
              and inspect.isclass(getattr(mlsynth, n, None))]
-    # A renamed estimator keeps its old spelling bound to the same class
-    # (SDIDGEO is GEOX). Both are in __all__ and both would index as separate
-    # estimators, so keep the name the class carries and drop the alias.
-    names = [n for n in names if getattr(mlsynth, n).__name__ == n]
     lines = [HEADER]
     for n in sorted(names):
         cls = getattr(mlsynth, n)

@@ -338,9 +338,3 @@ class GEOXConfig(BaseMAREXConfig):
                 "budget needs cpic: without a cost per incremental conversion "
                 "there is no investment to compare the budget against.")
         return self
-
-
-# The estimator was called SDIDGEO before the engine became pluggable. The old
-# spelling stays bound to the same class so existing scripts keep running; the
-# rename is documented on the docs page, not raised at runtime.
-SDIDGEOConfig = GEOXConfig

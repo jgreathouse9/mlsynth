@@ -77,11 +77,12 @@ weights would leave. Compare either across candidates within one design;
 neither is comparable across engines.
 
 The name. This page was ``sdidgeo`` while synthetic DiD was the only
-thing that could score a design, and the estimator, its config and its
-result class were ``SDIDGEO``, ``SDIDGEOConfig`` and ``SDIDGEOResults``.
-Those spellings still import and are bound to the same objects
-(``SDIDGEO is GEOX``), so scripts written against them keep running.
-New code should use the ``GEOX`` names.
+thing that could score a design, and the estimator, its config, its
+result class and its plotter were ``SDIDGEO``, ``SDIDGEOConfig``,
+``SDIDGEOResults`` and ``plot_sdidgeo_design``. Those spellings are gone,
+not deprecated. Code written against them raises ``ImportError`` at the
+import line; substitute ``GEOX`` for ``SDIDGEO`` throughout, which is the
+whole of the change.
 
 Notation
 --------

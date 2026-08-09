@@ -190,6 +190,3 @@ def plot_mde_ranking(
         ax.set_title("Candidate test regions, best first")
         ax.tick_params(axis="y", labelsize=8)
         return _finish(fig, save_path, show)
-
-
-plot_sdidgeo_design = plot_geox_design      # pre-rename spelling

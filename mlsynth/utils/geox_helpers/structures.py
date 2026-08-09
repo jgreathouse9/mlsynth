@@ -95,6 +95,3 @@ class GEOXResults(DesignResult):
     class Config:
         arbitrary_types_allowed = True
         extra = "allow"
-
-
-SDIDGEOResults = GEOXResults      # pre-rename spelling; see config.py

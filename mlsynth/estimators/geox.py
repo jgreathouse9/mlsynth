@@ -29,9 +29,6 @@ pre-periods are not exchangeable.
 The output is a *design* -- which markets to treat, the donor weights the
 analysis will use, and the power table behind the choice -- not a treatment
 effect. The ``report`` slot stays ``None`` until the experiment has run.
-
-The estimator was ``SDIDGEO`` before the engine became pluggable; that spelling
-and ``SDIDGEOConfig`` / ``SDIDGEOResults`` stay bound to these objects.
 """
 
 from ..utils.geox_helpers.config import GEOXConfig
@@ -77,6 +74,3 @@ class GEOX:
             ``power`` table, and the full ``search`` detail.
         """
         return run_design(self.config)
-
-
-SDIDGEO = GEOX      # pre-rename spelling; see utils/geox_helpers/config.py
