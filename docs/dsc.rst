@@ -445,12 +445,18 @@ run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
    used a 250-observations-per-cell subsample, which for a *distributional*
    method distorted the very quantity being matched.
 
-   Five of the six pinned rows are regression pins on mlsynth's own output, not
-   external checks. ``DiSCos`` 0.1.4 is installable here
-   (``benchmarks/R/install_discos.sh``), and it disagrees with mlsynth on donor
-   weights by up to 0.074 on identical data -- tracked in issue #304. Until that
-   is resolved, treat the vignette's ``p > 0.05`` as the only externally
-   anchored quantity in this benchmark.
+   Five of the six pinned rows are regression pins on mlsynth's own output, so
+   within this case the vignette's ``p > 0.05`` is the only externally anchored
+   quantity. The external anchors live in the other two cases:
+   :doc:`replications/disco_tenure` reproduces the Stata command's published
+   weights bit-for-bit, and :doc:`replications/dsc_disco_xval` compares against
+   the ``DiSCos`` R package on this same panel.
+
+   Issue #304, which recorded the R package disagreeing with mlsynth here by up
+   to 0.074, is settled by that second case: the package draws its quadrature
+   points with ``runif``, and 0.074 was one seed at its default draw count. At
+   ``M = 10,000`` averaged over 40 seeds the gap is 0.0079, against the
+   reference's own across-seed standard deviation of 0.0160.
 
 A third benchmark (``benchmarks/cases/dsc_mc.py``) runs the Monte Carlo of the
 paper whose Algorithm 1 this estimator implements, Zhang, Zhang & Zhang (2026)
