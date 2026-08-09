@@ -17,13 +17,14 @@ from .simulate import simulate_backtest
 _COLUMNS = [
     "candidate", "duration", "sim", "effect_size",
     "p_value", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
-    "investment",
+    "pre_rmspe_lambda", "boundary_up", "boundary_down", "investment",
 ]
 
 
 def _simulate_candidate(candidate, Ywide, durations, n_backtests,
                         effect_sizes, *, n_periods, n_draws, seed, cpic,
-                        exclude=None, engine="sdid", engine_kwargs=None):
+                        exclude=None, engine="sdid", engine_kwargs=None,
+                        alpha=0.1):
     """Every row for one candidate.
 
     Pure and deterministic given a fixed ``seed``, and defined at module level so
@@ -47,7 +48,7 @@ def _simulate_candidate(candidate, Ywide, durations, n_backtests,
                 treated, donors, n_periods, duration, sim, effect_sizes,
                 n_draws=n_draws, n_tr=n_tr, seed=seed, cpic=cpic,
                 treated_total=treated_total, engine=engine,
-                engine_kwargs=engine_kwargs,
+                engine_kwargs=engine_kwargs, alpha=alpha,
             ):
                 row["candidate"] = candidate
                 rows.append(row)
@@ -68,6 +69,7 @@ def run_simulations(
     excluded: Optional[Mapping[frozenset, Iterable]] = None,
     engine: str = "sdid",
     engine_kwargs: Optional[Mapping[str, object]] = None,
+    alpha: float = 0.1,
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
@@ -101,7 +103,8 @@ def run_simulations(
     n_periods = Ywide.shape[0]
     candidates = list(candidates)
     work = dict(n_periods=n_periods, n_draws=n_draws, seed=seed, cpic=cpic,
-                engine=engine, engine_kwargs=dict(engine_kwargs or {}))
+                engine=engine, engine_kwargs=dict(engine_kwargs or {}),
+                alpha=alpha)
     excluded = excluded or {}
 
     if n_jobs == 1 or len(candidates) <= 1:

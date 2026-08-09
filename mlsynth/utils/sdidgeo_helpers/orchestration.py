@@ -15,7 +15,8 @@ import pandas as pd
 from ...config_models import WeightsResults
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..datautils import geoex_dataprep
-from .aggregate import compute_mde, compute_power, compute_rank
+from .aggregate import (compute_exact_mde, compute_mde,
+                        compute_power, compute_rank)
 from .batch import run_simulations
 from .candidates import generate_candidate_markets
 from .config import SDIDGEOConfig
@@ -274,12 +275,19 @@ def run_design(config: SDIDGEOConfig) -> SDIDGEOResults:
         Ywide, candidates, config.durations, config.n_backtests,
         config.effect_sizes, n_draws=config.n_draws, seed=config.seed,
         cpic=config.cpic, n_jobs=config.n_jobs, excluded=excluded,
-        engine=config.engine, engine_kwargs=ekw,
+        engine=config.engine, engine_kwargs=ekw, alpha=config.alpha,
     )
     power_table = compute_power(cube, alpha=config.alpha)
+    # The effect the design actually detects, solved instead of read off the
+    # grid. Reported beside mde, which the ranking and the GeoLift
+    # cross-validation both depend on and which is left alone.
+    exact = compute_exact_mde(cube, power_threshold=config.power_threshold)
     shortlist = compute_rank(power_table,
                              power_threshold=config.power_threshold,
                              budget=config.budget)
+    if not shortlist.empty and not exact.empty:
+        shortlist = shortlist.merge(exact, on=["candidate", "duration"],
+                                    how="left")
     if not shortlist.empty:
         # Surface the region size next to its MDE, so a size scan is readable
         # without unpacking the candidate frozensets.

@@ -26,6 +26,11 @@ An engine supplies four things.
 
 ``point_inference(fit, y, Y0, n_pre, start, end, ...) -> (p_value, details)``
     A single window's test, for the realized readout.
+
+``detection_boundary(fit, y, Y0, n_pre, start, end, *, alpha, ...) -> (up, down)``
+    The effect sizes at which this backtest starts detecting, in each
+    direction. Closed form where the p-value is analytic in the effect, and
+    ``(nan, nan)`` where it is not -- reported absent instead of guessed.
 """
 
 from __future__ import annotations
@@ -65,6 +70,30 @@ class Engine:
     att: Callable[..., float]
     sweep_p_values: Callable[..., Dict[str, Any]]
     point_inference: Callable[..., Any]
+    detection_boundary: Callable[..., Any]
+
+
+def placebo_detection_boundary(att_0: float, baseline: float, sigma, alpha: float):
+    """Effects at which a placebo-tested backtest starts detecting.
+
+    Detection is ``2(1 - Phi(|tau| / sigma)) < alpha`` and the analytic shortcut
+    gives ``tau = att_0 + e * baseline``, linear in the effect, so the crossings
+    solve directly:
+
+        up   = ( z * sigma - att_0) / baseline
+        down = (-z * sigma - att_0) / baseline
+
+    with ``z`` the two-sided normal critical value. ``att_0`` is the backtest's
+    own placebo effect and is generally nonzero, so the interval sits off centre
+    and the two directions differ -- a design already drifting negative needs
+    less of a push downward than upward.
+    """
+    from scipy.stats import norm
+
+    if sigma is None or not np.isfinite(sigma) or sigma <= 0 or baseline == 0:
+        return float("nan"), float("nan")
+    z = float(norm.ppf(1.0 - alpha / 2.0))
+    return ((z * sigma - att_0) / baseline, (-z * sigma - att_0) / baseline)
 
 
 def resolve_engine(name: str) -> Engine:

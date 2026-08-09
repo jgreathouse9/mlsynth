@@ -38,7 +38,7 @@ import numpy as np
 from .....exceptions import MlsynthConfigError
 from .....utils.bilevel.engine import BilevelSCM
 from .....utils.bilevel.ridge_inference import conformal_pvalue
-from .. import Engine, EngineFit
+from .. import Engine, EngineFit, placebo_detection_boundary
 from ...engine import normal_p_value, placebo_sigma
 
 
@@ -86,6 +86,7 @@ def fit_once(y, Y0, n_pre: int, start: int, end: int, n_tr: int, *,
         pre_rmspe=float(res.pre_rmspe),
         scaled_l2=_scaled_l2(A, B, w),
         extras={
+            "pre_rmspe_lambda": float("nan"),   # augsynth weights donors only
             "intercept": intercept,
             "augment": augment,
             "fixed_effects": bool(fixed_effects),
@@ -104,7 +105,7 @@ def sweep_p_values(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int,
     effect_sizes: Iterable[float], *, inference: str = "conformal",
     ns: int = 1000, n_draws: int = 200, n_tr: int = 1, seed: int = 0,
-    conformal_type: str = "iid", analytic: bool = True,
+    conformal_type: str = "iid", analytic: bool = True, alpha: float = 0.1,
     **_ignored: Any,
 ) -> Dict[str, Any]:
     """Test every effect size on one backtest.
@@ -144,7 +145,10 @@ def sweep_p_values(
             ps.append(float(conformal_pvalue(
                 injected, Y0, n_pre, lambda_=lam, ns=ns, seed=seed,
                 conformal_type=conformal_type, fixed_effects=fixed_effects)))
-    return {"tau": taus, "p_value": ps, "sigma": sigma}
+    up, down = (placebo_detection_boundary(tau0, baseline, sigma, alpha)
+                if inference == "placebo" else (float("nan"), float("nan")))
+    return {"tau": taus, "p_value": ps, "sigma": sigma,
+            "boundary_up": up, "boundary_down": down}
 
 
 def point_inference(
@@ -174,7 +178,31 @@ def point_inference(
                "conformal_type": conformal_type}
 
 
-ENGINE = Engine(name="augsynth", fit_once=fit_once, att=att,
-                sweep_p_values=sweep_p_values, point_inference=point_inference)
+def detection_boundary(
+    fit: EngineFit, y, Y0, n_pre: int, start: int, end: int, *,
+    alpha: float = 0.1, inference: str = "conformal", n_draws: int = 200,
+    n_tr: int = 1, seed: int = 0, **_ignored: Any,
+):
+    """Effects at which this backtest starts detecting, in each direction.
 
-__all__ = ["ENGINE", "fit_once", "att", "sweep_p_values", "point_inference"]
+    Only defined under placebo inference. A conformal p-value re-permutes
+    against the injected series, so it is not analytic in the effect size and
+    the crossing would have to be searched for; absent is reported instead of a
+    number that is not what it claims.
+    """
+    if inference != "placebo":
+        return float("nan"), float("nan")
+    y = np.asarray(y, dtype=float).ravel()
+    Y0 = np.asarray(Y0, dtype=float)
+    sigma = placebo_sigma(y, Y0, n_pre, start, end, n_draws=n_draws,
+                          n_tr=n_tr, seed=seed)
+    return placebo_detection_boundary(
+        att(fit, y, start, end), float(np.mean(y[start:end + 1])), sigma, alpha)
+
+
+ENGINE = Engine(name="augsynth", fit_once=fit_once, att=att,
+                sweep_p_values=sweep_p_values, point_inference=point_inference,
+                detection_boundary=detection_boundary)
+
+__all__ = ["ENGINE", "fit_once", "att", "sweep_p_values",
+           "point_inference", "detection_boundary"]
