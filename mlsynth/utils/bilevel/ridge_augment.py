@@ -43,6 +43,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
+from ...exceptions import MlsynthEstimationError
 from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
 
 _EPS = 1e-12
@@ -145,7 +146,7 @@ def solve_ridge(
     W = np.asarray(W, dtype=float).ravel()
     M = A - B @ W
     # Solve (B B^T + lambda I) X = B instead of forming the inverse: same result,
-    # one LAPACK solve rather than a full inversion plus a matmul.
+    # one LAPACK solve instead of a full inversion plus a matmul.
     X = np.linalg.solve(B @ B.T + lambda_ * np.identity(B.shape[0]), B)
     return M @ X
 
@@ -168,7 +169,7 @@ def solve_ridge_path(
 
       so ``M @ inv(...) @ B = (a * S / (S^2 + lambda)) @ V^T`` with
       ``a = M U``. This factors the ``m x J`` matrix (cost ``O(m J^2)``) and
-      works in ``r`` components rather than eigendecomposing the ``m x m``
+      works in ``r`` components instead of eigendecomposing the ``m x m``
       ``B B^T`` (cost ``O(m^3)``) -- a large saving when ``m >> J``.
     * ``m <= J``: the symmetric eigendecomposition ``B B^T = V diag(d) V^T``
       (the smaller, ``m x m``, matrix here), giving
@@ -358,10 +359,24 @@ def best_lambda(
     errors_mean = np.asarray(errors_mean, dtype=float)
     errors_se = np.asarray(errors_se, dtype=float)
     lambdas = np.asarray(lambdas, dtype=float)
+    # A fold can leave a penalty with no finite error -- a near-singular ridge
+    # solve, or a matching matrix with no rank left. Those penalties carry no
+    # information about fit, so they take no part in the choice; comparing
+    # against them makes the threshold NaN and selects nothing.
+    finite = np.isfinite(errors_mean)
+    if not finite.any():
+        raise MlsynthEstimationError(
+            "the ridge cross-validation curve is entirely non-finite, so no "
+            "penalty can be selected. This happens when the centered donor "
+            "matrix has no rank left -- a single donor, or donors identical to "
+            "each other -- and the augmentation is zero for every penalty.")
+    lambdas_f = lambdas[finite]
+    mean_f = errors_mean[finite]
+    se_f = errors_se[finite]
     if min_1se:
-        threshold = errors_mean.min() + errors_se[int(errors_mean.argmin())]
-        return float(lambdas[errors_mean <= threshold].max())
-    return float(lambdas[int(errors_mean.argmin())])
+        threshold = mean_f.min() + se_f[int(mean_f.argmin())]
+        return float(lambdas_f[mean_f <= threshold].max())
+    return float(lambdas_f[int(mean_f.argmin())])
 
 
 @dataclass
@@ -562,13 +577,24 @@ def ridge_augment_weights(
     if lambda_ is None:
         lambdas = generate_lambdas(B, lambda_min_ratio=lambda_min_ratio,
                                    n_lambda=n_lambda)
-        lambdas, mean, se = cross_validate(
-            base_weights_fn, B, A, lambdas, holdout_len=holdout_length
-        )
-        lambda_ = best_lambda(lambdas, mean, se, min_1se=min_1se)
-        cv = {"lambdas": lambdas, "errors_mean": mean, "errors_se": se}
+        if not np.any(lambdas > 0.0):
+            # The centered matching matrix has no rank: augsynth centers each
+            # period by the donor mean, so a single donor (or donors identical
+            # to one another) leaves exactly zero. The ridge correction is then
+            # zero for every penalty, so there is nothing to cross-validate and
+            # the augmented fit is the base fit.
+            lambda_ = 0.0
+        else:
+            lambdas, mean, se = cross_validate(
+                base_weights_fn, B, A, lambdas, holdout_len=holdout_length
+            )
+            lambda_ = best_lambda(lambdas, mean, se, min_1se=min_1se)
+            cv = {"lambdas": lambdas, "errors_mean": mean, "errors_se": se}
 
-    W_ridge = solve_ridge(A, B, W_base, float(lambda_))
+    if float(lambda_) == 0.0 and not np.any(np.asarray(B) != 0.0):
+        W_ridge = np.zeros_like(W_base)   # no rank to correct on; see above
+    else:
+        W_ridge = solve_ridge(A, B, W_base, float(lambda_))
     W = W_base + W_ridge
     if add_back is not None:                 # residualize: restore covariate balance
         W = W + add_back(W)
