@@ -95,6 +95,15 @@ class SDIDGEOConfig(BaseMAREXConfig):
         description="'global' draws one tier pattern for every anchor; "
         "'per_anchor' draws a fresh one per anchor.",
     )
+    how: str = Field(
+        default="mean",
+        description="Treated aggregation. The SDID fit always runs on the "
+        "per-market mean, which keeps the target at donor scale; this sets the "
+        "scale the realized report is written in. 'sum' gives the summed "
+        "incremental across the treated markets (GeoLift's reporting "
+        "convention), 'mean' the per-market effect. Cost is computed from the "
+        "summed incremental either way.",
+    )
     post_col: Optional[str] = Field(
         default=None,
         description="Column flagging post-treatment periods. Absent, the whole "
@@ -214,6 +223,9 @@ class SDIDGEOConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "stochastic_mode must be 'global' or 'per_anchor'; got "
                 f"{self.stochastic_mode!r}.")
+        if self.how not in ("sum", "mean"):
+            raise MlsynthConfigError(
+                f"how must be 'sum' or 'mean'; got {self.how!r}.")
         if self.spillover_threshold < 0.0:
             raise MlsynthConfigError(
                 "spillover_threshold must be >= 0; got "

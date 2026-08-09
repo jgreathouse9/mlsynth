@@ -133,9 +133,12 @@ Assumptions
    metros that share media markets or commuters violate this, and the
    donor pool then contains partially treated units.
 
-   *Remark.* SDIDGEO does not model spillover. Exclude the markets you
-   suspect with ``not_to_be_treated``, which keeps them out of candidate
-   regions while leaving them as donors.
+   *Remark.* Where the interference is known, declare it: ``cluster_col``
+   or ``adjacency`` makes the affected pairs conflict, which keeps them
+   out of the same test region and out of each other's donor pool. Where
+   it is only suspected, ``not_to_be_treated`` bars a market from
+   treatment while leaving it a donor. Neither detects interference the
+   panel does not declare.
 
 4. The pre-period relationship persists into the test.
 
@@ -344,6 +347,50 @@ design that cannot be run says why:
 
 Every constraint is off by default, and with none configured the search
 runs exactly as it does above.
+
+Reading out the experiment
+--------------------------
+
+``fit()`` chooses a region before the experiment runs, so ``report`` is
+``None`` on the returned design. Once outcomes exist, name the
+post-treatment periods with ``post_col`` and the same call fills it with
+the realized effect: the ATT over the post window, the observed,
+counterfactual and gap paths across the whole panel, both weight
+vectors, and the pre-period fit diagnostics.
+
+The readout uses synthetic DiD and the placebo standard error, the same
+estimator and the same null the design scored itself with. A minimum
+detectable effect computed one way and a readout computed another would
+leave the reported power describing a test nobody ran, and the promise
+that the design is chosen by the estimator that will analyse the result
+is the reason to use SDIDGEO at all. For the same reason the readout
+inherits the design's donor pool: where a spillover constraint barred a
+treated market's conflict-neighbours, they stay barred here.
+
+.. code-block:: python
+
+    design = SDIDGEO(SDIDGEOConfig(
+        df=df, unitid="location", time="date", outcome="Y",
+        post_col="post",              # 1 on the periods the campaign ran
+        treatment_size=2, durations=[14],
+        effect_sizes=[0.05, 0.10, 0.15],
+    )).fit()
+
+    design.report.effects.att          # realized effect
+    design.report.inference.p_value    # placebo test against the same null
+
+The design itself is unaffected by ``post_col``: ingestion truncates to
+the pre-period before any candidate is scored, so a design fit on a
+pre-only panel and one fit on the full panel choose the same region. Only
+the readout sees the post periods.
+
+``how`` sets the scale the readout is written in. The fit always runs on
+the per-market mean, which keeps the target at donor scale, so ``how``
+changes reported units and neither the region chosen nor the p-value:
+``"mean"`` gives the per-market effect, ``"sum"`` the summed incremental
+across the treated markets, which is GeoLift's convention and the one to
+use when the number is going next to a spend figure. Cost from ``cpic``
+is computed off the summed incremental either way.
 
 Plots
 -----
