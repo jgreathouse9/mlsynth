@@ -83,7 +83,7 @@ jobs:
           # exercises the estimators that need it (BFSC, SPOTSYNTH's Bayesian
           # mode). Without it their tests skip and get no CI coverage.
           pip install numpyro
-          pip install pytest pytest-cov pytest-xdist coverage
+          pip install pytest pytest-cov pytest-xdist coverage hypothesis
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
@@ -175,7 +175,7 @@ jobs:
           # The [bayes] extra so BFSC / SPOTSYNTH-Bayesian run on every
           # supported Python version, not just the 3.11 build job.
           pip install numpyro
-          pip install pytest pytest-xdist
+          pip install pytest pytest-xdist hypothesis
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
