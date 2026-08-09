@@ -5,7 +5,7 @@ over the full ``candidates x durations x backtests`` grid and stacks the
 rows into one long table, ready for the power -> MDE -> rank aggregation.
 """
 
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Mapping, Optional
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,8 @@ _COLUMNS = [
 
 
 def _simulate_candidate(candidate, Ywide, durations, n_backtests,
-                        effect_sizes, *, n_periods, n_draws, seed, cpic):
+                        effect_sizes, *, n_periods, n_draws, seed, cpic,
+                        exclude=None):
     """Every row for one candidate.
 
     Pure and deterministic given a fixed ``seed``, and defined at module level so
@@ -31,10 +32,13 @@ def _simulate_candidate(candidate, Ywide, durations, n_backtests,
     SDID fits the *mean* of the treated units, so the candidate is aggregated
     that way for the fit. The investment volume stays a sum, since cost scales
     with total treated conversions and not with the per-market average.
+
+    ``exclude`` drops the candidate's conflict-neighbours from its donor pool,
+    so the scoring fit sees the same pool the deployed design will.
     """
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
     treated_total = aggregate_treated(Ywide, candidate, how="sum").to_numpy()
-    donors = donor_matrix(Ywide, candidate).to_numpy()
+    donors = donor_matrix(Ywide, candidate, exclude=exclude).to_numpy()
     n_tr = len(candidate)
     rows: List[dict] = []
     for duration in durations:
@@ -60,12 +64,17 @@ def run_simulations(
     seed: int = 0,
     cpic: Optional[float] = None,
     n_jobs: int = 1,
+    excluded: Optional[Mapping[frozenset, Iterable]] = None,
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
     For each candidate test region, each treatment duration, and each backtest
     backtest ``sim = 1 .. n_backtests``, fit SDID once and sweep the effect
     sizes, tagging every row with its candidate.
+
+    ``excluded`` maps a candidate to the markets barred from its donor pool (its
+    spillover conflict-neighbours). Absent, every candidate keeps the full
+    complement as donors.
 
     Returns
     -------
@@ -89,11 +98,12 @@ def run_simulations(
     n_periods = Ywide.shape[0]
     candidates = list(candidates)
     work = dict(n_periods=n_periods, n_draws=n_draws, seed=seed, cpic=cpic)
+    excluded = excluded or {}
 
     if n_jobs == 1 or len(candidates) <= 1:
         per_candidate = [
             _simulate_candidate(c, Ywide, durations, n_backtests,
-                                effect_sizes, **work)
+                                effect_sizes, exclude=excluded.get(c), **work)
             for c in candidates
         ]
     else:
@@ -104,7 +114,8 @@ def run_simulations(
 
         per_candidate = Parallel(n_jobs=n_jobs)(
             delayed(_simulate_candidate)(c, Ywide, durations, n_backtests,
-                                         effect_sizes, **work)
+                                         effect_sizes, exclude=excluded.get(c),
+                                         **work)
             for c in candidates
         )
 
