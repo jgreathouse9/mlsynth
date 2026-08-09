@@ -31,3 +31,6 @@ paper/paper_files/
 # Generated benchmark validation rollups (regenerate with run_benchmarks.py --report)
 benchmarks/REPORT.md
 benchmarks/report.json
+
+# Hypothesis example database (local, machine-specific)
+.hypothesis/

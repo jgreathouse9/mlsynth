@@ -60,6 +60,20 @@ design = ["pyscipopt>=4.4.0", "highspy>=1.7.0"]
 scip = ["pyscipopt>=4.4.0"]
 # SPOTSYNTH Bayesian synthetic control (NumPyro / JAX).
 bayes = ["numpyro"]
+# The test suite. Not needed to use the library -- the suite is a development
+# artifact and is not shipped in the wheel -- so this exists to make
+# ``pip install -e ".[test]"`` reproduce a working local test environment. The
+# CI workflows install the same set explicitly and must be kept in step.
+# ``hypothesis`` drives the property tests; the profiles that govern them are
+# registered in ``mlsynth/tests/conftest.py`` and the contract for when to
+# reach for it is in ``agents/agents_tests.md``.
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "coverage",
+    "hypothesis>=6.100",
+]
 # Everything optional, for the full feature set.
 all = ["pyscipopt>=4.4.0", "highspy>=1.7.0", "numpyro"]
 
