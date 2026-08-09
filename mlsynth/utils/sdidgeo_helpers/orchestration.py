@@ -105,6 +105,9 @@ def planning_mde(Ywide: pd.DataFrame, candidate, config: SDIDGEOConfig,
 
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
     donors = donor_matrix(Ywide, candidate, exclude=exclude).to_numpy()
+    # The validation backtests score on the same engine and settings the search
+    # used, so the planning MDE is comparable with the one it corrects.
+    ekw = engine_settings(config)
     rows: List[dict] = []
     for duration in config.durations:
         for sim in range(config.n_backtests + 1, deepest + 1):

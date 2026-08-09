@@ -288,3 +288,49 @@ class TestEndToEnd:
                 engine="augsynth", seed=0)).fit()
         assert res.design_weights.donor_weights
         assert not res.design_weights.time_weights
+
+
+class TestPlanningMDEUsesTheChosenEngine:
+    """The winner's re-scoring has to run on the engine the search ran on.
+
+    ``planning_mde`` re-scores the winning region on validation backtests held
+    out of the selection, and it is a separate code path from the scoring loop:
+    it builds its own settings and calls ``simulate_backtest`` directly. Nothing
+    in the engine tests reached it, because they all set
+    ``n_validation_backtests=0`` -- which is how a NameError in that path
+    survived a green run of every engine test file and only failed in CI.
+
+    The planning MDE has to be comparable with the optimistic MDE it corrects,
+    so it must be produced by the same engine and the same null.
+    """
+
+    def _fit(self, panel, **kw):
+        import warnings
+        from mlsynth import SDIDGEO
+        base = dict(df=panel, unitid="location", time="date", outcome="Y",
+                    treatment_size=2, durations=[7],
+                    effect_sizes=[-0.2, 0.0, 0.2], n_backtests=2,
+                    n_draws=8, n_validation_backtests=2, seed=0)
+        base.update(kw)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return SDIDGEO(SDIDGEOConfig(**base)).fit()
+
+    @pytest.mark.parametrize("engine,extra", [
+        ("sdid", {}),
+        ("augsynth", dict(ns=40, augment="ridge", fixed_effects=True)),
+    ])
+    def test_validation_backtests_run_on_the_selected_engine(self, panel,
+                                                             engine, extra):
+        res = self._fit(panel, engine=engine, **extra)
+        assert res.selected_units is not None
+        # metadata carries both numbers, and the planning one is only present
+        # when the validation backtests actually ran.
+        assert "winner_mde_planning" in res.metadata
+        assert "winner_mde_optimistic" in res.metadata
+
+    def test_augsynth_planning_mde_is_finite_or_absent(self, panel):
+        res = self._fit(panel, engine="augsynth", ns=40, augment="ridge",
+                        fixed_effects=True)
+        planning = res.metadata["winner_mde_planning"]
+        assert planning is None or np.isfinite(planning)
