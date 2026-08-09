@@ -1759,6 +1759,154 @@ uses the recursive one.
 
 ---
 
+## 18. SURVSC -- Synthetic Survival Control (censored time-to-event outcomes)
+
+**Status: Parked, build-ready. Paper reviewed in full; Path B replication DONE
+and reproduces (`benchmarks/reference/survsc_mc/`). No estimator code. Nothing
+blocks a build -- this is parked on sequencing, not on doubt.**
+
+### Source
+
+> Han, J. X., & Shah, D. (2025). "Synthetic Survival Control: Extending
+> Synthetic Controls for 'When-If' Decision." arXiv:2511.14133v1 (MIT).
+
+No code release, no data release. The clinical application uses proprietary
+retrospective T-cell-lymphoma records from 13 institutions across 10 countries,
+so the paper's Section 4 Monte Carlo is the only external check that exists.
+
+### The idea in one line
+
+Synthetic control where each unit-period outcome is an entire survival curve:
+Kaplan-Meier per unit-period absorbs the censoring, the curves are subsampled
+onto a shared grid, PCR learns donor weights from the pre-period curves, and
+those weights are applied to the donors' post-period curves.
+
+### Why it fills a real gap
+
+`grep -rilE "survival|hazard|kaplan|meier|time-to-event|censoring" mlsynth
+--include=*.py` returns zero files across all 99 exports. Nothing in the
+library touches censored time-to-event data.
+
+Closest existing estimators, by two different measures. By estimand shape,
+`DSC` -- distributional SC also has a functional outcome built from grouped
+microdata, and a survival function is `1 - F`, so absent censoring the target
+is the object DSC already models. They differ in aggregation geometry: DSC
+averages quantile functions (2-Wasserstein barycenter), SURVSC averages
+survival functions pointwise in probability space. By machinery, `SI` -- same
+author lineage, same latent-factor plus PCR construction.
+
+### Naming (do not collide)
+
+`SSC` is taken: `mlsynth.SSC` is Staggered Synthetic Control (Cao, Lu & Wu).
+Use `SURVSC`.
+
+### What the Path B spike established (KEEP THESE)
+
+All six Table 1 cells land within 1.5x of the published sup-norm error, two of
+them on top of it, and the Figure 4 claim that error falls in `K` holds in both
+the Cox and Aalen designs. Step 3 needs no new code: the paper's closed form is
+`mlsynth.utils.pcr.pcr_weights` to 8e-17.
+
+Three design details the paper leaves unstated, two of them decisive:
+
+* The rank `r0`. Section 3.4.2 says "a gap rule, elbow, or cross-validation"
+  and picks none. Of the rules mlsynth ships, only USVT reproduces the paper;
+  `cumvar` and `spectral` report error that *grows* as data is added.
+* Whether the latent design is redrawn per replication. Independent draws per
+  `K` break the monotone decrease, because the latent draw moves the evaluation
+  horizon over two orders of magnitude (pooled 90th percentile: median 93,
+  range [20, 5743] on Cox) and swamps the effect of `K`. Common random numbers
+  restore it.
+* Whether `tau_tilde` pools every cell or uses the treated unit. Not decisive;
+  both readings give the same picture.
+
+### Two build decisions, already settled by the spike
+
+The paper's PCR weights are unconstrained, so the counterfactual
+`sum_m w_m S_m(t)` need not be monotone or stay inside [0, 1] -- it is a valid
+survival function in a minority of replications (monotone in 0-55 percent,
+inside [0, 1] in 15-45 percent; at Aalen `K = 100`, zero of twenty). Abadie's
+convex-hull condition fixes it for free, since a convex combination of monotone
+[0, 1] curves is monotone in [0, 1]. The simplex fit already in
+`mlsynth.utils.inferutils._outcome_only_simplex` gives 100 percent valid output
+at every cell and costs nothing on average. Ship both weight schemes; simplex
+is the defensible default, PCR reproduces the paper.
+
+The estimand is a curve, not a scalar, so `EffectsResults` needs an RMST
+difference over `[0, tau_tilde]` as the scalar ATT, with the gap curve in
+`TimeSeriesResults`.
+
+### Build path
+
+`estimators/survsc.py` (thin) plus `utils/survsc_helpers/{config, setup, km,
+pipeline, inference, plotter, structures}.py`. Ingestion is patient-level
+`(unit, period, T, Delta)`, which `dataprep` cannot take -- but Kaplan-Meier
+collapses each cohort to a curve on a shared grid, and at that point the data
+is a standard panel of units x `2 * T0` points with `pre_periods = T0`, so the
+contract reappears after step 1. `MicroSynth` is the precedent for
+estimator-owned patient-level ingestion. Inference is the paper's donor-pool
+bootstrap (Section 5.2, 500 resamples). Pure NumPy/SciPy; no new dependency.
+
+### Caveats to carry into the build
+
+Theorem 2's rate contains no `K` at all -- `K` enters only as a threshold for
+the PCR stability argument -- while the simulation's entire finding is error
+falling in `K`. The spike explains the discrepancy: the reported error is the
+same order as a single Kaplan-Meier curve's error (Cox 0.0658 / 0.0376 / 0.0235
+against Table 1's 0.1177 / 0.0652 / 0.0542), and the KM error falls at
+`1/sqrt(K)`. The convergence Figure 4 displays lives in step 1, which the
+theorem treats as a precondition. The docs page should say this instead of
+restating the theorem as if it covered the regime.
+
+The threshold itself is unmet by the paper's own experiments: at `T0 = 100`,
+`N0 = 19` it is about `755c`, so `K = 100` fails it. In the application
+`N0 = 9` makes the `N0^{-1/2}` term 0.33, a vacuous bound on a quantity in
+[0, 1].
+
+Scope the authors concede: `P = 2` periods only, non-informative censoring
+assumed (IPCW left to future work), observed covariates unused in the
+latent-confounding case.
+
+### Verdict
+
+Build when the queue allows. New method, real gap, most of the machinery
+already exists, and the validation target is reproduced and staged.
+
+### Learnings
+
+* **A replication can fail on seeding, not on the port.** The first grid showed
+  no monotone decrease in `K` and looked like a failed reproduction. The port
+  was correct; the seeds were not. Where a DGP's nuisance draw has orders of
+  magnitude more spread than the parameter being varied, common random numbers
+  are not a variance-reduction nicety -- they decide whether the paper's claim
+  is visible at all.
+* **Check what the error metric is actually measuring.** Comparing the reported
+  sup-norm error against the error of one Kaplan-Meier curve showed the headline
+  convergence belongs to step 1, not to the synthetic-control step. That
+  reconciled the simulation with a theorem whose rate has no `K` in it. Measure
+  the floor before crediting an estimator with the decline above it.
+* **Unconstrained SC weights do not preserve the object's shape.** Whenever the
+  unit-level outcome is a function with structure -- a survival curve, a CDF, a
+  density -- a linear-span condition lets the estimate leave the space the
+  object lives in. The convex-hull constraint is what buys closure, and here it
+  cost nothing.
+* **An unguarded pseudo-inverse hides two failure modes, and the quiet one is
+  worse.** `pcr_weights` divided by `s_r` with no cutoff: an exactly-zero
+  singular value gives 0/0 and NaN with a `RuntimeWarning`, while a near-zero
+  one gives weights of order 1e14 and no warning at all. Only the first is
+  caught by an `isfinite` assertion. Fixed in `mlsynth/utils/pcr/core.py` with
+  `mlsynth/tests/test_pcr.py`.
+* **Mutation testing would not have found that bug, and would have said the
+  line was fine.** Three mutants on the offending line (`/` to `*`, perturbed
+  denominator, division deleted) were all killed by the existing suite, so it
+  scored 100 percent while carrying the defect. The fault was an omission -- a
+  missing guard -- and there is no line to mutate into one. Mutation testing
+  perturbs code and reuses the test inputs; the defect lived in the input
+  domain. Property-based testing is the technique matched to that fault, and
+  `agents_tests.md` already required the edge cases that would have exposed it.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*

@@ -1,0 +1,413 @@
+{
+  "provenance": {
+    "paper": "arXiv:2511.14133v1, Han & Shah, Synthetic Survival Control",
+    "target": "Table 1 (sup-norm error, mean +/- sd over 20 replications)",
+    "design": "Section 4",
+    "replications": 20,
+    "common_random_numbers_across_K": true
+  },
+  "grid_pcr_pooled": {
+    "cox_K100": {
+      "ssc_mean": 0.1061,
+      "ssc_sd": 0.1318,
+      "oracle_mean": 0.012,
+      "oracle_sd": 0.0128,
+      "share_monotone": 0.15,
+      "share_in_unit_range": 0.15,
+      "median_horizon": 218.579,
+      "paper_ssc": [
+        0.1177,
+        0.0835
+      ],
+      "paper_oracle": [
+        0.0247,
+        0.0121
+      ]
+    },
+    "cox_K300": {
+      "ssc_mean": 0.0949,
+      "ssc_sd": 0.1298,
+      "oracle_mean": 0.0068,
+      "oracle_sd": 0.0061,
+      "share_monotone": 0.3,
+      "share_in_unit_range": 0.25,
+      "median_horizon": 223.407,
+      "paper_ssc": [
+        0.0652,
+        0.0497
+      ],
+      "paper_oracle": [
+        0.0204,
+        0.0096
+      ]
+    },
+    "cox_K700": {
+      "ssc_mean": 0.0724,
+      "ssc_sd": 0.1251,
+      "oracle_mean": 0.0033,
+      "oracle_sd": 0.0031,
+      "share_monotone": 0.25,
+      "share_in_unit_range": 0.4,
+      "median_horizon": 223.102,
+      "paper_ssc": [
+        0.0542,
+        0.0413
+      ],
+      "paper_oracle": [
+        0.0194,
+        0.0104
+      ]
+    },
+    "aalen_K100": {
+      "ssc_mean": 0.0796,
+      "ssc_sd": 0.0394,
+      "oracle_mean": 0.0119,
+      "oracle_sd": 0.0141,
+      "share_monotone": 0.0,
+      "share_in_unit_range": 0.25,
+      "median_horizon": 0.704,
+      "paper_ssc": [
+        0.0621,
+        0.0307
+      ],
+      "paper_oracle": [
+        0.0185,
+        0.0052
+      ]
+    },
+    "aalen_K300": {
+      "ssc_mean": 0.0436,
+      "ssc_sd": 0.0158,
+      "oracle_mean": 0.0057,
+      "oracle_sd": 0.0036,
+      "share_monotone": 0.3,
+      "share_in_unit_range": 0.45,
+      "median_horizon": 0.691,
+      "paper_ssc": [
+        0.0507,
+        0.0388
+      ],
+      "paper_oracle": [
+        0.0136,
+        0.0067
+      ]
+    },
+    "aalen_K700": {
+      "ssc_mean": 0.0337,
+      "ssc_sd": 0.0177,
+      "oracle_mean": 0.0058,
+      "oracle_sd": 0.0061,
+      "share_monotone": 0.55,
+      "share_in_unit_range": 0.45,
+      "median_horizon": 0.697,
+      "paper_ssc": [
+        0.0245,
+        0.0102
+      ],
+      "paper_oracle": [
+        0.0099,
+        0.0044
+      ]
+    }
+  },
+  "grid_pcr_treated": {
+    "cox_K100": {
+      "ssc_mean": 0.1182,
+      "ssc_sd": 0.1711,
+      "oracle_mean": 0.0119,
+      "oracle_sd": 0.0114,
+      "share_monotone": 0.15,
+      "share_in_unit_range": 0.3,
+      "median_horizon": 47.21,
+      "paper_ssc": [
+        0.1177,
+        0.0835
+      ],
+      "paper_oracle": [
+        0.0247,
+        0.0121
+      ]
+    },
+    "cox_K300": {
+      "ssc_mean": 0.0999,
+      "ssc_sd": 0.1601,
+      "oracle_mean": 0.0064,
+      "oracle_sd": 0.006,
+      "share_monotone": 0.45,
+      "share_in_unit_range": 0.5,
+      "median_horizon": 49.092,
+      "paper_ssc": [
+        0.0652,
+        0.0497
+      ],
+      "paper_oracle": [
+        0.0204,
+        0.0096
+      ]
+    },
+    "cox_K700": {
+      "ssc_mean": 0.0766,
+      "ssc_sd": 0.128,
+      "oracle_mean": 0.003,
+      "oracle_sd": 0.0027,
+      "share_monotone": 0.55,
+      "share_in_unit_range": 0.45,
+      "median_horizon": 50.637,
+      "paper_ssc": [
+        0.0542,
+        0.0413
+      ],
+      "paper_oracle": [
+        0.0194,
+        0.0104
+      ]
+    },
+    "aalen_K100": {
+      "ssc_mean": 0.0827,
+      "ssc_sd": 0.0571,
+      "oracle_mean": 0.0164,
+      "oracle_sd": 0.0268,
+      "share_monotone": 0.2,
+      "share_in_unit_range": 0.35,
+      "median_horizon": 0.539,
+      "paper_ssc": [
+        0.0621,
+        0.0307
+      ],
+      "paper_oracle": [
+        0.0185,
+        0.0052
+      ]
+    },
+    "aalen_K300": {
+      "ssc_mean": 0.0573,
+      "ssc_sd": 0.0432,
+      "oracle_mean": 0.0081,
+      "oracle_sd": 0.0101,
+      "share_monotone": 0.35,
+      "share_in_unit_range": 0.4,
+      "median_horizon": 0.584,
+      "paper_ssc": [
+        0.0507,
+        0.0388
+      ],
+      "paper_oracle": [
+        0.0136,
+        0.0067
+      ]
+    },
+    "aalen_K700": {
+      "ssc_mean": 0.0429,
+      "ssc_sd": 0.0482,
+      "oracle_mean": 0.009,
+      "oracle_sd": 0.0196,
+      "share_monotone": 0.7,
+      "share_in_unit_range": 0.5,
+      "median_horizon": 0.528,
+      "paper_ssc": [
+        0.0245,
+        0.0102
+      ],
+      "paper_oracle": [
+        0.0099,
+        0.0044
+      ]
+    }
+  },
+  "grid_simplex_pooled": {
+    "cox_K100": {
+      "ssc_mean": 0.0909,
+      "ssc_sd": 0.1123,
+      "oracle_mean": 0.012,
+      "oracle_sd": 0.0128,
+      "share_monotone": 1.0,
+      "share_in_unit_range": 1.0,
+      "median_horizon": 218.579,
+      "paper_ssc": [
+        0.1177,
+        0.0835
+      ],
+      "paper_oracle": [
+        0.0247,
+        0.0121
+      ]
+    },
+    "cox_K300": {
+      "ssc_mean": 0.0786,
+      "ssc_sd": 0.1231,
+      "oracle_mean": 0.0068,
+      "oracle_sd": 0.0061,
+      "share_monotone": 1.0,
+      "share_in_unit_range": 1.0,
+      "median_horizon": 223.407,
+      "paper_ssc": [
+        0.0652,
+        0.0497
+      ],
+      "paper_oracle": [
+        0.0204,
+        0.0096
+      ]
+    },
+    "cox_K700": {
+      "ssc_mean": 0.0675,
+      "ssc_sd": 0.1209,
+      "oracle_mean": 0.0033,
+      "oracle_sd": 0.0031,
+      "share_monotone": 1.0,
+      "share_in_unit_range": 1.0,
+      "median_horizon": 223.102,
+      "paper_ssc": [
+        0.0542,
+        0.0413
+      ],
+      "paper_oracle": [
+        0.0194,
+        0.0104
+      ]
+    },
+    "aalen_K100": {
+      "ssc_mean": 0.0864,
+      "ssc_sd": 0.0375,
+      "oracle_mean": 0.0119,
+      "oracle_sd": 0.0141,
+      "share_monotone": 1.0,
+      "share_in_unit_range": 1.0,
+      "median_horizon": 0.704,
+      "paper_ssc": [
+        0.0621,
+        0.0307
+      ],
+      "paper_oracle": [
+        0.0185,
+        0.0052
+      ]
+    },
+    "aalen_K300": {
+      "ssc_mean": 0.056,
+      "ssc_sd": 0.0335,
+      "oracle_mean": 0.0057,
+      "oracle_sd": 0.0036,
+      "share_monotone": 1.0,
+      "share_in_unit_range": 1.0,
+      "median_horizon": 0.691,
+      "paper_ssc": [
+        0.0507,
+        0.0388
+      ],
+      "paper_oracle": [
+        0.0136,
+        0.0067
+      ]
+    },
+    "aalen_K700": {
+      "ssc_mean": 0.045,
+      "ssc_sd": 0.0345,
+      "oracle_mean": 0.0058,
+      "oracle_sd": 0.0061,
+      "share_monotone": 1.0,
+      "share_in_unit_range": 1.0,
+      "median_horizon": 0.697,
+      "paper_ssc": [
+        0.0245,
+        0.0102
+      ],
+      "paper_oracle": [
+        0.0099,
+        0.0044
+      ]
+    }
+  },
+  "rank_sweep": {
+    "cumvar_cox_K100": {
+      "ssc_mean": 0.158,
+      "mean_rank": 2.5,
+      "paper_ssc_mean": 0.1177
+    },
+    "cumvar_cox_K300": {
+      "ssc_mean": 0.2053,
+      "mean_rank": 2.3,
+      "paper_ssc_mean": 0.0652
+    },
+    "cumvar_cox_K700": {
+      "ssc_mean": 0.2229,
+      "mean_rank": 2.2,
+      "paper_ssc_mean": 0.0542
+    },
+    "cumvar_aalen_K100": {
+      "ssc_mean": 0.2468,
+      "mean_rank": 1.1,
+      "paper_ssc_mean": 0.0621
+    },
+    "cumvar_aalen_K300": {
+      "ssc_mean": 0.2547,
+      "mean_rank": 1.1,
+      "paper_ssc_mean": 0.0507
+    },
+    "cumvar_aalen_K700": {
+      "ssc_mean": 0.2586,
+      "mean_rank": 1.0,
+      "paper_ssc_mean": 0.0245
+    },
+    "spectral_cox_K100": {
+      "ssc_mean": 0.2741,
+      "mean_rank": 2.1,
+      "paper_ssc_mean": 0.1177
+    },
+    "spectral_cox_K300": {
+      "ssc_mean": 0.2812,
+      "mean_rank": 2.0,
+      "paper_ssc_mean": 0.0652
+    },
+    "spectral_cox_K700": {
+      "ssc_mean": 0.2858,
+      "mean_rank": 2.0,
+      "paper_ssc_mean": 0.0542
+    },
+    "spectral_aalen_K100": {
+      "ssc_mean": 0.1317,
+      "mean_rank": 1.6,
+      "paper_ssc_mean": 0.0621
+    },
+    "spectral_aalen_K300": {
+      "ssc_mean": 0.1293,
+      "mean_rank": 1.6,
+      "paper_ssc_mean": 0.0507
+    },
+    "spectral_aalen_K700": {
+      "ssc_mean": 0.1247,
+      "mean_rank": 1.6,
+      "paper_ssc_mean": 0.0245
+    },
+    "usvt_cox_K100": {
+      "ssc_mean": 0.1061,
+      "mean_rank": 6.8,
+      "paper_ssc_mean": 0.1177
+    },
+    "usvt_cox_K300": {
+      "ssc_mean": 0.0949,
+      "mean_rank": 6.9,
+      "paper_ssc_mean": 0.0652
+    },
+    "usvt_cox_K700": {
+      "ssc_mean": 0.0724,
+      "mean_rank": 6.9,
+      "paper_ssc_mean": 0.0542
+    },
+    "usvt_aalen_K100": {
+      "ssc_mean": 0.0796,
+      "mean_rank": 5.5,
+      "paper_ssc_mean": 0.0621
+    },
+    "usvt_aalen_K300": {
+      "ssc_mean": 0.0436,
+      "mean_rank": 5.5,
+      "paper_ssc_mean": 0.0507
+    },
+    "usvt_aalen_K700": {
+      "ssc_mean": 0.0337,
+      "mean_rank": 5.8,
+      "paper_ssc_mean": 0.0245
+    }
+  }
+}

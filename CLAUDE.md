@@ -72,8 +72,10 @@ donor, no pre-periods, near-singular / collinear, treatment at `t=0`), and
 and a test asserts the failure is *reported*, not swallowed). A change is not
 done until it is red→green across these levels and the new code is fully
 covered — defensive / unreachable branches get `# pragma: no cover` with a
-stated reason, never an untested gap. The layered architecture, patterns, and
-exception contract live in `agents/agents_tests.md`.
+stated reason, never an untested gap. The layered architecture, patterns,
+exception contract, and the instrument-selection contract — which of
+`coverage` / `pytest` / `hypothesis` / `cosmic-ray` answers which question, and
+why two of them are complements — live in `agents/agents_tests.md`.
 
 ## The replication contract
 
