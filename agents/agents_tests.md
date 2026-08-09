@@ -710,11 +710,12 @@ from which question it asks.
 | `coverage` | Did the suite execute this line? | — | — |
 | `pytest` example tests | Does *this* input give the expected output? | — | inputs and code |
 | `hypothesis` property tests | Does the invariant hold across the *input domain*? | inputs | code |
-| `cosmic-ray` mutation runs | Are the *assertions* strong enough to notice? | code | inputs |
+| mutation runs | Are the *assertions* strong enough to notice? | code | inputs |
 
-Status: `pytest`, `pytest-cov`, `pytest-xdist` and `coverage` are wired up and
-run in CI. `hypothesis` and `cosmic-ray` are not yet dependencies. This section
-fixes the contract before they land, so the styles do not blur once they do.
+Status: `pytest`, `pytest-cov`, `pytest-xdist`, `coverage` and `hypothesis` are
+wired up and run in CI. Mutation runs are wired up as the semantic catalogue in
+`tools/mutation`, on a weekly out-of-band workflow; `cosmic-ray` itself cannot
+currently be installed (see below).
 
 ## Two of them are complements, not substitutes
 
@@ -749,6 +750,48 @@ So a score below 1 is not a defect count and 1 is not a goal — an equivalent
 mutant can never be killed by any suite. Read survivors individually and record
 the accepted ones with a reason, the way `# pragma: no cover` records
 unreachable branches.
+
+## The two mutation instruments
+
+Mutation runs come in two forms here, and the split follows from the frame
+above rather than from tooling convenience.
+
+A **syntactic sweep** (`cosmic-ray`) applies general operators over the syntax
+tree — replace a binary operator, flip a comparison, delete a statement —
+exhaustively and without imagination. It asks whether any assertion in a module
+is weak.
+
+A **semantic catalogue** (`tools/mutation/targets.toml`) applies a short list
+of specific defects a reviewer thought plausible, each at the one site where it
+would be meaningful. It asks whether *this* defect would be noticed.
+
+Neither subsumes the other. Operators perturb the program syntactically, so
+every mutant they build is a fault of commission at a local site. Several of
+the catalogued mutants model something else: "report only the first clash" is a
+statement insertion at one place, "exclude only this cohort's treated units" is
+a name swap that would be noise applied anywhere else. A syntactic sweep cannot
+generate those without drowning the meaningful site. Equally, the catalogue is
+only as good as the defects someone imagined, which is exactly what a sweep
+does not depend on.
+
+The practical rule: generic operator swaps do not go in the catalogue. They
+duplicate the sweep partially and worse.
+
+`cosmic-ray` is currently blocked upstream — its `yattag` dependency ships a
+legacy `setup.py` that modern setuptools rejects — so only the catalogue runs
+today. `module-path`, `test-command` and `timeout` in `targets.toml` are
+cosmic-ray's own configuration keys, and `emit_cosmic_ray_config.py` renders a
+valid session config from them, so the blocker costs a `pip install` and not a
+redesign.
+
+A harness that scores mutants has failure modes of its own, and all four of
+these were hit while building this one: a mutant that never applied must not be
+reported as a survivor; the unmutated suite must be checked first, or every
+mutant "fails" a suite that was already red; cached bytecode must be purged,
+because a mutant the same length as the code it replaces matches the `.pyc`
+the baseline just wrote; and the module must be restored byte for byte, since a
+text-mode round trip rewrites the line endings of a CRLF file. `tools/mutation/README.md`
+records each with its test.
 
 ## Reading a coverage number (§10.3)
 
