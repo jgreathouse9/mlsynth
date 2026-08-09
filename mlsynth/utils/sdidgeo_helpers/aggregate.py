@@ -19,7 +19,7 @@ import pandas as pd
 _POWER_COLUMNS = [
     "candidate", "duration", "effect_size",
     "power", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
-    "investment",
+    "pre_rmspe_lambda", "investment",
 ]
 
 
@@ -54,6 +54,7 @@ def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
         detected_lift=("detected_lift", "mean"),
         scaled_l2=("scaled_l2", "mean"),
         pre_rmspe=("pre_rmspe", "mean"),
+        pre_rmspe_lambda=("pre_rmspe_lambda", "mean"),
     )
     if has_investment:
         # investment = cpic * es * volume is constant across backtests.
@@ -111,9 +112,57 @@ def compute_mde(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> p
     return pd.DataFrame(rows)
 
 
+def compute_exact_mde(cube: pd.DataFrame, *,
+                      power_threshold: float = 0.8) -> pd.DataFrame:
+    """The effect a design actually detects, per (candidate, duration).
+
+    ``compute_mde`` reports the smallest simulated effect whose power clears the
+    threshold, so its resolution is the effect grid's step: a design that truly
+    detects 0.1014 reports 0.150 on a 0.05 grid, because 0.1014 misses the 0.10
+    point. This reports the crossing itself.
+
+    The per-backtest boundaries come from the engine (closed form where the
+    p-value is analytic in the effect). Power above the threshold means at least
+    ``k = floor(power_threshold * n_sims) + 1`` backtests detect, so the design's
+    boundary is the k-th smallest of them -- an order statistic, which is why
+    this works on the pre-aggregation cube instead of riding through
+    :func:`compute_power`, which averages.
+
+    Both directions are kept. The backtest's own placebo effect is generally
+    nonzero, so the detection interval sits off centre and a design can need
+    less of a push downward than upward.
+
+    Returns ``nan`` for a design whose boundaries are not finite, which is what
+    an engine reports when its p-value is not analytic in the effect.
+    """
+    if cube.empty or "boundary_up" not in cube.columns:
+        return pd.DataFrame(columns=["candidate", "duration",
+                                     "mde_exact_up", "mde_exact_down"])
+
+    rows: List[dict] = []
+    per_sim = cube.drop_duplicates(subset=["candidate", "duration", "sim"])
+    for (candidate, duration), group in per_sim.groupby(
+        ["candidate", "duration"], sort=False
+    ):
+        ups = group["boundary_up"].to_numpy(dtype=float)
+        downs = group["boundary_down"].to_numpy(dtype=float)
+        n_sims = ups.shape[0]
+        k = int(np.floor(power_threshold * n_sims)) + 1
+        up = down = float("nan")
+        finite_up = np.sort(ups[np.isfinite(ups)])
+        finite_down = np.sort(downs[np.isfinite(downs)])[::-1]
+        if finite_up.size >= k:
+            up = float(finite_up[k - 1])
+        if finite_down.size >= k:
+            down = float(finite_down[k - 1])
+        rows.append({"candidate": candidate, "duration": duration,
+                     "mde_exact_up": up, "mde_exact_down": down})
+    return pd.DataFrame(rows)
+
+
 _RANK_COLUMNS = [
     "candidate", "duration", "mde", "power", "detected_lift", "abs_lift_in_zero",
-    "scaled_l2", "pre_rmspe", "investment",
+    "scaled_l2", "pre_rmspe", "pre_rmspe_lambda", "investment",
     "rank_mde", "rank_pvalue", "rank_abszero", "rank",
 ]
 

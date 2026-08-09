@@ -48,7 +48,7 @@ def simulate_backtest(
     *, n_draws: int = 200, n_tr: int = 1, seed: int = 0,
     cpic: Optional[float] = None, treated_total: Optional[np.ndarray] = None,
     analytic: bool = True, engine: str = "sdid",
-    engine_kwargs: Optional[dict] = None,
+    engine_kwargs: Optional[dict] = None, alpha: float = 0.1,
 ) -> List[dict]:
     """Simulate one backtest across a grid of effect sizes.
 
@@ -110,7 +110,8 @@ def simulate_backtest(
     # draw) and what cannot (a conformal permutation) differs by procedure.
     swept = eng.sweep_p_values(fit, treated_arr, donors_arr, n_pre, start, end,
                                list(effect_sizes), n_draws=n_draws, n_tr=n_tr,
-                               seed=seed, analytic=analytic, **ekw)
+                               seed=seed, analytic=analytic, alpha=alpha,
+                               **ekw)
 
     total_arr = (np.asarray(treated_total, dtype=float).ravel()
                  if treated_total is not None else treated_arr)
@@ -128,6 +129,10 @@ def simulate_backtest(
                               else float("nan")),
             "scaled_l2": fit.scaled_l2,
             "pre_rmspe": fit.pre_rmspe,
+            "pre_rmspe_lambda": float(fit.extras.get("pre_rmspe_lambda",
+                                                     float("nan"))),
+            "boundary_up": swept.get("boundary_up", float("nan")),
+            "boundary_down": swept.get("boundary_down", float("nan")),
             "investment": (cpic * float(es) * window_volume
                            if cpic is not None else float("nan")),
         })
