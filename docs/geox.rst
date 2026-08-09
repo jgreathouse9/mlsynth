@@ -463,6 +463,12 @@ at all. For the same reason the readout inherits the design's donor
 pool: where a spillover constraint barred a treated market's
 conflict-neighbours, they stay barred here.
 
+``report.weights.summary_stats`` carries whatever the engine has to say
+about its own fit alongside the shared keys: SDID's ridge and bias
+correction, augsynth's intercept, its penalty and the augmentation by
+name. Under ``augment=None`` there is no penalty and ``lambda_`` is
+``None``, which is the answer and not a missing value.
+
 .. code-block:: python
 
     design = GEOX(GEOXConfig(

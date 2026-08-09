@@ -37,6 +37,25 @@ from .engines import resolve_engine
 from .shaping import aggregate_treated, donor_matrix
 
 
+def _report_extras(extras: dict) -> dict:
+    """An engine's ``extras`` in a form the report can carry.
+
+    ``extras`` is the engine's own slot, and what an estimator has to say about
+    its fit is not all numbers: SDID reports a ridge and a bias correction,
+    augsynth an intercept, a penalty that is absent under plain SCM, the
+    augmentation by name, and a flag. The readout reports what the engine
+    fitted, so an absent penalty arrives absent and the augmentation arrives as
+    its name.
+
+    The one thing changed on the way through is a numpy scalar, which becomes
+    the Python scalar it wraps. Every other numeric field in the result models
+    is cast as it is built; this slot is fed straight from an engine, so it is
+    where a ``np.float64`` would otherwise reach a caller pickling the report.
+    """
+    return {k: (v.item() if isinstance(v, np.generic) else v)
+            for k, v in extras.items()}
+
+
 def realize_design(
     Ywide_full: pd.DataFrame,
     candidate: Iterable,
@@ -165,7 +184,7 @@ def realize_design(
                 "engine": engine,
                 "cpic": cpic,
                 "cost": cost,
-                **{k: float(v) for k, v in fit.extras.items()},
+                **_report_extras(fit.extras),
             },
         ),
         fit_diagnostics=FitDiagnosticsResults(

@@ -274,3 +274,183 @@ class TestFitPopulatesTheReport:
             n_validation_backtests=0, seed=0)).fit()
         donors = set(res.report.weights.donor_weights)
         assert not (donors & set(res.selected_units))
+
+
+# ---------------------------------------------------------------------------
+# The readout across engines
+#
+# `realize_design` was written when SDID was the only engine, whose `extras`
+# happen to be all floats (`zeta`, `bias_correction`, `pre_rmspe_lambda`). The
+# augsynth engine carries what its estimator has: a penalty that may be absent,
+# an augmentation named by string, a flag. `extras` is the engine's own slot and
+# the readout does not get to assume a type for it -- the pipeline's premise is
+# that everything outside the fit is engine-independent, and a readout that
+# runs on one engine and raises on the other is that premise failing.
+#
+# These parametrize over both engines so the whole readout, not one field, is
+# held to it.
+# ---------------------------------------------------------------------------
+
+_ENGINE_KWARGS = {
+    "sdid": {"engine": "sdid"},
+    "augsynth": {"engine": "augsynth", "inference": "placebo"},
+    "augsynth-conformal": {"engine": "augsynth", "inference": "conformal",
+                           "ns": 40},
+    "augsynth-plain": {"engine": "augsynth", "inference": "placebo",
+                       "augment": None},
+    "augsynth-nofe": {"engine": "augsynth", "inference": "placebo",
+                      "fixed_effects": False},
+}
+
+
+def _post_panel(panel):
+    df = panel.copy()
+    cutoff = df["date"].sort_values().unique()[-14]
+    df["post"] = (df["date"] >= cutoff).astype(int)
+    return df
+
+
+def _design(panel, **over):
+    kwargs = dict(
+        df=_post_panel(panel), unitid="location", time="date", outcome="Y",
+        post_col="post", treatment_size=2, durations=[7],
+        effect_sizes=[0.0, 0.2], n_backtests=2, n_draws=5,
+        n_validation_backtests=0, seed=0)
+    kwargs.update(over)
+    return GEOX(GEOXConfig(**kwargs)).fit()
+
+
+class TestReadoutRunsOnEveryEngine:
+    @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
+    def test_the_report_is_produced(self, panel, label):
+        """Smoke: every engine and inference pairing reads out."""
+        res = _design(panel, **_ENGINE_KWARGS[label])
+        assert res.report is not None
+        assert np.isfinite(res.report.effects.att)
+
+    @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
+    def test_the_paths_are_finite_and_panel_length(self, panel, label):
+        res = _design(panel, **_ENGINE_KWARGS[label])
+        ts = res.report.time_series
+        n = len(ts.time_periods)
+        for path in (ts.observed_outcome, ts.counterfactual_outcome,
+                     ts.estimated_gap):
+            assert len(path) == n
+            assert np.all(np.isfinite(path))
+
+    @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
+    def test_the_p_value_is_a_probability(self, panel, label):
+        res = _design(panel, **_ENGINE_KWARGS[label])
+        assert 0.0 <= res.report.inference.p_value <= 1.0
+
+
+class TestEngineExtrasSurviveTheReadout:
+    """`extras` reach `summary_stats` with their own types intact.
+
+    The readout reports what the engine fitted, so a penalty that was absent
+    has to arrive as absent and not as a number standing in for it. Coercing
+    the slot to float is what made the augsynth readout unreachable.
+    """
+
+    def test_sdid_extras_are_reported(self, panel):
+        stats = _design(panel, engine="sdid").report.weights.summary_stats
+        for key in ("zeta", "bias_correction", "pre_rmspe_lambda"):
+            assert key in stats
+            assert isinstance(stats[key], float)
+
+    def test_augsynth_string_extra_is_reported_as_itself(self, panel):
+        stats = _design(panel, **_ENGINE_KWARGS["augsynth"]).report.weights.summary_stats
+        assert stats["augment"] == "ridge"
+
+    def test_augsynth_flag_extra_stays_a_bool(self, panel):
+        stats = _design(panel, **_ENGINE_KWARGS["augsynth"]).report.weights.summary_stats
+        assert stats["fixed_effects"] is True
+
+    def test_a_flag_turned_off_is_reported_off(self, panel):
+        stats = _design(panel, **_ENGINE_KWARGS["augsynth-nofe"]).report.weights.summary_stats
+        assert stats["fixed_effects"] is False
+
+    def test_an_absent_penalty_is_reported_absent(self, panel):
+        """`augment=None` is plain SCM, which has no ridge penalty.
+
+        `float(None)` raises, and any stand-in value would report a penalty
+        that was never applied.
+        """
+        stats = _design(panel, **_ENGINE_KWARGS["augsynth-plain"]).report.weights.summary_stats
+        assert stats["augment"] is None
+        assert stats["lambda_"] is None
+
+    def test_a_present_penalty_is_a_number(self, panel):
+        stats = _design(panel, **_ENGINE_KWARGS["augsynth"]).report.weights.summary_stats
+        assert isinstance(stats["lambda_"], float)
+        assert np.isfinite(stats["lambda_"])
+
+    @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
+    def test_the_shared_summary_keys_are_present_whichever_engine(self, panel, label):
+        stats = _design(panel, **_ENGINE_KWARGS[label]).report.weights.summary_stats
+        for key in ("how", "treated_markets", "engine", "cpic", "cost"):
+            assert key in stats
+
+    @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
+    def test_no_numpy_scalars_leak_into_the_summary(self, panel, label):
+        """Plain Python scalars, so the report pickles and serialises.
+
+        Every other numeric field in the result models is cast on the way in;
+        `extras` is the one slot fed straight from an engine, so it is the one
+        that can carry a `np.float64` out.
+        """
+        stats = _design(panel, **_ENGINE_KWARGS[label]).report.weights.summary_stats
+        leaked = {k: type(v).__name__ for k, v in stats.items()
+                  if isinstance(v, np.generic)}
+        assert leaked == {}
+
+
+class TestExtrasNormalisationUnit:
+    """The conversion itself, away from a fit."""
+
+    def test_numpy_scalars_become_python_scalars(self):
+        from mlsynth.utils.geox_helpers.realize import _report_extras
+
+        out = _report_extras({"a": np.float64(1.5), "b": np.int64(3),
+                              "c": np.bool_(True)})
+        assert out == {"a": 1.5, "b": 3, "c": True}
+        assert all(not isinstance(v, np.generic) for v in out.values())
+
+    def test_strings_none_and_bools_pass_through(self):
+        from mlsynth.utils.geox_helpers.realize import _report_extras
+
+        out = _report_extras({"augment": "ridge", "lambda_": None,
+                              "fixed_effects": False})
+        assert out == {"augment": "ridge", "lambda_": None,
+                       "fixed_effects": False}
+        assert out["fixed_effects"] is False
+
+    def test_an_empty_slot_is_an_empty_dict(self):
+        from mlsynth.utils.geox_helpers.realize import _report_extras
+
+        assert _report_extras({}) == {}
+
+    def test_nan_survives(self):
+        """augsynth reports `pre_rmspe_lambda` as nan: it weights donors only."""
+        from mlsynth.utils.geox_helpers.realize import _report_extras
+
+        assert np.isnan(_report_extras({"x": float("nan")})["x"])
+
+
+class TestTheTwoEnginesDisagree:
+    """A guard on the parametrization above.
+
+    If both engines produced the same report the tests would pass while
+    testing one estimator twice.
+    """
+
+    def test_the_engines_give_different_answers(self, panel):
+        sdid = _design(panel, **_ENGINE_KWARGS["sdid"]).report
+        aug = _design(panel, **_ENGINE_KWARGS["augsynth"]).report
+        assert sdid.effects.att != aug.effects.att
+
+    def test_only_sdid_reports_time_weights(self, panel):
+        sdid = _design(panel, **_ENGINE_KWARGS["sdid"]).report
+        aug = _design(panel, **_ENGINE_KWARGS["augsynth"]).report
+        assert sdid.weights.time_weights is not None
+        assert aug.weights.time_weights is None
