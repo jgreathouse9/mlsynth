@@ -19,6 +19,131 @@ The guiding principle is:
 
 ---
 
+# Vocabulary and Framework
+
+The terminology below follows Jorgensen, *Software Testing: A Craftsman's
+Approach*, 4th ed. (CRC Press, 2013), which is compatible with the ISTQB
+glossary. Using it precisely is what lets the rest of this document make claims
+that can be checked instead of asserted.
+
+## Error, fault, failure, incident (§1.1)
+
+* **Error** — a mistake a person makes. Errors propagate: a specification error
+  is amplified in design and again in code.
+* **Fault** — the representation of an error in some artifact. Source code,
+  a docstring, and a config validator can each carry one. `defect` and `bug`
+  are synonyms.
+* **Failure** — what happens when the code corresponding to a fault executes.
+* **Incident** — the symptom that alerts someone to a failure.
+
+A fault of **commission** puts something incorrect into the artifact. A fault of
+**omission** leaves out something that should be there. Omission is the harder
+of the two, and the reason is definitional: a failure requires code to execute,
+so the failure concept attaches to faults of commission. Absent code cannot
+execute, so no amount of running the program reveals it.
+
+## Specified, programmed, tested (§1.3)
+
+Three sets of behaviors, and every testing claim in this repo is a claim about
+their overlap:
+
+| Set | In `mlsynth` |
+| --- | --- |
+| `S` — specified | the estimator as defined by its source paper, plus this repo's own contracts (result families, exception translation, config validation) |
+| `P` — programmed | what `mlsynth` actually computes |
+| `T` — tested | what the suite exercises |
+
+The regions name the problems. `S \ P` is a fault of omission: the paper
+specifies behavior the library does not implement. `P \ S` is a fault of
+commission: the library does something the paper never asked for. `S ∩ P \ T`
+is untested correct behavior. Testing is the determination of how much of
+`S ∩ P` is in `T`, and correctness is meaningful only relative to a chosen `S`
+— which for this library means relative to a named paper or reference
+implementation, never in the abstract.
+
+## Specification-based and code-based (§1.4, Figure 1.7)
+
+Two ways to identify test cases, with different reach:
+
+* **Specification-based** (black box) derives cases from `S` alone. It
+  establishes confidence. It cannot find behavior in `P \ S`, because nothing
+  in the specification points at it.
+* **Code-based** (white box) derives cases from `P`. It seeks faults and
+  supports coverage measurement. It cannot find behavior in `S \ P`, because
+  there is no code to look at.
+
+Neither is sufficient alone, and the deficiency of each is exactly the other's
+territory. Specification-based methods additionally suffer gaps and
+redundancies, both of which become visible once their cases are run under a
+code-based coverage metric. That pairing — generate from the specification,
+measure against the code — is the whole argument for using more than one
+instrument, and the section on instruments below is an application of it.
+
+## Consequence: what each instrument can and cannot reach
+
+This frame settles by definition what was earlier observed by accident.
+
+Mutation runs derive from `P` and produce mutants of `P`, so every mutant they
+construct is a fault of commission. A fault of omission has no code to mutate.
+The `pcr_weights` guard is the worked case: three mutants on the offending line
+were all killed, giving that line a perfect mutation score while the defect
+stood, because the missing cutoff was in `S \ P` and mutation never leaves `P`.
+
+Property tests derive from `S` — an invariant is a statement of specified
+behavior — and generate inputs, so they expand `T` inside `S`. That is the
+region a fault of omission lives in, which is why they reach what mutation
+cannot. They in turn cannot judge whether an assertion is strong enough, since
+that is a question about sensitivity within `P`.
+
+---
+
+# The Oracle Problem
+
+Jorgensen puts the hard part of a test case in its expected output (§1.2): for
+software computing something nobody knows the answer to, the academic response
+is to postulate an **oracle** that knows all answers, and the industrial
+response is **reference testing**, running the system in the presence of expert
+users who judge whether the outputs are acceptable.
+
+This is the central problem of testing `mlsynth`, and naming it explains the
+shape of the whole repository. For most estimators there is no oracle. Given a
+panel, nobody knows the true counterfactual — that is the entire reason the
+estimator exists. So a Layer 4 test on real data has no expected output to
+assert, and no amount of test-design technique manufactures one.
+
+`mlsynth` answers this the industrial way, and `benchmarks/` is that answer.
+The replication contract is reference testing with the source paper and the
+authors' implementation as the expert:
+
+* **Path A** — the paper's empirical result on the authors' data. The expert is
+  the published number.
+* **Path B** — the paper's Monte Carlo. The DGP supplies a known truth, so this
+  is the one route where a real oracle exists, and the estimand is computable in
+  closed form.
+* **Cross-validation** — an authoritative reference implementation, run live and
+  compared cell by cell. The expert is the other program.
+
+Three consequences follow, and they are binding.
+
+1. A benchmark case is not documentation or a nice-to-have. It is the source of
+   expected outputs for an entire estimator, so an estimator without one has a
+   testable `S` only for its invariants, never for its values.
+2. Where a real oracle exists, prefer it. Path B and constructed fixtures with
+   analytic answers (a factor model with known loadings, a survival design whose
+   estimand is `exp(-rate * t)`) admit exact assertions that reference testing
+   cannot.
+3. Where no oracle exists at any price, say so and stop. A design whose
+   behaviour depends on a quantity the paper never reports is not reproducible
+   in principle, and the honest output is a recorded finding, not a widened
+   tolerance.
+
+Metamorphic relations are the third way out, and they need no oracle at all:
+they assert how an output must *respond* to a transformation of the input,
+which is checkable without knowing any correct answer. See the instrument
+section below.
+
+---
+
 # Test-Driven Development (test-first is the default)
 
 **Write the tests before the code.** Whenever you add a new feature, helper,
@@ -52,6 +177,45 @@ Measure with the per-estimator coverage command in `CLAUDE.md`.
 
 The layered architecture below says *where* each level lives; this section says
 the levels are *non-optional* and come *first*.
+
+## What the four levels are, in the classical vocabulary
+
+The levels are not an invention; each is a named specification-based method
+(Jorgensen §§5–6), and naming them shows what the set does and does not cover.
+
+| Level | Classical method | Assumption |
+| --- | --- | --- |
+| Smoke | weak normal equivalence class testing — one representative valid input | single fault |
+| Unit | invariant and special-value testing over the valid domain | single fault |
+| Edge | boundary value analysis — `min`, `min+`, `nom`, `max-`, `max` on each input | single fault |
+| Failure | robustness testing — inputs outside the valid domain, plus exception handling | single fault |
+
+Every one of them varies one thing at a time. That is the **single-fault
+assumption**: failures arise from one variable being extreme, so holding the
+others nominal is enough. It is what makes the levels affordable — `4n + 1`
+cases for `n` inputs instead of `5^n`.
+
+The assumption is not always warranted here, and where it fails the levels have
+a blind spot the coverage number will not show. `mlsynth`'s inputs are
+**physical** quantities (donor count, pre-period length, panel dimensions) and
+they are **dependent** — `N` versus `T0` governs overfitting, `J > T0` changes
+which solver branch is feasible, a short pre-period interacts with a
+rank-deficient donor matrix. Under the classical selection guidance (§10.5,
+Table 10.13) dependent variables indicate decision-table testing, and a
+warranted multiple-fault assumption indicates worst-case testing — the cross
+product of boundaries, not one boundary at a time.
+
+Two standing gaps follow, and both are open:
+
+* **No worst-case testing anywhere.** Combinations such as "single donor *and*
+  no pre-periods *and* collinear" are untested at every estimator. Where an
+  estimator's failure modes interact, add the cross product deliberately for the
+  two or three inputs that interact, not for all of them.
+* **Config validators are a decision table nobody has written down.** Each
+  `*Config` enforces a set of conditions with dependencies between them, which
+  is exactly the shape a decision table represents. Writing the table first
+  makes the impossible rules explicit and shows which rule combinations no test
+  reaches.
 
 ---
 
@@ -554,22 +718,10 @@ fixes the contract before they land, so the styles do not blur once they do.
 
 ## Two of them are complements, not substitutes
 
-Hypothesis varies the inputs and holds the code fixed, so it finds inputs the
-code mishandles. Mutation runs vary the code and reuse your inputs, so they find
-assertions too weak to separate right from wrong. Neither subsumes the other,
-and the library has a case on each side.
-
-Mutation alone is not enough. `pcr_weights` divided by a singular value with no
-cutoff, so a design whose numerical rank fell below the requested rank returned
-NaN or weights of order `1e14`. Three mutants on that line — `/` to `*`, a
-perturbed denominator, the division deleted — were all killed by the suite that
-existed at the time. The line scored 100 percent while carrying the defect,
-because the fault was an omission and there is no line to mutate into a missing
-guard. The defect lived in the input domain, which mutation runs do not explore.
-
-Property tests alone are not enough. `assert w is not None` holds for every
-generated input forever. Only a mutant demonstrates that such an assertion
-separates nothing.
+This is the Figure 1.7 argument applied, and it is settled above by definition,
+not by anecdote: property tests generate inside `S`, mutation runs operate inside
+`P`, and each is blind exactly where the other looks. `pcr_weights` is the
+worked case in that section.
 
 The composition rule follows:
 
@@ -579,6 +731,40 @@ The composition rule follows:
 A mutant surviving a property-backed suite says something specific: no property
 separates correct behaviour from this corruption. That is a specification gap,
 not a missing fixture.
+
+## Reading a mutation score (§21.1)
+
+The definitions are precise, and the third one is why the score is a diagnostic
+and not a target:
+
+* A **mutant** `P'` is `P` with one small source change.
+* Given a suite `T` where every test passes on `P`, `P'` is **killed** if at
+  least one test fails on `P'`, and is a **live mutant** otherwise.
+* A live mutant means one of two things: `P'` is logically equivalent to `P`, or
+  `T` is too weak to separate them. Deciding which is **formally undecidable**.
+* The **mutation score** is `x / y`, killed over total, and its denominator
+  therefore contains an unknown number of equivalent mutants.
+
+So a score below 1 is not a defect count and 1 is not a goal — an equivalent
+mutant can never be killed by any suite. Read survivors individually and record
+the accepted ones with a reason, the way `# pragma: no cover` records
+unreachable branches.
+
+## Reading a coverage number (§10.3)
+
+Coverage is a ratio of a specification-based method against a code-based metric,
+and it comes with two companions the badge does not show. For a method `M`
+generating `m` cases, a code-based metric `S` identifying `s` elements, of which
+the cases traverse `n`:
+
+* **coverage** `C(M, S) = n / s` — below 1 means gaps
+* **redundancy** `R(M, S) = m / s`
+* **net redundancy** `NR(M, S) = m / n` — the useful one: cases per element
+  actually reached
+
+A high line-coverage number with high net redundancy is a suite testing the same
+few paths repeatedly. `pcr_weights` sat at full line coverage the whole time it
+carried the defect, because coverage counts execution, not input variety.
 
 ## Which instrument for which test
 
@@ -822,3 +1008,23 @@ This is a core design principle of the library.
 The central testing philosophy of `mlsynth` is:
 
 > Validate econometric behavior, optimization feasibility, numerical stability, and public API contracts — not implementation details.
+
+Stated in the vocabulary of the framework section: determine how much of
+`S ∩ P` lies in `T`, using specification-based methods to generate cases and
+code-based metrics to measure the gaps and redundancies they leave — and, for
+the estimators, remember that `S` is a named paper and the expected outputs come
+from reference testing against it, since no oracle exists.
+
+---
+
+# Reference
+
+Jorgensen, P. C. (2013). *Software Testing: A Craftsman's Approach*, 4th ed.
+CRC Press. Section numbers cited above refer to this edition: §1.1 the
+error/fault/failure progression and the omission–commission distinction, §1.2
+the oracle problem and reference testing, §1.3 the specified/programmed/tested
+sets, §1.4 and Figure 1.7 specification-based versus code-based reach, §§5–6
+boundary value and equivalence class methods with the single- and multiple-fault
+assumptions, §10.3 the coverage and redundancy metrics, §10.5 and Table 10.13
+method selection from variable attributes, §21.1 the formalization of program
+mutation.
