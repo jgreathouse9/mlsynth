@@ -1,0 +1,111 @@
+# Mutation targets and the semantic mutant catalogue.
+#
+# Two things live here, and they answer different questions.
+#
+# `module-path` and `test-command` are cosmic-ray's own configuration keys.
+# Declaring them here means a valid `[cosmic-ray]` config is emitted from this
+# file without restating anything -- see emit_cosmic_ray_config.py. When
+# cosmic-ray becomes installable again (it is currently blocked upstream: its
+# `yattag` dependency uses a legacy setup.py that modern setuptools rejects),
+# `cosmic-ray init` on these targets is a drop-in addition.
+#
+# The `mutant` entries are the part cosmic-ray does not generate. Its operators
+# are general rules over parso AST nodes -- replace a binary operator, flip a
+# comparison, delete a statement -- so it produces faults of commission by
+# local syntactic perturbation, exhaustively and better than any hand-written
+# list. The mutants below are the other kind: a specific plausible defect,
+# often an omission or a higher-level logic error, at one site where it would
+# be meaningful. "Report only the first clash" is a statement insertion at one
+# place; "exclude only this cohort's treated units" is a name swap that would
+# be noise if applied everywhere. Neither is a rule cosmic-ray could apply
+# without drowning the meaningful site.
+#
+# So the two are complements. cosmic-ray asks whether any assertion in a module
+# is weak; this catalogue asks whether a specific defect a reviewer can imagine
+# would be noticed. Do not add generic operator swaps here -- `/` to `*`,
+# constant tweaks, comparison flips -- they duplicate cosmic-ray partially and
+# worse.
+#
+# Every mutant is expected to be killed. A survivor is a question, not a
+# verdict: the assertion may be too weak, or the mutant may be equivalent. Both
+# outcomes are recorded, never silently tolerated.
+
+[[target]]
+name = "effect-primitives"
+module-path = "mlsynth/utils/effectutils.py"
+test-command = "python -m pytest mlsynth/tests/test_effect_primitives_properties.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "att-sums-instead-of-averaging"
+  find = 'return float(g.mean()) if g.size else float("nan")'
+  replace = 'return float(g.sum()) if g.size else float("nan")'
+  models = "an ATT that totals the post-period gap instead of averaging it, so the reported effect grows with the length of the post-period"
+
+  [[target.mutant]]
+  id = "percent-att-drops-the-denominator-sign"
+  find = "100.0 * att_value / mean_cf"
+  replace = "100.0 * att_value / abs(mean_cf)"
+  models = "a percent effect that reports the wrong sign whenever the counterfactual level is negative -- a deficit, a net balance, a temperature anomaly"
+
+  [[target.mutant]]
+  id = "standardized-att-scales-by-the-pre-period"
+  find = "np.sqrt(t1) * r_post.mean() / denom"
+  replace = "np.sqrt(t0) * r_post.mean() / denom"
+  models = "a SATT that scales by the pre-period count, which leaves both scale invariance and the sign intact and so is invisible to every test that checks only those"
+
+  [[target.mutant]]
+  id = "split-loses-a-period-at-the-seam"
+  find = "return a[:n_pre], a[n_pre : n_pre + n_post]"
+  replace = "return a[:n_pre], a[n_pre - 1 : n_pre + n_post - 1]"
+  models = "an off-by-one at the pre/post seam, which silently attributes the last pre-treatment period to the treatment"
+
+[[target]]
+name = "fit-primitives"
+module-path = "mlsynth/utils/fitutils.py"
+test-command = "python -m pytest mlsynth/tests/test_effect_primitives_properties.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "rmse-uses-the-sample-denominator"
+  find = "np.sqrt(r @ r / r.size)"
+  replace = "np.sqrt(r @ r / max(r.size - 1, 1))"
+  models = "a root-mean-square error computed with the sample denominator, not the population one, which is the more defensible statistic and the wrong one for this contract"
+
+  [[target.mutant]]
+  id = "r-squared-guard-returns-to-an-exact-zero-test"
+  find = "if denom <= noise_floor:"
+  replace = "if denom == 0.0:"
+  models = "the regression this guard was added for: a flat treated series whose centering leaves 1e-20 of residue is admitted, and R-squared is reported as 1.0 or -1e19 depending only on the residuals"
+
+[[target]]
+name = "dataprep"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_datautils_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "treated-series-reversed-in-time"
+  find = '"y": treated_unit_outcome_vector,'
+  replace = '"y": treated_unit_outcome_vector[::-1],'
+  models = "a treated series read backwards, which leaves every shape and count correct and changes only the numbers"
+
+  [[target.mutant]]
+  id = "period-counts-transposed"
+  find = """"pre_periods": num_pre_treatment_periods,
+            "post_periods": num_post_treatment_periods,"""
+  replace = """"pre_periods": num_post_treatment_periods,
+            "post_periods": num_pre_treatment_periods,"""
+  models = "pre and post counts swapped, which still sums to the panel length and so survives any test that only checks the partition"
+
+[[target]]
+name = "mlsc-penalty"
+module-path = "mlsynth/utils/mlsc_helpers/penalty.py"
+test-command = "python -m pytest mlsynth/tests/test_mlsc_penalty_properties.py mlsynth/tests/test_mlsc_properties.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "penalty-kernel-no-longer-holds-the-population-ray"
+  find = "+ norm_sq * np.outer(ones, ones)"
+  replace = "+ 0.5 * norm_sq * np.outer(ones, ones)"
+  models = "a penalty whose kernel is no longer the population-proportional ray, so lambda stops pricing departure from the classical aggregation and starts penalising the aggregation itself"
