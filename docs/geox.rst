@@ -535,6 +535,16 @@ The two structural properties the effect sweep relies on are checked
 against brute-force recomputation in ``tests/test_geox.py``, so the
 shortcut is proved and not assumed.
 
+The harness does not perturb the engine. Force one market as the treated
+region and hand GEOX the real post-period, and its readout equals
+``SDID(...).fit()`` on Proposition 99 exactly -- the ATT and all 38 donor
+weights -- over six treated units and seven design-knob settings
+(`benchmarks/cases/geox_sdid_equivalence.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_sdid_equivalence.py>`_).
+That is what makes the engine's validation the design's: mlsynth's SDID
+sits 1.6e-3 packs from the authors' ``synthdid`` R, and GEOX sits zero
+from mlsynth's SDID. See :doc:`replications/geox_sdid_equivalence`.
+
 The harness is cross-validated. With ``engine="augsynth"`` selected,
 GEOX reproduces the market selection GeoLift itself publishes: on the
 walkthrough panel, all five of its top-ranked designs come back with the

@@ -27,6 +27,7 @@ CASES = {
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",
     "geox_augsynth_geolift": "benchmarks.cases.geox_augsynth_geolift",  # cross-val vs R GeoLiftMarketSelection: the augsynth engine reproduces the published BestMarkets top five (rank, MDE, investment, abs_lift_in_zero)
     "geox_mc": "benchmarks.cases.geox_mc",              # design calibration (original method, no external referent): size at the null, out-of-sample power at the reported MDE, and the winner's-curse gap on the selected region
+    "geox_sdid_equivalence": "benchmarks.cases.geox_sdid_equivalence",  # differential cross-val, mlsynth vs mlsynth: with the region forced, GEOX's readout equals SDID(...).fit() on Prop 99 to solver noise -- ATT and every donor weight, over six treated units and seven design-knob settings
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # cross-val vs Bayani's RPCA-SC code (West Germany reunification, value-for-value)

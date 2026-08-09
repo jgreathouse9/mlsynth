@@ -51,6 +51,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/geox
+   replications/geox_sdid_equivalence
    replications/drsc
    replications/fsc
    replications/fdid
@@ -795,8 +796,24 @@ Experimental design
   for the single-treated-unit design falling to :math:`\approx 0.16` at
   :math:`m=2` (Table-2 monotonicity).
   → dedicated page: :doc:`replications/lexscm`.
-  Coverage summary
-  ----------------
+* :doc:`geox` -- geo experiment design by simulated power
+  (GeoLift's market-selection loop; Arkhangelsky et al. 2021 or
+  Ben-Michael et al. 2021 scoring it). Cross-validation: under
+  ``engine="augsynth"`` the design reproduces the market selection
+  GeoLift publishes on its walkthrough panel, fourteen quantities
+  value for value. Differential: with the region forced, the readout
+  equals ``SDID(...).fit()`` on Proposition 99 exactly -- ATT and all
+  38 donor weights -- over six treated units and seven design-knob
+  settings, so the harness does not perturb the estimator it wraps and
+  the authors' ``synthdid`` agreement is inherited at 1.6e-3.
+  Calibration: an imposed-truth Monte Carlo measures size at the null
+  (0.135 against a nominal 0.10) and out-of-sample power at the
+  reported MDE (0.770 against a claimed 0.80).
+  → dedicated pages: :doc:`replications/geox`,
+  :doc:`replications/geox_sdid_equivalence`.
+
+Coverage summary
+----------------
 
 .. list-table:: Verification coverage by family
    :header-rows: 1
