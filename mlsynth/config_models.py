@@ -595,7 +595,7 @@ _RELOCATED_CONFIGS = {
     "SPCDConfig": "mlsynth.utils.spcd_helpers.config",
     "NSCConfig": "mlsynth.utils.nsc_helpers.config",
     "SDIDConfig": "mlsynth.utils.sdid_helpers.config",
-    "SDIDGEOConfig": "mlsynth.utils.sdidgeo_helpers.config",
+    "GEOXConfig": "mlsynth.utils.geox_helpers.config",
     "SparseSCConfig": "mlsynth.utils.sparse_sc_helpers.config",
     "MicroSynthConfig": "mlsynth.utils.microsynth_helpers.config",
     "PPSCMConfig": "mlsynth.utils.ppscm_helpers.config",
