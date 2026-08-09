@@ -11,18 +11,14 @@ Two families, neither of which needs an oracle:
   claim about how the output must respond to rescaling the outcome. Location
   and row-order invariance follow from the simplex constraint and from the
   ingestion contract respectively.
-* C5 -- algebra of the block penalty matrix. ``build_block`` returns
-  ``Q = I - v 1' - 1 v' + (v'v) J``, so for any ``v`` on the simplex it is
-  symmetric, positive semi-definite, annihilates ``v``, and has rank
-  ``C - 1``. `test_mlsc.py` asserts the first three at a single hand-picked
-  ``v = [0.3, 0.2, 0.5]``; asserting them over the domain is what makes them
-  claims about the estimator instead of claims about one vector.
-
-The C5 sweeps are deterministic draws, not generated inputs. Adding
-``hypothesis`` is a dependency decision (Phase 1 of the plan in
-``agents/agents_tests.md``) and belongs on its own branch; each sweep here is
-written as a single-draw property function so the conversion is a decorator
-swap.
+* C5 -- the degenerate corners of the block penalty matrix. ``build_block``
+  returns ``Q = I - v 1' - 1 v' + (v'v) J``, so for any ``v`` on the simplex it
+  is symmetric, positive semi-definite, annihilates ``v``, and has rank
+  ``C - 1``. The generative coverage of that claim lives in
+  ``test_mlsc_penalty_properties.py``; what stays here are the named shares a
+  real panel produces, which the instrument contract in
+  ``agents/agents_tests.md`` keeps as examples because named edges are
+  documentation.
 """
 
 from __future__ import annotations
@@ -34,11 +30,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import MLSC
-from mlsynth.utils.mlsc_helpers.penalty import (
-    build_block,
-    build_penalty_matrix,
-    build_sqrt_factor,
-)
+from mlsynth.utils.mlsc_helpers.penalty import build_block
 
 _TOL = 1e-10
 
@@ -77,12 +69,6 @@ def _config(df_agg, df_disagg, **overrides):
     )
     cfg.update(overrides)
     return cfg
-
-
-def _simplex(rng: np.random.Generator, size: int) -> np.ndarray:
-    """A draw from the interior of the simplex in ``size`` dimensions."""
-    x = rng.gamma(shape=1.0, size=size)
-    return x / x.sum()
 
 
 # ===========================================================================
@@ -199,13 +185,6 @@ def _check_block_properties(v: np.ndarray) -> None:
             assert float(probe @ Q @ probe) > 1e-9
 
 
-@pytest.mark.parametrize("size", [1, 2, 3, 5, 12, 40])
-def test_block_properties_across_block_sizes(size):
-    rng = np.random.default_rng(1000 + size)
-    for _ in range(25):
-        _check_block_properties(_simplex(rng, size))
-
-
 def test_block_properties_on_degenerate_population_shares():
     """Boundary of the simplex: a share at zero, and all mass on one unit."""
     for v in (
@@ -216,52 +195,3 @@ def test_block_properties_on_degenerate_population_shares():
         np.full(6, 1.0 / 6.0),                 # exactly uniform
     ):
         _check_block_properties(v)
-
-
-@pytest.mark.parametrize("size", [2, 4, 9])
-def test_uniform_shares_give_the_centering_matrix(size):
-    """`v = 1/C` collapses Q to `I - J/C`, the centering matrix."""
-    Q = build_block(np.full(size, 1.0 / size))
-    np.testing.assert_allclose(Q, np.eye(size) - np.full((size, size), 1.0 / size),
-                               atol=_TOL)
-
-
-@pytest.mark.parametrize("seed", range(6))
-def test_assembly_is_block_diagonal_for_arbitrary_block_structures(seed):
-    """`build_penalty_matrix` glues per-block matrices with nothing across."""
-    rng = np.random.default_rng(seed)
-    sizes = rng.integers(1, 6, size=int(rng.integers(2, 6)))
-    v = np.concatenate([_simplex(rng, int(n)) for n in sizes])
-    idx = np.repeat(np.arange(len(sizes)), sizes)
-
-    Q = build_penalty_matrix(v, idx)
-    assert Q.shape == (v.size, v.size)
-
-    start = 0
-    for block, n in enumerate(sizes):
-        stop = start + int(n)
-        np.testing.assert_allclose(Q[start:stop, start:stop],
-                                   build_block(v[start:stop]), atol=_TOL)
-        off_block = idx[None, :] != idx[:, None]
-        np.testing.assert_allclose(Q[off_block], 0.0, atol=_TOL)
-        start = stop
-
-    # The full penalty still annihilates the population vector blockwise.
-    np.testing.assert_allclose(Q @ v, 0.0, atol=1e-12)
-
-
-@pytest.mark.parametrize("seed", range(6))
-def test_square_root_factor_reproduces_the_penalty(seed):
-    """`R' R == Q` over arbitrary block structures, not one fixture.
-
-    The solver augments the design with ``sqrt(lambda) R`` instead of forming
-    ``Q``, so the two representations agreeing is what makes the augmented
-    least-squares path equal the penalised program.
-    """
-    rng = np.random.default_rng(100 + seed)
-    sizes = rng.integers(1, 7, size=int(rng.integers(2, 5)))
-    v = np.concatenate([_simplex(rng, int(n)) for n in sizes])
-    idx = np.repeat(np.arange(len(sizes)), sizes)
-
-    R = build_sqrt_factor(v, idx)
-    np.testing.assert_allclose(R.T @ R, build_penalty_matrix(v, idx), atol=1e-10)
