@@ -43,4 +43,14 @@ def r_squared(observed: np.ndarray, residuals: np.ndarray) -> float:
         return float("nan")
     y_c = y - y.mean()
     denom = float(y_c @ y_c)
-    return float(1.0 - (r @ r) / denom) if denom != 0 else float("nan")
+    # A series that is constant to machine precision does not center to
+    # exactly zero: subtracting the mean leaves rounding residue of order
+    # eps*|y| per element, so `denom != 0` lets a flat series through and
+    # divides by ~1e-20. A flat pre-period is an ordinary panel -- a count
+    # that stays at zero, a rate that does not move -- and the result was a
+    # silent 1.0 or a value of order -1e19 depending on the residuals. Compare
+    # against the noise floor of the centering itself instead.
+    noise_floor = y.size * np.finfo(float).eps ** 2 * float(y @ y)
+    if denom <= noise_floor:
+        return float("nan")
+    return float(1.0 - (r @ r) / denom)
