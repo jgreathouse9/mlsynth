@@ -18,6 +18,7 @@ this is an mlsynth addition, not part of Doudchenko et al. (2021).
 """
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Tuple
 
 import numpy as np
@@ -53,14 +54,29 @@ def two_way_accel_inputs(
     *,
     margin: float = 0.01,
     random_state: int = 0,
-) -> Tuple[np.ndarray, float]:
+) -> Tuple[np.ndarray, Optional[float]]:
     """``(warm_D, L_safe)`` for an accelerated two-way solve.
 
     ``L_safe = L * (1 - margin)`` where ``L`` is the SDP/moment lower bound; the
     margin keeps the cut strictly below the bound so it stays valid under the SDP
     solver's (first-order) tolerance. ``warm_D`` is the LEXSCM warm start.
+
+    The cut is ``None`` when the SDP does not converge -- a large lift under a
+    fixed iteration cap. Both levers are speed-ups, so a missing bound costs the
+    dual-bound lift and leaves the warm start, the design, and its optimum
+    untouched; the solve falls back to SCIP's own McCormick bound. The caller is
+    warned because the solve can then take much longer.
     """
     lam_value = float(estimate_lambda(Y)) if lam is None else float(lam)
     warm_D = warm_treated_vector(Y, K, random_state=random_state)
     L = _sdp_moment_bound_two_way(np.asarray(Y, dtype=float), int(K), lam_value)
+    if L is None:
+        warnings.warn(
+            f"SYNDES: the SDP/moment lower bound did not converge at N="
+            f"{int(np.asarray(Y).shape[1])}, K={int(K)}, so the two-way solve "
+            "proceeds without the objective cut and may be slow. Set "
+            "accelerate=False to skip this step, or lower certify_sdp_n_max.",
+            UserWarning, stacklevel=2,
+        )
+        return warm_D, None
     return warm_D, float(L) * (1.0 - float(margin))
