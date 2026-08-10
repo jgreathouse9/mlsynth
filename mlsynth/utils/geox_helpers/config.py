@@ -136,9 +136,23 @@ class GEOXConfig(BaseMAREXConfig):
         "moves with the injected effect and cannot be hoisted out of it.",
     )
     conformal_type: str = Field(
-        default="iid",
-        description="Conformal permutation scheme (augsynth only): 'iid' or "
-        "'block'.",
+        default="block",
+        description="Conformal permutation scheme (augsynth only): 'block' or "
+        "'iid'. 'block' takes the panel's cyclic shifts, which preserve serial "
+        "dependence and are the default because geo panels have it; 'iid' "
+        "permutes residuals freely, which assumes an exchangeability a "
+        "trending or seasonal panel denies. 'iid' is also the scheme that can "
+        "return a degenerate p-value, since a free permutation can be beaten by "
+        "the observed statistic every time.",
+    )
+    finite_sample_p: bool = Field(
+        default=False,
+        description="Correct the conformal p-value to "
+        "(1 + #{stat >= observed}) / (1 + ns) (augsynth only). augsynth's "
+        "plain mean returns exactly 0 when the observed statistic beats every "
+        "permutation, which is not a p-value. Off by default so the GeoLift "
+        "reproduction keeps augsynth's convention; turn it on for inference "
+        "you intend to report.",
     )
     fixed_effects: Optional[bool] = Field(
         default=None,

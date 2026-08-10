@@ -106,6 +106,7 @@ def conformal_pvalue(
     seed: Optional[int] = 0,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
+    finite_sample: bool = False,
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Conformal p-value for the joint null of no post-treatment effect.
@@ -131,6 +132,13 @@ def conformal_pvalue(
         Number of i.i.d. residual permutations (augsynth default ``1000``).
     seed : int, optional
         RNG seed for the permutations.
+    finite_sample : bool, default False
+        Return ``(1 + #{stat >= obs}) / (1 + ns)`` instead of
+        ``mean(obs <= perm)``. The plain mean is augsynth's convention and is
+        kept as the default because ``geox_augsynth_geolift`` reproduces
+        GeoLift, which inherits it -- but it returns exactly ``0`` when the
+        observed statistic beats every permutation, and zero is not a p-value:
+        ``ns`` draws cannot evidence more than ``1 / (ns + 1)``.
     fixed_effects : bool, default False
         Unit fixed effects (augsynth ``fixed_effects=TRUE``): demean every unit
         by its mean over the full matching window before the refit, so the donor
@@ -142,7 +150,8 @@ def conformal_pvalue(
     Returns
     -------
     float
-        The conformal p-value ``mean(stat(observed_post) <= stat(permuted_post))``.
+        The conformal p-value ``mean(stat(observed_post) <= stat(permuted_post))``,
+        or its finite-sample correction when ``finite_sample`` is set.
     """
     ridge_kwargs = dict(ridge_kwargs or {})
     if lambda_ is not None:
@@ -160,6 +169,8 @@ def conformal_pvalue(
     perm = _reference_stats(
         resids, slice(pre, None), q, conformal_type=conformal_type, ns=ns, seed=seed
     )
+    if finite_sample:
+        return float((1.0 + np.sum(obs <= perm)) / (1.0 + perm.size))
     return float(np.mean(obs <= perm))
 
 

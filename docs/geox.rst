@@ -231,7 +231,15 @@ window, which is what synthetic DiD's time weights exist to deny --
 :math:`\lambda` says pre-periods are not interchangeable. So conformal
 is available on ``augsynth`` and refused on ``sdid``, with the reason
 stated in the error. ``ns`` sets the number of permutations and
-``conformal_type`` the scheme, ``"iid"`` or ``"block"``.
+``conformal_type`` the scheme. ``"block"`` is the default and takes the
+panel's cyclic shifts, which preserve serial dependence; ``"iid"`` permutes
+residuals freely and assumes an exchangeability a trending or seasonal
+panel denies. ``"iid"`` is also the scheme whose p-value can reach exactly
+zero, since a free permutation can be beaten by the observed statistic
+every time; ``finite_sample_p=True`` reports
+``(1 + #{stat >= observed}) / (1 + ns)`` instead, which cannot. That
+correction is off by default so the GeoLift reproduction keeps augsynth's
+convention; turn it on for inference you intend to report.
 
 Holding one of the two fixed and varying the other separates the two
 sources of a difference between designs. Scoring one panel with both

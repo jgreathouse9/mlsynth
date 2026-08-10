@@ -142,7 +142,8 @@ def engine_settings(config: GEOXConfig) -> dict:
     if config.engine == "augsynth":
         kw.update(ns=config.ns, conformal_type=config.conformal_type,
                   fixed_effects=bool(config.fixed_effects),
-                  augment=config.augment)
+                  augment=config.augment,
+                  finite_sample=config.finite_sample_p)
     return kw
 
 
