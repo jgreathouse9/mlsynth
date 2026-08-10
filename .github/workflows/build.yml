@@ -32,11 +32,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     # The cap exists to kill a genuinely hung suite, not to bound a healthy one.
-    # The full run has measured 30-38 min across the matrix, so 40 left under 10%
-    # headroom and ordinary runner variance was tipping jobs into a timeout that
-    # reads as 'cancelled' rather than a clear failure. 55 keeps the hang guard
-    # while leaving room for a slow runner.
-    timeout-minutes: 55
+    # It was raised 40 -> 55 once and was reached again: the suite grows, a slow
+    # runner lands within a few minutes of the cap, and a healthy run is killed
+    # at 99%, which GitHub reports as 'cancelled' -- neither a pass nor a
+    # failure, and a full re-run to tell them apart. Sharding is the fix; each
+    # shard now runs a quarter of the modules, so 30 is generous and the guard
+    # bites long before a whole afternoon is spent on a hang.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -103,24 +109,33 @@ jobs:
           fi
           echo "Test target: $TARGET"
 
+          # --num-shards/--shard splits the suite by test module across the
+          # matrix; -n auto still spreads this shard's tests over the runner's
+          # cores, so a slow file does not serialise its own shard.
+          SHARD="--num-shards 4 --shard ${{ matrix.shard }}"
+
           if [ "$TARGET" = "smoke" ]; then
-            pytest -n auto -k "smoke" --tb=short
+            pytest -n auto $SHARD -k "smoke" --tb=short
           elif [ "$TARGET" = "all" ]; then
-            pytest -n auto --tb=short
+            pytest -n auto $SHARD --tb=short
           else
             MATCH=$(find . -name "$TARGET" | head -n 1)
             if [ -z "$MATCH" ]; then
               echo "ERROR: Could not find test file: $TARGET"; find . -name "test_*.py"; exit 1
             fi
-            pytest -n auto "$MATCH" --tb=short
+            pytest -n auto $SHARD "$MATCH" --tb=short
           fi
 
+      # Once, not once per shard: the dist does not depend on which tests ran,
+      # and four shards uploading the same artifact name is an error.
       - name: Build distribution
+        if: matrix.shard == 0
         run: |
           python -m pip install build
           python -m build
 
       - name: Upload artifact
+        if: matrix.shard == 0
         uses: actions/upload-artifact@v4
         with:
           name: mlsynth-dist
@@ -133,11 +148,15 @@ jobs:
   # avoid duplicating `build`.
   pyversions:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    # Same reasoning as `build` above. These are the jobs that reached the old
+    # cap first: 3.12 and 3.13 run slower than the 3.11 `build` job on identical
+    # work, so they were the ones killed at 99%.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.12", "3.13"]
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -182,4 +201,6 @@ jobs:
 
       - name: Run tests
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: pytest -n auto --tb=short
+        run: |
+          pytest -n auto --tb=short \
+            --num-shards 4 --shard ${{ matrix.shard }}

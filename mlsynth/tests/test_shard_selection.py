@@ -213,3 +213,72 @@ def test_the_repo_conftest_wires_the_plugin_in():
     assert conftest.pytest_addoption is _shard.pytest_addoption
     assert (conftest.pytest_collection_modifyitems
             is _shard.pytest_collection_modifyitems)
+
+
+# --- the workflow cannot drift from the flag ------------------------------
+
+
+class TestTheWorkflowShardCountMatches:
+    """``--num-shards`` must equal the length of the job's shard matrix.
+
+    This is the failure this whole mechanism is exposed to. Raise the matrix to
+    six shards and leave ``--num-shards 4`` behind, and shards 4 and 5 collect
+    nothing while 0-3 run the same quarters as before: a third of the suite
+    never runs and every job reports success. A skipped success is
+    indistinguishable from a real one, which is the same reasoning
+    ``TestCIRunsWhenTheSuiteCanBreak`` records for the paths filter.
+    """
+
+    @staticmethod
+    def _workflow():
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parents[2]
+        return (root / ".github" / "workflows" / "build.yml").read_text()
+
+    @staticmethod
+    def _jobs():
+        import pathlib
+
+        import yaml
+
+        root = pathlib.Path(__file__).resolve().parents[2]
+        wf = yaml.safe_load(
+            (root / ".github" / "workflows" / "build.yml").read_text())
+        return wf["jobs"]
+
+    def test_both_test_jobs_are_sharded(self):
+        jobs = self._jobs()
+        for name in ("build", "pyversions"):
+            matrix = jobs[name]["strategy"]["matrix"]
+            assert "shard" in matrix, f"{name} is not sharded"
+
+    def test_the_shard_matrix_is_a_contiguous_range_from_zero(self):
+        """``--shard i`` is a 0-based index, so the matrix must be 0..n-1."""
+        for name, job in self._jobs().items():
+            matrix = job.get("strategy", {}).get("matrix", {})
+            if "shard" not in matrix:
+                continue
+            shards = matrix["shard"]
+            assert shards == list(range(len(shards))), (
+                f"{name}: shard matrix {shards} is not 0..{len(shards) - 1}")
+
+    def test_every_num_shards_matches_a_shard_matrix_length(self):
+        import re
+
+        counts = {len(job["strategy"]["matrix"]["shard"])
+                  for job in self._jobs().values()
+                  if "shard" in job.get("strategy", {}).get("matrix", {})}
+        declared = {int(n) for n in
+                    re.findall(r"--num-shards\s+(\d+)", self._workflow())}
+        assert declared, "no --num-shards found in the workflow"
+        assert declared == counts, (
+            f"--num-shards {sorted(declared)} does not match the shard "
+            f"matrix lengths {sorted(counts)}; some tests would never run")
+
+    def test_every_sharded_job_passes_its_matrix_index(self):
+        """A job that shards but hardcodes ``--shard 0`` runs one quarter, 4x."""
+        wf = self._workflow()
+        assert wf.count("--shard ${{ matrix.shard }}") == len(
+            [j for j in self._jobs().values()
+             if "shard" in j.get("strategy", {}).get("matrix", {})])
