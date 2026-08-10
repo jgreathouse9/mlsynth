@@ -52,6 +52,7 @@ below; the catalogue entries link to a dedicated page where one exists.
 
    replications/geox
    replications/geox_sdid_equivalence
+   replications/geox_augsynth_recast
    replications/drsc
    replications/fsc
    replications/fdid
@@ -809,8 +810,15 @@ Experimental design
   Calibration: an imposed-truth Monte Carlo measures size at the null
   (0.135 against a nominal 0.10) and out-of-sample power at the
   reported MDE (0.770 against a claimed 0.80).
+  Cross-validation of the engine's inference: against
+  `getrecast/geolift-simulation-study`, whose GeoLift arm is the same
+  augmented SC with block conformal, bias agrees on all four stress
+  scenarios within :math:`|z| \le 1.1` and the false-positive rate
+  within 0.021 -- including the outlier scenario's +3.2 point
+  convex-hull signature.
   → dedicated pages: :doc:`replications/geox`,
-  :doc:`replications/geox_sdid_equivalence`.
+  :doc:`replications/geox_sdid_equivalence`,
+  :doc:`replications/geox_augsynth_recast`.
 
 Coverage summary
 ----------------
