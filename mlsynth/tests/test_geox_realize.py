@@ -276,6 +276,7 @@ class TestFitPopulatesTheReport:
         assert not (donors & set(res.selected_units))
 
 
+
 # ---------------------------------------------------------------------------
 # The readout across engines
 #
@@ -288,7 +289,9 @@ class TestFitPopulatesTheReport:
 # runs on one engine and raises on the other is that premise failing.
 #
 # These parametrize over both engines so the whole readout, not one field, is
-# held to it.
+# held to it. The five designs are built once and shared: a design on the
+# augsynth path costs about seven seconds, and rebuilding one per test put
+# thirty-five fits in a suite that needs five.
 # ---------------------------------------------------------------------------
 
 _ENGINE_KWARGS = {
@@ -320,18 +323,28 @@ def _design(panel, **over):
     return GEOX(GEOXConfig(**kwargs)).fit()
 
 
+@pytest.fixture(scope="module")
+def readouts(panel):
+    """One realized design per engine/inference pairing, built once.
+
+    Every test in this section reads the same five designs and none of them
+    mutates one, so the fits are shared. Seeds are fixed, so a shared design is
+    the same object a per-test build would have produced.
+    """
+    return {label: _design(panel, **over).report
+            for label, over in _ENGINE_KWARGS.items()}
+
+
 class TestReadoutRunsOnEveryEngine:
     @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
-    def test_the_report_is_produced(self, panel, label):
+    def test_the_report_is_produced(self, readouts, label):
         """Smoke: every engine and inference pairing reads out."""
-        res = _design(panel, **_ENGINE_KWARGS[label])
-        assert res.report is not None
-        assert np.isfinite(res.report.effects.att)
+        assert readouts[label] is not None
+        assert np.isfinite(readouts[label].effects.att)
 
     @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
-    def test_the_paths_are_finite_and_panel_length(self, panel, label):
-        res = _design(panel, **_ENGINE_KWARGS[label])
-        ts = res.report.time_series
+    def test_the_paths_are_finite_and_panel_length(self, readouts, label):
+        ts = readouts[label].time_series
         n = len(ts.time_periods)
         for path in (ts.observed_outcome, ts.counterfactual_outcome,
                      ts.estimated_gap):
@@ -339,9 +352,8 @@ class TestReadoutRunsOnEveryEngine:
             assert np.all(np.isfinite(path))
 
     @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
-    def test_the_p_value_is_a_probability(self, panel, label):
-        res = _design(panel, **_ENGINE_KWARGS[label])
-        assert 0.0 <= res.report.inference.p_value <= 1.0
+    def test_the_p_value_is_a_probability(self, readouts, label):
+        assert 0.0 <= readouts[label].inference.p_value <= 1.0
 
 
 class TestEngineExtrasSurviveTheReadout:
@@ -352,54 +364,53 @@ class TestEngineExtrasSurviveTheReadout:
     the slot to float is what made the augsynth readout unreachable.
     """
 
-    def test_sdid_extras_are_reported(self, panel):
-        stats = _design(panel, engine="sdid").report.weights.summary_stats
+    def test_sdid_extras_are_reported(self, readouts):
+        stats = readouts["sdid"].weights.summary_stats
         for key in ("zeta", "bias_correction", "pre_rmspe_lambda"):
             assert key in stats
             assert isinstance(stats[key], float)
 
-    def test_augsynth_string_extra_is_reported_as_itself(self, panel):
-        stats = _design(panel, **_ENGINE_KWARGS["augsynth"]).report.weights.summary_stats
-        assert stats["augment"] == "ridge"
+    def test_augsynth_string_extra_is_reported_as_itself(self, readouts):
+        assert readouts["augsynth"].weights.summary_stats["augment"] == "ridge"
 
-    def test_augsynth_flag_extra_stays_a_bool(self, panel):
-        stats = _design(panel, **_ENGINE_KWARGS["augsynth"]).report.weights.summary_stats
-        assert stats["fixed_effects"] is True
+    def test_augsynth_flag_extra_stays_a_bool(self, readouts):
+        assert readouts["augsynth"].weights.summary_stats["fixed_effects"] is True
 
-    def test_a_flag_turned_off_is_reported_off(self, panel):
-        stats = _design(panel, **_ENGINE_KWARGS["augsynth-nofe"]).report.weights.summary_stats
+    def test_a_flag_turned_off_is_reported_off(self, readouts):
+        stats = readouts["augsynth-nofe"].weights.summary_stats
         assert stats["fixed_effects"] is False
 
-    def test_an_absent_penalty_is_reported_absent(self, panel):
+    def test_an_absent_penalty_is_reported_absent(self, readouts):
         """`augment=None` is plain SCM, which has no ridge penalty.
 
         `float(None)` raises, and any stand-in value would report a penalty
         that was never applied.
         """
-        stats = _design(panel, **_ENGINE_KWARGS["augsynth-plain"]).report.weights.summary_stats
+        stats = readouts["augsynth-plain"].weights.summary_stats
         assert stats["augment"] is None
         assert stats["lambda_"] is None
 
-    def test_a_present_penalty_is_a_number(self, panel):
-        stats = _design(panel, **_ENGINE_KWARGS["augsynth"]).report.weights.summary_stats
+    def test_a_present_penalty_is_a_number(self, readouts):
+        stats = readouts["augsynth"].weights.summary_stats
         assert isinstance(stats["lambda_"], float)
         assert np.isfinite(stats["lambda_"])
 
     @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
-    def test_the_shared_summary_keys_are_present_whichever_engine(self, panel, label):
-        stats = _design(panel, **_ENGINE_KWARGS[label]).report.weights.summary_stats
+    def test_the_shared_summary_keys_are_present_whichever_engine(
+            self, readouts, label):
+        stats = readouts[label].weights.summary_stats
         for key in ("how", "treated_markets", "engine", "cpic", "cost"):
             assert key in stats
 
     @pytest.mark.parametrize("label", sorted(_ENGINE_KWARGS))
-    def test_no_numpy_scalars_leak_into_the_summary(self, panel, label):
+    def test_no_numpy_scalars_leak_into_the_summary(self, readouts, label):
         """Plain Python scalars, so the report pickles and serialises.
 
         Every other numeric field in the result models is cast on the way in;
         `extras` is the one slot fed straight from an engine, so it is the one
         that can carry a `np.float64` out.
         """
-        stats = _design(panel, **_ENGINE_KWARGS[label]).report.weights.summary_stats
+        stats = readouts[label].weights.summary_stats
         leaked = {k: type(v).__name__ for k, v in stats.items()
                   if isinstance(v, np.generic)}
         assert leaked == {}
@@ -444,13 +455,9 @@ class TestTheTwoEnginesDisagree:
     testing one estimator twice.
     """
 
-    def test_the_engines_give_different_answers(self, panel):
-        sdid = _design(panel, **_ENGINE_KWARGS["sdid"]).report
-        aug = _design(panel, **_ENGINE_KWARGS["augsynth"]).report
-        assert sdid.effects.att != aug.effects.att
+    def test_the_engines_give_different_answers(self, readouts):
+        assert readouts["sdid"].effects.att != readouts["augsynth"].effects.att
 
-    def test_only_sdid_reports_time_weights(self, panel):
-        sdid = _design(panel, **_ENGINE_KWARGS["sdid"]).report
-        aug = _design(panel, **_ENGINE_KWARGS["augsynth"]).report
-        assert sdid.weights.time_weights is not None
-        assert aug.weights.time_weights is None
+    def test_only_sdid_reports_time_weights(self, readouts):
+        assert readouts["sdid"].weights.time_weights is not None
+        assert readouts["augsynth"].weights.time_weights is None
