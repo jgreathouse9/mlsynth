@@ -174,6 +174,145 @@ def conformal_pvalue(
     return float(np.mean(obs <= perm))
 
 
+
+
+def conformal_att_interval(
+    y: np.ndarray,
+    Y0: np.ndarray,
+    pre: int,
+    *,
+    alpha: float = 0.05,
+    max_span: float = 512.0,
+    rtol: float = 0.02,
+    max_iter: int = 32,
+    **kwargs: Any,
+) -> Tuple[float, float]:
+    """Interval for a constant ATT, by inverting the joint test.
+
+    ``conformal_intervals`` inverts period by period, which gives a band around
+    the path; coverage of the *average* effect needs the set of constant effects
+    the joint test does not reject, which is what this returns.
+
+    The search brackets and bisects instead of scanning a grid. A fixed grid
+    fails here: the non-rejected set is narrow relative to the post-window gap
+    dispersion it would have to be scaled by, so a grid wide enough to be safe
+    steps over the set and reports it empty. Bracketing finds each crossing to a
+    relative tolerance whatever its width.
+
+    From the point estimate, the effect is doubled outward until the test
+    rejects, which brackets a crossing; that bracket is then bisected. Both
+    crossings are found separately, so the interval need not be symmetric --
+    the test's own asymmetry is preserved.
+
+    The point estimate is where the search starts, not where it gives up. The
+    refit reads every period, so shifting the post block by a candidate changes
+    the fit as well as the residual and the most conforming candidate can sit
+    well away from the estimate -- on Recast A1 seed 23 the estimate is rejected
+    at ``p = 0.010`` while the test accepts a band 30% below it. When the
+    estimate is rejected the search therefore relocates to the candidate that
+    minimises the test statistic, found by ternary search (the statistic is
+    unimodal in the candidate), and only calls the set empty if that is rejected
+    too.
+
+    Two answers are not numbers, and both are real.
+
+    ``(nan, nan)`` is an empty confidence set: no constant effect conforms, the
+    most conforming one included. A multiplicative lift on a trending panel
+    produces it, because the null being inverted is a *constant* effect.
+
+    ``-inf`` or ``+inf`` on a side is an unbounded one: the test still accepts
+    ``max_span`` pre-period sigmas out, so nothing in that direction is
+    excluded. Block conformal makes this reachable by construction -- its
+    reference set is the ``T`` cyclic shifts, one of which is the observed path,
+    so the p-value cannot fall below ``1 / T`` and at ``alpha < 1 / T`` no
+    candidate is ever rejected. Returning ``max_span`` sigmas as if it were a
+    bound would invent a rejection and report an interval narrower than the
+    truth.
+    """
+    y = np.asarray(y, dtype=float)
+    Y0 = np.asarray(Y0, dtype=float)
+    kwargs.setdefault("conformal_type", "block")
+    ridge_kwargs = {k: v for k, v in (("lambda_", kwargs.get("lambda_")),)
+                    if v is not None}
+
+    # Centre on the pre-period fit, as `conformal_intervals` does: an
+    # all-period refit treats the post block as matching periods and pulls its
+    # gaps toward zero, which would centre the search away from the effect.
+    if kwargs.get("fixed_effects"):
+        y_m, Y0_m = y[:pre].mean(), Y0[:pre].mean(axis=0)
+        ra = ridge_augment_weights(y[:pre] - y_m, Y0[:pre] - Y0_m, **ridge_kwargs)
+        fitted = (y - y_m) - (Y0 - Y0_m) @ ra.W
+    else:
+        ra = ridge_augment_weights(y[:pre], Y0[:pre], **ridge_kwargs)
+        fitted = y - Y0 @ ra.W
+    centre = float(np.mean(fitted[pre:]))
+    scale = float(np.std(fitted[:pre])) or abs(centre) or 1.0
+
+    def accepts(tau0: float) -> bool:
+        shifted = y.copy()
+        shifted[pre:] -= tau0
+        return conformal_pvalue(shifted, Y0, pre, **kwargs) > alpha
+
+    def statistic(tau0: float) -> float:
+        """The observed post-block statistic under ``H0: tau = tau0``.
+
+        The same quantity ``conformal_pvalue`` compares against its reference
+        set, without the reference set. It is continuous in the candidate where
+        the p-value is a step function of granularity ``1 / T``, so it is what
+        the relocation search can descend.
+        """
+        shifted = y.copy()
+        shifted[pre:] -= tau0
+        Z = Y0
+        if kwargs.get("fixed_effects"):
+            shifted = shifted - shifted.mean()
+            Z = Z - Z.mean(axis=0)
+        gaps = _augmented_gaps(shifted, Z, kwargs.get("Z0"), kwargs.get("z1"),
+                               ridge_kwargs)
+        return _stat(gaps[pre:], kwargs.get("q", 1.0))
+
+    def most_conforming() -> float:
+        """The candidate minimising the statistic, by ternary search."""
+        left, right = centre - max_span * scale, centre + max_span * scale
+        for _ in range(max_iter * 2):
+            if right - left <= rtol * scale:
+                break
+            a, b = left + (right - left) / 3.0, right - (right - left) / 3.0
+            if statistic(a) <= statistic(b):
+                right = b
+            else:
+                left = a
+        return 0.5 * (left + right)
+
+    if not accepts(centre):
+        centre = most_conforming()
+        if not accepts(centre):
+            return float("nan"), float("nan")
+
+    def crossing(sign: int) -> float:
+        """First rejection outward from the centre, located by bisection."""
+        step, far = scale, None
+        while step <= max_span * scale:
+            if not accepts(centre + sign * step):
+                far = centre + sign * step
+                break
+            step *= 2.0
+        if far is None:                     # nothing excluded in this direction
+            return sign * float("inf")
+        near = centre + sign * (step / 2.0) if step > scale else centre
+        for _ in range(max_iter):
+            mid = 0.5 * (near + far)
+            if abs(far - near) <= rtol * scale:
+                break
+            if accepts(mid):
+                near = mid
+            else:
+                far = mid
+        return float(near)
+
+    return crossing(-1), crossing(+1)
+
+
 @dataclass
 class ConformalIntervals:
     """Per-period conformal intervals from :func:`conformal_intervals`.
