@@ -42,6 +42,22 @@ from .. import Engine, EngineFit, placebo_detection_boundary
 from ...engine import normal_p_value, placebo_sigma
 
 
+def _window(y, Y0, end: int):
+    """The panel truncated at the end of the tested window.
+
+    ``conformal_pvalue`` tests ``resids[pre:]`` -- everything from the split to
+    the end of what it is handed. A backtest window ends before the panel does,
+    so passing the whole panel tested ``end - pre + 1`` periods plus every
+    period after the window: for backtest ``s`` that is ``D + s - 1`` instead of
+    ``D``, and only ``s = 1`` coincided. Those trailing periods are no part of
+    the pseudo-experiment and carry none of its injected effect.
+
+    Truncating is a no-op for a realized readout, whose window already ends at
+    the last period.
+    """
+    return y[:end + 1], Y0[:end + 1]
+
+
 def _scaled_l2(A: np.ndarray, B: np.ndarray, w: np.ndarray) -> float:
     """Augsynth scaled L2 imbalance ``||Bw - A|| / ||B w_unif - A||``.
 
@@ -105,8 +121,8 @@ def sweep_p_values(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int,
     effect_sizes: Iterable[float], *, inference: str = "conformal",
     ns: int = 1000, n_draws: int = 200, n_tr: int = 1, seed: int = 0,
-    conformal_type: str = "iid", analytic: bool = True, alpha: float = 0.1,
-    **_ignored: Any,
+    conformal_type: str = "block", analytic: bool = True, alpha: float = 0.1,
+    finite_sample: bool = False, **_ignored: Any,
 ) -> Dict[str, Any]:
     """Test every effect size on one backtest.
 
@@ -142,9 +158,11 @@ def sweep_p_values(
         if inference == "placebo":
             ps.append(normal_p_value(tau, sigma))
         else:
+            y_w, Y0_w = _window(injected, Y0, end)
             ps.append(float(conformal_pvalue(
-                injected, Y0, n_pre, lambda_=lam, ns=ns, seed=seed,
-                conformal_type=conformal_type, fixed_effects=fixed_effects)))
+                y_w, Y0_w, n_pre, lambda_=lam, ns=ns, seed=seed,
+                conformal_type=conformal_type, fixed_effects=fixed_effects,
+                finite_sample=finite_sample)))
     up, down = (placebo_detection_boundary(tau0, baseline, sigma, alpha)
                 if inference == "placebo" else (float("nan"), float("nan")))
     return {"tau": taus, "p_value": ps, "sigma": sigma,
@@ -154,8 +172,8 @@ def sweep_p_values(
 def point_inference(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int, *,
     inference: str = "conformal", ns: int = 1000, n_draws: int = 200,
-    n_tr: int = 1, seed: int = 0, conformal_type: str = "iid",
-    **_ignored: Any,
+    n_tr: int = 1, seed: int = 0, conformal_type: str = "block",
+    finite_sample: bool = False, **_ignored: Any,
 ) -> Tuple[float, Dict[str, Any]]:
     """One window's test, for the realized readout."""
     y = np.asarray(y, dtype=float).ravel()
@@ -170,10 +188,12 @@ def point_inference(
     if inference != "conformal":
         raise MlsynthConfigError(
             f"inference must be 'conformal' or 'placebo'; got {inference!r}.")
+    y_w, Y0_w = _window(y, Y0, end)
     p = float(conformal_pvalue(
-        y, Y0, n_pre, lambda_=fit.extras.get("lambda_"), ns=ns, seed=seed,
+        y_w, Y0_w, n_pre, lambda_=fit.extras.get("lambda_"), ns=ns, seed=seed,
         conformal_type=conformal_type,
-        fixed_effects=bool(fit.extras.get("fixed_effects", True))))
+        fixed_effects=bool(fit.extras.get("fixed_effects", True)),
+        finite_sample=finite_sample))
     return p, {"method": "conformal", "att": tau, "ns": int(ns),
                "conformal_type": conformal_type}
 
