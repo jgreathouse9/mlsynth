@@ -137,3 +137,113 @@ def simulate_backtest(
                            if cpic is not None else float("nan")),
         })
     return rows
+
+
+# --- the Recast geo-experiment simulation study ---------------------------
+#
+# The data-generating process of getrecast/geolift-simulation-study, ported
+# from ``src/R/generate_panels.R``. That study runs 1000 Monte Carlo iterations
+# per cell across four stress scenarios and publishes per-tool bias, coverage
+# and false-positive rates, with GeoLift among the tools and configured as
+# augmented SC (ridge) with block conformal inference -- which is GEOX's
+# augsynth engine. Their published GeoLift row is therefore an external
+# referent for this engine's inference, which is why it is ported here instead
+# of a DGP being invented.
+#
+# Scenario overrides, from their `scenarios` list:
+#     A1 textbook          defaults
+#     A2 outlier           treated geo's baseline inflated 5x after selection
+#     A3 small pool        9 controls instead of 20
+#     A4 short pre-period  45 total days, 30 pre
+
+_DOW_PROFILE = (-1.0, -0.5, 0.0, 0.2, 0.8, 1.0, 0.5)   # Mon..Sun, day 1 = Mon
+
+RECAST_SCENARIOS = {
+    "A1": {},
+    "A2": {"outlier": True},
+    "A3": {"n_control": 9},
+    "A4": {"total_days": 45, "pre_days": 30},
+}
+
+
+def simulate_recast_panel(scenario: str, effect_pct: float, seed: int, *,
+                          n_control: int = 20, total_days: int = 105,
+                          pre_days: int = 90, baseline_mean: float = 4000.0,
+                          baseline_spread: float = 0.6,
+                          trend_slope: float = 0.001,
+                          seasonality_amplitude: float = 0.10,
+                          autocorrelation: float = 0.30,
+                          noise_level: float = 0.20,
+                          outlier_multiplier: float = 5.0):
+    """One panel from the Recast study's DGP.
+
+    ``Y_cf[i,t] = baseline_i * trend_t * season_t *
+    exp(noise_level * scale_i * ar_noise[i,t])`` with
+    ``scale_i = sqrt(noise_baseline_i / mean(noise_baselines))``, and the
+    treated geo's post window multiplied by ``1 + effect_pct``. Every geo shares
+    the trend and the weekly profile; only the baseline level and the noise draw
+    differ, which is the study's stated cross-geo structure (and its stated
+    caveat -- donors move in lockstep up to noise).
+
+    ``exp`` keeps the panel strictly positive whatever the noise draw, so a
+    multiplicative lift is always well defined.
+
+    The treated geo is the one closest to the median baseline, chosen before any
+    scenario modification; A2's inflation is applied to that geo afterwards and
+    deliberately does not feed the noise scaling, matching their
+    ``noise_baselines`` argument.
+
+    Returns
+    -------
+    (wide, treated, cf)
+        ``wide`` -- ``(total_days, n_geos)`` observed outcomes, columns
+        ``City 1 ...``; ``treated`` -- the treated column's name; ``cf`` -- the
+        treated geo's untreated counterfactual, so the true ATT is exact and
+        not approximated.
+    """
+    import pandas as pd
+
+    over = dict(RECAST_SCENARIOS.get(scenario, {}))
+    n_control = over.get("n_control", n_control)
+    total_days = over.get("total_days", total_days)
+    pre_days = over.get("pre_days", pre_days)
+    outlier = over.get("outlier", False)
+
+    n_geos = 1 + n_control
+    rng = np.random.default_rng(seed)
+
+    # Log-normal baselines with the mean pinned to `baseline_mean`, sorted.
+    meanlog = np.log(baseline_mean) - baseline_spread ** 2 / 2.0
+    baselines = np.sort(rng.lognormal(meanlog, baseline_spread, size=n_geos))
+    names = [f"City {i + 1}" for i in range(n_geos)]
+
+    # Treated = closest to the median baseline, before any inflation.
+    t_idx = int(np.argmin(np.abs(baselines - np.median(baselines))))
+    noise_baselines = baselines.copy()          # A2 must not amplify the noise
+    if outlier:
+        baselines = baselines.copy()
+        baselines[t_idx] *= outlier_multiplier
+
+    t_seq = np.arange(1, total_days + 1)
+    trend = 1.0 + trend_slope * t_seq
+    season = 1.0 + seasonality_amplitude * np.asarray(
+        [_DOW_PROFILE[(t - 1) % 7] for t in t_seq])
+
+    mean_baseline = float(noise_baselines.mean())
+    Y_cf = np.empty((total_days, n_geos))
+    for i in range(n_geos):
+        innov = rng.normal(size=total_days)
+        noise = np.empty(total_days)
+        noise[0] = innov[0]
+        for t in range(1, total_days):
+            noise[t] = autocorrelation * noise[t - 1] + innov[t]
+        scale_i = np.sqrt(noise_baselines[i] / mean_baseline)
+        Y_cf[:, i] = (baselines[i] * trend * season
+                      * np.exp(noise_level * scale_i * noise))
+
+    Y = Y_cf.copy()
+    Y[pre_days:, t_idx] = Y_cf[pre_days:, t_idx] * (1.0 + effect_pct)
+
+    wide = pd.DataFrame(Y, columns=names,
+                        index=pd.RangeIndex(1, total_days + 1, name="date"))
+    return wide, names[t_idx], Y_cf[:, t_idx], pre_days

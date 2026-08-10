@@ -37,6 +37,19 @@ from .engines import resolve_engine
 from .shaping import aggregate_treated, donor_matrix
 
 
+def _scaled(value, k: float):
+    """A reported bound on the reported effect's scale, or ``None`` if absent.
+
+    An infinite bound is a bound: it says the procedure excludes nothing in that
+    direction, and multiplying it by the reporting scale leaves it infinite. A
+    NaN is the absence of one, and becomes ``None``.
+    """
+    if value is None:
+        return None
+    value = float(value)
+    return None if np.isnan(value) else value * k
+
+
 def _report_extras(extras: dict) -> dict:
     """An engine's ``extras`` in a form the report can carry.
 
@@ -140,7 +153,7 @@ def realize_design(
     tau = eng.att(fit, treated, start, end)
     p_value, inf_details = eng.point_inference(
         fit, treated, donors, pre_periods, start, end,
-        n_draws=n_draws, n_tr=len(members), seed=seed, **ekw)
+        n_draws=n_draws, n_tr=len(members), seed=seed, alpha=alpha, **ekw)
 
     # Reporting scale. The statistic is a ratio, so it is scale-free and the
     # p-value is unmoved; only the reported paths change units.
@@ -168,6 +181,10 @@ def realize_design(
             p_value=float(p_value),
             method=str(inf_details.get("method", engine)),
             confidence_level=1.0 - alpha,
+            # On the same scale as the reported effect, so `how="sum"` scales
+            # the interval with the ATT it brackets.
+            ci_lower=_scaled(inf_details.get("ci_lower"), k),
+            ci_upper=_scaled(inf_details.get("ci_upper"), k),
             details={**inf_details, "att_mean_scale": float(tau)},
         ),
         weights=WeightsResults(

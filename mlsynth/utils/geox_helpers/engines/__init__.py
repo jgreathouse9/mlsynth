@@ -96,6 +96,25 @@ def placebo_detection_boundary(att_0: float, baseline: float, sigma, alpha: floa
     return ((z * sigma - att_0) / baseline, (-z * sigma - att_0) / baseline)
 
 
+def placebo_interval(att_value: float, sigma, alpha: float):
+    """``att +/- z sigma``, the interval the placebo test inverts.
+
+    Detection is ``2(1 - Phi(|att| / sigma)) < alpha``, so the set of nulls the
+    test does not reject is exactly this interval -- excluding zero and
+    rejecting are the same statement, which is what keeps the reported interval
+    and the reported p-value from being two different tests.
+
+    ``(nan, nan)`` when sigma is unusable, so an interval is absent instead of
+    degenerate.
+    """
+    from scipy.stats import norm
+
+    if sigma is None or not np.isfinite(sigma) or sigma <= 0:
+        return float("nan"), float("nan")
+    z = float(norm.ppf(1.0 - alpha / 2.0))
+    return float(att_value - z * sigma), float(att_value + z * sigma)
+
+
 def resolve_engine(name: str) -> Engine:
     """The engine registered under ``name``.
 
@@ -116,4 +135,5 @@ def resolve_engine(name: str) -> Engine:
 
 ENGINE_NAMES = frozenset({"sdid", "augsynth"})
 
-__all__ = ["Engine", "EngineFit", "ENGINE_NAMES", "resolve_engine"]
+__all__ = ["Engine", "EngineFit", "ENGINE_NAMES", "resolve_engine",
+           "placebo_interval", "placebo_detection_boundary"]

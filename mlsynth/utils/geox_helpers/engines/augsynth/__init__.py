@@ -37,8 +37,11 @@ import numpy as np
 
 from .....exceptions import MlsynthConfigError
 from .....utils.bilevel.engine import BilevelSCM
-from .....utils.bilevel.ridge_inference import conformal_pvalue
-from .. import Engine, EngineFit, placebo_detection_boundary
+from .....utils.bilevel.ridge_inference import (
+    conformal_att_interval,
+    conformal_pvalue,
+)
+from .. import Engine, EngineFit, placebo_detection_boundary, placebo_interval
 from ...engine import normal_p_value, placebo_sigma
 
 
@@ -173,7 +176,7 @@ def point_inference(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int, *,
     inference: str = "conformal", ns: int = 1000, n_draws: int = 200,
     n_tr: int = 1, seed: int = 0, conformal_type: str = "block",
-    finite_sample: bool = False, **_ignored: Any,
+    alpha: float = 0.1, finite_sample: bool = False, **_ignored: Any,
 ) -> Tuple[float, Dict[str, Any]]:
     """One window's test, for the realized readout."""
     y = np.asarray(y, dtype=float).ravel()
@@ -182,20 +185,39 @@ def point_inference(
     if inference == "placebo":
         sigma = placebo_sigma(y, Y0, n_pre, start, end, n_draws=n_draws,
                               n_tr=n_tr, seed=seed)
+        lo, hi = placebo_interval(tau, sigma, alpha)
         return normal_p_value(tau, sigma), {
             "method": "placebo", "sigma": sigma, "att": tau,
-            "n_draws": int(n_draws)}
+            "n_draws": int(n_draws), "ci_lower": lo, "ci_upper": hi}
     if inference != "conformal":
         raise MlsynthConfigError(
             f"inference must be 'conformal' or 'placebo'; got {inference!r}.")
     y_w, Y0_w = _window(y, Y0, end)
+    fe = bool(fit.extras.get("fixed_effects", True))
+    lam = fit.extras.get("lambda_")
     p = float(conformal_pvalue(
-        y_w, Y0_w, n_pre, lambda_=fit.extras.get("lambda_"), ns=ns, seed=seed,
-        conformal_type=conformal_type,
-        fixed_effects=bool(fit.extras.get("fixed_effects", True)),
+        y_w, Y0_w, n_pre, lambda_=lam, ns=ns, seed=seed,
+        conformal_type=conformal_type, fixed_effects=fe,
         finite_sample=finite_sample))
+    # The interval is the set of constant effects this same test does not
+    # reject, located by bracketing and bisection. A fixed grid does not work:
+    # the set is narrow relative to any span wide enough to be safe, so a grid
+    # steps over it and reports it empty.
+    #
+    # Both non-numeric answers are passed through as they come. An infinity is
+    # an unbounded side: nothing in that direction is excluded, which is where
+    # block conformal lands whenever `alpha` is below its 1/T floor. A NaN pair
+    # is an empty set, which is what a multiplicative lift gives once the noise
+    # is small enough to resolve it against a constant null. Collapsing either
+    # to `None` would make the two indistinguishable.
+    lo, hi = conformal_att_interval(
+        y_w, Y0_w, n_pre, alpha=alpha, lambda_=lam, ns=ns, seed=seed,
+        conformal_type=conformal_type, fixed_effects=fe,
+        finite_sample=finite_sample)
     return p, {"method": "conformal", "att": tau, "ns": int(ns),
-               "conformal_type": conformal_type}
+               "conformal_type": conformal_type,
+               "ci_lower": (None if np.isnan(lo) else lo),
+               "ci_upper": (None if np.isnan(hi) else hi)}
 
 
 def detection_boundary(

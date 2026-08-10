@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
-from .. import Engine, EngineFit, placebo_detection_boundary
+from .. import Engine, EngineFit, placebo_detection_boundary, placebo_interval
 from .....exceptions import MlsynthConfigError
 from ...engine import (
     normal_p_value,
@@ -116,20 +116,23 @@ def sweep_p_values(
 
 def point_inference(
     fit: EngineFit, y, Y0, n_pre: int, start: int, end: int, *,
-    n_draws: int = 200, n_tr: int = 1, seed: int = 0,
+    n_draws: int = 200, n_tr: int = 1, seed: int = 0, alpha: float = 0.1,
     inference: str = "placebo", **_ignored: Any,
 ) -> Tuple[float, Dict[str, Any]]:
-    """One window's test, for the realized readout."""
+    """One window's test and interval, for the realized readout."""
     y = np.asarray(y, dtype=float).ravel()
     Y0 = np.asarray(Y0, dtype=float)
     tau = att(fit, y, start, end)
     sigma = placebo_sigma(y, Y0, n_pre, start, end, n_draws=n_draws,
                           n_tr=n_tr, seed=seed)
+    lo, hi = placebo_interval(tau, sigma, alpha)
     return normal_p_value(tau, sigma), {
         "method": "placebo",
         "sigma": sigma,
         "att": tau,
         "n_draws": int(n_draws),
+        "ci_lower": lo,
+        "ci_upper": hi,
     }
 
 
