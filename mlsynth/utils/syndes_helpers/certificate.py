@@ -87,21 +87,42 @@ class SYNDESCertificate:
     note: str = ""
 
 
-def _continuous_relaxation_bound(Y: np.ndarray, K: int, mode: str, lam: float) -> float:
-    """Continuous relaxation optimum (``D`` in ``[0, 1]``): a valid lower bound."""
+def _bound_value(objective: cp.Expression) -> Optional[float]:
+    """The solved objective, or ``None`` when the solve produced no value.
+
+    Both bounds here are convex solves that can end without an optimum -- the
+    moment lift is a large PSD program under a fixed iteration cap. CVXPY leaves
+    ``.value`` at ``None`` in that case, so every caller reads the bound through
+    this helper and gets an absent bound instead of a ``TypeError``.
+    """
+    value = objective.value
+    return None if value is None else float(value)
+
+
+def _continuous_relaxation_bound(
+    Y: np.ndarray, K: int, mode: str, lam: float
+) -> Optional[float]:
+    """Continuous relaxation optimum (``D`` in ``[0, 1]``): a valid lower bound.
+
+    ``None`` when the relaxation does not solve.
+    """
     _, N = Y.shape
     D = cp.Variable(N, nonneg=True)
     comp = build_syndes_problem_components(Y=Y, D=D, K=K, lam=lam, mode=mode)
     prob = cp.Problem(cp.Minimize(comp.objective), list(comp.constraints) + [D <= 1])
     prob.solve(solver=cp.CLARABEL)
-    return float(comp.objective.value)
+    return _bound_value(comp.objective)
 
 
-def _sdp_moment_bound_two_way(Y: np.ndarray, K: int, lam: float) -> float:
+def _sdp_moment_bound_two_way(Y: np.ndarray, K: int, lam: float) -> Optional[float]:
     """SDP / moment (Shor level-1) lower bound for the two-way objective.
 
     Lifts ``x = [w; q; D]`` to a moment matrix and adds the constraints the
     McCormick relaxation drops: ``D_i^2 = D_i`` and ``w_i D_i = q_i = q_i D_i``.
+
+    The lift is ``(3N+1)`` square and SCS runs under a fixed iteration cap, so a
+    large ``N`` can exhaust the budget without an optimum; the bound is ``None``
+    when that happens.
     """
     T, N = Y.shape
     G = Y.T @ Y
@@ -127,12 +148,32 @@ def _sdp_moment_bound_two_way(Y: np.ndarray, K: int, lam: float) -> float:
                        - 4 * cp.sum(cp.multiply(G, Xqw))
                        + cp.sum(cp.multiply(G, Xww))) + lam * cp.trace(Xww)
     cp.Problem(cp.Minimize(obj), cons).solve(solver=cp.SCS, max_iters=8000, eps=1e-5)
-    return float(obj.value)
+    return _bound_value(obj)
 
 
 def _gap(incumbent: float, lb: float) -> float:
     denom = abs(incumbent) if abs(incumbent) > 1e-12 else 1.0
     return max(0.0, (incumbent - lb) / denom)
+
+
+def _certificate(
+    lb: Optional[float],
+    incumbent_obj: float,
+    certified: bool,
+    method: str,
+    note: str = "",
+) -> SYNDESCertificate:
+    """Assemble a certificate, degrading to "no bound" when the solve failed.
+
+    An absent bound is the documented ``lower_bound is None`` case: there is no
+    gap to report and nothing is certified.
+    """
+    if lb is None:
+        return SYNDESCertificate(
+            None, None, False, method,
+            note=(f"the {method} bound solve did not converge, so no lower "
+                  "bound is available and this design carries no certified gap."))
+    return SYNDESCertificate(lb, _gap(incumbent_obj, lb), certified, method, note=note)
 
 
 def syndes_certificate(
@@ -175,24 +216,23 @@ def syndes_certificate(
     lam_value = float(estimate_lambda(Y)) if lam is None else float(lam)
 
     if mode == _ONE_WAY:
-        lb = _continuous_relaxation_bound(Y, K, mode, lam_value)
-        return SYNDESCertificate(lb, _gap(incumbent_obj, lb), True,
-                                 "continuous_relaxation")
+        return _certificate(_continuous_relaxation_bound(Y, K, mode, lam_value),
+                            incumbent_obj, True, "continuous_relaxation")
 
     if mode == _TWO_WAY:
         if N <= sdp_n_max:
-            lb = _sdp_moment_bound_two_way(Y, K, lam_value)
-            return SYNDESCertificate(lb, _gap(incumbent_obj, lb), True, "sdp_moment")
-        lb = _continuous_relaxation_bound(Y, K, mode, lam_value)
-        return SYNDESCertificate(
-            lb, _gap(incumbent_obj, lb), False, "continuous_relaxation",
+            return _certificate(_sdp_moment_bound_two_way(Y, K, lam_value),
+                                incumbent_obj, True, "sdp_moment")
+        return _certificate(
+            _continuous_relaxation_bound(Y, K, mode, lam_value),
+            incumbent_obj, False, "continuous_relaxation",
             note=(f"N={N} exceeds sdp_n_max={sdp_n_max}; the two-way SDP bound was "
                   "skipped and the continuous bound is loose (not a tight certificate)."))
 
     # per_unit: no cheap tight bound (SDP is O(N^4); continuous relaxation ~70% loose)
-    lb = _continuous_relaxation_bound(Y, K, mode, lam_value)
-    return SYNDESCertificate(
-        lb, _gap(incumbent_obj, lb), False, "continuous_relaxation",
+    return _certificate(
+        _continuous_relaxation_bound(Y, K, mode, lam_value),
+        incumbent_obj, False, "continuous_relaxation",
         note=("per-unit has an (N,N) weight matrix, so the SDP lift is intractable "
               "and the continuous relaxation is loose; the gap is not a tight "
               "certificate."))

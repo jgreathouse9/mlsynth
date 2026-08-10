@@ -509,7 +509,13 @@ class SYNDES:
         warm_D, L_safe = two_way_accel_inputs(
             inputs.Y_pre, self.K, self.lam, margin=self.accel_safety_margin,
         )
-        return {"warm_start_D": warm_D, "objective_lower_bound": L_safe}
+        kwargs = {"warm_start_D": warm_D}
+        if L_safe is not None:
+            # A bound that did not converge leaves the warm start usable on its
+            # own; the solve keeps SCIP's own dual bound (two_way_accel_inputs
+            # warns) instead of failing.
+            kwargs["objective_lower_bound"] = L_safe
+        return kwargs
 
     def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
