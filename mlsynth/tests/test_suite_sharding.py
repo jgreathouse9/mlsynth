@@ -11,6 +11,8 @@ round-robin idiom for the benchmark runner.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from _shard import select_shard_modules, split_items
@@ -198,21 +200,66 @@ def test_a_shard_holds_whole_files(tmp_path):
     assert len(first) in (2, 3)
 
 
-def test_the_repo_conftest_wires_the_plugin_in():
-    """`_shard`'s hooks are reachable from the suite's own conftest.
+class TestTheHooksAreRegisteredWherePytestReadsThem:
+    """The registration has to be at the rootdir, and in exactly one place.
 
-    The tests above load `_shard` explicitly with `-p`, which proves the hooks
-    work but not that the real suite has them. A CI job passing `--num-shards`
-    against a conftest that never imported them fails on an unrecognized
-    argument, so this pins the import that makes the flags exist.
+    ``pytest_addoption`` is only honoured from a plugin or a conftest at the
+    rootdir. Registering it in ``mlsynth/tests/conftest.py`` works for
+    ``pytest mlsynth/tests`` and fails for the bare ``pytest`` CI runs, with
+    ``unrecognized arguments: --num-shards``. Registering it in both places
+    fails differently: pytest loads the subdirectory conftest as well whenever
+    the command line names a path inside it, and the second registration raises
+    ``ValueError: option names {'--num-shards'} already added``.
+
+    Both of those happened. These pin the shape that avoids each.
     """
-    import conftest
 
-    import _shard
+    @staticmethod
+    def _root():
+        import pathlib
+        return pathlib.Path(__file__).resolve().parents[2]
 
-    assert conftest.pytest_addoption is _shard.pytest_addoption
-    assert (conftest.pytest_collection_modifyitems
-            is _shard.pytest_collection_modifyitems)
+    def test_the_root_conftest_registers_the_hooks(self):
+        import importlib.util
+
+        import _shard
+
+        spec = importlib.util.spec_from_file_location(
+            "_root_conftest", self._root() / "conftest.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.pytest_addoption is _shard.pytest_addoption
+        assert (module.pytest_collection_modifyitems
+                is _shard.pytest_collection_modifyitems)
+
+    def test_the_tests_conftest_does_not_register_them_again(self):
+        source = (self._root() / "mlsynth" / "tests" / "conftest.py").read_text()
+        assert "from _shard import" not in source, (
+            "the tests conftest registers the shard options a second time; "
+            "pytest raises 'option names already added' when both load")
+
+
+def test_the_flags_work_in_the_bare_invocation(tmp_path):
+    """The form CI runs: no path argument, from the repository root.
+
+    This is the test that was missing. Every other test here passes a path or
+    loads the plugin with ``-p``, and both of those make a subdirectory conftest
+    an initial conftest -- which is exactly what hid the bug. ``--ignore`` keeps
+    it quick without changing what is being tested, since the options are parsed
+    before anything is collected.
+    """
+    import os
+    import subprocess
+    import sys
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q",
+         "-p", "no:cacheprovider", "--ignore=mlsynth/tests",
+         "--num-shards", "2", "--shard", "0"],
+        capture_output=True, text=True, cwd=str(root), env=dict(os.environ))
+    assert "unrecognized arguments" not in proc.stderr + proc.stdout
+    assert proc.returncode == 0, proc.stdout[-2000:]
 
 
 # --- the workflow cannot drift from the flag ------------------------------

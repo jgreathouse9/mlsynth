@@ -146,13 +146,10 @@ def pytest_runtest_makereport(item, call):
                                f"Skipped: {reason}")
 
 
-# Shard selection
-# ---------------
-# ``--num-shards N --shard i`` splits the suite across parallel CI jobs. The
-# hooks and their arithmetic live in ``_shard.py`` so they can be loaded as a
-# plugin and tested directly; re-exporting them here is what makes the flags
-# exist for the real suite.
-from _shard import (  # noqa: E402,F401  (re-export: pytest reads these by name)
-    pytest_addoption,
-    pytest_collection_modifyitems,
-)
+# Shard selection lives in the ROOT conftest, not here. ``pytest_addoption`` is
+# only honoured from a plugin or a rootdir conftest, so registering it in this
+# subdirectory conftest works for ``pytest mlsynth/tests`` and fails for the
+# bare ``pytest`` that CI runs. Registering it in both places is worse than
+# either: pytest loads this file too when the command line names a path inside
+# it, and the second registration raises
+# ``ValueError: option names {'--num-shards'} already added``.
