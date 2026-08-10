@@ -144,3 +144,15 @@ def pytest_runtest_makereport(item, call):
             report.outcome = "skipped"
             report.longrepr = (str(item.fspath), item.location[1] + 1,
                                f"Skipped: {reason}")
+
+
+# Shard selection
+# ---------------
+# ``--num-shards N --shard i`` splits the suite across parallel CI jobs. The
+# hooks and their arithmetic live in ``_shard.py`` so they can be loaded as a
+# plugin and tested directly; re-exporting them here is what makes the flags
+# exist for the real suite.
+from _shard import (  # noqa: E402,F401  (re-export: pytest reads these by name)
+    pytest_addoption,
+    pytest_collection_modifyitems,
+)
