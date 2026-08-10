@@ -1,0 +1,331 @@
+"""Unit tests for the test suite's own shard selection.
+
+The suite runs across parallel CI jobs via ``pytest --num-shards N --shard i``.
+These pin that the split is a genuine partition -- disjoint and exhaustive -- so
+no test is dropped or double-run, and that it splits whole modules, which is
+what keeps module-scoped fixtures from being rebuilt in every shard.
+
+Mirrors ``benchmarks/tests/test_shard_selection.py``, which pins the same
+round-robin idiom for the benchmark runner.
+"""
+
+from __future__ import annotations
+
+import pathlib
+
+import pytest
+
+from _shard import select_shard_modules, split_items
+
+MODULES = [f"mlsynth/tests/test_{c}.py" for c in "abcdefghij"]
+
+
+class _FakeItem:
+    """Enough of a pytest item for the split: a nodeid."""
+
+    def __init__(self, module: str, name: str) -> None:
+        self.nodeid = f"{module}::{name}"
+
+
+def _items(modules, per_module=3):
+    return [_FakeItem(m, f"test_{i}") for m in modules for i in range(per_module)]
+
+
+# --- the module selection ------------------------------------------------
+
+
+def test_one_shard_keeps_everything():
+    assert select_shard_modules(MODULES, shard=0, num_shards=1) == sorted(MODULES)
+
+
+def test_shard_is_a_round_robin_slice():
+    got = select_shard_modules(MODULES, shard=1, num_shards=3)
+    assert got == sorted(MODULES)[1::3]
+
+
+def test_shards_partition_exactly():
+    n = 4
+    shards = [select_shard_modules(MODULES, shard=i, num_shards=n)
+              for i in range(n)]
+    flat = [m for s in shards for m in s]
+    assert sorted(flat) == sorted(MODULES)
+    assert len(flat) == len(set(flat)) == len(MODULES)
+
+
+def test_selection_does_not_depend_on_input_order():
+    """Sorted internally, so a different collection order gives the same split.
+
+    Collection order varies with the filesystem and with ``-p no:randomly``
+    style plugins; a shard that depended on it would run different tests on
+    different machines under the same flags.
+    """
+    forward = select_shard_modules(MODULES, shard=2, num_shards=3)
+    reverse = select_shard_modules(list(reversed(MODULES)), shard=2, num_shards=3)
+    assert forward == reverse
+
+
+def test_duplicates_collapse():
+    """A module appears once however many of its tests were collected."""
+    got = select_shard_modules(MODULES + MODULES, shard=0, num_shards=2)
+    assert got == sorted(MODULES)[0::2]
+
+
+def test_shard_sizes_differ_by_at_most_one():
+    n = 3
+    sizes = [len(select_shard_modules(MODULES, shard=i, num_shards=n))
+             for i in range(n)]
+    assert max(sizes) - min(sizes) <= 1
+
+
+def test_more_shards_than_modules_leaves_some_empty_not_broken():
+    """A shard with nothing to do is a pass, not an error.
+
+    Over-sharding is a configuration mistake that should waste a runner, not
+    fail the gate on a suite where every test passed.
+    """
+    n = len(MODULES) + 3
+    shards = [select_shard_modules(MODULES, shard=i, num_shards=n)
+              for i in range(n)]
+    assert sum(len(s) for s in shards) == len(MODULES)
+    assert [] in shards
+
+
+def test_empty_input_is_empty_output():
+    assert select_shard_modules([], shard=0, num_shards=4) == []
+
+
+@pytest.mark.parametrize("shard, num_shards", [
+    (0, 0), (0, -1), (-1, 2), (2, 2), (5, 2),
+])
+def test_invalid_shard_arguments_raise(shard, num_shards):
+    with pytest.raises(ValueError):
+        select_shard_modules(MODULES, shard=shard, num_shards=num_shards)
+
+
+# --- splitting collected items -------------------------------------------
+
+
+def test_split_keeps_whole_modules_together():
+    """Every test in a file lands in the same shard.
+
+    This is the point of splitting by module and not by test. A module-scoped
+    fixture is built once per shard that holds any of its tests, so splitting a
+    module across shards rebuilds its fixtures in each -- which is the cost this
+    is meant to remove, not multiply.
+    """
+    items = _items(MODULES)
+    n = 3
+    for i in range(n):
+        kept, _ = split_items(items, shard=i, num_shards=n)
+        modules = {it.nodeid.split("::")[0] for it in kept}
+        for module in modules:
+            in_module = [it for it in items if it.nodeid.startswith(f"{module}::")]
+            assert all(it in kept for it in in_module)
+
+
+def test_split_partitions_the_items():
+    items = _items(MODULES)
+    n = 4
+    kept = [split_items(items, shard=i, num_shards=n)[0] for i in range(n)]
+    flat = [it for k in kept for it in k]
+    assert len(flat) == len(items)
+    assert {id(it) for it in flat} == {id(it) for it in items}
+
+
+def test_split_reports_the_complement_as_deselected():
+    items = _items(MODULES)
+    kept, dropped = split_items(items, shard=0, num_shards=2)
+    assert len(kept) + len(dropped) == len(items)
+    assert not ({id(i) for i in kept} & {id(i) for i in dropped})
+
+
+def test_one_shard_deselects_nothing():
+    items = _items(MODULES)
+    kept, dropped = split_items(items, shard=0, num_shards=1)
+    assert kept == items
+    assert dropped == []
+
+
+def test_split_preserves_collection_order_within_a_shard():
+    """Ordering is untouched, so a shard runs its tests in collection order."""
+    items = _items(MODULES)
+    kept, _ = split_items(items, shard=1, num_shards=3)
+    assert kept == [it for it in items if it in kept]
+
+
+# --- the pytest options, end to end --------------------------------------
+#
+# The unit tests above pin the arithmetic. These run pytest itself, because the
+# failure mode that matters is the wiring: an option registered but never read
+# would pass every test above and shard nothing, and CI would report four green
+# jobs that each ran the whole suite.
+
+
+def _collect(tmp_path, *args):
+    """Collect a fixed two-module tree under the given flags."""
+    import os
+    import pathlib
+    import subprocess
+    import sys
+
+    for name, count in (("test_alpha.py", 3), ("test_beta.py", 2)):
+        (tmp_path / name).write_text(
+            "".join(f"def test_{i}():\n    pass\n\n" for i in range(count)))
+    env = dict(os.environ, PYTHONPATH=str(pathlib.Path(__file__).resolve().parent))
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", str(tmp_path), "--collect-only", "-q",
+         "-p", "no:cacheprovider", "-p", "_shard", *args],
+        capture_output=True, text=True, cwd=str(tmp_path), env=env)
+    return [line for line in proc.stdout.splitlines() if "::" in line]
+
+
+def test_the_options_are_registered(tmp_path):
+    """`--num-shards`/`--shard` are accepted, and the default collects all."""
+    assert len(_collect(tmp_path)) == 5
+    assert len(_collect(tmp_path, "--num-shards", "1", "--shard", "0")) == 5
+
+
+def test_sharding_actually_partitions_a_real_collection(tmp_path):
+    first = _collect(tmp_path, "--num-shards", "2", "--shard", "0")
+    second = _collect(tmp_path, "--num-shards", "2", "--shard", "1")
+    assert sorted(first + second) == sorted(_collect(tmp_path))
+    assert not (set(first) & set(second))
+    assert first and second        # neither shard is empty on two modules
+
+
+def test_a_shard_holds_whole_files(tmp_path):
+    first = _collect(tmp_path, "--num-shards", "2", "--shard", "0")
+    files = {line.split("::")[0] for line in first}
+    assert len(files) == 1         # one of the two modules, all of it
+    assert len(first) in (2, 3)
+
+
+class TestTheHooksAreRegisteredWherePytestReadsThem:
+    """The registration has to be at the rootdir, and in exactly one place.
+
+    ``pytest_addoption`` is only honoured from a plugin or a conftest at the
+    rootdir. Registering it in ``mlsynth/tests/conftest.py`` works for
+    ``pytest mlsynth/tests`` and fails for the bare ``pytest`` CI runs, with
+    ``unrecognized arguments: --num-shards``. Registering it in both places
+    fails differently: pytest loads the subdirectory conftest as well whenever
+    the command line names a path inside it, and the second registration raises
+    ``ValueError: option names {'--num-shards'} already added``.
+
+    Both of those happened. These pin the shape that avoids each.
+    """
+
+    @staticmethod
+    def _root():
+        import pathlib
+        return pathlib.Path(__file__).resolve().parents[2]
+
+    def test_the_root_conftest_registers_the_hooks(self):
+        import importlib.util
+
+        import _shard
+
+        spec = importlib.util.spec_from_file_location(
+            "_root_conftest", self._root() / "conftest.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.pytest_addoption is _shard.pytest_addoption
+        assert (module.pytest_collection_modifyitems
+                is _shard.pytest_collection_modifyitems)
+
+    def test_the_tests_conftest_does_not_register_them_again(self):
+        source = (self._root() / "mlsynth" / "tests" / "conftest.py").read_text()
+        assert "from _shard import" not in source, (
+            "the tests conftest registers the shard options a second time; "
+            "pytest raises 'option names already added' when both load")
+
+
+def test_the_flags_work_in_the_bare_invocation(tmp_path):
+    """The form CI runs: no path argument, from the repository root.
+
+    This is the test that was missing. Every other test here passes a path or
+    loads the plugin with ``-p``, and both of those make a subdirectory conftest
+    an initial conftest -- which is exactly what hid the bug. ``--ignore`` keeps
+    it quick without changing what is being tested, since the options are parsed
+    before anything is collected.
+    """
+    import os
+    import subprocess
+    import sys
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q",
+         "-p", "no:cacheprovider", "--ignore=mlsynth/tests",
+         "--num-shards", "2", "--shard", "0"],
+        capture_output=True, text=True, cwd=str(root), env=dict(os.environ))
+    assert "unrecognized arguments" not in proc.stderr + proc.stdout
+    assert proc.returncode == 0, proc.stdout[-2000:]
+
+
+# --- the workflow cannot drift from the flag ------------------------------
+
+
+class TestTheWorkflowShardCountMatches:
+    """``--num-shards`` must equal the length of the job's shard matrix.
+
+    This is the failure this whole mechanism is exposed to. Raise the matrix to
+    six shards and leave ``--num-shards 4`` behind, and shards 4 and 5 collect
+    nothing while 0-3 run the same quarters as before: a third of the suite
+    never runs and every job reports success. A skipped success is
+    indistinguishable from a real one, which is the same reasoning
+    ``TestCIRunsWhenTheSuiteCanBreak`` records for the paths filter.
+    """
+
+    @staticmethod
+    def _workflow():
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parents[2]
+        return (root / ".github" / "workflows" / "build.yml").read_text()
+
+    @staticmethod
+    def _jobs():
+        import pathlib
+
+        import yaml
+
+        root = pathlib.Path(__file__).resolve().parents[2]
+        wf = yaml.safe_load(
+            (root / ".github" / "workflows" / "build.yml").read_text())
+        return wf["jobs"]
+
+    def test_both_test_jobs_are_sharded(self):
+        jobs = self._jobs()
+        for name in ("build", "pyversions"):
+            matrix = jobs[name]["strategy"]["matrix"]
+            assert "shard" in matrix, f"{name} is not sharded"
+
+    def test_the_shard_matrix_is_a_contiguous_range_from_zero(self):
+        """``--shard i`` is a 0-based index, so the matrix must be 0..n-1."""
+        for name, job in self._jobs().items():
+            matrix = job.get("strategy", {}).get("matrix", {})
+            if "shard" not in matrix:
+                continue
+            shards = matrix["shard"]
+            assert shards == list(range(len(shards))), (
+                f"{name}: shard matrix {shards} is not 0..{len(shards) - 1}")
+
+    def test_every_num_shards_matches_a_shard_matrix_length(self):
+        import re
+
+        counts = {len(job["strategy"]["matrix"]["shard"])
+                  for job in self._jobs().values()
+                  if "shard" in job.get("strategy", {}).get("matrix", {})}
+        declared = {int(n) for n in
+                    re.findall(r"--num-shards\s+(\d+)", self._workflow())}
+        assert declared, "no --num-shards found in the workflow"
+        assert declared == counts, (
+            f"--num-shards {sorted(declared)} does not match the shard "
+            f"matrix lengths {sorted(counts)}; some tests would never run")
+
+    def test_every_sharded_job_passes_its_matrix_index(self):
+        """A job that shards but hardcodes ``--shard 0`` runs one quarter, 4x."""
+        wf = self._workflow()
+        assert wf.count("--shard ${{ matrix.shard }}") == len(
+            [j for j in self._jobs().values()
+             if "shard" in j.get("strategy", {}).get("matrix", {})])

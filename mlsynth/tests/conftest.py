@@ -144,3 +144,12 @@ def pytest_runtest_makereport(item, call):
             report.outcome = "skipped"
             report.longrepr = (str(item.fspath), item.location[1] + 1,
                                f"Skipped: {reason}")
+
+
+# Shard selection lives in the ROOT conftest, not here. ``pytest_addoption`` is
+# only honoured from a plugin or a rootdir conftest, so registering it in this
+# subdirectory conftest works for ``pytest mlsynth/tests`` and fails for the
+# bare ``pytest`` that CI runs. Registering it in both places is worse than
+# either: pytest loads this file too when the command line names a path inside
+# it, and the second registration raises
+# ``ValueError: option names {'--num-shards'} already added``.
