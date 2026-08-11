@@ -23,7 +23,7 @@ to balance out of sample, which is the quantity overfitting inflates.
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 
@@ -94,6 +94,7 @@ def select_by_holdout(
     *,
     holdout_frac: float,
     top_K: int,
+    pool_fn: Optional[Callable[..., List[Any]]] = None,
     **solve_kw: Any,
 ) -> Tuple[List[Any], List[float]]:
     """Rank the SYNDES candidate pool by out-of-sample (holdout) contrast error.
@@ -109,8 +110,11 @@ def select_by_holdout(
     holdout_frac : float
         Validation-tail fraction in ``(0, 1)`` (see :func:`split_pre`).
     top_K : int
-        Candidate-pool size handed to
-        :func:`~mlsynth.utils.syndes_helpers.optimization.solve_synthetic_design_pool`.
+        Candidate-pool size handed to the pool solver.
+    pool_fn : callable, optional
+        The pool solver. Defaults to
+        :func:`~mlsynth.utils.syndes_helpers.optimization.solve_synthetic_design_pool`;
+        the exact two-way backend passes its own here.
     **solve_kw
         Remaining solver arguments (``K``, ``mode``, ``lam``, ``solver``,
         ``verbose``, ``unit_index``, ``costs``, ``budget``, ``gap_limit``,
@@ -124,7 +128,8 @@ def select_by_holdout(
         (same order). Ties keep the solver's in-sample order (stable sort).
     """
     Y_train, Y_val, _ = split_pre(Y_pre, holdout_frac)
-    designs = solve_synthetic_design_pool(Y=Y_train, top_K=top_K, **solve_kw)
+    solve_pool = pool_fn or solve_synthetic_design_pool
+    designs = solve_pool(Y=Y_train, top_K=top_K, **solve_kw)
     oos = [oos_contrast_rmse(d, Y_val) for d in designs]
     order = sorted(range(len(designs)), key=lambda i: (oos[i], i))   # stable
     ranked = [designs[i] for i in order]

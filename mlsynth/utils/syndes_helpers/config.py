@@ -115,6 +115,21 @@ class SYNDESConfig(BaseMAREXConfig):
                           description="Permutation test significance level.")
     run_inference: bool = Field(default=True,
                                  description="Run post-period inference when post data are present.")
+    backend: Literal["mip", "exact"] = Field(
+        default="mip",
+        description=(
+            "How ``mode='two_way_global'`` is solved. ``'mip'`` hands the "
+            "mixed-integer program to ``solver`` (the default, unchanged). "
+            "``'exact'`` searches treated sets directly: naming the set removes "
+            "every binary and leaves a convex program in the Gram matrix, so a "
+            "candidate design costs one row of a matrix product instead of a "
+            "branch-and-bound node, and the panel length drops out after the "
+            "Gram step. Only valid for ``mode='two_way_global'``, and not with "
+            "donor-side restrictions, which tie the control weights to the "
+            "assignment. ``gap_limit``, ``time_limit``, ``solver`` and the "
+            "``accel_*`` fields apply to the MIP path only."
+        ),
+    )
     solver: Any = Field(default="SCIP",
                          description="CVXPY-compatible mixed-integer solver "
                          "(ignored for the annealed mode).")
@@ -398,6 +413,21 @@ class SYNDESConfig(BaseMAREXConfig):
         df = values.df
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
+
+        # The exact backend is a reformulation of the two-way objective only:
+        # one-way pins the treated weights and per-unit carries an (N, N) weight
+        # matrix, so neither reduces to a search over treated sets.
+        if values.backend == "exact":
+            if values.mode != "two_way_global":
+                raise MlsynthConfigError(
+                    f"backend='exact' is only available for "
+                    f"mode='two_way_global'; got mode={values.mode!r}.")
+            if values.donor_exclusion is not None or values.donor_region_col:
+                raise MlsynthConfigError(
+                    "backend='exact' cannot apply donor-side restrictions: they "
+                    "tie the control weights to which units are treated, so a "
+                    "design is not scoreable from its treated set alone. Drop "
+                    "donor_exclusion / donor_region_col, or use backend='mip'.")
 
         # Resolve the design-selection rule (None infers from holdout_frac).
         # A solution pool (top_K >= 2) is holdout-validated by default: rank the

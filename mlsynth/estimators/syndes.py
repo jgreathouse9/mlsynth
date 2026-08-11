@@ -65,6 +65,10 @@ from ..utils.syndes_helpers.inference import (
 )
 from ..utils.syndes_helpers.holdout import select_by_holdout
 from ..utils.syndes_helpers.infocriterion import select_by_ic
+from ..utils.syndes_helpers.exact import (
+    solve_synthetic_design_exact,
+    solve_synthetic_design_exact_pool,
+)
 from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
     solve_synthetic_design_pool,
@@ -326,6 +330,7 @@ class SYNDES:
         self.post_col: Optional[str] = config.post_col
         self.alpha: float = config.alpha
         self.run_inference: bool = config.run_inference
+        self.backend: str = config.backend
         self.solver: Any = config.solver
         self.gap_limit: Optional[float] = config.gap_limit
         self.time_limit: Optional[float] = config.time_limit
@@ -519,14 +524,30 @@ class SYNDES:
 
     def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
+        use_exact = self.backend == "exact"
 
-        solve_kw = dict(
-            Y=inputs.Y_pre, K=self.K, mode=mode_internal, lam=self.lam,
-            solver=self.solver, verbose=self.verbose,
-            unit_index=inputs.unit_index, costs=self.costs, budget=self.budget,
-            gap_limit=self.gap_limit, time_limit=self.time_limit,
-            restrictions=restrictions,
-        )
+        if use_exact:
+            # The exact backend reformulates rather than relaxes, so it takes no
+            # solver knobs: `solver`, `verbose`, `gap_limit` and `time_limit`
+            # describe branch-and-bound, which it does not do.
+            solve_kw = dict(
+                Y=inputs.Y_pre, K=self.K, lam=self.lam,
+                unit_index=inputs.unit_index, costs=self.costs,
+                budget=self.budget, restrictions=restrictions,
+            )
+            solve_one, solve_pool = (solve_synthetic_design_exact,
+                                     solve_synthetic_design_exact_pool)
+        else:
+            solve_kw = dict(
+                Y=inputs.Y_pre, K=self.K, mode=mode_internal, lam=self.lam,
+                solver=self.solver, verbose=self.verbose,
+                unit_index=inputs.unit_index, costs=self.costs, budget=self.budget,
+                gap_limit=self.gap_limit, time_limit=self.time_limit,
+                restrictions=restrictions,
+            )
+            solve_one, solve_pool = (solve_synthetic_design,
+                                     solve_synthetic_design_pool)
+
         pool = None
         if self.selection == "holdout":
             # Holdout selection: learn the candidate pool on the leading
@@ -536,7 +557,7 @@ class SYNDES:
             base_kw = {k: v for k, v in solve_kw.items() if k != "Y"}
             ranked, oos_errors = select_by_holdout(
                 inputs.Y_pre, holdout_frac=self.holdout_frac,
-                top_K=self.top_K, **base_kw,
+                top_K=self.top_K, pool_fn=solve_pool, **base_kw,
             )
             self._require_feasible_pool(ranked)
             design = ranked[0]
@@ -546,7 +567,7 @@ class SYNDES:
             # Information-criterion selection: solve the pool on the whole
             # pre-period, then re-rank by IC = SSR_pre + 2 sigma^2 df (no data
             # split). The returned pool is ranked by IC (rank-1 is the winner).
-            pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            pool_designs = solve_pool(top_K=self.top_K, **solve_kw)
             self._require_feasible_pool(pool_designs)
             ranked, ic_values, df_values, _sigma2 = select_by_ic(
                 pool_designs, inputs.Y_pre,
@@ -557,12 +578,14 @@ class SYNDES:
         elif self.top_K and self.top_K > 1:
             # Solution pool: top-K distinct designs by no-good cuts. The rank-1
             # design IS the single-solve optimum, so reuse it (no double solve).
-            pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            pool_designs = solve_pool(top_K=self.top_K, **solve_kw)
             self._require_feasible_pool(pool_designs)
             design = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
+        elif use_exact:
+            design = solve_one(**solve_kw)
         else:
-            design = solve_synthetic_design(
+            design = solve_one(
                 **solve_kw, **self._accel_kwargs(inputs, mode_internal))
 
         # Re-tag with the paper-aligned mode label so the design surface
