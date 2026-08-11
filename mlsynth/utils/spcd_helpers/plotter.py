@@ -161,7 +161,7 @@ def plot_detectability(
 def plot_spcd_design(results: SPCDResults) -> None:
     """Plot synthetic treated and synthetic control trajectories for SPCD.
 
-    Mirrors the layout of ``plot_relaxed_design`` in
+    Mirrors the layout of ``plot_global_design`` in
     ``syndes_helpers.plotter`` so SPCD and SYNDES plots feel consistent.
 
     Parameters
