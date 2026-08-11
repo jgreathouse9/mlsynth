@@ -215,6 +215,28 @@ class TestEdges:
         assert set(_walk(space)) == _brute(6, 3, forced=(0,), strata=strata)
         assert all(len(set(s) & {0, 1, 2}) == 1 for s in _walk(space))
 
+    def test_one_stratum_covering_every_unit(self):
+        """A single group with no leftover, so a quota is the only thing bounding it.
+
+        The unrestricted space is also a single group, and it is the space the
+        walk is specialised for. A specialisation that read ``k_free`` without
+        checking the quota would still be correct there and wrong here.
+        """
+        strata = (((0, 1, 2, 3, 4, 5), 2, 3),)
+        space = SearchSpace.build(6, 3, strata=strata)
+        assert set(_walk(space)) == _brute(6, 3, strata=strata)
+        assert space.size == len(_walk(space)) == comb(6, 3)
+
+    def test_one_stratum_whose_ceiling_excludes_k(self):
+        strata = (((0, 1, 2, 3, 4, 5), None, 2),)
+        space = SearchSpace.build(6, 3, strata=strata)
+        assert space.size == 0 and _walk(space) == []
+
+    def test_one_stratum_whose_floor_excludes_k(self):
+        strata = (((0, 1, 2, 3, 4, 5), 4, None),)
+        space = SearchSpace.build(6, 3, strata=strata)
+        assert space.size == 0 and _walk(space) == []
+
     def test_overlapping_strata_still_enumerate_correctly(self):
         """Disjointness is exploited when present and not assumed when absent.
 

@@ -217,3 +217,9 @@ timeout = 180.0
   find = "low = max(0, (0 if lo is None else int(lo)) - held)"
   replace = "low = 0"
   models = "only the ceilings of a coverage quota enforced, so a minimum-per-stratum rule is accepted and silently does nothing, and designs that cover too few groups are admitted"
+
+  [[target.mutant]]
+  id = "fast-path-ignores-forced-units"
+  find = "if not self.forced and len(self.groups) == 1:"
+  replace = "if len(self.groups) == 1:"
+  models = "the single-group shortcut taken when forced units exist, so the units the design must contain are never merged in and every emitted set is short by the forced count -- the specialisation for the unrestricted case silently applied to a restricted one"

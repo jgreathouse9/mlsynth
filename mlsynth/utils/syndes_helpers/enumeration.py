@@ -170,8 +170,19 @@ class SearchSpace:
         Emits exactly :attr:`size` subsets. Branches that no completion can
         finish are skipped on the same table the count was read from, so the walk
         does no work per design it does not emit.
+
+        One group and no forced units is the unrestricted case, and there the
+        general walk would pay a frame and a sort per design for a merge it does
+        not need: a single group's members are ascending, so its combinations are
+        already sorted treated sets. That case defers to
+        :func:`itertools.combinations`, which is what the search used before
+        candidates were built inside the restrictions. A quota can still make the
+        one group unreachable, so the size check above is what admits this path.
         """
         if not self.size:
+            return
+        if not self.forced and len(self.groups) == 1:
+            yield from combinations(self.groups[0].members, self.k_free)
             return
         yield from self._walk(0, self.k_free, [])
 
