@@ -109,3 +109,33 @@ timeout = 120.0
   find = "+ norm_sq * np.outer(ones, ones)"
   replace = "+ 0.5 * norm_sq * np.outer(ones, ones)"
   models = "a penalty whose kernel is no longer the population-proportional ray, so lambda stops pricing departure from the classical aggregation and starts penalising the aggregation itself"
+
+[[target]]
+name = "syndes-gram"
+module-path = "mlsynth/utils/syndes_helpers/gram.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_gram_properties.py mlsynth/tests/test_syndes_gram.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "closed-form-claims-exactness-everywhere"
+  find = "exact = np.all(signs * contrast >= tol, axis=1)"
+  replace = "exact = np.ones(signs.shape[0], dtype=bool)"
+  models = "a bound that reports itself as the optimum on every design, so wherever the dropped sign conditions actually bind the caller receives a number strictly below the true objective and believes it exact"
+
+  [[target.mutant]]
+  id = "rayleigh-caps-with-the-wrong-end-of-the-spectrum"
+  find = "top = float(np.linalg.eigvalsh(self.R)[-1])"
+  replace = "top = float(np.linalg.eigvalsh(self.R)[0])"
+  models = "a global bound built from the smallest eigenvalue of the cut matrix instead of the largest, which inverts the inequality and yields a 'lower bound' above the optimum -- valid-looking, and wrong in the direction that matters"
+
+  [[target.mutant]]
+  id = "conditioning-guard-never-fires"
+  find = "reliable = bool(np.isfinite(condition) and condition <= float(condition_max))"
+  replace = "reliable = True"
+  models = "an engine that inverts a Gram matrix it cannot resolve, returning a confidently wrong bound in the one regime the module promises to return none"
+
+  [[target.mutant]]
+  id = "maxcut-scores-against-a-stale-gradient"
+  find = "g += 2.0 * (R[:, j] - R[:, i])"
+  replace = "g += 2.0 * R[:, j]"
+  models = "an incremental update that adds the entering unit without removing the leaving one, so every later sweep scores its neighbourhood against a gradient for a design that was never visited and the returned set is not a local optimum"

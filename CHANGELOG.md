@@ -32,6 +32,26 @@ now returns and the back-compat guarantee.
   resolves and behaves gracefully for every estimator the package ships.
 
 ### Changed
+- The SYNDES two-way optimality certificate (`certify=True` with
+  `mode="two_way_global"`) now reports a closed-form bound on the Gram matrix
+  instead of the SDP / moment lift, and `result.certificate.method` reads
+  `"rayleigh"` in place of `"sdp_moment"`. Naming the treated set removes the
+  `q = w * D` coupling, leaving a convex program in `G = Y'Y / T`; the two weight
+  normalisations are then a pair of linear equalities, and dropping the sign
+  conditions gives `lb(S) = 4 alpha / (sigma' R sigma)` with
+  `R = alpha H - p p'`, `H = (G + lam I)^-1`, `p = H1`, `alpha = 1'H1`. Since
+  `R1 = 0`, Rayleigh's inequality bounds every size-`K` design at once. On the
+  panels used to develop it the bound reached 88.8 / 90.6 / 92.0 percent of the
+  true optimum at `K = 3 / 5 / 7`, against the lift's 83.2 / 84.9 / 86.2, in
+  about 0.1 ms against 0.1--0.23 s. Two consequences for callers: the two-way
+  certificate no longer consults `certify_sdp_n_max`, since there is no size at
+  which it needs to fall back to the loose continuous bound, and it no longer
+  goes absent because a conic solve hit its iteration cap. It does report
+  `lower_bound=None` when `G + lam I` is near-singular, which happens as `lam`
+  approaches zero on a panel with fewer pre-periods than units; the note names
+  the cause. `accelerate` is unchanged and still uses the SDP lift as its
+  objective cut. New `mlsynth.utils.syndes_helpers.gram`, covered by
+  `tests/test_syndes_gram.py`.
 - SDID solves its placebo draws' weights as one family. Placebo inference
   (Arkhangelsky et al. 2021, Algorithm 4) refits both weight programs once per
   draw and `B` defaults to 500, which is where an SDID fit spends its time: 84
@@ -380,7 +400,7 @@ First stable release, published to PyPI (``pip install mlsynth``).
   standardized sub-models built from the observed target vs the smoother-based
   counterfactual; `att` / `counterfactual` / `gap` / `pre_rmse` resolve via the
   inherited accessors. TASC is a state-space / EM estimator with **no donor
-  weights**, so the `weights` slot records the method rather than per-donor
+  weights**, so the `weights` slot records the method, not per-donor
   weights. **Breaking surface change:** the raw inference object (counterfactual
   + per-period posterior bands: `.counterfactual` / `.ci_lower` / `.ci_upper` /
   `.posterior_variance` / `.alpha`) moved from `res.inference` to

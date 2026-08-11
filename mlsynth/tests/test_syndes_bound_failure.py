@@ -1,10 +1,18 @@
-"""What SYNDES does when a relaxation bound solve returns no value.
+"""What SYNDES does when a lower bound is unavailable.
 
-Both lower bounds behind the SYNDES certificate are convex solves that can fail
-to converge: the two-way bound lifts ``x = [w; q; D]`` to a ``(3N+1)`` moment
-matrix and hands it to SCS under a fixed iteration cap, and the continuous
-relaxation is a QP. When a solve returns without an objective value, CVXPY
-leaves ``.value`` at ``None``.
+The certificate's bounds go absent for two different reasons, and both are
+exercised here.
+
+The continuous relaxation is a convex solve that can fail to converge, as is the
+SDP / moment lift the two-way MIP accelerator still uses as an objective cut:
+that one lifts ``x = [w; q; D]`` to a ``(3N+1)`` moment matrix and hands it to
+SCS under a fixed iteration cap. When a solve returns without an objective
+value, CVXPY leaves ``.value`` at ``None``.
+
+The two-way certificate itself no longer solves anything -- it is the closed-form
+Rayleigh bound on the Gram matrix, so it cannot fail to converge. It goes absent
+only when that Gram matrix is too ill-conditioned to invert reliably, which
+happens as ``lam`` approaches zero on a panel with fewer pre-periods than units.
 
 The bound is a diagnostic and a solver speed-up, never a correctness
 requirement: ``solve_synthetic_design`` takes ``objective_lower_bound`` as
@@ -89,25 +97,49 @@ class TestBoundHelpersReturnNone:
         assert isinstance(lb, float) and np.isfinite(lb)
 
 
+def _ill_conditioned_Y(N=10, T=4, seed=0):
+    """Rank-deficient Gram: ``rank(G) <= T < N``, so ``G + lam I`` is near-singular."""
+    rng = np.random.default_rng(seed)
+    return rng.standard_normal((T, 2)) @ rng.standard_normal((2, N))
+
+
 class TestCertificateReportsMissingBound:
     """``SYNDESCertificate`` already documents ``lower_bound`` as optional."""
 
     def test_fields_are_none_and_uncertified(self, unsolved):
-        c = syndes_certificate(_Y(), 3, TWO_WAY, 1.0)
+        c = syndes_certificate(_Y(), 3, "global_equal_weights", 1.0)
         assert isinstance(c, SYNDESCertificate)
         assert c.lower_bound is None
         assert c.optimality_gap is None
         assert c.certified is False
 
     def test_note_says_the_bound_failed(self, unsolved):
-        c = syndes_certificate(_Y(), 3, TWO_WAY, 1.0)
+        c = syndes_certificate(_Y(), 3, "global_equal_weights", 1.0)
         assert c.note, "a missing bound must be explained in the note"
         assert "converge" in c.note.lower() or "fail" in c.note.lower()
 
-    @pytest.mark.parametrize("mode", ["global_equal_weights", TWO_WAY, "per_unit"])
-    def test_every_mode_degrades(self, unsolved, mode):
+    @pytest.mark.parametrize("mode", ["global_equal_weights", "per_unit"])
+    def test_solve_backed_modes_degrade(self, unsolved, mode):
         c = syndes_certificate(_Y(), 3, mode, 1.0)
         assert c.lower_bound is None and c.optimality_gap is None
+
+    def test_two_way_needs_no_solver(self, unsolved):
+        """The Rayleigh bound is pure linear algebra, so a dead solver is moot."""
+        Y = _Y()
+        c = syndes_certificate(Y, 3, TWO_WAY, 1.0)
+        assert c.method == "rayleigh"
+        assert c.lower_bound is not None and c.certified is True
+
+    def test_two_way_degrades_when_the_gram_is_ill_conditioned(self):
+        c = syndes_certificate(_ill_conditioned_Y(), 3, TWO_WAY, 1.0, lam=1e-14)
+        assert c.method == "rayleigh"
+        assert c.lower_bound is None and c.optimality_gap is None
+        assert c.certified is False
+        assert "ill-conditioned" in c.note
+
+    def test_ill_conditioned_note_says_what_to_do(self):
+        c = syndes_certificate(_ill_conditioned_Y(), 3, TWO_WAY, 1.0, lam=1e-14)
+        assert "lam" in c.note and "pre-treatment" in c.note
 
     def test_successful_certificate_unchanged(self):
         Y = _Y()

@@ -223,7 +223,7 @@ Summary
      - 0.028
      - tight
      - `brabander_brexit_table1 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brabander_brexit_table1.py>`__
-   * - R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst rather than pinned
+   * - R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst instead of pinned
      - ``tiger_reserves.csv`` (a529e3de9e6f…)
      - 9
      - 9e+03
