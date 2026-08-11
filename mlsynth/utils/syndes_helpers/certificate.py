@@ -18,9 +18,9 @@ The right lower bound depends on the mode's geometry:
   that follows admits a Rayleigh bound over every size-``K`` design at once:
   ``f* >= alpha N / (K (N - K) lam_max(R))``. One matrix inverse and one
   eigenvalue, no relaxation solve, and no size gate.
-* ``per_unit``: the weights are an ``(N, N)`` matrix, so the SDP lift is
-  ``O(N^4)`` (intractable) and the continuous relaxation is very loose (~70%).
-  There is no cheap tight bound; the certificate is returned ``certified=False``.
+* ``per_unit``: the weights are an ``(N, N)`` matrix, so no lift is tractable
+  and the continuous relaxation is very loose (~70%). There is no cheap tight
+  bound; the certificate is returned ``certified=False``.
 
 The returned lower bound is always *valid* (a relaxation optimum), modulo the
 solver's numerical tolerance; ``certified`` flags whether it is tight enough to
@@ -28,26 +28,16 @@ be a useful certificate for the mode.
 
 The two-way bound replaced an SDP / moment (Shor--Lasserre level-1) lift, which
 added ``D_i^2 = D_i`` and ``w_i D_i = q_i`` as exact second moments. Measured on
-the same instances, the Rayleigh bound reaches 88.8 / 90.6 / 92.0 percent of the
+the same instances, the Rayleigh bound reached 88.8 / 90.6 / 92.0 percent of the
 optimum at ``K = 3 / 5 / 7`` against the lift's 83.2 / 84.9 / 86.2, taking about
-0.1 ms against 0.1--0.23 s, and it has no ``O(N^3)`` size gate and no iteration
-cap to exhaust. ``_sdp_moment_bound_two_way`` remains here because the two-way
-MIP accelerator still uses it as an objective cut.
+0.1 ms against 0.1--0.23 s, with no size gate and no iteration cap to exhaust.
+The lift went with the MIP accelerator that was its last consumer.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
 derives no relaxation-based lower bound. It is a design-time diagnostic computed
 on the pre-treatment panel and does not change the design SYNDES returns.
 
-References
-----------
-Bomze, Peng, Qiu & Yildirim (2023), "On Tractable Convex Relaxations of Standard
-Quadratic Optimization Problems under Sparsity Constraints" (arXiv:2310.04340) --
-the Shor and RLT relaxations of the cardinality-constrained mixed-binary QP this
-lift instantiates. Han, Gomez & Atamturk (2022), "The Equivalence of Optimal
-Perspective Formulation and Shor's SDP for Quadratic Programs with Indicator
-Variables" (Oper. Res. Lett. 50) -- for indicator quadratics the perspective
-reformulation and Shor's SDP coincide, so lifting is the general tool.
 """
 from __future__ import annotations
 
@@ -86,7 +76,7 @@ class SYNDESCertificate:
         for this mode (True for one-way and two-way; False for per-unit, where
         the bound is valid but loose).
     method : str
-        ``"continuous_relaxation"``, ``"rayleigh"`` or ``"sdp_moment"``.
+        ``"continuous_relaxation"`` or ``"rayleigh"``.
     note : str
         Human-readable caveat (empty when fully certified).
     """
@@ -101,10 +91,10 @@ class SYNDESCertificate:
 def _bound_value(objective: cp.Expression) -> Optional[float]:
     """The solved objective, or ``None`` when the solve produced no value.
 
-    Both bounds here are convex solves that can end without an optimum -- the
-    moment lift is a large PSD program under a fixed iteration cap. CVXPY leaves
-    ``.value`` at ``None`` in that case, so every caller reads the bound through
-    this helper and gets an absent bound instead of a ``TypeError``.
+    The continuous relaxation is a convex solve that can end without an optimum.
+    CVXPY leaves ``.value`` at ``None`` in that case, so every caller reads the
+    bound through this helper and gets an absent bound instead of a
+    ``TypeError``.
     """
     value = objective.value
     return None if value is None else float(value)
@@ -123,44 +113,6 @@ def _continuous_relaxation_bound(
     prob = cp.Problem(cp.Minimize(comp.objective), list(comp.constraints) + [D <= 1])
     prob.solve(solver=cp.CLARABEL)
     return _bound_value(comp.objective)
-
-
-def _sdp_moment_bound_two_way(Y: np.ndarray, K: int, lam: float) -> Optional[float]:
-    """SDP / moment (Shor level-1) lower bound for the two-way objective.
-
-    Lifts ``x = [w; q; D]`` to a moment matrix and adds the constraints the
-    McCormick relaxation drops: ``D_i^2 = D_i`` and ``w_i D_i = q_i = q_i D_i``.
-
-    The lift is ``(3N+1)`` square and SCS runs under a fixed iteration cap, so a
-    large ``N`` can exhaust the budget without an optimum; the bound is ``None``
-    when that happens.
-    """
-    T, N = Y.shape
-    G = Y.T @ Y
-    n = 3 * N
-    M = cp.Variable((n + 1, n + 1), PSD=True)
-    x = M[0, 1:]
-    X = M[1:, 1:]
-    w, q, D = x[:N], x[N:2 * N], x[2 * N:]
-    Xww = X[:N, :N]
-    Xqq = X[N:2 * N, N:2 * N]
-    Xqw = X[N:2 * N, :N]
-    cons = [
-        M[0, 0] == 1,
-        cp.sum(q) == 1, cp.sum(w) == 2,
-        q <= D, q <= w, q >= w - (1 - D),
-        cp.sum(D) == K, w >= 0, q >= 0, D <= 1,
-    ]
-    for i in range(N):
-        cons += [X[2 * N + i, 2 * N + i] == D[i],   # D_i^2 = D_i
-                 X[i, 2 * N + i] == q[i],           # w_i D_i = q_i
-                 X[N + i, 2 * N + i] == q[i]]        # q_i D_i = q_i
-    obj = (1.0 / T) * (4 * cp.sum(cp.multiply(G, Xqq))
-                       - 4 * cp.sum(cp.multiply(G, Xqw))
-                       + cp.sum(cp.multiply(G, Xww))) + lam * cp.trace(Xww)
-    cp.Problem(cp.Minimize(obj), cons).solve(solver=cp.SCS, max_iters=8000, eps=1e-5)
-    return _bound_value(obj)
-
 
 def _rayleigh_bound_two_way(
     Y: np.ndarray, K: int, lam: float
@@ -214,7 +166,6 @@ def syndes_certificate(
     incumbent_obj: float,
     *,
     lam: Optional[float] = None,
-    sdp_n_max: int = 120,
 ) -> SYNDESCertificate:
     """Certify a SYNDES design's optimality gap with a mode-appropriate bound.
 
@@ -231,11 +182,6 @@ def syndes_certificate(
         Objective value of the fitted design (``SYNDESDesign.objective_value``).
     lam : float, optional
         Regularization; estimated from ``Y`` when ``None`` (must match the fit).
-    sdp_n_max : int, optional
-        Retained for the SDP bound the two-way MIP accelerator still uses as an
-        objective cut. The two-way certificate no longer consults it: the
-        Rayleigh bound is ``O(N^3)`` in one eigenvalue instead of an SDP lift, so
-        there is no size at which it needs to fall back.
 
     Returns
     -------

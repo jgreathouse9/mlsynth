@@ -13,11 +13,10 @@ import numpy as np
 
 from ...exceptions import MlsynthPlottingError
 from ..plotting import Plotter, mlsynth_style
-from .relaxed_structures import RelaxedSolverResults
 from .structures import SYNDESResults
 
 
-def plot_syndes_design(results: SYNDESResults | RelaxedSolverResults) -> None:
+def plot_syndes_design(results: SYNDESResults) -> None:
     """Render the SYNDES design figure(s).
 
     Always draws Panel A -- the normal SYNDES design plot (synthetic treated vs
@@ -31,11 +30,9 @@ def plot_syndes_design(results: SYNDESResults | RelaxedSolverResults) -> None:
         plot_syndes_pareto(results)
 
 
-def _plot_normal_design(results: SYNDESResults | RelaxedSolverResults) -> None:
+def _plot_normal_design(results: SYNDESResults) -> None:
     """Dispatch to the mode-specific single-design plot (Panel A)."""
-    if results.mode == "two_way_global_annealed":
-        plot_relaxed_design(results)
-    elif results.mode in {
+    if results.mode in {
         "global_2way", "global_equal_weights",
         "two_way_global", "one_way_global",  # SYNDES paper-aligned names
     }:
@@ -107,46 +104,8 @@ def plot_per_unit_design(results: SYNDESResults) -> None:
         plt.show()
 
 
-def plot_relaxed_design(results: RelaxedSolverResults) -> None:
-    """Plot synthetic treated/control aggregate series for a relaxed SYNDES design.
 
-    Parameters
-    ----------
-    results : RelaxedSolverResults
-        Output of the relaxed annealing solver. Must have ``inputs``
-        attached so that pre/post matrices can be stacked.
-
-    Raises
-    ------
-    MlsynthPlottingError
-        If the result has no attached ``inputs``.
-    """
-
-    if results.inputs is None:
-        raise MlsynthPlottingError(
-            "Relaxed SYNDES plotting requires inputs to be attached to the result."
-        )
-
-    n_pre = results.inputs.Y_pre.shape[0]
-    treated_series, control_series = _treated_control_series(results, results.design)
-    with mlsynth_style():
-        ax = Plotter(figsize=(12, 5)).observed_vs_counterfactual(
-            times=np.arange(treated_series.shape[0]),
-            observed=treated_series,
-            counterfactuals=control_series,
-            labels=["Synthetic Control"],
-            treated_label="synthetic",
-            intervention=n_pre - 0.5,
-            outcome=results.inputs.outcome,
-            time="period",
-            title="Panel A: synthetic treated vs synthetic control "
-                  "(two_way_global_annealed)",
-        )
-        ax.figure.tight_layout()
-        plt.show()
-
-
-def _stack_pre_post(results: SYNDESResults | RelaxedSolverResults) -> np.ndarray:
+def _stack_pre_post(results: SYNDESResults) -> np.ndarray:
     if results.inputs.Y_post is None:
         return results.inputs.Y_pre
     return np.vstack([results.inputs.Y_pre, results.inputs.Y_post])
@@ -157,7 +116,7 @@ def _treated_control_series(results, design):
 
     Mirrors the contrast bookkeeping in ``_syndes_post_fit``: ``per_unit`` keeps
     a ``(K, N)`` treated-weight matrix (control side = its column sum / K), while
-    the global / annealed modes carry plain ``(N,)`` weight vectors.
+    the global modes carry plain ``(N,)`` weight vectors.
     """
     Y_full = _stack_pre_post(results)
     N = Y_full.shape[1]

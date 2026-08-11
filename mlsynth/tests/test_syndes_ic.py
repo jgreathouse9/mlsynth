@@ -192,12 +192,6 @@ class TestSYNDESICConfig:
         with pytest.raises(MlsynthConfigError):
             self._make(selection="ic", top_K=1)
 
-    def test_ic_rejects_annealed(self):
-        with pytest.raises(MlsynthConfigError):
-            SYNDES({"df": _panel(), **self._BASE,
-                    "mode": "two_way_global_annealed",
-                    "selection": "ic", "top_K": 4})
-
     def test_ic_conflicts_with_holdout_frac(self):
         with pytest.raises(MlsynthConfigError):
             self._make(selection="ic", holdout_frac=0.3, top_K=4)

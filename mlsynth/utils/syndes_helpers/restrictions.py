@@ -276,10 +276,15 @@ def donor_constraints(mode: str, variables: dict, D: Any,
     is treated, encoded per mode against that mode's control variables:
 
     * ``global_equal_weights`` (one-way): ``c[j] <= 1 - D[i]``;
-    * ``global_2way``:                    ``w[j] - q[j] <= 1 - D[i]``
-      (``w - q`` is the control simplex);
     * ``per_unit``:                       ``w[i, j] == 0`` (row ``i``'s weight on
       donor ``j``; only binds when ``i`` is treated since ``w[i, j] <= D[i]``).
+
+    ``global_2way`` is refused. Its control simplex is ``w - q``, so a donor rule
+    reads ``w[j] - q[j] <= 1 - D[i]`` -- a coupling between the control weights
+    and the assignment. Two-way designs are solved by searching treated sets,
+    which requires a design to be scoreable from its treated set alone, and that
+    coupling breaks it. The configuration layer rejects the combination before a
+    solve is attempted; this guard covers direct callers.
 
     Returns an empty list when ``donor_exclusion`` is empty.
     """
@@ -291,9 +296,12 @@ def donor_constraints(mode: str, variables: dict, D: Any,
         for i, j in donor_exclusion:
             cons.append(c[j] <= 1 - D[i])
     elif mode == "global_2way":
-        w, q = variables["w"], variables["q"]
-        for i, j in donor_exclusion:
-            cons.append(w[j] - q[j] <= 1 - D[i])
+        raise MlsynthConfigError(
+            "donor restrictions are not supported for the two-way global mode: "
+            "they tie the control weights to which units are treated, so a "
+            "design is not scoreable from its treated set alone. Use "
+            "mode='one_way_global' or mode='per_unit'."
+        )
     elif mode == "per_unit":
         w = variables["w"]
         for i, j in donor_exclusion:

@@ -32,10 +32,10 @@ Two additional MIP features round out the estimator:
 
 * **Budget constraint** (paper section 1): supply ``costs`` (length
   ``N``) and ``budget`` to add ``sum_i c_i D_i <= B`` to the MIP.
-* **Annealed relaxation** (``mode="two_way_global_annealed"``):
-  simulated-annealing alternative to the MIP for the symmetric
-  two-way formulation. Useful when a commercial MIP solver is
-  unavailable or the problem size makes the MIP impractical.
+* **Exact two-way backend** (the default for ``two_way_global``):
+  naming the treated set removes every binary, so the design is
+  found by searching treated sets over the Gram matrix instead of
+  by branch-and-bound. See ``utils/syndes_helpers/exact.py``.
 
 Post-fit, see :func:`mlsynth.power_analysis` for per-horizon
 minimum-detectable-effect tables.
@@ -59,10 +59,7 @@ from ..exceptions import (
 )
 from ..utils.datautils import balance
 from ..utils.post_fit import compute_post_fit, compute_power_analysis
-from ..utils.syndes_helpers.inference import (
-    permutation_test_global,
-    permutation_test_relaxed_global,
-)
+from ..utils.syndes_helpers.inference import permutation_test_global
 from ..utils.syndes_helpers.holdout import select_by_holdout
 from ..utils.syndes_helpers.infocriterion import select_by_ic
 from ..utils.syndes_helpers.exact import (
@@ -77,8 +74,6 @@ from ..utils.syndes_helpers.restrictions import build_restrictions
 from ..utils.syndes_helpers.plotter import plot_syndes_design
 from ..utils.syndes_helpers.power import power_analysis
 from ..utils.syndes_helpers.select import recommend_syndes
-from ..utils.syndes_helpers.relaxed_solver import solve_two_way_relaxed
-from ..utils.syndes_helpers.relaxed_structures import RelaxedSolverResults
 from ..utils.syndes_helpers.setup import prepare_syndes_inputs
 from ..utils.syndes_helpers.structures import (
     SYNDESMultiArmResults,
@@ -117,9 +112,6 @@ def _syndes_post_fit(inputs, design, inference, alpha):
       naturally-defined contrast for the unified post-fit is the *aggregate*
       (1/K)-averaged synthetic treated vs synthetic control derived from
       :math:`D` and :math:`q.sum(axis=0)`.
-    * ``two_way_global_annealed`` -- same shape as ``global_2way`` (the
-      annealed solver returns plain ``(N,)`` ``treated_weights`` /
-      ``control_weights``).
     """
     Y_pre = np.asarray(inputs.Y_pre, dtype=float)
     if inputs.Y_post is not None:
@@ -170,9 +162,9 @@ def _syndes_post_fit(inputs, design, inference, alpha):
 def _design_control_weights(design, n_units):
     """Return the (N,) control-side weight vector for any SYNDES mode.
 
-    Mirrors the contrast bookkeeping in :func:`_syndes_post_fit`: the two-way /
-    equal-weight / annealed modes store the control simplex in
-    ``control_weights`` directly, whereas ``per_unit`` leaves ``control_weights``
+    Mirrors the contrast bookkeeping in :func:`_syndes_post_fit`: the two-way
+    and equal-weight modes store the control simplex in ``control_weights``
+    directly, whereas ``per_unit`` leaves ``control_weights``
     ``None`` and keeps the per-treated-unit synthetic controls in the ``(K, N)``
     ``treated_weights`` matrix -- whose column sum is the aggregate control side.
     """
@@ -301,12 +293,9 @@ class SYNDES:
 
     Returns
     -------
-    SYNDESResults or RelaxedSolverResults
-        For the three MIP modes, a :class:`SYNDESResults` container
-        with the optimised design and optional permutation inference.
-        For ``mode="two_way_global_annealed"`` the relaxed solver
-        returns a :class:`RelaxedSolverResults` container with
-        ``design``, ``trace``, ``inputs``, and optional ``inference``.
+    SYNDESResults
+        A container with the optimised design and optional permutation
+        inference, the same shape for every mode and either backend.
     """
 
     def __init__(self, config: Union[SYNDESConfig, dict]) -> None:
@@ -335,12 +324,6 @@ class SYNDES:
         self.gap_limit: Optional[float] = config.gap_limit
         self.time_limit: Optional[float] = config.time_limit
         self.certify: bool = config.certify
-        self.certify_sdp_n_max: int = config.certify_sdp_n_max
-        self.accelerate: bool = config.accelerate
-        self.accel_min_tuples: int = config.accel_min_tuples
-        self.accel_safety_margin: float = config.accel_safety_margin
-        self.relaxed_max_iter: int = config.relaxed_max_iter
-        self.relaxed_decay: float = config.relaxed_decay
         self.display_graph: bool = config.display_graph
         self.verbose: bool = config.verbose
         self.costs = config.costs
@@ -377,7 +360,7 @@ class SYNDES:
 
     def fit(
         self,
-    ) -> Union[SYNDESResults, "RelaxedSolverResults", SYNDESMultiArmResults]:
+    ) -> Union[SYNDESResults, SYNDESMultiArmResults]:
         """Solve the MIP (or relaxation), run optional inference, return results.
 
         Returns a single result when no ``arm`` column is configured;
@@ -420,7 +403,7 @@ class SYNDES:
 
     def _fit_single(
         self, df: pd.DataFrame
-    ) -> Union[SYNDESResults, "RelaxedSolverResults"]:
+    ) -> SYNDESResults:
         """Run the SYNDES pipeline on one (sub-)panel and return its result."""
 
         balance(df, self.unitid, self.time)
@@ -433,8 +416,6 @@ class SYNDES:
             post_col=self.post_col,
         )
 
-        if self.mode_public == "two_way_global_annealed":
-            return self._fit_relaxed(inputs)
         restrictions = self._build_restrictions(df, inputs)
         return self._fit_mip(inputs, restrictions)
 
@@ -491,36 +472,6 @@ class SYNDES:
                 "quotas, donor-pool rules) are jointly unsatisfiable for the "
                 "requested K. Relax the restrictions or reduce K."
             )
-
-    def _accel_kwargs(self, inputs, mode_internal) -> dict:
-        """Warm start + SDP objective cut for the eligible large two-way solve.
-
-        Size-gated auto policy (see ``SYNDESConfig.accelerate``): engages only for
-        two-way with an explicit ``K`` when the treated-tuple count ``C(N, K)``
-        exceeds ``accel_min_tuples`` and ``N <= certify_sdp_n_max``. Returns the
-        extra ``solve_synthetic_design`` kwargs, or an empty dict (no-op) so small
-        problems solve exactly, unchanged. Only the plain single-solve path is
-        accelerated; the pool / holdout / ic selectors are left untouched.
-        """
-        if not self.accelerate or mode_internal != "global_2way" or self.K is None:
-            return {}
-        from math import comb
-        N = int(inputs.Y_pre.shape[1])
-        if N > self.certify_sdp_n_max:
-            return {}
-        if comb(N, int(self.K)) <= self.accel_min_tuples:
-            return {}
-        from ..utils.syndes_helpers.accelerate import two_way_accel_inputs
-        warm_D, L_safe = two_way_accel_inputs(
-            inputs.Y_pre, self.K, self.lam, margin=self.accel_safety_margin,
-        )
-        kwargs = {"warm_start_D": warm_D}
-        if L_safe is not None:
-            # A bound that did not converge leaves the warm start usable on its
-            # own; the solve keeps SCIP's own dual bound (two_way_accel_inputs
-            # warns) instead of failing.
-            kwargs["objective_lower_bound"] = L_safe
-        return kwargs
 
     def _fit_mip(self, inputs, restrictions=None) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
@@ -582,11 +533,8 @@ class SYNDES:
             self._require_feasible_pool(pool_designs)
             design = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
-        elif use_exact:
-            design = solve_one(**solve_kw)
         else:
-            design = solve_one(
-                **solve_kw, **self._accel_kwargs(inputs, mode_internal))
+            design = solve_one(**solve_kw)
 
         # Re-tag with the paper-aligned mode label so the design surface
         # the user sees uses SYNDES vocabulary.
@@ -619,7 +567,6 @@ class SYNDES:
             certificate = syndes_certificate(
                 inputs.Y_pre, self.K, mode_internal,
                 float(design.objective_value), lam=self.lam,
-                sdp_n_max=self.certify_sdp_n_max,
             )
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,
@@ -640,41 +587,3 @@ class SYNDES:
 
         return results
 
-    # ------------------------------------------------------------------
-    # Annealed relaxation path
-    # ------------------------------------------------------------------
-
-    def _fit_relaxed(self, inputs) -> RelaxedSolverResults:
-        if self.K is None:
-            raise MlsynthConfigError(
-                "Annealed relaxation requires an explicit K."
-            )
-
-        relaxed = solve_two_way_relaxed(
-            Y=inputs.Y_pre,
-            K=self.K,
-            lam=self.lam,
-            max_iter=self.relaxed_max_iter,
-            decay=self.relaxed_decay,
-            verbose=self.verbose,
-        )
-
-        inference = None
-        if self.run_inference and inputs.Y_post is not None:
-            inference = permutation_test_relaxed_global(
-                Y_pre=inputs.Y_pre,
-                Y_post=inputs.Y_post,
-                design=relaxed.design,
-                alpha=self.alpha,
-            )
-
-        post_fit = _syndes_post_fit(
-            inputs=inputs, design=relaxed.design,
-            inference=inference, alpha=self.alpha,
-        )
-
-        results = replace(relaxed, inputs=inputs, inference=inference,
-                          post_fit=post_fit)
-        return replace(
-            results, power_curve=_syndes_power_curve(results, self.alpha)
-        )

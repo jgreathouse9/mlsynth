@@ -39,9 +39,6 @@ class SYNDESConfig(BaseMAREXConfig):
     * ``"one_way_global"``  --  ``"two_way_global"`` with equal
                                  weights pinned on the treated set
                                  (paper's "one-way global" problem).
-    * ``"two_way_global_annealed"`` -- simulated-annealing relaxation
-                                 of ``two_way_global`` (mlsynth-specific
-                                 extension; not in the paper).
 
     Parameters
     ----------
@@ -89,14 +86,11 @@ class SYNDESConfig(BaseMAREXConfig):
         "per_unit",
         "two_way_global",
         "one_way_global",
-        "two_way_global_annealed",
     ] = Field(
         default="two_way_global",
         description=(
-            "Paper-aligned formulation: per-unit / two-way / one-way "
-            "global from Doudchenko et al. (2021), or the simulated-"
-            "annealing relaxation of two-way global (mlsynth-specific "
-            "extension; not in the paper)."
+            "Paper-aligned formulation: per-unit / two-way / one-way global "
+            "from Doudchenko et al. (2021)."
         ),
     )
     lam: Optional[float] = Field(
@@ -116,31 +110,23 @@ class SYNDESConfig(BaseMAREXConfig):
     run_inference: bool = Field(default=True,
                                  description="Run post-period inference when post data are present.")
     backend: Literal["mip", "exact"] = Field(
-        default="mip",
+        default="exact",
         description=(
-            "How ``mode='two_way_global'`` is solved. ``'mip'`` hands the "
-            "mixed-integer program to ``solver`` (the default, unchanged). "
-            "``'exact'`` searches treated sets directly: naming the set removes "
+            "How ``mode='two_way_global'`` is solved. ``'exact'`` (the default) "
+            "searches treated sets directly: naming the set removes "
             "every binary and leaves a convex program in the Gram matrix, so a "
             "candidate design costs one row of a matrix product instead of a "
             "branch-and-bound node, and the panel length drops out after the "
             "Gram step. Only valid for ``mode='two_way_global'``, and not with "
             "donor-side restrictions, which tie the control weights to the "
-            "assignment. ``gap_limit``, ``time_limit``, ``solver`` and the "
-            "``accel_*`` fields apply to the MIP path only."
+            "assignment. ``gap_limit``, ``time_limit`` and ``solver`` describe "
+            "branch-and-bound and apply to the MIP path only."
         ),
     )
     solver: Any = Field(default="SCIP",
-                         description="CVXPY-compatible mixed-integer solver "
-                         "(ignored for the annealed mode).")
-    relaxed_max_iter: int = Field(
-        default=40, gt=0,
-        description="Outer annealing iterations for mode='two_way_global_annealed'.",
-    )
-    relaxed_decay: float = Field(
-        default=0.97, gt=0.0, lt=1.0,
-        description="Geometric decay factor for the annealed solver's temperature.",
-    )
+                         description="CVXPY-compatible mixed-integer solver. "
+                         "Used by the MIP backend; the exact two-way backend "
+                         "solves no mixed-integer program and ignores it.")
     gap_limit: Optional[float] = Field(
         default=0.05, ge=0.0, lt=1.0,
         description=(
@@ -172,59 +158,13 @@ class SYNDESConfig(BaseMAREXConfig):
         description=(
             "Attach a validated optimality gap to the result. Computes a "
             "mode-appropriate lower bound on the optimal objective without "
-            "branch-and-bound (a convex QP for one-way; the SDP/moment "
-            "relaxation for two-way; per-unit is not cheaply certifiable and "
-            "returns certified=False). The result gains a ``certificate`` "
+            "branch-and-bound (a convex QP for one-way; the closed-form "
+            "Rayleigh bound on the Gram matrix for two-way; per-unit is not "
+            "cheaply certifiable and returns certified=False). The result gains a ``certificate`` "
             "(``SYNDESCertificate``) with ``lower_bound`` and ``optimality_gap``. "
             "A design-time diagnostic and an mlsynth addition -- not part of "
             "Doudchenko et al. (2021), which gives the MIP but no relaxation "
             "bound; it does not change the returned design."
-        ),
-    )
-    certify_sdp_n_max: int = Field(
-        default=120, ge=1,
-        description=(
-            "Largest N for which the two-way SDP bound is attempted (it is "
-            "O(N^3)). Governs both the ``certify=True`` certificate (above it the "
-            "two-way certificate falls back to the loose continuous bound with "
-            "certified=False) and the ``accelerate`` accelerator (above it the "
-            "large two-way solve is left un-accelerated)."
-        ),
-    )
-    accelerate: bool = Field(
-        default=True,
-        description=(
-            "Speed up the large two-way MIP by injecting a valid SDP objective "
-            "lower-bound cut and a deterministic LEXSCM warm start, so the "
-            "existing ``gap_limit`` certifies against the tight SDP/moment bound "
-            "instead of SCIP's loose McCormick relaxation (which makes the exact "
-            "two-way MIP time out even at modest N). Size-gated and automatic: it "
-            "engages only for ``mode='two_way_global'`` with an explicit ``K`` "
-            "when the treated-tuple count C(N, K) exceeds ``accel_min_tuples`` and "
-            "N <= ``certify_sdp_n_max``; otherwise it is a no-op and the solve is "
-            "unchanged. The returned design is certified-near-optimal (to "
-            "``gap_limit`` against the SDP bound), not proven-optimal. An mlsynth "
-            "addition -- not part of Doudchenko et al. (2021)."
-        ),
-    )
-    accel_min_tuples: int = Field(
-        default=2000, ge=1,
-        description=(
-            "Combinatorial-size gate for ``accelerate``: the two-way accelerator "
-            "engages only when the number of treated K-tuples C(N, K) exceeds "
-            "this. Below it the exact MIP is small and fast, so it is solved "
-            "directly (unchanged). Mirrors LEXSCM's enumerate-vs-search size "
-            "switch."
-        ),
-    )
-    accel_safety_margin: float = Field(
-        default=0.01, gt=0.0, lt=1.0,
-        description=(
-            "The SDP lower bound is injected as the cut ``objective >= L*(1 - "
-            "accel_safety_margin)`` so it stays a valid lower bound under the SDP "
-            "solver's first-order tolerance (a too-high cut would remove the "
-            "optimum). A small positive fraction; larger is safer but slightly "
-            "loosens the certified gap."
         ),
     )
     display_graph: bool = Field(default=False,
@@ -300,8 +240,10 @@ class SYNDESConfig(BaseMAREXConfig):
     )
     # ---- design restrictions (geography / clustering / size / forcing) ----
     # Same vocabulary as LEXSCM; translated to linear constraints on the
-    # MIP assignment vector D. Not supported with mode='two_way_global_annealed'
-    # (no MIP) or an 'arm' column (restrictions are global, not per-arm).
+    # MIP assignment vector D, or applied as predicates on the treated set by
+    # the exact backend. Not supported with an 'arm' column (restrictions are
+    # global, not per-arm). Donor-side rules are two-way-incompatible: see
+    # `backend`.
     to_be_treated: Optional[List] = Field(
         default=None,
         description="Units forced into the treated set (D_i = 1). Must not "
@@ -402,9 +344,8 @@ class SYNDESConfig(BaseMAREXConfig):
             "*held-out* contrast error on the trailing ``holdout_frac`` is "
             "smallest -- a train/validate guard against overfitting transient "
             "pre-period co-movement (e.g. ``0.3`` for a 70/30 split). Requires "
-            "``top_K >= 2`` (a pool to validate) and a MIP mode (not the "
-            "annealed relaxation). Power and inference are computed exactly as in "
-            "the in-sample path."
+            "``top_K >= 2`` (a pool to validate). Power and inference are "
+            "computed exactly as in the in-sample path."
         ),
     )
 
@@ -416,28 +357,40 @@ class SYNDESConfig(BaseMAREXConfig):
 
         # The exact backend is a reformulation of the two-way objective only:
         # one-way pins the treated weights and per-unit carries an (N, N) weight
-        # matrix, so neither reduces to a search over treated sets.
-        if values.backend == "exact":
-            if values.mode != "two_way_global":
+        # matrix, so neither reduces to a search over treated sets. Since the
+        # field defaults to "exact", the default has to resolve per mode -- the
+        # other two modes keep the MIP without the user naming a backend -- while
+        # an explicit request for a mode that cannot use it is still an error.
+        if values.mode != "two_way_global":
+            if "backend" in values.model_fields_set and values.backend == "exact":
                 raise MlsynthConfigError(
                     f"backend='exact' is only available for "
                     f"mode='two_way_global'; got mode={values.mode!r}.")
-            if values.donor_exclusion is not None or values.donor_region_col:
-                raise MlsynthConfigError(
-                    "backend='exact' cannot apply donor-side restrictions: they "
-                    "tie the control weights to which units are treated, so a "
-                    "design is not scoreable from its treated set alone. Drop "
-                    "donor_exclusion / donor_region_col, or use backend='mip'.")
+            values.backend = "mip"
+
+        # Donor-side rules tie the control weights to which units are treated, so
+        # a two-way design stops being scoreable from its treated set alone. The
+        # other two modes keep them: one-way's control vector is a free variable
+        # and per-unit carries one control row per treated unit.
+        if values.mode == "two_way_global" and (
+                values.donor_exclusion is not None
+                or values.donor_region_col is not None
+                or values.exclude_bordering_donors):
+            raise MlsynthConfigError(
+                "donor-side restrictions are not supported for "
+                "mode='two_way_global': they tie the control weights to which "
+                "units are treated, so a design is not scoreable from its "
+                "treated set alone. Drop donor_exclusion / donor_region_col / "
+                "exclude_bordering_donors, or use mode='one_way_global' or "
+                "mode='per_unit'.")
 
         # Resolve the design-selection rule (None infers from holdout_frac).
         # A solution pool (top_K >= 2) is holdout-validated by default: rank the
-        # candidate designs by out-of-sample fit rather than in-sample overfit.
+        # candidate designs by out-of-sample fit, not in-sample overfit.
         # The in-sample (paper-faithful) rule stays available via
-        # selection="in_sample"; single designs (top_K < 2) and the annealed
-        # mode (no candidate pool) are unaffected.
+        # selection="in_sample"; single designs (top_K < 2) are unaffected.
         if (values.selection is None and values.holdout_frac is None
-                and values.top_K is not None and values.top_K >= 2
-                and values.mode != "two_way_global_annealed"):
+                and values.top_K is not None and values.top_K >= 2):
             values.holdout_frac = 0.3
 
         resolved = values.selection or (
@@ -460,12 +413,6 @@ class SYNDESConfig(BaseMAREXConfig):
             )
         # Pool-based selectors need a candidate pool and a MIP mode.
         if resolved in ("holdout", "ic"):
-            if values.mode == "two_way_global_annealed":
-                raise MlsynthConfigError(
-                    f"selection={resolved!r} is not supported for "
-                    "mode='two_way_global_annealed' (it has no candidate pool); "
-                    "use a MIP mode."
-                )
             if values.top_K is None or values.top_K < 2:
                 raise MlsynthConfigError(
                     f"selection={resolved!r} requires top_K >= 2 (a candidate "
@@ -484,12 +431,6 @@ class SYNDESConfig(BaseMAREXConfig):
             or values.donor_exclusion is not None
         )
         if _restr_set:
-            if values.mode == "two_way_global_annealed":
-                raise MlsynthConfigError(
-                    "design restrictions are not supported for "
-                    "mode='two_way_global_annealed' (it has no MIP assignment "
-                    "vector); use a MIP mode."
-                )
             if values.arm is not None:
                 raise MlsynthConfigError(
                     "design restrictions are not supported together with an "

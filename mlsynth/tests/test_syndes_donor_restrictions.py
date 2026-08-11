@@ -7,8 +7,11 @@ donor-exclusion relation ``B[i, j]`` ("if ``i`` is treated, ``j`` may not be its
 donor"), enforced in every mode:
 
 * one_way_global  (control vector ``c``):    ``c[j]      <= 1 - D[i]``
-* two_way_global  (control ``w - q``):       ``w[j]-q[j] <= 1 - D[i]``
 * per_unit        (row ``i``):               ``w[i, j]   == 0``
+
+two_way_global is refused: its control simplex is ``w - q``, so a donor rule
+would read ``w[j]-q[j] <= 1 - D[i]`` -- a coupling between the control weights
+and the assignment, which the treated-set search cannot express.
 
 ``B`` is filled by ``donor_region_col`` (a donor must share the treated unit's
 region), ``exclude_bordering_donors`` (a treated unit's spillover neighbours are
@@ -134,13 +137,19 @@ class TestDonorConstraints:
                                  [(0, 3), (1, 4)])
         assert len(cons) == 2
 
-    def test_two_way_global(self):
+    def test_two_way_global_is_refused(self):
+        """Its control simplex is ``w - q``, so a donor rule couples the two."""
         import cvxpy as cp
         D = cp.Variable(5, boolean=True)
-        cons = donor_constraints("global_2way",
-                                 {"w": cp.Variable(5), "q": cp.Variable(5)},
-                                 D, [(0, 3)])
-        assert len(cons) == 1
+        with pytest.raises(MlsynthConfigError):
+            donor_constraints("global_2way",
+                              {"w": cp.Variable(5), "q": cp.Variable(5)},
+                              D, [(0, 3)])
+
+    def test_two_way_global_with_no_rules_is_still_empty(self):
+        import cvxpy as cp
+        assert donor_constraints("global_2way", {}, cp.Variable(5, boolean=True),
+                                 []) == []
 
     def test_per_unit(self):
         import cvxpy as cp
@@ -172,8 +181,7 @@ class TestSYNDESDonorRestrictionsEnforced:
                  run_inference=False, solver="SCIP", gap_limit=0.2,
                  time_limit=10.0)
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "two_way_global",
-                                      "per_unit"])
+    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
     def test_same_region_donors(self, mode):
         # Core invariant (all modes): every donor used for treated unit i shares
         # i's region. In the global modes one shared donor vector serves every
@@ -220,8 +228,11 @@ class TestSYNDESDonorRestrictionsEnforced:
 # ----------------------------------------------------------------------
 
 class TestSYNDESDonorRestrictionsConfig:
+    # one-way, so each test below fails for the reason it names. Under two-way
+    # every donor rule is refused outright, which would make these pass without
+    # exercising the validator they are about.
     _BASE = dict(outcome="Y", unitid="unit", time="time", post_col="post",
-                 mode="two_way_global", run_inference=False)
+                 mode="one_way_global", run_inference=False)
 
     def _make(self, **over):
         return SYNDES({"df": _panel(), **self._BASE, **over})
@@ -234,10 +245,11 @@ class TestSYNDESDonorRestrictionsConfig:
         with pytest.raises(MlsynthConfigError):
             self._make(K=2, exclude_bordering_donors=True)   # no cluster/adjacency
 
-    def test_donor_restriction_rejects_annealed(self):
+    def test_donor_restriction_rejects_two_way(self):
+        """Two-way designs are found by searching treated sets, which a donor
+        rule makes impossible: it ties the control weights to the assignment."""
         with pytest.raises(MlsynthConfigError):
-            self._make(K=2, mode="two_way_global_annealed",
-                       donor_region_col="region")
+            self._make(K=2, mode="two_way_global", donor_region_col="region")
 
     def test_donor_restriction_rejects_arm(self):
         with pytest.raises(MlsynthConfigError):

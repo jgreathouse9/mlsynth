@@ -23,7 +23,7 @@ import pytest
 from mlsynth.utils.miqp_accel import solve_warm_cut, AccelInfo
 from mlsynth.utils.syndes_helpers.formulation import build_syndes_problem_components
 from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
-from mlsynth.utils.syndes_helpers.certificate import _sdp_moment_bound_two_way
+from mlsynth.utils.syndes_helpers.certificate import _rayleigh_bound_two_way
 
 
 def _make(N=7, K=2, T=10, seed=1):
@@ -59,11 +59,11 @@ class TestSolveWarmCut:
         assert prob.value == pytest.approx(ref, abs=1e-4)
 
     def test_cut_raises_dual_bound_and_keeps_optimum(self):
-        """A valid SDP lower bound, injected as a cut, raises the dual bound to L
-        without changing the optimum."""
+        """A valid closed-form lower bound, injected as a cut, raises the dual
+        bound to L without changing the optimum."""
         Y, lam, build = _make()
         ref = _plain_opt(build)
-        L = _sdp_moment_bound_two_way(Y, K=2, lam=lam)
+        L = _rayleigh_bound_two_way(Y, K=2, lam=lam)
         L_cut = L * 0.99                      # safety-margined, still valid
         prob, D = build()
         prob, info = solve_warm_cut(prob, D, objective_lower_bound=L_cut,
@@ -89,7 +89,7 @@ class TestSolveWarmCut:
         """Warm start and cut compose; both flags set, optimum preserved."""
         Y, lam, build = _make()
         ref = _plain_opt(build)
-        L = _sdp_moment_bound_two_way(Y, K=2, lam=lam) * 0.99
+        L = _rayleigh_bound_two_way(Y, K=2, lam=lam) * 0.99
         warm = np.zeros(7); warm[[0, 1]] = 1.0
         prob, D = build()
         prob, info = solve_warm_cut(prob, D, warm_bits=warm,

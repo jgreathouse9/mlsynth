@@ -921,7 +921,9 @@ methods then split on two axes: the estimand they target, and how they solve the
 (NP-hard) assignment problem. Doudchenko et al. cast the joint choice of treated
 set and donor weights as a mixed-integer program that directly minimises the
 *ATT estimator's* mean squared error (:doc:`syndes`) -- provably optimal but
-combinatorial. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
+combinatorial. mlsynth solves its two-way form by searching treated sets over
+the Gram matrix instead, which is exact wherever the candidate count is
+enumerable and reports a bound where it is not. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
 balancing design but reformulate it as a phase-synchronisation problem solved by
 a spectrally-initialised power method (:doc:`spcd`), trading the MIP's
 exactness for a *global* optimality guarantee under the linear factor model and
@@ -941,8 +943,8 @@ budget is handled by the ATT/ATE designs above (:doc:`syndes`, :doc:`lexscm`,
 
 Q3.1 · Do you only care about the ATT (the effect on the treated units)?
 
-* Yes -- :doc:`syndes` (a MIP that minimises the *ATT estimator's* MSE, exactly
-  :math:`K` treated) or :doc:`spcd` (a fast spectral phase-synchronisation
+* Yes -- :doc:`syndes` (minimises the *ATT estimator's* MSE over exactly
+  :math:`K` treated units) or :doc:`spcd` (a fast spectral phase-synchronisation
   design). A weakly-targeted :doc:`marex` design can also be pointed at the
   treated set if you want a convex design that leans ATT-ward.
 
