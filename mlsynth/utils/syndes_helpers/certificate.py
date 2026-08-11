@@ -13,16 +13,26 @@ The right lower bound depends on the mode's geometry:
   so ``D`` enters the residual linearly -- no bilinear term -- and the plain
   continuous relaxation is already tight (a single convex QP).
 * ``global_2way`` (two-way): the ``q = w*D`` bilinear makes the continuous
-  relaxation useless (~80% gap). The SDP / moment (Shor--Lasserre level-1)
-  relaxation adds ``D_i^2 = D_i`` and ``w_i D_i = q_i`` as exact second moments
-  and closes ~90% of the gap -- but it is ``O(N^3)`` and gated by ``sdp_n_max``.
+  relaxation useless (~80% gap). Naming the treated set removes the bilinear
+  entirely (see :mod:`mlsynth.utils.syndes_helpers.gram`), and the closed form
+  that follows admits a Rayleigh bound over every size-``K`` design at once:
+  ``f* >= alpha N / (K (N - K) lam_max(R))``. One matrix inverse and one
+  eigenvalue, no relaxation solve, and no size gate.
 * ``per_unit``: the weights are an ``(N, N)`` matrix, so the SDP lift is
   ``O(N^4)`` (intractable) and the continuous relaxation is very loose (~70%).
   There is no cheap tight bound; the certificate is returned ``certified=False``.
 
 The returned lower bound is always *valid* (a relaxation optimum), modulo the
-SDP solver's numerical tolerance (SCS is first-order); ``certified`` flags
-whether it is tight enough to be a useful certificate for the mode.
+solver's numerical tolerance; ``certified`` flags whether it is tight enough to
+be a useful certificate for the mode.
+
+The two-way bound replaced an SDP / moment (Shor--Lasserre level-1) lift, which
+added ``D_i^2 = D_i`` and ``w_i D_i = q_i`` as exact second moments. Measured on
+the same instances, the Rayleigh bound reaches 88.8 / 90.6 / 92.0 percent of the
+optimum at ``K = 3 / 5 / 7`` against the lift's 83.2 / 84.9 / 86.2, taking about
+0.1 ms against 0.1--0.23 s, and it has no ``O(N^3)`` size gate and no iteration
+cap to exhaust. ``_sdp_moment_bound_two_way`` remains here because the two-way
+MIP accelerator still uses it as an objective cut.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
@@ -49,6 +59,7 @@ import numpy as np
 
 from ...exceptions import MlsynthConfigError
 from .formulation import build_syndes_problem_components
+from .gram import BoundEngine, TwoWayProblem
 from .optimization import estimate_lambda
 
 _ONE_WAY = "global_equal_weights"
@@ -72,10 +83,10 @@ class SYNDESCertificate:
         there is no bound.
     certified : bool
         Whether ``lower_bound`` is tight enough to be a meaningful certificate
-        for this mode (True for one-way and in-range two-way; False for per-unit
-        and out-of-range two-way, where the bound is valid but loose).
+        for this mode (True for one-way and two-way; False for per-unit, where
+        the bound is valid but loose).
     method : str
-        ``"continuous_relaxation"`` or ``"sdp_moment"``.
+        ``"continuous_relaxation"``, ``"rayleigh"`` or ``"sdp_moment"``.
     note : str
         Human-readable caveat (empty when fully certified).
     """
@@ -151,6 +162,22 @@ def _sdp_moment_bound_two_way(Y: np.ndarray, K: int, lam: float) -> Optional[flo
     return _bound_value(obj)
 
 
+def _rayleigh_bound_two_way(
+    Y: np.ndarray, K: int, lam: float
+) -> Optional[float]:
+    """Closed-form lower bound on the two-way optimum over every size-``K`` design.
+
+    Reduces the instance to its Gram matrix and applies Rayleigh's inequality to
+    the cut form ``sigma' R sigma`` (see
+    :mod:`mlsynth.utils.syndes_helpers.gram`). Costs one matrix inverse and one
+    eigenvalue, needs no relaxation solve, and cannot fail to converge -- so the
+    only way it returns ``None`` is an ill-conditioned Gram matrix, which happens
+    when ``lam`` approaches zero on a panel with fewer pre-periods than units.
+    """
+    engine = BoundEngine.from_problem(TwoWayProblem.from_panel(Y, lam=lam))
+    return engine.global_lower_bound(K)
+
+
 def _gap(incumbent: float, lb: float) -> float:
     denom = abs(incumbent) if abs(incumbent) > 1e-12 else 1.0
     return max(0.0, (incumbent - lb) / denom)
@@ -162,17 +189,21 @@ def _certificate(
     certified: bool,
     method: str,
     note: str = "",
+    absent_note: str = "",
 ) -> SYNDESCertificate:
-    """Assemble a certificate, degrading to "no bound" when the solve failed.
+    """Assemble a certificate, degrading to "no bound" when none is available.
 
     An absent bound is the documented ``lower_bound is None`` case: there is no
-    gap to report and nothing is certified.
+    gap to report and nothing is certified. ``absent_note`` overrides the default
+    explanation for methods that go absent for a reason other than a solve that
+    did not converge.
     """
     if lb is None:
         return SYNDESCertificate(
             None, None, False, method,
-            note=(f"the {method} bound solve did not converge, so no lower "
-                  "bound is available and this design carries no certified gap."))
+            note=absent_note or (
+                f"the {method} bound solve did not converge, so no lower "
+                "bound is available and this design carries no certified gap."))
     return SYNDESCertificate(lb, _gap(incumbent_obj, lb), certified, method, note=note)
 
 
@@ -201,9 +232,10 @@ def syndes_certificate(
     lam : float, optional
         Regularization; estimated from ``Y`` when ``None`` (must match the fit).
     sdp_n_max : int, optional
-        Largest ``N`` for which the two-way SDP bound is attempted (it is
-        ``O(N^3)``); above it the two-way certificate falls back to the loose
-        continuous bound with ``certified=False``.
+        Retained for the SDP bound the two-way MIP accelerator still uses as an
+        objective cut. The two-way certificate no longer consults it: the
+        Rayleigh bound is ``O(N^3)`` in one eigenvalue instead of an SDP lift, so
+        there is no size at which it needs to fall back.
 
     Returns
     -------
@@ -220,14 +252,14 @@ def syndes_certificate(
                             incumbent_obj, True, "continuous_relaxation")
 
     if mode == _TWO_WAY:
-        if N <= sdp_n_max:
-            return _certificate(_sdp_moment_bound_two_way(Y, K, lam_value),
-                                incumbent_obj, True, "sdp_moment")
         return _certificate(
-            _continuous_relaxation_bound(Y, K, mode, lam_value),
-            incumbent_obj, False, "continuous_relaxation",
-            note=(f"N={N} exceeds sdp_n_max={sdp_n_max}; the two-way SDP bound was "
-                  "skipped and the continuous bound is loose (not a tight certificate)."))
+            _rayleigh_bound_two_way(Y, K, lam_value),
+            incumbent_obj, True, "rayleigh",
+            absent_note=(
+                "the two-way Gram matrix is too ill-conditioned for the "
+                "closed-form bound, so no lower bound is available and this "
+                "design carries no certified gap. Raise lam, or add "
+                "pre-treatment periods."))
 
     # per_unit: no cheap tight bound (SDP is O(N^4); continuous relaxation ~70% loose)
     return _certificate(

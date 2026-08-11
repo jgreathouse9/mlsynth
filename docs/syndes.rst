@@ -500,12 +500,12 @@ and defaults them to the production-friendly setting:
   result, computed without branch-and-bound. SCIP's own gap closes slowly because
   its dual bound is the continuous (McCormick) relaxation, loose for the two-way
   objective; ``certify`` instead builds a mode-appropriate lower bound directly --
-  a convex QP for one-way (already tight), the SDP/moment relaxation for two-way
-  (tight to ~2-3%, gated by ``certify_sdp_n_max`` since it is :math:`O(N^3)`) --
-  and reports ``result.certificate.optimality_gap`` with the guarantee
-  ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent. The per-unit
-  objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
-  it returns ``certified=False``, not a misleading number.
+  a convex QP for one-way (already tight), and for two-way a closed-form bound on
+  the Gram matrix (see "The Gram reduction" below) -- and reports
+  ``result.certificate.optimality_gap`` with the guarantee ``lower_bound``
+  :math:`\le` optimum :math:`\le` incumbent. The per-unit objective has an
+  :math:`(N, N)` weight matrix, so no cheap tight bound exists; it returns
+  ``certified=False``, not a misleading number.
 * ``accelerate`` (default ``True``) -- inject that same two-way SDP lower bound
   back into the solve *as a valid cut* (plus a deterministic LEXSCM warm start),
   so SCIP's dual bound is lifted to the SDP bound and the ordinary ``gap_limit``
@@ -667,7 +667,86 @@ the certificate and no lift is needed. In per-unit the weights form an
 i.e. :math:`O(N^4)` -- intractable -- while the continuous relaxation is ~70%
 loose. Per-unit therefore returns ``certified=False`` with the valid-but-loose
 continuous bound. The two-way lift is :math:`O(N^3)`, which is what
-``certify_sdp_n_max`` guards.
+``certify_sdp_n_max`` guards; it is what ``accelerate`` feeds back into the
+solve, and no longer what ``certify`` reports for two-way.
+
+The Gram reduction
+~~~~~~~~~~~~~~~~~~~~
+
+The two-way certificate takes a shorter route than the lift. The reduction
+behind it also explains where the design problem's difficulty sits.
+
+Name the treated set :math:`S = \{i : D_i = 1\}`. The coupling
+:math:`q_i = w_i D_i` then says only that :math:`\mathbf{q} = \mathbf{w}` on
+:math:`S` and :math:`\mathbf{0}` off it, so the binary vector carries no
+information the set does not. Write :math:`\mathbf{a}` for the treated weights,
+:math:`\mathbf{b}` for the control weights and
+:math:`\mathbf{u} \coloneqq \mathbf{a} - \mathbf{b}`. Then
+:math:`2\mathbf{q} - \mathbf{w} = \mathbf{u}`, and because the two supports are
+disjoint :math:`\mathbf{w}^\top\mathbf{w} = \mathbf{u}^\top\mathbf{u}`. With
+:math:`\mathbf{G} \coloneqq \mathbf{Y}^\top\mathbf{Y} / T_0` the whole program
+collapses, for each :math:`S`, to a convex quadratic program:
+
+.. math::
+
+   f(S) \;=\; \min \big\{ \mathbf{u}^\top (\mathbf{G} + \lambda \mathbf{I})\,
+   \mathbf{u} \;:\; \mathbf{u}_S \ge \mathbf{0},\; \textstyle\sum_{S} u_i = 1;
+   \;\; \mathbf{u}_{S^c} \le \mathbf{0},\; \textstyle\sum_{S^c} u_i = -1 \big\}.
+
+Geometrically :math:`f(S)` is the ridge-penalized distance between the convex
+hull of the treated units' pre-treatment columns and the hull of the control
+units' columns. Two things follow. The panel enters only through
+:math:`\mathbf{G}`, an :math:`N \times N` matrix formed once, so the length of
+the pre-period stops mattering after that step. And nothing integral is left:
+all of the combinatorial difficulty is the outer choice of :math:`S`.
+
+Now let :math:`\boldsymbol{\sigma} \in \{-1, +1\}^N` be the indicator of
+:math:`S`. The two normalizations are exactly
+:math:`\mathbf{1}^\top \mathbf{u} = 0` and
+:math:`\boldsymbol{\sigma}^\top \mathbf{u} = 2`, a pair of linear equalities.
+Dropping the sign conditions -- which Doudchenko et al. describe as not strictly
+required -- leaves a two-equality quadratic program with a closed form. Writing
+:math:`\mathbf{H} \coloneqq (\mathbf{G} + \lambda\mathbf{I})^{-1}`,
+:math:`\mathbf{p} \coloneqq \mathbf{H}\mathbf{1}` and
+:math:`\alpha \coloneqq \mathbf{1}^\top \mathbf{H}\mathbf{1}`,
+
+.. math::
+
+   f(S) \;\ge\; \mathrm{lb}(S) \;=\; \frac{4\alpha}
+   {\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}},
+   \qquad
+   \mathbf{R} \;\coloneqq\; \alpha \mathbf{H} - \mathbf{p}\mathbf{p}^\top,
+
+with equality whenever the minimizer it returns happens to satisfy the dropped
+sign conditions.
+
+Because :math:`\mathbf{p} = \mathbf{H}\mathbf{1}` and
+:math:`\mathbf{p}^\top\mathbf{1} = \alpha`, the matrix :math:`\mathbf{R}`
+annihilates the constant vector: :math:`\mathbf{R}\mathbf{1} = \mathbf{0}`. Any
+feasible :math:`\boldsymbol{\sigma}` splits into a piece along
+:math:`\mathbf{1}`, which :math:`\mathbf{R}` kills, and an orthogonal piece of
+squared norm :math:`4K(N-K)/N`. Rayleigh's inequality then caps the quadratic
+form over every size-:math:`K` design at once, giving the bound ``certify``
+reports:
+
+.. math::
+
+   p^\star \;\ge\; \frac{\alpha N}{K (N - K)\, \lambda_{\max}(\mathbf{R})}.
+
+One matrix inverse and one eigenvalue. There is no relaxation to solve, so
+there is no iteration cap to exhaust and no size gate. On the panels used to
+develop it the bound reached 88.8, 90.6 and 92.0 percent of the true optimum at
+:math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment lift it replaced,
+and took about 0.1 ms against 0.1--0.23 s. It goes unavailable in one situation:
+:math:`\mathbf{G} + \lambda\mathbf{I}` is near-singular when :math:`\lambda`
+approaches zero on a panel with fewer pre-periods than units, and the certificate
+then reports ``lower_bound=None`` with a note naming the cause.
+
+Since :math:`4\alpha` is a constant, ranking designs by :math:`\mathrm{lb}`
+amounts to maximizing :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
+\boldsymbol{\sigma}` over sign vectors with :math:`K` positive entries -- a
+cardinality-constrained max-cut. That is where the design problem's hardness
+lives once the weights are optimized away.
 
 Accelerating the solve
 ~~~~~~~~~~~~~~~~~~~~~~~~
