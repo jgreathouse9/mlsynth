@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **76 cross-validation checks** against original
-implementations across **43 estimators** -- 29 reproduce the reference to display precision, 28 to
+Coverage: **77 cross-validation checks** against original
+implementations across **44 estimators** -- 29 reproduce the reference to display precision, 28 to
 within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -77,6 +77,10 @@ Summary
      - 1
      - 1 exact
      - 0.00032
+   * - :ref:`GEOX <val-geox>`
+     - 1
+     - 1 close
+     - 0.71
    * - :ref:`LINF <val-linf>`
      - 2
      - 1 tight · 1 close
@@ -223,7 +227,7 @@ Summary
      - 0.028
      - tight
      - `brabander_brexit_table1 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/brabander_brexit_table1.py>`__
-   * - R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst instead of pinned
+   * - R package tidysynth 0.2.0 (live run); the authors' published numbers come from tidysynth <= 0.1.0 and are recorded in docs/replications/lamba_tigers.rst rather than pinned
      - ``tiger_reserves.csv`` (a529e3de9e6f…)
      - 9
      - 9e+03
@@ -483,6 +487,28 @@ FDID
      - 0.00032
      - exact — matches to display precision
      - `fdid_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fdid_hongkong.py>`__
+
+.. _val-geox:
+
+GEOX
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - mlsynth SDID (the engine GEOX wraps)
+     - —
+     - 3
+     - 0.71
+     - close
+     - `geox_sdid_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_sdid_equivalence.py>`__
 
 .. _val-linf:
 
