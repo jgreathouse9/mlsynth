@@ -156,7 +156,7 @@ timeout = 180.0
   id = "duality-gap-taken-against-the-worst-vertex"
   find = "- grad_a.min(axis=1) - grad_b.min(axis=1)"
   replace = "- grad_a.max(axis=1) - grad_b.max(axis=1)"
-  models = "a Frank-Wolfe gap linearised toward the worst vertex of each simplex rather than the best, so 'value - gap' stops bounding the optimum from below and the exact backend can prune the design it was looking for"
+  models = "a Frank-Wolfe gap linearised toward the worst vertex of each simplex instead of the best, so 'value - gap' stops bounding the optimum from below and the exact backend can prune the design it was looking for"
 
 [[target]]
 name = "syndes-exact"

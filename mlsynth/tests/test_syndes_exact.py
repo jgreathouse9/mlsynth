@@ -6,9 +6,8 @@ instead of branch-and-bound. It scores every candidate with the closed form from
 ``gram``, settles the rows whose sign conditions are slack, prunes the rest
 against the incumbent, and calls the inner solver only on survivors.
 
-The load-bearing test in this module is parity: for every instance SCIP can
-finish, both backends must select the same treated set and agree on the
-objective. Everything else pins how the search behaves -- that pruning is sound,
+Parity is the test this module rests on: for every instance SCIP can finish,
+both backends must select the same treated set and agree on the objective. Everything else pins how the search behaves -- that pruning is sound,
 that restrictions are honoured as subset filters, that ``K=None`` ranges over
 cardinalities, and that the pool comes out ranked.
 

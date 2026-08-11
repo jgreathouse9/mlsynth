@@ -72,8 +72,8 @@ class SubsetFilter:
     """Predicates on the treated set, applied while candidates are generated.
 
     Every restriction the two-way design supports is a statement about which
-    units are treated, so each is a test on a candidate rather than a constraint
-    handed to a solver.
+    units are treated, so each is a test on a candidate, not a constraint handed
+    to a solver.
     """
 
     forced_in: frozenset = frozenset()
