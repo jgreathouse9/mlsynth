@@ -740,8 +740,9 @@ Solving it that way
 ~~~~~~~~~~~~~~~~~~~~~
 
 ``backend`` chooses how ``mode="two_way_global"`` is solved. The default,
-``"mip"``, hands the mixed-integer program to ``solver`` exactly as before.
-``"exact"`` searches treated sets instead, using the reduction above.
+``"exact"``, searches treated sets using the reduction above. ``"mip"`` hands the
+mixed-integer program to ``solver`` instead. The other two modes resolve to
+``"mip"`` on their own, and asking them for ``"exact"`` is an error.
 
 The search scores every candidate design with one matrix product, since
 :math:`\mathrm{lb}` depends on the design only through
@@ -754,8 +755,8 @@ the answer certifies itself. On the panels used to develop it, nought or one
 design out of thousands reached that last step.
 
 What changes is the price of a candidate, not the complexity class. Choosing the
-treated set is still a cardinality-constrained max-cut, and above a candidate
-count the search stops enumerating, falls back to a swap search on
+treated set is still a cardinality-constrained max-cut, and above a count of
+admissible designs the search stops enumerating, falls back to a swap search on
 :math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}`, and reports
 the design against the Rayleigh bound instead of claiming a certificate. What it
 buys is that a candidate costs one row of a matrix product instead of a
@@ -775,11 +776,22 @@ search's design is the one that is at least as good.
 reduces to a search over treated sets. Donor-side restrictions
 (``donor_exclusion``, ``donor_region_col``) are refused as well: they tie the
 control weights to which units are treated, so a design stops being scoreable
-from its treated set alone. Every other restriction -- ``to_be_treated``,
-``not_to_be_treated``, cluster and adjacency conflicts, stratum quotas, size
-eligibility, ``costs`` with a ``budget`` -- is a predicate on the treated set and
-is applied while candidates are generated. ``gap_limit``, ``time_limit``,
-``solver`` describe branch-and-bound and are ignored by this path.
+from its treated set alone.
+
+Every other restriction is a predicate on the treated set, and the two kinds are
+handled differently. ``to_be_treated``, ``not_to_be_treated``, size eligibility
+and stratum quotas are structural: they decide which candidates exist, so the
+search builds candidates inside them and counts the admissible designs exactly.
+That count is what the candidate limit reads, so an instance with most of its
+units ineligible is enumerated on the designs it has, not on the
+:math:`\binom{N}{K}` it would have had without the rules. Cluster and adjacency
+conflicts and ``costs`` with a ``budget`` do not decompose over a stratum, so
+they are tested on finished candidates and leave the count alone; an instance
+carrying only those is refused past the limit, since the fallback searches the
+unrestricted space.
+
+``gap_limit``, ``time_limit``, ``solver`` describe branch-and-bound and are
+ignored by this path.
 
 Multiple Treatment Arms
 -----------------------
