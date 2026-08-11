@@ -21,29 +21,35 @@ candidate, not in the complexity class. Choosing ``S`` is still hard -- ranking
 designs by the bound is a cardinality-constrained max-cut. But a candidate costs
 one row of a matrix product instead of a node with an LP relaxation, and the
 panel length drops out entirely after the Gram step, so a long panel costs no
-more per design than a short one. Above ``candidate_limit`` designs, enumeration
-stops being affordable and the search falls back to max-cut candidates polished
-on the objective, reported against the Rayleigh bound.
+more per design than a short one. Above ``candidate_limit`` admissible designs,
+enumeration stops being affordable and the search falls back to max-cut candidates
+polished on the objective, reported against the Rayleigh bound.
 
-Restrictions on the assignment are predicates on the treated set -- forced,
-forbidden, conflicting, stratum quotas, a cost budget, and the pool's no-good
-sets -- so they are applied while candidates are generated. ``donor_exclusion``
-is the exception: it ties the control weights to which units are treated, so the
-closed form's matrix would differ per candidate and the batch product would not
-hold. The backend refuses it.
+Restrictions on the assignment are predicates on the treated set, and they split
+in two. Forced units, forbidden units and stratum quotas are structural: they
+decide which candidates exist, so
+:mod:`mlsynth.utils.syndes_helpers.enumeration` builds candidates inside them and
+counts the result exactly. That count is what ``candidate_limit`` is measured
+against, so an instance with most of its units forbidden is enumerated on the
+designs it has instead of the designs it would have had. Conflict pairs, a cost
+budget and the pool's no-good sets do not decompose over a group, so they stay
+tests on a finished candidate and cannot lower the count.
+
+``donor_exclusion`` is refused outright: it ties the control weights to which
+units are treated, so the closed form's matrix would differ per candidate and the
+batch product would not hold.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from itertools import combinations, islice
-from math import comb
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..fast_scm_helpers.structure import IndexSet
+from .enumeration import SearchSpace
 from .gram import (
     BoundEngine,
     TwoWayProblem,
@@ -168,20 +174,40 @@ class SubsetFilter:
         return True
 
 
-def _stream_subsets(N: int, K: int, filt: SubsetFilter, chunk: int):
+def _search_space(N: int, K: int, filt: SubsetFilter) -> SearchSpace:
+    """The structural half of ``filt``, resolved into a space to walk.
+
+    Forced units, forbidden units and stratum quotas shape which candidates
+    exist, so they are handed to the generator. What remains is applied to
+    finished candidates.
+    """
+    return SearchSpace.build(N, K, forced=filt.forced_in,
+                             forbidden=filt.forbidden, strata=filt.strata)
+
+
+def _stream_from_space(space: SearchSpace, filt: SubsetFilter, chunk: int):
     """Yield ``(B, K)`` arrays of admissible treated sets, ``B <= chunk``.
 
-    An exhausted source and a slice the filter emptied are different things: the
-    first ends the stream, the second only skips a yield.
+    The walk already honours the structural restrictions, so ``filt`` is consulted
+    here for the ones that do not decompose over a group: conflict pairs, the cost
+    budget, and the pool's no-good sets. Blocks fill to ``chunk`` from whatever
+    survives, so a long rejected run delays a yield instead of shrinking one.
     """
-    source = combinations(range(N), K)
-    while True:
-        raw = list(islice(source, chunk))
-        if not raw:
-            return
-        block = [s for s in raw if filt.accepts(s)]
-        if block:
+    block: List[Tuple[int, ...]] = []
+    for subset in space.iter_subsets():
+        if not filt.accepts(subset):
+            continue
+        block.append(subset)
+        if len(block) == chunk:
             yield np.array(block, dtype=np.int64)
+            block = []
+    if block:
+        yield np.array(block, dtype=np.int64)
+
+
+def _stream_subsets(N: int, K: int, filt: SubsetFilter, chunk: int):
+    """Yield ``(B, K)`` arrays of admissible treated sets, ``B <= chunk``."""
+    yield from _stream_from_space(_search_space(N, K, filt), filt, chunk)
 
 
 # ----------------------------------------------------------------------
@@ -241,11 +267,11 @@ def _search(
     """Enumerate and prune, or fall back to max-cut candidates when too large."""
     engine = BoundEngine.from_problem(problem)
     N = problem.N
-    total = comb(N, K)
+    space = _search_space(N, K, filt)
 
-    if total > candidate_limit or not engine.reliable:
+    if space.size > candidate_limit or not engine.reliable:
         return _search_by_candidates(problem, engine, K, filt, seed=seed,
-                                     n_designs=total)
+                                     n_designs=space.size)
 
     best_value, best_set = np.inf, None
     if incumbent_sets is not None and len(np.atleast_2d(incumbent_sets)):
@@ -260,7 +286,7 @@ def _search(
     n_designs = 0
     n_closed_form = 0
 
-    for block in _stream_subsets(N, K, filt, CHUNK):
+    for block in _stream_from_space(space, filt, CHUNK):
         n_designs += block.shape[0]
         scored = engine.bound(signs_from_subsets(N, block))
         if scored.exact.any():

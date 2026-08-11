@@ -181,3 +181,39 @@ timeout = 300.0
   find = "if not self.forced_in <= chosen:"
   replace = "if self.forced_in and not (self.forced_in & chosen):"
   models = "a to_be_treated rule read as 'at least one of these' instead of 'all of these', which silently drops units the experimenter committed to treating"
+
+[[target]]
+name = "syndes-enumeration"
+module-path = "mlsynth/utils/syndes_helpers/enumeration.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_enumeration.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "gate-reads-the-unrestricted-count"
+  find = "size=ways[0][k_free],"
+  replace = "size=comb(int(N), int(K)),"
+  models = "the count this module exists to compute, reverted to the binomial the search used before -- the walk still visits only admissible designs, but the enumeration limit is measured against designs that do not exist, so a restricted instance is refused for being large in a space it never enters"
+
+  [[target.mutant]]
+  id = "quota-ignores-forced-members"
+  find = "held = len(forced & member_set)"
+  replace = "held = 0"
+  models = "a stratum quota that does not credit the forced units already inside the group, so a ceiling of one admits a design holding a forced member plus another, and the returned design breaks the coverage rule it was given"
+
+  [[target.mutant]]
+  id = "overlapping-strata-treated-as-a-partition"
+  find = "if not strata or not _disjoint(strata):"
+  replace = "if not strata:"
+  models = "disjointness assumed instead of checked, so a unit shared by two strata is drawn once by each -- the walk emits sets with a repeated unit and the same design more than once, and the count inherits both"
+
+  [[target.mutant]]
+  id = "forbidden-units-stay-in-the-ground-set"
+  find = "if i not in forced_set and i not in forbidden_set]"
+  replace = "if i not in forced_set]"
+  models = "a ground set that drops the forced units but keeps the forbidden ones, so units the design is required to leave alone are offered to the walk and can be treated"
+
+  [[target.mutant]]
+  id = "stratum-floor-is-dropped"
+  find = "low = max(0, (0 if lo is None else int(lo)) - held)"
+  replace = "low = 0"
+  models = "only the ceilings of a coverage quota enforced, so a minimum-per-stratum rule is accepted and silently does nothing, and designs that cover too few groups are admitted"
