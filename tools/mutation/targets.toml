@@ -223,3 +223,9 @@ timeout = 180.0
   find = "if not self.forced and len(self.groups) == 1:"
   replace = "if len(self.groups) == 1:"
   models = "the single-group shortcut taken when forced units exist, so the units the design must contain are never merged in and every emitted set is short by the forced count -- the specialisation for the unrestricted case silently applied to a restricted one"
+
+  [[target.mutant]]
+  id = "group-order-assumed-ascending"
+  find = "_presorted=not forced_set and _ascending(groups))"
+  replace = "_presorted=not forced_set)"
+  models = "the sort skipped whenever no unit is forced, on the assumption that the groups run uphill -- a stratum over the high units leaves the low ones to the leftover group, which lands last, so the emitted tuple runs downhill and names a treated set whose units are read in the wrong positions"

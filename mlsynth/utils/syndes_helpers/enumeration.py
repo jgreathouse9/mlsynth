@@ -79,6 +79,7 @@ class SearchSpace:
     k_free: int
     size: int
     _ways: Tuple[Tuple[int, ...], ...] = ()
+    _presorted: bool = False
 
     # ------------------------------------------------------------------
     # construction
@@ -116,7 +117,8 @@ class SearchSpace:
         ways = _count_ways(groups, k_free)
         return cls(forced=tuple(sorted(forced_set)), groups=groups,
                    k_free=k_free, size=ways[0][k_free],
-                   _ways=tuple(tuple(row) for row in ways))
+                   _ways=tuple(tuple(row) for row in ways),
+                   _presorted=not forced_set and _ascending(groups))
 
     @classmethod
     def _empty(cls, forced: frozenset, k_free: int) -> "SearchSpace":
@@ -189,7 +191,12 @@ class SearchSpace:
     def _walk(self, g: int, remaining: int,
               picked: List[int]) -> Iterator[Tuple[int, ...]]:
         if g == len(self.groups):
-            yield tuple(sorted(self.forced + tuple(picked)))
+            # Picks arrive group by group, ascending inside each. When the groups
+            # are themselves ascending and nothing has to be merged in, that is
+            # already the sorted treated set, and a restriction trimming the
+            # space by a third does not earn a sort per design.
+            yield (tuple(picked) if self._presorted
+                   else tuple(sorted(self.forced + tuple(picked))))
             return
         group = self.groups[g]
         for take in range(group.lo, min(group.hi, remaining) + 1):
@@ -198,6 +205,24 @@ class SearchSpace:
             for pick in combinations(group.members, take):
                 yield from self._walk(g + 1, remaining - take,
                                       picked + list(pick))
+
+
+def _ascending(groups: Tuple[Group, ...]) -> bool:
+    """Whether concatenating one pick per group, in order, comes out sorted.
+
+    Members inside a group are ascending because the ground set is. This asks the
+    same of the groups: every member of one below every member of the next. A
+    caller is free to list strata in any order, and the leftover group lands last
+    whatever it holds, so this is checked and not assumed.
+    """
+    highest = -1
+    for group in groups:
+        if not group.members:
+            continue
+        if group.members[0] <= highest:
+            return False
+        highest = group.members[-1]
+    return True
 
 
 def _disjoint(strata: Sequence[Stratum]) -> bool:

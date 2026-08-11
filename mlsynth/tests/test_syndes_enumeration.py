@@ -106,6 +106,8 @@ class TestSizeIsExact:
         dict(N=8, K=4, strata=(((0, 1, 2), 1, 2), ((3, 4, 5), None, 1))),
         dict(N=8, K=4, forced=(0,), strata=(((0, 1, 2), 1, 2),)),
         dict(N=8, K=3, forbidden=(0,), strata=(((0, 1, 2), None, 1),)),
+        dict(N=7, K=3, strata=(((4, 5, 6), None, 2),)),
+        dict(N=9, K=4, strata=(((5, 6), None, 1), ((0, 1), 1, None))),
     ]
 
     @pytest.mark.parametrize("case", CASES)
@@ -214,6 +216,19 @@ class TestEdges:
         space = SearchSpace.build(6, 3, forced=(0,), strata=strata)
         assert set(_walk(space)) == _brute(6, 3, forced=(0,), strata=strata)
         assert all(len(set(s) & {0, 1, 2}) == 1 for s in _walk(space))
+
+    def test_groups_out_of_order_still_emit_sorted_sets(self):
+        """The leftover group lands last whatever it holds.
+
+        A stratum over the high units leaves the low ones to the leftover group,
+        so concatenating one pick per group runs downhill. Treating that
+        concatenation as sorted would emit tuples the search reads as a treated
+        set and the design would name the wrong units.
+        """
+        strata = (((4, 5, 6), None, 2),)
+        walked = _walk(SearchSpace.build(7, 3, strata=strata))
+        assert all(list(s) == sorted(s) for s in walked)
+        assert set(walked) == _brute(7, 3, strata=strata)
 
     def test_one_stratum_covering_every_unit(self):
         """A single group with no leftover, so a quota is the only thing bounding it.
