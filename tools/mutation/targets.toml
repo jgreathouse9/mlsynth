@@ -139,3 +139,45 @@ timeout = 180.0
   find = "g += 2.0 * (R[:, j] - R[:, i])"
   replace = "g += 2.0 * R[:, j]"
   models = "an incremental update that adds the entering unit without removing the leaving one, so every later sweep scores its neighbourhood against a gradient for a design that was never visited and the returned set is not a local optimum"
+
+[[target]]
+name = "syndes-partition"
+module-path = "mlsynth/utils/syndes_helpers/partition.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_exact_properties.py mlsynth/tests/test_syndes_partition.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "contrast-sums-the-two-synthetic-paths"
+  find = "contrast[rows, control_idx] = -b"
+  replace = "contrast[rows, control_idx] = b"
+  models = "a residual built from the sum of the treated and control synthetic paths instead of their difference, which optimises a program the paper never wrote while still returning feasible-looking weights"
+
+  [[target.mutant]]
+  id = "duality-gap-taken-against-the-worst-vertex"
+  find = "- grad_a.min(axis=1) - grad_b.min(axis=1)"
+  replace = "- grad_a.max(axis=1) - grad_b.max(axis=1)"
+  models = "a Frank-Wolfe gap linearised toward the worst vertex of each simplex instead of the best, so 'value - gap' stops bounding the optimum from below and the exact backend can prune the design it was looking for"
+
+[[target]]
+name = "syndes-exact"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_exact.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "screen-never-escalates-to-the-inner-solver"
+  find = "alive = np.flatnonzero((~scored.exact) & (scored.lower < best_value))"
+  replace = "alive = np.flatnonzero(np.zeros(scored.lower.shape, dtype=bool))"
+  models = "a search that trusts the closed form for every design and never solves a survivor, so on any instance where the sign conditions bind it returns whichever design happened to settle in closed form and calls it optimal"
+
+  [[target.mutant]]
+  id = "budget-is-validated-then-ignored"
+  find = "if float(self.costs[list(subset)].sum()) > self.budget + 1e-9:"
+  replace = "if float(self.costs[list(subset)].sum()) < 0.0:"
+  models = "a cost budget checked for well-formedness at configuration time and then never enforced during the search, so the returned design can cost more than the experiment can pay"
+
+  [[target.mutant]]
+  id = "forcing-satisfied-by-any-one-named-unit"
+  find = "if not self.forced_in <= chosen:"
+  replace = "if self.forced_in and not (self.forced_in & chosen):"
+  models = "a to_be_treated rule read as 'at least one of these' instead of 'all of these', which silently drops units the experimenter committed to treating"

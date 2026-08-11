@@ -748,6 +748,52 @@ amounts to maximizing :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
 cardinality-constrained max-cut. That is where the design problem's hardness
 lives once the weights are optimized away.
 
+Solving it that way
+~~~~~~~~~~~~~~~~~~~~~
+
+``backend`` chooses how ``mode="two_way_global"`` is solved. The default,
+``"mip"``, hands the mixed-integer program to ``solver`` exactly as before.
+``"exact"`` searches treated sets instead, using the reduction above.
+
+The search scores every candidate design with one matrix product, since
+:math:`\mathrm{lb}` depends on the design only through
+:math:`\boldsymbol{\sigma}`. Candidates whose sign conditions turn out slack are
+solved outright by that same formula, and the best of them becomes the
+incumbent; any candidate whose bound already exceeds the incumbent is discarded,
+because its true value can only be higher. Whatever survives goes to a projected-
+gradient solve over the two simplices, which reports a Frank-Wolfe duality gap so
+the answer certifies itself. On the panels used to develop it, nought or one
+design out of thousands reached that last step.
+
+What changes is the price of a candidate, not the complexity class. Choosing the
+treated set is still a cardinality-constrained max-cut, and above a candidate
+count the search stops enumerating, falls back to a swap search on
+:math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}`, and reports
+the design against the Rayleigh bound instead of claiming a certificate. What it
+buys is that a candidate costs one row of a matrix product instead of a
+branch-and-bound node, and that :math:`T` leaves the per-candidate cost entirely
+once :math:`\mathbf{G}` is formed, so a 300-period panel costs what a 20-period
+one does.
+
+One consequence matters when comparing the two backends. ``gap_limit``
+defaults to ``0.05``, so the MIP path may stop at a design 5 percent above the
+optimum, and ``time_limit`` can stop it sooner. The exact backend has no such
+early exit below its candidate limit, so the two agree on the treated set only
+once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
+search's design is the one that is at least as good.
+
+``backend="exact"`` applies to two-way only. One-way pins the treated weights at
+:math:`1/K` and per-unit carries an :math:`(N, N)` weight matrix, so neither
+reduces to a search over treated sets. Donor-side restrictions
+(``donor_exclusion``, ``donor_region_col``) are refused as well: they tie the
+control weights to which units are treated, so a design stops being scoreable
+from its treated set alone. Every other restriction -- ``to_be_treated``,
+``not_to_be_treated``, cluster and adjacency conflicts, stratum quotas, size
+eligibility, ``costs`` with a ``budget`` -- is a predicate on the treated set and
+is applied while candidates are generated. ``gap_limit``, ``time_limit``,
+``solver`` and the ``accel_*`` fields describe branch-and-bound and are ignored
+by this path.
+
 Accelerating the solve
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

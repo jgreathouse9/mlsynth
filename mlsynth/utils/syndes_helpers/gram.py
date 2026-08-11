@@ -144,6 +144,17 @@ class TwoWayProblem:
         G = 0.5 * (G + G.T)
         return cls(G=G, M=G + lam_value * np.eye(N), lam=lam_value, N=N)
 
+    @property
+    def step(self) -> float:
+        """Projected-gradient step ``1 / (2 lam_max(M))``.
+
+        Valid simultaneously for every treated set: restricting the quadratic
+        form to a coordinate subset and flipping signs on part of it is a
+        principal submatrix of an orthogonal similarity, so neither operation
+        raises the top eigenvalue.
+        """
+        return 1.0 / (2.0 * float(np.linalg.eigvalsh(self.M)[-1]))
+
     def evaluate(self, a: np.ndarray, b: np.ndarray) -> float:
         """The objective at explicit treated and control weight vectors."""
         u = np.asarray(a, dtype=float) - np.asarray(b, dtype=float)

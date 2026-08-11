@@ -31,6 +31,36 @@ now returns and the back-compat guarantee.
   Covered by `tests/test_spec.py`, including a parametrized check that `load_spec`
   resolves and behaves gracefully for every estimator the package ships.
 
+### Added
+- `SYNDESConfig.backend` selects how `mode="two_way_global"` is solved, and
+  defaults to `"mip"` so every existing fit is unchanged. `"exact"` searches
+  treated sets directly: naming the set removes the `q = w * D` coupling, so the
+  outer problem is a choice of treated set and the inner problem is convex. The
+  search scores every candidate with the closed form in
+  `utils/syndes_helpers/gram`, settles the candidates whose sign conditions are
+  slack, prunes the rest against the incumbent, and reaches the projected-
+  gradient solver in `utils/syndes_helpers/partition` only for the survivors --
+  nought or one design out of thousands on the panels used to develop it. A
+  candidate costs one row of a matrix product instead of a branch-and-bound
+  node, and `T` leaves the per-candidate cost once the Gram matrix is formed.
+  Above a candidate count the search falls back to a swap search reported
+  against the Rayleigh bound, and says so instead of claiming a certificate.
+
+  Comparing the two backends needs one caveat: `gap_limit` defaults to `0.05`,
+  so the MIP path may return a design 5 percent above the optimum, and does on
+  some panels. The two agree on the treated set once the MIP is asked to prove
+  optimality (`gap_limit=0.0`); otherwise the exact backend's design is the one
+  that is at least as good.
+
+  `backend="exact"` is rejected for `one_way_global` and `per_unit`, where the
+  reformulation does not apply, and with donor-side restrictions, which tie the
+  control weights to the assignment. Every other restriction is a predicate on
+  the treated set and is applied during the search. `select_by_holdout` takes a
+  `pool_fn` so holdout and IC selection reach the new backend. Covered by
+  `tests/test_syndes_exact.py`, `tests/test_syndes_partition.py`,
+  `tests/test_syndes_backend.py`, `tests/test_syndes_exact_properties.py`, and
+  nine semantic mutants in `tools/mutation/targets.toml`.
+
 ### Changed
 - The SYNDES two-way optimality certificate (`certify=True` with
   `mode="two_way_global"`) now reports a closed-form bound on the Gram matrix
