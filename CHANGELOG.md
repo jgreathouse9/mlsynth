@@ -21,7 +21,9 @@ now returns and the back-compat guarantee.
   objective cut only ever applied to the two-way branch-and-bound, which is no
   longer the default route, and the certificate that consumed the same lift now
   uses the closed-form Rayleigh bound. `_sdp_moment_bound_two_way` goes with
-  them. `utils/miqp_accel.py` stays -- MAREX and the other exact designs use it.
+  them. `utils/miqp_accel.py` stays: `solve_synthetic_design` still routes to it
+  when a caller supplies `warm_start_D` or `objective_lower_bound`, though
+  nothing in the library reaches it by default any more.
 - Donor-side restrictions under `mode="two_way_global"`: `donor_exclusion`,
   `donor_region_col` and `exclude_bordering_donors` now raise for that mode, and
   `donor_constraints` refuses `global_2way` directly. A donor rule reads
@@ -99,6 +101,26 @@ now returns and the back-compat guarantee.
   `tests/test_syndes_backend.py`, `tests/test_syndes_exact_properties.py`, and
   nine semantic mutants in `tools/mutation/targets.toml`.
 
+
+### Fixed
+- `utils/miqp_accel.solve_warm_cut` wrote each warm-start bit to the wrong SCIP
+  variable on problems above roughly eleven units. cvxpy returns the boolean
+  columns as a `set`, and the accelerator iterated it directly, so `warm_bits[j]`
+  was paired with whichever column the hash table happened to yield, not with
+  entry `j` of the boolean variable. The two orders agree for short index
+  runs, which is why small problems behaved correctly and larger ones did not:
+  SCIP was started from a design the caller never named. At N=200, K=6 under a
+  60 s limit the start left the solver worse off than no start at all
+  (objective 0.2151 against 0.2070); it now returns the started design, 0.1812.
+  The positions are read in the variable's own order, which for one contiguous
+  boolean block is ascending column. No shipped estimator was affected: nothing
+  in the library passes `warm_start_D` or `objective_lower_bound` since the
+  SYNDES accelerator was removed, so this was a latent defect on a reachable but
+  unused path.
+- `AccelInfo.warm_applied` is set from what `addSol` returned instead of from
+  having called it, and its documentation no longer says the start was
+  "accepted". A stored partial start is one SCIP will try to complete over the
+  continuous variables, not one it has already adopted.
 
 ### Changed
 - `SYNDESConfig.backend` defaults to `"exact"`, so `mode="two_way_global"` is
