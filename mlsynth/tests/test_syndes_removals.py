@@ -144,9 +144,21 @@ class TestAcceleratorRemoved:
         assert not hasattr(certificate, "_sdp_moment_bound_two_way")
 
     def test_the_shared_warm_cut_helper_survives(self):
-        """Other estimators use it, so only the SYNDES-specific wrapper went."""
+        """Only the SYNDES-specific wrapper went.
+
+        ``solve_synthetic_design`` still routes to it when a caller supplies a
+        warm start or an objective bound, so the entry point stays even though
+        nothing in the library reaches it by default any more.
+        """
         from mlsynth.utils import miqp_accel
         assert hasattr(miqp_accel, "solve_warm_cut")
+
+    def test_the_warm_start_route_is_still_reachable(self):
+        """The parameters that select it are still on the public solver."""
+        import inspect
+        from mlsynth.utils.syndes_helpers.optimization import solve_synthetic_design
+        params = inspect.signature(solve_synthetic_design).parameters
+        assert "warm_start_D" in params and "objective_lower_bound" in params
 
     def test_certify_still_works_on_the_new_default(self):
         res = SYNDES(_cfg(certify=True)).fit()

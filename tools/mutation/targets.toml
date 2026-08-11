@@ -229,3 +229,33 @@ timeout = 180.0
   find = "_presorted=not forced_set and _ascending(groups))"
   replace = "_presorted=not forced_set)"
   models = "the sort skipped whenever no unit is forced, on the assumption that the groups run uphill -- a stratum over the high units leaves the low ones to the leftover group, which lands last, so the emitted tuple runs downhill and names a treated set whose units are read in the wrong positions"
+
+[[target]]
+name = "miqp-accel"
+module-path = "mlsynth/utils/miqp_accel.py"
+test-command = "python -m pytest mlsynth/tests/test_miqp_accel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "warm-bits-follow-the-index-set-iteration-order"
+  find = "return sorted(data[s.BOOL_IDX])"
+  replace = "return list(data[s.BOOL_IDX])"
+  models = "the defect this helper exists to prevent: cvxpy returns the boolean columns as a set, so iterating it pairs each warm bit with whichever variable the hash table happens to yield, and SCIP is started from a design the caller never named -- correct below the size where the two orders diverge, and silently wrong above it"
+
+  [[target.mutant]]
+  id = "warm-start-reported-applied-without-being-stored"
+  find = "self.warm_applied = bool(model.addSol(sol))"
+  replace = "model.addSol(sol); self.warm_applied = True"
+  models = "the flag set from having called addSol instead of from what it returned, so a start SCIP declined is reported to the caller as applied and a solve that was never accelerated looks as though it was"
+
+  # Recorded, not carried: replacing the objective's support with every column
+  # ("nz = np.arange(c.shape[0])") is an equivalent mutant. The extra terms all
+  # carry coefficient zero, so quicksum builds the same constraint and only the
+  # time spent building it changes. It survived, correctly, and is retired here
+  # so nobody re-adds it expecting a kill.
+
+  [[target.mutant]]
+  id = "invalid-bound-backstop-only-catches-a-failed-solve"
+  find = "if val is None or val < L - 1e-6 * max(1.0, abs(L)):"
+  replace = "if val is None:"
+  models = "the backstop reduced to a check that the solve produced a value. The objective is an epigraph variable, so a cut above the true optimum does not make the model infeasible -- it inflates that variable and returns a design whose real objective sits below the cut floor. Without the comparison the caller keeps that design and the too-high bound is never detected"
