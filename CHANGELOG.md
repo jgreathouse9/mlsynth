@@ -44,6 +44,22 @@ now returns and the back-compat guarantee.
 
 
 ### Added
+- `utils/syndes_helpers/enumeration.py`: the exact two-way backend now builds
+  candidate treated sets inside the structural restrictions instead of generating
+  every `C(N, K)` subset and testing each one. Forced units, forbidden units
+  (including size-ineligible ones) and stratum quotas decide which candidates
+  exist, and `design_restrictions` keys each unit to one stratum, so the
+  admissible designs are a product of per-group choices that `SearchSpace.size`
+  counts exactly without walking. `candidate_limit` is compared against that
+  count, so an instance whose unrestricted `C(N, K)` is past the limit is now
+  solved exactly whenever the restrictions leave few enough designs -- where
+  before it raised `MlsynthConfigError`. Conflict pairs, `costs` with a `budget`
+  and the pool's no-good sets do not decompose over a stratum, so they remain
+  tests on finished candidates and do not lower the count; an instance carrying
+  only those is still refused past the limit. With no restrictions the walk
+  reproduces `combinations(range(N), K)` term for term, including order, so no
+  existing result moves.
+
 - `mlsynth.save_spec` / `mlsynth.load_spec`: serialize an analysis specification
   to a portable JSON or YAML file and load it back into a ready-to-fit estimator.
   Because a configuration is plain, validated data, everything but the

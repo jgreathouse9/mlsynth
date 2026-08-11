@@ -19,6 +19,7 @@ weights to which units are treated, so the exact backend refuses it.
 from __future__ import annotations
 
 from itertools import combinations
+from math import comb
 
 import numpy as np
 import pytest
@@ -414,3 +415,88 @@ class TestLargeInstanceFallback:
         Y = rng.standard_normal((6, 3)) @ rng.standard_normal((3, 24))
         with pytest.raises(MlsynthEstimationError):
             solve_synthetic_design_exact(Y=Y, K=8, lam=1e-14, candidate_limit=1000)
+
+
+def _brute_force_admissible(Y, K, filt, lam=None):
+    """The optimum over the sets a filter admits, by generating all and testing.
+
+    This is the semantics the backend had before the enumeration was taught to
+    build candidates inside the restrictions, so it is the reference the new walk
+    has to reproduce.
+    """
+    problem = TwoWayProblem.from_panel(Y, lam=lam)
+    admissible = [s for s in combinations(range(problem.N), K) if filt.accepts(s)]
+    subsets = np.array(admissible, dtype=np.int64)
+    t, c = split_indices(problem.N, subsets)
+    values = solve_partition_batch(problem, t, c, max_iter=8000, tol=1e-14).value
+    best = int(np.argmin(values))
+    return tuple(subsets[best]), float(values[best])
+
+
+class TestRestrictedEnumeration:
+    """Structural restrictions shrink the space the enumeration limit reads.
+
+    Forced units, forbidden units and stratum quotas are honoured while
+    candidates are built, so the count that decides whether the search may
+    enumerate is the count of admissible designs, not ``C(N, K)``. An instance
+    whose unrestricted count is past the limit is now solved exactly whenever the
+    restrictions leave few enough designs, where before it was refused.
+
+    Conflict pairs, a cost budget and the pool's no-good sets do not decompose
+    over a group, so they stay candidate tests and cannot move the gate. The last
+    test here pins that, so the improvement is not overstated.
+    """
+
+    N, K, LIMIT = 14, 5, 500
+
+    def _Y(self):
+        return _panel(N=self.N, T=20, seed=3)
+
+    def _solve(self, restrictions):
+        return solve_synthetic_design_exact(
+            Y=self._Y(), K=self.K, candidate_limit=self.LIMIT,
+            restrictions=restrictions)
+
+    def test_the_unrestricted_instance_is_past_the_limit(self):
+        """Without this the rest of the class would prove nothing."""
+        assert comb(self.N, self.K) > self.LIMIT
+        with pytest.raises(MlsynthConfigError):
+            self._solve(DesignRestrictions(conflict_pairs=[(0, 1)]))
+
+    @pytest.mark.parametrize("restrictions", [
+        DesignRestrictions(forbidden=[10, 11, 12, 13]),
+        DesignRestrictions(forced_in=[0, 1, 2]),
+        DesignRestrictions(strata=[(tuple(range(10)), None, 1)]),
+        DesignRestrictions(forced_in=[0], forbidden=[11, 12, 13]),
+    ])
+    def test_restricted_instances_now_enumerate_exactly(self, restrictions):
+        got = self._solve(restrictions)
+        assert int(got.assignment.sum()) == self.K
+        assert got.raw_results["certified"] is True
+
+    @pytest.mark.parametrize("restrictions", [
+        DesignRestrictions(forbidden=[10, 11, 12, 13]),
+        DesignRestrictions(forced_in=[0, 1, 2]),
+        DesignRestrictions(strata=[(tuple(range(10)), None, 1)]),
+    ])
+    def test_it_reaches_the_same_design_as_generate_then_filter(self, restrictions):
+        Y = self._Y()
+        filt = SubsetFilter.build(restrictions, N=self.N)
+        expected_set, expected_value = _brute_force_admissible(Y, self.K, filt)
+        got = self._solve(restrictions)
+        assert tuple(got.selected_unit_indices) == expected_set
+        assert got.objective_value == pytest.approx(expected_value, rel=1e-6)
+
+    def test_the_reported_design_count_is_the_admissible_count(self):
+        restrictions = DesignRestrictions(forbidden=[10, 11, 12, 13])
+        got = self._solve(restrictions)
+        assert got.raw_results["n_designs"] == comb(10, self.K)
+
+    def test_a_budget_still_applies_inside_a_shrunken_space(self):
+        """A non-structural rule keeps working once the gate has been cleared."""
+        costs = np.ones(self.N); costs[:3] = 10.0
+        got = solve_synthetic_design_exact(
+            Y=self._Y(), K=self.K, candidate_limit=self.LIMIT,
+            restrictions=DesignRestrictions(forbidden=[10, 11, 12, 13]),
+            costs=costs, budget=7.0)
+        assert not set(got.selected_unit_indices) & {0, 1, 2}
