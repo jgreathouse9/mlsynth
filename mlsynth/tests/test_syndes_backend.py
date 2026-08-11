@@ -1,9 +1,9 @@
 """Tests for the ``backend`` switch on the SYNDES estimator.
 
 Contract. ``backend`` selects how ``mode="two_way_global"`` is solved and
-nothing else. It defaults to ``"mip"``, so every existing fit is byte-for-byte
-what it was; ``"exact"`` routes to the treated-set search, which minimises the
-same objective and must therefore reach the same design.
+nothing else. It defaults to ``"exact"``, the treated-set search; ``"mip"``
+keeps the branch-and-bound path. Both minimise the same objective, so they must
+reach the same design whenever the MIP is asked to prove optimality.
 
 The switch is refused where the reformulation does not apply: one-way pins the
 treated weights and per-unit carries an ``(N, N)`` weight matrix, so neither
@@ -41,12 +41,11 @@ def _fit(**over):
 
 
 class TestDefault:
-    def test_backend_defaults_to_the_mip(self):
-        assert _fit().design.raw_results["solver"] != "exact"
+    def test_backend_defaults_to_the_search(self):
+        assert _fit().design.raw_results["solver"] == "exact"
 
-    def test_default_fit_is_unchanged(self):
-        """The switch must not perturb the existing path."""
-        explicit = _fit(backend="mip")
+    def test_explicit_and_implicit_defaults_agree(self):
+        explicit = _fit(backend="exact")
         implicit = _fit()
         assert (tuple(explicit.design.selected_unit_indices)
                 == tuple(implicit.design.selected_unit_indices))

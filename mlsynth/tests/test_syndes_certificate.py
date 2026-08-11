@@ -76,32 +76,26 @@ class TestModes:
         assert c.certified is False
         assert "per-unit" in c.note
 
-    def test_two_way_has_no_size_gate(self):
+    @pytest.mark.parametrize("N", [8, 12, 40])
+    def test_two_way_has_no_size_gate(self, N):
         """The Rayleigh bound is one eigenvalue, so no N forces a fallback."""
-        Y = _Y(N=12)
-        inc = _incumbent(Y, 3, "global_2way")
-        gated = syndes_certificate(Y, 3, "global_2way", inc, sdp_n_max=5)
-        ungated = syndes_certificate(Y, 3, "global_2way", inc, sdp_n_max=500)
-        assert gated.method == ungated.method == "rayleigh"
-        assert gated.certified is True
-        assert gated.lower_bound == pytest.approx(ungated.lower_bound, rel=1e-12)
-        assert gated.note == ""
+        Y = _Y(N=N)
+        c = syndes_certificate(Y, 3, "global_2way", _incumbent(Y, 3, "global_2way"))
+        assert c.method == "rayleigh"
+        assert c.certified is True
+        assert c.note == ""
 
-    def test_two_way_beats_the_sdp_bound_it_replaced(self):
-        """Tighter than the moment lift, and far cheaper."""
-        from mlsynth.utils.syndes_helpers.certificate import (
-            _rayleigh_bound_two_way, _sdp_moment_bound_two_way,
-        )
+    def test_two_way_bound_is_tight_and_valid(self):
+        """What the moment lift it replaced was for: a bound close to the optimum."""
+        from mlsynth.utils.syndes_helpers.certificate import _rayleigh_bound_two_way
         from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
 
         Y = _Y(); K = 3
-        lam = float(estimate_lambda(Y))
-        rayleigh = _rayleigh_bound_two_way(Y, K, lam)
-        sdp = _sdp_moment_bound_two_way(Y, K, lam)
+        bound = _rayleigh_bound_two_way(Y, K, float(estimate_lambda(Y)))
         inc = _incumbent(Y, K, "global_2way")
-        assert rayleigh is not None and sdp is not None
-        assert rayleigh <= inc + 1e-9        # still a valid lower bound
-        assert rayleigh > sdp                # and a tighter one
+        assert bound is not None
+        assert bound <= inc + 1e-9                    # a valid lower bound
+        assert bound >= 0.8 * inc                     # and a tight one
 
     def test_unknown_mode_raises(self):
         with pytest.raises(MlsynthConfigError):

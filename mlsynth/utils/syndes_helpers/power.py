@@ -184,7 +184,7 @@ def power_analysis(
 
     n_units = Y_pre.shape[1]
     # Every solved design caches its unit-level contrast; prefer it so the
-    # function is mode-agnostic (the annealed RelaxedDesign carries
+    # function is mode-agnostic (every design carries
     # ``contrast_weights`` but no ``mode``, so it cannot go through
     # ``_build_contrast_vector``). Fall back to rebuilding it (per_unit leaves
     # ``contrast_weights`` as ``None`` and reconstructs from its weight matrix).
@@ -212,7 +212,7 @@ def power_analysis(
     sigma_perm = float(np.std(per_period, ddof=1))
 
     # Baseline for the percentage conversion. The MIP designs expose the
-    # treated set directly; the annealed RelaxedDesign exposes it only on the
+    # treated set directly; some designs expose it only on the
     # results wrapper, so fall back to the assignment vector.
     sel = getattr(design, "selected_unit_indices", None)
     if sel is None:

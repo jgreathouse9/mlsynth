@@ -9,6 +9,29 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Removed
+- `mode="two_way_global_annealed"` and its five `utils/syndes_helpers/relaxed_*.py`
+  modules (932 lines), the `relaxed_max_iter` / `relaxed_decay` fields, the
+  `RelaxedSolverResults` container, `permutation_test_relaxed_global` and
+  `plot_relaxed_design`. The annealed relaxation existed to dodge the two-way
+  MIP's cost on problems SCIP could not finish; the treated-set search finishes
+  those directly and exactly, so the slower approximate path has no remaining
+  use. Breaking: configurations naming that mode now raise `MlsynthConfigError`.
+- `utils/syndes_helpers/accelerate.py` and the `accelerate`, `accel_min_tuples`,
+  `accel_safety_margin` and `certify_sdp_n_max` fields. The warm start and SDP
+  objective cut only ever applied to the two-way branch-and-bound, which is no
+  longer the default route, and the certificate that consumed the same lift now
+  uses the closed-form Rayleigh bound. `_sdp_moment_bound_two_way` goes with
+  them. `utils/miqp_accel.py` stays -- MAREX and the other exact designs use it.
+- Donor-side restrictions under `mode="two_way_global"`: `donor_exclusion`,
+  `donor_region_col` and `exclude_bordering_donors` now raise for that mode, and
+  `donor_constraints` refuses `global_2way` directly. A donor rule reads
+  `w[j] - q[j] <= 1 - D[i]`, which ties the control weights to which units are
+  treated, so a design stops being scoreable from its treated set alone -- the
+  one restriction the search cannot express. `one_way_global` and `per_unit`
+  keep them unchanged. Every other restriction (forced, forbidden, cluster and
+  adjacency conflicts, stratum quotas, size eligibility, costs with a budget) is
+  a predicate on the treated set and is applied during the search.
+
 - The GeoLift market-selection estimators (`GEOLIFT`, `MULTICELLGEOLIFT`) and
   their `utils/geolift_helpers/` package are removed from the public library.
   The two size/attribute eligibility primitives that SYNDES borrowed
@@ -18,6 +41,7 @@ now returns and the back-compat guarantee.
   `"GEOLIFT"` method and the `from_geolift` adapter (SYNDES / LEXSCM / MAREX
   remain). The remaining design estimators cover market selection under a
   budget.
+
 
 ### Added
 - `mlsynth.save_spec` / `mlsynth.load_spec`: serialize an analysis specification
@@ -31,9 +55,8 @@ now returns and the back-compat guarantee.
   Covered by `tests/test_spec.py`, including a parametrized check that `load_spec`
   resolves and behaves gracefully for every estimator the package ships.
 
-### Added
-- `SYNDESConfig.backend` selects how `mode="two_way_global"` is solved, and
-  defaults to `"mip"` so every existing fit is unchanged. `"exact"` searches
+- `SYNDESConfig.backend` selects how `mode="two_way_global"` is solved (see
+  Changed for the default it now takes). `"exact"` searches
   treated sets directly: naming the set removes the `q = w * D` coupling, so the
   outer problem is a choice of treated set and the inner problem is convex. The
   search scores every candidate with the closed form in
@@ -53,15 +76,29 @@ now returns and the back-compat guarantee.
   that is at least as good.
 
   `backend="exact"` is rejected for `one_way_global` and `per_unit`, where the
-  reformulation does not apply, and with donor-side restrictions, which tie the
-  control weights to the assignment. Every other restriction is a predicate on
+  reformulation does not apply. Every other restriction is a predicate on
   the treated set and is applied during the search. `select_by_holdout` takes a
   `pool_fn` so holdout and IC selection reach the new backend. Covered by
   `tests/test_syndes_exact.py`, `tests/test_syndes_partition.py`,
   `tests/test_syndes_backend.py`, `tests/test_syndes_exact_properties.py`, and
   nine semantic mutants in `tools/mutation/targets.toml`.
 
+
 ### Changed
+- `SYNDESConfig.backend` defaults to `"exact"`, so `mode="two_way_global"` is
+  solved by searching treated sets instead of by branch-and-bound. `"mip"`
+  remains selectable and `one_way_global` / `per_unit` are untouched -- the
+  default resolves to `"mip"` for them, since one-way pins the treated weights
+  and per-unit carries an `(N, N)` weight matrix, so neither reduces to a search
+  over treated sets. Asking for `backend="exact"` there is an error.
+
+  This changes what a two-way fit returns on some panels, and in one direction:
+  `gap_limit` defaults to `0.05`, so the MIP could stop at a design 5 percent
+  above the optimum, and on the panels in `tests/test_syndes_backend.py` it does.
+  The search has no early exit below its candidate limit, so where the two differ
+  the new default is the better design. Set `backend="mip"` to reproduce a prior
+  result exactly.
+- Version bumped to 2.0.0 for the removed public API.
 - The SYNDES two-way optimality certificate (`certify=True` with
   `mode="two_way_global"`) now reports a closed-form bound on the Gram matrix
   instead of the SDP / moment lift, and `result.certificate.method` reads
@@ -79,9 +116,8 @@ now returns and the back-compat guarantee.
   goes absent because a conic solve hit its iteration cap. It does report
   `lower_bound=None` when `G + lam I` is near-singular, which happens as `lam`
   approaches zero on a panel with fewer pre-periods than units; the note names
-  the cause. `accelerate` is unchanged and still uses the SDP lift as its
-  objective cut. New `mlsynth.utils.syndes_helpers.gram`, covered by
-  `tests/test_syndes_gram.py`.
+  the cause. New `mlsynth.utils.syndes_helpers.gram`, covered by
+  `tests/test_syndes_gram.py` and `tests/test_syndes_gram_properties.py`.
 - SDID solves its placebo draws' weights as one family. Placebo inference
   (Arkhangelsky et al. 2021, Algorithm 4) refits both weight programs once per
   draw and `B` defaults to 500, which is where an SDID fit spends its time: 84

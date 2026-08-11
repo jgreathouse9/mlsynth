@@ -506,17 +506,6 @@ and defaults them to the production-friendly setting:
   :math:`\le` optimum :math:`\le` incumbent. The per-unit objective has an
   :math:`(N, N)` weight matrix, so no cheap tight bound exists; it returns
   ``certified=False``, not a misleading number.
-* ``accelerate`` (default ``True``) -- inject that same two-way SDP lower bound
-  back into the solve *as a valid cut* (plus a deterministic LEXSCM warm start),
-  so SCIP's dual bound is lifted to the SDP bound and the ordinary ``gap_limit``
-  certifies against it instead of the loose McCormick relaxation. Size-gated and
-  automatic (see "Accelerating the solve" below): it engages only for
-  ``two_way_global`` with an explicit ``K`` when the treated-tuple count
-  :math:`\binom{N}{K}` exceeds ``accel_min_tuples`` and :math:`N \le`
-  ``certify_sdp_n_max``, and is a no-op otherwise (small problems solve exactly,
-  unchanged). Unlike ``certify`` (a passive diagnostic), this changes the *path*
-  the solver takes, not the problem: the returned design is certified to
-  ``gap_limit`` against the SDP bound.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
@@ -666,9 +655,8 @@ the certificate and no lift is needed. In per-unit the weights form an
 :math:`O(N^2)` entries and the moment matrix is :math:`O(N^2) \times O(N^2)`,
 i.e. :math:`O(N^4)` -- intractable -- while the continuous relaxation is ~70%
 loose. Per-unit therefore returns ``certified=False`` with the valid-but-loose
-continuous bound. The two-way lift is :math:`O(N^3)`, which is what
-``certify_sdp_n_max`` guards; it is what ``accelerate`` feeds back into the
-solve, and no longer what ``certify`` reports for two-way.
+continuous bound. The two-way lift was :math:`O(N^3)`, and is described here
+because it is what the closed-form bound below replaced.
 
 The Gram reduction
 ~~~~~~~~~~~~~~~~~~~~
@@ -791,52 +779,7 @@ from its treated set alone. Every other restriction -- ``to_be_treated``,
 ``not_to_be_treated``, cluster and adjacency conflicts, stratum quotas, size
 eligibility, ``costs`` with a ``budget`` -- is a predicate on the treated set and
 is applied while candidates are generated. ``gap_limit``, ``time_limit``,
-``solver`` and the ``accel_*`` fields describe branch-and-bound and are ignored
-by this path.
-
-Accelerating the solve
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-``certify`` reports the SDP gap *beside* the solver. ``accelerate`` (default
-``True`` for the large two-way solve) feeds the same bound *into* it. Because the
-canonical two-way objective is minimized as an epigraph variable :math:`t` (with
-:math:`t \ge` the quadratic), adding the single linear constraint
-
-.. math::
-
-   t \;\ge\; L, \qquad L \coloneqq (1 - \varepsilon)\, p_{\mathrm{SDP}},
-
-lifts every node relaxation -- and hence SCIP's global dual bound -- to :math:`L`.
-The cut is valid whenever :math:`L \le p^\star`: no feasible design has objective
-below the optimum, so none is removed. Since :math:`p_{\mathrm{SDP}} \le p^\star`,
-the small safety margin :math:`\varepsilon` (``accel_safety_margin``, default
-:math:`0.01`) keeps :math:`L` a valid lower bound even under the first-order SDP
-solver's tolerance -- a too-high :math:`L` would inflate :math:`t` and return a
-garbage design, so the margin is a correctness requirement, not a tuning knob.
-As a backstop, if a bad :math:`L` ever pushes the recovered objective below the
-cut floor, the solve drops the cut and re-solves, so correctness always holds.
-
-With the dual bound sitting at :math:`L`, the ordinary ``gap_limit`` now measures
-against a *tight* bound: SCIP terminates as soon as the incumbent (seeded by the
-LEXSCM warm start, the same primal MAREX uses) is within ``gap_limit`` of
-:math:`L` instead of climbing the McCormick bound for minutes to prove the same
-thing. The floor on the achievable gap is the SDP integrality gap itself
-(:math:`\sim 2\text{--}4\%`), so ``gap_limit`` below that will not terminate early
--- set it at or above the certified gap you saw from ``certify``.
-
-The mechanism only helps in the sense of an early, *certified* stop -- it does not
-make SCIP prove exact optimality faster (the dual bound cannot climb above
-:math:`L` on its own). So ``accelerate`` is a size-gated change to the returned
-design's *contract*: at :math:`\binom{N}{K}` below ``accel_min_tuples`` the exact
-MIP is small and solved directly (unchanged, proven-optimal); above it -- where
-the exact two-way MIP does not terminate at any practical size, since the
-McCormick dual never closes -- SYNDES returns a design certified to ``gap_limit``
-against the SDP bound. On a two-way :math:`N = 100,\ K = 5` panel this turns a 60s
-time-out (an uncertified incumbent) into a :math:`\sim 25\text{s}` solve that SCIP
-*terminates* with a certified :math:`\sim 3\%` gap. This is an mlsynth addition,
-not part of Doudchenko et al. (2021); the shared machinery lives in
-:mod:`mlsynth.utils.miqp_accel` so other exact designs (MAREX, and the GEDI
-experimentation wrapper) can adopt it.
+``solver`` describe branch-and-bound and are ignored by this path.
 
 Multiple Treatment Arms
 -----------------------
@@ -983,8 +926,10 @@ exactly, not by filtering enumerated candidates:
 The ``cluster_col`` / ``stratum_col`` / ``size_col`` columns must be constant
 within each unit. Restrictions compose with each other and with ``costs`` /
 ``budget``, and they flow through every selection rule (in-sample, ``holdout``,
-``ic``). They are not available with ``mode="two_way_global_annealed"`` (no MIP)
-or an ``arm`` column (restrictions are global, not per-arm). Infeasible
+``ic``). They are not available with an ``arm`` column (restrictions are global,
+not per-arm), and donor-side rules are unavailable under ``two_way_global``
+(they tie the control weights to the assignment; use ``one_way_global`` or
+``per_unit``). Infeasible
 combinations -- forcing more units than ``K``, or forbidding so many that fewer
 than ``K`` remain treatable -- raise a translated ``MlsynthConfigError``
 instead of leaking a solver ``INFEASIBLE``.
@@ -1299,7 +1244,7 @@ The returned ``results.pool`` is then ranked by this out-of-sample error (rank-1
 is the holdout winner kept on ``results.design``), and each entry carries an
 ``oos_rmse`` key alongside the in-sample ``pre_fit_rmse``. Holdout selection
 needs a candidate pool to choose among, so ``top_K >= 2`` is required, and it
-applies to the MIP modes only (not the annealed relaxation). Power and inference
+applies to every mode. Power and inference
 are computed exactly as in the in-sample path. ``holdout_frac=None`` (the
 default) leaves selection on the in-sample optimum, unchanged.
 
@@ -1654,8 +1599,6 @@ optimized :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESDesign`
 ``contrast_series`` and ``pre_fit_rmse``, objective value), the prepared
 :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESInputs`, and optional
 :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESInference`. The
-``mode="two_way_global_annealed"`` path instead returns a
-:class:`~mlsynth.utils.syndes_helpers.relaxed_structures.RelaxedSolverResults`.
 
 .. automodule:: mlsynth.utils.syndes_helpers.structures
    :members:
