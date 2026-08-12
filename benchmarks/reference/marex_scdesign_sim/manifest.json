@@ -1,0 +1,9 @@
+{
+  "case": "marex_scdesign_sim",
+  "title": "MAREX vs SCDesign's cardinality-constrained design on the Abadie & Zhao Section 5 simulation panels",
+  "paper": "Abadie & Zhao (2024), Section 5",
+  "reference_impl": "jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/marex_scdesign_sim/reference.R",
+  "data": []
+}

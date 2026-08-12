@@ -48,7 +48,10 @@ CASES = {
     "pcr_rsc_ref": "benchmarks.cases.pcr_rsc_ref",              # cross-val: mlsynth PCR vs original RSC (jehangiramjad/tslib, Prop 99)
     "lexscm_walmart": "benchmarks.cases.lexscm_walmart",        # Path A: Walmart placebo design
     "lexscm_design_mc": "benchmarks.cases.lexscm_design_mc",    # Path B: Abadie-Zhao design sim
-    "marex_walmart": "benchmarks.cases.marex_walmart",          # Path A: MAREX Walmart placebo design (Abadie-Zhao SCDesign, 10-store subset)
+    "marex_walmart": "benchmarks.cases.marex_walmart",
+    "marex_section5_mc": "benchmarks.cases.marex_section5_mc",  # Path B: Abadie-Zhao Section 5 / Table 2 simulation (MAE, RMSE, ||w||_0 by cardinality) + the weakly-targeted design family          # Path A: MAREX Walmart placebo design (Abadie-Zhao SCDesign, 10-store subset)
+    "marex_scdesign_sim": "benchmarks.cases.marex_scdesign_sim",  # cross-val vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
+    "marex_table3": "benchmarks.cases.marex_table3",  # Path B: Abadie-Zhao Table 3 -- MAREX computes the SC column on the authors' panels and beats every published alternative at every cardinality
     "scmo_germany": "benchmarks.cases.scmo_germany",            # Path A: Tian et al. West Germany balance
     "scmo_concatenated_mc": "benchmarks.cases.scmo_concatenated_mc",  # Path B: Tian Table 1 / Sun Sim1
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
