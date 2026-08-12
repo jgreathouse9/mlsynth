@@ -28,6 +28,8 @@ from typing import Callable, Optional, Tuple
 import numpy as np
 from scipy.optimize import root
 
+from ...exceptions import MlsynthEstimationError
+
 
 def augment(matrix: np.ndarray) -> np.ndarray:
     """Prepend an intercept column of ones."""
@@ -87,6 +89,7 @@ def gmm_sandwich_se(
     total_periods: int,
     bandwidth: int,
     eps: float = 1e-6,
+    expected_value: float | None = None,
 ) -> float:
     """Sandwich SE for one parameter of a just-identified GMM.
 
@@ -102,13 +105,39 @@ def gmm_sandwich_se(
         ``T`` (sandwich normalization).
     bandwidth : int
         Bartlett-HAC bandwidth.
+    expected_value : float, optional
+        The estimate this standard error is meant to belong to. When supplied it
+        is checked against ``theta[param_index]``, which is the only thing tying
+        the index to the estimand.
+
+        The caller states the layout twice -- once in the offsets its moment
+        function unpacks ``theta`` with, once in this index -- and nothing else
+        makes the two agree. When they disagree the sandwich still returns a
+        finite, positive, plausibly-sized number, because every entry on that
+        diagonal is some parameter's standard error. Passing the estimate turns a
+        silent mislabel into a raised error.
 
     Returns
     -------
     float
         ``sqrt(Cov[param_index, param_index])``; ``np.nan`` if the Jacobian
         is singular or the variance is negative.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If ``expected_value`` is given and does not match ``theta[param_index]``.
     """
+    if expected_value is not None:
+        got = float(theta[param_index])
+        if not np.isclose(got, float(expected_value), rtol=1e-8, atol=1e-10):
+            raise MlsynthEstimationError(
+                f"the GMM sandwich was asked for index {param_index}, which holds "
+                f"{got:.10g}, but the estimate it is meant to describe is "
+                f"{float(expected_value):.10g}. The moment function's parameter "
+                f"layout and the index disagree, so this standard error would "
+                f"belong to a different parameter."
+            )
     base = moments(theta).mean(0)
     p = len(theta)
     G = np.zeros((len(base), p))

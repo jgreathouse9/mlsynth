@@ -105,6 +105,7 @@ def estimate_dr(
         g5 = pre.astype(float) * (pm - qq * (Y - hh))          # psi- = E_pre[q(Y-h)]
         return np.column_stack([g1, g2, g3, g4, g5])
 
-    se = gmm_sandwich_se(theta, moments, phi_index, T, hac_bandwidth)
+    se = gmm_sandwich_se(theta, moments, phi_index, T, hac_bandwidth,
+                         expected_value=phi)
     counterfactual = h
     return counterfactual, alpha, beta, phi, se

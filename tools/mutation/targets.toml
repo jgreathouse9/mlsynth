@@ -364,3 +364,22 @@ timeout = 300.0
   find = "    zc = z - z.mean()"
   replace = "    zc = z"
   models = "autocovariances taken about zero instead of the sample mean. The post-period effect series is centred by the caller in most paths, so this is invisible wherever the mean is already near zero and wrong wherever a real effect shifts it -- the case the estimator exists to test"
+
+[[target]]
+name = "proximal-sandwich-index"
+module-path = "mlsynth/utils/proximal_helpers/pipw/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_proximal_sandwich_index.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "phi-index-off-by-one"
+  find = "    phi_index = 2 * nU + 2"
+  replace = "    phi_index = 2 * nU + 3"
+  models = "the defect this module was fixed for: the sandwich asked for the index one past the ATT, which holds psi_minus, a nuisance mean. It returns that parameter's standard error instead -- finite, positive, and 44 percent larger on the authors' own normal simulation, where it inflated Wald coverage to 0.99 against a nominal 0.95 and was recorded in the benchmark as conservative inference. The guard added with the fix turns this into a raised error; without the guard only the DR-versus-PIPW agreement catches it"
+
+  [[target.mutant]]
+  id = "sandwich-index-unchecked-and-off-by-one"
+  find = """    se = gmm_sandwich_se(theta, moments, phi_index, T, hac_bandwidth,
+                         expected_value=phi)"""
+  replace = "    se = gmm_sandwich_se(theta, moments, 2 * nU + 3, T, hac_bandwidth)"
+  models = "the pre-fix state exactly: the wrong index and no check tying it to the estimand. This is the mutant that matters, because it is what the code looked like while every test passed. Nothing about the returned value is malformed, so it survives every assertion of the form `isfinite(se) and se > 0`; what kills it is the invariant that DR and PIPW, being the same estimator in the just-identified design, must report the same standard error"
