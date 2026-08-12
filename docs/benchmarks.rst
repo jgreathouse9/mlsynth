@@ -228,6 +228,8 @@ Path B — Monte Carlo / simulation
      - nonlinear coverage + error-shrinks-with-J
    * - ``pangeo_supergeo_mc``
      - PANGEO trajectory match vs scalar (Chen et al.)
+   * - ``fspda_dense_mc``
+     - fsPDA ``FS()`` / ``lasso.BIC()`` cell by cell on their own dense-MC panels
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``

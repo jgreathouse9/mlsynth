@@ -430,9 +430,15 @@ High-dimensional donor pools
   factor structures, while LASSO over-selects (9-15) and its
   size inflates under *dynamic* factors (0.14 vs 0.065 i.i.d.),
   matching the paper; both fully powered at ``D5`` (durable:
-  ``pda_table1``). mlsynth's LASSO is cross-validated, not the
-  paper's modified-BIC, so its LASSO cells are a CV variant, not
-  a cell-by-cell match. Path B (LASSO): Li & Bell (2017) Table 2
+  ``pda_table1``). Those LASSO cells run the cross-validated
+  default, not the paper's modified BIC, so they are a CV variant
+  and not a cell-by-cell match. The cell-by-cell check under the
+  paper's own rule is a cross-validation case: ``fspda_dense_mc``
+  drives ``PDA`` on panels from their ``FS.simulation.dense.R`` and
+  compares against their ``FS()`` and ``lasso.BIC()`` -- forward
+  selection matches to :math:`10^{-13}` on all eight panels, and
+  the modified-BIC LASSO matches their selected donors and penalty
+  on all eight once ``glmnet`` is run to convergence. Path B (LASSO): Li & Bell (2017) Table 2
   on a dense three-factor DGP with :math:`N=31 > T_1=25` -- the LASSO
   control-unit selection stays parsimonious (~7 of 30) and its
   out-of-sample PMSE scales with the idiosyncratic noise
