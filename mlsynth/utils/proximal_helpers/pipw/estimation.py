@@ -75,7 +75,7 @@ def estimate_pipw(
 
     # Parameter order [beta, psi, phi, psi-].
     theta = np.concatenate([beta, psi, [phi], [psi_minus]])
-    phi_index = 2 * nU + 3
+    phi_index = 2 * nU + 2
 
     def moments(th: np.ndarray) -> np.ndarray:
         b = th[: nU + 1]
@@ -89,5 +89,6 @@ def estimate_pipw(
         g4 = pre.astype(float) * (pm - qq * Y)
         return np.column_stack([g1, g2, g3, g4])
 
-    se = gmm_sandwich_se(theta, moments, phi_index, T, hac_bandwidth)
+    se = gmm_sandwich_se(theta, moments, phi_index, T, hac_bandwidth,
+                         expected_value=phi)
     return beta, phi, se
