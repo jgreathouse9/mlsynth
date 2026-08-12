@@ -45,9 +45,32 @@ between the two rules does not.
 What the numbers say. Forward selection picks the identical donor set on 28 of
 30 panels despite the algorithms differing, and its out-of-sample RMSE stays
 within 5.4% of theirs. The LASSO agrees on 21 of 30 -- 9 of 10 on ``iid``, 10 of
-10 on ``inid``, but only 2 of 10 on ``nnd``, the dense-factor DGP where the
-criterion difference bites hardest and neither rule is really in its element.
-Both recover the true four donors on every panel of the two sparse DGPs.
+10 on ``inid``, but only 2 of 10 on ``nnd``. Both recover the true four donors on
+every panel of the two sparse DGPs.
+
+Where the disagreements come from
+---------------------------------
+Those rates are not the regression test, because a drift in mlsynth and the
+standing rule difference both lower them by the same mechanism. So the bundle
+also runs the rules mlsynth *does* implement -- ``nonsparse/FS.R`` and
+``lasso.BIC`` -- on these same panels, and the case pins mlsynth against those.
+
+    fs    vs nonsparse FS.R (mlsynth's own rule)       30/30
+    fs    vs sparse fs.R                               28/30
+    lasso vs lasso.BIC, glmnet converged               30/30
+    lasso vs lasso.BIC, glmnet at its default thresh   24/30
+    lasso vs sparse lasso_ic WIC                       21/30
+
+That accounts for every disagreeing cell. Forward selection reproduces its own
+rule exactly, so both of its misses are the sparse-versus-nonsparse difference.
+The LASSO reproduces ``lasso.BIC`` exactly once ``glmnet`` is converged, so of its
+nine misses, six are ``glmnet``'s default ``thresh = 1e-7`` stopping short -- the
+same tolerance effect ``fspda_dense_mc`` measures, and all six land on ``nnd``,
+where ``p = 50`` against ``n = 50`` and the factor structure makes the donors
+collinear -- and the remaining three are the WIC rule difference.
+
+The two 30/30 cells are the ones that catch a port regression, and they are
+pinned at zero tolerance. The sparse-rule rates below them are descriptive.
 
 Reference bundle: ``benchmarks/reference/fspda_sparse_mc/`` (regenerate with
 ``Rscript benchmarks/reference/fspda_sparse_mc/reference.R``).
@@ -117,7 +140,8 @@ def run() -> dict:
     panels = _panels()
 
     acc = {k: [] for k in ("fs_same", "las_same", "fs_true", "las_true",
-                           "fs_ratio", "las_ratio", "fs_vs_orc", "las_vs_orc")}
+                           "fs_ratio", "las_ratio", "fs_vs_orc", "las_vs_orc",
+                           "fs_own", "las_own")}
 
     for dgp in DGPS:
         for r in range(1, reps + 1):
@@ -136,10 +160,16 @@ def run() -> dict:
                 acc[f"{tag}_true"].append(float(truth <= set(sel)))
                 acc[f"{tag}_ratio"].append(rmse / ref[f"{key}_rmse_{cell}"])
                 acc[f"{tag}_vs_orc"].append(rmse / orc)
+                own_key = "fsns" if tag == "fs" else "lasns"
+                own = [int(v) for v in _ref_vec(
+                    ref, f"{own_key}_sel_{cell}", int(ref[f"{own_key}_R_{cell}"]))]
+                acc[f"{tag}_own"].append(float(sel == own))
 
     m = {k: np.asarray(v, dtype=float) for k, v in acc.items()}
     return {
         "n_cells": float(len(m["fs_same"])),
+        "fs_matches_its_own_rule": float(m["fs_own"].mean()),
+        "lasso_matches_its_own_rule": float(m["las_own"].mean()),
         "fs_selection_match_rate": float(m["fs_same"].mean()),
         "lasso_selection_match_rate": float(m["las_same"].mean()),
         "fs_true_support_rate": float(m["fs_true"].mean()),
@@ -172,6 +202,12 @@ def run() -> dict:
 # would mean the oracle column had been misread.
 EXPECTED = {
     "n_cells": (30.0, 0.0),
+    # The regression cells. mlsynth against the rules it implements, run on
+    # these same panels: nonsparse FS.R, and lasso.BIC with glmnet converged so
+    # the comparison is to the rule and not to its solver's tolerance. Zero
+    # tolerance, because a port that drifts has nothing to hide behind here.
+    "fs_matches_its_own_rule": (1.0, 0.0),
+    "lasso_matches_its_own_rule": (1.0, 0.0),
     "fs_selection_match_rate": (0.933, 0.034),        # 28/30
     "lasso_selection_match_rate": (0.700, 0.067),     # 21/30
     "fs_true_support_rate": (0.900, 0.034),           # misses only on nnd
