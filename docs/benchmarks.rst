@@ -204,6 +204,8 @@ Path B — Monte Carlo / simulation
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
      - CWZ 2025 Table 3 application-based Monte Carlo
+   * - ``dr_proximal_scenarios``
+     - DR_Proximal_SC ``correct.DR`` / ``correct.q`` across their scenario directory
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
    * - ``dsc_mc``

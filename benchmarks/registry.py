@@ -123,6 +123,7 @@ CASES = {
     "esc_prop99": "benchmarks.cases.esc_prop99",              # Path A: ESC California (Prop 99) reproduces classic SC path + informative PI
     "esc_saopaulo": "benchmarks.cases.esc_saopaulo",          # Path A: ESC Sao Paulo homicides (T0=9) short-panel interval on lives saved
     "dr_proximal_mc": "benchmarks.cases.dr_proximal_mc",      # Path B: DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
+    "dr_proximal_scenarios": "benchmarks.cases.dr_proximal_scenarios",  # cross-val vs DR_Proximal_SC correct.DR/correct.q on all 7 just-identified scenarios
     "dr_proximal_brazil": "benchmarks.cases.dr_proximal_brazil",  # cross-val vs LIVE R (authors' analysis.Rmd commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
     "brazil_vaccine_scm_vs_proximal": "benchmarks.cases.brazil_vaccine_scm_vs_proximal",  # cross-val vs LIVE R: standard SC (VanillaSC) vs proximal (DR-OID h/DR), Brazil vaccine/pneumonia contrast
     "proximal_surrogates_mc": "benchmarks.cases.proximal_surrogates_mc",  # Path B: PI/PIS/PIPost vs SC under trending factor (Liu et al.)
