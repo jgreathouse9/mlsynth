@@ -266,6 +266,8 @@ Path B — Monte Carlo / simulation
      - SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
    * - ``syndes_bls``
      - Doudchenko et al. 2021 Monte Carlo (BLS unemployment)
+   * - ``syndes_exact_vs_mip``
+     - SYNDES two-way treated-set search vs SCIP proving optimality on the same program (BLS panel)
    * - ``tasc_mc``
      - TASC vs SC state-space ablation (Rho et al.)
    * - ``tssc_figure2``
