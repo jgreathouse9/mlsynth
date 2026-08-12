@@ -773,7 +773,12 @@ Experimental design
   Path A: Walmart 45-store weekly-sales placebo design --
   pre-fit RMSE 2.2%, placebo ATT :math:`-1.0%`, p-value 0.937
   against the paper's 0.933. Path B: Lin-factor DGP recovers
-  the treatment effect across the MAE-vs-effect-scale sweep.
+  the treatment effect across the MAE-vs-effect-scale sweep;
+  and the paper's own Section 5 / Table 2 simulation --- MAE
+  3.02 / 1.33 / 0.75 at :math:`m = 1 / 3 /` unconstrained
+  against the paper's 2.93 / 1.26 / 0.83, with the
+  unconstrained design selecting 6.80 units against 6.76
+  (durable: ``marex_section5_mc``).
 * :doc:`pangeo` -- Parallel-Trends Supergeo Design. Path B:
   seasonal-sales panel with up-trend, down-trend, and cyclical
   trajectories; PANGEO RMSE :math:`\approx 0.2` against scalar-

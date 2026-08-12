@@ -97,3 +97,108 @@ Reproduce
    python benchmarks/reference/generate.py marex_walmart
    # run the cross-validation
    python benchmarks/run_benchmarks.py marex_walmart
+
+Path B — the Section 5 simulation (Table 2)
+--------------------------------------------
+
+The Walmart check above is Path A on the authors' empirical application. Their
+Section 5 simulation is a separate target, and it is the one that exercises the
+cardinality constraint across its range and the design family beyond
+``standard``.
+
+The data-generating process is the linear factor model of Assumption 1:
+:math:`J = 15` units, :math:`R = 7` observed and :math:`F = 11` unobserved
+covariates, :math:`T = 30` periods with :math:`T_0 = 25`, weights estimated on
+the first :math:`T_E = 20` periods and 21-25 left blank. The intercept series
+:math:`\delta_t` and :math:`\upsilon_t` are small-to-large rearrangements of
+Uniform(0, 20) draws, :math:`Z_j` and :math:`\mu_j` are Uniform(0, 1), the
+coefficient vectors Uniform(0, 10), and the errors :math:`N(0, 1)`. The same
+process is the generation block of the authors' ``SCdesign_LazyRun.R``.
+
+R's Mersenne-Twister stream cannot be reproduced by numpy's PCG64, so these are
+not the authors' draws. The port is checked against the effect path instead,
+which has a closed form: both intercept series are order statistics of
+Uniform(0, 20) draws and the covariate terms share their distributions across
+the treated and control processes, so they cancel in expectation and
+
+.. math::
+
+   \tau_{25+k} \;=\; \frac{20k}{6} \;-\; \frac{20(25+k)}{31},
+   \qquad k = 1, \ldots, 5,
+
+giving :math:`-13.44, -10.75, -8.06, -5.38, -2.69`. The paper's Table 2 reports
+:math:`-13.58, -10.99, -8.35, -5.00, -2.50`, within 1.3 standard errors of that
+closed form at its :math:`M = 1000` (the per-period spread across simulations is
+about 9.4, so their standard error is roughly 0.30). The port lands in the same
+place, which is what licenses using the closed form as the target instead of
+their printed values.
+
+Estimates use the paper's equation (8),
+:math:`\hat\tau_t = \mathbf{w}'\mathbf{Y}_{I,t} - \mathbf{v}'\mathbf{Y}_{N,t}`,
+scored against the realized :math:`\tau_t` under uniform population weights. At
+:math:`M = 20` simulations against the paper's 1000:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 16 16 16 16 16
+
+   * - design
+     - MAE
+     - paper
+     - RMSE
+     - paper
+     - :math:`\|w\|_0`
+   * - Constrained :math:`m = 1`
+     - 3.02
+     - 2.93
+     - 3.66
+     - 3.45
+     - 1.0
+   * - Constrained :math:`m = 3`
+     - 1.33
+     - 1.26
+     - 1.56
+     - 1.49
+     - 3.0
+   * - Unconstrained
+     - 0.75
+     - 0.83
+     - 0.90
+     - 0.97
+     - 6.80 (paper 6.76)
+
+The paper's headline for Table 2 reproduces: accuracy improves monotonically as
+the cardinality constraint relaxes, and the unconstrained design selects about
+seven of the fifteen units without being told to.
+
+The weakly targeted design
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Formulation (9) matches the treated synthetic to the population predictor vector
+and ties the control synthetic to it with weight :math:`\beta`, so :math:`\beta`
+trades between estimating :math:`\tau_t` and the effect on the treated,
+:math:`\tau^T_t`. The paper reports that a large :math:`\beta` gives high
+relative accuracy for the latter.
+
+Measured on the same panels at :math:`m = 3`, root mean square error against
+:math:`\tau^T_t` is 1.60 for ``design="standard"`` and 1.56 for
+``design="weakly_targeted"`` with :math:`\beta = 20`. The direction agrees with
+the paper, and at :math:`M = 25` the gap widens to 1.62 against 1.50. It is
+about 0.9 combined standard errors either way, so the case pins the two levels
+and does not assert the ordering: at any :math:`M` this benchmark can afford,
+an ordering indicator would be a coin flip. The levels still catch a regression
+in either design, and this is the only coverage ``weakly_targeted`` has outside
+unit tests.
+
+Durable case
+~~~~~~~~~~~~
+
+`benchmarks/cases/marex_section5_mc.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_section5_mc.py>`_
+
+.. code-block:: bash
+
+   python benchmarks/run_benchmarks.py --case marex_section5_mc
+
+Thirteen pinned quantities, seeded and reproducing bit-identically. Runtime is
+about 280 seconds, almost all of it the mixed-integer solves.

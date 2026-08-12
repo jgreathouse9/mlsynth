@@ -110,6 +110,8 @@ Path A — empirical replications
      - dense L-inf vs sparse SC (Prop 99)
    * - ``marex_walmart``
      - MAREX Walmart placebo design vs live SCDesign (Abadie-Zhao, full 45-store panel + covariates, open quadprog, no Gurobi)
+   * - ``marex_section5_mc``
+     - MAREX vs Abadie-Zhao Section 5 / Table 2: MAE, RMSE and treated count by cardinality, plus the weakly-targeted design family
    * - ``masc_basque``
      - MASC Basque/ETA (KMPT Sec 5)
    * - ``pda_brexit``
