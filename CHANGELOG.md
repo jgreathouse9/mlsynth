@@ -46,6 +46,20 @@ now returns and the back-compat guarantee.
 
 
 ### Added
+- `PDAConfig.lasso_criterion` and `PDAConfig.lasso_mbic_const`: the L1 variant
+  can now select its penalty by Shi & Huang's modified BIC,
+  `log(sigma^2) + H log(log N) log(T1)/T1 k`, minimised over `fsPDA`'s grid
+  `seq(0.01, 1, by = 0.01)`. `lasso_criterion="mbic"` reproduces their
+  `lasso.BIC`, which means the fit conventions move with the criterion: no
+  intercept and `glmnet`'s column scaling, since the penalty is chosen by
+  scoring that fit. `fit_lasso` gains a `standardize` flag for it, and the
+  prediction-interval bootstrap refits under the same conventions at the same
+  fixed penalty. Checked against `glmnet` 4.1.8: the scaled path agrees to
+  5e-09, and on a 20-donor panel both implementations return a penalty of 0.32,
+  the same single donor, and a coefficient of 0.51838043. The default is
+  unchanged: `lasso_criterion="cv"` is the 5-fold cross-validated rule the
+  estimator has always used, and the point estimate it returns is bit-identical
+  to before.
 - `utils/syndes_helpers/enumeration.py`: the exact two-way backend now builds
   candidate treated sets inside the structural restrictions instead of generating
   every `C(N, K)` subset and testing each one. Forced units, forbidden units
@@ -123,6 +137,15 @@ now returns and the back-compat guarantee.
   continuous variables, not one it has already adopted.
 
 ### Changed
+- The fixed-penalty LASSO fit in `pda_helpers/lasso/estimation.py` runs to
+  `tol = 1e-12` instead of scikit-learn's default `1e-4`, which is what the
+  modified-BIC path needs to reach `glmnet`'s coefficients. The only existing
+  caller is the LASSO prediction-interval bootstrap; on Hong Kong its
+  counterfactual moves by 6e-06. The `LassoCV` point estimate is unaffected,
+  which leaves that bootstrap refitting the cross-validated fit's problem more
+  exactly than `LassoCV` solved it -- a gap of the same 6e-06, pinned in
+  `test_pda_lasso_mbic.py` and left alone, since closing it would move every
+  cross-validated LASSO result in the library.
 - `SYNDESConfig.backend` defaults to `"exact"`, so `mode="two_way_global"` is
   solved by searching treated sets instead of by branch-and-bound. `"mip"`
   remains selectable and `one_way_global` / `per_unit` are untouched -- the

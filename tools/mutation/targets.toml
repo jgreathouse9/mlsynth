@@ -259,3 +259,84 @@ timeout = 300.0
   find = "if val is None or val < L - 1e-6 * max(1.0, abs(L)):"
   replace = "if val is None:"
   models = "the backstop reduced to a check that the solve produced a value. The objective is an epigraph variable, so a cut above the true optimum does not make the model infeasible -- it inflates that variable and returns a design whose real objective sits below the cut floor. Without the comparison the caller keeps that design and the too-high bound is never detected"
+
+[[target]]
+name = "pda-lasso-mbic"
+module-path = "mlsynth/utils/pda_helpers/lasso/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_mbic.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "criterion-scores-a-fit-the-estimator-never-uses"
+  find = """    beta, _, _, _ = fit_lasso(y, X, T0, alpha=alpha, intercept=False,
+                              standardize=True)"""
+  replace = "    beta, _, _, _ = fit_lasso(y, X, T0, alpha=alpha)"
+  models = "the criterion evaluated under mlsynth's own conventions -- intercept, unscaled donors -- while the estimate it selects a penalty for is fitted under glmnet's. The rule still returns a penalty from the grid and the argmin is still an argmin, so every structural test passes; what changes is that the penalty was chosen for a different model than the one estimated, which is the defect that produced two failures the first time this landed"
+
+  [[target.mutant]]
+  id = "glmnet-standardisation-centres-the-donors"
+  find = "    model.fit(X_pre / scale, y_pre)"
+  replace = "    model.fit((X_pre - X_pre.mean(axis=0)) / scale, y_pre)"
+  models = "the donors centred before the penalised fit, which is what glmnet does when it fits an intercept and not what it does without one. It moves the selected coefficient on the reference panel from 0.51838043 to 0.49909512, and no invariant of the rule notices: the support is the same, the argmin is still an argmin, and the criterion is still log MSE plus the charge. Only the pinned glmnet value separates them"
+
+  # Recorded, not carried: centring inside `_glmnet_scale`
+  # ("X_pre = X_pre - X_pre.mean(axis=0)" before the np.std call) is an
+  # equivalent mutant. Standard deviation is shift invariant, so the returned
+  # scale agrees to 2e-16 and the fit is unchanged. It survived, correctly, and
+  # is retired here so nobody re-adds it expecting a kill -- the centring that
+  # does change the answer is the one above, on the matrix that gets fitted.
+
+  [[target.mutant]]
+  id = "penalty-charge-counts-periods-instead-of-donors"
+  find = "    penalty = const * loglog * np.log(T0) / T0 * k"
+  replace = "    penalty = const * loglog * np.log(T0) / T0"
+  models = "the per-donor charge applied once instead of once per selected donor. The criterion is then log MSE plus a constant, so it is minimised at the densest fit for every value of the constant, and the constant stops being the knob the paper tunes"
+
+  [[target.mutant]]
+  id = "loglog-floor-inverted-for-small-donor-pools"
+  find = "    loglog = max(np.log(np.log(n_donors)) if n_donors > 1 else 0.0, 0.0)"
+  replace = "    loglog = np.log(np.log(n_donors)) if n_donors > 1 else 0.0"
+  models = "the floor removed, so a pool of two donors gives log(log(2)) = -0.37 and the charge per donor turns into a reward per donor. Two donors is an ordinary pool, and the rule would select the densest fit there for the same reason it should select the sparsest"
+
+  [[target.mutant]]
+  id = "argmin-over-the-grid-becomes-argmax"
+  find = "    return float(penalties[int(np.argmin(scores))])"
+  replace = "    return float(penalties[int(np.argmax(scores))])"
+  models = "the grid search keeping the worst penalty by its own criterion. It still returns a grid point and still moves with the constant, so only a test that recomputes the criterion independently sees it"
+
+  [[target.mutant]]
+  id = "zero-penalty-admitted-to-the-grid"
+  find = "    if np.any(penalties <= 0):"
+  replace = "    if np.any(penalties < 0):"
+  models = "a zero penalty accepted as a path point. That is ordinary least squares on every donor, whose pre-period MSE is the smallest available, so it wins the criterion whenever a caller's grid starts at zero and the selection stops being a LASSO selection at all"
+
+[[target]]
+name = "pda-orchestration"
+module-path = "mlsynth/utils/pda_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_mbic.py mlsynth/tests/test_pda.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "mbic-penalty-selected-then-discarded"
+  find = """            beta, intercept, cf, support = fit_lasso(
+                y, X, T0, alpha=lasso_alpha, intercept=use_intercept,
+                standardize=standardize)"""
+  replace = """            beta, intercept, cf, support = fit_lasso(
+                y, X, T0, intercept=use_intercept, standardize=standardize)"""
+  models = "the criterion computed and then dropped on the floor: the penalty is selected, recorded in the metadata the caller reads, and the fit cross-validates its own anyway. Everything the estimator reports about which rule it used stays true and the number it reports is from the other rule"
+
+  [[target.mutant]]
+  id = "mbic-fitted-under-mlsynths-conventions"
+  find = """    if lasso_criterion == "mbic":
+        return False, True
+    return True, False"""
+  replace = "    return True, False"
+  models = "the modified BIC paired with an intercept and unscaled donors. The penalty was chosen by scoring a glmnet fit, so it is being applied to a different model -- the same mismatch that made the criterion and the estimate disagree the first time this landed, moved from the criterion to the estimator"
+
+  [[target.mutant]]
+  id = "bootstrap-refits-under-the-other-conventions"
+  find = """            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha,
+                                             intercept=intercept,
+                                             standardize=standardize)"""
+  replace = "            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha)"
+  models = "the prediction-interval bootstrap refitting under the cross-validated conventions while the point estimate it is meant to be the sampling distribution of was fitted under glmnet's. The intervals still come back the right shape and still cover something; what they cover is not the estimator that produced the point"
