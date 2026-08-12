@@ -202,3 +202,49 @@ Durable case
 
 Thirteen pinned quantities, seeded and reproducing bit-identically. Runtime is
 about 280 seconds, almost all of it the mixed-integer solves.
+
+Cross-validation against SCDesign on the simulation panels
+------------------------------------------------------------
+
+Table 2 above is a comparison of averages. This is a comparison of designs: the
+authors' own R routine and MAREX solve the same program on the same panel, and
+the answers are checked unit by unit and weight by weight.
+
+The reference is a live run captured in
+``benchmarks/reference/marex_scdesign_sim/``, reproducing two pieces of
+``SCDesign`` verbatim -- the Section 5 generation block, and
+``Synthetic_Control`` with ``Synthetic_Experiment_Cardinality_Constraint``. The
+captured output carries the panels themselves, every :math:`Y^N_{jt}` and every
+covariate :math:`Z_{kj}` R drew, so both sides score the identical draw. Nothing
+depends on reproducing R's random stream in numpy, which cannot be done: the
+draws are read, not regenerated.
+
+That also settles what Table 2 alone cannot. ``SCdesign_LazyRun.R`` is a
+single-simulation script, while Table 2 averages 1000 simulations from a driver
+that is not in the file, so running the authors' code under their own seed
+reproduces their DGP but not their printed averages. Their design routine on a
+named panel, by contrast, is exact.
+
+The routine enumerates every partition of size :math:`1 \le p \le K`, solves the
+treated and control weights for each by ``quadprog::solve.QP``, and keeps the
+minimum -- so its answer is the optimum by construction, and no commercial
+solver is involved. It is the design MAREX solves with ``m_min = 1``,
+``m_max = K``. Matching is on the 20 fitting periods and the 7 observed
+covariates with per-predictor standardisation, which is the routine's row
+rescaling.
+
+Across six panels at :math:`K = 2`, the two select the same treated units every
+time and agree on the treated weights to 5.7e-05. On the first panel both choose
+units 8 and 14, with weights 0.5796 and 0.4204 against SCDesign's 0.5797 and
+0.4203; the residual is the two solvers' numerical tolerance, R working on a
+``nearPD``-repaired Hessian and rounding to six decimals.
+
+`benchmarks/cases/marex_scdesign_sim.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_scdesign_sim.py>`_
+
+.. code-block:: bash
+
+   # refresh the captured SCDesign run (needs R + quadprog + Matrix)
+   python benchmarks/reference/generate.py marex_scdesign_sim
+   # run the cross-validation (no R needed; reads the committed bundle)
+   python benchmarks/run_benchmarks.py --case marex_scdesign_sim

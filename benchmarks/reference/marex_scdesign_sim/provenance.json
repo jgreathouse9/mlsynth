@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-08-12T02:18:18Z",
+  "git_sha": "8c6b1bca3b7f0f347303b0ec72f1342d04690ea5",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/marex_scdesign_sim/reference.R",
+  "data": [],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "Matrix": "1.6-5",
+    "compiler": "4.3.3",
+    "grid": "4.3.3",
+    "lattice": "0.22-5"
+  }
+}

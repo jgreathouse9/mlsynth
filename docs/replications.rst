@@ -778,7 +778,11 @@ Experimental design
   3.02 / 1.33 / 0.75 at :math:`m = 1 / 3 /` unconstrained
   against the paper's 2.93 / 1.26 / 0.83, with the
   unconstrained design selecting 6.80 units against 6.76
-  (durable: ``marex_section5_mc``).
+  (durable: ``marex_section5_mc``). Cross-validation: on six of
+  those simulation panels the authors' own cardinality-constrained
+  R routine and MAREX select the same treated units every time and
+  agree on the weights to 5.7e-05 (durable:
+  ``marex_scdesign_sim``).
 * :doc:`pangeo` -- Parallel-Trends Supergeo Design. Path B:
   seasonal-sales panel with up-trend, down-trend, and cyclical
   trajectories; PANGEO RMSE :math:`\approx 0.2` against scalar-
