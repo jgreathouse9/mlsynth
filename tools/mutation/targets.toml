@@ -340,3 +340,27 @@ timeout = 600.0
                                              standardize=standardize)"""
   replace = "            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha)"
   models = "the prediction-interval bootstrap refitting under the cross-validated conventions while the point estimate it is meant to be the sampling distribution of was fitted under glmnet's. The intervals still come back the right shape and still cover something; what they cover is not the estimator that produced the point"
+
+[[target]]
+name = "pda-lrvar"
+module-path = "mlsynth/utils/pda_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lrvar_normalisation.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "lagged-autocovariance-divides-by-its-own-count"
+  find = "        gl = float(np.sum(zc[l:] * zc[:-l]) / n)"
+  replace = "        gl = float(np.mean(zc[l:] * zc[:-l]))"
+  models = "the defect this module was fixed for: the lag-l autocovariance averaged over its n-l products instead of divided by n. It inflates each lagged term by n/(n-l), which is under 3% at one lag on fifty periods and grows with the truncation -- small enough to survive every sign, positivity and ordering check, and large enough to move a t-statistic in its third decimal and break the claim that the fixed-lag branch reproduces fsPDA"
+
+  [[target.mutant]]
+  id = "bartlett-weight-uses-the-lag-count-as-its-denominator"
+  find = "        w = (1.0 - l / (L + 1.0)) if kernel == \"bartlett\" else 1.0"
+  replace = "        w = (1.0 - l / L) if kernel == \"bartlett\" else 1.0"
+  models = "the Bartlett weight without the +1, so the outermost lag is weighted zero and the kernel effectively truncates one lag early. At L = 1 it discards the only lag there is, leaving gamma_0 -- the estimator silently stops correcting for serial correlation at exactly the setting the fsPDA package uses on short post-periods"
+
+  [[target.mutant]]
+  id = "series-not-demeaned-before-the-autocovariances"
+  find = "    zc = z - z.mean()"
+  replace = "    zc = z"
+  models = "autocovariances taken about zero instead of the sample mean. The post-period effect series is centred by the caller in most paths, so this is invisible wherever the mean is already near zero and wrong wherever a real effect shifts it -- the case the estimator exists to test"
