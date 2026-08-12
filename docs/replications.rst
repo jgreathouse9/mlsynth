@@ -763,13 +763,13 @@ Identification under endogeneity
 Experimental design
 -------------------
 
-* :doc:`syndes` -- Abadie & Zhao (2025) synthetic design.
+* :doc:`syndes` -- Doudchenko et al. (2021) synthetic design.
   Path B: Section 5 ablation across the three design types
   (``per_unit`` / ``two_way_global`` / ``one_way_global``) at 40
   reps under AR(1) factors; ``per_unit`` design RMSE = 0.098
   against a random-DiM baseline of 0.982, power = 0.50 at
   MDE = 0.157.
-* :doc:`marex` -- Abadie & Zhao (2025) market-exclusion design.
+* :doc:`marex` -- Abadie & Zhao (2024) market-exclusion design.
   Path A: Walmart 45-store weekly-sales placebo design --
   pre-fit RMSE 2.2%, placebo ATT :math:`-1.0%`, p-value 0.937
   against the paper's 0.933. Path B: Lin-factor DGP recovers
