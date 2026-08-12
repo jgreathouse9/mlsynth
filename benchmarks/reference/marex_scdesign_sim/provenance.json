@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-12T02:18:18Z",
-  "git_sha": "8c6b1bca3b7f0f347303b0ec72f1342d04690ea5",
+  "generated_at": "2026-08-12T02:26:50Z",
+  "git_sha": "a3a0eae0892d02636ddaac581fa6a7779150e5a2",
   "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
   "command": "Rscript benchmarks/reference/marex_scdesign_sim/reference.R",
   "data": [],

@@ -6,8 +6,9 @@ The reference is a live run of the authors' R code, captured in
 ``python benchmarks/reference/generate.py marex_scdesign_sim``). Two pieces of
 ``github.com/jinglongzhao2/SCDesign`` are reproduced verbatim there:
 
-* the Section 5 generation block (``SCdesign_LazyRun.R`` lines 19-176), which
-  draws the panels; and
+* the model variables and ``Generate_Model_Primitives`` from
+  "2. Many Simulations (...)/Main_LazyRun.R" lines 48-98 and 103-263, the
+  data-generating process behind Table 2; and
 * ``Synthetic_Control`` + ``Synthetic_Experiment_Cardinality_Constraint``
   ("3. Walmart Data Simulations/Walmart_LazyRun.R"), the constrained design.
 
@@ -29,13 +30,17 @@ every observed covariate :math:`Z_{kj}` R drew -- so both sides score the
 identical draw. Nothing here depends on reproducing R's random stream in numpy,
 which cannot be done: the draws are read, not regenerated.
 
-That also fixes what the paper's own Table 2 cannot settle.
-``SCdesign_LazyRun.R`` is a single-simulation script, while Table 2 averages
-1000 simulations from a driver that is not in the file, so even running the
-authors' code under their seed does not reproduce their printed averages. Their
-design routine on a named panel is exact, and that is what is compared here.
-:mod:`benchmarks.cases.marex_section5_mc` covers the Table 2 numbers separately,
-as Path B.
+Seeding follows the authors' driver. ``R_job.qsub`` submits an SGE array job
+(``#$ -t 1-1000``) and ``Main_LazyRun.R`` reads
+``repetition.RANDOM.SEED = Sys.getenv("SGE_TASK_ID")``, so simulation ``i`` is
+``set.seed(i)`` -- a thousand independent streams, not one advancing stream.
+Under that convention their DGP reproduces Table 2's effect path to the printed
+precision, which :mod:`benchmarks.cases.marex_section5_mc` pins as Path B on
+these same panels.
+
+The design routine is exact by construction: it enumerates every partition of
+size ``1..K`` and keeps the minimum, so its answer is the optimum and MAREX must
+reach it.
 
 The design matches on the 20 fitting periods and the 7 observed covariates, with
 per-predictor standardisation -- the routine's row rescaling, which is MAREX's
@@ -58,9 +63,9 @@ _COVS = [f"z{k}" for k in range(1, N_COVARIATES + 1)]
 
 def _panel(weights: dict, rep: int):
     """The outcome matrix ``(T, N)`` and covariates ``(R, N)`` R drew for ``rep``."""
-    Y = np.array([[weights[f"y_r{rep}_u{j}_t{t}"] for j in range(1, N_UNITS + 1)]
+    Y = np.array([[weights[f"yn_s{rep}_u{j}_t{t}"] for j in range(1, N_UNITS + 1)]
                   for t in range(1, T_TOTAL + 1)])
-    Z = np.array([[weights[f"z_r{rep}_k{k}_u{j}"] for j in range(1, N_UNITS + 1)]
+    Z = np.array([[weights[f"z_s{rep}_k{k}_u{j}"] for j in range(1, N_UNITS + 1)]
                   for k in range(1, N_COVARIATES + 1)])
     return Y, Z
 
@@ -95,7 +100,7 @@ def _fit(df: pd.DataFrame, k_cardinality: int):
 def run() -> dict:
     ref = load_reference(_CASE)
     values, weights = ref["values"], ref["weights"]
-    n_reps = int(values["m_reps"])
+    n_reps = int(values["n_panels"])
     k_card = int(values["k_cardinality"])
 
     same_set, weight_diffs, same_size = [], [], []
@@ -106,15 +111,15 @@ def run() -> dict:
             selected, w = _fit(_frame(Y, Z), k_card)
 
             ref_sel = sorted(int(k.rsplit("_u", 1)[1])
-                             for k in weights if k.startswith(f"sel_r{rep}_u"))
+                             for k in weights if k.startswith(f"sel_s{rep}_u"))
             same_set.append(float(selected == ref_sel))
-            same_size.append(float(len(selected) == int(values[f"n_treated_rep{rep}"])))
+            same_size.append(float(len(selected) == int(values[f"n_treated_s{rep}"])))
             if selected == ref_sel:
                 weight_diffs.append(max(
-                    abs(w[j - 1] - weights[f"sel_r{rep}_u{j}"]) for j in ref_sel))
+                    abs(w[j - 1] - weights[f"sel_s{rep}_u{j}"]) for j in ref_sel))
 
     return {
-        "n_reps": float(n_reps),
+        "n_panels": float(n_reps),
         "selected_set_agreement": float(np.mean(same_set)),
         "treated_count_agreement": float(np.mean(same_size)),
         "max_treated_weight_abs_diff": float(max(weight_diffs)) if weight_diffs else 1.0,
@@ -128,15 +133,15 @@ def comparison() -> dict:
     rows = {}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        for rep in range(1, int(values["m_reps"]) + 1):
+        for rep in range(1, int(values["n_panels"]) + 1):
             Y, Z = _panel(weights, rep)
             selected, w = _fit(_frame(Y, Z), int(values["k_cardinality"]))
             ref_sel = sorted(int(k.rsplit("_u", 1)[1])
-                             for k in weights if k.startswith(f"sel_r{rep}_u"))
+                             for k in weights if k.startswith(f"sel_s{rep}_u"))
             rows[f"rep{rep}"] = {
                 "mlsynth_selected": selected, "scdesign_selected": ref_sel,
                 "mlsynth_weights": [round(float(w[j - 1]), 4) for j in selected],
-                "scdesign_weights": [round(weights[f"sel_r{rep}_u{j}"], 4) for j in ref_sel],
+                "scdesign_weights": [round(weights[f"sel_s{rep}_u{j}"], 4) for j in ref_sel],
             }
     return rows
 
@@ -153,14 +158,14 @@ def comparison() -> dict:
 # The weight gap is bounded by the two solvers' numerical tolerances. R's
 # solve.QP works on a nearPD-repaired, mean-rescaled Hessian and rounds its
 # output to six decimals; MAREX reaches the same optimum through SCIP. Measured
-# 1.3e-04 on the first panel. 5e-03 covers that and a differently-built solver
+# 7.0e-05 as the worst gap across the 12 panels. 5e-03 covers that and a differently-built solver
 # while staying far below the spacing between distinct designs -- the weights
 # here are order 0.4 to 0.6, so a genuine disagreement is a swing of tenths.
 #
-# n_reps guards the loop: a case that silently stopped iterating panels would
+# n_panels guards the loop: a case that silently stopped iterating panels would
 # still report perfect agreement over whatever remained.
 EXPECTED = {
-    "n_reps": (6.0, 0.0),
+    "n_panels": (12.0, 0.0),
     "selected_set_agreement": (1.0, 0.0),
     "treated_count_agreement": (1.0, 0.0),
     "max_treated_weight_abs_diff": (0.0, 5e-3),

@@ -111,7 +111,7 @@ Path A — empirical replications
    * - ``marex_walmart``
      - MAREX Walmart placebo design vs live SCDesign (Abadie-Zhao, full 45-store panel + covariates, open quadprog, no Gurobi)
    * - ``marex_section5_mc``
-     - MAREX vs Abadie-Zhao Section 5 / Table 2: MAE, RMSE and treated count by cardinality, plus the weakly-targeted design family
+     - MAREX vs Abadie-Zhao Section 5 / Table 2 on panels captured from the authors' DGP: effect path, MAE, RMSE and treated count by cardinality, plus the weakly-targeted design family
    * - ``marex_scdesign_sim``
      - MAREX vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
    * - ``masc_basque``

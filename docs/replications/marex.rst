@@ -106,37 +106,47 @@ Section 5 simulation is a separate target, and it is the one that exercises the
 cardinality constraint across its range and the design family beyond
 ``standard``.
 
-The data-generating process is the linear factor model of Assumption 1:
-:math:`J = 15` units, :math:`R = 7` observed and :math:`F = 11` unobserved
-covariates, :math:`T = 30` periods with :math:`T_0 = 25`, weights estimated on
-the first :math:`T_E = 20` periods and 21-25 left blank. The intercept series
-:math:`\delta_t` and :math:`\upsilon_t` are small-to-large rearrangements of
-Uniform(0, 20) draws, :math:`Z_j` and :math:`\mu_j` are Uniform(0, 1), the
-coefficient vectors Uniform(0, 10), and the errors :math:`N(0, 1)`. The same
-process is the generation block of the authors' ``SCdesign_LazyRun.R``.
+Panels are read, not regenerated. ``benchmarks/reference/marex_scdesign_sim/``
+captures a live run of the authors' own ``Generate_Model_Primitives``
+("2. Many Simulations (...)/Main_LazyRun.R"), under the seeding their driver
+uses: ``R_job.qsub`` submits an SGE array job (``#$ -t 1-1000``) and the script
+reads ``repetition.RANDOM.SEED = Sys.getenv("SGE_TASK_ID")``, so simulation
+:math:`i` is ``set.seed(i)`` --- a thousand independent streams, not one
+advancing stream. Reproducing R's generator in numpy is neither possible nor
+needed once the draws are captured.
 
-R's Mersenne-Twister stream cannot be reproduced by numpy's PCG64, so these are
-not the authors' draws. The port is checked against the effect path instead,
-which has a closed form: both intercept series are order statistics of
-Uniform(0, 20) draws and the covariate terms share their distributions across
-the treated and control processes, so they cancel in expectation and
+Under that convention their DGP reproduces Table 2's effect path exactly:
 
-.. math::
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 15 15 15 15
 
-   \tau_{25+k} \;=\; \frac{20k}{6} \;-\; \frac{20(25+k)}{31},
-   \qquad k = 1, \ldots, 5,
+   * -
+     - :math:`t=26`
+     - :math:`t=27`
+     - :math:`t=28`
+     - :math:`t=29`
+     - :math:`t=30`
+   * - paper, Table 2
+     - -13.58
+     - -10.99
+     - -8.35
+     - -5.00
+     - -2.50
+   * - their code, their seeds
+     - -13.5763
+     - -10.9889
+     - -8.3521
+     - -4.9981
+     - -2.4999
 
-giving :math:`-13.44, -10.75, -8.06, -5.38, -2.69`. The paper's Table 2 reports
-:math:`-13.58, -10.99, -8.35, -5.00, -2.50`, within 1.3 standard errors of that
-closed form at its :math:`M = 1000` (the per-period spread across simulations is
-about 9.4, so their standard error is roughly 0.30). The port lands in the same
-place, which is what licenses using the closed form as the target instead of
-their printed values.
+The largest gap is 0.004, which is the table's own display rounding. No design is
+solved to produce this, so it isolates the data-generating process.
 
 Estimates use the paper's equation (8),
 :math:`\hat\tau_t = \mathbf{w}'\mathbf{Y}_{I,t} - \mathbf{v}'\mathbf{Y}_{N,t}`,
-scored against the realized :math:`\tau_t` under uniform population weights. At
-:math:`M = 20` simulations against the paper's 1000:
+scored against the realized :math:`\tau_t` under uniform population weights. On
+12 captured panels against the paper's 1000 simulations:
 
 .. list-table::
    :header-rows: 1
@@ -149,27 +159,29 @@ scored against the realized :math:`\tau_t` under uniform population weights. At
      - paper
      - :math:`\|w\|_0`
    * - Constrained :math:`m = 1`
-     - 3.02
+     - 3.03
      - 2.93
-     - 3.66
+     - 3.49
      - 3.45
      - 1.0
    * - Constrained :math:`m = 3`
-     - 1.33
+     - 1.23
      - 1.26
-     - 1.56
+     - 1.41
      - 1.49
      - 3.0
    * - Unconstrained
-     - 0.75
+     - 0.57
      - 0.83
-     - 0.90
+     - 0.69
      - 0.97
-     - 6.80 (paper 6.76)
+     - 6.83 (paper 6.76)
 
 The paper's headline for Table 2 reproduces: accuracy improves monotonically as
 the cardinality constraint relaxes, and the unconstrained design selects about
-seven of the fifteen units without being told to.
+seven of the fifteen units without being told to. The unconstrained cell runs
+better than the paper's at this panel count, which is the Monte-Carlo error of 12
+draws against 1000 and is what the tolerances absorb.
 
 The weakly targeted design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -180,15 +192,15 @@ trades between estimating :math:`\tau_t` and the effect on the treated,
 :math:`\tau^T_t`. The paper reports that a large :math:`\beta` gives high
 relative accuracy for the latter.
 
-Measured on the same panels at :math:`m = 3`, root mean square error against
-:math:`\tau^T_t` is 1.60 for ``design="standard"`` and 1.56 for
-``design="weakly_targeted"`` with :math:`\beta = 20`. The direction agrees with
-the paper, and at :math:`M = 25` the gap widens to 1.62 against 1.50. It is
-about 0.9 combined standard errors either way, so the case pins the two levels
-and does not assert the ordering: at any :math:`M` this benchmark can afford,
-an ordering indicator would be a coin flip. The levels still catch a regression
-in either design, and this is the only coverage ``weakly_targeted`` has outside
-unit tests.
+The measurement does not settle it. Root mean square error against
+:math:`\tau^T_t` at :math:`m = 3` is 1.46 for ``design="standard"`` against 1.66
+for ``design="weakly_targeted"`` with :math:`\beta = 20` on these 12 panels ---
+standard ahead. On 20 panels drawn from an independent stream the order was
+reversed, and at 25 the weakly targeted design led by about 0.9 combined standard
+errors. The ordering sits inside the noise at any panel count a benchmark can
+afford, so the case pins the two levels and does not assert it. The levels still
+catch a regression in either design, and this is the only coverage
+``weakly_targeted`` has outside unit tests.
 
 Durable case
 ~~~~~~~~~~~~
@@ -200,44 +212,32 @@ Durable case
 
    python benchmarks/run_benchmarks.py --case marex_section5_mc
 
-Thirteen pinned quantities, seeded and reproducing bit-identically. Runtime is
-about 280 seconds, almost all of it the mixed-integer solves.
+Fourteen pinned quantities. Runtime is about 180 seconds, almost all of it the
+mixed-integer solves.
 
-Cross-validation against SCDesign on the simulation panels
-------------------------------------------------------------
+Cross-validation against SCDesign on the same panels
+------------------------------------------------------
 
-Table 2 above is a comparison of averages. This is a comparison of designs: the
-authors' own R routine and MAREX solve the same program on the same panel, and
-the answers are checked unit by unit and weight by weight.
+Table 2 compares averages. This compares designs: the authors' own R routine and
+MAREX solve the same program on the same panel, checked unit by unit and weight
+by weight.
 
-The reference is a live run captured in
-``benchmarks/reference/marex_scdesign_sim/``, reproducing two pieces of
-``SCDesign`` verbatim -- the Section 5 generation block, and
-``Synthetic_Control`` with ``Synthetic_Experiment_Cardinality_Constraint``. The
-captured output carries the panels themselves, every :math:`Y^N_{jt}` and every
-covariate :math:`Z_{kj}` R drew, so both sides score the identical draw. Nothing
-depends on reproducing R's random stream in numpy, which cannot be done: the
-draws are read, not regenerated.
+The same captured bundle carries, for each panel, the design SCDesign's
+``Synthetic_Experiment_Cardinality_Constraint`` selected. That routine is exact by
+construction --- it enumerates every partition of size :math:`1 \le p \le K`,
+solves the treated and control weights for each by ``quadprog::solve.QP``, and
+keeps the minimum --- so its answer is the optimum, and MAREX's mixed-integer
+solve has to reach it. It needs no commercial solver; SCDesign's headline design
+is a Gurobi MIQP and is not used. It is the design MAREX solves with
+``m_min = 1``, ``m_max = K``.
 
-That also settles what Table 2 alone cannot. ``SCdesign_LazyRun.R`` is a
-single-simulation script, while Table 2 averages 1000 simulations from a driver
-that is not in the file, so running the authors' code under their own seed
-reproduces their DGP but not their printed averages. Their design routine on a
-named panel, by contrast, is exact.
+Matching is on the 20 fitting periods and the 7 observed covariates with
+per-predictor standardisation, which is the routine's row rescaling.
 
-The routine enumerates every partition of size :math:`1 \le p \le K`, solves the
-treated and control weights for each by ``quadprog::solve.QP``, and keeps the
-minimum -- so its answer is the optimum by construction, and no commercial
-solver is involved. It is the design MAREX solves with ``m_min = 1``,
-``m_max = K``. Matching is on the 20 fitting periods and the 7 observed
-covariates with per-predictor standardisation, which is the routine's row
-rescaling.
-
-Across six panels at :math:`K = 2`, the two select the same treated units every
-time and agree on the treated weights to 5.7e-05. On the first panel both choose
-units 8 and 14, with weights 0.5796 and 0.4204 against SCDesign's 0.5797 and
-0.4203; the residual is the two solvers' numerical tolerance, R working on a
-``nearPD``-repaired Hessian and rounding to six decimals.
+Across 12 panels at :math:`K = 2` the two select the same treated units every
+time and agree on the treated weights to 7.0e-05 --- the two solvers' numerical
+tolerance, R working on a ``nearPD``-repaired Hessian and rounding to six
+decimals.
 
 `benchmarks/cases/marex_scdesign_sim.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_scdesign_sim.py>`_
