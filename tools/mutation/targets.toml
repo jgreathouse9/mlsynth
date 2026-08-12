@@ -383,3 +383,21 @@ timeout = 300.0
                          expected_value=phi)"""
   replace = "    se = gmm_sandwich_se(theta, moments, 2 * nU + 3, T, hac_bandwidth)"
   models = "the pre-fix state exactly: the wrong index and no check tying it to the estimand. This is the mutant that matters, because it is what the code looked like while every test passed. Nothing about the returned value is malformed, so it survives every assertion of the form `isfinite(se) and se > 0`; what kills it is the invariant that DR and PIPW, being the same estimator in the just-identified design, must report the same standard error"
+
+[[target]]
+name = "proximal-bridge-convergence"
+module-path = "mlsynth/utils/proximal_helpers/bridges.py"
+test-command = "python -m pytest mlsynth/tests/test_proximal_bridge_convergence.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "non-converged-bridge-returned-as-a-solution"
+  find = "        if residual <= _BRIDGE_TOL:\n            return sol.x"
+  replace = "        return sol.x"
+  models = "the defect this module was fixed for: the root finder's own success flag discarded and the last iterate returned. The vector is finite and right-shaped, and the estimate built from it looks ordinary -- on the authors' short_post and small_T designs it landed within 1e-2 of theirs with standard errors of 8.5 to 12.4 -- so nothing downstream can tell a solution from a stalled search. Only checking the moment residual at the returned beta separates them"
+
+  [[target.mutant]]
+  id = "bridge-tolerance-loose-enough-to-admit-anything"
+  find = "_BRIDGE_TOL = 1e-6"
+  replace = "_BRIDGE_TOL = 1e6"
+  models = "the convergence check kept but its threshold widened past every attainable residual, which is the shape a tolerance takes when it is relaxed to make a red test green. The square system solves to machine precision when a root exists, so any tolerance loose enough to admit a stalled search is loose enough to admit all of them"
