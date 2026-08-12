@@ -43,6 +43,13 @@ def hac_lrv(z: np.ndarray, lag: int | None = None, kernel: str = "bartlett") -> 
     ``lrv = gamma_0 + sum_{l=1}^{L} k(l) * 2 * gamma_l`` with ``gamma_l`` the
     sample autocovariance and ``k`` the Bartlett (``1 - l/(L+1)``) or uniform
     kernel. The series is de-meaned first.
+
+    Every autocovariance divides by ``n``, including the lagged ones, which have
+    only ``n - l`` products to sum. This is R's ``acf(type = "covariance")`` and
+    the Newey-West convention, so the fixed-lag branch reproduces the released
+    ``fsPDA`` package; dividing the lag-``l`` term by ``n - l`` instead inflates
+    it by ``n / (n - l)`` and costs the sequence its positive semi-definiteness,
+    which is what makes the weighted sum a variance in the first place.
     """
     z = np.asarray(z, dtype=float)
     n = z.shape[0]
@@ -53,7 +60,7 @@ def hac_lrv(z: np.ndarray, lag: int | None = None, kernel: str = "bartlett") -> 
     gamma0 = float(np.mean(zc * zc))
     lrv = gamma0
     for l in range(1, min(L, n - 1) + 1):
-        gl = float(np.mean(zc[l:] * zc[:-l]))
+        gl = float(np.sum(zc[l:] * zc[:-l]) / n)
         w = (1.0 - l / (L + 1.0)) if kernel == "bartlett" else 1.0
         lrv += 2.0 * w * gl
     return max(lrv, 0.0)

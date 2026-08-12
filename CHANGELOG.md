@@ -117,6 +117,22 @@ now returns and the back-compat guarantee.
 
 
 ### Fixed
+- `pda_helpers/inference.hac_lrv` divided the lag-`l` autocovariance by its own
+  product count `n - l`; every standard HAC estimator, R's
+  `acf(type = "covariance")` among them, divides by `n`. The lagged terms were
+  inflated by `n / (n - l)`, which cost the autocovariance sequence its positive
+  semi-definiteness and broke the claim that `fs` and `hcw`'s `lrvar_lag` branch
+  reproduces Shi & Huang's released `fsPDA` package. On their dense simulation at
+  `T2 = 50, h = 1` the forward-selection t-statistic was wrong in its third
+  decimal; under the correct convention it agrees with their `FS()` to 2e-11.
+  The error grows with the truncation lag. Effects, weights and selected donor
+  sets are untouched -- only standard errors, t-statistics, p-values and
+  confidence intervals move, and only where a fixed lag is in play: `fs` and
+  `hcw` at their default `lrvar_lag=None` use the prewhitened Newey-West path and
+  are unaffected. The `l2` HAC t-statistic moves by about 1% (Hong Kong
+  7.799 -> 7.825, PPI 4.482 -> 4.547), inside the tolerances those benchmark
+  cases already carry.
+
 - `utils/miqp_accel.solve_warm_cut` wrote each warm-start bit to the wrong SCIP
   variable on problems above roughly eleven units. cvxpy returns the boolean
   columns as a `set`, and the accelerator iterated it directly, so `warm_bits[j]`

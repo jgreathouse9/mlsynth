@@ -272,9 +272,11 @@ def test_hac_lrv_iid_positive():
 
 def test_hac_lrv_explicit_lag_bartlett():
     z = np.array([1.0, -1.0, 1.0, -1.0, 1.0, -1.0])
-    # bartlett with L=1: w = 1 - 1/2 = 0.5 -> gamma0 + 2*0.5*gamma1 = 1 + (-1) = 0
+    # bartlett with L=1: w = 1 - 1/2 = 0.5. Autocovariances divide by n = 6, as
+    # R's acf(type = "covariance") does, so gamma0 = 1, gamma1 = -5/6 and the sum
+    # is 1 + 2*0.5*(-5/6) = 1/6. See test_pda_lrvar_normalisation.py.
     lrv_bart = hac_lrv(z, lag=1, kernel="bartlett")
-    assert lrv_bart == pytest.approx(0.0, abs=1e-9)
+    assert lrv_bart == pytest.approx(1.0 / 6.0, rel=1e-12)
 
 
 def test_hac_lrv_negative_is_clamped_to_zero():
