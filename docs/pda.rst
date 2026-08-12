@@ -437,6 +437,61 @@ tionally cheap selection is preferred. (For selection *consistency*, Li & Bell
 note the adaptive LASSO; for prediction, plain LASSO already beats AIC/BIC and
 leave-many-out CV in their simulations.)
 
+.. _pda-lasso-criterion:
+
+Choosing :math:`\lambda`: ``lasso_criterion``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Cross-validation is one rule for the penalty and it is the default here, but it
+is not the rule every paper in this literature uses. Shi & Huang's ``fsPDA``
+package selects the penalty by an information criterion instead -- the same
+modified BIC their forward selection uses, applied along the LASSO path:
+
+.. math::
+
+   \mathrm{IC}(\lambda) = \log\bigl(\widehat{\sigma}^2(\lambda)\bigr)
+     + H\,\log(\log N)\,\frac{\log T_0}{T_0}\,k(\lambda),
+
+where :math:`\widehat{\sigma}^2(\lambda)` is the pre-period mean squared
+residual, :math:`k(\lambda)` counts the selected donors, and :math:`H` is a
+constant the authors tune "to allow Lasso to take in more variables"
+(Remark 4 cont., p. 521). The minimiser over their grid
+:math:`\lambda \in \{0.01, 0.02, \dots, 1\}` is the penalty.
+
+Set ``lasso_criterion="mbic"`` to use it, and ``lasso_mbic_const`` to set
+:math:`H` (their default is 2; a smaller value selects more donors, a larger one
+fewer). Three things move together:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 39 39
+
+   * -
+     - ``lasso_criterion="cv"`` (default)
+     - ``lasso_criterion="mbic"``
+   * - penalty
+     - 5-fold cross-validation
+     - argmin of :math:`\mathrm{IC}(\lambda)` over their grid
+   * - intercept
+     - fitted
+     - none (``glmnet(..., intercept = FALSE)``)
+   * - donor scaling
+     - raw
+     - divided by each column's standard deviation, coefficients returned
+       on the original scale (``standardize = TRUE``)
+
+The intercept and the scaling are part of the rule. The criterion scores a
+particular fit, so the estimate it selects a penalty for has to be that fit;
+changing only the criterion gives a penalty chosen for a model the estimator
+never fits. The port agrees with ``glmnet`` 4.1.8 to 5e-09 on the scaled path.
+
+Which to use. Cross-validation targets prediction and is the safer default when
+the donor pool is a convenience sample and you have no reason to prefer one
+sparsity level. Use ``mbic`` when you are comparing against Shi & Huang or
+another ``fsPDA``-based result, or when you want the selection to be
+scale-explicit and deterministic -- it has no fold randomness, so the same panel
+always returns the same donors.
+
 Forward selection (``fs``, Shi & Huang)
 ---------------------------------------
 
@@ -1081,13 +1136,16 @@ paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
 
 .. note::
 
-   mlsynth's LASSO is cross-validated; the paper's is not. Shi & Huang
+   The LASSO cells above are cross-validated; the paper's are not. Shi & Huang
    select the Lasso penalty with a modified BIC (Remark 4 cont., p.521:
    "we tune the constants in the modified BIC to allow Lasso to take in more
-   variables"); ``mlsynth``'s L1-PDA selects it with ``LassoCV`` (5-fold
-   cross-validation). The two are different penalty rules, so the LASSO cells
-   above are ``mlsynth``'s CV variant, not a cell-by-cell match of the paper's
-   Lasso. What both share -- and what the benchmark pins -- is the geometry:
+   variables"); ``mlsynth``'s L1-PDA defaults to ``LassoCV`` (5-fold
+   cross-validation). Their rule is available as
+   ``lasso_criterion="mbic"`` (see
+   :ref:`Choosing lambda <pda-lasso-criterion>` above), but the benchmark that
+   produced this table runs the default, so these cells are ``mlsynth``'s CV
+   variant, not a cell-by-cell match of the paper's Lasso.
+   What both share -- and what the benchmark pins -- is the geometry:
    LASSO over-selects relative to fs and its size inflates under dynamic
    factors, while forward selection (the paper's *method*, validated cell-by-
    cell on Hong Kong in ``pda_hongkong``) stays parsimonious and correctly
