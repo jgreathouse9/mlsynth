@@ -229,7 +229,9 @@ Path B — Monte Carlo / simulation
    * - ``pangeo_supergeo_mc``
      - PANGEO trajectory match vs scalar (Chen et al.)
    * - ``fspda_dense_mc``
-     - fsPDA ``FS()`` / ``lasso.BIC()`` cell by cell on their own dense-MC panels
+     - fsPDA ``FS()`` / ``lasso.BIC()`` / ``scm.R`` cell by cell on their own dense-MC panels
+   * - ``fspda_sparse_mc``
+     - fsPDA ``fs()`` / ``lasso_ic()`` / ``oracle()`` on their three sparse DGPs
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``

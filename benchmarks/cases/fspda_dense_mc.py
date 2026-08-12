@@ -48,9 +48,17 @@ Both runs are in the reference bundle so the two claims stay separable: a future
 change that breaks the port would move the converged cells, while the published
 cells stay where they are because they measure something about glmnet.
 
-Scope: forward selection and LASSO. Their third column is a synthetic control
-solved with CVXR, which is a different mlsynth estimator (``vanillasc`` /
-``TSSC``) and not a PDA variant, so it is out of scope here.
+Their third column, the synthetic control, is covered too. ``scm.R`` solves
+``min ||y1 - Y1 b||^2`` over the simplex with CVXR's ``ECOS_BB``; CVXR does not
+install in this environment (it now needs ``scs``, ``osqp``, ``clarabel`` -- a
+Rust package -- and ``S7``, none in apt and none buildable from the CRAN mirror
+here), so the reference reproduces the program exactly and solves it with
+``quadprog``. mlsynth's counterpart is ``VanillaSC``, not a PDA variant, and it
+attains the same optimum: the objective agrees to ``1e-11`` and the two pick the
+same three donors with weights summing to one. The objective is what is
+compared, since it is the quantity the program determines; it is stable to
+``1e-9`` across ridges from ``1e-6`` to ``1e-10``, so the solver substitution
+does not decide the answer.
 
 The eight panels are enough to cross-validate the estimators cell by cell, which
 is what this case is for; the aggregate size and power geometry over hundreds of
@@ -100,6 +108,17 @@ def _long(y: np.ndarray, Y: np.ndarray, T1: int) -> pd.DataFrame:
     return pd.DataFrame(recs)
 
 
+def _fit_scm(df: pd.DataFrame):
+    """Their third column: the plain simplex-constrained synthetic control."""
+    from mlsynth import VanillaSC
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return VanillaSC({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "display_graphs": False,
+        }).fit()
+
+
 def _fit(df: pd.DataFrame, lrvar_lag: int):
     from mlsynth import PDA
     with warnings.catch_warnings():
@@ -142,11 +161,13 @@ def run() -> dict:
     fs_set_ok = fs_ate_err = fs_z_err = fs_coef_err = fs_r2_err = 0.0
     las_set_ok = las_lam_ok = las_coef_err = las_ate_err = 0.0
     las_cv_set_ok = las_cv_lam_ok = 0.0
+    scm_obj_rel = scm_set_ok = scm_wsum_err = 0.0
     n = len(CELLS)
 
     for cell in CELLS:
         y, Y = panels[cell]
-        r = _fit(_long(y, Y, T1), lag)
+        long_df = _long(y, Y, T1)
+        r = _fit(long_df, lag)
         fs, las = r.fits["fs"], r.fits["lasso"]
         labels = r.inputs.donor_labels
 
@@ -184,6 +205,19 @@ def run() -> dict:
                 abs(las_beta[j] - c) for j, c in zip(cv_sel, cv_coef)))
             las_ate_err = max(las_ate_err, abs(las.att - ref[f"lascv_ATE_{cell}"]))
 
+        # --- synthetic control: their scm.R program -------------------------
+        sc = _fit_scm(long_df)
+        w = np.zeros(Y.shape[1])
+        for lab, v in sc.weights.donor_weights.items():
+            w[int(str(lab)[1:]) - 1] = float(v)
+        obj = float(np.sum((y[:T1] - Y[:T1] @ w) ** 2))
+        scm_obj_rel = max(scm_obj_rel, abs(obj / ref[f"scm_obj_{cell}"] - 1.0))
+        scm_wsum_err = max(scm_wsum_err, abs(float(w.sum()) - 1.0))
+        their_sel = [int(v) for v in
+                     _ref_vec(ref, f"scm_sel_{cell}", int(ref[f"scm_R_{cell}"]))]
+        mine = sorted(int(j) + 1 for j in np.flatnonzero(w > 1e-6))
+        scm_set_ok += float(mine == their_sel)
+
     return {
         "n_cells": float(n),
         "fs_selection_match_rate": fs_set_ok / n,
@@ -197,6 +231,9 @@ def run() -> dict:
         "lasso_lambda_match_rate_vs_converged": las_cv_lam_ok / n,
         "lasso_max_abs_coef_err_vs_converged": las_coef_err,
         "lasso_max_abs_ate_err_vs_converged": las_ate_err,
+        "scm_max_rel_objective_err": scm_obj_rel,
+        "scm_selection_match_rate": scm_set_ok / n,
+        "scm_max_abs_weight_sum_err": scm_wsum_err,
     }
 
 
@@ -238,4 +275,11 @@ EXPECTED = {
     "lasso_lambda_match_rate_vs_converged": (1.0, 0.125),        # 8/8
     "lasso_max_abs_coef_err_vs_converged": (0.0, 1e-3),
     "lasso_max_abs_ate_err_vs_converged": (0.0, 1e-4),
+    # The SCM objective is the quantity their program determines, and two
+    # different convex solvers agree on it to 1e-11 here; 1e-6 covers the ridge
+    # quadprog needs plus OSQP-vs-quadprog slack. The weights sum to one by
+    # constraint, so 1e-8 there is a feasibility check, not a fit check.
+    "scm_max_rel_objective_err": (0.0, 1e-6),
+    "scm_selection_match_rate": (1.0, 0.125),
+    "scm_max_abs_weight_sum_err": (0.0, 1e-8),
 }

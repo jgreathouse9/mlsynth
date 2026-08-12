@@ -19,7 +19,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] MASS_7.3-60.0.1 glmnet_4.1-8    Matrix_1.6-5   
+[1] quadprog_1.5-8  MASS_7.3-60.0.1 glmnet_4.1-8    Matrix_1.6-5   
 
 loaded via a namespace (and not attached):
  [1] compiler_4.3.3   survival_3.5-8   Rcpp_1.0.12      splines_4.3.3   
@@ -94,6 +94,14 @@ lascv_coef_iid_s1_k4	-0.068930901443582979
 lascv_coef_iid_s1_k5	-0.45132304497347153
 lascv_coef_iid_s1_k6	-0.36945100794821922
 lascv_coef_iid_s1_k7	0.23345371874683674
+scm_obj_iid_s1	218.76601187883369
+scm_ATE_iid_s1	-0.18797166117439598
+scm_rmse_iid_s1	1.8781208231058941
+scm_R_iid_s1	2
+scm_sel_iid_s1_k1	3
+scm_sel_iid_s1_k2	4
+scm_coef_iid_s1_k1	0.66246683433008702
+scm_coef_iid_s1_k2	0.33753316559362756
 fs_R_iid_s2	8
 fs_ATE_iid_s2	-0.11451621219466099
 fs_Z_iid_s2	-1.2316775108833391
@@ -173,6 +181,16 @@ lascv_coef_iid_s2_k9	0.12374577128558899
 lascv_coef_iid_s2_k10	-0.18725113738193502
 lascv_coef_iid_s2_k11	-0.1653457294054958
 lascv_coef_iid_s2_k12	0.47756644257587955
+scm_obj_iid_s2	189.46845957057397
+scm_ATE_iid_s2	-0.41586125506556898
+scm_rmse_iid_s2	2.3305796805268222
+scm_R_iid_s2	3
+scm_sel_iid_s2_k1	3
+scm_sel_iid_s2_k2	4
+scm_sel_iid_s2_k3	54
+scm_coef_iid_s2_k1	0.51106674171977384
+scm_coef_iid_s2_k2	0.41980715336940677
+scm_coef_iid_s2_k3	0.069126104631620514
 fs_R_iid_s3	8
 fs_ATE_iid_s3	0.1029629792192573
 fs_Z_iid_s3	1.144034976655034
@@ -242,6 +260,14 @@ lascv_coef_iid_s3_k5	-0.41642659361335849
 lascv_coef_iid_s3_k6	-0.17593925217606474
 lascv_coef_iid_s3_k7	-0.4658520629345495
 lascv_coef_iid_s3_k8	0.53452069283562709
+scm_obj_iid_s3	210.86192575871337
+scm_ATE_iid_s3	0.094986411564462345
+scm_rmse_iid_s3	1.7252748961577817
+scm_R_iid_s3	2
+scm_sel_iid_s3_k1	4
+scm_sel_iid_s3_k2	54
+scm_coef_iid_s3_k1	0.83713373270335789
+scm_coef_iid_s3_k2	0.16286626748470534
 fs_R_iid_s4	9
 fs_ATE_iid_s4	0.043776677607546187
 fs_Z_iid_s4	0.50019986392794435
@@ -309,6 +335,16 @@ lascv_coef_iid_s4_k7	-0.29585052666484202
 lascv_coef_iid_s4_k8	-0.35727549607094722
 lascv_coef_iid_s4_k9	-0.50381242096574363
 lascv_coef_iid_s4_k10	0.24535688536961098
+scm_obj_iid_s4	234.68293909665891
+scm_ATE_iid_s4	-0.093974221112730766
+scm_rmse_iid_s4	2.0632348869625203
+scm_R_iid_s4	3
+scm_sel_iid_s4_k1	1
+scm_sel_iid_s4_k2	3
+scm_sel_iid_s4_k3	4
+scm_coef_iid_s4_k1	0.25223101801999903
+scm_coef_iid_s4_k2	0.58509623482096929
+scm_coef_iid_s4_k3	0.16267274677131349
 fs_R_nnd_s1	10
 fs_ATE_nnd_s1	0.085341840118500281
 fs_Z_nnd_s1	0.79732408775605357
@@ -380,6 +416,16 @@ lascv_coef_nnd_s1_k6	-0.2346980683758228
 lascv_coef_nnd_s1_k7	-0.23558917883304939
 lascv_coef_nnd_s1_k8	0.092102705288530873
 lascv_coef_nnd_s1_k9	-0.052281502118518994
+scm_obj_nnd_s1	42.189577583983294
+scm_ATE_nnd_s1	0.075253064203957873
+scm_rmse_nnd_s1	0.89273327023064963
+scm_R_nnd_s1	3
+scm_sel_nnd_s1_k1	1
+scm_sel_nnd_s1_k2	3
+scm_sel_nnd_s1_k3	4
+scm_coef_nnd_s1_k1	0.23236911769830931
+scm_coef_nnd_s1_k2	0.4507833166141646
+scm_coef_nnd_s1_k3	0.31684756563047872
 fs_R_nnd_s2	10
 fs_ATE_nnd_s2	0.23619033195755698
 fs_Z_nnd_s2	2.2130424572590988
@@ -439,6 +485,18 @@ lascv_coef_nnd_s2_k3	-0.14222340556213386
 lascv_coef_nnd_s2_k4	0.12884261281503853
 lascv_coef_nnd_s2_k5	0.055720142095901329
 lascv_coef_nnd_s2_k6	0.35366486625798038
+scm_obj_nnd_s2	32.972226948343881
+scm_ATE_nnd_s2	0.026692239033936863
+scm_rmse_nnd_s2	1.2756577755192062
+scm_R_nnd_s2	4
+scm_sel_nnd_s2_k1	1
+scm_sel_nnd_s2_k2	4
+scm_sel_nnd_s2_k3	63
+scm_sel_nnd_s2_k4	99
+scm_coef_nnd_s2_k1	0.4272357656385895
+scm_coef_nnd_s2_k2	0.4926386359938007
+scm_coef_nnd_s2_k3	0.048768910171672356
+scm_coef_nnd_s2_k4	0.031356688018798484
 fs_R_nnd_s3	4
 fs_ATE_nnd_s3	-0.002060634440999702
 fs_Z_nnd_s3	-0.024464186958793054
@@ -478,6 +536,16 @@ lascv_sel_nnd_s3_k3	8
 lascv_coef_nnd_s3_k1	0.23287025496861893
 lascv_coef_nnd_s3_k2	0.57421327087268226
 lascv_coef_nnd_s3_k3	-0.38562114296163719
+scm_obj_nnd_s3	30.835053424641369
+scm_ATE_nnd_s3	-0.092707178937751406
+scm_rmse_nnd_s3	0.84874314584060417
+scm_R_nnd_s3	3
+scm_sel_nnd_s3_k1	3
+scm_sel_nnd_s3_k2	4
+scm_sel_nnd_s3_k3	76
+scm_coef_nnd_s3_k1	0.27230752452418638
+scm_coef_nnd_s3_k2	0.69076217159396713
+scm_coef_nnd_s3_k3	0.036930304023189892
 fs_R_nnd_s4	8
 fs_ATE_nnd_s4	0.0078204522824141063
 fs_Z_nnd_s4	0.10324654165385463
@@ -533,3 +601,15 @@ lascv_coef_nnd_s4_k3	0.20056857388726282
 lascv_coef_nnd_s4_k4	0.17100949717548125
 lascv_coef_nnd_s4_k5	-0.38811997743031224
 lascv_coef_nnd_s4_k6	0.30769313537362197
+scm_obj_nnd_s4	35.008846092970842
+scm_ATE_nnd_s4	0.12689855279016354
+scm_rmse_nnd_s4	0.98382755894349594
+scm_R_nnd_s4	4
+scm_sel_nnd_s4_k1	2
+scm_sel_nnd_s4_k2	3
+scm_sel_nnd_s4_k3	4
+scm_sel_nnd_s4_k4	80
+scm_coef_nnd_s4_k1	0.093509692676571651
+scm_coef_nnd_s4_k2	0.46229437177886901
+scm_coef_nnd_s4_k3	0.37303129237261146
+scm_coef_nnd_s4_k4	0.071164642967928515

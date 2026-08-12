@@ -1163,6 +1163,20 @@ paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
    picks the same donors on every one, with coefficients, ATE, pre-period
    R-squared and t-statistic agreeing to about :math:`10^{-13}`.
 
+   Their third column, the simplex-constrained synthetic control, is covered by
+   the same case through ``VanillaSC``: the two attain the same optimum of
+   ``scm.R``'s program, agreeing on the objective to :math:`10^{-11}` and on the
+   selected donors on every panel.
+
+   The sparse half of their ``simulation/`` directory is ``fspda_sparse_mc``,
+   which runs their ``fs()``, ``lasso_ic()`` and ``oracle()`` on the three sparse
+   DGPs. Those are deliberately different rules from the ones mlsynth
+   implements -- their sparse forward selection searches all donors at each step
+   and scores ``var(e)``, and their LASSO criterion uses a different residual
+   variance and a different penalty grid -- so that case pins agreement rates and
+   error ratios instead of digits. Forward selection lands on the identical donor
+   set on 28 of 30 panels regardless, within 5.4 percent on out-of-sample RMSE.
+
    The LASSO under ``lasso_criterion="mbic"`` agrees on the selected donors and
    the selected penalty on all eight panels when their ``lasso.BIC`` is run with
    ``glmnet`` converged, with coefficients to :math:`2\times10^{-5}`. Against

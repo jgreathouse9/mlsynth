@@ -1,0 +1,9 @@
+{
+  "case": "fspda_sparse_mc",
+  "title": "PDA against fsPDA's sparse simulation: their fs, lasso_ic and oracle on their three sparse DGPs",
+  "paper": "Shi & Huang (2023), the sparse simulation behind appendix Tables B1-B3",
+  "reference_impl": "zhentaoshi/fsPDA @ 5f4542c (live run: simulation/sparse/{fs.R, lasso_ic.R, oracle.R, prd.R} verbatim on the three DGPs of main_function.R)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/fspda_sparse_mc/reference.R",
+  "data": []
+}
