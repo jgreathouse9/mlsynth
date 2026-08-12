@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-08-12T12:49:05Z",
+  "git_sha": "a445137339ca8371a9e3e348a7e3fc6a945fc636",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/fspda_dense_mc/reference.R",
+  "data": [],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "MASS": "7.3-60.0.1",
+    "glmnet": "4.1-8",
+    "Matrix": "1.6-5",
+    "compiler": "4.3.3",
+    "survival": "3.5-8",
+    "Rcpp": "1.0.12",
+    "splines": "4.3.3",
+    "codetools": "0.2-19",
+    "grid": "4.3.3",
+    "iterators": "1.0.14",
+    "foreach": "1.5.2",
+    "shape": "1.4.6",
+    "lattice": "0.22-5"
+  }
+}
