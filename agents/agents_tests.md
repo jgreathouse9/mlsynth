@@ -699,6 +699,154 @@ with no setter, so assigning to them raises `AttributeError`, *not*
 
 ---
 
+# Root-Cause Analysis: the five whys as a test ladder
+
+Every failure in this library gets diagnosed the same way, and the diagnosis is
+written down as tests. This section is the procedure.
+
+The vocabulary is already in place. An *incident* is the symptom that alerts
+someone; a *failure* is the execution that produced it; a *fault* is the thing in
+the artifact; an *error* is the mistake a person made. Root-cause analysis is the
+walk from incident back to error, and the rule here is that each step of that
+walk leaves a test behind. A fix with no ladder under it is a fix to a symptom.
+
+## Why a ladder and not a fix
+
+The reason to formalise this is that the top of the ladder lies. The quantity a
+reader checks first -- the headline estimate -- is usually the quantity least
+sensitive to the defect, because estimators are built to be stable in exactly
+that number. A fault can move every donor weight and leave the ATT alone. So
+"the number looks right" is not evidence, and a suite that asserts only the
+number is not a suite. The worked example below is that situation exactly.
+
+## The ladder
+
+Each rung is a question, and each question has an instrument that answers it.
+The rungs are ordered from symptom to cause, so a failure at rung *k* means rungs
+below *k* have not been ruled out yet.
+
+| Rung | The why | What it asks | Instrument |
+| --- | --- | --- | --- |
+| 0 | Why did the analyst notice? | Which reported quantity looks wrong? | smoke / Layer 4 contract |
+| 1 | Why is that quantity wrong? | Which *other* outputs moved with it? | example tests on the result object |
+| 2 | Why did those outputs move? | Which term, step or branch produced them? | Layer 1 unit tests on the component |
+| 3 | Why was that step allowed to do it? | Which invariant does the behaviour violate? | `hypothesis` property tests |
+| 4 | Why did the input reach it? | Which contract was never enforced? | edge and failure tests, config validators |
+| 5 | Why did nobody notice? | Would the suite have caught this? | mutation, semantic or `cosmic-ray` |
+
+Rung 5 is not decoration. It is the RCA step that asks whether the corrective
+action worked, and it is the one people skip. A fix whose mutant survives has not
+been verified; it has been asserted. Add the mutant to
+`tools/mutation/targets.toml` with a `models` line naming the defect it stands
+for, and confirm it is killed.
+
+Rungs branch. One why can have several answers, and each answer is its own
+descent -- the malformed objective below has two independent faults that both
+reach rung 3. Follow every branch; a ladder with one rung per level is usually a
+ladder that stopped at the first plausible story.
+
+## Confirming you have reached the bottom
+
+Two questions, both of which must answer *no*:
+
+* Would the failure still have occurred if this cause were absent?
+* Will the failure recur if this cause is corrected and nothing else changes?
+
+If either answers *yes*, the cause is a contributing factor and the ladder
+continues. In practice the bottom rung is almost always a fault of omission --
+an invariant nobody wrote down -- which is why rung 3 and rung 5 are where the
+real causes live. Faults of commission are found by running the code; absent
+assertions are not, and no amount of running finds them.
+
+## The four ways this goes wrong
+
+The failure modes of the procedure itself, in the order they are usually hit:
+
+* **Stopping at the incident.** Writing the fix from the reported number alone.
+  The number is the thing least likely to move.
+* **Taking the docstring's word for it.** A comment saying what the code does is
+  hearsay from someone who was not present at the failure. Read the executed
+  path -- the objective actually built, the solver actually called.
+* **Diagnosing only what surfaced.** A defect found on one estimator usually
+  lives in a shared helper; check who else calls it before scoping the fix.
+* **Declaring victory without data.** The corrective action needs evidence, and
+  for a test suite the evidence is a killed mutant, not a passing run.
+
+## Worked example: a malformed synthetic control on Basque
+
+The subject is an SCM variant that minimises `||X_t - X_d w||_1 + lam ||w||_2^3`
+over the simplex, run outcome-only on Abadie & Gardeazabal's Basque panel
+(treated Basque Country, 16 donors, pre-period 1955-1969).
+
+Rung 0 passes. The correct outcome-only SCM gives an ATT of -0.8946 over 1970
+onward; the malformed one gives -0.8915, a difference of 0.3 percent. Every
+headline claim in the paper survives. On this evidence the estimator ships.
+
+Rung 1 fails. The correct fit puts weight on three donors -- Madrid 0.483,
+Baleares 0.311, Rioja 0.206 -- and the malformed one on five, moving 0.18 onto
+Cataluna and 0.07 onto Navarra while cutting Rioja to 0.081. For a method whose
+output *is* the weights, that is the entire result.
+
+Rung 2 finds two faults, not one:
+
+* The penalty `||w||_2^3` is minimised on the simplex at the uniform vector, so
+  it rewards spreading weight out. Sweeping `lam` confirms the direction: the
+  effective support `1 / sum(w^2)` runs 3.29, 3.65, 5.47, 15.98, 16.00 as `lam`
+  goes 1e-2, 1, 1e2, 1e4, 1e6. At the top the synthetic control is the simple
+  average of all 16 donors. It is an anti-sparsity term wearing a regulariser's
+  name.
+* The fit loss is `norm1`, not `sum_squares`. That is a different estimand, and
+  it separates from the correct one on a pre-period carrying a single outlier.
+
+Rung 3 is where the ladder pays. Both faults violate an invariant nobody wrote
+down: the fit loss is homogeneous of degree one in the outcome while the penalty
+is homogeneous of degree zero, since `w` lies on the simplex whatever the units.
+Their ratio therefore scales as `1/c` when the outcome is multiplied by `c`, and
+the estimator is not equivariant to a change of units. Measured on the same
+panel, the number of selected donors goes 16, 9, 8, 5, 5, 4, 4 as the outcome is
+scaled by 1e-3, 1e-2, 0.1, 1, 10, 1e3, 1e5. GDP in millions and GDP in thousands
+give different synthetic controls. The same asymmetry makes the answer depend on
+the length of the pre-period, because the `norm1` sum grows with `T_pre` and the
+penalty does not: effective support runs 3.15, 3.43, 3.65 at `T_pre` of 5, 10,
+15.
+
+Rung 4: `lam` is an absolute constant with nothing normalising it against the
+scale of the fit loss, and the docstring's instruction to "use a conic-capable
+solver" is a comment, not an argument -- `problem.solve()` takes whatever the
+default is. Neither is checked anywhere.
+
+Rung 5, the root: the suite asserted the ATT, and the ATT is the one quantity
+this fault does not move. The invariant that separates the correct estimator from
+this one -- scale equivariance -- was never asserted, so no execution of the code
+could reveal it. Both confirmation questions answer *no*: with an equivariance
+property in place the fault fails at authoring time, and with equivariance
+asserted for every estimator whose output is interpreted, the class of fault
+stops recurring.
+
+The corrective action is therefore not "fix the penalty". It is: assert scale
+equivariance as a property test wherever weights are interpreted, and add a
+mutant that reintroduces a scale-dependent regulariser to confirm the assertion
+notices.
+
+Rung 5 repays the effort twice over, and the second time is the instructive one.
+A mutant that puts an unnormalised ridge on the simplex Gram dies to the
+equivariance property, which is the result the ladder predicts. A mutant that
+normalises the same ridge by the Gram trace survives it -- and has to, because
+both sides of a scale comparison carry the normalised term, so the comparison is
+satisfied while the fit is wrong. That is the argument in "Two of them are
+complements", arrived at from the other direction: a property test cannot reach a
+fault that respects the property. Only an absolute pin can, which on Basque means
+the replication cases that fix the weights themselves.
+
+Magnitude decides which rung sees a fault, so measure it instead of assuming.
+Sweeping the normalised ridge on that panel moves the effective support 2.68,
+2.68, 3.78, 5.20, 10.36, 15.74 at relative sizes of 0, `1e-6`, `1e-4`, `1e-2`,
+`1e-1`, `1`. At `1e-6` nothing observable changes and the mutant is equivalent --
+record it as such and retire it. A floor set at half the donor pool bites only on
+the last two. Everything between changes which units the fit rests on while
+clearing every property in the file. Knowing which rung a class of fault is
+visible from is the point of building the ladder instead of guessing at a fix.
+
 # Four Instruments, Four Questions
 
 Testing `mlsynth` uses four instruments, and they are not interchangeable. Each
