@@ -30,6 +30,11 @@ from scipy.optimize import root
 
 from ...exceptions import MlsynthEstimationError
 
+#: Largest absolute moment residual accepted as a solved treatment bridge. The
+#: system is square and solves to machine precision when a root exists, so this
+#: separates a root from a search that stalled, not a good fit from a poor one.
+_BRIDGE_TOL = 1e-6
+
 
 def augment(matrix: np.ndarray) -> np.ndarray:
     """Prepend an intercept column of ones."""
@@ -49,9 +54,20 @@ def fit_treatment_bridge(
 ) -> np.ndarray:
     """Solve ``E_pre[exp((1,Z) beta) (1,W)] = psi`` for ``beta``.
 
-    ``psi = E_post[(1, W)]`` is the post-period donor mean. The system is
-    square (``dim(beta) = dim(W)+1``); a Newton/hybr solve from ``beta=0``
-    (with a logistic-regression fallback init) recovers it.
+    ``psi = E_post[(1, W)]`` is the post-period donor mean. The system is square
+    (``dim(beta) = dim(W)+1``) and is solved by a Newton/hybr search from
+    ``beta = 0``, or from ``beta_init`` when the caller supplies one.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If no start reaches a root. The returned vector is otherwise
+        indistinguishable from a solution -- finite, right-shaped, and it yields
+        an ordinary-looking ATT -- so a failed search is reported instead of
+        returned. A short post-period is the usual reason: ``psi`` is a mean over
+        the post-treatment periods, and with a few dozen of them the exponential
+        tilt that reproduces it may sit far out in ``beta`` or not exist in
+        finite sample.
     """
     p = Zc_pre.shape[1]
 
@@ -60,13 +76,29 @@ def fit_treatment_bridge(
         return (q[:, None] * Wc_pre).mean(0) - psi
 
     inits = [np.zeros(p)] if beta_init is None else [beta_init, np.zeros(p)]
-    last = None
+    best, best_residual = None, np.inf
     for b0 in inits:
-        sol = root(moment, b0, method="hybr")
-        last = sol.x
-        if sol.success:
+        with np.errstate(over="ignore", invalid="ignore"):
+            sol = root(moment, b0, method="hybr")
+            residual = float(np.max(np.abs(moment(sol.x))))
+        if np.isfinite(residual) and residual < best_residual:
+            best, best_residual = sol.x, residual
+        # The residual decides, not the solver's own flag. hybr reports success
+        # from the size of its last step, which can be small at a point that
+        # does not solve the system; the moment being zero is the property that
+        # makes the vector an answer.
+        if residual <= _BRIDGE_TOL:
             return sol.x
-    return last  # best effort; downstream SE will reflect any residual error
+
+    raise MlsynthEstimationError(
+        f"the treatment bridge did not solve its moment condition: the largest "
+        f"absolute residual of E_pre[q (1,W)] - E_post[(1,W)] is "
+        f"{best_residual:.3g} against a tolerance of {_BRIDGE_TOL:g}. The "
+        f"weighting estimate built from this vector would look ordinary and mean "
+        f"nothing. With {Wc_pre.shape[1] - 1} proxies this usually means the "
+        f"post-period is too short for its mean to be reproducible by an "
+        f"exponential tilt of the pre-period."
+    )
 
 
 def _bartlett_hac(U: np.ndarray, bandwidth: int) -> np.ndarray:
