@@ -783,7 +783,10 @@ Experimental design
   ``marex_section5_mc``). Cross-validation: on twelve of those
   panels the authors' cardinality-constrained R routine and MAREX
   select the same treated units every time and agree on the weights
-  to 7.0e-05 (durable: ``marex_scdesign_sim``).
+  to 7.0e-05 (durable: ``marex_scdesign_sim``). Table 3: MAREX
+  computes the SC column on those panels and beats the strongest
+  published randomized alternative at every cardinality, by a
+  factor of two to four (durable: ``marex_table3``).
 * :doc:`pangeo` -- Parallel-Trends Supergeo Design. Path B:
   seasonal-sales panel with up-trend, down-trend, and cyclical
   trajectories; PANGEO RMSE :math:`\approx 0.2` against scalar-

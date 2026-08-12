@@ -114,6 +114,8 @@ Path A — empirical replications
      - MAREX vs Abadie-Zhao Section 5 / Table 2 on panels captured from the authors' DGP: effect path, MAE, RMSE and treated count by cardinality, plus the weakly-targeted design family
    * - ``marex_scdesign_sim``
      - MAREX vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
+   * - ``marex_table3``
+     - MAREX computes Abadie-Zhao Table 3's SC column on the authors' panels and beats every published randomized alternative at every cardinality
    * - ``masc_basque``
      - MASC Basque/ETA (KMPT Sec 5)
    * - ``pda_brexit``
