@@ -40,6 +40,19 @@ ARGS <- commandArgs(trailingOnly = TRUE)
 SRC <- if (length(ARGS) >= 1) ARGS[1] else Sys.getenv("FSPDA_SRC", "/workspace/zhentaoshi/fspda")
 OUT <- if (length(ARGS) >= 2) ARGS[2] else "benchmarks/reference/fspda_sparse_mc"
 
+# The nonsparse rules, sourced verbatim from the same repository. mlsynth
+# implements these, not the sparse variants below.
+source(file.path(SRC, "simulation", "nonsparse", "FS.R"))
+lasso.BIC.t <- function(y, Y, T1, thresh, H = 2, grid = seq(0.01, 1, by = 0.01)) {
+  N <- ncol(Y); B <- H * log(log(N)) * log(T1) / T1
+  y1 <- y[1:T1]; Y1 <- Y[1:T1, ]
+  f <- glmnet(x = Y1, y = y1, family = "gaussian", lambda = grid, intercept = FALSE,
+              thresh = thresh, maxit = 1e7)
+  IC <- log(colMeans((y1 - Y1 %*% f$beta)^2)) + B * f$df
+  i <- which.min(IC)
+  list(sel = which(f$beta[, i] != 0), lambda = f$lambda[i])
+}
+
 # ==================== VERBATIM: simulation/sparse/fs.R ====================
 fs = function(t, t1, y, Y){
 
@@ -279,6 +292,18 @@ for (dgp in c("iid", "inid", "nnd")) {
       panel.lines <- c(panel.lines, paste(tag, t, num(y[t]),
                                           paste(num(Y[t, ]), collapse = " "), sep = "\t"))
     }
+
+    # The rules mlsynth actually implements, run on the same panels. Comparing
+    # against these separates a port regression from the standing difference
+    # between the sparse and nonsparse rules; comparing only against the sparse
+    # ones confounds the two, since a drift in mlsynth and a rule difference
+    # both show up as the same lowered rate.
+    rfs_ns  <- FS(y = y, Y = Y, T1 = T1, H = 1, h = 0, alpha = 0.05)
+    rlas_ns <- lasso.BIC.t(y = y, Y = Y, T1 = T1, thresh = 1e-14)
+    emit(sprintf("fsns_R_%s", tag), length(which(rfs_ns$beta != 0)))
+    emit_vec(sprintf("fsns_sel_%s", tag), which(rfs_ns$beta != 0))
+    emit(sprintf("lasns_R_%s", tag), length(rlas_ns$sel))
+    emit_vec(sprintf("lasns_sel_%s", tag), rlas_ns$sel)
 
     rfs  <- fs(t = TT, t1 = T1, y = y, Y = Y)
     rlas <- lasso_ic(t = TT, t1 = T1, y = y, X = Y, ic = "WIC", cst = CST)
