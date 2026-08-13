@@ -10,7 +10,7 @@ enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
 Coverage: **77 cross-validation checks** against original
-implementations across **44 estimators** -- 29 reproduce the reference to display precision, 28 to
+implementations across **43 estimators** -- 29 reproduce the reference to display precision, 28 to
 within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -46,9 +46,9 @@ Summary
      - 1 tight
      - 0.00041
    * - :ref:`CLUSTERSC <val-clustersc>`
-     - 2
-     - 2 exact
-     - 0
+     - 4
+     - 3 exact · 1 tight
+     - 0.036
    * - :ref:`COMPSC <val-compsc>`
      - 1
      - 1 tight
@@ -57,10 +57,6 @@ Summary
      - 1
      - 1 tight
      - 0.014
-   * - :ref:`ClusterSC <val-clustersc>`
-     - 2
-     - 1 exact · 1 tight
-     - 0.036
    * - :ref:`DPSC <val-dpsc>`
      - 1
      - 1 exact
@@ -321,6 +317,18 @@ CLUSTERSC
      - 0
      - exact — matches to display precision
      - `clustersc_rpca_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/clustersc_rpca_germany.py>`__
+   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 8
+     - 0.036
+     - tight
+     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
+   * - deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
+     - —
+     - 6
+     - 0
+     - exact — matches to display precision
+     - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
    * - scpi_pkg scest(w_constr={'name':'ridge'}) + df_EST
      - ``scpi_germany.csv`` (10b150fbcc2c…)
      - 3
@@ -371,34 +379,6 @@ CSCM
      - 0.014
      - tight
      - `cscm_viszero <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cscm_viszero.py>`__
-
-.. _val-clustersc:
-
-ClusterSC
----------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
-     - ``smoking_data.csv`` (a13dd4d5d6e4…)
-     - 8
-     - 0.036
-     - tight
-     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
-   * - deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
-     - —
-     - 6
-     - 0
-     - exact — matches to display precision
-     - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
 
 .. _val-dpsc:
 
