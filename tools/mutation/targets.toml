@@ -401,3 +401,21 @@ timeout = 300.0
   find = "_BRIDGE_TOL = 1e-6"
   replace = "_BRIDGE_TOL = 1e6"
   models = "the convergence check kept but its threshold widened past every attainable residual, which is the shape a tolerance takes when it is relaxed to make a red test green. The square system solves to machine precision when a root exists, so any tolerance loose enough to admit a stalled search is loose enough to admit all of them"
+
+[[target]]
+name = "pda-forward-selection"
+module-path = "mlsynth/utils/pda_helpers/fs/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_fs_orthogonal_search.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "candidate-score-drops-the-orthogonal-norm"
+  find = "gain[usable] = proj[usable] ** 2 / norm[usable]"
+  replace = "gain[usable] = proj[usable] ** 2"
+  models = "the projection score written as a plain correlation, without dividing by the candidate's orthogonalised norm. It ranks donors by covariance with the residual instead of by the residual sum of squares they remove, so it prefers a large-variance donor over a better-aligned small one -- and on standardised donors, where the norms are near-equal, it agrees with the correct rule often enough to pass a smoke test"
+
+  [[target.mutant]]
+  id = "shortlist-keeps-only-the-argmax"
+  find = "    n_keep = max(1, min(n_tied, _SHORTLIST_MAX))"
+  replace = "    n_keep = 1"
+  models = "the tie band collapsed to the single highest-scoring candidate, which is what an argmax alone would select. Every step still returns a donor and the fit is still sensible, so nothing about the output looks wrong; what it loses is the exact comparison that settles duplicated or collinear donors the way the definitional scan settles them"

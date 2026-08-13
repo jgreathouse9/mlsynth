@@ -45,9 +45,12 @@ remaining donor in that position, since the residual has fallen to ~1e-16 and
 ``log(sigma^2)`` keeps the search going. Inside such a set the scan's winner is
 whichever candidate its least-squares solve rounded smallest, so reproducing it
 means running the scan. What holds is that the two agree on the donors that
-explain the outcome, on how many steps the IC allows, and on the counterfactual
-to machine precision: the members of an equivalent set are interchangeable, and
-the extras an interpolating fit collects carry coefficients at the 1e-16 level.
+explain the outcome and on the counterfactual to machine precision: the members
+of an equivalent set are interchangeable, and the extras an interpolating fit
+collects carry coefficients at the 1e-16 level. How many extras it collects is
+not a property of either rule -- once ``sigma^2`` is at 1e-31 the accept test
+compares a ratio of rounding artefacts against ``exp(-B)``, so the step count
+there follows the BLAS, for the scan as much as for this search.
 Below ``_SHORTLIST_MAX`` equivalent donors the exact comparison settles the tie
 the same way the scan settles it.
 """

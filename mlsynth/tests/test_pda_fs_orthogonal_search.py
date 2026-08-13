@@ -264,12 +264,17 @@ class TestDegenerateDonorPools:
 
         When ``y`` lies exactly in the donor span the residual collapses to
         ~1e-16 after the donors that explain it, and both rules keep going: the
-        IC carries ``log(sigma^2)``, which is still falling. From there the
-        comparison is between residual variances of order 1e-32 against an
-        outcome of order one, so which donor wins is decided by rounding, and
-        the projection score and the scan round differently. What survives is
-        the fit -- the counterfactual, and the fact that the extras carry no
-        weight.
+        IC carries ``log(sigma^2)``, which is still falling. On one such panel
+        the path runs ``sigma^2`` = 8.5, 3.1e-1, 6.4e-31, 4.4e-31 -- so from the
+        third step on, the accept test compares a ratio of two rounding
+        artefacts against ``exp(-B)``. Which side it lands on is set by the BLAS
+        that computed them, for the scan as much as for the projection score, so
+        neither the extras nor *how many* extras there are is a property of the
+        rule. Asserting the step count here is what made this test fail on CI's
+        numpy while passing locally.
+
+        What survives is the fit: the donors that explain the outcome, the
+        counterfactual, and the extras carrying no weight.
         """
         rng = np.random.default_rng(400 + seed)
         T, T0, N = 50, 30, 36
@@ -278,8 +283,9 @@ class TestDegenerateDonorPools:
         sel_f, beta_f, _, cf_f = forward_select(y, X, T0, intercept=intercept)
         sel_s, _, _, cf_s = _scan_select(y, X, T0, intercept=intercept)
 
-        assert sel_f[:2] == sel_s[:2]                   # the donors that matter
-        assert len(sel_f) == len(sel_s)
+        # The donors that explain y are columns 0 and 1; both rules find them,
+        # in the same order, before the residual becomes dust.
+        assert [j for j in sel_f if j < 2] == [j for j in sel_s if j < 2]
         scale = float(np.max(np.abs(cf_s)))
         np.testing.assert_allclose(cf_f, cf_s, rtol=0, atol=1e-10 * scale)
         extras = [j for j in sel_f if j >= 2]
