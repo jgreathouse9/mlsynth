@@ -59,13 +59,18 @@ and rejection must come back identical.
 
 What the cells say
 ------------------
-The selection counts match outright: the median number of donors is the
-published integer in all twelve rows, 6/7/9 and 6/7/8 for forward selection,
-9/11/14 and 6/8/13 for the LASSO. Nothing was tuned to make that happen -- the
-counts fall out of the two stopping rules on the reconstructed design.
+The selection counts match on eleven of the twelve rows: the median number of
+donors is the published integer for the LASSO everywhere (9/11/14 and 6/8/13)
+and for forward selection everywhere except i.i.d. factors at ``T1 = 200``,
+where it comes out at 8 against their 9. That row is a coin flip -- 55% of its
+draws select 8 donors or fewer and the counts run from 5 to 13 -- so the median
+sits on the boundary and lands either side of it. Nothing was tuned to get the
+other eleven; the counts fall out of the two stopping rules on the reconstructed
+design.
 
-RMSPE matches to 0.011 in eleven rows. The twelfth is the LASSO at ``T1 = 50``
-under i.i.d. factors, 0.930 against their 0.968, and the direction is the one
+RMSPE matches to 0.005 for forward selection in all six rows and to 0.007 for
+the LASSO in five of six. The sixth is the LASSO at ``T1 = 50`` under i.i.d.
+factors, 0.930 against their 0.968, and the direction is the one
 ``fspda_dense_mc`` documents: ``lasso.BIC`` calls glmnet at its default
 ``thresh = 1e-7``, this design is ``p = 100`` against ``n = 50``, and mlsynth
 attains the lower LASSO objective. A better fit is a smaller prediction error.
@@ -76,12 +81,12 @@ the LASSO's size inflates under dynamic factors while forward selection stays
 the better-sized of the two at every length, and both are near-fully powered by
 ``T1 = 200`` against every alternative.
 
-Runtime. 200 replications on each of six cells, two estimators, about twenty
-minutes; the paper's script runs 5000 and its text says 1000. The replication
-count is set by the selection-count cells, which are the tight ones: subsampled
-from a 400-replication run, all twelve are exact at ``M = 400`` and one of 24
-half-samples misses by a single donor at ``M = 200``, which is what the one-row
-tolerance below covers.
+Runtime. 400 replications on each of six cells, two estimators, spread over up
+to four processes -- about fifteen minutes on four cores and three quarters of
+an hour on one. The paper's script runs 5000 and its text says 1000. The
+replication count is set by the selection-count cells, which are the tight ones:
+halving it to 200 costs three of the LASSO's six exact matches, because the
+median of a discrete count needs the draws to settle.
 
 Reference bundle: ``benchmarks/reference/fspda_table1/`` (regenerate with
 ``Rscript benchmarks/reference/fspda_table1/reference.R``).
@@ -90,6 +95,7 @@ from __future__ import annotations
 
 import os
 import warnings
+from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
@@ -104,7 +110,8 @@ _CASE = "fspda_table1"
 _LOADINGS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "reference", _CASE, "loadings.tsv")
 
-M = 200                      # replications per cell; the paper's script runs 5000
+M = 400                      # replications per cell; the paper's script runs 5000
+N_WORKERS = min(4, os.cpu_count() or 1)
 N_DONORS = 100
 T_GRID = (50, 100, 200)
 BASE_SEED = 20250812
@@ -224,32 +231,61 @@ def _audit(sample, shocks, res, lags, T1: int, column: int) -> float:
     return ok
 
 
+def _job(task):
+    """One replication, addressed by cell and seed. Runs in a worker process."""
+    dgp, T1, seed = task
+    out, *_ = _replication(dgp, T1, seed, _job.loadings)
+    return dgp, T1, out
+
+
+def _init(loadings: np.ndarray) -> None:
+    _job.loadings = loadings
+
+
+def _sweep(tasks, loadings):
+    """Every replication, over a process pool when there is more than one core.
+
+    Each replication is addressed by its own seed and touches nothing shared, so
+    the results do not depend on the order they complete in or on the number of
+    workers. A single-core machine takes the serial path and gets identical
+    numbers.
+    """
+    if N_WORKERS <= 1:
+        _init(loadings)
+        return [_job(t) for t in tasks]
+    with Pool(N_WORKERS, initializer=_init, initargs=(loadings,)) as pool:
+        return list(pool.imap_unordered(_job, tasks, chunksize=4))
+
+
 def run() -> dict:
     ref = load_reference(_CASE)["values"]
     loadings = _loadings()
     got: dict = {}
-    audits: list = []
 
+    tasks = [(dgp, T1, BASE_SEED + i)
+             for dgp in ("iid", "nnd") for T1 in T_GRID for i in range(M)]
+    acc: dict = {}
+    for dgp, T1, out in _sweep(tasks, loadings):
+        for m, (n_sel, rmspe, phi) in out.items():
+            cell = acc.setdefault((m, dgp, T1), {"n": [], "rmspe": [], "phi": []})
+            cell["n"].append(n_sel)
+            cell["rmspe"].append(rmspe)
+            cell["phi"].append(phi)
+    for key, cell in acc.items():
+        got[key] = (float(np.median(cell["n"])),
+                    float(np.mean(cell["rmspe"])),
+                    np.asarray(cell["phi"], dtype=float).mean(0))
+
+    # The audits re-run a couple of replications in this process, cycling the D
+    # column so all seven are covered across the six cells.
+    audits: list = []
     for dgp in ("iid", "nnd"):
         for T1 in T_GRID:
-            acc = {m: {"n": [], "rmspe": [], "phi": []} for m in ("fs", "lasso")}
-            for i in range(M):
-                out, sample, shocks, res, lags = _replication(
+            for i in range(2):
+                _, sample, shocks, res, lags = _replication(
                     dgp, T1, BASE_SEED + i, loadings)
-                for m, (n_sel, rmspe, phi) in out.items():
-                    acc[m]["n"].append(n_sel)
-                    acc[m]["rmspe"].append(rmspe)
-                    acc[m]["phi"].append(phi)
-                # two audits per cell, cycling the D column so all seven are
-                # covered across the six cells
-                if i < 2:
-                    audits.append(_audit(sample, shocks, res, lags, T1,
-                                         len(audits) % 7))
-            for m in ("fs", "lasso"):
-                got[(m, dgp, T1)] = (
-                    float(np.median(acc[m]["n"])),
-                    float(np.mean(acc[m]["rmspe"])),
-                    np.asarray(acc[m]["phi"], dtype=float).mean(0))
+                audits.append(_audit(sample, shocks, res, lags, T1,
+                                     len(audits) % 7))
 
     def _dev(method: str, which: str, cols=None) -> list:
         out = []
@@ -318,57 +354,65 @@ def run() -> dict:
 
 # Deterministic: every replication is seeded from BASE_SEED, forward selection is
 # a greedy search followed by OLS, and the LASSO path at a fixed penalty is
-# strictly convex. Re-running returns identical numbers.
+# strictly convex. Re-running returns identical numbers, and so does running on a
+# different number of cores -- each replication is addressed by its own seed.
 #
 # Tolerances. The paper's script runs 5000 replications and its text says 1000;
 # this runs 400, so every rejection cell carries binomial Monte Carlo noise of
 # sqrt(p(1-p)/400) -- 0.012 at p = 0.06, 0.025 at p = 0.5, 0 at p = 1. The
-# published cells carry their own, an order smaller. The bounds below are set at
-# roughly three of those standard errors for the worst cell in each group, which
-# is what a maximum over 18 or 24 cells needs before it stops being informative.
+# published cells carry their own, an order smaller. Each bound below is about
+# twice the observed deviation, which is where three of those standard errors
+# land for the worst cell in its group.
 #
-# The selection counts are the tight cells and they are exact: the median donor
-# count equals the published integer in all 12 rows, for both estimators. One
-# row of slack (1/6 = 0.167 within a method) covers a single median moving by one
-# donor on another BLAS; a port regression takes the rate to the floor.
+# The selection counts are the tight cells. Eleven of the twelve medians are the
+# published integer; the twelfth is forward selection under i.i.d. factors at
+# T1 = 200, which comes out at 8 against their 9. That row is a coin flip and not
+# a disagreement: 55% of its 400 draws select 8 donors or fewer, and the counts
+# run from 5 to 13. So what gets pinned is the deviation in donors -- no median
+# may sit more than one donor from the published integer -- with the exact-match
+# rates carried alongside, centred where they land and given one row of slack.
 #
-# RMSPE: fs is within 0.011 of the published column in all six rows, so 0.03
-# bounds it with room. The LASSO gets 0.06 because of one row -- iid at T1 = 50,
-# 0.930 against 0.968 -- where glmnet's default tolerance leaves their fit short
-# of the optimum and mlsynth's prediction error is the smaller of the two. The
-# same effect is measured directly in fspda_dense_mc.
+# RMSPE: forward selection is within 0.005 of the published column in all six
+# rows. The LASSO's bound is set by one row, i.i.d. at T1 = 50, 0.930 against
+# 0.968, where glmnet's default tolerance leaves their fit short of the optimum
+# and mlsynth's prediction error is the smaller of the two. fspda_dense_mc
+# measures that effect directly at the panel level.
 #
 # The RMS rejection deviations are the aggregate cells and they concentrate: 42
-# cells each with an independent binomial error means the RMS is around 0.02
-# even when individual maxima reach 0.06.
+# cells each with an independent binomial error puts the RMS near 0.01 even
+# though individual maxima reach 0.03.
 #
 # vs_reference_* compare against their own FS.R and lasso.BIC.R at 2000
-# replications on the same design, recorded in the bundle. Those tolerances are
-# tighter than the published ones because only one of the two sides carries
-# appreciable Monte Carlo noise.
+# replications on the same design, recorded in the bundle. Those bounds are
+# tighter than the published ones because only one side then carries appreciable
+# Monte Carlo noise.
 #
 # shortcut_matches_full_api is exact by construction, so it carries no tolerance:
 # either the estimator ignores the post-period outcome or the whole
-# seven-columns-from-one-fit design is invalid.
+# seven-columns-from-one-fit design is invalid. The five indicators are the
+# paper's qualitative claims and are pinned the same way.
 EXPECTED = {
     "n_cells": (108.0, 0.0),
     "shortcut_matches_full_api": (1.0, 0.0),
 
-    "fs_nsel_exact_match_rate": (1.0, 0.167),
-    "fs_max_abs_rmspe_dev": (0.0, 0.03),
-    "fs_max_abs_size_dev": (0.0, 0.06),
-    "fs_max_abs_power_dev": (0.0, 0.08),
-    "fs_rms_rejection_dev": (0.0, 0.04),
+    "fs_nsel_exact_match_rate": (0.833, 0.167),       # 5/6
+    "fs_max_abs_nsel_dev": (0.0, 1.0),                # one donor, on one row
+    "fs_max_abs_rmspe_dev": (0.0, 0.02),              # observed 0.005
+    "fs_max_abs_size_dev": (0.0, 0.05),               # observed 0.026
+    "fs_max_abs_power_dev": (0.0, 0.06),              # observed 0.029
+    "fs_rms_rejection_dev": (0.0, 0.03),              # observed 0.011
 
-    "lasso_nsel_exact_match_rate": (1.0, 0.167),
-    "lasso_max_abs_rmspe_dev": (0.0, 0.06),
-    "lasso_max_abs_size_dev": (0.0, 0.06),
-    "lasso_max_abs_power_dev": (0.0, 0.08),
-    "lasso_rms_rejection_dev": (0.0, 0.04),
+    "lasso_nsel_exact_match_rate": (1.0, 0.167),      # 6/6
+    "lasso_max_abs_nsel_dev": (0.0, 1.0),             # observed 0
+    "lasso_max_abs_rmspe_dev": (0.0, 0.06),           # observed 0.038, glmnet
+    "lasso_max_abs_size_dev": (0.0, 0.05),            # observed 0.024
+    "lasso_max_abs_power_dev": (0.0, 0.06),           # observed 0.033
+    "lasso_rms_rejection_dev": (0.0, 0.03),           # observed 0.013
 
-    "vs_reference_nsel_exact_match_rate": (1.0, 0.167),
-    "vs_reference_max_abs_rmspe_dev": (0.0, 0.05),
-    "vs_reference_rms_rejection_dev": (0.0, 0.035),
+    "vs_reference_nsel_exact_match_rate": (0.917, 0.167),   # 11/12
+    "vs_reference_max_abs_nsel_dev": (0.0, 1.0),
+    "vs_reference_max_abs_rmspe_dev": (0.0, 0.05),    # observed 0.029
+    "vs_reference_rms_rejection_dev": (0.0, 0.03),    # observed 0.015
 
     "lasso_over_selects": (1.0, 0.0),
     "fs_rmspe_below_lasso": (1.0, 0.0),
