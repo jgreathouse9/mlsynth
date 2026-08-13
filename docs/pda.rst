@@ -429,7 +429,23 @@ post-period effects, and :math:`\widehat{\Sigma}_1` is the first-stage
 (pre-period estimation) variance -- the OLS prediction variance of the mean
 post-period counterfactual on the selected support. Li & Bell note
 :math:`\widehat{\Sigma}_1` is negligible when :math:`T_0 \gg T_2`, so the
-post-period term dominates in long-pre-period panels.
+post-period term dominates in long-pre-period panels. When :math:`T_0` is
+comparable to :math:`T_2` it is not negligible at all: on Shi & Huang's
+Monte Carlo design, where :math:`T_0 = T_2`, it accounts for 44-46% of
+:math:`\widehat{\Sigma}` and inflates the standard error by about a third.
+
+Supplying ``lrvar_lag`` selects a different test -- Shi & Huang's, the one their
+``lasso.BIC`` computes:
+
+.. math::
+
+   Z = \frac{\widehat{\tau}}{\sqrt{\widehat{\omega}(h) / T_2}},
+
+with :math:`\widehat{\omega}(h)` the Bartlett long-run variance of the
+post-period effects at the truncation lag :math:`h` and no first-stage term.
+Pair it with ``lasso_criterion="mbic"`` to reproduce ``lasso.BIC`` end to end;
+mlsynth's :math:`Z` then matches theirs to :math:`7\times 10^{-6}` on the panels
+carried in the ``fspda_dense_mc`` benchmark bundle.
 
 When to use. A genuinely sparse set of relevant controls; very large
 :math:`N` (even :math:`N/T_0 \to \infty`); when an interpretable, computa-
@@ -586,7 +602,11 @@ simplest of the three.
    (default lag :math:`\lfloor T_2^{1/4}\rfloor`, capped at
    :math:`\lfloor\sqrt{T_2}\rfloor`); on the watch panel that no-prewhitening
    form gives an insignificant :math:`t \approx -1.15`, versus the prewhitened
-   default's :math:`-2.51` (the paper reports :math:`-2.457`).
+   default's :math:`-2.51` (the paper reports :math:`-2.457`). The field is read
+   by ``fs``, ``hcw`` and ``lasso``, and it means the same thing in all three:
+   studentize by the fixed-lag Bartlett long-run variance of the post-period
+   effects alone. For ``lasso`` that also drops Li & Bell's first-stage term,
+   since the test being selected is the one that does not have it.
 
 When to use. A large candidate-control pool where the goal is to
 *synthesize an ensemble* that mimics the outcome (not to interpret which
@@ -732,7 +752,9 @@ variance consistently estimable by Newey-West. For ``l2`` and
 ``lasso``, both the pre-period (first-stage) and post-period
 HAC variances enter; for ``fs``, sample-splitting absorbs the
 first-stage term and only the post-period HAC variance
-enters.
+enters. Shi & Huang apply the same sample-splitting argument to
+their modified-BIC LASSO, which is why ``lrvar_lag`` drops the
+first-stage term there too.
 
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

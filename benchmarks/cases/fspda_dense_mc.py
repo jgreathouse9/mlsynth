@@ -159,7 +159,8 @@ def run() -> dict:
     panels = _panels()
 
     fs_set_ok = fs_ate_err = fs_z_err = fs_coef_err = fs_r2_err = 0.0
-    las_set_ok = las_lam_ok = las_coef_err = las_ate_err = 0.0
+    las_set_ok = las_lam_ok = las_coef_err = las_ate_err = las_z_err = 0.0
+    las_phi_ok = 0.0
     las_cv_set_ok = las_cv_lam_ok = 0.0
     scm_obj_rel = scm_set_ok = scm_wsum_err = 0.0
     n = len(CELLS)
@@ -204,6 +205,14 @@ def run() -> dict:
             las_coef_err = max(las_coef_err, max(
                 abs(las_beta[j] - c) for j, c in zip(cv_sel, cv_coef)))
             las_ate_err = max(las_ate_err, abs(las.att - ref[f"lascv_ATE_{cell}"]))
+            # The t-statistic, which is the ATE and the variance convention
+            # together. It is what the pinned quantities above cannot see: a
+            # standard error built from a different formula leaves the support,
+            # the penalty, the coefficients and the ATE all matching.
+            las_z_err = max(las_z_err,
+                            abs(las.att / las.att_se - ref[f"lascv_Z_{cell}"]))
+            las_phi_ok += float(int(las.p_value < 0.05)
+                                == int(ref[f"lascv_phi_{cell}"]))
 
         # --- synthetic control: their scm.R program -------------------------
         sc = _fit_scm(long_df)
@@ -231,6 +240,8 @@ def run() -> dict:
         "lasso_lambda_match_rate_vs_converged": las_cv_lam_ok / n,
         "lasso_max_abs_coef_err_vs_converged": las_coef_err,
         "lasso_max_abs_ate_err_vs_converged": las_ate_err,
+        "lasso_max_abs_z_err_vs_converged": las_z_err,
+        "lasso_rejection_match_rate_vs_converged": las_phi_ok / n,
         "scm_max_rel_objective_err": scm_obj_rel,
         "scm_selection_match_rate": scm_set_ok / n,
         "scm_max_abs_weight_sum_err": scm_wsum_err,
@@ -275,6 +286,14 @@ EXPECTED = {
     "lasso_lambda_match_rate_vs_converged": (1.0, 0.125),        # 8/8
     "lasso_max_abs_coef_err_vs_converged": (0.0, 1e-3),
     "lasso_max_abs_ate_err_vs_converged": (0.0, 1e-4),
+    # The t-statistic carries the ATE and the variance convention together, and
+    # it is the cell that separates their studentization from Li & Bell's: with
+    # the first-stage term in the sum and the lag chosen automatically, every
+    # other LASSO cell above still matched and this one sat 4.5e-01 out.
+    # Observed 7.4e-06 against their converged call; 1e-3 is the ATE tolerance
+    # divided by the smallest standard error on these panels.
+    "lasso_max_abs_z_err_vs_converged": (0.0, 1e-3),
+    "lasso_rejection_match_rate_vs_converged": (1.0, 0.0),
     # The SCM objective is the quantity their program determines, and two
     # different convex solvers agree on it to 1e-11 here; 1e-6 covers the ridge
     # quadprog needs plus OSQP-vs-quadprog slack. The weights sum to one by
