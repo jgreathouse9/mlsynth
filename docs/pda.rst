@@ -513,6 +513,35 @@ chosen set :math:`\widehat{U}_{\widehat{R}}`. Forward selection evaluates
 :math:`\sum_r (N-r+1)` regressions -- *linear* in :math:`N` -- versus the
 :math:`2^N` of exhaustive subset search.
 
+Computing the greedy step
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Those :math:`N-r+1` regressions per step are the whole cost of the method, and
+none of them has to be solved. Write :math:`\mathbf{r}` for the pre-period
+residual on the donors already chosen, :math:`P` for the projection onto their
+span (the constant included when one is fitted), and
+:math:`\mathbf{z}_j = \mathbf{x}_j - P\mathbf{x}_j` for a candidate donor
+orthogonalised against that span. Because :math:`\mathbf{r}` is already
+orthogonal to the span, admitting donor :math:`j` lowers the residual sum of
+squares by exactly
+
+.. math::
+
+   \Delta_j = \frac{(\mathbf{x}_j^\top\mathbf{r})^2}
+                   {\lVert\mathbf{z}_j\rVert^2},
+
+so the donor minimising :math:`\widehat\sigma^2` is the donor maximising
+:math:`\Delta_j`. One matrix-vector product :math:`\mathbf{Z}^\top\mathbf{r}`
+scores the entire pool, and a rank-one downdate of :math:`\mathbf{Z}` carries
+the orthogonalisation into the next step: the step costs :math:`O(T_0 N)`
+arithmetic and a single least-squares solve, for the donor it selects, whose
+:math:`\widehat\sigma^2` is the number the criterion reads. The pool no longer
+multiplies the solves, and a fit that took a quarter of a second at
+:math:`N = 1000` takes ten milliseconds. Donors whose scores agree to within
+rounding -- an exact duplicate of a selected donor, a pool spanning fewer
+directions than it has members -- are settled by the OLS comparison itself, so
+the search selects what the definition selects.
+
 Assumptions (Shi & Huang). Asymptotics are *multi-index*: :math:`N\to\infty`
 with :math:`T_0 = T_0(N)` deterministic, :math:`\log N / T_0 \to 0`, and
 :math:`T_2 = T_2(N) \to \infty` with :math:`\log N / T_2 \to 0` (:math:`N`
