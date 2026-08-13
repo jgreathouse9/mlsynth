@@ -29,6 +29,8 @@ a reader should care about most:
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 from hypothesis import assume, example, given, settings
@@ -116,11 +118,50 @@ def test_att_of_a_constant_gap_is_that_constant(value, size):
     assert eff.att(np.full(size, value)) == _approx(value)
 
 
+def _sum_floor(values, scale=1.0):
+    """Absolute rounding floor of a scaled sum of ``values``.
+
+    Summing in floating point commits an error bounded by
+    ``n * eps * sum |x_i|`` (pairwise summation, which numpy uses, brings the
+    factor down to about ``log2(n)``, so this is generous). Scaling first and
+    summing after rounds a different set of numbers than summing and scaling
+    after, and the two answers may differ by that much.
+
+    The distinction only bites when the sum nearly cancels. At
+    ``[952340.651988865, -952340.6519888667]`` the terms are seven decimal
+    orders larger than their sum, and ``att(s * g)`` and ``s * att(g)`` come out
+    at ``-4.768e-07`` and ``-5.360e-07`` -- a gap of ``5.9e-08``, below this
+    floor of ``1.3e-07`` and far above the fixed ``1e-9`` this test used to
+    demand. Nothing is wrong with the mean; a fixed absolute tolerance was the
+    wrong model for a quantity whose own magnitude is set by the data.
+    """
+    v = np.abs(np.asarray(values, dtype=float))
+    return float(np.finfo(float).eps * abs(scale) * v.sum() * max(v.size, 1))
+
+
+# A pair whose sum cancels to 1 part in 1e15, and the scale that separates the
+# two orders of operation. Carried as an explicit example so the tolerance model
+# is exercised on every run and not only when generation happens to find it.
+_CANCELLING = np.array([952340.651988865, -952340.6519888667])
+
+
 @given(post_gap=_series(), scale=_nonzero_scale)
+@example(post_gap=_CANCELLING, scale=613.8451517287889)
 def test_att_and_total_effect_scale_with_the_gap(post_gap, scale):
-    assert eff.att(scale * post_gap) == _approx(scale * eff.att(post_gap))
+    """Scaling commutes with averaging, to the precision the data allows.
+
+    The tolerance tracks the summation's own rounding floor. A real defect --
+    summing where it should average, dropping a term, applying the scale twice
+    -- moves the answer by a factor of the data, which this still catches; what
+    it no longer calls a failure is the last bit of a sum that has cancelled
+    away its own significance.
+    """
+    floor = _sum_floor(post_gap, scale)
+    assert eff.att(scale * post_gap) == \
+        pytest.approx(scale * eff.att(post_gap), rel=1e-9, abs=1e-9 + floor)
     assert eff.total_effect(scale * post_gap) == \
-        _approx(scale * eff.total_effect(post_gap))
+        pytest.approx(scale * eff.total_effect(post_gap), rel=1e-9,
+                      abs=1e-9 + floor)
 
 
 def test_att_and_total_effect_are_nan_on_an_empty_post_period():
@@ -177,13 +218,88 @@ def test_percent_gap_is_nan_exactly_where_the_counterfactual_is_zero(post_gap, c
 # ---------------------------------------------------------------------------
 
 @given(pre_gap=_series(), post_gap=_series(), scale=_nonzero_scale)
+@example(pre_gap=np.array([4.196e-160]),
+         post_gap=np.array([1.0, 2.0, 3.0]),
+         scale=491.3785877010134)
 def test_standardized_att_is_scale_invariant(pre_gap, post_gap, scale):
     """Numerator and denominator carry the same units, so the ratio is free of
-    them -- the property that makes SATT comparable across studies."""
+    them -- the property that makes SATT comparable across studies.
+
+    The explicit example is the one that found the underflow: squaring a
+    pre-period gap of ``4.196e-160`` lands in the subnormal range, where the
+    significand has fewer bits than the answer needs, so the ratio moved in its
+    sixth digit under rescaling.
+    """
     base = eff.standardized_att(pre_gap, post_gap)
     assume(np.isfinite(base))
     scaled = eff.standardized_att(scale * pre_gap, scale * post_gap)
     assert scaled == _approx(base, rel=1e-6)
+
+
+def test_standardized_att_at_one_significant_bit():
+    """The bottom of the range, where the input has a single significant bit.
+
+    ``4.940656458412465e-324`` is ``2^-1074``, the smallest positive double. With
+    ``T0 = T1 = 1`` and the same value in both segments the statistic is
+    ``x / (x * sqrt(2)) = 1/sqrt(2)``, whatever ``x`` is. Reaching it by forming
+    the denominator first asks for ``sqrt(2) * 2^-1074``, which is not a double
+    -- the neighbours are ``2^-1074`` and ``2^-1073`` -- so the rounding lands on
+    ``1.0``, off by 41%. Dividing the two like-scaled quantities before applying
+    the O(1) factor never forms that intermediate.
+    """
+    tiny = np.array([4.940656458412465e-324])
+    assert eff.standardized_att(tiny, tiny) == _approx(1.0 / np.sqrt(2), rel=1e-12)
+    # and it is the same answer the ordinary-magnitude version gives
+    assert eff.standardized_att(np.array([1.0]), np.array([1.0])) == \
+        _approx(eff.standardized_att(tiny, tiny), rel=1e-12)
+
+
+# 1e-320 is the smallest magnitude at which this four-element pattern is still
+# itself: one ULP down there is 5e-324, so [1, -2, 3, -1.5] * 1e-320 lands on
+# exact multiples of it. A decade lower the input cannot carry the ratios at all
+# -- at 5e-324 the vector is 33% away from the pattern before the function sees
+# it -- so the bottom of the range is exercised by the one-element case above,
+# where the pattern is representable at 2^-1074.
+@pytest.mark.parametrize("magnitude", [1e-320, 1e-315, 1e-170, 4.196e-160,
+                                       1e-30, 1.0, 1e30, 1e170, 1e300])
+def test_standardized_att_survives_the_whole_float_range(magnitude):
+    """The statistic is a ratio of like-dimensioned quantities, so it is the
+    same number at every scale -- including scales where the *square* of the
+    pre-period gap is not representable.
+
+    ``s^2 = r_pre . r_pre / T0`` squares before it takes a root. Below about
+    ``1e-154`` that square is subnormal or zero and the denominator collapses,
+    which returned ``nan`` for a gap of ``1e-170``; above about ``1e154`` it
+    overflows to infinity and the statistic returned ``0``. Both inputs have a
+    perfectly ordinary answer -- the same one -- and the two failures are silent,
+    since ``nan`` and ``0.0`` are what an honestly tiny effect would also look
+    like.
+    """
+    pre = np.array([1.0, -2.0, 3.0, -1.5]) * magnitude
+    post = np.array([2.0, 4.0]) * magnitude
+    got = eff.standardized_att(pre, post)
+    reference = eff.standardized_att(np.array([1.0, -2.0, 3.0, -1.5]),
+                                     np.array([2.0, 4.0]))
+    assert np.isfinite(got), f"not finite at magnitude {magnitude:g}"
+    assert got == _approx(reference, rel=1e-12)
+
+
+def test_standardized_att_is_nan_only_when_the_pre_period_is_flat():
+    """The one input that genuinely has no answer: a pre-period gap of exactly
+    zero leaves nothing to standardize by.
+
+    It reaches that answer without dividing by zero on the way. A perfect
+    pre-period fit is an ordinary thing for an estimator to produce, and the
+    ``nan`` a bare ``0 / 0`` returns is the same ``nan`` -- so the only trace of
+    the difference is a ``RuntimeWarning`` on a routine call, which is asserted
+    here because nothing about the returned value can see it.
+    """
+    post = np.array([1.0, 2.0])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        assert np.isnan(eff.standardized_att(np.zeros(4), post))
+        # ... and a gap that is merely very small still has an answer
+        assert np.isfinite(eff.standardized_att(np.full(4, 1e-200), post))
 
 
 @given(pre_gap=_series(), post_gap=_series())

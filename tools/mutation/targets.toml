@@ -50,9 +50,32 @@ timeout = 120.0
 
   [[target.mutant]]
   id = "standardized-att-scales-by-the-pre-period"
-  find = "np.sqrt(t1) * r_post.mean() / denom"
-  replace = "np.sqrt(t0) * r_post.mean() / denom"
+  find = "    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"
+  replace = "    return float(np.sqrt(t0 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"
   models = "a SATT that scales by the pre-period count, which leaves both scale invariance and the sign intact and so is invisible to every test that checks only those"
+
+  [[target.mutant]]
+  id = "standardized-att-squares-before-it-roots"
+  find = """    rms_norm = float(np.sqrt(np.mean((r_pre / largest) ** 2)))
+    post_norm = float(r_post.mean()) / largest
+    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"""
+  replace = """    mean_sq_resid = float(r_pre @ r_pre / t0)
+    denom = np.sqrt((t1 / t0) * mean_sq_resid + mean_sq_resid)
+    return float(np.sqrt(t1) * r_post.mean() / denom) if denom != 0 else float("nan")"""
+  models = "the shipped form, which forms r_pre . r_pre and so squares before it takes a root. It is algebraically identical and agrees to 7e-16 over 1e-140 to 1e140, which is why it stood: what it loses is the ends. Below about 1e-154 the square is subnormal or zero and the statistic returns nan; above about 1e154 it overflows and the statistic returns 0. Both are what an honestly tiny effect looks like, so neither announces itself"
+
+  [[target.mutant]]
+  id = "standardized-att-reconstitutes-the-scale-before-dividing"
+  find = "    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"
+  replace = """    rms_resid = largest * rms_norm
+    return float(np.sqrt(t1) * r_post.mean() / (rms_resid * np.sqrt(t1 / t0 + 1.0)))"""
+  models = "the factored-out scale multiplied back in before the division, which is algebraically the same and agrees everywhere the exponent has room. It fails on the subnormal grid, whose spacing is absolute: at a pre-period gap of 2^-1074 the denominator wants sqrt(2) * 2^-1074, whose neighbours are 2^-1074 and 2^-1073, so the statistic comes out at 1.0 where the answer is 1/sqrt(2) -- a 41% error that looks like an ordinary number"
+
+  [[target.mutant]]
+  id = "standardized-att-divides-by-a-zero-scale"
+  find = "    if not (largest > 0.0) or not np.isfinite(largest):"
+  replace = "    if False:"
+  models = "the guard on the factored-out scale removed. A pre-period gap of exactly zero then divides by zero inside the root, and the nan that comes back is the same nan the guard returns -- until the warning it also raises turns into an error under a stricter numpy policy, or a caller reads the intermediate"
 
   [[target.mutant]]
   id = "split-loses-a-period-at-the-seam"
