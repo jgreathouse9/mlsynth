@@ -1101,6 +1101,11 @@ Verification
    95%, while the normal-quantile intervals under-cover (to about 77% under
    exponential errors).
 
+   Table 1 in full (Path B). All 108 cells of Shi & Huang's Monte Carlo are
+   reproduced by ``benchmarks/cases/fspda_table1.py``, against the paper and
+   against their own ``FS.R`` and ``lasso.BIC.R``. Details:
+   :doc:`replications/fspda_table1`.
+
 Simulation study (Path B): forward selection vs LASSO
 -----------------------------------------------------
 
