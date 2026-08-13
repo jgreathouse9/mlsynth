@@ -130,6 +130,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/gsynth_av_laws
    replications/cscipca
    replications/medsc
+   replications/fspda_table1
 
 .. _replications-canonical:
 
@@ -424,21 +425,21 @@ High-dimensional donor pools
   reproducing Shi & Wang's Appendix-E.1 headline of
   :math:`+2.65\%` (:math:`t = 8.35`); LASSO and forward
   selection bracket it at 3.3% and 3.9% (durable:
-  ``pda_hongkong``). Path B: Table-1 size/power geometry on
-  the four-factor DGP -- forward selection stays parsimonious
-  (~4 donors) and correctly sized (≈ 0.08-0.09) under both
-  factor structures, while LASSO over-selects (9-15) and its
-  size inflates under *dynamic* factors (0.14 vs 0.065 i.i.d.),
-  matching the paper; both fully powered at ``D5`` (durable:
-  ``pda_table1``). Those LASSO cells run the cross-validated
-  default, not the paper's modified BIC, so they are a CV variant
-  and not a cell-by-cell match. The cell-by-cell check under the
-  paper's own rule is a cross-validation case: ``fspda_dense_mc``
-  drives ``PDA`` on panels from their ``FS.simulation.dense.R`` and
-  compares against their ``FS()`` and ``lasso.BIC()`` -- forward
-  selection matches to :math:`10^{-13}` on all eight panels, and
-  the modified-BIC LASSO matches their selected donors and penalty
-  on all eight once ``glmnet`` is run to convergence. Path B (LASSO): Li & Bell (2017) Table 2
+  ``pda_hongkong``). Path B: Table 1 in full, all 108 cells
+  (durable: ``fspda_table1``, and see
+  :doc:`replications/fspda_table1`) -- the median donor count is
+  the published integer in eleven of the twelve rows and one donor
+  low in the twelfth, RMSPE lands within 0.005 for forward
+  selection, and all 84 rejection deviations are within 0.033.
+  The same design at mlsynth's *defaults* -- cross-validated
+  penalty, Li & Bell variance -- is ``pda_table1``, which is where
+  the cost of those defaults is measured. The panel-level check is
+  a cross-validation case: ``fspda_dense_mc`` drives ``PDA`` on
+  panels from their ``FS.simulation.dense.R`` and compares against
+  their ``FS()`` and ``lasso.BIC()`` -- forward selection matches
+  to :math:`10^{-13}` on all eight panels, and the modified-BIC
+  LASSO matches their selected donors, penalty and t-statistic on
+  all eight once ``glmnet`` is run to convergence. Path B (LASSO): Li & Bell (2017) Table 2
   on a dense three-factor DGP with :math:`N=31 > T_1=25` -- the LASSO
   control-unit selection stays parsimonious (~7 of 30) and its
   out-of-sample PMSE scales with the idiosyncratic noise
