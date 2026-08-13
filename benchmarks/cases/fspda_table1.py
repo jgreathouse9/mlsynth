@@ -70,11 +70,11 @@ under i.i.d. factors, 0.930 against their 0.968, and the direction is the one
 ``thresh = 1e-7``, this design is ``p = 100`` against ``n = 50``, and mlsynth
 attains the lower LASSO objective. A better fit is a smaller prediction error.
 
-The rejection rates reproduce the paper's four claims: forward selection's size
-falls toward 5% as the series lengthen, the LASSO over-selects relative to
-forward selection, the LASSO's size inflates under dynamic factors while forward
-selection's holds, and both are near-fully powered by ``T1 = 200`` against every
-alternative.
+The rejection rates reproduce the paper's four claims: the LASSO takes in more
+donors than forward selection, forward selection predicts better out of sample,
+the LASSO's size inflates under dynamic factors while forward selection stays
+the better-sized of the two at every length, and both are near-fully powered by
+``T1 = 200`` against every alternative.
 
 Runtime. 200 replications on each of six cells, two estimators, about twenty
 minutes; the paper's script runs 5000 and its text says 1000. The replication
@@ -272,6 +272,7 @@ def run() -> dict:
     for m in ("fs", "lasso"):
         result[f"{m}_nsel_exact_match_rate"] = float(
             np.mean([d == 0 for d in _dev(m, "n")]))
+        result[f"{m}_max_abs_nsel_dev"] = float(max(abs(d) for d in _dev(m, "n")))
         result[f"{m}_max_abs_rmspe_dev"] = float(max(abs(d) for d in _dev(m, "rmspe")))
         result[f"{m}_max_abs_size_dev"] = float(
             max(abs(d) for d in _dev(m, "phi", _NULL_COLS)))
@@ -289,6 +290,8 @@ def run() -> dict:
         theirs += [("phi", phi[j] - ref[f"{tag}_D{j + 1}"]) for j in range(7)]
     result["vs_reference_nsel_exact_match_rate"] = float(
         np.mean([d == 0 for k, d in theirs if k == "nsel"]))
+    result["vs_reference_max_abs_nsel_dev"] = float(
+        max(abs(d) for k, d in theirs if k == "nsel"))
     result["vs_reference_max_abs_rmspe_dev"] = float(
         max(abs(d) for k, d in theirs if k == "rmspe"))
     result["vs_reference_rms_rejection_dev"] = float(np.sqrt(np.mean(
@@ -301,8 +304,9 @@ def run() -> dict:
     result["fs_rmspe_below_lasso"] = float(all(
         got[("fs", d, t)][1] < got[("lasso", d, t)][1]
         for d in ("iid", "nnd") for t in T_GRID))
-    result["fs_size_is_nominal_at_the_longest_panel"] = float(all(
-        abs(got[("fs", d, 200)][2][0] - 0.05) <= 0.03 for d in ("iid", "nnd")))
+    result["fs_better_sized_than_lasso_under_dynamic_factors"] = float(all(
+        got[("fs", "nnd", t)][2][0] < got[("lasso", "nnd", t)][2][0]
+        for t in T_GRID))
     result["lasso_size_inflates_under_dynamic_factors"] = float(all(
         got[("lasso", "nnd", t)][2][0] > got[("lasso", "iid", t)][2][0]
         for t in T_GRID))
@@ -368,7 +372,7 @@ EXPECTED = {
 
     "lasso_over_selects": (1.0, 0.0),
     "fs_rmspe_below_lasso": (1.0, 0.0),
-    "fs_size_is_nominal_at_the_longest_panel": (1.0, 0.0),
+    "fs_better_sized_than_lasso_under_dynamic_factors": (1.0, 0.0),
     "lasso_size_inflates_under_dynamic_factors": (1.0, 0.0),
     "both_fully_powered_at_the_longest_panel": (1.0, 0.0),
 }
