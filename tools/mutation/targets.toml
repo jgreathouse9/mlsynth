@@ -470,3 +470,27 @@ timeout = 300.0
   find = "        d, path = 0.0, np.empty(T2 + burn)"
   replace = "        d, path = 0.0, np.empty(T2 + burn)\n        burn = 0"
   models = "the AR columns entering the window at zero instead of their stationary mean mu/(1-rho), which is what dropping DGP.Delta's burn-in does. At T2 = 50 it drags the finite-sample mean of D6 and D7 below the 0.5 and 1.0 the power cells are read against"
+
+[[target]]
+name = "pda-l2-grid-solver"
+module-path = "mlsynth/utils/pda_helpers/l2/batch.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_l2_grid_solver.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "solver-status-ignored"
+  find = "            if (res.x is not None and _usable_status(res.info.status)\n                    and np.all(np.isfinite(res.x))):"
+  replace = "            if res.x is not None and np.all(np.isfinite(res.x)):"
+  models = "the pre-fix state exactly: the sweep keeps whatever the solver returns as long as it is finite, and never reads the status. This is what the code looked like while every test passed. An infeasibility certificate is finite and right-shaped, so it survives any check of the form isfinite(beta); on 24 Hong Kong donors over 24 pre-periods it carries entries of order 1e9 and enters the validation ranking as a candidate fit"
+
+  [[target.mutant]]
+  id = "certificates-admitted-as-solutions"
+  find = '    "run time limit reached",\n})'
+  replace = '    "run time limit reached",\n    "primal infeasible",\n    "primal infeasible inaccurate",\n})'
+  models = "the accept list widened to take the infeasibility certificates too, which is the shape the rule takes when a status is added to stop a test failing. The distinction the list exists to draw -- an imprecise solution against an answer to a different question -- is exactly what this erases"
+
+  [[target.mutant]]
+  id = "grid-tolerance-too-loose-to-rank"
+  find = "_GRID_EPS = 1e-6"
+  replace = "_GRID_EPS = 1e-2"
+  models = "the ranking tolerance relaxed past the point where the sweep can order its candidates, which is the shape a tolerance takes when it is widened for speed without checking what it costs. Every solve still returns a finite beta and the fit still looks ordinary; what breaks is the ordering, and with it the tau the caller is handed -- across the four Hong Kong windows it moves the winner on three and the validation errors by 0.32 to 4.99 relative, against 3.9e-3 at the shipped value"

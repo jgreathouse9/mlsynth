@@ -155,11 +155,29 @@ class TestTolerances:
 
     @pytest.mark.parametrize("T1", [44, 36, 30, 26])
     def test_the_grid_orders_taus_like_a_tight_grid(self, hk, T1):
-        """The ordering is the grid's entire output, and it is identical.
+        """The winner is the grid's entire output, and it is the same one.
 
         Coefficients at a given tau may differ in the last digits the sweep
-        resolves; the validation errors they produce still sort the candidates
-        the same way, which is the only thing the caller reads.
+        resolves; the validation errors they produce still pick the same
+        candidate, which is the only thing the caller reads.
+
+        This compares the winner and the errors themselves, not ``argsort`` of
+        the whole array. A rejected tau scores ``inf``, so on a near-singular
+        window the array carries several equal keys, and ``np.argsort`` defaults
+        to a non-stable sort whose order among equal keys is unspecified.
+        Comparing full orderings failed on CI for exactly that reason: positions
+        18 and 19 swapped, and both held a rejected tau.
+
+        Which taus get rejected is not comparable either. At ``T1 = 26`` the
+        tight sweep draws four infeasibility certificates and the loose sweep
+        none -- the certificates are a conditioning artefact, and how often they
+        fire is a property of the tolerance. So the errors are compared only
+        where both sweeps produced a fit.
+
+        The tolerance is set from the gap between agreement and breakage. Across
+        the four windows the loose sweep deviates from the tight one by at most
+        3.9e-3 relative; a grid solved at 1e-2, too loose to rank, deviates by
+        0.32 to 4.99 and moves the winner on three of the four.
         """
         y, X, _ = hk
         y_pre, X_pre = y[:T1], X[:T1]
@@ -178,7 +196,10 @@ class TestTolerances:
             return out
 
         loose, tight = mses(_GRID_EPS), mses(_SINGLE_EPS)
-        np.testing.assert_array_equal(np.argsort(loose), np.argsort(tight))
+        both = np.isfinite(loose) & np.isfinite(tight)
+        assert both.sum() >= 10
+        assert int(np.argmin(loose)) == int(np.argmin(tight))
+        np.testing.assert_allclose(loose[both], tight[both], rtol=1e-2)
 
     @pytest.mark.parametrize("T1", [44, 36, 30])
     def test_the_selected_tau_is_the_one_a_tight_grid_selects(self, hk, T1, monkeypatch):
