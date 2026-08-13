@@ -428,9 +428,9 @@ High-dimensional donor pools
   ``pda_hongkong``). Path B: Table 1 in full, all 108 cells
   (durable: ``fspda_table1``, and see
   :doc:`replications/fspda_table1`) -- the median donor count is
-  the published integer in all twelve rows, RMSPE lands within
-  0.011 in eleven of them, and the rejection rates reproduce the
-  paper's size and power geometry under both factor structures.
+  the published integer in eleven of the twelve rows and one donor
+  low in the twelfth, RMSPE lands within 0.005 for forward
+  selection, and all 84 rejection deviations are within 0.033.
   The same design at mlsynth's *defaults* -- cross-validated
   penalty, Li & Bell variance -- is ``pda_table1``, which is where
   the cost of those defaults is measured. The panel-level check is

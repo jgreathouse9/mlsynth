@@ -9,9 +9,10 @@ fsPDA — Shi & Huang (2023) Table 1
    Table 1 (p. 521). Replication package: ``zhentaoshi/fsPDA`` at ``5f4542c``.
 :Replication type: Path B — the paper's Monte Carlo table, all 108 cells,
    against the published values and against the authors' own estimators.
-:Status: Reproduced. The twelve selection-count cells match exactly; RMSPE
-   matches to 0.011 in eleven of twelve rows; the rejection rates reproduce the
-   paper's size and power geometry.
+:Status: Reproduced. Eleven of the twelve selection-count cells match the
+   published integer exactly and the twelfth is one donor low; RMSPE matches to
+   0.005 for forward selection and to 0.007 for the LASSO outside one row; every
+   rejection deviation is within 0.033.
 :Durable case: ``benchmarks/cases/fspda_table1.py``; bundle
    ``benchmarks/reference/fspda_table1/``.
 
@@ -85,24 +86,35 @@ Results
 
 At 400 replications per cell:
 
-Selection counts match outright. The median number of donors selected is the
-published integer in all twelve rows — 6, 7, 9 and 6, 7, 8 for forward
-selection, 9, 11, 14 and 6, 8, 13 for the LASSO — for both rules, both factor
-structures and all three lengths.
+Selection counts match on eleven of the twelve rows. The median number of
+donors selected is the published integer for the LASSO in all six — 9, 11, 14
+under i.i.d. factors and 6, 8, 13 under dynamic ones — and for forward selection
+in five, at 6, 7 and 6, 7, 8.
 
-RMSPE matches to 0.011 in eleven rows. The twelfth is the LASSO at
-:math:`T_1 = 50` under i.i.d. factors: 0.930 against their 0.968. The direction
-is the one ``fspda_dense_mc`` documents at the panel level. ``lasso.BIC`` calls
-``glmnet`` at its default ``thresh = 1e-7``; this design is :math:`p = 100`
-against :math:`n = 50`, where that default stops short of the optimum, and
-mlsynth attains the lower LASSO objective. A better fit is a smaller prediction
-error, so mlsynth's RMSPE is below theirs and not above it.
+The exception is forward selection under i.i.d. factors at :math:`T_1 = 200`,
+which comes out at 8 donors against their 9. That row is a coin flip and not a
+disagreement: 55% of its 400 draws select 8 donors or fewer, and the counts run
+from 5 to 13, so the median sits on the boundary and lands either side of it
+depending on the draws. The case pins the deviation in donors — no median more
+than one donor from the published integer — because an exact match is not
+something a discrete median can be held to.
 
-The rejection rates reproduce the paper's geometry: forward selection's size is
-near nominal at the longest panel under both factor structures, the LASSO takes
-in more donors than forward selection, the LASSO's size inflates under dynamic
-factors while forward selection's holds, and both rules are near-fully powered
-by :math:`T_1 = 200` against every alternative.
+RMSPE matches to 0.005 for forward selection in all six rows and to 0.007 for
+the LASSO in five of six. The sixth is the LASSO at :math:`T_1 = 50` under
+i.i.d. factors: 0.930 against their 0.968. The direction is the one
+``fspda_dense_mc`` documents at the panel level. ``lasso.BIC`` calls ``glmnet``
+at its default ``thresh = 1e-7``; this design is :math:`p = 100` against
+:math:`n = 50`, where that default stops short of the optimum, and mlsynth
+attains the lower LASSO objective. A better fit is a smaller prediction error,
+so mlsynth's RMSPE is below theirs and not above it.
+
+Every one of the 84 rejection deviations is within 0.033, with a root-mean-square
+of 0.011 for forward selection and 0.013 for the LASSO. The paper's qualitative
+claims all hold: the LASSO takes in more donors than forward selection, forward
+selection predicts better out of sample in every row, the LASSO's size inflates
+under dynamic factors while forward selection stays the better-sized of the two
+at every length, and both rules are near-fully powered by :math:`T_1 = 200`
+against every alternative.
 
 Two references, not one
 -----------------------
@@ -136,11 +148,13 @@ Reproducing it
    python benchmarks/run_benchmarks.py --case fspda_table1
    Rscript benchmarks/reference/fspda_table1/reference.R   # regenerate the bundle
 
-The case runs 200 replications on each of six cells and takes about twenty
-minutes. The replication count is set by the selection-count cells, which are
-the tight ones: subsampled from a 400-replication run, all twelve are exact at
-:math:`M = 400`, and one of 24 half-samples misses by a single donor at
-:math:`M = 200`.
+The case runs 400 replications on each of six cells, spread over up to four
+processes: about fifteen minutes on four cores, three quarters of an hour on
+one. Each replication is addressed by its own seed and touches nothing shared,
+so the numbers do not depend on the worker count. The replication count is set
+by the selection-count cells, which are the tight ones: halving it to 200 costs
+three of the LASSO's six exact matches, because the median of a discrete count
+needs the draws to settle.
 
 Related
 -------
