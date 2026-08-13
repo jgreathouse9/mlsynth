@@ -123,7 +123,8 @@ def run_pda(
             beta, intercept, cf, support = fit_lasso(
                 y, X, T0, alpha=lasso_alpha, intercept=use_intercept,
                 standardize=standardize)
-            att, se, ci, p = lasso_ate_inference(y, X, cf, support, T0, alpha=alpha)
+            att, se, ci, p = lasso_ate_inference(
+                y, X, cf, support, T0, alpha=alpha, lrvar_lag=lrvar_lag)
             support_idx = np.where(support)[0]
             selected = [labels[i] for i in support_idx]
             meta["criterion"] = lasso_criterion

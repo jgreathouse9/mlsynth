@@ -401,3 +401,30 @@ timeout = 300.0
   find = "_BRIDGE_TOL = 1e-6"
   replace = "_BRIDGE_TOL = 1e6"
   models = "the convergence check kept but its threshold widened past every attainable residual, which is the shape a tolerance takes when it is relaxed to make a red test green. The square system solves to machine precision when a root exists, so any tolerance loose enough to admit a stalled search is loose enough to admit all of them"
+
+[[target]]
+name = "pda-lasso-fspda-inference"
+module-path = "mlsynth/utils/pda_helpers/lasso/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_fspda_inference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-supplied-lag-is-accepted-and-dropped"
+  find = """    if lrvar_lag is not None:
+        lag = fspda_lrvar_lag(T2, lrvar_lag)"""
+  replace = """    if False:
+        lag = fspda_lrvar_lag(T2, lrvar_lag)"""
+  models = "the defect as it shipped: the parameter is on the signature, the config accepts it, and the branch that reads it never runs. Every downstream check passes -- the standard error is finite and positive, the p-value is in range, the confidence interval brackets the estimate -- because a standard error computed from the wrong variance is still a standard error. What separates the two is that the answer stops moving when the lag moves"
+
+  [[target.mutant]]
+  id = "the-fspda-branch-keeps-the-first-stage-term"
+  find = "        se = float(np.sqrt(hac_lrv(post_effect - att, lag=lag) / T2))"
+  replace = """        se = float(np.sqrt(hac_lrv(post_effect - att, lag=lag) / T2
+                           + 0.2 * np.var(post_effect) / T2))"""
+  models = "the fixed lag honoured but Li & Bell's first-stage variance left in the sum. It is the half of the defect that the lag alone does not fix: on the Table 1 design that term is 44-46% of the total variance, and carrying it holds the t-statistic 4.5e-01 away from their lasso.BIC where dropping it lands within 7.4e-06"
+
+  [[target.mutant]]
+  id = "the-automatic-lag-branch-loses-the-first-stage-term"
+  find = "    se = float(np.sqrt(var_first + var_post))"
+  replace = "    se = float(np.sqrt(var_post))"
+  models = "the default path converted to the fsPDA convention. mlsynth's LASSO PDA is Li & Bell's estimator and its two-component variance is the inference its own paper prescribes; supplying a lag is what asks for the other one. Changing the default would make every existing LASSO interval narrower with nothing in the call to say so"
