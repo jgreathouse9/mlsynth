@@ -232,8 +232,31 @@ def test_standardized_att_is_scale_invariant(pre_gap, post_gap, scale):
     """
     base = eff.standardized_att(pre_gap, post_gap)
     assume(np.isfinite(base))
-    scaled = eff.standardized_att(scale * pre_gap, scale * post_gap)
+    scaled_pre, scaled_post = scale * pre_gap, scale * post_gap
+    # Scale invariance presumes the rescaling is faithful. It stops being one at
+    # the edges of the range: 0.01 * 2^-1074 is exactly 0.0, so the rescaled
+    # pre-period gap is genuinely all zeros and genuinely has no answer. Same
+    # support in, same support out is what makes the two inputs the same study
+    # in different units.
+    assume(np.all(np.isfinite(scaled_pre)) and np.all(np.isfinite(scaled_post)))
+    assume(np.count_nonzero(scaled_pre) == np.count_nonzero(pre_gap))
+    assume(np.count_nonzero(scaled_post) == np.count_nonzero(post_gap))
+    scaled = eff.standardized_att(scaled_pre, scaled_post)
     assert scaled == _approx(base, rel=1e-6)
+
+
+def test_scaling_a_subnormal_gap_to_zero_has_no_standardized_att():
+    """What the assumption above steps around, asserted rather than assumed.
+
+    ``2^-1074`` is the smallest positive double, so multiplying it by anything
+    below 1 rounds to zero. The rescaled pre-period gap is then all zeros, which
+    is the one input with nothing to standardize by -- so ``nan`` here is the
+    right answer to a different question, not a failure of scale invariance.
+    """
+    tiny = np.array([4.940656458412465e-324])
+    assert np.isfinite(eff.standardized_att(tiny, tiny))
+    assert np.all(0.01 * tiny == 0.0)
+    assert np.isnan(eff.standardized_att(0.01 * tiny, 0.01 * tiny))
 
 
 def test_standardized_att_at_one_significant_bit():

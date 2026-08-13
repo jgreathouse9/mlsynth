@@ -77,8 +77,9 @@ def standardized_att(pre_gap: np.ndarray, post_gap: np.ndarray) -> float:
     ``0``.
 
     The whole ratio is then formed in that normalized domain, so no quantity
-    carrying the data's own scale is ever multiplied by anything. Reconstituting ``s`` and then multiplying by ``sqrt(T1/T0 + 1)``
-    lands back on the subnormal grid, where the spacing is absolute: at a gap of
+    carrying the data's own scale is ever multiplied by anything. Reconstituting
+    ``s`` and then multiplying by ``sqrt(T1/T0 + 1)`` lands back on the
+    subnormal grid, where the spacing is absolute: at a gap of
     ``2^-1074``, the smallest positive double, the denominator wants
     ``sqrt(2) * 2^-1074``, whose neighbours are ``2^-1074`` and ``2^-1073``, and
     rounding to one of them put the statistic at ``1.0`` where the answer is
