@@ -305,6 +305,35 @@ the fit never sees periods later than the validation tail -- unlike the
 released ``L2relax.CV``, whose 5-block K-fold trains on both past *and* future
 of each block.
 
+Solving the grid, and reading the solver
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The grid and the fit ask the solver for different things. The fit is the
+estimate that gets reported, so it is solved to :math:`10^{-9}`; the grid only
+has to *order* its candidates by validation error, and its winner is refit
+afterwards. That distinction is most of the runtime of an ``l2`` fit. As
+:math:`\varepsilon` shrinks the feasible set thins toward the moment condition
+:math:`\widehat{\boldsymbol{\Sigma}}\boldsymbol{\beta} =
+\widehat{\boldsymbol{\eta}}`, and the small-:math:`\varepsilon` end of the grid
+drives the ADMM solver to its iteration cap: at :math:`N = 400` donors on
+:math:`T_0 = 150` pre-periods, an eighty-point grid takes 271 s at
+:math:`10^{-9}` and 25 s at :math:`10^{-6}`, and picks the same
+:math:`\varepsilon`.
+
+The solver also answers with a status, and that status has to be read. On a
+pre-period where :math:`\widehat{\boldsymbol{\Sigma}}` is near-singular -- 24
+Hong Kong donors on 24 periods, so its rank is 23 -- OSQP returns a primal
+infeasibility certificate at the small-:math:`\varepsilon` end. The certificate
+is false there, since the smallest reachable :math:`\|\widehat{\boldsymbol{\eta}}
+- \widehat{\boldsymbol{\Sigma}}\boldsymbol{\beta}\|_\infty` is about
+:math:`10^{-12}`, well below the :math:`\varepsilon` it fires at. Either way a
+certificate is not a solution to the problem that was posed, and its vector is
+finite -- entries of order :math:`10^{9}` on that panel -- so a finiteness check
+alone admits it into the validation ranking. ``mlsynth`` keeps the statuses that
+carry a primal iterate, imprecise ones included, and refuses the rest; an
+:math:`\varepsilon` with no fit drops out of the ranking, and a grid with no fit
+anywhere raises.
+
 .. note::
 
    Standardisation. Following the authors' released ``L2relax``, the treated

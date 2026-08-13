@@ -444,15 +444,20 @@ def test_cross_validate_tau_returns_float():
     assert isinstance(tau, float) and tau >= 0.0
 
 
-def test_cross_validate_tau_handles_solver_failures(monkeypatch):
-    """If every grid solve is non-finite, the MSE is inf throughout but CV still
-    returns a grid member (does not crash)."""
+def test_cross_validate_tau_reports_a_grid_with_no_usable_fit(monkeypatch):
+    """Every grid solve failing is a failure, and has to be reported as one.
+
+    Each candidate then scores ``inf``, and ``argmin`` over all-``inf`` returns
+    index 0 -- so returning a grid member would mean returning a tau chosen by
+    its position in the array, which the caller has no way to tell apart from a
+    tau chosen by validation error.
+    """
     def all_nan(Sigma, eta, taus):
         return np.full((np.asarray(taus).shape[0], np.asarray(eta).ravel().shape[0]), np.nan)
     monkeypatch.setattr(l2_estimation, "l2_relax_grid", all_nan)
     rng = np.random.default_rng(4)
-    tau = cross_validate_tau(rng.normal(0, 1, 30), rng.normal(0, 1, (30, 2)))
-    assert isinstance(tau, float)
+    with pytest.raises(MlsynthEstimationError, match="no usable fit"):
+        cross_validate_tau(rng.normal(0, 1, 30), rng.normal(0, 1, (30, 2)))
 
 
 def test_fit_l2_autotune_vs_fixed_tau():
