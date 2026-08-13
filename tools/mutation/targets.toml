@@ -419,3 +419,72 @@ timeout = 300.0
   find = "    n_keep = max(1, min(n_tied, _SHORTLIST_MAX))"
   replace = "    n_keep = 1"
   models = "the tie band collapsed to the single highest-scoring candidate, which is what an argmax alone would select. Every step still returns a donor and the fit is still sensible, so nothing about the output looks wrong; what it loses is the exact comparison that settles duplicated or collinear donors the way the definitional scan settles them"
+
+[[target]]
+name = "pda-lasso-fspda-inference"
+module-path = "mlsynth/utils/pda_helpers/lasso/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_fspda_inference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-supplied-lag-is-accepted-and-dropped"
+  find = """    if lrvar_lag is not None:
+        lag = fspda_lrvar_lag(T2, lrvar_lag)"""
+  replace = """    if False:
+        lag = fspda_lrvar_lag(T2, lrvar_lag)"""
+  models = "the defect as it shipped: the parameter is on the signature, the config accepts it, and the branch that reads it never runs. Every downstream check passes -- the standard error is finite and positive, the p-value is in range, the confidence interval brackets the estimate -- because a standard error computed from the wrong variance is still a standard error. What separates the two is that the answer stops moving when the lag moves"
+
+  [[target.mutant]]
+  id = "the-fspda-branch-keeps-the-first-stage-term"
+  find = "        se = float(np.sqrt(hac_lrv(post_effect - att, lag=lag) / T2))"
+  replace = """        se = float(np.sqrt(hac_lrv(post_effect - att, lag=lag) / T2
+                           + 0.2 * np.var(post_effect) / T2))"""
+  models = "the fixed lag honoured but Li & Bell's first-stage variance left in the sum. It is the half of the defect that the lag alone does not fix: on the Table 1 design that term is 44-46% of the total variance, and carrying it holds the t-statistic 4.5e-01 away from their lasso.BIC where dropping it lands within 7.4e-06"
+
+  [[target.mutant]]
+  id = "the-automatic-lag-branch-loses-the-first-stage-term"
+  find = "    se = float(np.sqrt(var_first + var_post))"
+  replace = "    se = float(np.sqrt(var_post))"
+  models = "the default path converted to the fsPDA convention. mlsynth's LASSO PDA is Li & Bell's estimator and its two-component variance is the inference its own paper prescribes; supplying a lag is what asks for the other one. Changing the default would make every existing LASSO interval narrower with nothing in the call to say so"
+
+[[target]]
+name = "pda-dense-dgp"
+module-path = "mlsynth/utils/pda_helpers/simulation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_simulation.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "iid-factors-all-drawn-standard-normal"
+  find = """        return rng.standard_normal((T, _N_FACTORS)) * np.arange(
+            1.0, _N_FACTORS + 1.0)"""
+  replace = "        return rng.standard_normal((T, _N_FACTORS))"
+  models = "the shipped port's reading of Section 4.1's `N(0, I^2)` as four standard normals, where their `rnorm(Tn, sd = k * sigma.u)` gives factor k a standard deviation of k. It is a fault of omission with no visible symptom: the panel keeps its shape, its labels and its seed reproducibility, the estimators still run, and the only thing that moves is which donors carry signal -- which is the entire object of a variable-selection study"
+
+  [[target.mutant]]
+  id = "idiosyncratic-noise-variance-read-as-a-standard-deviation"
+  find = "_NOISE_SD = 0.5                  # sigma.eta: idiosyncratic N(0, 0.5^2)"
+  replace = "_NOISE_SD = float(np.sqrt(0.5))   # idiosyncratic N(0, 0.5)"
+  models = "`e_jt ~ N(0, 0.5^2)` read as a variance, putting 41% more noise on every series than `sigma.eta = 0.5` does. Nothing structural changes and every rejection rate in Table 1 moves"
+
+  [[target.mutant]]
+  id = "irrelevant-loadings-taken-from-the-prose"
+  find = "    irrelevant_loading: float = 0.5,"
+  replace = "    irrelevant_loading: float = 0.1,"
+  models = "the U(-0.1, 0.1) the paper's Section 4.1 states, against the U(-0.5, 0.5) of the `loading.RData` its driver loads and its table was run on. The narrower block makes the irrelevant donors nearly inert, which turns the dense regression the paper is about into a sparse one"
+
+  [[target.mutant]]
+  id = "each-shock-process-drawn-independently"
+  find = """        if rho == 0.0:
+            out[:, k] = mu + w[burn:]
+            continue"""
+  replace = """        w = rng.standard_normal(T2 + burn)
+        if rho == 0.0:
+            out[:, k] = mu + w[burn:]
+            continue"""
+  models = "an independent innovation sequence per column, against DGP.Delta drawing one and building all six from it. Every column keeps its correct marginal law -- the right mean, the right variance, the right autocorrelation -- so any test that looks at one column at a time passes. What breaks is the joint: D4 no longer sits exactly 0.5 above D2 in the same period, and the size and power cells of Table 1, which are read off the same replication, stop being comparable"
+
+  [[target.mutant]]
+  id = "autoregressive-shocks-start-at-zero"
+  find = "        d, path = 0.0, np.empty(T2 + burn)"
+  replace = "        d, path = 0.0, np.empty(T2 + burn)\n        burn = 0"
+  models = "the AR columns entering the window at zero instead of their stationary mean mu/(1-rho), which is what dropping DGP.Delta's burn-in does. At T2 = 50 it drags the finite-sample mean of D6 and D7 below the 0.5 and 1.0 the power cells are read against"

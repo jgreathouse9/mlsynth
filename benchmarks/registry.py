@@ -100,9 +100,10 @@ CASES = {
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
-    "pda_table1": "benchmarks.cases.pda_table1",              # Path B: Shi-Huang Table 1 fs-vs-LASSO size/power geometry
+    "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design
     "fspda_dense_mc": "benchmarks.cases.fspda_dense_mc",      # cross-val vs fsPDA FS()/lasso.BIC() on their own dense-MC panels
     "fspda_sparse_mc": "benchmarks.cases.fspda_sparse_mc",    # cross-val vs fsPDA fs()/lasso_ic()/oracle() on their three sparse DGPs
+    "fspda_table1": "benchmarks.cases.fspda_table1",          # Path B: all 108 cells of Shi-Huang Table 1, vs the paper and vs their own code
     "pda_lasso_sim": "benchmarks.cases.pda_lasso_sim",        # Path B: Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
     "pda_l2_sim": "benchmarks.cases.pda_l2_sim",              # Path B: Shi-Wang Table 2 L2-relaxation size/power
     "pda_luxurywatch": "benchmarks.cases.pda_luxurywatch",    # Path A: Shi-Huang China luxury-watch fsPDA (prewhitened-NW)

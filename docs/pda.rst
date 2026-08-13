@@ -429,7 +429,23 @@ post-period effects, and :math:`\widehat{\Sigma}_1` is the first-stage
 (pre-period estimation) variance -- the OLS prediction variance of the mean
 post-period counterfactual on the selected support. Li & Bell note
 :math:`\widehat{\Sigma}_1` is negligible when :math:`T_0 \gg T_2`, so the
-post-period term dominates in long-pre-period panels.
+post-period term dominates in long-pre-period panels. When :math:`T_0` is
+comparable to :math:`T_2` it is not negligible at all: on Shi & Huang's
+Monte Carlo design, where :math:`T_0 = T_2`, it accounts for 44-46% of
+:math:`\widehat{\Sigma}` and inflates the standard error by about a third.
+
+Supplying ``lrvar_lag`` selects a different test -- Shi & Huang's, the one their
+``lasso.BIC`` computes:
+
+.. math::
+
+   Z = \frac{\widehat{\tau}}{\sqrt{\widehat{\omega}(h) / T_2}},
+
+with :math:`\widehat{\omega}(h)` the Bartlett long-run variance of the
+post-period effects at the truncation lag :math:`h` and no first-stage term.
+Pair it with ``lasso_criterion="mbic"`` to reproduce ``lasso.BIC`` end to end;
+mlsynth's :math:`Z` then matches theirs to :math:`7\times 10^{-6}` on the panels
+carried in the ``fspda_dense_mc`` benchmark bundle.
 
 When to use. A genuinely sparse set of relevant controls; very large
 :math:`N` (even :math:`N/T_0 \to \infty`); when an interpretable, computa-
@@ -615,7 +631,11 @@ simplest of the three.
    (default lag :math:`\lfloor T_2^{1/4}\rfloor`, capped at
    :math:`\lfloor\sqrt{T_2}\rfloor`); on the watch panel that no-prewhitening
    form gives an insignificant :math:`t \approx -1.15`, versus the prewhitened
-   default's :math:`-2.51` (the paper reports :math:`-2.457`).
+   default's :math:`-2.51` (the paper reports :math:`-2.457`). The field is read
+   by ``fs``, ``hcw`` and ``lasso``, and it means the same thing in all three:
+   studentize by the fixed-lag Bartlett long-run variance of the post-period
+   effects alone. For ``lasso`` that also drops Li & Bell's first-stage term,
+   since the test being selected is the one that does not have it.
 
 When to use. A large candidate-control pool where the goal is to
 *synthesize an ensemble* that mimics the outcome (not to interpret which
@@ -761,7 +781,9 @@ variance consistently estimable by Newey-West. For ``l2`` and
 ``lasso``, both the pre-period (first-stage) and post-period
 HAC variances enter; for ``fs``, sample-splitting absorbs the
 first-stage term and only the post-period HAC variance
-enters.
+enters. Shi & Huang apply the same sample-splitting argument to
+their modified-BIC LASSO, which is why ``lrvar_lag`` drops the
+first-stage term there too.
 
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1108,22 +1130,39 @@ Verification
    95%, while the normal-quantile intervals under-cover (to about 77% under
    exponential errors).
 
+   Table 1 in full (Path B). All 108 cells of Shi & Huang's Monte Carlo are
+   reproduced by ``benchmarks/cases/fspda_table1.py``, against the paper and
+   against their own ``FS.R`` and ``lasso.BIC.R``. Details:
+   :doc:`replications/fspda_table1`.
+
 Simulation study (Path B): forward selection vs LASSO
 -----------------------------------------------------
 
 Shi & Huang's (2023) Table 1 compares forward selection against LASSO on a
-four-factor DGP, re-implemented in
+four-factor DGP, ported from their released ``FS.simulation.dense.R`` into
 :func:`mlsynth.utils.pda_helpers.simulation.simulate_pda_panel`: four factors
 (``f1`` i.i.d.; ``f2`` AR(1) 0.9; ``f3`` MA(2) (0.8,0.4); ``f4`` ARMA(1,1)
-(0.5,0.5) under the *dynamic* structure, all i.i.d. ``N(0,1)`` under the
-*i.i.d.* structure); loadings ``U(1,2)`` on the treated + 4 relevant controls
-and ``U(-0.1,0.1)`` on the remaining 96; idiosyncratic ``N(0,0.5)``; one treated
-unit, :math:`N=100` controls, :math:`T_0=T_2`. Shocks ``D1``-``D7`` set the
-post-period ATE (``D1``-``D3`` null → *size*; ``D4``-``D7`` non-zero → *power*).
-Driving the packaged ``PDA`` (``methods=["fs","LASSO"]``,
-``fs_intercept=False``) at :math:`T_0=100` (200 reps for size, 60 for power):
+(0.5,0.5) under the *dynamic* structure; under the *i.i.d.* structure factor
+:math:`\ell` is ``N(0, \ell^2)``, so the fourth carries sixteen times the
+variance of the first); loadings ``U(1,2)`` on the treated + 4 relevant controls
+and ``U(-0.5,0.5)`` on the remaining 96; idiosyncratic ``N(0, 0.5^2)``; one
+treated unit, :math:`N=100` controls, :math:`T_0=T_2`. Shocks ``D1``-``D7`` set
+the post-period ATE (``D1``-``D3`` null -> *size*; ``D4``-``D7`` non-zero ->
+*power*).
 
-.. list-table:: forward selection vs LASSO, :math:`T_0=100`
+The irrelevant loadings are the detail that decides the design. Section 4.1 of
+the paper gives them as ``U(-0.1,0.1)``; the ``loading.RData`` their driver
+loads has them five times wider, and that is what Table 1 was run on. At the
+wider range the 96 irrelevant donors carry real signal, the regression is dense,
+and no method can select its way to a sparse truth -- which is the paper's
+subject.
+
+The full table, all 108 cells, is the ``fspda_table1`` case. Driving the
+packaged ``PDA`` at its *defaults* (``LassoCV`` for the penalty, Li & Bell's
+two-component variance for the test) at :math:`T_0=100`, with 200 replications
+for size and 60 for power:
+
+.. list-table:: mlsynth's defaults on the Table-1 design, :math:`T_0=100`
    :header-rows: 1
    :widths: 12 8 10 10 10
 
@@ -1134,34 +1173,39 @@ Driving the packaged ``PDA`` (``methods=["fs","LASSO"]``,
      - power (D5)
    * - i.i.d.
      - fs
-     - 3.9
-     - 0.090
+     - 5.5
+     - 0.095
      - 1.00
    * - i.i.d.
      - LASSO
-     - 9.5
-     - 0.065
+     - 13.5
+     - 0.070
      - 1.00
    * - dynamic
      - fs
-     - 4.5
-     - 0.075
+     -
+     - 0.095
      - 1.00
    * - dynamic
      - LASSO
-     - 15.0
-     - 0.140
+     -
+     - 0.045
      - 1.00
 
-The paper's geometry reproduces. Forward selection is parsimonious -- it
-keeps to ~the 4 relevant donors in both structures -- while LASSO
-over-selects (9-15 donors). Forward selection's test is correctly sized
-(≈ 0.05-0.09) under *both* factor structures, the robustness Shi & Huang
-emphasise. LASSO is correctly sized under i.i.d. factors (0.065, matching
-the paper's 0.058) but its size inflates under dynamic factors (0.140;
-paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
-*dynamic-factor* phenomenon, not an i.i.d. one. Both tests are fully powered at
-``D5`` (mean-1 shift). Durable case: ``pda_table1``.
+Forward selection is the parsimonious rule in both structures and its test is
+sized at 0.095 under either, against the paper's 0.059 and 0.088. The
+cross-validated LASSO takes in 13.5 donors where the paper's modified BIC takes
+11.
+
+The paper's size inflation does not appear here, and the reason is the penalty
+rule. Shi & Huang report the LASSO's null rejection rate going from 0.058 under
+i.i.d. factors to 0.184 under dynamic ones. Holding the variance estimator fixed
+at Li & Bell's and changing only the penalty reproduces the split: under the
+modified BIC the rate goes 0.013 to 0.087 at this length, and under
+cross-validation it goes 0.070 to 0.045. The inflation belongs to their
+selection rule, not to L1 selection. Both rules are fully powered at ``D5``
+(mean-1 shift). Durable cases: ``fspda_table1`` for the paper's table,
+``pda_table1`` for the defaults.
 
 .. note::
 
@@ -1169,20 +1213,15 @@ paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
    select the Lasso penalty with a modified BIC (Remark 4 cont., p.521:
    "we tune the constants in the modified BIC to allow Lasso to take in more
    variables"); ``mlsynth``'s L1-PDA defaults to ``LassoCV`` (5-fold
-   cross-validation). Their rule is available as
-   ``lasso_criterion="mbic"`` (see
-   :ref:`Choosing lambda <pda-lasso-criterion>` above), but the benchmark that
-   produced this table runs the default, so these cells are ``mlsynth``'s CV
-   variant, not a cell-by-cell match of the paper's Lasso.
-   What both share -- and what the benchmark pins -- is the geometry:
-   LASSO over-selects relative to fs and its size inflates under dynamic
-   factors, while forward selection (the paper's *method*, validated cell-by-
-   cell on Hong Kong in ``pda_hongkong``) stays parsimonious and correctly
-   sized.
+   cross-validation). Their rule is ``lasso_criterion="mbic"`` (see
+   :ref:`Choosing lambda <pda-lasso-criterion>` above), and pairing it with
+   ``lrvar_lag`` gives their test as well. Under both, ``fspda_table1``
+   reproduces Table 1 cell by cell; the table above is what the defaults do on
+   the same design.
 
-   The cell-by-cell comparison against their code, under their penalty rule,
-   is a separate case: ``fspda_dense_mc`` runs ``PDA`` on panels generated by
-   their own ``FS.simulation.dense.R`` and compares to what their ``FS()`` and
+   The panel-level comparison against their code is a third case:
+   ``fspda_dense_mc`` runs ``PDA`` on panels generated by their own
+   ``FS.simulation.dense.R`` and compares to what their ``FS()`` and
    ``lasso.BIC()`` return on those same panels.
 
 .. admonition:: Cross-validated against fsPDA on their own panels
