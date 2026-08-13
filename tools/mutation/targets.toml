@@ -485,8 +485,12 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "certificates-admitted-as-solutions"
-  find = '    "run time limit reached",\n})'
-  replace = '    "run time limit reached",\n    "primal infeasible",\n    "primal infeasible inaccurate",\n})'
+  find = '''    "run time limit reached",
+})'''
+  replace = '''    "run time limit reached",
+    "primal infeasible",
+    "primal infeasible inaccurate",
+})'''
   models = "the accept list widened to take the infeasibility certificates too, which is the shape the rule takes when a status is added to stop a test failing. The distinction the list exists to draw -- an imprecise solution against an answer to a different question -- is exactly what this erases"
 
   [[target.mutant]]
