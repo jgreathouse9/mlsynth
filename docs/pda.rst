@@ -561,31 +561,115 @@ chosen set :math:`\widehat{U}_{\widehat{R}}`. Forward selection evaluates
 Computing the greedy step
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Those :math:`N-r+1` regressions per step are the whole cost of the method, and
-none of them has to be solved. Write :math:`\mathbf{r}` for the pre-period
-residual on the donors already chosen, :math:`P` for the projection onto their
-span (the constant included when one is fitted), and
-:math:`\mathbf{z}_j = \mathbf{x}_j - P\mathbf{x}_j` for a candidate donor
-orthogonalised against that span. Because :math:`\mathbf{r}` is already
-orthogonal to the span, admitting donor :math:`j` lowers the residual sum of
-squares by exactly
+The step as the paper states it. At step :math:`r`, with
+:math:`\widehat{U}_r` the donors already chosen, forward selection scores every
+remaining donor by the pre-period fit its admission would produce, and keeps the
+best:
 
 .. math::
 
-   \Delta_j = \frac{(\mathbf{x}_j^\top\mathbf{r})^2}
-                   {\lVert\mathbf{z}_j\rVert^2},
+   j^\star = \operatorname*{argmin}_{j \notin \widehat{U}_r}
+             \widehat{\sigma}^2\bigl(\widehat{U}_r \cup \{j\}\bigr),
+   \qquad
+   \widehat{\sigma}^2(S) = \frac{1}{T_0}\,
+       \min_{\boldsymbol{\beta}}
+       \bigl\lVert \mathbf{y}_1 - \mathbf{X}_S\,\boldsymbol{\beta}
+       \bigr\rVert_2^2 .
 
-so the donor minimising :math:`\widehat\sigma^2` is the donor maximising
-:math:`\Delta_j`. One matrix-vector product :math:`\mathbf{Z}^\top\mathbf{r}`
-scores the entire pool, and a rank-one downdate of :math:`\mathbf{Z}` carries
-the orthogonalisation into the next step: the step costs :math:`O(T_0 N)`
-arithmetic and a single least-squares solve, for the donor it selects, whose
-:math:`\widehat\sigma^2` is the number the criterion reads. The pool no longer
-multiplies the solves, and a fit that took a quarter of a second at
-:math:`N = 1000` takes ten milliseconds. Donors whose scores agree to within
-rounding -- an exact duplicate of a selected donor, a pool spanning fewer
-directions than it has members -- are settled by the OLS comparison itself, so
-the search selects what the definition selects.
+Read literally that is :math:`N - r` separate least-squares problems per step,
+each on a :math:`T_0 \times (r+1)` design, and the recursion repeats them from
+scratch at every step.
+
+The step as ``mlsynth`` computes it. Let :math:`P_r` be the orthogonal
+projection onto the span of the chosen donors (the constant adjoined when one is
+fitted), and write
+
+.. math::
+
+   \mathbf{e}_r = (\mathbf{I} - P_r)\,\mathbf{y}_1,
+   \qquad
+   \mathbf{z}_j = (\mathbf{I} - P_r)\,\mathbf{x}_j
+
+for the current pre-period residual and for a candidate donor orthogonalised
+against that span. The fit after admitting :math:`j` is then available in
+closed form,
+
+.. math::
+
+   T_0\,\widehat{\sigma}^2\bigl(\widehat{U}_r \cup \{j\}\bigr)
+     = \bigl\lVert\mathbf{e}_r\bigr\rVert_2^2 - \Delta_j,
+   \qquad
+   \Delta_j = \frac{\bigl(\mathbf{x}_j^\top\mathbf{e}_r\bigr)^2}
+                   {\bigl\lVert\mathbf{z}_j\bigr\rVert_2^2},
+
+with :math:`\mathbf{x}_j^\top\mathbf{e}_r =
+\mathbf{z}_j^\top\mathbf{e}_r` because :math:`\mathbf{e}_r` is orthogonal to the
+span by construction. The subtracted term is the only part that depends on
+:math:`j`, so the two selection rules coincide:
+
+.. math::
+
+   \operatorname*{argmin}_{j \notin \widehat{U}_r}
+     \widehat{\sigma}^2\bigl(\widehat{U}_r \cup \{j\}\bigr)
+   \;=\;
+   \operatorname*{argmax}_{j \notin \widehat{U}_r} \Delta_j .
+
+All :math:`N - r` numerators are one matrix-vector product
+:math:`\mathbf{Z}^\top\mathbf{e}_r`, and the denominators reach the next step
+through a rank-one downdate of :math:`\mathbf{Z}`. A donor lying inside the span
+has :math:`\lVert\mathbf{z}_j\rVert_2 = 0` and contributes
+:math:`\Delta_j = 0`, which is the closed form saying it cannot lower the
+residual.
+
+What differs, and what does not. The displayed equality is an identity in exact
+arithmetic, not an approximation, so the two rules select the same donor. The
+criterion :math:`\mathrm{IC}(r)` still reads a :math:`\widehat{\sigma}^2`
+returned by an ordinary least-squares solve on the design the step selects, so
+the stopping rule is evaluated on the same quantity in both forms. What changes
+is the arithmetic spent getting there:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Form of the step
+     - Arithmetic per step
+     - Least-squares solves per step
+   * - Scoring by refitting
+     - :math:`O(N T_0 r^2)`
+     - :math:`N - r`
+   * - Scoring by projection
+     - :math:`O(T_0 N)`
+     - :math:`1`
+
+Where the difference is felt. A single fit on :math:`N = 1000` donors over
+:math:`T_0 = 300` pre-periods goes from 189 ms to 7.7 ms. The effect compounds
+wherever the selection is re-run: setting ``prediction_intervals=True`` refits
+the estimator on every bootstrap sample (999 by default -- see
+:ref:`the prediction-interval section <pda-prediction-intervals>`), so a
+forward-selected fit with intervals on 120 donors goes from 22.3 s to 1.3 s.
+
+The estimate is unchanged, and the benchmarks check it --
+``fspda_dense_mc`` reproduces the released R package's selected set on 8 of 8
+Monte Carlo cells, with coefficients, ATE and z-statistic agreeing to
+:math:`10^{-13}`; ``fspda_sparse_mc`` agrees with the authors' ``nonsparse/FS.R``
+rule on 30 of 30 panels; ``pda_table1`` and ``pda_luxurywatch`` return the values
+they returned before.
+
+Where the two forms can name different donors. Donors that fit the pre-period
+identically -- an exact duplicate of a selected donor, or a pool spanning fewer
+directions than it has members -- carry equal :math:`\Delta_j` up to rounding.
+The search settles such a tie by the least-squares comparison itself, across a
+bounded number of the tied candidates, and on the pools an applied panel
+presents it selects what the definition selects. Two regimes sit outside that
+bound: a tied group larger than the shortlist, and a pre-period that has
+interpolated. In the second, once :math:`\mathbf{y}_1` lies exactly in the donor
+span the residual falls to the level of rounding noise, and each further step
+compares one :math:`\widehat{\sigma}^2` of order :math:`10^{-31}` against
+another; both forms admit a few extra donors, and which ones follows the
+floating-point library. In either regime the donors named can differ within a
+set that fits the pre-period equally well, the extras carry coefficients at the
+:math:`10^{-16}` level, and the counterfactual agrees to machine precision.
 
 Assumptions (Shi & Huang). Asymptotics are *multi-index*: :math:`N\to\infty`
 with :math:`T_0 = T_0(N)` deterministic, :math:`\log N / T_0 \to 0`, and
@@ -1059,6 +1143,8 @@ signed coefficients (pre-RMSE 0.012); ``lasso`` keeps 11; ``fs`` grows to 9. The
 four estimates bracket the Forward-DiD result on the same data (0.025), a useful
 cross-method check.
 
+.. _pda-prediction-intervals:
+
 Prediction intervals
 --------------------
 
@@ -1306,9 +1392,13 @@ selection rule, not to L1 selection. Both rules are fully powered at ``D5``
 L2-relaxation (Shi & Wang). The ``l2`` method's out-of-sample MPSE falls
 with :math:`T` and its test approaches the nominal 5% size as :math:`T_0 \to
 \infty`, matching Shi & Wang's Table 2 (size :math:`0.142` at :math:`T_0=50`
-→ :math:`0.072` at :math:`200`). Its per-fit cross-validation over the
-:math:`\varepsilon` grid makes large Monte Carlos expensive (~5 s/fit), so the full
-table is summarized, not swept here.
+→ :math:`0.072` at :math:`200`). Each fit cross-validates :math:`\varepsilon`
+over its own grid, which is what makes a large Monte Carlo costly here: at the
+100 donors this study uses, one fit on the default grid takes about a second at
+:math:`T_0 = 50`, against 5 s before the ranking sweep was separated from the
+reported fit (see the note on solving the grid above). The case runs a coarse
+twelve-point grid and summarizes the table, so the full sweep stays out of the
+test suite.
 
 Multiple treated units
 ----------------------
