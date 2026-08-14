@@ -217,6 +217,51 @@ def test_percent_gap_is_nan_exactly_where_the_counterfactual_is_zero(post_gap, c
 # standardized_att
 # ---------------------------------------------------------------------------
 
+def _is_faithfully_scalable(values) -> bool:
+    """Whether every element carries a full significand, so rescaling is exact.
+
+    Scale invariance is a statement about *relative* precision, and doubles only
+    have uniform relative precision down to the smallest normal,
+    ``2.2251e-308``. Below it the significand shrinks toward a single bit and the
+    grid becomes absolute, so multiplying no longer moves a value to the
+    corresponding place -- ``1.9 * 2^-1074`` is 2 ULP, not 1.9, a 5.3% error in
+    the input before the function is called at all. Measured on the three cases
+    that reached this assertion, the statistic's answers differed by 5.000e-02,
+    6.270e-04 and 1.349e-04 against input errors of 5.263e-02, 6.274e-04 and
+    1.349e-04: it is as accurate as what it was handed.
+
+    A rescaling that cannot be represented is not the same study in different
+    units, so those inputs are outside what this property can ask about. What
+    the function does down there is asserted directly instead, by
+    ``test_standardized_att_at_one_significant_bit``,
+    ``test_scaling_a_subnormal_gap_to_zero_has_no_standardized_att`` and the
+    whole-float-range parametrization.
+    """
+    v = np.abs(np.asarray(values, dtype=float))
+    return bool(np.all(np.isfinite(v) & ((v == 0.0) | (v >= np.finfo(float).tiny))))
+
+
+def _mean_is_well_conditioned(values, limit: float = 1e9) -> bool:
+    """Whether the mean of ``values`` survives being computed at all.
+
+    The condition number of a sum is ``sum |x_i| / |sum x_i|``, and the relative
+    error of the computed mean is about ``eps`` times that. ``standardized_att``
+    divides by a quantity built from the pre-period, so whatever relative error
+    the post-period mean carries passes straight into the statistic.
+
+    At the default limit the mean is good to ``eps * 1e9 = 2.2e-07``, which is
+    what makes a ``1e-6`` relative comparison meaningful. Past it the ATT is
+    rounding and nothing else: on a post-period with a condition number of
+    ``1.26e+16`` the statistic reads ``-5.258e+192`` at one scale and ``0.0`` at
+    another, and both are correct readings of a number that has cancelled away
+    its own significance. The same measure sets the tolerance on
+    ``test_att_and_total_effect_scale_with_the_gap``.
+    """
+    v = np.asarray(values, dtype=float)
+    total = abs(float(v.sum()))
+    return total > 0.0 and float(np.abs(v).sum()) <= limit * total
+
+
 @given(pre_gap=_series(), post_gap=_series(), scale=_nonzero_scale)
 @example(pre_gap=np.array([4.196e-160]),
          post_gap=np.array([1.0, 2.0, 3.0]),
@@ -233,14 +278,11 @@ def test_standardized_att_is_scale_invariant(pre_gap, post_gap, scale):
     base = eff.standardized_att(pre_gap, post_gap)
     assume(np.isfinite(base))
     scaled_pre, scaled_post = scale * pre_gap, scale * post_gap
-    # Scale invariance presumes the rescaling is faithful. It stops being one at
-    # the edges of the range: 0.01 * 2^-1074 is exactly 0.0, so the rescaled
-    # pre-period gap is genuinely all zeros and genuinely has no answer. Same
-    # support in, same support out is what makes the two inputs the same study
-    # in different units.
-    assume(np.all(np.isfinite(scaled_pre)) and np.all(np.isfinite(scaled_post)))
-    assume(np.count_nonzero(scaled_pre) == np.count_nonzero(pre_gap))
-    assume(np.count_nonzero(scaled_post) == np.count_nonzero(post_gap))
+    assume(_is_faithfully_scalable(pre_gap) and _is_faithfully_scalable(post_gap))
+    assume(_is_faithfully_scalable(scaled_pre)
+           and _is_faithfully_scalable(scaled_post))
+    assume(_mean_is_well_conditioned(post_gap)
+           and _mean_is_well_conditioned(scaled_post))
     scaled = eff.standardized_att(scaled_pre, scaled_post)
     assert scaled == _approx(base, rel=1e-6)
 
