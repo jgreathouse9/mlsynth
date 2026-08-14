@@ -12,10 +12,12 @@ are built from these SEs around the full-sample point estimates.
 
 from __future__ import annotations
 
-from typing import Any, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from scipy.stats import norm
+
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 
 from .engine import run_multisynth, predict_tau
 
@@ -201,3 +203,131 @@ def jackknife_inference(
     per_time_ci = np.column_stack([per_time_full - z * per_time_se,
                                    per_time_full + z * per_time_se])
     return float(att_full), se, ci, per_time_se, per_time_ci
+
+
+def rolling_pooled_block_sums(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, horizon: int, min_train_frac: float = 0.3,
+) -> List[np.ndarray]:
+    """Per-unit cumulative out-of-sample errors, one pooled solve per origin.
+
+    Slides an origin across the pre-period and, at each one, pretends every treated
+    unit adopted there: a single partially-pooled fit on the data before the origin
+    yields *every* unit's weights at once, and each unit's summed effect over the next
+    ``horizon`` periods is one conformity score for it. So a pass costs one solve per
+    origin, not one per unit per origin.
+
+    Origins step by ``horizon``, so the windows do not overlap and the scores stay
+    exchangeable, and each fit sees only data strictly before the window it scores.
+
+    Returns
+    -------
+    list of numpy.ndarray
+        One array of finite scores per treated cohort, in ``groups`` order.
+    """
+    from ..conformal import MIN_TRAIN_PERIODS
+
+    trt = np.asarray(trt, dtype=float)
+    adopted = np.isfinite(trt)
+    if not adopted.any():
+        raise MlsynthDataError(
+            "cumulative conformal inference needs at least one treated unit; "
+            "no unit has a finite adoption time."
+        )
+    horizon = int(horizon)
+    earliest = int(np.min(trt[adopted]))
+    start = max(MIN_TRAIN_PERIODS, int(earliest * float(min_train_frac)))
+
+    scores: Dict[int, List[float]] = {}
+    n_groups = 0
+    for origin in range(start, earliest - horizon + 1, horizon):
+        trt_o = trt.copy()
+        trt_o[adopted] = origin
+        try:
+            fo = run_multisynth(
+                Xy, trt_o, origin, horizon, origin,
+                fixedeff=fixedeff, time_cohort=time_cohort,
+                nu=nu_used, lam=lam, solver=solver,
+            )
+        except Exception:  # pragma: no cover - a degenerate origin is skipped
+            continue
+        n_groups = max(n_groups, len(fo["groups"]))
+        for k in range(len(fo["groups"])):
+            path = np.asarray(fo["tau_rel"][k], dtype=float)[:horizon]
+            if path.size == horizon and np.isfinite(path).all():
+                scores.setdefault(k, []).append(float(path.sum()))
+    return [np.asarray(scores.get(k, []), dtype=float) for k in range(n_groups)]
+
+
+def cumulative_conformal_per_unit(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, alpha: float, horizon: int, min_train_frac: float = 0.3,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per-unit conformal band for each treated unit's cumulative effect.
+
+    The point estimates come from the full fit's ``tau_rel``; the calibration comes
+    from :func:`rolling_pooled_block_sums` and
+    :func:`mlsynth.utils.conformal.cumulative_conformal_interval` -- the same
+    combiner VanillaSC uses, so the order statistic has one definition.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(point, lower, upper, n_scores)``, each of shape ``(J,)`` in ``groups``
+        order. A unit with too few calibration windows for the requested level gets
+        an infinite band rather than a narrow one that does not cover.
+    """
+    from ..conformal import cumulative_conformal_interval
+
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float, np.floating)):
+        raise MlsynthConfigError(f"alpha must be a number in (0, 1); got {alpha!r}.")
+    if not 0.0 < float(alpha) < 1.0:
+        raise MlsynthConfigError(
+            f"alpha must lie in the open interval (0, 1); got {alpha!r}."
+        )
+    if isinstance(horizon, bool) or not isinstance(horizon, (int, np.integer)) or int(horizon) < 1:
+        raise MlsynthConfigError(f"horizon must be a positive integer; got {horizon!r}.")
+    horizon = int(horizon)
+    if horizon > int(n_leads):
+        raise MlsynthDataError(
+            f"horizon ({horizon}) exceeds the {int(n_leads)} post-period lead(s) "
+            "estimated; there is no full window to accumulate."
+        )
+
+    if not np.isfinite(np.asarray(trt, dtype=float)).any():
+        raise MlsynthDataError(
+            "cumulative conformal inference needs at least one treated unit; "
+            "no unit has a finite adoption time."
+        )
+
+    full = run_multisynth(
+        Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
+        nu=nu_used, lam=lam, solver=solver,
+    )
+    n_units = len(full["groups"])
+    point = np.array(
+        [float(np.sum(np.asarray(full["tau_rel"][k], dtype=float)[:horizon]))
+         for k in range(n_units)], dtype=float,
+    )
+
+    per_unit_scores = rolling_pooled_block_sums(
+        Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
+        nu_used=nu_used, lam=lam, solver=solver, horizon=horizon,
+        min_train_frac=min_train_frac,
+    )
+
+    lower = np.full(n_units, np.nan)
+    upper = np.full(n_units, np.nan)
+    n_scores = np.zeros(n_units, dtype=int)
+    for k in range(n_units):
+        s = per_unit_scores[k] if k < len(per_unit_scores) else np.asarray([])
+        n_scores[k] = int(s.size)
+        if s.size == 0:
+            lower[k], upper[k] = -np.inf, np.inf
+            continue
+        band = cumulative_conformal_interval(
+            point[k], s, alpha=float(alpha), horizon=horizon)
+        lower[k], upper[k] = band.lower, band.upper
+    return point, lower, upper, n_scores
