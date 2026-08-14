@@ -574,6 +574,14 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     carbon tax panel (:math:`T_0 + 1 = 31`) the two readings coincide. See
     :func:`mlsynth.utils.conformal.inversion.confidence_set_bounds`.
 
+    Verification: the whole procedure is cross-validated against the authors'
+    own ``scinference`` on the panel their paper uses as its application, in
+    :doc:`replications/cwz_conformal` (durable case
+    `benchmarks/cases/cwz_conformal.py
+    <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal.py>`__).
+    The moving-block :math:`p`-value, all six pointwise intervals on the paper's
+    grid, and the three placebo specification tests reproduce exactly.
+
 ``"jackknife_plus"`` -- jackknife+ over pre-treatment periods (Ben-Michael, Feller & Rothstein 2021)
     ``augsynth``'s ``inf_type = "jackknife+"``, and only defined for the
     ridge-augmented fit (``augment="ridge"``); asking for it without the

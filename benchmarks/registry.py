@@ -78,6 +78,7 @@ CASES = {
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
     "lto_refined_placebo": "benchmarks.cases.lto_refined_placebo",  # cross-val vs authors' LTO code (Sudijono-Lei): leave-two-out refined placebo p-value on Prop 99 + West Germany + Basque, value-for-value
     "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2025 Table 5 carbon-tax debiased t-test
+    "cwz_conformal": "benchmarks.cases.cwz_conformal",    # cross-val vs scinference conformal (CWZ 2021 JASA Sec 5 application)
     "cwz_mc": "benchmarks.cases.cwz_mc",                      # Path B: CWZ 2025 Table 3 application-based Monte Carlo
     "masc_basque": "benchmarks.cases.masc_basque",            # Path A: MASC Basque/ETA (KMPT Sec 5)
     "masc_crossval": "benchmarks.cases.masc_crossval",        # cross-val vs authors' own R MASC (maxkllgg/masc, nogurobi) on Basque, value-for-value

@@ -53,6 +53,8 @@ Path A — empirical replications
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``clustersc_rpca_germany``
      - RPCA-SC West Germany
+   * - ``cwz_conformal``
+     - CWZ 2021 (JASA) conformal test inversion against the authors' own scinference, on their Section 5 Rhode Island application: the moving-block p-value, all six pointwise intervals on the paper's grid, and the three placebo specification tests, all exact
    * - ``cwz_ttest``
      - CWZ 2025 Table 5 carbon-tax debiased t-test
    * - ``dsc_dube``
