@@ -54,6 +54,12 @@ from mlsynth.utils.ppscm_helpers.simulation import simulate_bfr_panel
 M = 40            # replications for the ATT arms (bootstrap is cheap, jackknife is not)
 M_CUM = 25        # replications for the cumulative arm (one pooled solve per origin)
 _ALPHA = 0.05     # the paper's nominal level for the ATT
+#: Fourteen adoption times, the first at t=7 -- the paper's application shape. The
+#: count matters as much as the selection intercept: sweeping 14 times at
+#: expit(-2.7) leaves about 30 of 49 units eventually treated, which is what the
+#: paper reports. Sweeping only a handful leaves a third of that, and the pooled
+#: inference is then run over far fewer cohorts than the design intends.
+_ADOPTION_TIMES = tuple(range(7, 35, 2))
 _ALPHA_CUM = 0.10  # the level the cumulative band can support at this panel shape
 _ALPHA_CUM_FLOOR = 0.85   # nominal 0.90 less three MC standard errors
 
@@ -87,8 +93,8 @@ def _att_arm(design: str, method: str, base_seed: int):
     """Mean ATT and coverage of the true zero, over ``M`` draws of one design."""
     atts, covers = [], []
     for i in range(M):
-        sim = simulate_bfr_panel(design=design, n_units=40, n_periods=39,
-                                 adoption_times=(14, 20, 26), seed=base_seed + i)
+        sim = simulate_bfr_panel(design=design, n_units=49, n_periods=39,
+                                 adoption_times=_ADOPTION_TIMES, seed=base_seed + i)
         if not np.isfinite(sim.trt).any():
             continue
         try:
