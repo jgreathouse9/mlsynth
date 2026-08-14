@@ -34,10 +34,17 @@ from mlsynth.utils.conformal import (
 
 
 # --- deterministic fixtures (no estimator dependency) -----------------------
-def _ols_weights(y_train, Y0_train):
-    """Stand-in for an estimator's refit: unconstrained donor regression."""
-    beta, *_ = np.linalg.lstsq(Y0_train, y_train, rcond=None)
-    return np.asarray(beta, float)
+def _ols_weight_fn(y, Y0):
+    """Stand-in for an estimator's refit: unconstrained donor regression.
+
+    Takes period indices, the contract ``debiased_sc_ttest`` already uses, so a
+    covariate-aware estimator can subset its covariates by the same periods.
+    """
+    def _fn(keep_idx):
+        idx = np.asarray(keep_idx)
+        beta, *_ = np.linalg.lstsq(Y0[idx], y[idx], rcond=None)
+        return np.asarray(beta, float)
+    return _fn
 
 
 def _panel(T=120, J=5, pre=100, seed=0, effect=0.0):
@@ -50,7 +57,7 @@ def _panel(T=120, J=5, pre=100, seed=0, effect=0.0):
 
 def _fit(**kw):
     y, Y0 = kw.pop("panel", None) or _panel()
-    base = dict(pre_periods=100, horizon=4, weight_fn=_ols_weights,
+    base = dict(pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0),
                 alpha=0.1, min_train_frac=0.2)
     base.update(kw)
     return cumulative_conformal_from_refit(y, Y0, **base)
@@ -76,7 +83,7 @@ def test_smoke_returns_band_of_the_declared_type():
 def test_point_is_the_summed_out_of_sample_gap_not_its_average():
     """Guards the estimand: the band is for the SUM, not the per-period mean."""
     y, Y0 = _panel()
-    W = _ols_weights(y[:100], Y0[:100])
+    W = _ols_weight_fn(y, Y0)(np.arange(100))
     gap = y[100:104] - Y0[100:104] @ W
     band = _fit(panel=(y, Y0))
     assert band.point == pytest.approx(float(gap.sum()))
@@ -93,7 +100,7 @@ def test_half_width_is_the_split_conformal_quantile_of_centred_block_sums():
     """The seam: scores from rolling origins, half-width from the shared primitive."""
     y, Y0 = _panel()
     scores = rolling_origin_block_sums(
-        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weights, min_train_frac=0.2
+        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0), min_train_frac=0.2
     )
     expected = split_conformal_quantile(scores - scores.mean(), alpha=0.1)
     band = _fit(panel=(y, Y0))
@@ -106,10 +113,10 @@ def test_scores_are_block_sums_computed_from_hand():
     y, Y0 = _panel()
     expected = []
     for origin in range(20, 100 - 4 + 1, 4):
-        w = _ols_weights(y[:origin], Y0[:origin])
+        w = _ols_weight_fn(y, Y0)(np.arange(origin))
         expected.append(float(np.sum(y[origin:origin + 4] - Y0[origin:origin + 4] @ w)))
     scores = rolling_origin_block_sums(
-        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weights, min_train_frac=0.2
+        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0), min_train_frac=0.2
     )
     np.testing.assert_allclose(scores, np.asarray(expected), rtol=1e-9, atol=1e-12)
 
@@ -118,7 +125,7 @@ def test_scores_come_from_non_overlapping_origins():
     """Overlapping blocks would reuse periods and break exchangeability."""
     y, Y0 = _panel()
     scores = rolling_origin_block_sums(
-        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weights, min_train_frac=0.2
+        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0), min_train_frac=0.2
     )
     start = max(4, int(100 * 0.2))
     expected_origins = len(range(start, 100 - 4 + 1, 4))   # stride == horizon
@@ -129,11 +136,11 @@ def test_scores_are_out_of_sample_each_refit_excludes_its_own_block():
     """A refit that saw its own block would score ~0; genuine OOS scores do not."""
     y, Y0 = _panel()
     scores = rolling_origin_block_sums(
-        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weights, min_train_frac=0.2
+        y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0), min_train_frac=0.2
     )
     in_sample = []
     for o in range(max(4, int(100 * 0.2)), 100 - 4 + 1, 4):
-        W = _ols_weights(y[:o + 4], Y0[:o + 4])          # trained INCLUDING the block
+        W = _ols_weight_fn(y, Y0)(np.arange(o + 4))          # trained INCLUDING the block
         in_sample.append(float(np.sum(y[o:o + 4] - Y0[o:o + 4] @ W)))
     assert np.mean(np.abs(scores)) > np.mean(np.abs(in_sample))
 

@@ -537,8 +537,8 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "calibration-refit-sees-its-own-block"
-  find = "w = np.asarray(weight_fn(y[:origin], Y0[:origin]), dtype=float).ravel()"
-  replace = "w = np.asarray(weight_fn(y[:origin + int(horizon)], Y0[:origin + int(horizon)]), dtype=float).ravel()"
+  find = "w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()"
+  replace = "w = np.asarray(weight_fn(np.arange(origin + int(horizon))), dtype=float).ravel()"
   models = "fitting each calibration refit on data that includes the very block it is about to score, so the conformity scores measure in-sample fit rather than prediction error and the band comes out too narrow"
 
 [[target]]

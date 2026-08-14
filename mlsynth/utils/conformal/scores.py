@@ -24,7 +24,7 @@ def rolling_origin_block_sums(
     Y0: np.ndarray,
     pre_periods: int,
     horizon: int,
-    weight_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    weight_fn: Callable[[np.ndarray], np.ndarray],
     *,
     min_train_frac: float = 0.3,
 ) -> np.ndarray:
@@ -41,8 +41,11 @@ def rolling_origin_block_sums(
     horizon : int
         Window length ``L`` -- both the block length and the origin stride.
     weight_fn : callable
-        ``weight_fn(y_train, Y0_train) -> w``, the estimator's own refit on a
-        pre-period prefix. Called once per origin.
+        ``weight_fn(keep_idx) -> w``, the estimator's own refit on the periods
+        indexed by ``keep_idx``. Called once per origin. Indices rather than
+        sliced arrays, matching :func:`~mlsynth.utils.inferutils.debiased_sc_ttest`:
+        an estimator with covariates has to subset those by the same periods, and
+        only the caller knows how.
     min_train_frac : float, optional
         Earliest origin as a fraction of ``T0``, so the first refits have enough
         training data (default ``0.3``).
@@ -63,7 +66,7 @@ def rolling_origin_block_sums(
     start = max(int(horizon), int(pre_periods * float(min_train_frac)))
     scores = []
     for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):
-        w = np.asarray(weight_fn(y[:origin], Y0[:origin]), dtype=float).ravel()
+        w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()
         block = slice(origin, origin + int(horizon))
         scores.append(float(np.sum(y[block] - Y0[block] @ w)))
     return np.asarray(scores, dtype=float)

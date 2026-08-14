@@ -106,7 +106,7 @@ def cumulative_conformal_from_refit(
     Y0: np.ndarray,
     pre_periods: int,
     horizon: int,
-    weight_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    weight_fn: Callable[[np.ndarray], np.ndarray],
     *,
     alpha: float = 0.1,
     min_train_frac: float = 0.3,
@@ -127,7 +127,9 @@ def cumulative_conformal_from_refit(
     horizon : int
         Number of post-periods to accumulate, ``L``.
     weight_fn : callable
-        ``weight_fn(y_train, Y0_train) -> w``; the estimator's own refit.
+        ``weight_fn(keep_idx) -> w``; the estimator's own refit on the periods
+        indexed by ``keep_idx`` (indices, not slices, so covariates can be subset
+        by the same periods).
     alpha : float, optional
         Target miscoverage (default ``0.1``).
     min_train_frac : float, optional
@@ -171,7 +173,7 @@ def cumulative_conformal_from_refit(
             f"sample ({y.shape[0]} periods); there is no full post-window to accumulate."
         )
 
-    w_full = np.asarray(weight_fn(y[:pre_periods], Y0[:pre_periods]), dtype=float).ravel()
+    w_full = np.asarray(weight_fn(np.arange(pre_periods)), dtype=float).ravel()
     post = slice(pre_periods, pre_periods + horizon)
     point = float(np.sum(y[post] - Y0[post] @ w_full))
 

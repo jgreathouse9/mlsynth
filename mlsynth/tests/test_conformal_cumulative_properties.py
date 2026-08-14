@@ -31,9 +31,17 @@ _SETTINGS = settings(
 )
 
 
-def _ols_weights(y_train, Y0_train):
-    beta, *_ = np.linalg.lstsq(Y0_train, y_train, rcond=None)
-    return np.asarray(beta, float)
+def _ols_weight_fn(y, Y0):
+    """Stand-in for an estimator's refit: unconstrained donor regression.
+
+    Takes period indices, the contract ``debiased_sc_ttest`` already uses, so a
+    covariate-aware estimator can subset its covariates by the same periods.
+    """
+    def _fn(keep_idx):
+        idx = np.asarray(keep_idx)
+        beta, *_ = np.linalg.lstsq(Y0[idx], y[idx], rcond=None)
+        return np.asarray(beta, float)
+    return _fn
 
 
 @st.composite
@@ -56,7 +64,7 @@ def panels(draw, min_pre=48, max_pre=96):
 
 def _band(y, Y0, pre, horizon, alpha=0.1, min_train_frac=0.2):
     return cumulative_conformal_from_refit(
-        y, Y0, pre, horizon, _ols_weights, alpha=alpha, min_train_frac=min_train_frac
+        y, Y0, pre, horizon, _ols_weight_fn(y, Y0), alpha=alpha, min_train_frac=min_train_frac
     )
 
 
@@ -76,7 +84,7 @@ class TestStructure:
         y, Y0, pre, horizon = panel
         b = _band(y, Y0, pre, horizon)
         scores = rolling_origin_block_sums(
-            y, Y0, pre, horizon, _ols_weights, min_train_frac=0.2
+            y, Y0, pre, horizon, _ols_weight_fn(y, Y0), min_train_frac=0.2
         )
         assert b.n_scores == scores.size
         if scores.size:
@@ -88,7 +96,7 @@ class TestStructure:
     def test_point_accumulates_the_post_window(self, panel):
         y, Y0, pre, horizon = panel
         b = _band(y, Y0, pre, horizon)
-        w = _ols_weights(y[:pre], Y0[:pre])
+        w = _ols_weight_fn(y, Y0)(np.arange(pre))
         gap = y[pre:pre + horizon] - Y0[pre:pre + horizon] @ w
         assert b.point == pytest.approx(float(gap.sum()), abs=1e-8)
 
@@ -170,7 +178,7 @@ class TestCalibrationSet:
     def test_origins_do_not_overlap(self, panel):
         y, Y0, pre, horizon = panel
         scores = rolling_origin_block_sums(
-            y, Y0, pre, horizon, _ols_weights, min_train_frac=0.2
+            y, Y0, pre, horizon, _ols_weight_fn(y, Y0), min_train_frac=0.2
         )
         start = max(horizon, int(pre * 0.2))
         assert scores.size == len(range(start, pre - horizon + 1, horizon))
