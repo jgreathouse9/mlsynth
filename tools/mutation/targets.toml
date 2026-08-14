@@ -621,6 +621,30 @@ timeout = 600.0
   models = "forgetting to move adoption to the calibration origin, so every fit is the real one and each 'calibration score' is the actual treatment effect rather than a placebo window -- the scores stop measuring prediction error entirely and the band is calibrated on the thing it is supposed to be testing"
 
 [[target]]
+name = "simultaneous-band"
+module-path = "mlsynth/utils/supt.py"
+test-command = "python -m pytest mlsynth/tests/test_supt.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "supt-collapses-to-the-pointwise-critical-value"
+  find = "    m = np.max(np.abs(z / scale), axis=1)"
+  replace = "    m = np.abs(z / scale)[:, 0]"
+  models = "taking one horizon's deviation instead of the largest across horizons, which is the pointwise critical value wearing a simultaneous band's name. Every shape, sign and monotonicity assertion still passes; what fails is the coverage the band claims, and only a test that compares the correction against its own simulation error can see it"
+
+  [[target.mutant]]
+  id = "jackknife-inflation-dropped"
+  find = "        out[h] = np.sqrt((m - 1) / m * ss) if jackknife else np.sqrt(ss / (m - 1))"
+  replace = "        out[h] = np.sqrt(ss / (m - 1))"
+  models = "treating delete-one replicates as if they were bootstrap draws. Jackknife replicates differ from the full estimate by O(1/m), so without the inflation the standard error is smaller by roughly (m-1)/sqrt(m) -- a factor of eight at 66 units -- and the band looks precise while covering almost nothing"
+
+  [[target.mutant]]
+  id = "cumulative-averages-instead-of-accumulating"
+  find = "    return np.cumsum(paths, axis=1)"
+  replace = "    return np.cumsum(paths, axis=1) / np.arange(1, paths.shape[1] + 1)"
+  models = "reporting the running mean where the running total was asked for, so the band is for a different estimand and its growth law inverts -- shrinking with the horizon instead of growing"
+
+[[target]]
 name = "conformal-refit-rule"
 module-path = "mlsynth/utils/conformal/refit.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_refit.py mlsynth/tests/test_conformal_refit_properties.py -q -p no:cacheprovider"
