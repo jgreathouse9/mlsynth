@@ -292,3 +292,96 @@ def test_split_conformal_quantile_behaviour_is_unchanged():
     # k = ceil((5+1)*0.5) = 3 -> third smallest absolute value
     assert split_conformal_quantile(r, alpha=0.5) == pytest.approx(2.0)
     assert not np.isfinite(split_conformal_quantile(np.array([]), alpha=0.1))
+
+
+# ---------------------------------------------------------------------------
+# Wiring: VanillaSC's ``inference="conformal_cumulative"`` mode
+# ---------------------------------------------------------------------------
+
+def _sc_panel(T=140, J=8, pre=120, effect=0.5, seed=3):
+    """Long-panel geo-test shape: enough pre-period for several calibration windows."""
+    import pandas as pd
+    rng = np.random.default_rng(seed)
+    donors = {f"d{j}": rng.normal(size=T).cumsum() + 10.0 for j in range(J)}
+    treated = sum(donors.values()) / J + rng.normal(scale=0.2, size=T)
+    treated[pre:] += effect
+    rows = [{"unit": "treated", "time": t, "y": treated[t], "d": int(t >= pre)}
+            for t in range(T)]
+    rows += [{"unit": u, "time": t, "y": v[t], "d": 0}
+             for u, v in donors.items() for t in range(T)]
+    return pd.DataFrame(rows)
+
+
+def _run_sc(df, **kw):
+    import warnings as _w
+    from mlsynth import VanillaSC
+    cfg = {"df": df, "outcome": "y", "treat": "d", "unitid": "unit", "time": "time",
+           "display_graphs": False, "inference": "conformal_cumulative", "alpha": 0.1}
+    cfg.update(kw)
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        return VanillaSC(cfg).fit()
+
+
+def test_mode_reports_the_cumulative_band_in_inference_details():
+    res = _run_sc(_sc_panel(), conformal_horizon=8)
+    d = res.inference.details
+    assert res.inference.method == "split-conformal cumulative-effect band (rolling origin)"
+    assert d["horizon"] == 8
+    assert d["n_calibration_windows"] >= 9
+    assert np.isfinite(d["cumulative_effect"])
+    assert d["cumulative_lower"] <= d["cumulative_effect"] <= d["cumulative_upper"]
+    assert d["cumulative_upper"] - d["cumulative_effect"] == pytest.approx(d["conformal_q"])
+    assert res.inference.confidence_level == pytest.approx(0.9)
+
+
+def test_partial_horizon_does_not_claim_an_att_interval():
+    """A window shorter than the post-period is not the ATT, so no ATT CI."""
+    res = _run_sc(_sc_panel(), conformal_horizon=8)      # post-period is 20
+    assert res.inference.details["spans_post_period"] is False
+    assert res.inference.ci_lower is None and res.inference.ci_upper is None
+
+
+def test_full_horizon_reports_the_per_period_equivalent_as_the_att_interval():
+    df = _sc_panel(T=132, pre=120)                        # post-period is 12
+    res = _run_sc(df, conformal_horizon=12)
+    d = res.inference.details
+    assert d["spans_post_period"] is True
+    assert res.inference.ci_lower == pytest.approx(d["cumulative_lower"] / 12)
+    assert res.inference.ci_upper == pytest.approx(d["cumulative_upper"] / 12)
+
+
+def test_horizon_defaults_to_the_whole_post_period():
+    df = _sc_panel(T=132, pre=120)
+    res = _run_sc(df)
+    assert res.inference.details["horizon"] == 12
+    assert res.inference.details["spans_post_period"] is True
+
+
+def test_too_few_windows_warns_and_reports_an_infinite_band():
+    import warnings as _w
+    from mlsynth import VanillaSC
+    df = _sc_panel(T=140, pre=120)
+    cfg = {"df": df, "outcome": "y", "treat": "d", "unitid": "unit", "time": "time",
+           "display_graphs": False, "inference": "conformal_cumulative",
+           "alpha": 0.1, "conformal_horizon": 20}
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        res = VanillaSC(cfg).fit()
+    assert any("uninformative" in str(w.message) for w in caught)
+    assert not np.isfinite(res.inference.details["conformal_q"])
+
+
+@pytest.mark.parametrize("bad", [0, -1, 2.5])
+def test_invalid_conformal_horizon_is_rejected_at_config_time(bad):
+    from mlsynth import VanillaSC
+    df = _sc_panel()
+    with pytest.raises(MlsynthConfigError):
+        VanillaSC({"df": df, "outcome": "y", "treat": "d", "unitid": "unit",
+                   "time": "time", "display_graphs": False,
+                   "inference": "conformal_cumulative", "conformal_horizon": bad})
+
+
+def test_mode_is_registered_as_a_valid_inference_method():
+    from mlsynth.utils.vanillasc_helpers.config import VALID_INFERENCE_METHODS
+    assert "conformal_cumulative" in VALID_INFERENCE_METHODS
