@@ -20,6 +20,7 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from mlsynth.utils.conformal import (
+    MIN_TRAIN_PERIODS,
     cumulative_conformal_interval,
     cumulative_conformal_from_refit,
     rolling_origin_block_sums,
@@ -180,7 +181,7 @@ class TestCalibrationSet:
         scores = rolling_origin_block_sums(
             y, Y0, pre, horizon, _ols_weight_fn(y, Y0), min_train_frac=0.2
         )
-        start = max(horizon, int(pre * 0.2))
+        start = max(MIN_TRAIN_PERIODS, int(pre * 0.2))
         assert scores.size == len(range(start, pre - horizon + 1, horizon))
 
     @given(panels())

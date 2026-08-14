@@ -25,6 +25,7 @@ import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.conformal import (
+    MIN_TRAIN_PERIODS,
     CumulativeConformalBand,
     cumulative_conformal_interval,
     cumulative_conformal_from_refit,
@@ -121,13 +122,24 @@ def test_scores_are_block_sums_computed_from_hand():
     np.testing.assert_allclose(scores, np.asarray(expected), rtol=1e-9, atol=1e-12)
 
 
+def test_short_panels_still_train_on_a_minimum_number_of_periods():
+    """A refit on a handful of periods interpolates them and predicts nothing."""
+    y, Y0 = _panel(T=40, J=3, pre=36)
+    scores = rolling_origin_block_sums(
+        y, Y0, pre_periods=36, horizon=2, weight_fn=_ols_weight_fn(y, Y0),
+        min_train_frac=0.05,                       # 5% of 36 = 1 period, far too few
+    )
+    # the floor, not the fraction, sets the first origin
+    assert scores.size == len(range(MIN_TRAIN_PERIODS, 36 - 2 + 1, 2))
+
+
 def test_scores_come_from_non_overlapping_origins():
     """Overlapping blocks would reuse periods and break exchangeability."""
     y, Y0 = _panel()
     scores = rolling_origin_block_sums(
         y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0), min_train_frac=0.2
     )
-    start = max(4, int(100 * 0.2))
+    start = max(MIN_TRAIN_PERIODS, int(100 * 0.2))
     expected_origins = len(range(start, 100 - 4 + 1, 4))   # stride == horizon
     assert scores.size == expected_origins
 
@@ -139,7 +151,7 @@ def test_scores_are_out_of_sample_each_refit_excludes_its_own_block():
         y, Y0, pre_periods=100, horizon=4, weight_fn=_ols_weight_fn(y, Y0), min_train_frac=0.2
     )
     in_sample = []
-    for o in range(max(4, int(100 * 0.2)), 100 - 4 + 1, 4):
+    for o in range(max(MIN_TRAIN_PERIODS, int(100 * 0.2)), 100 - 4 + 1, 4):
         W = _ols_weight_fn(y, Y0)(np.arange(o + 4))          # trained INCLUDING the block
         in_sample.append(float(np.sum(y[o:o + 4] - Y0[o:o + 4] @ W)))
     assert np.mean(np.abs(scores)) > np.mean(np.abs(in_sample))

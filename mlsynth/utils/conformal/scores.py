@@ -18,6 +18,11 @@ from typing import Callable
 
 import numpy as np
 
+#: Shortest training block a calibration refit may use. A control fitted on a
+#: handful of periods interpolates them and predicts nothing, so the window it
+#: scores would report the fit's degeneracy rather than the method's error.
+MIN_TRAIN_PERIODS = 10
+
 
 def rolling_origin_block_sums(
     y: np.ndarray,
@@ -47,8 +52,9 @@ def rolling_origin_block_sums(
         an estimator with covariates has to subset those by the same periods, and
         only the caller knows how.
     min_train_frac : float, optional
-        Earliest origin as a fraction of ``T0``, so the first refits have enough
-        training data (default ``0.3``).
+        Earliest origin as a fraction of ``T0`` (default ``0.3``). The first
+        origin is ``max(MIN_TRAIN_PERIODS, T0 * min_train_frac)``, so short
+        panels still train on an absolute minimum of periods.
 
     Returns
     -------
@@ -63,7 +69,7 @@ def rolling_origin_block_sums(
     :func:`~mlsynth.utils.conformal.cumulative.cumulative_conformal_interval`
     directly; this helper is the single-treated-unit path.
     """
-    start = max(int(horizon), int(pre_periods * float(min_train_frac)))
+    start = max(MIN_TRAIN_PERIODS, int(pre_periods * float(min_train_frac)))
     scores = []
     for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):
         w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()

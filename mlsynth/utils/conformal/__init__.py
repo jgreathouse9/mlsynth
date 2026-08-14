@@ -29,10 +29,11 @@ from __future__ import annotations
 
 from .cumulative import cumulative_conformal_from_refit, cumulative_conformal_interval
 from .quantile import split_conformal_quantile
-from .scores import rolling_origin_block_sums
+from .scores import MIN_TRAIN_PERIODS, rolling_origin_block_sums
 from .structure import CumulativeConformalBand
 
 __all__ = [
+    "MIN_TRAIN_PERIODS",
     "CumulativeConformalBand",
     "cumulative_conformal_from_refit",
     "cumulative_conformal_interval",
