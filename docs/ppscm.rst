@@ -125,7 +125,20 @@ pooled SCM.
 3. Choosing :math:`\nu`. With ``nu="auto"`` (default) PPSCM uses augsynth's
    triangle-inequality ratio
    :math:`\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}`
-   from the separate fit; a float fixes it.
+   from the separate fit; a float in :math:`[0,1]` fixes it, and anything
+   outside that interval is refused, since one of the two weights would be
+   negative and the program no longer convex.
+
+   The ratio is :math:`\lVert\bar m\rVert / \overline{\lVert m_k\rVert}` over
+   the treated units' separate-fit imbalance vectors :math:`m_k`, so it is at
+   most one and equals one exactly when those vectors are parallel. A single
+   treated unit gives that by definition, and a small pool of similar units comes
+   close. On the bound the separate term drops out, which is the right fit: with
+   one treated unit there is nothing to pool against. The library computes the
+   ratio in floating point and holds it inside :math:`[0,1]`, because a value a
+   unit in the last place above one is not a pooling choice -- it is a negative
+   weight on a squared norm, and the same panel measured in dollars and in
+   thousands of dollars can land on opposite sides of the boundary.
 
 Assumptions / Remarks.
 
