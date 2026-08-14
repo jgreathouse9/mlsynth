@@ -193,6 +193,47 @@ authors' own application :math:`T_0 + 1 = 20` and :math:`0.1` is attained. The
 rule now lives in
 :func:`mlsynth.utils.conformal.inversion.confidence_set_bounds`.
 
+The simulation study
+--------------------
+
+Section 4 measures the test's size: the rejection rate under a true null, which
+should sit near the level. ``cwz_conformal_mc`` runs the authors' own ``sim()``
+from the supplement and splits the comparison the same way. Ten seed-matched
+panels per error structure are dumped with the p-value R computed on each, and
+mlsynth returns those p-values exactly -- both sides enumerate the same
+:math:`T` cyclic shifts, so nothing stochastic enters that comparison at all.
+Then mlsynth draws its own panels from its own port of the design and matches
+the reference's size across the four weight vectors at both error structures:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 20 20 20
+
+   * - Cell
+     - DGP 1
+     - DGP 2
+     - DGP 3
+     - DGP 4
+   * - :math:`\rho = 0`
+     - 0.100 / 0.080
+     - 0.082 / 0.094
+     - 0.080 / 0.094
+     - 0.094 / 0.102
+   * - :math:`\rho = 0.6`
+     - 0.118 / 0.120
+     - 0.130 / 0.118
+     - 0.088 / 0.098
+     - 0.098 / 0.096
+
+(mlsynth / reference, 500 draws each, nominal 0.1.) The :math:`\rho = 0.6` row
+is the one that matters: serially correlated errors are the assumption boundary
+the moving-block scheme exists for, and a scheme that had become an i.i.d.
+permutation would over-reject there while looking fine above it. DGPs 3
+and 4 put the treated unit outside the donor hull, so the synthetic control is
+misspecified by construction and the test is still near nominal, which is the
+paper's claim: validity rests on the residual path being exchangeable, not on
+the control being right.
+
 Reproducing it
 --------------
 

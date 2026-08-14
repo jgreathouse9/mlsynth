@@ -1,0 +1,60 @@
+== REFERENCE VALUES ==
+size_dgp1_rho0	0.0800000000
+size_dgp2_rho0	0.0940000000
+size_dgp3_rho0	0.0940000000
+size_dgp4_rho0	0.1020000000
+size_dgp1_rho06	0.1200000000
+size_dgp2_rho06	0.1180000000
+size_dgp3_rho06	0.0980000000
+size_dgp4_rho06	0.0960000000
+draw_rho0_01_p	0.2380952381
+draw_rho0_02_p	0.2857142857
+draw_rho0_03_p	0.7142857143
+draw_rho0_04_p	0.1428571429
+draw_rho0_05_p	0.3333333333
+draw_rho0_06_p	0.0476190476
+draw_rho0_07_p	0.1904761905
+draw_rho0_08_p	1.0000000000
+draw_rho0_09_p	0.2380952381
+draw_rho0_10_p	0.6190476190
+draw_rho06_01_p	0.2380952381
+draw_rho06_02_p	0.1428571429
+draw_rho06_03_p	0.7142857143
+draw_rho06_04_p	0.1904761905
+draw_rho06_05_p	0.3809523810
+draw_rho06_06_p	0.0952380952
+draw_rho06_07_p	0.1904761905
+draw_rho06_08_p	1.0000000000
+draw_rho06_09_p	0.1904761905
+draw_rho06_10_p	0.2380952381
+n_reps	500.0000000000
+n_dump	10.0000000000
+T0	20.0000000000
+J	20.0000000000
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] scinference_0.0.0.9000
+
+loaded via a namespace (and not attached):
+[1] MASS_7.3-60.0.1 compiler_4.3.3  limSolve_2.0.3  lpSolve_5.6.20 
+[5] quadprog_1.5-8 

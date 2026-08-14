@@ -30,8 +30,8 @@ What is pinned, and why each is a different kind of check:
   procedure's calibration on this panel before its answer on the real
   post-period is read.
 * ``p_iid`` -- the same null under i.i.d. permutations, which resamples. The
-  only stochastic quantity here, and its tolerance is a Monte-Carlo budget
-  rather than a regression band.
+  only stochastic quantity here, and its tolerance is a Monte-Carlo budget, not
+  a regression band.
 
 mlsynth's side is ``VanillaSC(inference="conformal")`` throughout, read through
 ``res.inference``.

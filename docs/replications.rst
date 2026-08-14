@@ -68,6 +68,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/bpscs
    replications/tssc
    replications/cwz_conformal
+   replications/cwz_ttest
    replications/vanillasc
    replications/vanillasc_olympics
    replications/lamba_tigers
@@ -158,6 +159,14 @@ Canonical workhorses
   Connecticut 0.068, each within 0.005 of the paper; durable:
   ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`vanillasc` (debiased t-test) -- Chernozhukov, Wuthrich & Zhu.
+  Path A on the authors' carbon tax panel (ATT -0.273903, 90% CI
+  [-0.406425, -0.141380], cross-validated against their scinference), Path B
+  on their Table 3 simulation design run live from the JPE replication
+  package, and Table 1's efficiency formula -- the rule behind
+  ``ttest_K="auto"`` -- matched to 1e-9.
+  -> dedicated page: :doc:`replications/cwz_ttest`; durable cases
+  ``cwz_ttest``, ``cwz_ttest_mc``, ``cwz_rae``, ``cwz_mc``.
 * :doc:`vanillasc` (conformal inference) -- Chernozhukov, Wuthrich &
   Zhu (2021, JASA). Cross-validation against the authors' own R
   (``scinference`` v1.0.0, cross-checked against the JASA supplement's
