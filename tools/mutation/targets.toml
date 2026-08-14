@@ -564,3 +564,35 @@ timeout = 180.0
   find = "k = int(np.ceil((n + 1) * (1.0 - alpha)))"
   replace = "k = int(np.ceil(n * (1.0 - alpha)))"
   models = "the plug-in sample quantile in place of the finite-sample split-conformal order statistic, which under-covers at small calibration sizes and silently returns a finite band where the requested level is in fact unreachable"
+
+[[target]]
+name = "ppscm-conformal-cumulative"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_cumulative.py mlsynth/tests/test_ppscm_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "cumulative-scores-average-instead-of-accumulate"
+  find = "scores.setdefault(k, []).append(float(path.sum()))"
+  replace = "scores.setdefault(k, []).append(float(path.mean()))"
+  models = "calibrating on each unit's average post-period error rather than its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
+
+  [[target.mutant]]
+  id = "cumulative-calibration-origins-overlap"
+  find = "for origin in range(start, earliest - horizon + 1, horizon):"
+  replace = "for origin in range(start, earliest - horizon + 1, 1):"
+  models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive windows share periods; the scores stop being exchangeable and the calibration set is inflated with near-duplicates"
+
+  # EQUIVALENT MUTANT, recorded rather than dropped silently. Advancing the `d` and
+  # `n_lags` arguments to `origin + horizon` -- intended to make each calibration fit
+  # balance on the window it scores -- changes nothing: `run_multisynth` takes the
+  # adoption boundary from `trt`, so `adopt_of` stays at the origin and the extra
+  # periods are clipped. Verified directly: both call forms return byte-identical
+  # `tau_rel` sums. The defect it was meant to model is expressed below instead, at
+  # the line that actually controls what each fit is held out from.
+
+  [[target.mutant]]
+  id = "cumulative-calibration-keeps-the-real-adoption-time"
+  find = "        trt_o[adopted] = origin"
+  replace = "        trt_o[adopted] = trt[adopted]"
+  models = "forgetting to move adoption to the calibration origin, so every fit is the real one and each 'calibration score' is the actual treatment effect rather than a placebo window -- the scores stop measuring prediction error entirely and the band is calibrated on the thing it is supposed to be testing"

@@ -7,7 +7,7 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, List, Literal, Optional, Union
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
 
@@ -102,6 +102,31 @@ class PPSCMConfig(BaseEstimatorConfig):
         lt=1.0,
         description="Significance level for the Wald confidence band.",
     )
+    conformal_horizon: Optional[int] = Field(
+        default=None,
+        description=(
+            "Post-periods to accumulate for a per-unit conformal band on the "
+            "CUMULATIVE effect -- the total each treated unit gained, rather than "
+            "its per-period or time-averaged effect. ``None`` (default) leaves it "
+            "off and nothing changes. Unlike VanillaSC, where "
+            "``inference='conformal_cumulative'`` selects one mode, this band is "
+            "an additional object: ``inference_method`` still chooses the bootstrap "
+            "or jackknife used for the ATT. Calibration needs non-overlapping "
+            "windows of this length in the pre-period, so roughly "
+            "``T0 >= horizon / (alpha * 0.7)`` are required before the band is "
+            "finite."
+        ),
+    )
+
+    @field_validator("conformal_horizon")
+    @classmethod
+    def _validate_conformal_horizon(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+            raise ValueError("conformal_horizon must be an integer >= 1 or None.")
+        return v
+
     covariates: Optional[List[str]] = Field(
         default=None,
         description=(

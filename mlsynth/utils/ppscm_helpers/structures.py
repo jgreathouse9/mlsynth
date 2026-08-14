@@ -191,6 +191,14 @@ class PPSCMUnitFit:
     # inference is off. See ``per_unit_intervals`` in ``inference.py``.
     tau_lower: Optional[np.ndarray] = None
     tau_upper: Optional[np.ndarray] = None
+    # Conformal band on this unit's CUMULATIVE effect over ``conformal_horizon``
+    # periods -- the total it gained, calibrated on out-of-sample windows of the
+    # same length. None unless ``conformal_horizon`` is set. See
+    # ``cumulative_conformal_per_unit`` in ``inference.py``.
+    cumulative_effect: Optional[float] = None
+    cumulative_lower: Optional[float] = None
+    cumulative_upper: Optional[float] = None
+    cumulative_windows: Optional[int] = None
 
 
 class PPSCMResults(_BaseEstimatorResults):
