@@ -280,6 +280,49 @@ leaving eight windows, which no longer supports a 90% band. Read
   120          0.5    8          below the 90% threshold
   ===========  =====  =========  ===============================================
 
+The cumulative effect overall
+-----------------------------
+
+The band above is per unit. The corresponding question about the pool is what the
+treated units gained in total over the first :math:`L` periods, and
+``cumulative_band=True`` answers it::
+
+   res = PPSCM({..., "cumulative_band": True}).fit()
+   band = res.inference_detail.cumulative
+   for L, point, lo, hi in zip(band.horizons, band.point, band.lower, band.upper):
+       print(L, point, (lo, hi))
+
+Both the jackknife and the wild bootstrap already fit the estimator many times and
+get a whole per-horizon path back from each fit. Those paths are kept on
+``res.inference_detail.replicate_paths``, and the band is built from them, so it
+costs no refits beyond the inference that was going to run anyway.
+
+Keeping them is what makes the band possible. Collapsing each replicate to one
+standard error per horizon -- which is all a per-period band needs -- discards how
+the horizons move together, and that covariance is the entire content of a
+cumulative interval. A caller with only the collapsed standard errors has to
+choose an assumption instead: adding period interval endpoints treats the errors
+as moving in lockstep and grows the width like :math:`L`, while rescaling a
+single period's interval assumes they are independent and grows it like
+:math:`\sqrt{L}`. Accumulating the replicates before taking the standard error
+measures which is true.
+
+The band is *simultaneous*. A cumulative path is read as a path -- "the total is
+positive by week six and stays there" is a claim about every horizon at once --
+and a pointwise band read that way covers at well below its nominal level, by
+more as the number of horizons grows. One shared critical value
+(:func:`mlsynth.utils.supt.supt_critical_value`, the sup-t construction of
+Montiel Olea and Plagborg-Moller) restores the level for the whole path.
+
+Which ensemble produced the band is recorded on ``band.method``, because the two
+are not interchangeable. The wild bootstrap reweights each unit's residual by an
+independent multiplier, which does not cancel the common factors the synthetic
+weights cancel in the point estimate, so its replicate variance is inflated where
+factor structure is strong. The delete-one jackknife refits the weights on each
+leave-one-out, so the factors re-cancel per replicate. The jackknife replicates
+also carry the delete-one inflation and the bootstrap draws do not, since the
+latter are already on the estimator's scale; the band applies whichever matches.
+
 Empirical Illustration: mandatory collective bargaining
 -------------------------------------------------------
 

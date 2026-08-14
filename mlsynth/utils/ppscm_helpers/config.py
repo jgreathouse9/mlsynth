@@ -178,10 +178,32 @@ class PPSCMConfig(BaseEstimatorConfig):
         ),
     )
 
+    cumulative_band: bool = Field(
+        default=False,
+        description=(
+            "Attach a simultaneous (sup-t) band for the CUMULATIVE effect path "
+            "to the aggregate inference -- the running total over horizons, with "
+            "one shared critical value so the whole path is covered at "
+            "``1 - alpha`` at once, which is how a cumulative path is read. "
+            "Built from the replicate paths ``inference_method`` already "
+            "produces, so it costs no extra refits. Its growth is measured "
+            "instead of assumed: the replicates are accumulated before the "
+            "standard error is taken, so independent period errors widen it "
+            "like ``sqrt(L)`` and perfectly correlated ones like ``L``, where "
+            "adding up per-period interval endpoints would always give the "
+            "latter. Needs ``run_inference``. Off by default."
+        ),
+    )
+
     @model_validator(mode="after")
     def _check_inference_method(self):
         if self.inference_method not in ("jackknife", "bootstrap"):
             raise MlsynthConfigError(
                 "inference_method must be 'jackknife' or 'bootstrap'; got "
                 f"{self.inference_method!r}.")
+        if self.cumulative_band and not self.run_inference:
+            raise MlsynthConfigError(
+                "cumulative_band needs run_inference=True: the band is built "
+                "from the replicate paths the jackknife or bootstrap produces, "
+                "and with inference off there are none.")
         return self

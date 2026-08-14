@@ -31,7 +31,7 @@ from ..exceptions import (
 from ..utils.ppscm_helpers.engine import run_multisynth
 from ..utils.ppscm_helpers.inference import (
     jackknife_inference, bootstrap_inference, per_unit_intervals,
-    cumulative_conformal_per_unit)
+    cumulative_conformal_per_unit, cumulative_supt_band)
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -92,6 +92,7 @@ class PPSCM:
         self.alpha: float = config.alpha
         self.conformal_horizon = config.conformal_horizon
         self.conformal_min_train_frac = config.conformal_min_train_frac
+        self.cumulative_band: bool = config.cumulative_band
         self.covariates = config.covariates
 
         self.display_graphs: bool = config.display_graphs
@@ -136,18 +137,20 @@ class PPSCM:
 
             per_time = fit["per_time"]
             att = fit["att"]
+            replicate_paths = None
             if self.run_inference and self.inference_method == "bootstrap":
-                att, se, ci, pt_se, pt_ci = bootstrap_inference(
+                att, se, ci, pt_se, pt_ci, replicate_paths = bootstrap_inference(
                     fit, alpha=self.alpha, n_boot=self.n_boot, seed=self.seed,
-                    per_time_full=per_time, att_full=att,
+                    per_time_full=per_time, att_full=att, return_paths=True,
                 )
                 method = "bootstrap"
             elif self.run_inference:
-                att, se, ci, pt_se, pt_ci = jackknife_inference(
+                att, se, ci, pt_se, pt_ci, replicate_paths = jackknife_inference(
                     Xy, trt, d, n_leads, n_lags,
                     fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                     nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
                     alpha=self.alpha, per_time_full=per_time, att_full=att,
+                    return_paths=True,
                 )
                 method = "jackknife"
             else:
@@ -160,8 +163,21 @@ class PPSCM:
             event_study = PPSCMEventStudy(
                 horizons=np.arange(n_leads), tau=per_time, se=pt_se, ci=pt_ci,
             )
+            # The cumulative band, when asked for. Built from the replicate paths
+            # the pass above already produced -- the jackknife needs the
+            # delete-one inflation, the bootstrap draws are already on the
+            # estimator's scale.
+            cumulative = None
+            if self.cumulative_band and replicate_paths is not None:
+                cumulative = cumulative_supt_band(
+                    per_time, replicate_paths, alpha=self.alpha,
+                    jackknife=(method == "jackknife"), seed=self.seed,
+                    method=method,
+                )
             inference = PPSCMInference(att=float(att), se=float(se),
-                                      ci=tuple(ci), method=method)
+                                      ci=tuple(ci), method=method,
+                                      replicate_paths=replicate_paths,
+                                      cumulative=cumulative)
 
             # donor weights per treated cohort (label -> {donor: weight})
             donor_weights: Dict[Any, Dict[Any, float]] = {}
