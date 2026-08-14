@@ -72,6 +72,26 @@ def _expit(x: np.ndarray) -> np.ndarray:
     return 0.5 * (1.0 + np.tanh(0.5 * np.asarray(x, dtype=float)))
 
 
+def draw_stationary_ar_coefs(
+    rng: np.random.Generator, n_units: int, coefs: Sequence[float], sd: float,
+    cap: float = 0.97,
+) -> np.ndarray:
+    """Per-unit AR coefficients, heterogeneous but stationary.
+
+    Drawing independently around a mean whose sum is near one tips a sizeable share
+    of units past it, and a unit whose coefficients sum above one diverges. Any draw
+    at or above ``cap`` is rescaled to sum to ``cap``, which bounds the persistence
+    without flattening the heterogeneity that makes the design hard.
+    """
+    rho = np.asarray(coefs, dtype=float)[None, :] + rng.normal(
+        scale=sd, size=(n_units, len(coefs)))
+    total = rho.sum(axis=1)
+    hot = total >= cap
+    if hot.any():
+        rho[hot] *= (cap / total[hot])[:, None]
+    return rho
+
+
 def _positive_int(value, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or int(value) < 1:
         raise MlsynthConfigError(f"{name} must be a positive integer; got {value!r}.")
@@ -183,8 +203,7 @@ def simulate_bfr_panel(
         score = unit + loadings.sum(axis=1)
 
     else:  # "ar"
-        rho = np.asarray(ar_coefs, dtype=float)[None, :] + rng.normal(
-            scale=ar_coef_sd, size=(n_units, 3))
+        rho = draw_stationary_ar_coefs(rng, n_units, ar_coefs, ar_coef_sd)
         Y = np.zeros((n_units, n_periods))
         Y[:, :3] = unit[:, None] + eps[:, :3]
         for t in range(3, n_periods):

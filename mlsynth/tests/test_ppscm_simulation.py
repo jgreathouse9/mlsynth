@@ -166,3 +166,24 @@ def test_selection_stops_once_every_unit_has_adopted():
              adoption_times=(6, 10, 14))
     assert np.isfinite(s.trt).all()          # everyone adopted
     assert set(np.unique(s.trt)) == {6.0}    # all at the first offered time
+
+
+def test_ar_design_keeps_every_unit_stationary():
+    """Heterogeneity must not tip units into explosive dynamics.
+
+    Drawing AR coefficients around a sum near one lets a sizeable share of units
+    exceed it, and a unit whose coefficients sum above one diverges -- which would
+    make the design a broken panel rather than a hard one.
+    """
+    from mlsynth.utils.ppscm_helpers.simulation import draw_stationary_ar_coefs
+    rng = np.random.default_rng(0)
+    rho = draw_stationary_ar_coefs(rng, n_units=400, coefs=(0.6, 0.2, 0.1), sd=0.08)
+    sums = rho.sum(axis=1)
+    assert (sums < 1.0).all()
+    assert sums.std() > 0.0, "the cap must not collapse the heterogeneity it bounds"
+
+
+def test_ar_panel_does_not_diverge():
+    s = _sim(design="ar", n_units=60, n_periods=80, seed=5300)
+    # a stationary panel driven by unit-scale noise stays on a sane scale
+    assert np.abs(s.Y).max() < 50.0
