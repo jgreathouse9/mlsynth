@@ -217,6 +217,46 @@ estimates are the deliverable.
    for label, uf in res.per_unit.items():  # per-unit estimates + in-sample error
        print(label, uf.att, uf.prefit_rmspe)
 
+The cumulative effect per unit
+------------------------------
+
+The per-unit bands above cover a unit's effect in a single period, or its average
+across the post-period. A different question is what a unit gained in *total*: the
+sum of its effects over the periods since adoption. Setting ``conformal_horizon``
+adds a band for that total to every ``per_unit`` entry::
+
+   res = PPSCM({..., "conformal_horizon": 8}).fit()
+   for label, uf in res.per_unit.items():
+       print(label, uf.cumulative_effect,
+             (uf.cumulative_lower, uf.cumulative_upper), uf.cumulative_windows)
+
+An interval for a running total is not the running total of the per-period
+intervals. Adding endpoints up treats the period errors as moving in lockstep, so the
+width grows with the number of periods rather than with its square root; rescaling a
+single period's interval by the horizon assumes the opposite. Which is right depends
+on how the errors accumulate, and neither assumption measures it.
+
+So the band measures it. An origin slides across the pre-period, and at each one every
+treated unit is treated as if it had adopted there: partially-pooled SCM fits them all
+in a single solve, so one pass yields each unit's summed error over the following
+window at the cost of one solve per origin, not one per unit per origin. Those sums are
+conformity scores for exactly the quantity being reported, and the half-width is the
+:math:`\lceil (m+1)(1-\alpha) \rceil`-th order statistic of the centred scores
+(:func:`mlsynth.utils.conformal.cumulative_conformal_interval`, shared with
+VanillaSC's ``inference="conformal_cumulative"``). Each fit sees only data before the
+window it scores, so the scores carry no in-sample optimism, and origins step by a
+whole horizon, so the windows do not overlap.
+
+Two things to note. The band is *additional*, not a mode: ``inference_method`` still
+chooses the bootstrap or jackknife behind the ATT, and leaving ``conformal_horizon``
+unset changes nothing. And it costs pre-period. Non-overlapping windows of length
+:math:`L` are scarce, so a :math:`1-\alpha` band needs at least
+:math:`\lceil 1/\alpha \rceil - 1` of them: roughly
+:math:`T_0 \gtrsim L/(0.7\,\alpha)` counting the training block held back at the
+start. When they run out, ``cumulative_lower``/``cumulative_upper`` are infinite and
+``cumulative_windows`` says how many were available, rather than a narrow band that
+does not cover.
+
 Empirical Illustration: mandatory collective bargaining
 -------------------------------------------------------
 

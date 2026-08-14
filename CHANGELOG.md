@@ -9,6 +9,23 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
+  CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
+  `cumulative_lower`, `cumulative_upper` and `cumulative_windows`. PPSCM reported the
+  cumulative effect as a point estimate with no interval calibrated for it; its
+  per-unit bands carry only the CFPT out-of-sample term, and the in-sample bound
+  mlsynth ships assumes unconstrained weights where PPSCM's live on a simplex.
+  Calibration slides an origin across the pre-period and treats every unit as adopting
+  there: the partially-pooled fit produces all of them in one solve, so a pass costs
+  one solve per origin rather than one per unit per origin, and each unit's summed
+  out-of-sample error is one conformity score for it. The half-width is the shared
+  `conformal.cumulative_conformal_interval`, so the order statistic keeps a single
+  definition across estimators. The band is additional rather than a mode
+  (`inference_method` still selects the bootstrap or jackknife behind the ATT) and is
+  off unless the field is set. Too few non-overlapping windows for the requested level
+  gives an infinite band rather than one that does not cover.
+
+### Added
 - `inference="conformal_cumulative"` on `VanillaSC`: a prediction interval for the
   cumulative (total) treatment effect over `conformal_horizon` post-periods,
   defaulting to the whole post-period. mlsynth already reported the cumulative

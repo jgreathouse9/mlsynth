@@ -105,6 +105,41 @@ def test_calibration_is_the_shared_combiner_not_a_second_implementation(panel):
         assert n_scores[k] == expected.n_scores
 
 
+def test_scores_match_a_pooled_refit_computed_by_hand(panel):
+    """Pins the score's scale and its training window without reusing the helper.
+
+    Computing the first origin's score directly catches both a score that averages
+    instead of accumulating and a calibration fit that balances on the window it is
+    about to score.
+    """
+    from mlsynth.utils.ppscm_helpers.inference import rolling_pooled_block_sums
+    Xy, trt = panel
+    first_origin = max(10, int(40 * 0.3))
+    trt_o = trt.copy()
+    trt_o[np.isfinite(trt)] = first_origin
+    fo = run_multisynth(Xy, trt_o, first_origin, 4, first_origin, fixedeff=True,
+                        time_cohort=False, nu=0.5, lam=0.0, solver=None)
+    expected = [float(np.sum(np.asarray(fo["tau_rel"][k], float)[:4]))
+                for k in range(len(fo["groups"]))]
+    scores = rolling_pooled_block_sums(
+        Xy, trt, d=40, n_leads=4, n_lags=40, fixedeff=True, time_cohort=False,
+        nu_used=0.5, lam=0.0, solver=None, horizon=4, min_train_frac=0.3)
+    for k, want in enumerate(expected):
+        assert scores[k][0] == pytest.approx(want, rel=1e-6, abs=1e-8)
+
+
+def test_origins_step_by_a_whole_window(panel):
+    """Overlapping windows would reuse periods and break exchangeability."""
+    from mlsynth.utils.ppscm_helpers.inference import rolling_pooled_block_sums
+    Xy, trt = panel
+    scores = rolling_pooled_block_sums(
+        Xy, trt, d=40, n_leads=4, n_lags=40, fixedeff=True, time_cohort=False,
+        nu_used=0.5, lam=0.0, solver=None, horizon=4, min_train_frac=0.3)
+    expected = len(range(max(10, int(40 * 0.3)), 40 - 4 + 1, 4))   # stride == horizon
+    for s in scores:
+        assert s.size == expected
+
+
 def test_one_pooled_solve_per_origin_not_one_per_unit(panel, monkeypatch):
     """The efficiency the pooled fit buys: scores for every unit from one solve."""
     import mlsynth.utils.ppscm_helpers.inference as inf

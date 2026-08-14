@@ -564,3 +564,27 @@ timeout = 180.0
   find = "k = int(np.ceil((n + 1) * (1.0 - alpha)))"
   replace = "k = int(np.ceil(n * (1.0 - alpha)))"
   models = "the plug-in sample quantile in place of the finite-sample split-conformal order statistic, which under-covers at small calibration sizes and silently returns a finite band where the requested level is in fact unreachable"
+
+[[target]]
+name = "ppscm-conformal-cumulative"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_cumulative.py mlsynth/tests/test_ppscm_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "cumulative-scores-average-instead-of-accumulate"
+  find = "scores.setdefault(k, []).append(float(path.sum()))"
+  replace = "scores.setdefault(k, []).append(float(path.mean()))"
+  models = "calibrating on each unit's average post-period error rather than its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
+
+  [[target.mutant]]
+  id = "cumulative-calibration-origins-overlap"
+  find = "for origin in range(start, earliest - horizon + 1, horizon):"
+  replace = "for origin in range(start, earliest - horizon + 1, 1):"
+  models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive windows share periods; the scores stop being exchangeable and the calibration set is inflated with near-duplicates"
+
+  [[target.mutant]]
+  id = "cumulative-calibration-fit-sees-its-own-window"
+  find = """                Xy, trt_o, origin, horizon, origin,"""
+  replace = """                Xy, trt_o, origin + horizon, horizon, origin + horizon,"""
+  models = "letting each calibration fit balance on the very window it is about to score, so the conformity scores measure in-sample fit rather than prediction error and every band comes out too narrow"
