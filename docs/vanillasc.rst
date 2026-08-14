@@ -543,6 +543,37 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     one of which is the observed path, its :math:`p`-value cannot fall below
     :math:`1/T`, and at :math:`\alpha < 1/T` it never rejects.
 
+    ``conformal_n_perm`` sets the draw count behind an ``"iid"`` :math:`p`-value
+    (``scinference`` draws 5000; the default reuses ``scpi_sims``, which is 200,
+    and at 200 the Monte-Carlo error on a :math:`p`-value near 0.02 is about
+    half its own size). ``"block"`` enumerates its reference set and draws
+    nothing, so the setting does not reach it. ``conformal_finite_sample``
+    switches the :math:`p`-value to
+    :math:`(1 + \#\{S \geq S_{\mathrm{obs}}\}) / (1 + B)`, which is
+    ``scinference``'s form for iid permutations and the one valid in finite
+    samples: :math:`B` draws cannot evidence a :math:`p`-value below
+    :math:`1/(B+1)`, which the plain mean reports as zero. The plain mean stays
+    the default because it is ``augsynth``'s, and the ASCM cases reproduce it.
+
+    ``conformal_grid`` supplies the candidate effects the per-period inversion
+    sweeps, ``scinference``'s ``ci_grid``. The interval's endpoints are grid
+    points, so the grid is the resolution of the answer; the automatic grid,
+    built per period from the panel's own noise scale, is the default because it
+    adapts where a fixed grid cannot, and a shared grid is what makes a
+    comparison against another implementation value-for-value.
+
+    A candidate is kept when :math:`p > \alpha`, so a candidate whose
+    :math:`p`-value equals :math:`\alpha` exactly is rejected and lies outside
+    the interval. For a continuous statistic that boundary is a technicality. A
+    conformal :math:`p`-value is discrete -- its reference set has
+    :math:`T_0 + 1` members for a single-period inversion -- so it takes only the
+    values :math:`k/(T_0+1)`, and whenever :math:`\alpha` is one of them the
+    boundary carries a whole level of the reference set. On the authors' own
+    application (:math:`T_0 + 1 = 20`, :math:`\alpha = 0.1`) the inclusive
+    reading widens every per-period interval by 15 to 40 percent; on the Swedish
+    carbon tax panel (:math:`T_0 + 1 = 31`) the two readings coincide. See
+    :func:`mlsynth.utils.conformal.inversion.confidence_set_bounds`.
+
 ``"jackknife_plus"`` -- jackknife+ over pre-treatment periods (Ben-Michael, Feller & Rothstein 2021)
     ``augsynth``'s ``inf_type = "jackknife+"``, and only defined for the
     ridge-augmented fit (``augment="ridge"``); asking for it without the

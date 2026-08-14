@@ -669,3 +669,23 @@ timeout = 300.0
   replace = """        if False:
             raise MlsynthConfigError("""
   models = "accepting covariates on the outcome-only rule and quietly ignoring them, so the refit answers a question the caller did not ask and no output records the substitution"
+
+[[target]]
+name = "conformal-inversion"
+module-path = "mlsynth/utils/conformal/inversion.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_inversion.py mlsynth/tests/test_vanillasc_conformal_cwz.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "ties-counted-as-acceptances"
+  find = "    kept = grid[pvalues > float(alpha)]"
+  replace = "    kept = grid[pvalues >= float(alpha)]"
+  models = "keeping the nulls a level-alpha test rejects, which is what the inversion did before this module existed. A comparison flip, so cosmic-ray would generate it too, but the site is the one where it carries meaning: a conformal p-value is discrete, living on k/n for a reference set of n members, so whenever alpha is attainable the boundary is a whole level of that set, not a measure-zero tie. On the authors' own JASA application (n = 20, alpha = 0.1, attained exactly) the inclusive rule widens all six per-period intervals by 15 to 40 percent against scinference; on the Swedish carbon tax panel (n = 31, alpha unattainable) it changes nothing, which is how it survived every existing case"
+
+  [[target.mutant]]
+  id = "bounds-read-off-the-longest-run-instead-of-the-range"
+  find = "    return float(kept.min()), float(kept.max())"
+  replace = """    runs = np.split(kept, np.flatnonzero(np.diff(np.sort(kept)) > np.diff(np.sort(grid)).min() * 1.5) + 1)
+    best = max(runs, key=len)
+    return float(best.min()), float(best.max())"""
+  models = "reporting the largest contiguous accepted run instead of the range of the accepted set. A conformal p-value need not be unimodal in the candidate, so the accepted set can have interior gaps; taking the longest run drops candidates the test accepted and reports an interval narrower than the one the procedure defines"
