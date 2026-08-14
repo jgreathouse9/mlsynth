@@ -619,3 +619,29 @@ timeout = 600.0
   find = "        trt_o[adopted] = origin"
   replace = "        trt_o[adopted] = trt[adopted]"
   models = "forgetting to move adoption to the calibration origin, so every fit is the real one and each 'calibration score' is the actual treatment effect rather than a placebo window -- the scores stop measuring prediction error entirely and the band is calibrated on the thing it is supposed to be testing"
+
+[[target]]
+name = "conformal-refit-rule"
+module-path = "mlsynth/utils/conformal/refit.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_refit.py mlsynth/tests/test_conformal_refit_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "refit-rule-ignored-and-always-augments"
+  find = '    if rule == "sc":'
+  replace = "    if False:"
+  models = "the defect this module was written to remove: the conformal null refit ignoring which control the caller asked for and always using the ridge-augmented one. Unconstrained weights can re-level an arbitrarily large post-period effect away and spread it over the pre-period residuals the test calibrates against, so the observed statistic and its reference distribution scale together and the p-value stalls -- 0.348 on the Swedish carbon tax panel whether the injected effect is 5 or 100, where the authors' scinference returns 1/T"
+
+  [[target.mutant]]
+  id = "sc-refit-drops-the-simplex-constraint"
+  find = "        w = np.asarray(simplex_qp(Y0, y, warm_start=warm_start), dtype=float)"
+  replace = "        w = np.linalg.lstsq(Y0, y, rcond=None)[0]"
+  models = "solving the 'sc' refit by unconstrained least squares instead of over the simplex. The in-sample fit is better, which is what makes it tempting, and every shape and range assertion still passes -- but convexity is the whole mechanism: without the bound the fitted path follows an injected effect without limit and the test loses its power in exactly the way the augmented refit does"
+
+  [[target.mutant]]
+  id = "covariates-silently-dropped-by-the-sc-rule"
+  find = """        if Z0 is not None or z1 is not None:
+            raise MlsynthConfigError("""
+  replace = """        if False:
+            raise MlsynthConfigError("""
+  models = "accepting covariates on the outcome-only rule and quietly ignoring them, so the refit answers a question the caller did not ask and no output records the substitution"

@@ -382,6 +382,17 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "the interval.",
     )
 
+    conformal_type: Literal["iid", "block"] = Field(
+        default="iid",
+        description="Permutation scheme for inference='conformal'. 'iid' draws "
+                    "random permutations of the residual path, which assumes "
+                    "the errors are exchangeable. 'block' uses the T cyclic "
+                    "shifts of the path (the moving-block scheme), preserving "
+                    "serial dependence and matching scinference's default; it "
+                    "is deterministic, and its p-value cannot fall below 1/T "
+                    "because one shift is the observed path.",
+    )
+
     conformal_horizon: Optional[int] = Field(
         default=None,
         description="Post-periods to accumulate for inference="

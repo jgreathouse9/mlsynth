@@ -521,6 +521,28 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
     :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
 
+    Which control is refit under the null follows the estimator, and is reported
+    in ``res.inference.details["refit"]``. A plain synthetic control is refit as
+    one (``"sc"``, the rule the procedure was published on and the one the
+    authors' ``scinference`` package uses); with ``augment="ridge"`` the
+    ridge-augmented control is refit instead, matching ``augsynth``. The
+    distinction is not cosmetic. Refitting an unconstrained control under the
+    null lets it absorb the effect by re-levelling the series, and the level it
+    adds lands in the pre-treatment residuals the test calibrates against, so
+    both sides of the comparison grow together and the :math:`p`-value stops
+    responding to the effect size. Convex weights cannot do that, which is what
+    leaves the effect where the test can see it. Against ``scinference`` on the
+    Swedish carbon tax panel, the simplex refit returns the authors' 0.391 under
+    the null and :math:`1/T = 0.0217` for any injected effect from 1 upward.
+
+    ``conformal_type`` picks the permutation scheme: ``"iid"`` (the default)
+    draws random permutations of the residual path and assumes the errors are
+    exchangeable, while ``"block"`` uses the :math:`T` cyclic shifts, preserving
+    serial dependence. ``"block"`` is ``scinference``'s default and the one to
+    prefer on a panel with persistent errors; being a set of :math:`T` shifts,
+    one of which is the observed path, its :math:`p`-value cannot fall below
+    :math:`1/T`, and at :math:`\alpha < 1/T` it never rejects.
+
 ``"jackknife_plus"`` -- jackknife+ over pre-treatment periods (Ben-Michael, Feller & Rothstein 2021)
     ``augsynth``'s ``inf_type = "jackknife+"``, and only defined for the
     ridge-augmented fit (``augment="ridge"``); asking for it without the

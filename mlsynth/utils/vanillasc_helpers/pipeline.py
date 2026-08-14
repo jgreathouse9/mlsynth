@@ -432,15 +432,34 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Conformal test-inversion prediction intervals (Chernozhukov, Wuthrich &
     # Zhu 2021; augsynth's default ASCM inference). Reuses the fitted ridge
     # penalty across refits, matching augsynth.
+    #
+    # The refit rule follows the estimator, and must: the refit is the only
+    # place the test touches the fit, and an augmented refit -- unconstrained by
+    # construction -- can re-level a large post-period effect away, spreading it
+    # over the pre-period residuals that form the reference distribution. Both
+    # halves of the test then scale together and the p-value stalls. Against
+    # ``scinference`` on the Swedish carbon tax panel that ceiling is visible
+    # directly: an augmented refit gives 0.348 for an injected effect of 5 or of
+    # 100, where the simplex refit gives the authors' 1 / T = 0.0217 for both.
     if mode == "conformal" and gap[pre:].size:
         from ..bilevel import conformal_intervals
-        Z0 = X0.T if X0 is not None else None
-        z1 = X1 if X1 is not None else None
+        refit = "ridge" if config.augment == "ridge" else "sc"
+        if refit == "sc" and covariates:
+            raise MlsynthConfigError(
+                "inference='conformal' with covariates needs augment='ridge': "
+                "the null refit for a plain simplex SCM matches on outcomes "
+                "alone (as scinference's estimation_method='sc' does), so the "
+                f"covariates {list(covariates)} would not enter it. Set "
+                "augment='ridge' to match on them, or drop them."
+            )
+        Z0 = X0.T if X0 is not None and refit == "ridge" else None
+        z1 = X1 if X1 is not None and refit == "ridge" else None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             ci = conformal_intervals(
                 y, Y0, pre, lambda_=res.lambda_, Z0=Z0, z1=z1,
                 alpha=config.alpha, ns=config.scpi_sims, seed=config.seed,
+                refit=refit, conformal_type=config.conformal_type,
                 ridge_kwargs={"residualize": config.residualize},
             )
         # per-period counterfactual bands: gap tau in [lower, upper] => cf in
@@ -462,6 +481,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "counterfactual_upper": cf_upper,
                 "period_p_value": ci.p_value,
                 "joint_p_value": ci.joint_p_value,
+                "conformal_type": config.conformal_type,
+                "refit": refit,
                 "lambda": res.lambda_,
             },
         )

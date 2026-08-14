@@ -16,6 +16,9 @@ Contents:
 * :mod:`.cumulative` -- the band for a cumulative (total) effect:
   :func:`cumulative_conformal_interval` (pure combiner) and
   :func:`cumulative_conformal_from_refit` (single-treated-unit convenience).
+* :mod:`.refit` -- :func:`conformal_refit_gaps`, the refit a test-inversion
+  procedure performs under a candidate null, and the one place the choice
+  between a simplex and a ridge-augmented control is made.
 * :mod:`.structure` -- :class:`CumulativeConformalBand`.
 
 References
@@ -29,12 +32,15 @@ from __future__ import annotations
 
 from .cumulative import cumulative_conformal_from_refit, cumulative_conformal_interval
 from .quantile import split_conformal_quantile
+from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from .scores import MIN_TRAIN_PERIODS, rolling_origin_block_sums
 from .structure import CumulativeConformalBand
 
 __all__ = [
+    "CONFORMAL_REFIT_RULES",
     "MIN_TRAIN_PERIODS",
     "CumulativeConformalBand",
+    "conformal_refit_gaps",
     "cumulative_conformal_from_refit",
     "cumulative_conformal_interval",
     "rolling_origin_block_sums",
