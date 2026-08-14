@@ -236,6 +236,13 @@ def rolling_pooled_block_sums(
             "no unit has a finite adoption time."
         )
     horizon = int(horizon)
+    if (isinstance(min_train_frac, bool)
+            or not isinstance(min_train_frac, (int, float, np.floating))
+            or not 0.0 < float(min_train_frac) < 1.0):
+        raise MlsynthConfigError(
+            "min_train_frac must be a number in the open interval (0, 1); got "
+            f"{min_train_frac!r}."
+        )
     earliest = int(np.min(trt[adopted]))
     start = max(MIN_TRAIN_PERIODS, int(earliest * float(min_train_frac)))
 
@@ -289,6 +296,13 @@ def cumulative_conformal_per_unit(
         )
     if isinstance(horizon, bool) or not isinstance(horizon, (int, np.integer)) or int(horizon) < 1:
         raise MlsynthConfigError(f"horizon must be a positive integer; got {horizon!r}.")
+    if (isinstance(min_train_frac, bool)
+            or not isinstance(min_train_frac, (int, float, np.floating))
+            or not 0.0 < float(min_train_frac) < 1.0):
+        raise MlsynthConfigError(
+            "min_train_frac must be a number in the open interval (0, 1); got "
+            f"{min_train_frac!r}."
+        )
     horizon = int(horizon)
     if horizon > int(n_leads):
         raise MlsynthDataError(

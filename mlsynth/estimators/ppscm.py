@@ -91,6 +91,7 @@ class PPSCM:
         self.seed: int = config.seed
         self.alpha: float = config.alpha
         self.conformal_horizon = config.conformal_horizon
+        self.conformal_min_train_frac = config.conformal_min_train_frac
         self.covariates = config.covariates
 
         self.display_graphs: bool = config.display_graphs
@@ -196,6 +197,7 @@ class PPSCM:
                     fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                     nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
                     alpha=self.alpha, horizon=int(self.conformal_horizon),
+                    min_train_frac=float(self.conformal_min_train_frac),
                 )
             else:
                 cum_pt = cum_lo = cum_hi = cum_n = None
