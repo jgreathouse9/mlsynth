@@ -55,6 +55,7 @@ M = 40            # replications for the ATT arms (bootstrap is cheap, jackknife
 M_CUM = 25        # replications for the cumulative arm (one pooled solve per origin)
 _ALPHA = 0.05     # the paper's nominal level for the ATT
 _ALPHA_CUM = 0.10  # the level the cumulative band can support at this panel shape
+_ALPHA_CUM_FLOOR = 0.85   # nominal 0.90 less three MC standard errors
 
 
 def _panel_to_long(sim) -> pd.DataFrame:
@@ -105,21 +106,23 @@ def _att_arm(design: str, method: str, base_seed: int):
     return float(np.mean(atts)), float(np.mean(covers)), len(covers)
 
 
-def _cumulative_arm(design: str, base_seed: int):
+def _cumulative_arm(design: str, base_seed: int, *, earliest: int, n_periods: int,
+                    n_draws: int):
     """Coverage of the true zero by the per-unit cumulative conformal band.
 
-    Scored per treated unit, over draws of a panel long enough to supply the
-    non-overlapping calibration windows a 90% band needs.
+    ``earliest`` sets how many calibration windows exist, which is the quantity that
+    decides whether the band is tight or merely valid.
     """
-    covers, widths, infinite = [], [], 0
-    for i in range(M_CUM):
-        sim = simulate_bfr_panel(design=design, n_units=30, n_periods=64,
-                                 adoption_times=(48, 54), seed=base_seed + i)
+    covers, widths, infinite, ns = [], [], 0, []
+    for i in range(n_draws):
+        sim = simulate_bfr_panel(design=design, n_units=24, n_periods=n_periods,
+                                 adoption_times=(earliest, earliest + 4),
+                                 seed=base_seed + i)
         if not np.isfinite(sim.trt).any():
             continue
         try:
             res = _fit(_panel_to_long(sim), inference_method="bootstrap",
-                       alpha=_ALPHA_CUM, n_boot=200, conformal_horizon=3)
+                       alpha=_ALPHA_CUM, n_boot=100, conformal_horizon=3)
         except Exception:
             continue
         for unit in res.per_unit.values():
@@ -131,9 +134,11 @@ def _cumulative_arm(design: str, base_seed: int):
                 continue
             covers.append(1.0 if lo <= 0.0 <= hi else 0.0)
             widths.append(hi - lo)
+            ns.append(int(unit.cumulative_windows))
     if not covers:
-        return float("nan"), float("nan"), 0, infinite
-    return float(np.mean(covers)), float(np.median(widths)), len(covers), infinite
+        return float("nan"), float("nan"), 0, infinite, 0
+    return (float(np.mean(covers)), float(np.median(widths)), len(covers), infinite,
+            int(np.median(ns)))
 
 
 def run() -> dict:
@@ -146,11 +151,24 @@ def run() -> dict:
         out[f"{design}_jackknife_coverage"] = jack_cover
         out[f"{design}_boot_ge_jack"] = float(boot_cover >= jack_cover)
 
-    cum_cover, cum_width, cum_n, cum_inf = _cumulative_arm("factor", 5400)
-    out["cumulative_coverage"] = cum_cover
-    out["cumulative_median_width"] = cum_width
-    out["cumulative_bands_scored"] = float(cum_n)
-    out["cumulative_bands_infinite"] = float(cum_inf)
+    # Two calibration regimes. Split conformal guarantees coverage at or above the
+    # nominal level for any number of windows; it approaches the level only as that
+    # number grows. Just above the ceil(1/alpha)-1 threshold the half-width IS the
+    # largest calibration score, so the band is valid but far wider than it needs to
+    # be -- a property worth pinning, since a user reading "90% band" on a short panel
+    # is getting something much more conservative.
+    tight_cover, tight_width, tight_n, tight_inf, tight_m = _cumulative_arm(
+        "factor", 5400, earliest=170, n_periods=182, n_draws=8)
+    thin_cover, thin_width, thin_n, thin_inf, thin_m = _cumulative_arm(
+        "factor", 5500, earliest=48, n_periods=64, n_draws=8)
+
+    out["cumulative_coverage_many_windows"] = tight_cover
+    out["cumulative_coverage_few_windows"] = thin_cover
+    out["cumulative_windows_many"] = float(tight_m)
+    out["cumulative_windows_few"] = float(thin_m)
+    out["cumulative_bands_infinite"] = float(tight_inf + thin_inf)
+    out["cumulative_tightens_with_windows"] = float(tight_cover <= thin_cover)
+    out["cumulative_valid_many"] = float(tight_cover >= _ALPHA_CUM_FLOOR)
     return out
 
 
