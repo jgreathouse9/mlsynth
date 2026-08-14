@@ -206,6 +206,60 @@ def test_jackknife_se_skips_missing_replicates():
 
 
 # ---------------------------------------------------------------------------
+# Unit: the correlation route equals the covariance route
+# ---------------------------------------------------------------------------
+
+def _covariance_route(draws, *, alpha, n_sim=200_000, seed=0):
+    """The same critical value, computed the other way, written independently.
+
+    Montiel Olea and Plagborg-Moller can be implemented either by simulating
+    ``N(0, Sigma)`` and dividing each coordinate by its own standard deviation,
+    or by simulating ``N(0, R)`` from the correlation directly. The two are the
+    same distribution, since dividing a mean-zero Gaussian coordinate-wise by
+    its standard deviations is exactly the change of variables from ``Sigma`` to
+    ``R``. :func:`supt_critical_value` takes the second route because it needs no
+    scale from the draws; this takes the first, so a defect in the change of
+    variables shows up as disagreement.
+    """
+    R = np.asarray(draws, float)
+    R = R[np.isfinite(R).all(axis=1)]
+    m, H = R.shape
+    dev = R - R.mean(axis=0)
+    Sigma = (m - 1) / m * (dev.T @ dev)
+    sd = np.sqrt(np.clip(np.diag(Sigma), 0.0, None))
+    sd_safe = np.where(sd > 0, sd, np.inf)
+    rng = np.random.default_rng(seed)
+    G = rng.multivariate_normal(np.zeros(H), Sigma, size=n_sim)
+    return float(np.quantile(np.max(np.abs(G) / sd_safe, axis=1), 1.0 - alpha))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3])
+def test_the_correlation_route_matches_the_covariance_route(seed):
+    """Agreement to the simulation error of the two independent tabulations."""
+    rng = np.random.default_rng(seed)
+    n, H = int(rng.integers(12, 70)), int(rng.integers(3, 12))
+    draws = (rng.normal(size=(n, 2)) @ rng.normal(size=(2, H))
+             + 0.4 * rng.normal(size=(n, H)))
+    mine = supt_critical_value(draws, alpha=0.10, n_sims=200_000, seed=0)
+    other = _covariance_route(draws, alpha=0.10, seed=0)
+    assert mine == pytest.approx(other, rel=0.02)
+
+
+def test_the_jackknife_se_matches_the_covariance_diagonal():
+    """``jackknife_se`` is the square root of the jackknife covariance diagonal.
+
+    Pinned to machine precision, because the two are the same arithmetic and any
+    gap would mean one of them has picked up a stray degrees-of-freedom factor.
+    """
+    rng = np.random.default_rng(5)
+    draws = rng.normal(size=(41, 7))
+    dev = draws - draws.mean(axis=0)
+    m = draws.shape[0]
+    diag = np.sqrt(np.diag((m - 1) / m * (dev.T @ dev)))
+    assert jackknife_se(draws) == pytest.approx(diag, rel=1e-12)
+
+
+# ---------------------------------------------------------------------------
 # Edge
 # ---------------------------------------------------------------------------
 

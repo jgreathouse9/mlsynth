@@ -12,7 +12,7 @@ are built from these SEs around the full-sample point estimates.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.stats import norm
@@ -126,7 +126,7 @@ _WILD_PROBS = np.array([(_PHI + 1.0) / (2.0 * _PHI), (_PHI - 1.0) / (2.0 * _PHI)
 
 def bootstrap_inference(
     fit: dict, *, alpha: float, n_boot: int, seed: int,
-    per_time_full: np.ndarray, att_full: float,
+    per_time_full: np.ndarray, att_full: float, return_paths: bool = False,
 ):
     """augsynth's default Mammen wild/multiplier bootstrap (``weighted_bootstrap_multi``).
 
@@ -158,15 +158,101 @@ def bootstrap_inference(
     ci = (att_full - z * se, att_full + z * se)
     per_time_ci = np.column_stack([per_time_full - z * per_time_se,
                                    per_time_full + z * per_time_se])
+    if return_paths:
+        return float(att_full), se, ci, per_time_se, per_time_ci, pt_b
     return float(att_full), se, ci, per_time_se, per_time_ci
+
+
+def cumulative_supt_band(
+    per_time_full: np.ndarray,
+    replicate_paths: np.ndarray,
+    *,
+    alpha: float,
+    jackknife: bool = True,
+    n_sims: int = 200_000,
+    seed: Optional[int] = 0,
+    method: str = "jackknife",
+):
+    """Simultaneous band for the running total, from the replicate paths.
+
+    An interval for a cumulative effect is not the running total of the
+    per-period intervals. Adding endpoints treats the period errors as moving in
+    lockstep, so the width grows with the number of periods; rescaling one
+    period's interval assumes the opposite. Here the replicate paths are
+    accumulated first and the standard error taken after, so whatever
+    correlation the errors have is the correlation the band inherits.
+
+    The band is simultaneous over horizons
+    (:func:`mlsynth.utils.supt.supt_critical_value`), because a cumulative path
+    is read as a path.
+
+    Parameters
+    ----------
+    per_time_full : np.ndarray, shape (H,)
+        The per-horizon effect path from the full fit.
+    replicate_paths : np.ndarray, shape (n_replicates, H)
+        One per-horizon path per replicate. Rows containing ``NaN`` are dropped,
+        so a leave-one-out refit that failed is absent instead of counted as zero.
+    alpha : float
+        The band is simultaneous at ``1 - alpha``.
+    jackknife : bool, default True
+        Apply the delete-one inflation to the standard error. True for
+        leave-one-out replicates, which differ from the full estimate by
+        ``O(1/m)``; False for bootstrap draws, already on the estimator's scale.
+    n_sims, seed
+        Tabulation of the sup-t critical value.
+    method : str
+        Which ensemble produced the paths, recorded on the result -- a jackknife
+        band and a bootstrap band are not interchangeable numbers.
+
+    Returns
+    -------
+    PPSCMCumulativeBand
+    """
+    from ..supt import cumulative_from_paths, jackknife_se, supt_critical_value
+    from .structures import PPSCMCumulativeBand
+
+    if (isinstance(alpha, bool) or not isinstance(alpha, (int, float, np.floating))
+            or not 0.0 < float(alpha) < 1.0):
+        raise MlsynthConfigError(
+            f"alpha must be a number in the open interval (0, 1); got {alpha!r}."
+        )
+    pt = np.asarray(per_time_full, dtype=float).ravel()
+    R = np.asarray(replicate_paths, dtype=float)
+    if R.ndim != 2 or R.shape[1] != pt.size:
+        raise MlsynthDataError(
+            f"replicate_paths must be (n_replicates, {pt.size}); got shape {R.shape}."
+        )
+    R = R[np.isfinite(R).all(axis=1)]
+    if R.shape[0] < 2:
+        raise MlsynthDataError(
+            f"need at least 2 complete replicate paths to form a band; got {R.shape[0]}."
+        )
+
+    cum = cumulative_from_paths(R)
+    se = jackknife_se(cum, jackknife=jackknife)
+    q = supt_critical_value(cum, alpha=float(alpha), n_sims=n_sims, seed=seed)
+    point = np.cumsum(pt)
+    return PPSCMCumulativeBand(
+        horizons=np.arange(1, pt.size + 1),
+        point=point, lower=point - q * se, upper=point + q * se, se=se,
+        critical_value=float(q), alpha=float(alpha),
+        n_replicates=int(R.shape[0]), method=str(method),
+    )
 
 
 def jackknife_inference(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
     solver: Any, alpha: float, per_time_full: np.ndarray, att_full: float,
+    return_paths: bool = False,
 ) -> Tuple[float, float, Tuple[float, float], np.ndarray, np.ndarray]:
-    """Return ``(att, se, ci, per_time_se, per_time_ci)``."""
+    """Return ``(att, se, ci, per_time_se, per_time_ci)``.
+
+    With ``return_paths`` the leave-one-out per-horizon paths are appended. They
+    are computed either way; keeping them lets a caller build a cumulative band
+    without refitting the whole jackknife a second time.
+    """
     n = Xy.shape[0]
     H = n_leads
     att_loo = np.full(n, np.nan)
@@ -202,6 +288,8 @@ def jackknife_inference(
     ci = (att_full - z * se, att_full + z * se)
     per_time_ci = np.column_stack([per_time_full - z * per_time_se,
                                    per_time_full + z * per_time_se])
+    if return_paths:
+        return float(att_full), se, ci, per_time_se, per_time_ci, pt_loo
     return float(att_full), se, ci, per_time_se, per_time_ci
 
 

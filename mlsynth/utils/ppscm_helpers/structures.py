@@ -116,6 +116,33 @@ class PPSCMEventStudy:
 
 
 @dataclass(frozen=True)
+class PPSCMCumulativeBand:
+    """Simultaneous band for the cumulative (running-total) effect path.
+
+    ``lower[L]`` and ``upper[L]`` bound the total effect over horizons ``0..L``,
+    and the band covers *every* ``L`` at once with probability ``1 - alpha`` --
+    so a statement about the path ("positive by week six and never back") is
+    covered at the stated level, which a pointwise band read the same way is not.
+
+    ``se`` is the standard error of the running total at each horizon, taken
+    from the replicate paths themselves. That is what makes the band's growth
+    an observation instead of an assumption: independent period errors grow it
+    like ``sqrt(L)``, perfectly correlated ones like ``L``, and the replicates
+    carry whichever is true.
+    """
+
+    horizons: np.ndarray          # 1, 2, ..., H
+    point: np.ndarray             # cumulative effect at each horizon
+    lower: np.ndarray
+    upper: np.ndarray
+    se: np.ndarray
+    critical_value: float         # the shared sup-t multiplier
+    alpha: float
+    n_replicates: int
+    method: str                   # "jackknife" or "bootstrap"
+
+
+@dataclass(frozen=True)
 class PPSCMInference:
     """Overall (post-period average) ATT and its inference."""
 
@@ -123,6 +150,15 @@ class PPSCMInference:
     se: float
     ci: Tuple[float, float]
     method: str
+    # The per-horizon replicate paths behind ``se`` -- ``(n_replicates, H)``,
+    # one row per leave-one-out refit or bootstrap draw. Kept because collapsing
+    # them to a per-horizon standard error discards how the horizons move
+    # together, which is the only thing a cumulative band needs; a caller who
+    # wants one would otherwise have to refit everything a second time to
+    # recover what this pass already computed. ``None`` when inference is off.
+    replicate_paths: Optional[np.ndarray] = None
+    # Simultaneous band for the running total; ``None`` unless asked for.
+    cumulative: Optional["PPSCMCumulativeBand"] = None
 
 
 @dataclass(frozen=True)
