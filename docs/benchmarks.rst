@@ -332,6 +332,9 @@ Cross-validation against reference implementations
      - vs authors' bsynth R package (rstan): posterior counterfactual + credible bands + ATT, West Germany reunification (Martinez & Vives-i-Bastida)
    * - ``nsc_prop99``
      - vs Tian's NSC.R (Prop 99 Table 2)
+   * - ``ppscm_bfr_mc``
+     - BFR sharp-null designs: ATT coverage for both inference paths, plus the
+       cumulative conformal band in two calibration regimes
    * - ``ppscm_paglayan``
      - vs augsynth::multisynth (jackknife + bootstrap SEs)
    * - ``dr_proximal_brazil``
