@@ -8,6 +8,37 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Added
+- `inference="conformal_cumulative"` on `VanillaSC`: a prediction interval for the
+  cumulative (total) treatment effect over `conformal_horizon` post-periods,
+  defaulting to the whole post-period. mlsynth already reported the cumulative
+  effect as a point estimate, and the one existing "total" band rescaled a
+  per-period interval by the horizon; this calibrates a band for the sum itself.
+  The half-width is the split-conformal order statistic of *summed* out-of-sample
+  errors, collected by refitting at sliding non-overlapping origins across the
+  pre-period, so neither in-sample optimism nor an assumption about how
+  period-to-period errors accumulate enters. The figure lands in
+  `res.inference.details` (`cumulative_effect`, `cumulative_lower`,
+  `cumulative_upper`, `conformal_q`, `n_calibration_windows`);
+  `ci_lower`/`ci_upper` carry the per-period equivalent only when the horizon
+  spans the whole post-period, since a shorter window is not the ATT. Too few
+  non-overlapping windows for the requested level warns and returns an infinite
+  band rather than one that does not cover.
+- `mlsynth/utils/conformal/`, collecting the conformal machinery into one package
+  (following `utils/bilevel/`): `quantile.split_conformal_quantile` (moved from
+  `utils/inferutils.py`, which re-exports it, so existing imports are unaffected),
+  `scores.rolling_origin_block_sums`, `cumulative.cumulative_conformal_interval`
+  and `cumulative_conformal_from_refit`, and `structure.CumulativeConformalBand`.
+  The pure combiner takes precomputed scores, so an estimator whose refit produces
+  several treated units at once can build its own scores in a single pass and
+  reuse the same calibration.
+
+### Changed
+- `VanillaSC`'s per-fold refit closure is defined once and shared by
+  `inference="ttest"` and `inference="conformal_cumulative"`, and takes period
+  indices rather than sliced arrays so a covariate-aware refit can subset its
+  covariates by the same periods.
+
 ### Removed
 - `mode="two_way_global_annealed"` and its five `utils/syndes_helpers/relaxed_*.py`
   modules (932 lines), the `relaxed_max_iter` / `relaxed_decay` fields, the

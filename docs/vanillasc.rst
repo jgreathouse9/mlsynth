@@ -450,7 +450,8 @@ Several inference modes are available via ``inference=``:
 Each mode returns one kind of output, and the fit always tells you which.
 ``"placebo"``, ``"lto"`` and ``"ttest"`` are tests: they return a p-value (the
 t-test also returns an ATT confidence interval). ``"conformal"``,
-``"conformal_split"``, ``"scpi"``, ``"eiv"`` and ``"jackknife_plus"`` are
+``"conformal_split"``, ``"conformal_cumulative"``, ``"scpi"``, ``"eiv"`` and
+``"jackknife_plus"`` are
 prediction intervals: they
 return the per-period counterfactual
 bands on ``res.time_series`` (``counterfactual_lower`` / ``counterfactual_upper``)
@@ -734,6 +735,46 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     tallies. It shares the placebo test's assumptions but is far more powerful
     in small donor pools. See *The leave-two-out refined placebo test* and the
     two theory subsections below for the full treatment.
+
+``"conformal_cumulative"`` -- band for the cumulative (total) effect
+    The other modes report the effect period by period, or its average. This one
+    reports the interval for the *sum* over the post-period -- the total the
+    intervention added -- which is often the figure a decision rests on.
+
+    A confidence interval for a running total is not the running total of the
+    per-period intervals. Adding the endpoints up assumes the weekly errors move
+    in lockstep, so the width grows with the number of periods rather than with
+    its square root; rescaling one period's interval by the horizon assumes the
+    opposite. Which is right depends on how the errors accumulate, so this mode
+    measures that directly: it slides an origin across the pre-period, refits the
+    control on the data strictly before each origin, and reads the *summed* error
+    over the next ``conformal_horizon`` periods. Those sums are conformity scores
+    for exactly the quantity being reported, and the half-width is the
+    :math:`\lceil (m+1)(1-\alpha) \rceil`-th order statistic of the centred
+    scores -- the same finite-sample construction ``conformal_split`` uses, over
+    blocks instead of single periods.
+
+    Because each refit sees only data before the window it scores, the scores
+    carry no in-sample optimism; because the origins step by a whole horizon, the
+    windows do not overlap and the scores stay exchangeable.
+
+    ``conformal_horizon`` sets the number of periods accumulated, defaulting to
+    the whole post-period. The cumulative figure and its band land in
+    ``res.inference.details`` (``cumulative_effect``, ``cumulative_lower``,
+    ``cumulative_upper``, ``conformal_q``, ``n_calibration_windows``);
+    ``res.inference.ci_lower``/``ci_upper`` carry the per-period equivalent only
+    when the horizon spans the whole post-period, since a shorter window is not
+    the ATT.
+
+    What it costs is pre-period. Non-overlapping windows of length :math:`L` are
+    scarce: a :math:`1-\alpha` band needs at least :math:`\lceil 1/\alpha
+    \rceil - 1` of them, so roughly :math:`T_0 \gtrsim L / (\alpha\,(1 -
+    \texttt{min\_train\_frac}))`. At :math:`\alpha = 0.1` that is about ten
+    windows: 104 pre-periods support an 8-period horizon, but not a 16-period one.
+    When the windows run out the band is ``±inf`` with a warning naming the
+    shortfall, rather than a narrow band that does not cover.
+
+    Reference: :func:`mlsynth.utils.conformal.cumulative_conformal_from_refit`.
 
 ``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2025)
     A :math:`K`-fold cross-fitting debiasing with a self-normalized statistic

@@ -516,3 +516,51 @@ timeout = 600.0
   find = "_GRID_EPS = 1e-6"
   replace = "_GRID_EPS = 1e-2"
   models = "the ranking tolerance relaxed past the point where the sweep can order its candidates, which is the shape a tolerance takes when it is widened for speed without checking what it costs. Every solve still returns a finite beta and the fit still looks ordinary; what breaks is the ordering, and with it the tau the caller is handed -- across the four Hong Kong windows it moves the winner on three and the validation errors by 0.32 to 4.99 relative, against 3.9e-3 at the shipped value"
+
+[[target]]
+name = "conformal-cumulative-scores"
+module-path = "mlsynth/utils/conformal/scores.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "overlapping-calibration-origins"
+  find = "for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):"
+  replace = "for origin in range(start, int(pre_periods) - int(horizon) + 1, 1):"
+  models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive blocks share periods; the scores stop being exchangeable and the band is calibrated on a correlated, artificially large calibration set"
+
+  [[target.mutant]]
+  id = "scores-average-instead-of-accumulate"
+  find = "scores.append(float(np.sum(y[block] - Y0[block] @ w)))"
+  replace = "scores.append(float(np.mean(y[block] - Y0[block] @ w)))"
+  models = "scoring the per-period average error rather than the accumulated error, so the band is calibrated for the wrong estimand -- the defect that makes a per-period interval rescaled by the horizon look like a cumulative one"
+
+  [[target.mutant]]
+  id = "calibration-refit-sees-its-own-block"
+  find = "w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()"
+  replace = "w = np.asarray(weight_fn(np.arange(origin + int(horizon))), dtype=float).ravel()"
+  models = "fitting each calibration refit on data that includes the very block it is about to score, so the conformity scores measure in-sample fit rather than prediction error and the band comes out too narrow"
+
+[[target]]
+name = "conformal-cumulative-band"
+module-path = "mlsynth/utils/conformal/cumulative.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "uncentred-conformity-scores"
+  find = "half = float(split_conformal_quantile(s - s.mean(), alpha=alpha))"
+  replace = "half = float(split_conformal_quantile(s, alpha=alpha))"
+  models = "calibrating on raw rather than centred scores, so a systematic offset in the calibration windows is read as spread and inflates the band"
+
+[[target]]
+name = "conformal-quantile"
+module-path = "mlsynth/utils/conformal/quantile.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "naive-quantile-instead-of-finite-sample-order-statistic"
+  find = "k = int(np.ceil((n + 1) * (1.0 - alpha)))"
+  replace = "k = int(np.ceil(n * (1.0 - alpha)))"
+  models = "the plug-in sample quantile in place of the finite-sample split-conformal order statistic, which under-covers at small calibration sizes and silently returns a finite band where the requested level is in fact unreachable"

@@ -21,8 +21,8 @@ from ...config_models import BaseEstimatorConfig
 # source of truth so an unknown/misspelled value fails loudly at config time
 # rather than silently returning no inference.
 VALID_INFERENCE_METHODS = frozenset(
-    {"placebo", "scpi", "conformal", "conformal_split", "lto", "ttest", "eiv",
-     "jackknife_plus", "none"}
+    {"placebo", "scpi", "conformal", "conformal_split", "conformal_cumulative",
+     "lto", "ttest", "eiv", "jackknife_plus", "none"}
 )
 
 #: Spellings normalised onto a canonical method name. ``augsynth`` writes
@@ -381,6 +381,26 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "Sec 3.2. K=3 is the small-T0 benchmark; larger K tightens "
                     "the interval.",
     )
+
+    conformal_horizon: Optional[int] = Field(
+        default=None,
+        description="Post-periods to accumulate for inference="
+                    "'conformal_cumulative'. The band is for the SUM of the "
+                    "effect over this many periods, calibrated on out-of-sample "
+                    "windows of the same length. None (default) accumulates the "
+                    "whole post-period, the total effect of the intervention. A "
+                    "long horizon leaves few non-overlapping calibration windows "
+                    "in the pre-period, and the band widens accordingly.",
+    )
+
+    @field_validator("conformal_horizon")
+    @classmethod
+    def _validate_conformal_horizon(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+            raise ValueError("conformal_horizon must be an integer >= 1 or None.")
+        return v
 
     @field_validator("ttest_K")
     @classmethod
