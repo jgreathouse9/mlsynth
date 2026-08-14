@@ -127,6 +127,43 @@ class PPSCMConfig(BaseEstimatorConfig):
             raise ValueError("conformal_horizon must be an integer >= 1 or None.")
         return v
 
+    conformal_min_train_frac: float = Field(
+        default=0.3,
+        description=(
+            "Where the cumulative band's calibration starts, as a fraction of the "
+            "pre-period: the first rolling origin sits at "
+            "``max(10, conformal_min_train_frac * T0)``, so every calibration fit "
+            "has that many periods to train on. It trades two things the caller "
+            "has to weigh and the library cannot. Periods spent on the warm-up are "
+            "periods not available for calibration, and a ``1 - alpha`` band needs "
+            "at least ``ceil(1/alpha) - 1`` windows before it is finite. Against "
+            "that, a fit trained on fewer periods than there are donors can "
+            "interpolate its training window, and its out-of-sample error is then "
+            "not the error of the fit being calibrated -- inflating the scores and "
+            "widening the band. On a panel with 120 pre-periods and 60 donors the "
+            "default starts at period 36, which puts the first four origins in "
+            "that regime; raising it to 0.5 starts at 60 and removes them, at the "
+            "cost of windows. Read ``cumulative_windows`` off each unit to see "
+            "what a given choice bought."
+        ),
+    )
+
+    @field_validator("conformal_min_train_frac")
+    @classmethod
+    def _validate_conformal_min_train_frac(cls, v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError(
+                "conformal_min_train_frac must be a number in the open interval "
+                f"(0, 1); got {v!r}."
+            )
+        if not 0.0 < float(v) < 1.0:
+            raise ValueError(
+                "conformal_min_train_frac must lie in the open interval (0, 1); "
+                f"got {v!r}. Zero would leave the start to the minimum training "
+                "length alone, and one would leave no pre-period to calibrate on."
+            )
+        return float(v)
+
     covariates: Optional[List[str]] = Field(
         default=None,
         description=(
