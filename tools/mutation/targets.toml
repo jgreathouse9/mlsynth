@@ -583,8 +583,16 @@ timeout = 600.0
   replace = "for origin in range(start, earliest - horizon + 1, 1):"
   models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive windows share periods; the scores stop being exchangeable and the calibration set is inflated with near-duplicates"
 
+  # EQUIVALENT MUTANT, recorded rather than dropped silently. Advancing the `d` and
+  # `n_lags` arguments to `origin + horizon` -- intended to make each calibration fit
+  # balance on the window it scores -- changes nothing: `run_multisynth` takes the
+  # adoption boundary from `trt`, so `adopt_of` stays at the origin and the extra
+  # periods are clipped. Verified directly: both call forms return byte-identical
+  # `tau_rel` sums. The defect it was meant to model is expressed below instead, at
+  # the line that actually controls what each fit is held out from.
+
   [[target.mutant]]
-  id = "cumulative-calibration-fit-sees-its-own-window"
-  find = """                Xy, trt_o, origin, horizon, origin,"""
-  replace = """                Xy, trt_o, origin + horizon, horizon, origin + horizon,"""
-  models = "letting each calibration fit balance on the very window it is about to score, so the conformity scores measure in-sample fit rather than prediction error and every band comes out too narrow"
+  id = "cumulative-calibration-keeps-the-real-adoption-time"
+  find = "        trt_o[adopted] = origin"
+  replace = "        trt_o[adopted] = trt[adopted]"
+  models = "forgetting to move adoption to the calibration origin, so every fit is the real one and each 'calibration score' is the actual treatment effect rather than a placebo window -- the scores stop measuring prediction error entirely and the band is calibrated on the thing it is supposed to be testing"
