@@ -30,7 +30,8 @@ from ..exceptions import (
 )
 from ..utils.ppscm_helpers.engine import run_multisynth
 from ..utils.ppscm_helpers.inference import (
-    jackknife_inference, bootstrap_inference, per_unit_intervals)
+    jackknife_inference, bootstrap_inference, per_unit_intervals,
+    cumulative_conformal_per_unit)
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -89,6 +90,7 @@ class PPSCM:
         self.n_boot: int = config.n_boot
         self.seed: int = config.seed
         self.alpha: float = config.alpha
+        self.conformal_horizon = config.conformal_horizon
         self.covariates = config.covariates
 
         self.display_graphs: bool = config.display_graphs
@@ -184,6 +186,19 @@ class PPSCM:
             else:
                 nan = np.full(len(fit["groups"]), np.nan)
                 pu_lo, pu_hi, pu_p, pu_tlo, pu_thi = nan, nan, nan, None, None
+
+            # Per-unit band on the CUMULATIVE effect -- the total each unit gained.
+            # Additional to the pooled inference above, not a replacement for it, so
+            # it is off unless a horizon is asked for.
+            if self.conformal_horizon is not None:
+                cum_pt, cum_lo, cum_hi, cum_n = cumulative_conformal_per_unit(
+                    Xy, trt, d, n_leads, n_lags,
+                    fixedeff=self.fixedeff, time_cohort=self.time_cohort,
+                    nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
+                    alpha=self.alpha, horizon=int(self.conformal_horizon),
+                )
+            else:
+                cum_pt = cum_lo = cum_hi = cum_n = None
             per_unit: Dict[Any, PPSCMUnitFit] = {}
             for k, g in enumerate(fit["groups"]):
                 key = (str(inputs.time_labels[fit["adopt_of"][g]]) if self.time_cohort
@@ -206,6 +221,10 @@ class PPSCM:
                                if pu_tlo is not None else None),
                     tau_upper=(np.asarray(pu_thi[k], dtype=float)
                                if pu_thi is not None else None),
+                    cumulative_effect=(float(cum_pt[k]) if cum_pt is not None else None),
+                    cumulative_lower=(float(cum_lo[k]) if cum_lo is not None else None),
+                    cumulative_upper=(float(cum_hi[k]) if cum_hi is not None else None),
+                    cumulative_windows=(int(cum_n[k]) if cum_n is not None else None),
                 )
 
             results = PPSCMResults(

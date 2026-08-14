@@ -175,3 +175,77 @@ def test_no_treated_units_raises_data_error():
     trt = np.full(trt.shape, np.inf)                 # nobody adopts
     with pytest.raises(MlsynthDataError):
         _call((Xy, trt))
+
+
+# ---------------------------------------------------------------------------
+# Wiring: PPSCM's ``conformal_horizon`` field
+# ---------------------------------------------------------------------------
+
+def _staggered_df(seed=0, adoption=(14, 18), n_donors=8, T=34, effect=-3.0, noise=0.4):
+    """Staggered panel with enough pre-period for several calibration windows."""
+    import pandas as pd
+    rng = np.random.default_rng(seed)
+    factors = rng.standard_normal((T, 2))
+    load_d = rng.standard_normal((n_donors, 2)) * 0.5
+    load_t = load_d.mean(axis=0)
+    rec = []
+    for j, Tj in enumerate(adoption):
+        series = factors @ (load_t + 0.1 * rng.standard_normal(2)) + rng.standard_normal(T) * noise
+        series[Tj:] += effect
+        rec += [{"unit": f"treated_{j}", "year": 2000 + t, "y": float(series[t]),
+                 "tr": int(t >= Tj)} for t in range(T)]
+    for dd in range(n_donors):
+        series = factors @ load_d[dd] + rng.standard_normal(T) * noise
+        rec += [{"unit": f"d_{dd}", "year": 2000 + t, "y": float(series[t]), "tr": 0}
+                for t in range(T)]
+    return pd.DataFrame(rec)
+
+
+def _fit_ppscm(**kw):
+    import warnings as _w
+    from mlsynth import PPSCM
+    cfg = dict(df=_staggered_df(), outcome="y", treat="tr", unitid="unit",
+               time="year", display_graphs=False, run_inference=False)
+    cfg.update(kw)
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        return PPSCM(cfg).fit()
+
+
+def test_default_leaves_every_per_unit_result_untouched():
+    """Nothing changes unless a horizon is asked for."""
+    res = _fit_ppscm()
+    assert res.per_unit
+    for unit in res.per_unit.values():
+        assert unit.cumulative_effect is None
+        assert unit.cumulative_lower is None
+        assert unit.cumulative_upper is None
+        assert unit.cumulative_windows is None
+
+
+def test_setting_the_horizon_populates_a_per_unit_cumulative_band():
+    res = _fit_ppscm(conformal_horizon=3, alpha=0.2)
+    assert res.per_unit
+    for unit in res.per_unit.values():
+        assert unit.cumulative_effect is not None
+        assert unit.cumulative_windows is not None and unit.cumulative_windows >= 1
+        assert unit.cumulative_lower <= unit.cumulative_effect <= unit.cumulative_upper
+
+
+def test_the_cumulative_band_does_not_disturb_the_existing_per_unit_fields():
+    """The band is additional; the ATT machinery must be untouched by it."""
+    base = _fit_ppscm(run_inference=True, alpha=0.2)
+    with_band = _fit_ppscm(run_inference=True, alpha=0.2, conformal_horizon=3)
+    for key, unit in base.per_unit.items():
+        other = with_band.per_unit[key]
+        assert other.att == pytest.approx(unit.att)
+        np.testing.assert_allclose(other.tau, unit.tau, equal_nan=True)
+        assert other.ci_lower == pytest.approx(unit.ci_lower, nan_ok=True)
+
+
+@pytest.mark.parametrize("bad", [0, -1, 2.5])
+def test_invalid_conformal_horizon_is_rejected_at_config_time(bad):
+    from mlsynth import PPSCM
+    with pytest.raises(MlsynthConfigError):
+        PPSCM(dict(df=_staggered_df(), outcome="y", treat="tr", unitid="unit",
+                   time="year", display_graphs=False, conformal_horizon=bad))
