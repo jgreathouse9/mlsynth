@@ -46,7 +46,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthConfigError
+from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ..conformal.inversion import confidence_set_bounds
 from ..conformal.refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from .ridge_augment import ridge_augment_weights
 
@@ -482,10 +483,12 @@ def conformal_intervals(
     q: float = 1.0,
     ns: int = 1000,
     grid_size: int = 50,
+    grid: Optional[np.ndarray] = None,
     seed: Optional[int] = 0,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
     refit: str = "ridge",
+    finite_sample: bool = False,
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> ConformalIntervals:
     """Per-period conformal confidence intervals by test inversion (Eq. 29).
@@ -501,6 +504,18 @@ def conformal_intervals(
     is not a tuning knob: an augmented refit can re-level a large post-period
     effect away, and the test then has no power against it. See
     :mod:`mlsynth.utils.conformal.refit`.
+
+    ``grid`` replaces the automatic per-period grid with one the caller supplies,
+    used unchanged for every post period. The endpoints an inversion returns are
+    grid points, so the grid sets the resolution of the answer; supplying one is
+    what makes a comparison against another implementation value-for-value
+    instead of resolution-limited (``scinference`` takes the same argument as
+    ``ci_grid``). The automatic grid stays the default because it adapts its
+    width to the panel's noise scale, which a fixed grid cannot.
+
+    Which nulls survive is decided by
+    :func:`~mlsynth.utils.conformal.inversion.confidence_set_bounds`; see there
+    for why the rule is strict.
     """
     if refit not in CONFORMAL_REFIT_RULES:
         raise MlsynthConfigError(
@@ -546,32 +561,46 @@ def conformal_intervals(
     scale = float(np.sqrt(np.mean(gap_full[:pre] ** 2)))
     half = max(6.0 * scale, 2.0 * float(np.sqrt(np.mean(att ** 2))), 1e-9)
 
+    user_grid = None
+    if grid is not None:
+        user_grid = np.asarray(grid, dtype=float).ravel()
+        if user_grid.size == 0:
+            raise MlsynthDataError(
+                "conformal grid must hold at least one candidate effect; got an "
+                "empty grid."
+            )
+        if not np.isfinite(user_grid).all():
+            raise MlsynthDataError("conformal grid must be finite.")
+
     lower = np.full(len(post), np.nan)
     upper = np.full(len(post), np.nan)
     pvals = np.full(len(post), np.nan)
     for k, j in enumerate(post):
-        grid = np.linspace(att[k] - half, att[k] + half, grid_size)
-        grid = np.append(grid, 0.0)
+        if user_grid is None:
+            tau_grid = np.linspace(att[k] - half, att[k] + half, grid_size)
+        else:
+            tau_grid = user_grid
+        # Zero is appended so the reported per-period p-value is the p-value of
+        # the no-effect null whatever the grid, which a caller-supplied grid need
+        # not contain.
+        tau_grid = np.append(tau_grid, 0.0)
         # Sweep the tau0 grid warm-starting each base solve from the previous
         # (nearly identical) one -- the refits collapse to ~0 pivots.
-        ps = np.empty(grid.size)
+        ps = np.empty(tau_grid.size)
         w_prev = None
-        for gi, tau0 in enumerate(grid):
+        for gi, tau0 in enumerate(tau_grid):
             ps[gi], w_prev = _period_pvalue(
                 y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs,
                 warm_start=w_prev, conformal_type=conformal_type,
                 fixed_effects=fixed_effects, refit=refit,
             )
-        kept = grid[ps >= alpha]
-        if kept.size:
-            lower[k] = float(kept.min())
-            upper[k] = float(kept.max())
-        pvals[k] = float(ps[grid == 0.0][0])
+        lower[k], upper[k] = confidence_set_bounds(tau_grid, ps, alpha)
+        pvals[k] = float(ps[tau_grid == 0.0][0])
 
     joint_p = conformal_pvalue(
         y, Y0, pre, Z0=Z0, z1=z1, q=q, ns=ns, seed=seed,
         conformal_type=conformal_type, fixed_effects=fixed_effects,
-        refit=refit, ridge_kwargs=ridge_kwargs,
+        refit=refit, finite_sample=finite_sample, ridge_kwargs=ridge_kwargs,
     )
     return ConformalIntervals(
         periods=post, att=att, lower=lower, upper=upper,

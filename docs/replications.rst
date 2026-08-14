@@ -67,6 +67,8 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/mtgp
    replications/bpscs
    replications/tssc
+   replications/cwz_conformal
+   replications/cwz_ttest
    replications/vanillasc
    replications/vanillasc_olympics
    replications/lamba_tigers
@@ -157,6 +159,23 @@ Canonical workhorses
   Connecticut 0.068, each within 0.005 of the paper; durable:
   ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`vanillasc` (debiased t-test) -- Chernozhukov, Wuthrich & Zhu.
+  Path A on the authors' carbon tax panel (ATT -0.273903, 90% CI
+  [-0.406425, -0.141380], cross-validated against their scinference), Path B
+  on their Table 3 simulation design run live from the JPE replication
+  package, and Table 1's efficiency formula -- the rule behind
+  ``ttest_K="auto"`` -- matched to 1e-9.
+  -> dedicated page: :doc:`replications/cwz_ttest`; durable cases
+  ``cwz_ttest``, ``cwz_ttest_mc``, ``cwz_rae``, ``cwz_mc``.
+* :doc:`vanillasc` (conformal inference) -- Chernozhukov, Wuthrich &
+  Zhu (2021, JASA). Cross-validation against the authors' own R
+  (``scinference`` v1.0.0, cross-checked against the JASA supplement's
+  functions) on the panel their Section 5 uses: Rhode Island's 2003
+  decriminalization of indoor prostitution. The moving-block p-value
+  (0.040000), all six pointwise 90% intervals on the paper's own grid, and
+  the three placebo specification tests reproduce exactly.
+  -> dedicated page: :doc:`replications/cwz_conformal`; durable case
+  ``cwz_conformal``.
 * :doc:`vanillasc` (staggered adoption) -- Cattaneo, Feng, Palomba &
   Titiunik (2025) multiple-treated-unit prediction intervals. Cross-validation
   vs the ``scpi`` package on the Germany reunification panel: the event-time

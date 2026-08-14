@@ -10,6 +10,9 @@ Contents:
 
 * :mod:`.quantile` -- :func:`split_conformal_quantile`, the finite-sample order
   statistic every band is calibrated by.
+* :mod:`.inversion` -- :func:`confidence_set_bounds`, the duality rule a
+  test-inversion band is read off with: the nulls a level-alpha test does not
+  reject.
 * :mod:`.scores` -- conformity-score constructions. Currently
   :func:`rolling_origin_block_sums`, the out-of-sample cumulative errors a
   cumulative band needs.
@@ -31,6 +34,7 @@ American Statistical Association, 116(536), 1849-1864.
 from __future__ import annotations
 
 from .cumulative import cumulative_conformal_from_refit, cumulative_conformal_interval
+from .inversion import confidence_set_bounds
 from .quantile import split_conformal_quantile
 from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from .scores import MIN_TRAIN_PERIODS, rolling_origin_block_sums
@@ -40,6 +44,7 @@ __all__ = [
     "CONFORMAL_REFIT_RULES",
     "MIN_TRAIN_PERIODS",
     "CumulativeConformalBand",
+    "confidence_set_bounds",
     "conformal_refit_gaps",
     "cumulative_conformal_from_refit",
     "cumulative_conformal_interval",

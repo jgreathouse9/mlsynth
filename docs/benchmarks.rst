@@ -53,8 +53,16 @@ Path A — empirical replications
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``clustersc_rpca_germany``
      - RPCA-SC West Germany
+   * - ``cwz_conformal``
+     - CWZ 2021 (JASA) conformal test inversion against the authors' own scinference, on their Section 5 Rhode Island application: the moving-block p-value, all six pointwise intervals on the paper's grid, and the three placebo specification tests, all exact
+   * - ``cwz_conformal_mc``
+     - CWZ 2021 (JASA) Section 4 size, run live from the authors' own simulation design: ten seed-matched panels per error structure reproduced exactly, and the size cells for four weight vectors at rho = 0 and rho = 0.6
+   * - ``cwz_rae``
+     - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest``
      - CWZ 2025 Table 5 carbon-tax debiased t-test
+   * - ``cwz_ttest_mc``
+     - CWZ Table 3 run live from the authors' calibration_dgps.R and common_functions.R: seed-matched panels reproduced exactly, plus coverage, length and bias across all nine DGPs
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``

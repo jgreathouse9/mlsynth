@@ -458,8 +458,12 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             warnings.simplefilter("ignore")
             ci = conformal_intervals(
                 y, Y0, pre, lambda_=res.lambda_, Z0=Z0, z1=z1,
-                alpha=config.alpha, ns=config.scpi_sims, seed=config.seed,
-                refit=refit, conformal_type=config.conformal_type,
+                alpha=config.alpha,
+                ns=int(config.conformal_n_perm or config.scpi_sims),
+                seed=config.seed, refit=refit,
+                conformal_type=config.conformal_type,
+                grid=config.conformal_grid,
+                finite_sample=config.conformal_finite_sample,
                 ridge_kwargs={"residualize": config.residualize},
             )
         # per-period counterfactual bands: gap tau in [lower, upper] => cf in
@@ -483,6 +487,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "joint_p_value": ci.joint_p_value,
                 "conformal_type": config.conformal_type,
                 "refit": refit,
+                "n_perm": int(config.conformal_n_perm or config.scpi_sims),
+                "finite_sample": config.conformal_finite_sample,
+                "grid": config.conformal_grid,
                 "lambda": res.lambda_,
             },
         )

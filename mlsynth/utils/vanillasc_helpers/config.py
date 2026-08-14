@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
+import numpy as np
 from pydantic import (BaseModel, ConfigDict, Field, field_validator,
                       model_validator)
 
@@ -392,6 +393,58 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "is deterministic, and its p-value cannot fall below 1/T "
                     "because one shift is the observed path.",
     )
+
+    conformal_n_perm: Optional[int] = Field(
+        default=None,
+        description="Permutation draws for the conformal_type='iid' p-value. "
+                    "None (default) reuses scpi_sims. scinference draws 5000, "
+                    "and at 200 the Monte-Carlo error on a p-value near 0.02 is "
+                    "about half its own size, so raise this before reading an "
+                    "iid p-value closely. Ignored by conformal_type='block', "
+                    "which enumerates its reference set and draws nothing.",
+    )
+
+    conformal_finite_sample: bool = Field(
+        default=False,
+        description="Report the conformal p-value as (1 + #{stat >= observed}) "
+                    "/ (1 + n_perm) instead of the plain mean. This is "
+                    "scinference's convention for iid permutations, and it is "
+                    "the form that is valid in finite samples: n draws cannot "
+                    "evidence a p-value below 1/(n+1), which the plain mean "
+                    "reports as 0. The default is the plain mean, which is "
+                    "augsynth's and what the ASCM cases reproduce.",
+    )
+
+    conformal_grid: Optional[Any] = Field(
+        default=None,
+        description="Candidate effects the per-period test inversion sweeps, "
+                    "used unchanged for every post period (scinference's "
+                    "ci_grid). The reported endpoints are grid points, so this "
+                    "sets the resolution of the band. None (default) builds a "
+                    "grid per period from the panel's own noise scale, which "
+                    "adapts where a fixed grid cannot.",
+    )
+
+    @field_validator("conformal_n_perm")
+    @classmethod
+    def _validate_conformal_n_perm(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, (int, np.integer)) or bool(v < 1):
+            raise ValueError("conformal_n_perm must be an integer >= 1 or None.")
+        return int(v)
+
+    @field_validator("conformal_grid")
+    @classmethod
+    def _validate_conformal_grid(cls, v):
+        if v is None:
+            return v
+        arr = np.asarray(v, dtype=float).ravel()
+        if arr.size == 0:
+            raise ValueError("conformal_grid must hold at least one candidate effect.")
+        if not np.isfinite(arr).all():
+            raise ValueError("conformal_grid must be finite.")
+        return arr
 
     conformal_horizon: Optional[int] = Field(
         default=None,

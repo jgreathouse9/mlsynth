@@ -66,6 +66,21 @@ Two near-identical 17-column regional panels that differ by a region/year block:
 | `carbontax_data.dta` | the analysis sample (per-capita CO2 / GDP / fuel) | CWZ Monte Carlo / t-test, VanillaSC t-test |
 | `carbontax_fullsample_data.dta.txt` | the larger full sample | ORTHSC carbon-tax replication |
 
+## Rhode Island indoor prostitution decriminalization — Cunningham & Shah (2018)
+
+`logfemrate.txt` is the panel Chernozhukov, Wuthrich & Zhu use as the empirical
+application of their conformal method (JASA 2021, Section 5), shipped in their
+replication package as `replication_package_final/logfemrate.txt` and obtained
+by them from Scott Cunningham and Manisha Shah. Log female gonorrhea incidence
+per 100,000, 1985-2009, tab-separated, 25 rows by 51 columns with no time
+column: the first column is Rhode Island and the remaining fifty are the control
+states, in the authors' order. Rhode Island's courts decriminalized indoor
+prostitution in 2003, so `T0 = 19` (1985-2003) and `T1 = 6` (2004-2009).
+
+| File | What it is | Used by |
+|---|---|---|
+| `logfemrate.txt` | the CWZ conformal application panel | `cwz_conformal` benchmark case |
+
 ## MAREX go-dark experiment (simulated) — Abadie & Zhao (2026)
 
 | File | What it is | Used by |
