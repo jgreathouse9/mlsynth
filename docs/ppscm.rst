@@ -232,7 +232,7 @@ adds a band for that total to every ``per_unit`` entry::
 
 An interval for a running total is not the running total of the per-period
 intervals. Adding endpoints up treats the period errors as moving in lockstep, so the
-width grows with the number of periods rather than with its square root; rescaling a
+width grows with the number of periods, not with its square root; rescaling a
 single period's interval by the horizon assumes the opposite. Which is right depends
 on how the errors accumulate, and neither assumption measures it.
 
@@ -254,8 +254,31 @@ unset changes nothing. And it costs pre-period. Non-overlapping windows of lengt
 :math:`\lceil 1/\alpha \rceil - 1` of them: roughly
 :math:`T_0 \gtrsim L/(0.7\,\alpha)` counting the training block held back at the
 start. When they run out, ``cumulative_lower``/``cumulative_upper`` are infinite and
-``cumulative_windows`` says how many were available, rather than a narrow band that
+``cumulative_windows`` says how many were available, instead of a narrow band that
 does not cover.
+
+Where the roll starts is ``conformal_min_train_frac``, a fraction of the
+pre-period: the first origin sits at
+:math:`\max(10,\ \text{frac} \times T_0)`, so every calibration fit has that many
+periods to train on. The default 0.3 suits most panels, and two situations call
+for moving it. Periods spent on the warm-up are periods not available for
+calibration, so lowering it buys windows when the level is out of reach;
+against that, a fit trained on fewer periods than there are donors can
+interpolate its training window, and raising the fraction past the donor count
+removes those origins. The two pull opposite ways, so the choice belongs to
+whoever knows the panel. With :math:`T_0 = 120`, :math:`L = 7` and 60 donors,
+the default starts at period 36 and yields twelve windows, four of them trained
+on fewer periods than there are donors; 0.5 starts at 60 and removes all four,
+leaving eight windows, which no longer supports a 90% band. Read
+``cumulative_windows`` back off each unit to see what a given choice bought.
+
+  ===========  =====  =========  ===============================================
+  :math:`T_0`  frac   windows    at :math:`L = 7`
+  ===========  =====  =========  ===============================================
+  120          0.3    12         supports 90%, not 95%
+  120          0.4    10         supports 90%
+  120          0.5    8          below the 90% threshold
+  ===========  =====  =========  ===============================================
 
 Empirical Illustration: mandatory collective bargaining
 -------------------------------------------------------
