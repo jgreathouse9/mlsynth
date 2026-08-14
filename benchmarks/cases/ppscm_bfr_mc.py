@@ -21,6 +21,13 @@ overall ATT with an intercept:
   AR                97.2             89.3
   ================  ===============  ===============
 
+mlsynth reproduces the two-way fixed effects cells almost exactly (0.940 and 0.980
+against 0.937 and 0.973) and the AR cells closely (0.960 and 0.880 against 0.972 and
+0.893); the factor cells differ more, with mlsynth's bootstrap more conservative and
+its jackknife covering less. The DGP here is not the paper's calibration, which is
+fitted to the Paglayan panel with parameters the paper does not report, so the case
+asserts the ordering rather than the cells.
+
 Its finding is the *ordering*, not the cells: the wild bootstrap is close to nominal
 when there is no bias from inexact fit, and conservative once factor structure or
 serial dependence is present. That is the same mechanism that motivated the calibrated
@@ -178,38 +185,66 @@ def run() -> dict:
     return out
 
 
-# PROVISIONAL -- the values below are read from the paper's Figure 8 / B.3, not yet
-# from a run of this case. They are being calibrated against what mlsynth actually
-# produces, and any cell that disagrees with the paper's ordering will be recorded as a
-# finding rather than fitted away.
+# Deterministic (seeded). Measured on this case at M=50; tolerances are about three
+# binomial Monte Carlo standard errors (a coverage SE at M=50 is ~sqrt(.95*.05/50) ~
+# 0.031), wide enough to survive a different BLAS and narrow enough that a real
+# regression in either inference path fails here.
 #
-# Deterministic (seeded). Tolerances absorb binomial Monte Carlo noise: at M=40 a
-# coverage SE is ~sqrt(.95*.05/40) ~ 0.035, so a +/-0.12 window is about three SEs.
-# The facts reproduced are the paper's ordering, not its cells, which are not
-# recoverable from the paper (no replication archive, no stated replication count,
-# unreported calibration parameters).
+# How this compares with the paper (Figure 8 / B.3, overall ATT at nominal 95%):
 #
-#   * the sharp null means PPSCM should be essentially unbiased on every design;
-#   * the wild bootstrap covers near nominal under two-way fixed effects, the case
-#     with no bias from inexact fit (paper: 93.7);
-#   * once factor structure or serial dependence is present the bootstrap does not
-#     under-cover -- the paper reports it turning conservative (95.9 and 97.2) while
-#     the jackknife falls away (88.5 and 89.3), so the bootstrap covers at least as
-#     much as the jackknife on those two designs;
-#   * the cumulative conformal band covers near its 90% nominal level, and every band
-#     it reports is finite at this panel shape (the windows are there to support it).
+#   ================  ==================  ============  ==================  ============
+#   DGP               mlsynth bootstrap   BFR           mlsynth jackknife   BFR
+#   ================  ==================  ============  ==================  ============
+#   two-way FE        0.940               0.937         0.980               0.973
+#   factor            1.000               0.959         0.840               0.885
+#   AR                0.960               0.972         0.880               0.893
+#   ================  ==================  ============  ==================  ============
+#
+# The two-way fixed effects cells land on the paper almost exactly. The factor cells
+# are the ones that differ: mlsynth's bootstrap is more conservative there (1.000
+# against 0.959) and its jackknife covers less (0.840 against 0.885). The DGP here is
+# not their calibration -- theirs is fitted to the Paglayan panel with parameters the
+# paper does not report -- so a gap of that size is expected and is recorded rather
+# than tuned away.
+#
+# What is reproduced is the geometry the paper actually argues for:
+#
+#   * PPSCM is unbiased under the sharp null, and the AR design is the one where
+#     inexact fit bites (bias 0.153 here, ~0.294 in the paper);
+#   * the wild bootstrap is near nominal when there is no bias from inexact fit and
+#     turns conservative once factor structure or serial dependence is present;
+#   * the jackknife runs the other way -- above nominal under two-way FE, below it on
+#     the other two -- so the bootstrap covers at least as much on those designs;
+#   * the cumulative conformal band (#432) covers at its nominal level when the
+#     calibration set is comfortably large (0.891 at 39 windows against a nominal
+#     0.90), and is valid but conservative when it is barely adequate (0.978 at 11
+#     windows, where the half-width IS the largest calibration score).
 EXPECTED = {
-    "twfe_bootstrap_bias": (0.0, 0.20),
-    "factor_bootstrap_bias": (0.0, 0.30),
-    "ar_bootstrap_bias": (0.0, 0.30),
+    # PPSCM is unbiased under a sharp null; AR is the hard design.
+    "twfe_bootstrap_bias": (-0.010, 0.10),
+    "factor_bootstrap_bias": (0.011, 0.12),
+    "ar_bootstrap_bias": (0.153, 0.18),
 
-    "twfe_bootstrap_coverage": (0.94, 0.12),
-    "factor_bootstrap_coverage": (0.96, 0.12),
-    "ar_bootstrap_coverage": (0.97, 0.12),
+    # Wild bootstrap: near nominal without factor structure, conservative with it.
+    "twfe_bootstrap_coverage": (0.940, 0.10),
+    "factor_bootstrap_coverage": (1.000, 0.10),
+    "ar_bootstrap_coverage": (0.960, 0.10),
 
+    # Jackknife: the other way round, which is the paper's contrast.
+    "twfe_jackknife_coverage": (0.980, 0.10),
+    "factor_jackknife_coverage": (0.840, 0.13),
+    "ar_jackknife_coverage": (0.880, 0.13),
+
+    # The ordering, which is the finding rather than any single cell.
     "factor_boot_ge_jack": (1.0, 0.0),
     "ar_boot_ge_jack": (1.0, 0.0),
 
-    "cumulative_coverage": (0.90, 0.12),
+    # The cumulative band, in both calibration regimes.
+    "cumulative_coverage_many_windows": (0.891, 0.10),
+    "cumulative_coverage_few_windows": (0.978, 0.08),
+    "cumulative_windows_many": (39.0, 2.0),
+    "cumulative_windows_few": (11.0, 1.0),
     "cumulative_bands_infinite": (0.0, 0.0),
+    "cumulative_tightens_with_windows": (1.0, 0.0),
+    "cumulative_valid_many": (1.0, 0.0),
 }
