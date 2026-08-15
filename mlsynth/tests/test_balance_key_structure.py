@@ -109,8 +109,6 @@ def _corpus():
              "y": 1.0}),
         "float-time": pd.DataFrame(
             {"id": ["a", "a", "b", "b"], "time": [1.0, 2.5, 1.0, 2.5], "y": 1.0}),
-        "extra-unit-no-rows": base.assign(
-            id=pd.Categorical(base["id"], categories=["a", "b", "c"])),
         "duplicate-and-unbalanced": pd.concat(
             [base.drop(index=3), base.iloc[[0]]], ignore_index=True),
         "non-unique-index": pd.concat([base.iloc[:2], base.iloc[2:]]),
@@ -157,6 +155,32 @@ class TestDecisionsAreIdentical:
                 df = df.copy()
                 df.loc[int(rng.integers(len(df))), "id"] = None
             assert _outcome(balance, df) == _outcome(_balance_oracle, df)
+
+    def test_an_unused_categorical_level_is_not_a_unit(self):
+        """The one place this deliberately diverges, and it removes a
+        version-dependence rather than adding one.
+
+        ``groupby``'s ``observed`` default changed from ``False`` to ``True`` in
+        pandas 3.0. Below that, a unit column typed as a Categorical carrying a
+        level no row uses produced a group with zero observations, and the panel
+        was rejected as not strongly balanced; from 3.0 the level is dropped and
+        the same panel is accepted. The project supports ``pandas>=2.0.0``, so
+        the shipped implementation returned different verdicts for the same
+        frame depending on the installed pandas.
+
+        ``factorize`` reports only levels that occur, so the answer is now the
+        same on every supported version -- and it is the right one: a category
+        no row uses is an annotation on the dtype, not a unit of the panel.
+        """
+        df = pd.DataFrame({"id": pd.Categorical(["a", "a", "b", "b"],
+                                                categories=["a", "b", "c"]),
+                           "time": [1, 2, 1, 2], "y": 1.0})
+        assert balance(df, "id", "time") is None
+
+        counted = df.groupby("id", observed=False)["time"].nunique()
+        assert 0 in set(counted.values), (
+            "fixture must carry a level with no rows, which is what the old "
+            "implementation counted as a unit")
 
     def test_error_precedence_is_preserved(self):
         """A panel that is both duplicated and unbalanced reports the duplicate,

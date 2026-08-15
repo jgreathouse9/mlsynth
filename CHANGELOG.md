@@ -71,6 +71,14 @@ now returns and the back-compat guarantee.
   units would otherwise ask for 128 MB to report an error. Measured: 3.9x on
   `balance` at 840 rows, 2.8x at 500k, 25–29 percent of total ingestion, and a
   full SDID fit 1.05–1.22x faster with its ATT unchanged at `0.0e+00`.
+  One verdict deliberately changes, and it removes a version-dependence:
+  `groupby`'s `observed` default flipped from `False` to `True` in pandas
+  3.0, so a unit column typed as a Categorical carrying a level no row uses
+  was rejected as unbalanced below 3.0 and accepted from 3.0 -- different
+  answers for the same frame across the supported range. `factorize` reports
+  only levels that occur, so the answer is now the same everywhere, and it is
+  the right one: a category no row uses is an annotation on the dtype, not a
+  unit of the panel.
 
 ### Added
 - `utils/bilevel/minnorm.py::ridged_gram_reduction_is_safe`: the Gram-reduction
