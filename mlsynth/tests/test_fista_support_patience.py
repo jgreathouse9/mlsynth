@@ -290,13 +290,14 @@ class TestTheCounterMechanics:
                    + [flicker] * 10 + [settled] * 340)
         script = [self._point(pattern[k], J, 0.001 * (1 + k % 5))
                   for k in range(400)]
-        # holds_needed = 3 at patience 30, samples every 10 iterations.
-        stopped = self._run(script, support_patience=30)
-        # Consecutive: the runs of `settled` are broken twice, so the third
-        # consecutive hold only lands after the last break. Cumulative counting
-        # would have reached three holds during the earlier runs and stopped
-        # sooner.
-        assert stopped > 60
+        # holds_needed = 3 at patience 30, samples every 10 iterations. The
+        # sampled supports run: full, {0,1}, {0,1}, {0,1,2}, {0,1}, {0,1,2},
+        # {0,1}, {0,1}, ... The first sample is the uniform plateau and does
+        # not arm; the two flickers each break the run. The third *consecutive*
+        # hold therefore lands at iteration 91. Counting holds cumulatively
+        # reaches three at 81, ten iterations early and on a support that has
+        # changed twice since the first of them.
+        assert self._run(script, support_patience=30) == 91
 
     def test_sampling_interval_is_honoured(self):
         """The support is read every ``SUPPORT_CHECK_EVERY`` iterations, so a
