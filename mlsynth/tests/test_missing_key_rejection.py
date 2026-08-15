@@ -233,3 +233,59 @@ class TestCost:
         _prep(_panel(10, 10))
         assert calls["isna"] <= 2, (
             f"{calls['isna']} isna passes -- the check should read the codes")
+
+
+# --------------------------------------------------------------------------- #
+# 7. the config layer -- the earliest refusal, with the best message
+# --------------------------------------------------------------------------- #
+class TestConfigRefuses:
+    """``BaseMAREXConfig`` has rejected missing keys all along, but it is
+    referenced 14 times; ``BaseEstimatorConfig`` is referenced 150 and checked
+    only that the frame was non-empty. Catching it at construction names the
+    problem before any pivot exists, which is a better error than one raised
+    from inside ingestion. Ingestion still refuses independently -- 38 modules
+    reach it without a config in the call path at all.
+    """
+
+    @staticmethod
+    def _config(df):
+        from mlsynth.config_models import BaseEstimatorConfig
+        return BaseEstimatorConfig(df=df, outcome="y", treat="d", unitid="id",
+                                   time="time")
+
+    def test_clean_panel_still_constructs(self):
+        assert self._config(_panel()) is not None
+
+    def test_missing_time_key_is_refused(self):
+        df = _panel()
+        df.loc[1, "time"] = None
+        with pytest.raises(MlsynthDataError, match="Missing values"):
+            self._config(df)
+
+    def test_missing_unit_key_is_refused(self):
+        df = _panel()
+        df.loc[1, "id"] = None
+        with pytest.raises(MlsynthDataError, match="Missing values"):
+            self._config(df)
+
+    def test_the_message_names_the_column(self):
+        df = _panel()
+        df.loc[1, "time"] = None
+        with pytest.raises(MlsynthDataError) as excinfo:
+            self._config(df)
+        assert "time" in str(excinfo.value)
+
+    def test_a_missing_outcome_still_constructs(self):
+        """Scoped to the keys. A blank outcome is a modelling question and the
+        estimators that tolerate it keep doing so -- which is where this differs
+        from ``BaseMAREXConfig``, whose stricter contract covers the outcome
+        column too.
+        """
+        df = _panel()
+        df.loc[1, "y"] = np.nan
+        assert self._config(df) is not None
+
+    def test_a_missing_treatment_indicator_still_constructs(self):
+        df = _panel()
+        df.loc[1, "d"] = np.nan
+        assert self._config(df) is not None
