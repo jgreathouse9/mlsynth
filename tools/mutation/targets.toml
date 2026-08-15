@@ -757,11 +757,23 @@ timeout = 600.0
   replace = "    if accelerate and J >= ACCEL_MIN_DONORS:"
   models = "a seed recomputed on top of one the caller already has. The placebo loop chains the previous draw's solution through this argument, so discarding it pays for a FISTA run per draw to replace a start that was already on the answer"
 
+[[target]]
+name = "fista-support-stop"
+module-path = "mlsynth/utils/bilevel/accelerate.py"
+test-command = "python -m pytest mlsynth/tests/test_fista_support_patience.py mlsynth/tests/test_sdid_warm_start_accel.py -q -p no:cacheprovider"
+timeout = 600.0
+
   [[target.mutant]]
   id = "support-patience-counts-total-instead-of-consecutive-holds"
-  find = "            held = held + 1 if (support is not None\n                                and np.array_equal(current, support)) else 0"
-  replace = "            held = held + 1 if (support is not None\n                                and np.array_equal(current, support)) else held"
+  find = "            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else 0"
+  replace = "            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else held"
   models = "a patience counter that never resets, so a support that flickers still accumulates holds and the warm start returns while the support is moving -- the seed is then rejected coordinate by coordinate and the solve pays the cold pivot count anyway"
+
+  [[target.mutant]]
+  id = "counter-arms-on-the-uniform-plateau"
+  find = "            armed = int(current.sum()) < J"
+  replace = "            armed = True"
+  models = "the counter allowed to run before the first coordinate is pinned. FISTA starts at the uniform point, where every coordinate is positive and the support has therefore not changed for the reason that it has not started, so the stop fires immediately and hands back the whole pool -- the uniform start under another name. On a 96x100 design whose optimum has 16 donors it took the solve from 33 pivots back to the cold 84"
 
   [[target.mutant]]
   id = "support-read-at-a-tolerance-the-solver-does-not-use"

@@ -66,12 +66,19 @@ now returns and the back-compat guarantee.
   still determines the weights, and on SDID the two paths agree to 0.0e+00. Pass
   `accelerate=False` for the cold path.
 - `fista_warm_start` stops once the seed's support has held for
-  `SUPPORT_PATIENCE` consecutive iterations (25), read at the `SUPPORT_TOL` the
-  active set itself pins variables at. Its `tol=1e-7` rule tests how far the
-  iterate moved, which is the wrong question for a seed whose job is to name the
-  support: on the two SDID programs of a 101x120 panel the support was final by
-  iteration ~150 and the loop ran to 400. Pass `support_patience=None` for the
-  old behaviour.
+  `SUPPORT_PATIENCE` iterations (100, sampled every `SUPPORT_CHECK_EVERY`),
+  read at the `SUPPORT_TOL` the active set itself pins variables at. Its
+  `tol=1e-7` rule tests how far the iterate moved, which is the wrong question
+  for a seed whose job is to name the support: on the two SDID programs of a
+  101x120 panel the support was final by iteration ~150 and the loop ran to 400.
+  The stop now fires at 261 and 231 and takes those two programs from 50.0 ms to
+  36.7 ms. The counter arms only after the first coordinate is pinned, since
+  FISTA starts at the uniform point where the support is the whole pool and has
+  not moved because it has not started. Sizing: one saved iteration is worth
+  ~44 us and one pivot the seed fails to save costs about 27 of them, so the
+  default is set where the stop fires only on a support that has durably
+  settled -- across 27 designs it costs zero pivots against the full run. Pass
+  `support_patience=None` for the old behaviour.
 
 ### Changed
 - `VanillaSC`'s per-fold refit closure is defined once and shared by
