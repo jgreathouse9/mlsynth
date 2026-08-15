@@ -50,6 +50,33 @@ now returns and the back-compat guarantee.
   several treated units at once can build its own scores in a single pass and
   reuse the same calibration.
 
+### Added
+- `utils/bilevel/minnorm.py::ridged_gram_reduction_is_safe`: the Gram-reduction
+  guard for a design the caller is about to augment with `sqrt(ridge) * I`,
+  answered without building or factorising that matrix wherever the ridge
+  settles it. The augmented Gram is `X'X + ridge I`, so `lambda_min >= ridge`
+  and `lambda_max <= ||X||_F^2 + ridge`, giving
+  `sv_min / sv_max >= sqrt(ridge / (||X||_F^2 + ridge))` from one Frobenius
+  norm. The bound is one-sided in the safe direction -- clearing it proves the
+  answer is `True`, failing to clear it proves nothing and the spectrum runs --
+  so decisions are identical to asking `gram_reduction_is_safe` about the
+  augmented matrix, by construction rather than by tuning.
+
+### Changed
+- SDID's placebo loop asks the Gram-reduction guard through
+  `ridged_gram_reduction_is_safe`. A default `vce="placebo"` fit posed 1000
+  simplex programs and asked the guard about every one, each answer a full
+  singular spectrum, and on a 101x120 panel all 1000 came back `True` decided by
+  a ratio four to seven orders of magnitude clear of the 1e-8 tolerance. Nothing
+  said a guard must cost less than the solve it protects, so it had grown past
+  it: 4.25 s of a 16.6 s three-fit profile, against the batched solver's own
+  4.33 s. The unit-weight program carries a ridge and is now certified without a
+  factorisation; 1000 SVDs become 500 and the fit goes 4.28 s to 3.64 s with the
+  ATT and its standard error unchanged at `0.0e+00`. The time-weight program
+  carries no ridge, so the bound is vacuous there and it still pays -- asserted
+  in `test_sdid_placebo_guard_cost.py::TestReachOfTheFix` so the limit of the
+  fix is visible rather than assumed.
+
 ### Changed
 - The FISTA warm start that seeds the exact simplex active set is computed in
   `utils/bilevel/active_set.py::solve_simplex_qp` instead of in

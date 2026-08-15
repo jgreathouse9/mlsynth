@@ -123,7 +123,7 @@ def ridged_gram_reduction_is_safe(
 
     A caller that folds an L2 penalty into a least-squares program by stacking
     ``sqrt(ridge) * I`` beneath the design is asking the guard about a matrix it
-    can describe rather than one it has to look at. The augmented Gram is
+    can describe, not one it has to look at. The augmented Gram is
     ``design' design + ridge I``, so
 
     * ``lambda_min >= ridge``, since ``design' design`` is positive

@@ -24,7 +24,7 @@ ratio of 7.43e-2, tight to three percent, and both clear the 1e-8 tolerance by
 six orders of magnitude.
 
 The time-weight program carries no ridge, so ``lambda_min >= 0`` is vacuous and
-it keeps paying for its SVD. That is recorded here rather than papered over.
+it keeps paying for its SVD, which is asserted here so the limit is visible.
 """
 
 import numpy as np

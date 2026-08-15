@@ -1,4 +1,5 @@
-"""What the guard costs a placebo fit, asserted rather than left to a profiler.
+"""What the guard costs a placebo fit, asserted in the suite and not left to a
+profiler.
 
 A default ``vce="placebo"`` fit poses 1000 simplex programs and asked
 ``gram_reduction_is_safe`` about every one of them, each answer a full singular
@@ -16,7 +17,7 @@ Two families, and only one of them can be certified:
   free lower bound on its conditioning and its SVD goes away entirely;
 * the time-weight program carries no ridge, so the same bound is vacuous and it
   keeps paying. Asserted here as a fact about the fix's reach, so that half is
-  visible rather than assumed away.
+  visible.
 
 The binding assertions are counts, not clocks -- wall time carries enough
 run-to-run noise at these sizes to hide a regression this size.
