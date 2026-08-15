@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-08-15T11:02:55Z",
+  "git_sha": "71261dfd086762ee2049cf97af5d2cc3f600a9d5",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/lpca_mc/reference.R",
+  "data": [
+    {
+      "path": "benchmarks/reference/lpca_mc/panel_model1.csv.gz",
+      "sha256": "a559e5559e984d547499eb5d2b1a754d83b443ca7596d25a3d63c537a1a27ef4"
+    },
+    {
+      "path": "benchmarks/reference/lpca_mc/panel_model2.csv.gz",
+      "sha256": "56f99185f5882bba3e9695b1020ee56dd3b34e8ca1a522b7541795d8c2905297"
+    },
+    {
+      "path": "benchmarks/reference/lpca_mc/panel_model3.csv.gz",
+      "sha256": "07198bfbf247c4f6c32601a8bf4766660155370d7fcf9c0f4ebcfae6ee0196ec"
+    },
+    {
+      "path": "benchmarks/reference/lpca_mc/latent_model1.csv",
+      "sha256": "cbfa9b008dfe72438605df9e168ba5344a3b51eac86514b9338d13bae1f4ab31"
+    },
+    {
+      "path": "benchmarks/reference/lpca_mc/latent_model2.csv",
+      "sha256": "8fc6f1a2260ce508850eaa9b972bad71456ac20c1bbeed4604b1d1fc83bc4bde"
+    },
+    {
+      "path": "benchmarks/reference/lpca_mc/latent_model3.csv",
+      "sha256": "3efeffa4b35d7b957c218e9227f30e0b5e26c4ba9603c4e11ab18b83bc7292ab"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "HDRFA": "0.1.5",
+    "irlba": "2.3.5.1",
+    "Matrix": "1.6-5",
+    "Rfast": "2.1.5.2",
+    "RcppParallel": "5.1.7",
+    "zigg": "0.0.2",
+    "Rcpp": "1.0.12",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "quantreg": "5.97",
+    "SparseM": "1.81",
+    "survival": "3.5-8",
+    "MatrixModels": "0.5-3",
+    "splines": "4.3.3",
+    "grid": "4.3.3",
+    "pracma": "2.4.4",
+    "lattice": "0.22-5"
+  }
+}

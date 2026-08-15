@@ -14,6 +14,8 @@ per capita, Kansas treated from 2012Q2 — which is the same panel Feng ships as
 
 ## What is here
 
+The spike itself:
+
 ```
 lpca_oracle.py     readable port of Algorithm 1 (K-NN matching + local PCA)
 run_kansas.py      ingestion via dataprep, both arms, the tuning sweep
@@ -28,6 +30,29 @@ simulation_results.json  generated
 python benchmarks/reference/lpca_kansas/dump_results.py
 python benchmarks/reference/lpca_kansas/run_simulation.py 500   # ~45 min on 4 cores
 ```
+
+And the captured reference run that `benchmarks/cases/lpca_kansas.py` pins
+against, added once the estimator existed:
+
+```
+manifest.json      case metadata + the data generate.py checksums
+reference.R        Feng's own knn.index / lpca / sel.r, run on this panel
+reference.out      its verbatim stdout                    (generated)
+reference.json     the parsed values the case pins against (generated)
+provenance.json    versions, OS, git SHA, data checksums   (generated)
+```
+
+```bash
+bash benchmarks/R/install_feng_lpca.sh
+python benchmarks/reference/generate.py lpca_kansas
+python benchmarks/run_benchmarks.py --case lpca_kansas
+```
+
+The two coexist by design. The oracle above is a readable port written to find
+out whether the method reproduced at all; `reference.R` is the author's code,
+and the benchmark case pins mlsynth against it -- the ATT to 4.0e-11 and the
+sixteen-quarter counterfactual path to 6.4e-11, which is the reference's own
+ten-decimal print precision.
 
 ## The estimator
 
