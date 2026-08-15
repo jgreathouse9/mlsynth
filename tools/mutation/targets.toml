@@ -810,3 +810,39 @@ timeout = 600.0
   find = "    if not np.isfinite(frob_sq):\n        return False"
   replace = "    if not np.isfinite(frob_sq):\n        return True"
   models = "a design carrying nan or inf declared safe. The batched Gram solver then runs on it and returns weights that are nan without anything having refused the input"
+
+[[target]]
+name = "balance-key-structure"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_balance_key_structure.py mlsynth/tests/test_balance_properties.py mlsynth/tests/test_datautils.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cell-index-built-without-the-missing-key-shift"
+  find = "    cell = (time_codes.astype(np.int64) + 1) * (n_units + 1) + (unit_codes + 1)"
+  replace = "    cell = time_codes.astype(np.int64) * n_units + unit_codes"
+  models = "the linear cell index formed straight from the codes. A missing key is -1, so (unit=-1, period=0) and (unit=n_units-1, period=-1) both land on the same cell and are reported as a duplicate observation -- a panel rejected for a fault it does not have, and only on frames carrying missing keys in both columns"
+
+  [[target.mutant]]
+  id = "grid-guard-dropped"
+  find = "    if grid <= 2 * max(n_rows, 1):"
+  replace = "    if True:"
+  models = "the bound that keeps the rejection path proportional to the data. Without it a panel of singleton units counts over a grid quadratic in the row count: 4000 rows asks for 16 million cells, 128 MB, to report that the panel is unbalanced"
+
+  [[target.mutant]]
+  id = "per-unit-counts-compared-against-the-unit-count"
+  find = "    if not bool((observations_per_unit == n_periods).all()):"
+  replace = "    if not bool((observations_per_unit == n_units).all()):"
+  models = "each unit's observed periods compared against the number of units instead of the number of periods. Every square panel still passes, so it is invisible on any fixture where units and periods happen to match"
+
+  [[target.mutant]]
+  id = "missing-time-rows-counted-as-observed"
+  find = "    observed = (unit_codes >= 0) & (time_codes >= 0)"
+  replace = "    observed = unit_codes >= 0"
+  models = "a row whose period key is missing counted toward that unit's observed periods. The count then matches for a unit that is short one real period but carries one blank, and the panel is admitted -- the previous implementation excluded it, because nunique skips missing values"
+
+  [[target.mutant]]
+  id = "empty-panel-admitted"
+  find = "    if len(np.unique(observations_per_unit)) != 1:"
+  replace = "    if len(np.unique(observations_per_unit)) > 1:"
+  models = "the check that every unit carries the same count, weakened so that having no units at all satisfies it. An empty frame is then accepted where it used to be rejected, and the emptiness surfaces later as a shape error inside an estimator"

@@ -791,60 +791,58 @@ def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name:
         If the panel is not strongly balanced (i.e., not all units have
         observations for all time periods).
     """
-    # Check for unique observations: each unit-time pair should be unique.
-    if df.duplicated([unit_id_column_name, time_period_column_name]).any():
+    # Both questions below are about the panel's (unit, time) key structure, and
+    # the key codes answer them. ``duplicated`` on the pair and
+    # ``groupby(unit)[time].nunique()`` are two more hash passes over columns
+    # ``factorize`` has already reduced to integers, and they were 35 to 47
+    # percent of ingestion cost -- more than the pivot they precede.
+    #
+    # NaN handling is not incidental. ``factorize`` sends missing keys to code
+    # -1 and leaves them out of the levels, so ``len(levels)`` equals the
+    # ``nunique()`` this used to call, and a unit or period that is missing its
+    # key is excluded from the counts exactly as ``groupby`` excluded it.
+    unit_codes, unit_levels = pd.factorize(df[unit_id_column_name], sort=False)
+    time_codes, time_levels = pd.factorize(df[time_period_column_name], sort=False)
+    n_rows = len(df)
+    n_units, n_periods = len(unit_levels), len(time_levels)
+
+    # One integer per row identifying its cell. Codes are shifted so the missing
+    # key (-1) becomes 0 and cannot collide with a real pair: without the shift,
+    # (unit=-1, time=0) and (unit=n_units-1, time=-1) both land on -1.
+    cell = (time_codes.astype(np.int64) + 1) * (n_units + 1) + (unit_codes + 1)
+
+    # A duplicated pair is a repeated cell. Counting cells directly is the
+    # cheapest route, but only where the grid is not much larger than the data:
+    # an unbalanced panel is precisely the case where it is, and a panel of
+    # 4000 singleton units would ask for a 16-million-cell count to report an
+    # error. The bound matches the one ``_fast_pivot`` applies for the same
+    # reason; beyond it, hashing the cells is bounded by the row count.
+    grid = (n_units + 1) * (n_periods + 1)
+    if grid <= 2 * max(n_rows, 1):
+        has_duplicate = bool(np.bincount(cell, minlength=grid).max() > 1) if n_rows else False
+    else:
+        has_duplicate = len(pd.factorize(cell, sort=False)[1]) != n_rows
+    if has_duplicate:
         raise MlsynthDataError(
             "Duplicate observations found. Ensure each combination of unit and time is unique."
         )
 
-    # The following commented-out block represents a previous, more complex approach to checking balance.
-    # It involved creating a wide matrix of observation counts.
-    # # Group by unit and count the number of observations for each unit
-    # unit_time_observation_counts = (
-    #     df.groupby([unit_id_column_name, time_period_column_name], observed=False).size().unstack(fill_value=0)
-    # )
-    # # Check if all units have the same number of observations for all time periods present in the data
-    # # A simple check for strong balance is that all cells in the unstacked count matrix should be 1
-    # # (assuming no missing time periods for any unit that has at least one observation).
-    # # The original logic `(unit_time_observation_counts.nunique(axis=1) == 1).all()` checks if each unit has the same number of time periods.
-    # # For strong balance, we also need each unit to have *all* time periods.
-    # # A more direct check:
-    # if not (unit_time_observation_counts > 0).all().all() or not (unit_time_observation_counts.sum(axis=1) == unit_time_observation_counts.shape[1]).all():
-    #      # This checks if all cells are >0 (meaning every unit has every time period)
-    #      # and if the sum of observations per unit equals the total number of unique time periods.
-    #      # However, the original nunique check is simpler if the goal is just that all units have the *same count* of periods.
-    #      # For true strong balance, every unit must appear in every time period.
-    #      # A robust check:
-    #      num_unique_time_periods_in_data = df[time_period_column_name].nunique()
-    #      observations_per_unit_check = df.groupby(unit_id_column_name)[time_period_column_name].nunique()
-    #      if not (observations_per_unit_check == num_unique_time_periods_in_data).all():
-    #         raise MlsynthDataError( # Changed to MlsynthDataError
-    #             "The panel is not strongly balanced. Not all units have observations "
-    #             "for all time periods."
-    #         )
+    # With duplicate pairs ruled out, each unit's rows carry distinct time codes,
+    # so counting a unit's rows that have a non-missing time *is* counting its
+    # distinct observed periods -- what ``groupby(unit)[time].nunique()``
+    # returned. Rows whose unit key is missing are dropped, as ``groupby``
+    # dropped them.
+    observed = (unit_codes >= 0) & (time_codes >= 0)
+    observations_per_unit = np.bincount(unit_codes[observed], minlength=n_units)
 
-    # Simplified and more direct check for strong balance:
-    # 1. Determine the total number of unique time periods present in the entire dataset.
-    total_unique_time_periods = df[time_period_column_name].nunique()
-    
-    # 2. For each unit, count the number of unique time periods for which it has observations.
-    #    `groupby(unit_id_column_name)[time_period_column_name].count()` also works if there are no duplicates,
-    #    but `nunique()` is more robust if we only care about the presence of each time period per unit.
-    observations_per_unit = df.groupby(unit_id_column_name)[time_period_column_name].nunique() # Changed from .count() to .nunique() for robustness
-    
-    # 3. Check if all units have observations for *all* unique time periods found in the dataset.
-    #    If `(observations_per_unit == total_unique_time_periods).all()` is true,
-    #    it means every unit has an observation for every distinct time period that exists in the data.
-    if not (observations_per_unit == total_unique_time_periods).all():
+    if not bool((observations_per_unit == n_periods).all()):
         raise MlsynthDataError(
             "The panel is not strongly balanced. Not all units have observations "
             "for all unique time periods in the dataset."
             )
-    # 4. Additionally, ensure all units have the same number of observations.
-    #    This is somewhat redundant if the above check passes and implies a rectangular structure,
-    #    but it's a good explicit check. If all units have `total_unique_time_periods` observations,
-    #    then `observations_per_unit.nunique()` will be 1.
-    if observations_per_unit.nunique() != 1:
+    # An empty panel has no units, so it has no single common count -- which is
+    # what the ``nunique() != 1`` this replaces reported for it.
+    if len(np.unique(observations_per_unit)) != 1:
         raise MlsynthDataError(
             "The panel is not strongly balanced. Units have different numbers of observations."
             )
