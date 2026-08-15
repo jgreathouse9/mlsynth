@@ -780,3 +780,33 @@ timeout = 600.0
   find = "SUPPORT_TOL = 1e-9"
   replace = "SUPPORT_TOL = 1e-3"
   models = "the seed's support read at a coarser threshold than the one solve_simplex_qp pins variables at, so the two disagree about what the seed says and the loop stops on a support the active set will not adopt"
+
+[[target]]
+name = "ridged-gram-guard"
+module-path = "mlsynth/utils/bilevel/minnorm.py"
+test-command = "python -m pytest mlsynth/tests/test_ridged_gram_guard.py mlsynth/tests/test_sdid_placebo_guard_cost.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "certificate-bounds-the-spectrum-by-a-norm-that-does-not-bound-it"
+  find = "    if np.sqrt(ridge / (frob_sq + ridge)) > tol:"
+  replace = "    if np.sqrt(ridge / (np.sqrt(frob_sq) + ridge)) > tol:"
+  models = "the largest eigenvalue bounded by the Frobenius norm instead of by its square. The bound is then too large on any design whose norm exceeds one, so it certifies designs whose true ratio is below the tolerance -- the one direction a guard must never fail in, and invisible to anything that only checks the certified cases were fine"
+
+  [[target.mutant]]
+  id = "certificate-fires-on-a-bound-it-did-not-clear"
+  find = "    if np.sqrt(ridge / (frob_sq + ridge)) > tol:\n        return True"
+  replace = "    if np.sqrt(ridge / (frob_sq + ridge)) > tol * tol:\n        return True"
+  models = "the bound compared against the square of the tolerance, so it certifies eight orders of magnitude too eagerly. Every design mlsynth ships still passes, because they clear the real tolerance by four to seven orders -- so only a design built near the threshold can see it"
+
+  [[target.mutant]]
+  id = "zero-ridge-takes-the-certificate-instead-of-the-spectrum"
+  find = "    if ridge == 0.0:\n        return gram_reduction_is_safe(design, tol)"
+  replace = "    if ridge < 0.0:\n        return gram_reduction_is_safe(design, tol)"
+  models = "an unridged design falling through to a bound that is vacuous at ridge zero. sqrt(0 / ||X||^2) is zero, never clears the tolerance, and the spectrum runs anyway -- so the answer stays right and only the wide and empty shape tests, which the shipped guard applies first, are skipped"
+
+  [[target.mutant]]
+  id = "non-finite-design-certified-instead-of-refused"
+  find = "    if not np.isfinite(frob_sq):\n        return False"
+  replace = "    if not np.isfinite(frob_sq):\n        return True"
+  models = "a design carrying nan or inf declared safe. The batched Gram solver then runs on it and returns weights that are nan without anything having refused the input"
