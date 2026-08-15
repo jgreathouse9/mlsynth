@@ -51,7 +51,7 @@ def unit_attribute_map(
     """
     if attr_col not in df.columns:
         raise MlsynthConfigError(f"column {attr_col!r} not found in df.")
-    grp = df.groupby(unit_id_column_name)[attr_col]
+    grp = df.groupby(unit_id_column_name, observed=True)[attr_col]
     varying = grp.nunique(dropna=False)
     if (varying > 1).any():
         bad = list(varying[varying > 1].index)[:5]

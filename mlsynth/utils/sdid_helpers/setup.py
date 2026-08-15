@@ -80,10 +80,10 @@ def apply_ddd_transform(
     d[outcome] = y.to_numpy()
 
     # Treatment-group indicator g(i): 1 for units ever treated, else 0.
-    d["_ddd_grp"] = (d.groupby(unitid)[treat].transform("max") > 0).astype(int)
+    d["_ddd_grp"] = (d.groupby(unitid, observed=True)[treat].transform("max") > 0).astype(int)
 
     non_target = d[d[subgroup] != target_subgroup]
-    nt_mean = (non_target.groupby(["_ddd_grp", time])[outcome].mean()
+    nt_mean = (non_target.groupby(["_ddd_grp", time], observed=True)[outcome].mean()
                .rename("_ddd_nt").reset_index())
     d = d.merge(nt_mean, on=["_ddd_grp", time], how="left")
 
@@ -115,7 +115,7 @@ def _pre_period_covariate_means(df, unitid, treat, cols, unit_order):
     post-treatment period back into the matching.
     """
     untreated = df[df[treat] == 0]
-    means = untreated.groupby(unitid)[list(cols)].mean()
+    means = untreated.groupby(unitid, observed=True)[list(cols)].mean()
     absent = [u for u in unit_order if u not in means.index]
     if absent:
         raise MlsynthDataError(

@@ -35,9 +35,9 @@ def _resolve_grid(df: pd.DataFrame, unitid: str, time: str, argument: str,
     if numeric_grid:
         return np.sort(pd.unique(df[argument].to_numpy()))
 
-    first = df.groupby([unitid, time], sort=False).ngroup() == 0
+    first = df.groupby([unitid, time], sort=False, observed=True).ngroup() == 0
     grid = pd.unique(df.loc[first, argument].to_numpy())
-    for (unit, period), cell in df.groupby([unitid, time], sort=False):
+    for (unit, period), cell in df.groupby([unitid, time], sort=False, observed=True):
         labels = cell[argument].to_numpy()
         if labels.shape != grid.shape or not np.array_equal(labels, grid):
             raise MlsynthDataError(
@@ -115,7 +115,7 @@ def prepare_fsc_inputs(df: pd.DataFrame, outcome: str, treat: str, unitid: str,
             "so at least two are needed. With a single value per cell the "
             "outcome is a scalar -- use VanillaSC.")
 
-    counts = df.groupby([unitid, time], sort=False)[argument].agg(
+    counts = df.groupby([unitid, time], sort=False, observed=True)[argument].agg(
         ["count", "nunique"])
     bad = counts[(counts["count"] != grid.size)
                  | (counts["nunique"] != grid.size)]

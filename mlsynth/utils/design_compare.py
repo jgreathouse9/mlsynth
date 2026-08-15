@@ -187,7 +187,7 @@ def compare_pareto(
 
     df = pd.DataFrame(rows)
     df["pareto"] = False
-    for _, idx in df.groupby("method").groups.items():
+    for _, idx in df.groupby("method", observed=True).groups.items():
         sub = df.loc[idx]
         mask = _pareto_mask(sub["fit_rmse"].to_numpy(),
                             np.where(np.isfinite(sub["mde_pct"]),
@@ -552,7 +552,7 @@ def plot_compare_pareto(frame: pd.DataFrame, ax=None):
     _palette = ("purple", "orange", "brown", "olive")
 
     def _draw(ax):
-        for k, (method, sub) in enumerate(frame.groupby("method")):
+        for k, (method, sub) in enumerate(frame.groupby("method", observed=True)):
             color = _METHOD_COLORS.get(method, _palette[k % len(_palette)])
             fit = sub["fit_rmse"].to_numpy()
             mde = np.where(np.isfinite(sub["mde_pct"]), sub["mde_pct"], np.nan)

@@ -378,14 +378,14 @@ class SYNDES:
                 raise MlsynthDataError(
                     f"Arm column {self.arm!r} not found in the data."
                 )
-            if self.df.groupby(self.unitid)[self.arm].nunique().max() > 1:
+            if self.df.groupby(self.unitid, observed=True)[self.arm].nunique().max() > 1:
                 raise MlsynthDataError(
                     "The arm column varies within a unit over time."
                 )
 
             arm_designs = {
                 arm_label: self._fit_single(sub.copy())
-                for arm_label, sub in self.df.groupby(self.arm, sort=True)
+                for arm_label, sub in self.df.groupby(self.arm, sort=True, observed=True)
             }
             return SYNDESMultiArmResults(arm_designs=arm_designs, arm=self.arm)
 

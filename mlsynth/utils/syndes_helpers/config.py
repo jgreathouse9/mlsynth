@@ -490,7 +490,7 @@ class SYNDESConfig(BaseMAREXConfig):
 
         if values.arm is not None and values.arm in df.columns:
             # K applies within each arm, so validate against the smallest arm.
-            arm_sizes = df.groupby(values.arm)[values.unitid].nunique()
+            arm_sizes = df.groupby(values.arm, observed=True)[values.unitid].nunique()
             n_units = int(arm_sizes.min()) if len(arm_sizes) else n_units
             if values.costs is not None:
                 raise MlsynthConfigError(

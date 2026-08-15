@@ -83,14 +83,14 @@ def prepare_rmsi_inputs(
     # Row features X (one row per unit): unit-level mean of each unit covariate.
     if unit_covariates:
         X = np.column_stack([
-            df.groupby(unitid)[c].mean().loc[unit_names].to_numpy(dtype=float)
+            df.groupby(unitid, observed=True)[c].mean().loc[unit_names].to_numpy(dtype=float)
             for c in unit_covariates])
     else:
         X = np.zeros((N, 0))
     # Column features Z (one row per period): period-level mean of each time cov.
     if time_covariates:
         Z = np.column_stack([
-            df.groupby(time)[c].mean().loc[time_labels].to_numpy(dtype=float)
+            df.groupby(time, observed=True)[c].mean().loc[time_labels].to_numpy(dtype=float)
             for c in time_covariates])
     else:
         Z = np.zeros((T, 0))

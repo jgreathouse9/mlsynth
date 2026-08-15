@@ -321,7 +321,7 @@ class LEXSCM:
         # --- Treated-unit size band: drop candidates outside [min_size, max_size]
         # from the TREATABLE pool (they remain eligible as donors). ---
         if self.size_col is not None:
-            size_map = (self.df.groupby(self.unitid)[self.size_col]
+            size_map = (self.df.groupby(self.unitid, observed=True)[self.size_col]
                         .first().to_dict())
             sizes = np.array([size_map.get(lab, np.nan)
                               for lab in unit_index.labels], dtype=float)
@@ -408,7 +408,7 @@ class LEXSCM:
         # --- Cost Alignment Logic ---
         if self.unit_cost_col and self.unit_cost_col in self.df.columns:
             # Map costs to Unit IDs
-            unit_to_cost_map = self.df.groupby(self.unitid)[self.unit_cost_col].first().to_dict()
+            unit_to_cost_map = self.df.groupby(self.unitid, observed=True)[self.unit_cost_col].first().to_dict()
 
             # Align to the IndexSet
             costs_aligned = np.array([
@@ -428,7 +428,7 @@ class LEXSCM:
         # units) and Stage-2 (no conflicting unit as a treated unit's donor).
         cluster_of = None
         if self.cluster_col is not None:
-            cluster_of = (self.df.groupby(self.unitid)[self.cluster_col]
+            cluster_of = (self.df.groupby(self.unitid, observed=True)[self.cluster_col]
                           .first().to_dict())
         conflict = build_conflict_matrix(
             unit_index,
@@ -441,7 +441,7 @@ class LEXSCM:
         from ..utils.fast_scm_helpers.strata import build_strata
         stratum_of = None
         if self.stratum_col is not None:
-            stratum_of = (self.df.groupby(self.unitid)[self.stratum_col]
+            stratum_of = (self.df.groupby(self.unitid, observed=True)[self.stratum_col]
                           .first().to_dict())
         strata = build_strata(unit_index, stratum_of)
 

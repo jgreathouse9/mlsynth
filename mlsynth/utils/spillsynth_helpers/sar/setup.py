@@ -105,7 +105,7 @@ def prepare_sar_inputs(
     T = int(time_labels.size)
     units = sorted(df[unitid].unique())
 
-    treated_mask = df.groupby(unitid)[treat].max()
+    treated_mask = df.groupby(unitid, observed=True)[treat].max()
     treated_units = [u for u in units if treated_mask.get(u, 0) == 1]
     if len(treated_units) != 1:
         raise MlsynthDataError(

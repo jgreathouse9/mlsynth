@@ -151,7 +151,7 @@ def calibrate_brabander_dgp(panel, covariates: Sequence[str] = BRABANDER_COVARIA
             "balanced panel over t=%d..%d." % (_FIRST_T, _LAST_T))
 
     cov_window = panel[(panel.t >= _FIRST_T) & (panel.t <= _LAST_COV_T)]
-    means = cov_window.groupby("country")[cols].mean().reindex(order)
+    means = cov_window.groupby("country", observed=True)[cols].mean().reindex(order)
     C = means.to_numpy(dtype=float).T                            # (K, N)
     if not np.isfinite(C).all():
         raise MlsynthDataError(

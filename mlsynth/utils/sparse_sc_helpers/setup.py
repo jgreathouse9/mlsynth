@@ -38,7 +38,7 @@ def _per_unit_pre_means(
     """Return per-unit pre-treatment mean of ``column`` in ``unit_order``."""
     pre_mask = df[time].isin(pre_time_labels)
     means = (
-        df.loc[pre_mask].groupby(unitid)[column].mean()
+        df.loc[pre_mask].groupby(unitid, observed=True)[column].mean()
     )
     # Reindex to unit_order; missing units (none expected for a balanced
     # panel after `balance()`) come back NaN.
