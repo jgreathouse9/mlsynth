@@ -149,6 +149,13 @@ def _cell(weights, setting, m_sims: int, design="standard", beta=None) -> dict:
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "MAREX needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     from benchmarks.reference import load_reference
 
     ref = load_reference(_REF_CASE)
