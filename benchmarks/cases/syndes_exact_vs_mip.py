@@ -49,6 +49,13 @@ def _subpanel(Y: np.ndarray, n_units: int, n_periods: int, seed: int) -> np.ndar
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "SYNDES needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
     from mlsynth.utils.syndes_helpers.optimization import solve_synthetic_design
 
