@@ -18,6 +18,7 @@ from .lasso import (
 from .fs import forward_select, fs_ate_inference
 from .hcw import fit_hcw, hcw_ate_inference
 from ..inferutils import pda_prediction_intervals
+from .inference import cumulative_supt_band
 
 # Map config method strings to internal keys.
 _NORMALIZE = {"l2": L2, "L2": L2, "LASSO": LASSO, "lasso": LASSO, "fs": FS,
@@ -92,7 +93,8 @@ def run_pda(
     lasso_criterion: str = "cv", lasso_mbic_const: float = MBIC_CONST,
     hcw_criterion: str = "AICc", hcw_nvmax: Optional[int] = None,
     hcw_backend: str = "fw",
-    prediction_intervals: bool = False, pi_n_boot: int = 999,
+    prediction_intervals: bool = False, cumulative_band: bool = False,
+    pi_n_boot: int = 999,
     pi_seed: Optional[int] = 0,
 ) -> Dict[str, PDAMethodFit]:
     """Fit each requested PDA variant with its own paper's inference.
@@ -151,6 +153,7 @@ def run_pda(
             raise ValueError(f"Unknown PDA method: {m!r}")
 
         pis = None
+        cum_band = None
         if prediction_intervals:
             if m == LASSO and lasso_alpha is None:
                 lasso_alpha = lasso_cv_alpha(y, X, T0)
@@ -164,11 +167,14 @@ def run_pda(
             pis = pda_prediction_intervals(
                 y, X, T0, counterfactual=cf, support=support_idx, refit=refit,
                 alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)
+            if cumulative_band:
+                cum_band = cumulative_supt_band(
+                    (y - cf)[T0:], pis["error_paths"], alpha=alpha)
 
         fits[m] = PDAMethodFit(
             name=m, beta=beta, intercept=intercept, counterfactual=cf,
             gap=y - cf, att=att, att_se=se, ci=ci, p_value=p,
             donor_weights=_weights_dict(beta, labels),
-            selected_donors=selected, prediction_intervals=pis, metadata=meta,
+            selected_donors=selected, prediction_intervals=pis, cumulative_band=cum_band, metadata=meta,
         )
     return fits
