@@ -1,0 +1,20 @@
+# case: cwz_rae
+# generated_at: 2026-08-15T07:34:01Z
+# mlsynth_version: 2.0.0
+# estimator: mlsynth.utils.inferutils.rae
+# config: {"alpha": 0.1, "c0": 1.875}
+# reference_impl: the authors' RAE.R (JPE replication package), live run
+# reference_version: closed form; no packages
+quantity,mlsynth,reference,abs_diff
+"RAE, K=2",0.326512,0.326512,0.0
+"RAE, K=3",0.635626,0.635626,0.0
+"RAE, K=4",0.758628,0.758628,0.0
+"RAE, K=5",0.820824,0.820824,0.0
+"RAE, K=6",0.857863,0.857863,0.0
+"RAE, K=7",0.882325,0.882325,0.0
+"RAE, K=8",0.89965,0.89965,0.0
+"RAE, K=9",0.91255,0.91255,0.0
+"RAE, K=10",0.922523,0.922523,0.0
+"gain over K=3, K=4 (pp)",12.3002,12.3002,0.0
+"gain over K=3, K=5 (pp)",18.5198,18.5198,0.0
+"gain over K=3, K=6 (pp)",22.2237,22.2237,0.0

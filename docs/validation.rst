@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **77 cross-validation checks** against original
-implementations across **43 estimators** -- 29 reproduce the reference to display precision, 28 to
+Coverage: **81 cross-validation checks** against original
+implementations across **44 estimators** -- 30 reproduce the reference to display precision, 30 to
 within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -198,9 +198,13 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 16
-     - 5 exact · 5 tight · 5 close · 1 documented
+     - 19
+     - 5 exact · 7 tight · 6 close · 1 documented
      - 4.1
+   * - :ref:`mlsynth.utils.inferutils.rae <val-mlsynth-utils-inferutils-rae>`
+     - 1
+     - 1 exact
+     - 0
 
 .. _val--:
 
@@ -1261,12 +1265,30 @@ VanillaSC
      - 0.0091
      - tight
      - `ascm_kansas <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ascm_kansas.py>`__
+   * - R package scinference (conformal, live run, captured), cross-checked against the JASA supplement's own functions
+     - ``logfemrate.txt`` (fcdf30c41522…)
+     - 17
+     - 0.0002
+     - tight
+     - `cwz_conformal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal.py>`__
+   * - R package scinference (conformal) driven by the authors' own simulation design
+     - —
+     - 14
+     - 0.02
+     - tight
+     - `cwz_conformal_mc <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal_mc.py>`__
    * - `R package scinference (sc.cf t-test, live run, captured) <https://github.com/kwuthrich/scinference>`__
      - ``carbontax_data.dta`` (815787c1e448…)
      - 3
      - 0
      - exact — matches to display precision
      - `cwz_ttest <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_ttest.py>`__
+   * - R package scinference (ttest) driven by the authors' own calibrated simulation design
+     - ``carbontax_data.dta`` (815787c1e448…)
+     - 21
+     - 0.073
+     - close
+     - `cwz_ttest_mc <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_ttest_mc.py>`__
    * - Ferman (2021) JASA Table 1 (SC columns 1-4, OLS se col 5-8)
      - —
      - 12
@@ -1351,6 +1373,28 @@ VanillaSC
      - 3.6
      - close
      - `vanillasc_xval_references <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_xval_references.py>`__
+
+.. _val-mlsynth-utils-inferutils-rae:
+
+mlsynth.utils.inferutils.rae
+----------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - the authors' RAE.R (JPE replication package), live run
+     - —
+     - 12
+     - 0
+     - exact — matches to display precision
+     - `cwz_rae <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_rae.py>`__
 
 Pending capture
 ---------------
