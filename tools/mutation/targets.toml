@@ -719,3 +719,22 @@ timeout = 300.0
   find = "    R = R[np.isfinite(R).all(axis=1)]"
   replace = "    R = np.nan_to_num(R, nan=0.0)"
   models = "letting a replicate whose refit failed contribute a zero path instead of dropping it. Zeros sit at the centre of the distribution, so they shrink the standard error and hand back a tighter band than the surviving draws support"
+
+[[target]]
+name = "pda-pi-dependent"
+module-path = "mlsynth/utils/pda_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_pi_dependent.py -q -p no:cacheprovider"
+timeout = 400.0
+
+  [[target.mutant]]
+  id = "drop-the-flag-on-the-floor"
+  find = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                dependent=pi_dependent)"""
+  replace = "                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)"
+  models = "the defect the plumbing removes, and the one that was actually there: a config field the caller can set that never reaches the bootstrap. Every fit still succeeds and the default behaviour is unchanged, so nothing looks wrong -- the flag simply does nothing, which is worse than its absence because it invites a caller to believe they chose Remark 2.2 when they are still running Algorithm 2.1"
+
+  [[target.mutant]]
+  id = "invert-the-flag"
+  find = "                dependent=pi_dependent)"
+  replace = "                dependent=not pi_dependent)"
+  models = "passing the flag through backwards. The result then records the opposite of what was run, so a band built under the i.i.d. multipliers is labelled as the paper's algorithm -- the one failure that survives being written down"

@@ -110,6 +110,7 @@ class PDA:
                        prediction_intervals=self.config.prediction_intervals,
                        cumulative_band=self.config.cumulative_band,
                        pi_n_boot=self.config.pi_n_boot,
+                       pi_dependent=self.config.pi_dependent,
                        pi_seed=self.config.pi_seed)
         results = assemble_pda_results(inputs, fits, selected_variant=methods[0])
 

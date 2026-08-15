@@ -7,7 +7,7 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import List, Optional
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
 
@@ -29,6 +29,7 @@ class PDAConfig(BaseEstimatorConfig):
     prediction_intervals: bool = Field(default=False, description="Attach Jiang, Li, Shen & Zhou (2025) bootstrap prediction intervals for the per-period treatment effect and counterfactual to every fitted PDA variant. Equal-tailed and symmetric intervals are returned; each variant reports whether the post-selection OLS HAC sandwich studentization was used or the sigma^2-only fallback (e.g. for the dense L2-relaxation in high dimensions).")
     pi_n_boot: int = Field(default=999, ge=2, description="Number of bootstrap replications for the prediction intervals (only used when prediction_intervals is True).")
     pi_seed: Optional[int] = Field(default=0, description="Seed for the prediction-interval bootstrap RNG (reproducible by default; set None for a fresh draw).")
+    pi_dependent: bool = Field(default=True, description="Resample the pre-period prediction error with the dependent wild bootstrap of Jiang et al. (2025) Algorithm 2.1 -- Bartlett-correlated multipliers whose dependence range is a bandwidth in T0, so a persistent error is resampled as a persistent error. False uses the ordinary i.i.d. standard-normal multipliers of their Remark 2.2, which is cheaper and valid only when the errors are already independent. The choice compounds in the cumulative band, which accumulates the period errors, so drawing persistent errors as independent understates how fast the running total's uncertainty grows. True (the paper's algorithm) by default.")
     cumulative_band: bool = Field(default=False, description="Attach a simultaneous (sup-t) band for the CUMULATIVE effect path -- the running total over post-periods, with one shared critical value so the whole path is covered at 1 - alpha at once, which is how a cumulative path is read. Built from the replicate paths the prediction-interval bootstrap already produces, so it costs no extra refits. Its growth is measured rather than assumed: the replicates are accumulated before the standard error is taken, so independent period errors widen it like sqrt(L) and perfectly correlated ones like L, where adding up per-period interval endpoints would always give the latter. Needs prediction_intervals. Off by default.")
 
     @model_validator(mode="after")
@@ -40,3 +41,15 @@ class PDAConfig(BaseEstimatorConfig):
                 "produces, and with the bootstrap off there are none."
             )
         return self
+
+    @field_validator("pi_dependent", "prediction_intervals", "cumulative_band",
+                     mode="before")
+    @classmethod
+    def _strict_bool(cls, v, info):
+        if not isinstance(v, bool):
+            raise MlsynthConfigError(
+                f"{info.field_name} must be True or False; got {v!r}. Pydantic "
+                "would otherwise coerce a string or a number into a boolean, so "
+                "a typo becomes a silent choice about how inference is run."
+            )
+        return v

@@ -586,6 +586,10 @@ def pda_prediction_intervals(
         "n_boot_effective": int(n_boot - n_degenerate),
         "post_periods": int(T1),
         "studentization": studentization,
+        # Which multiplier scheme produced these -- Algorithm 2.1's dependent
+        # wild bootstrap or Remark 2.2's i.i.d. one. A band built under each
+        # is not the same number, so the result has to say which it is.
+        "dependent": bool(dependent),
         "se": se if np.ndim(se) else np.full(T1, float(se)),
         # Raw (unstudentized) post-period prediction errors, one row per usable
         # draw. The per-period intervals do not need them -- a cumulative band

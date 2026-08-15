@@ -94,7 +94,7 @@ def run_pda(
     hcw_criterion: str = "AICc", hcw_nvmax: Optional[int] = None,
     hcw_backend: str = "fw",
     prediction_intervals: bool = False, cumulative_band: bool = False,
-    pi_n_boot: int = 999,
+    pi_n_boot: int = 999, pi_dependent: bool = True,
     pi_seed: Optional[int] = 0,
 ) -> Dict[str, PDAMethodFit]:
     """Fit each requested PDA variant with its own paper's inference.
@@ -166,7 +166,8 @@ def run_pda(
                 hcw_nvmax=hcw_nvmax, hcw_backend=hcw_backend)
             pis = pda_prediction_intervals(
                 y, X, T0, counterfactual=cf, support=support_idx, refit=refit,
-                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)
+                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                dependent=pi_dependent)
             if cumulative_band:
                 cum_band = cumulative_supt_band(
                     (y - cf)[T0:], pis["error_paths"], alpha=alpha)
