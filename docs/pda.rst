@@ -1199,6 +1199,59 @@ out-of-sample prediction error on top of the estimation error, and it tightens
 or widens quarter by quarter as the fitted controls track each period better or
 worse.
 
+The cumulative effect
+---------------------
+
+The intervals above bound one period at a time. The number an event study is
+usually quoted by is the running total -- how much the treated unit gained over
+the first :math:`L` periods -- and ``cumulative_band=True`` attaches a band for
+it:
+
+.. code-block:: python
+
+   res = PDA({..., "prediction_intervals": True, "cumulative_band": True}).fit()
+   band = res.fits["lasso"].cumulative_band
+   for L in (1, 4, 8):
+       i = L - 1
+       print(f"L={L}: {band.point[i]:+.3f}  ({band.lower[i]:+.3f}, {band.upper[i]:+.3f})")
+
+An interval for a running total is not the running total of the period
+intervals, and the two obvious shortcuts are both wrong. Adding the period
+endpoints treats every period's error as moving in lockstep, so the width grows
+in proportion to :math:`L` whatever the data does. Rescaling a single period's
+interval by :math:`\sqrt{L}` assumes the opposite, that the errors are
+independent, and for a donor fit the estimation error persists across horizons,
+so that one is wrong as well. Neither measures anything.
+
+What mlsynth does instead is accumulate each bootstrap replicate's error path
+first and take the standard error afterwards. Whatever correlation the period
+errors have is then carried into the band rather than assumed into it:
+independent errors widen it like :math:`\sqrt{L}`, perfectly correlated ones
+like :math:`L`, and the replicates decide which. On the Oregon opioid panel of
+Wheeler's ``LassoSynth`` -- 13 post-periods, one treated state -- the standard
+error grows by a factor of 4.43, against :math:`\sqrt{13} = 3.61` for
+independence and :math:`13` for lockstep. It sits between them, which is the
+whole point of measuring it. The resulting half-width is 1.37 where summing the
+period endpoints would have given 3.78, against a cumulative point estimate of
+7.59.
+
+The band is simultaneous over horizons rather than pointwise. A cumulative path
+is read as a path -- "positive by period six and never back" is a claim about
+every horizon at once -- and a pointwise band read that way covers at well below
+its nominal level. One shared critical value
+(:func:`mlsynth.utils.supt.supt_critical_value`, following Montiel Olea and
+Plagborg-Moller) restores the level for the path as a whole; on the Oregon panel
+it is 2.54 where the pointwise normal quantile would be 1.96.
+
+The band reuses the replicate paths the prediction-interval bootstrap already
+produced, so it costs no extra refits, and it therefore requires
+``prediction_intervals=True``. Asking for it without the bootstrap raises rather
+than returning an empty field, since a caller reading a missing band as an
+absent effect is the one failure worth ruling out. PPSCM's ``cumulative_band``
+is the same object built the same way, sharing
+:mod:`mlsynth.utils.supt`, so the two estimators cannot drift apart in what the
+phrase means.
+
 ``hcw`` produces these same intervals, with one practical caveat: the bootstrap
 refits the entire selection on every draw, and HCW's refit re-runs the
 best-subset search. On the 24-economy pool that is roughly ten seconds a draw, so
