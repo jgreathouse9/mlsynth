@@ -50,6 +50,28 @@ now returns and the back-compat guarantee.
   several treated units at once can build its own scores in a single pass and
   reuse the same calibration.
 
+### Changed
+- `datautils.balance` answers from the panel's key codes instead of two hash
+  passes over the frame. Every estimator validates with `balance` and then reads
+  with `dataprep`, and between them the `(unit, time)` key structure was
+  established three times by three different methods: `duplicated` on the pair,
+  `groupby(unit)[time].nunique()`, and the `factorize` + `bincount` inside
+  `_fast_pivot` — which runs twice, once for the outcome and once for the
+  treatment. The third already answers the first two, and `balance` was 35 to 47
+  percent of ingestion cost, more than the pivot it precedes. Same three checks,
+  same order, same messages: the verdict is pinned differentially against a
+  verbatim copy of the previous implementation over a fixture corpus and over
+  generated panels damaged in composable ways. Two details decide correctness —
+  a missing key factorizes to `-1` and is left out of the levels, so `len(levels)`
+  equals the `nunique()` it replaces and a blank-keyed row is excluded exactly as
+  `groupby` excluded it, and the cell index shifts the codes so `-1` cannot
+  collide with a real pair; and the duplicate check counts cells only where the
+  grid is within twice the row count, the bound `_fast_pivot` already applies,
+  because an unbalanced panel is precisely where the grid is not — 4000 singleton
+  units would otherwise ask for 128 MB to report an error. Measured: 3.9x on
+  `balance` at 840 rows, 2.8x at 500k, 25–29 percent of total ingestion, and a
+  full SDID fit 1.05–1.22x faster with its ATT unchanged at `0.0e+00`.
+
 ### Added
 - `utils/bilevel/minnorm.py::ridged_gram_reduction_is_safe`: the Gram-reduction
   guard for a design the caller is about to augment with `sqrt(ridge) * I`,
