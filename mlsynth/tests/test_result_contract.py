@@ -31,7 +31,7 @@ from mlsynth import (
     DTWSC,
     BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
-    MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
+    LPCA, MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
     SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
     VanillaSC,
 )
@@ -147,6 +147,7 @@ OBSERVATIONAL = [
     pytest.param(SNN, {}, id="SNN"),
     pytest.param(MSQRT, {"lambda_": 0.5}, id="MSQRT"),
     pytest.param(MCNNM, {}, id="MCNNM"),
+    pytest.param(LPCA, {}, id="LPCA"),
     pytest.param(SparseSC, {"outcome_lag_periods": [1, 2]}, id="SparseSC"),
     pytest.param(TASC, {"d": 2, "n_em_iter": 2}, id="TASC"),
     pytest.param(CLUSTERSC, {"clustering": False}, id="CLUSTERSC"),

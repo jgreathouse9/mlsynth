@@ -333,6 +333,7 @@ headline numbers.
    mcnnm
    snn
    rmsi
+   lpca
 
 .. toctree::
    :hidden:

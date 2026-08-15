@@ -56,6 +56,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **HSC** — Harmonic Synthetic Control (HSC) estimator.  (config: HSCConfig)
 - **ISCM** — Imperfect Synthetic Controls estimator.  (config: ISCMConfig)
 - **LEXSCM** — Lexicographic Synthetic Control (LEXSCM) estimator.  (config: LEXSCMConfig)
+- **LPCA** — Local Principal Component Analysis estimator.  (config: LPCAConfig)
 - **MAREX** — Synthetic-control experimental design estimator (Abadie & Zhao 2026).  (config: MAREXConfig)
 - **MASC** — Matching and Synthetic Control estimator.  (config: MASCConfig)
 - **MCNNM** — Matrix Completion with Nuclear Norm Minimization estimator.  (config: MCNNMConfig)

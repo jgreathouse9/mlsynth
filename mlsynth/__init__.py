@@ -98,6 +98,7 @@ from .estimators.mcnnm import MCNNM
 from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
 from .estimators.rolldid import ROLLDID
+from .estimators.lpca import LPCA
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
     plot_mde_bars,
@@ -120,6 +121,7 @@ __all__ = [
     "plot_power_curves",
     "plot_detectability",
     "ROLLDID",
+    "LPCA",
     "HSC",
     "TSSC",
     "FMA",

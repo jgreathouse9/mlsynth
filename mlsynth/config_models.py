@@ -648,6 +648,7 @@ _RELOCATED_CONFIGS = {
     "CASTConfig": "mlsynth.utils.cast_helpers.config",
     "RRSCConfig": "mlsynth.utils.rrsc_helpers.config",
     "ESCConfig": "mlsynth.utils.esc_helpers.config",
+    "LPCAConfig": "mlsynth.utils.lpca_helpers.config",
 }
 
 
