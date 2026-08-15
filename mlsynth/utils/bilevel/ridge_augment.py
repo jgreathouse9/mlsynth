@@ -44,7 +44,6 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
 
 _EPS = 1e-12
 
@@ -71,14 +70,15 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
     convergence (degenerate cycling), keeping the result no worse than before.
 
     For a large donor pool (``J >= ACCEL_MIN_DONORS``) with no caller-supplied
-    warm start, a Gram-collapsed FISTA warm start
-    (:func:`mlsynth.utils.bilevel.accelerate.fista_warm_start`) is computed first
-    so the active set is certified from the right support instead of built up
-    pivot by pivot -- up to ~20x faster on a few hundred donors, and faster than a
-    general interior-point solver (CLARABEL) on the same problem. This is
-    speed-only: the exact active-set (with the cvxpy fallback) still determines
-    the weights, so the answer is unchanged; the small-``J`` hot path and any
-    caller that already warm-starts are untouched.
+    warm start, ``solve_simplex_qp`` seeds itself with a Gram-collapsed FISTA
+    warm start (:func:`mlsynth.utils.bilevel.accelerate.fista_warm_start`) so the
+    active set is certified from the right support instead of built up pivot by
+    pivot -- up to ~20x faster on a few hundred donors, and faster than a general
+    interior-point solver (CLARABEL) on the same problem. That seeding used to
+    happen here, which made it a property of this entry point and not of the
+    solver: of the thirteen call sites in the library, twelve never supplied a
+    warm start, SDID's two simplex programs among them, so they went in cold. It
+    now happens in the solver, so this function only chooses the fallback.
 
     Parameters
     ----------
@@ -95,8 +95,6 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
 
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
-    if warm_start is None and B.shape[1] >= ACCEL_MIN_DONORS:
-        warm_start = fista_warm_start(B, A)
     w, info = solve_simplex_qp(B, A, warm_start=warm_start, return_info=True)
     if info["converged"]:
         return w

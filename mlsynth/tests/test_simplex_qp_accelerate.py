@@ -12,6 +12,10 @@ fallback) still determines the weights. These tests pin four things:
    (where the accelerator fires) *and* small ones (where it does not);
 4. the accelerator engages only when it should -- large ``J``, no caller warm
    start -- and the accelerated and cold paths agree on the fitted values.
+
+The gate itself lives in ``active_set.solve_simplex_qp``, so every caller gets
+it; ``simplex_qp`` is one call site of thirteen and is exercised here because it
+is the one with the cvxpy fallback behind it.
 """
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ import pytest
 
 cp = pytest.importorskip("cvxpy")
 
-from mlsynth.utils.bilevel import ridge_augment
+from mlsynth.utils.bilevel import active_set
 from mlsynth.utils.bilevel.accelerate import (
     ACCEL_MIN_DONORS, fista_warm_start, simplex_project)
 from mlsynth.utils.bilevel.active_set import solve_simplex_qp
@@ -170,7 +174,7 @@ def test_accelerated_equals_cold_fitted_values():
     for J, T0 in [(100, 200), (150, 120), (250, 500), (90, 90)]:
         A, B = _factor_panel(J, T0)
         w_accel = simplex_qp(B, A)
-        w_cold, _ = solve_simplex_qp(B, A, return_info=True)
+        w_cold, _ = solve_simplex_qp(B, A, return_info=True, accelerate=False)
         assert np.max(np.abs(B @ w_accel - B @ w_cold)) < 1e-6
         assert _obj(B, A, w_accel) == pytest.approx(_obj(B, A, w_cold), abs=1e-6)
 
@@ -189,10 +193,16 @@ def test_accelerated_matches_clarabel_value_for_value():
 
 def test_accelerator_faster_than_cold_on_large_J():
     """Speed regression: the FISTA warm start makes the exact solve markedly
-    faster on a wide donor pool. Conservative 2x margin (measured ~13x at J=250)."""
+    faster on a wide donor pool. Conservative 2x margin (measured ~13x at J=250).
+
+    The cold baseline is taken with ``accelerate=False``, since the solver now
+    seeds itself: before, a plain ``solve_simplex_qp`` call *was* the cold path.
+    """
     import time
     A, B = _factor_panel(250, 500)
-    t = time.perf_counter(); w_cold, _ = solve_simplex_qp(B, A, return_info=True); t_cold = time.perf_counter() - t
+    t = time.perf_counter()
+    w_cold, _ = solve_simplex_qp(B, A, return_info=True, accelerate=False)
+    t_cold = time.perf_counter() - t
     t = time.perf_counter(); w_acc = simplex_qp(B, A); t_acc = time.perf_counter() - t
     assert np.max(np.abs(B @ w_acc - B @ w_cold)) < 1e-6    # same answer
     assert t_acc < 0.5 * t_cold, f"accel {t_acc:.3f}s not < half of cold {t_cold:.3f}s"
@@ -203,13 +213,13 @@ def test_accelerator_faster_than_cold_on_large_J():
 # --------------------------------------------------------------------------- #
 def test_accelerator_engaged_for_large_J(monkeypatch):
     calls = {"n": 0}
-    real = ridge_augment.fista_warm_start
+    real = active_set.fista_warm_start
 
     def spy(B, A, **kw):
         calls["n"] += 1
         return real(B, A, **kw)
 
-    monkeypatch.setattr(ridge_augment, "fista_warm_start", spy)
+    monkeypatch.setattr(active_set, "fista_warm_start", spy)
     A, B = _factor_panel(ACCEL_MIN_DONORS + 20, 2 * (ACCEL_MIN_DONORS + 20))
     simplex_qp(B, A)
     assert calls["n"] == 1
@@ -217,7 +227,7 @@ def test_accelerator_engaged_for_large_J(monkeypatch):
 
 def test_accelerator_skipped_for_small_J(monkeypatch):
     calls = {"n": 0}
-    monkeypatch.setattr(ridge_augment, "fista_warm_start",
+    monkeypatch.setattr(active_set, "fista_warm_start",
                         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1))
     A, B = _factor_panel(max(2, ACCEL_MIN_DONORS - 30), 60)
     simplex_qp(B, A)
@@ -226,7 +236,7 @@ def test_accelerator_skipped_for_small_J(monkeypatch):
 
 def test_accelerator_skipped_when_caller_supplies_warm_start(monkeypatch):
     calls = {"n": 0}
-    monkeypatch.setattr(ridge_augment, "fista_warm_start",
+    monkeypatch.setattr(active_set, "fista_warm_start",
                         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1))
     A, B = _factor_panel(ACCEL_MIN_DONORS + 20, 2 * (ACCEL_MIN_DONORS + 20))
     J = B.shape[1]

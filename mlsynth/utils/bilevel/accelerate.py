@@ -16,6 +16,12 @@ FISTA converges to the neighbourhood of the optimum -- and hence the right
 support -- in a few hundred cheap iterations; the exact active-set then certifies
 from that warm start in a handful of pivots.
 
+The support arrives before the weights do, and the support is all the active set
+is being told, so the loop stops on the support and not on the iterate: see
+``SUPPORT_PATIENCE``. :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`
+calls this itself for a wide enough pool, so the seed is a property of the solver
+and reaches every caller.
+
 The accelerator is *speed only*. It supplies a feasible warm start; the exact
 active-set (with the cvxpy fallback) still determines the returned weights, so
 the answer is unchanged for any warm start. Correctness therefore never depends
@@ -23,6 +29,9 @@ on FISTA converging, the Lipschitz estimate being tight, or the problem being
 well-conditioned -- only the runtime does.
 """
 from __future__ import annotations
+
+import numbers
+from typing import Optional
 
 import numpy as np
 
@@ -32,6 +41,20 @@ import numpy as np
 # J = 16 -- stay comfortably on the untouched fast path). Also skipped whenever
 # the caller already supplies a warm start (e.g. the conformal / placebo loops).
 ACCEL_MIN_DONORS = 80
+
+# A coordinate counts as in the support above this. It is the tolerance
+# ``solve_simplex_qp`` itself reads when it turns a warm start into an active
+# set (``active = w <= tol``, ``tol = 1e-9``), so the two agree on what the seed
+# is saying.
+SUPPORT_TOL = 1e-9
+# Consecutive iterations the support must hold before the warm start returns.
+# The seed's job is to name the support, so once it stops moving the remaining
+# iterations refine weights the exact solve is about to recompute. Measured on
+# the SDID programs of a 101x120 panel: the support is final by iteration ~150
+# of 400, and a patience of 10 stops too early -- the support is still moving,
+# the seed is rejected coordinate by coordinate, and the solve pays the full 32
+# pivots anyway. 25 sits clear of that edge.
+SUPPORT_PATIENCE = 25
 
 
 def simplex_project(v: np.ndarray) -> np.ndarray:
@@ -76,13 +99,52 @@ def _spectral_bound(G: np.ndarray, iters: int = 50) -> float:
 
 
 def fista_warm_start(B: np.ndarray, A: np.ndarray, *,
-                     max_iter: int = 400, tol: float = 1e-7) -> np.ndarray:
+                     max_iter: int = 400, tol: float = 1e-7,
+                     support_patience: Optional[int] = SUPPORT_PATIENCE
+                     ) -> np.ndarray:
     """A feasible, near-optimal warm start for ``min ||A - B w||^2`` on the
     simplex, via Gram-collapsed FISTA.
 
     Deterministic. Returns a point on the simplex; it is intended to seed the
     exact active-set solver, not to be used as the final solution.
+
+    Two rules stop the loop. ``tol`` is the usual one, on how far the iterate
+    moved. ``support_patience`` is the one that matters for the job: once the
+    support has been unchanged for that many consecutive iterations, the active
+    set already has everything this function can tell it, and the remaining
+    iterations only refine weights the exact solve is about to recompute. On the
+    two SDID programs of a 101x120 panel the support is final by iteration ~150
+    while the iterate is still moving at 400, so the rule cuts the warm start by
+    about 2.7x. Pass ``None`` to stop on ``tol`` and ``max_iter`` alone.
+
+    Stopping earlier gives a coarser seed, never a wrong answer: the active set
+    certifies KKT optimality on the design, whatever point it starts from.
+
+    Parameters
+    ----------
+    B : numpy.ndarray, shape (m, J)
+        Donor matching matrix.
+    A : numpy.ndarray, shape (m,)
+        Treated unit's matching vector.
+    max_iter : int
+        Hard cap on iterations.
+    tol : float
+        Stop when the iterate moves less than this in the sup norm.
+    support_patience : int or None
+        Stop when the support (``w > SUPPORT_TOL``) has held for this many
+        consecutive iterations. ``None`` disables the rule.
+
+    Returns
+    -------
+    numpy.ndarray, shape (J,)
     """
+    if support_patience is not None and (
+            not isinstance(support_patience, numbers.Integral)
+            or support_patience < 1):
+        raise ValueError(
+            "support_patience must be a positive integer or None, got "
+            f"{support_patience!r}."
+        )
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
     J = B.shape[1]
@@ -96,6 +158,8 @@ def fista_warm_start(B: np.ndarray, A: np.ndarray, *,
     w = np.full(J, 1.0 / J)
     y = w.copy()
     t = 1.0
+    support = None
+    held = 0
     for _ in range(max_iter):
         w_new = simplex_project(y - (2.0 * (G @ y - c)) / L)
         t_new = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * t * t))
@@ -103,6 +167,14 @@ def fista_warm_start(B: np.ndarray, A: np.ndarray, *,
         if np.max(np.abs(w_new - w)) < tol:
             w = w_new
             break
+        if support_patience is not None:
+            current = w_new > SUPPORT_TOL
+            held = held + 1 if (support is not None
+                                and np.array_equal(current, support)) else 0
+            support = current
+            if held >= support_patience:
+                w = w_new
+                break
         w = w_new
         t = t_new
     return w

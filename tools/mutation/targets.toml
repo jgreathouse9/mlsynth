@@ -738,3 +738,33 @@ timeout = 400.0
   find = "                dependent=pi_dependent)"
   replace = "                dependent=not pi_dependent)"
   models = "passing the flag through backwards. The result then records the opposite of what was run, so a band built under the i.i.d. multipliers is labelled as the paper's algorithm -- the one failure that survives being written down"
+
+[[target]]
+name = "simplex-active-set-seeding"
+module-path = "mlsynth/utils/bilevel/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_sdid_warm_start_accel.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "seeding-is-a-property-of-one-call-site"
+  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start(B, A)\n"
+  replace = ""
+  models = "the defect this change fixed. With the seed computed in one caller instead of in the solver, the other twelve call sites start from the uniform point and the active set sheds one donor per pivot: 117 inner solves for SDID on a 101x120 panel against 31 for VanillaSC on the same panel. Every weight is still correct, so only a work assertion can see it"
+
+  [[target.mutant]]
+  id = "seeding-overrides-the-callers-warm-start"
+  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:"
+  replace = "    if accelerate and J >= ACCEL_MIN_DONORS:"
+  models = "a seed recomputed on top of one the caller already has. The placebo loop chains the previous draw's solution through this argument, so discarding it pays for a FISTA run per draw to replace a start that was already on the answer"
+
+  [[target.mutant]]
+  id = "support-patience-counts-total-instead-of-consecutive-holds"
+  find = "            held = held + 1 if (support is not None\n                                and np.array_equal(current, support)) else 0"
+  replace = "            held = held + 1 if (support is not None\n                                and np.array_equal(current, support)) else held"
+  models = "a patience counter that never resets, so a support that flickers still accumulates holds and the warm start returns while the support is moving -- the seed is then rejected coordinate by coordinate and the solve pays the cold pivot count anyway"
+
+  [[target.mutant]]
+  id = "support-read-at-a-tolerance-the-solver-does-not-use"
+  find = "SUPPORT_TOL = 1e-9"
+  replace = "SUPPORT_TOL = 1e-3"
+  models = "the seed's support read at a coarser threshold than the one solve_simplex_qp pins variables at, so the two disagree about what the seed says and the loop stops on a support the active set will not adopt"
