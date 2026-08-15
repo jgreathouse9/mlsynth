@@ -1907,6 +1907,144 @@ already exists, and the validation target is reproduced and staged.
 
 ---
 
+## 19. LPCA -- Local Principal Component Analysis (nonlinear factor structure)
+
+**Status: Parked, build-ready. Paper reviewed in full; Path A and Path B
+replications both DONE and both reproduce
+(`benchmarks/reference/lpca_kansas/`). No estimator code. Nothing blocks a
+build. Validate it against Table 1, not against the paper's empirical
+comparison -- see Learnings.**
+
+### Source
+
+> Feng, Y. (2023). "Optimal Estimation of Large-Dimensional Nonlinear Factor
+> Models." arXiv:2311.07243v1.
+
+Replication code released: `yingjieum/Replication_NonlinearFactorModel_2023`
+(R; ~60 lines for the estimator). The panel for the empirical application is
+already in the repository as `basedata/kansas_taxcut.csv`.
+
+Do not confuse it with Feng (2020), "Causal Inference in Possibly Nonlinear
+Factor Models" (arXiv:2008.13651), which applies the same local-PCA building
+block to cross-sectional treatment effects with mismeasured confounders. That
+one is out of lane; this one has the panel application.
+
+### The idea in one line
+
+Split the time index in two; match each unit to its `K` nearest neighbours on
+the first block under a pseudo-max distance; take a truncated SVD of the
+neighbour submatrix on the second block. The nonlinear surface is approximated
+by its local tangent plane, so the outcome matrix has to be low-rank only
+locally.
+
+### Why it fills a real gap
+
+Across the 74 exports, every factor-structure estimator -- `MCNNM`, `RMSI`,
+`CFM`, `FMA`, `GSYNTH`, `CSCIPCA`, `DMLFM`, `SNN` -- assumes the untreated
+outcome matrix is globally low-rank in a linear factor structure. That is the
+assumption this drops.
+
+Closest existing estimator: `SNN` (Agarwal et al. 2021), also nearest
+neighbours plus a low-rank imputation, but its neighbours come from the
+sparsity pattern (anchor rows and columns) and it regresses; here they come
+from a distance on a held-out time block and the step is a local SVD.
+`NSC` is a name collision only -- "nonlinear" there refers to the outcome, and
+the method is a penalized donor-weight scheme. `LPCA` is free as a name.
+
+### Cost
+
+Low. Pure NumPy/SciPy: a Gram matrix, `argpartition`, one truncated SVD of a
+`K x p` block. No solver, no compiled dependency. Every tuning constant is in
+the reference script.
+
+### What the replication established
+
+Both paths reproduce. Path A: the LPCA counterfactual sits 0.5306 points above
+observed Kansas growth against the paper's 0.53, and the observed series is
+below the LPCA path in 9 of 16 post-treatment quarters, as reported. Path B:
+Table 1 at 500 replications against the paper's 2 000, median disagreement 0.83
+Monte Carlo standard errors across the 48 cells, 43 within 2 and 47 within 3,
+with every qualitative claim holding -- including Model 1's blow-up at `K` =
+149 (2.208 against the published 2.203) and global PCA edging local PCA on
+Model 3. Full detail in `benchmarks/reference/lpca_kansas/README.md`.
+
+### Learnings (keep these)
+
+* **The paper's synthetic-control comparison is a v1 defect, since fixed.**
+  Section 6.1 reports SC predicting growth 0.19 points *below* observed Kansas
+  against LPCA's 0.53 *above* -- opposite signs, which is the whole rhetorical
+  contrast and the basis for calling the SC answer implausible. The v1
+  application script omitted `+ col.mean` on the SC line while carrying it on
+  the LPCA line, so the SC path was compared against an observed series it had
+  never been re-centred onto. The 2024 upload of the same script adds the term.
+  Reproducing the defect gives +0.1948, matching the paper; correcting it gives
+  −0.3340. The author's current version confirms the correction: Feng (2024),
+  31 July 2024, reports SC at "0.33 percentage points higher than that of the
+  observed Kansas", so both arms match this port to the printed precision and
+  the SC sign has flipped from the v1 text. Cite the 2024 version. The v1
+  sentence calling the SC answer implausible on pre-treatment fit is also gone
+  from the revision, replaced by a remark about sensitivity to temporary
+  pre-period shocks.
+* **Validate a build on Table 1, not on Kansas.** The Monte Carlo is where
+  LPCA is shown to beat global PCA, it is unaffected by the above, and it now
+  reproduces. The Kansas application is a demonstration that the estimator runs
+  on a real panel, not evidence of superiority.
+* **Two details of the reference decide whether Table 1 reproduces.** The `K`
+  grid is 49/99/149 and not 50/100/150, because the R script computes
+  `n^(2/3)`, which is 99.99999999999999 in double precision, then floors the
+  products. And neighbour selection is a threshold, `tmp.d <= nth(tmp.d, K)`,
+  so exact ties widen the neighbourhood -- Model 3 is binary and ties
+  constantly, inflating a nominal 49 to 51-73 and a nominal 149 to 161-200.
+  That is a plausible explanation for Model 3's row being flat in `K`, and it
+  means the estimator should report the realised neighbourhood, not the
+  requested one.
+* **The per-unit SVD is avoidable and the saving is what makes a faithful
+  replication count affordable.** Only one row of the rank-`r` reconstruction
+  is ever read, and the right singular vectors cancel from it, so
+  `(U[pos, :r] U[:, :r]') B` off the `K x K` Gram eigendecomposition gives the
+  same answer as the `K x p` SVD -- identical to 5e-14, seven times faster.
+  With multiprocessing, pin BLAS to one thread per worker or oversubscription
+  eats the gain.
+* **One Table 1 cell is unexplained.** Model 1's `q_alpha = .9` error comes in
+  low, 0.066 against 0.076 at `K` = 49 (3.9 standard errors), and the `K` = 99
+  cell shares its draws so it is one effect. Model 1's surface is symmetric in
+  the latent variable and the paper's `.1` and `.9` rows reflect that, while
+  this port's do not. No claim turns on it and LPCA still beats the baseline
+  there, but it is open, not resolved.
+* **The pre-fit argument runs the other way.** On the window where both arms
+  predict, LPCA's pre-treatment RMSE is 0.866 pp against the synthetic
+  control's 0.624 pp. Both are in-sample there and SC is fitted directly
+  against Kansas, so the ordering is unsurprising -- but it means "poor
+  pre-treatment fit" cannot be the reason to prefer LPCA.
+* **Two of the three tuning constants move the answer by 40 percent, and the
+  paper sits at the extreme of both.** The sign is stable across everything
+  tried. `K` (paper: `round(n^(2/3))` = 14) spans −0.369 to −0.531 over
+  {7, 10, 14, 20, 25, 30}, and the component cap spans −0.413 to −0.531 over
+  {2, 3, 4, 5}. The matching-block split is tame: 40 through 60 quarters give
+  the same answer. Remark 4.3 defers rank selection to future research, so a
+  build should surface the chosen rank and the neighbourhood as diagnostics
+  and not present the point estimate as settled.
+* **The paper reports no inference of any kind** -- no standard errors,
+  confidence intervals or p-values, and Figure 3 has no bands. Theorem 6.1 is
+  a uniform max-norm rate. Anything mlsynth attaches (the moving-block
+  conformal machinery is already in the library) is the library's addition and
+  the docs have to say so.
+* **`p - p0` is assumed fixed.** Zeroing the treated post-treatment cells is
+  defensible only when the post-period is short relative to the panel -- 16 of
+  104 quarters here. The config needs a guard, not a footnote.
+* **A defect can reproduce a published number exactly and still be a defect.**
+  The check that caught this was not re-reading the port; it was pinning the
+  solver against an independently validated reference (`ascm_kansas`'s
+  classic-SCM rung, itself cross-validated against live augsynth) to 1.3e-07,
+  then showing that the published number is unreachable: holding the
+  pre-period fit at its optimum, the achievable post-treatment mean is the
+  single point +0.5026, and reaching the published value costs 156 percent in
+  sum of squares. Only then did the reference repository's history come into
+  it. Cross-validate the machinery before doubting the paper, and read the
+  reference's git history before concluding the paper is simply wrong.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
