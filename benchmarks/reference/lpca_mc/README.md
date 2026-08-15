@@ -68,3 +68,20 @@ The bundle also records a global-PCA baseline (`HDRFA::PCA_FN` for the factor
 count, as Feng's script uses). The case reports it for context, since Table 1's
 comparison is against it, but does not pin mlsynth to it — global PCA is not
 mlsynth's code.
+
+## Result
+
+Both estimators agree cell for cell. 35 of the 36 pinned cells land within
+5e-11, the print precision of `reference.out`; `model2_K14_mae` lands at 1.2e-07,
+which is `irlba`'s iterative tolerance surfacing in the statistic most exposed
+to it -- a maximum over 22 500 cells reports whichever one the two disagree on
+most. mlsynth takes an exact eigendecomposition of the neighbourhood's Gram
+matrix where the reference calls `irlba`, so that gap is the reference's
+approximation, not the port's.
+
+Two behaviours the paper describes show up on these fixed panels. Model 3 is
+binary, so the pseudo-max distance ties and the threshold selection rule widens
+a nominal 14-unit neighbourhood to 36 -- which is why the estimator reports the
+realised neighbourhood next to the requested one. And model 1, the most
+nonlinear design, degrades as `K` grows (1.08 at 14, 1.69 at 28, 3.98 at 42),
+the same failure Table 1 records at `K` = 149.

@@ -1,0 +1,70 @@
+== REFERENCE VALUES ==
+csv_matches_rda	1
+n_units	50
+n_periods_differenced	104
+K	14
+match_periods	40
+neighbourhood_size	14
+local_rank	2
+lpca_att	-0.5306004202
+post_periods_observed_below	9
+observed_post_mean	0.1685863641
+counterfactual_post_mean	0.6991867843
+pre_period_rmse	0.8661153774
+weight	cf_post_01	0.9644098278
+weight	cf_post_02	0.4113873275
+weight	cf_post_03	-0.3177128130
+weight	cf_post_04	0.9971283588
+weight	cf_post_05	-0.1281445171
+weight	cf_post_06	1.0331424562
+weight	cf_post_07	1.2065984591
+weight	cf_post_08	-0.1469293864
+weight	cf_post_09	1.4243546318
+weight	cf_post_10	1.5593415994
+weight	cf_post_11	0.7448916414
+weight	cf_post_12	1.1169783196
+weight	cf_post_13	0.8283706083
+weight	cf_post_14	0.9750165061
+weight	cf_post_15	0.6718524864
+weight	cf_post_16	-0.1536969567
+weight	neighbour_Alabama	1.0
+weight	neighbour_Arkansas	1.0
+weight	neighbour_Florida	1.0
+weight	neighbour_Illinois	1.0
+weight	neighbour_Kansas	1.0
+weight	neighbour_Massachusetts	1.0
+weight	neighbour_Montana	1.0
+weight	neighbour_New_Jersey	1.0
+weight	neighbour_Pennsylvania	1.0
+weight	neighbour_South_Carolina	1.0
+weight	neighbour_Utah	1.0
+weight	neighbour_Virginia	1.0
+weight	neighbour_West_Virginia	1.0
+weight	neighbour_Wisconsin	1.0
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] irlba_2.3.5.1      Matrix_1.6-5       Rfast_2.1.5.2      RcppParallel_5.1.7
+[5] zigg_0.0.2         Rcpp_1.0.12       
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3 grid_4.3.3     lattice_0.22-5

@@ -36,6 +36,15 @@ simulation's stand-in for a treated cell.
 The reference run also records a global-PCA baseline (``HDRFA::PCA_FN`` for the
 factor count, as Feng's script uses). It is reported for context -- Table 1's
 comparison is against it -- but not pinned, since it is not mlsynth's code.
+
+Observed agreement. 35 of the 36 cells land within 5e-11, which is the print
+precision of the captured reference. The exception is ``model2_K14_mae`` at
+1.2e-07, and it is the expected one: mlsynth takes an exact eigendecomposition
+of the neighbourhood's Gram matrix where the reference calls ``irlba``, whose
+default convergence tolerance is 1e-5 on the relative residual. A maximum over
+22 500 cells is the statistic most exposed to that, since it reports whichever
+cell the two disagree on most. The 1e-6 tolerance sits an order of magnitude
+above it.
 """
 from __future__ import annotations
 
