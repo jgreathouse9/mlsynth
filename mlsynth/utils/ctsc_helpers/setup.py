@@ -77,7 +77,7 @@ def prepare_ctsc_inputs(
     if population_col is not None:
         if population_col not in df.columns:
             raise MlsynthDataError(f"Population column {population_col!r} missing.")
-        pop = df.groupby(unitid)[population_col].first().loc[unit_names].to_numpy(float)
+        pop = df.groupby(unitid, observed=True)[population_col].first().loc[unit_names].to_numpy(float)
         if (pop < 0).any() or pop.sum() <= 0:
             raise MlsynthDataError("Population weights must be non-negative and sum > 0.")
         population_weights = pop / pop.sum()

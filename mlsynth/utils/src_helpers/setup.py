@@ -50,7 +50,7 @@ def prepare_src_inputs(
     # keeps the donor order as first-appearance, which downstream code reads
     # positionally.
     all_units = list(df[unitid].unique())
-    treat_totals = (df.groupby(unitid, sort=False)[treat].sum()
+    treat_totals = (df.groupby(unitid, sort=False, observed=True)[treat].sum()
                     .reindex(all_units).to_numpy())
     donors = [
         u for u, total in zip(all_units, treat_totals)

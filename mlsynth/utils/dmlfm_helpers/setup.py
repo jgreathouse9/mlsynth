@@ -94,7 +94,7 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
     # reference, but mlsynth ingestion has no way to carry an observation mask,
     # so an unbalanced panel is refused instead of silently fitting a panel the
     # result contract cannot describe.
-    counts = df.groupby(cfg.unitid)[cfg.time].nunique()
+    counts = df.groupby(cfg.unitid, observed=True)[cfg.time].nunique()
     if counts.nunique() != 1 or int(counts.iloc[0]) != n_periods:
         raise MlsynthDataError(
             "DMLFM needs a balanced panel: units span "

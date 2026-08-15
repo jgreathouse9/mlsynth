@@ -27,7 +27,7 @@ def _unit_feature_matrix(
     missing = [c for c in columns if c not in df.columns]
     if missing:
         raise MlsynthConfigError(f"BPSCS {what} column(s) not in the panel: {missing}")
-    first = df.groupby(unitid)[columns].first()
+    first = df.groupby(unitid, observed=True)[columns].first()
     try:
         mat = first.reindex(index=order).to_numpy(dtype=float)
     except Exception as exc:  # pragma: no cover - defensive

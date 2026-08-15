@@ -43,16 +43,16 @@ def _power_panel(ax, result, power_threshold):
             winner_key = candidate
             break
 
-    for candidate, group in table.groupby("candidate", sort=False):
+    for candidate, group in table.groupby("candidate", sort=False, observed=True):
         if candidate is winner_key:
             continue
-        curve = group.groupby("effect_size")["power"].mean().sort_index()
+        curve = group.groupby("effect_size", observed=True)["power"].mean().sort_index()
         ax.plot(curve.index, curve.values, color="0.8", lw=0.7, alpha=0.45,
                 zorder=1)
 
     if winner_key is not None:
         best = table[table["candidate"] == winner_key]
-        curve = best.groupby("effect_size")["power"].mean().sort_index()
+        curve = best.groupby("effect_size", observed=True)["power"].mean().sort_index()
         ax.plot(curve.index, curve.values, color="black", lw=2.0, zorder=3,
                 marker="o", ms=3.5, label=_label(winner_key))
 

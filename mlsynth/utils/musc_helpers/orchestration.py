@@ -94,7 +94,7 @@ def derive_treatment_cohorts(
             "treated unit with a sharp intervention."
         )
     first_treated = (
-        treated_rows.groupby(unitid)[time].min().to_dict()
+        treated_rows.groupby(unitid, observed=True)[time].min().to_dict()
     )
     cohort_map: Dict[Any, List[Any]] = {}
     for unit, intervention_time in first_treated.items():
@@ -168,7 +168,7 @@ def collapse_cohort(
 
     cohort_rows = df.loc[df[unitid].isin(treated_set), [time, outcome]].copy()
     averaged = (
-        cohort_rows.groupby(time, as_index=False)[outcome].mean()
+        cohort_rows.groupby(time, as_index=False, observed=True)[outcome].mean()
     )
     averaged[unitid] = synthetic_label
     averaged[treat] = (averaged[time] >= intervention_time).astype(int)

@@ -98,7 +98,7 @@ def prepare_drsc_inputs(
 
     k = len(covariates) + 1
     cells: Dict[Tuple[Any, Any], DRSCCell] = {}
-    for (u, t), g in df.groupby([unitid, time], sort=False):
+    for (u, t), g in df.groupby([unitid, time], sort=False, observed=True):
         if u not in set(units) or t not in set(times):  # pragma: no cover
             continue
         X = np.empty((len(g), k), dtype=np.float64)

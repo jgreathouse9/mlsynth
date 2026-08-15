@@ -160,7 +160,7 @@ def _covariate_means(
     else:
         rows = []
         for cov, years in zip(covariates, year_sets):
-            g = df[df[time].isin(years)].groupby(unitid)[cov].mean()
+            g = df[df[time].isin(years)].groupby(unitid, observed=True)[cov].mean()
             rows.append([float(g.get(u, np.nan)) for u in units])
         X = np.asarray(rows, dtype=float)
 
