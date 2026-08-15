@@ -202,8 +202,8 @@ def prepare_sdid_inputs(
         Pre-processed cohorts payload and metadata.
     """
 
-    balance(df, unitid, time)
-    prep: Dict[str, Any] = dataprep(df, unitid, time, outcome, treat)
+    keys = balance(df, unitid, time)
+    prep: Dict[str, Any] = dataprep(df, unitid, time, outcome, treat, keys=keys)
 
     if "cohorts" in prep:
         # ``dataprep`` keys cohorts by the actual time *label* (e.g. 2010),

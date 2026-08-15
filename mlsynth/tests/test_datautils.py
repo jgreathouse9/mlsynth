@@ -612,9 +612,9 @@ def test_wide_pivot_falls_back_when_fast_path_layout_differs(monkeypatch):
     exp = df.pivot(index="time", columns="unit", values="y")
     _real_fast_pivot = du._fast_pivot                        # capture before patching
 
-    def _f_contiguous_fast(d, index, columns, values):
+    def _f_contiguous_fast(d, index, columns, values, keys=None):
         # value-identical to the real fast path but F-contiguous .to_numpy()
-        frame = _real_fast_pivot(d, index, columns, values)
+        frame = _real_fast_pivot(d, index, columns, values, keys)
         return pd.DataFrame(
             np.asfortranarray(frame.to_numpy()),
             index=frame.index, columns=frame.columns)

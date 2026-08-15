@@ -41,10 +41,11 @@ def prepare_propsc_inputs(
     -------
     PropscInputs
     """
-    balance(df, unitid, time)
+    keys = balance(df, unitid, time)
 
     # Canonical time/unit axes from the first proportion's pivot.
-    prep0 = dataprep(df, unitid, time, outcomes[0], treat, allow_no_donors=True)
+    prep0 = dataprep(df, unitid, time, outcomes[0], treat, allow_no_donors=True,
+                     keys=keys)
     Ywide0 = prep0["Ywide"]                      # (T, N) frame
     time_labels = np.asarray(prep0["time_labels"])
     units = list(Ywide0.columns)

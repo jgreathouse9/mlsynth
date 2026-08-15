@@ -53,7 +53,7 @@ def _prep(df):
 # --------------------------------------------------------------------------- #
 class TestSmoke:
     def test_clean_panel_still_validates(self):
-        assert balance(_panel(), "id", "time") is None
+        assert balance(_panel(), "id", "time") is not None
 
     def test_clean_panel_still_ingests(self):
         prep = _prep(_panel())
@@ -177,18 +177,18 @@ class TestEdges:
         """An empty string is a label, not an absence."""
         df = pd.DataFrame({"id": ["a", "a", "", ""], "time": [1, 2, 1, 2],
                            "y": 1.0})
-        assert balance(df, "id", "time") is None
+        assert balance(df, "id", "time") is not None
 
     def test_zero_and_negative_keys_are_values(self):
         df = pd.DataFrame({"id": ["a", "a", "b", "b"], "time": [0, -1, 0, -1],
                            "y": 1.0})
-        assert balance(df, "id", "time") is None
+        assert balance(df, "id", "time") is not None
 
     def test_categorical_keys_with_unused_levels_are_unaffected(self):
         df = pd.DataFrame({"id": pd.Categorical(["a", "a", "b", "b"],
                                                 categories=["a", "b", "c"]),
                            "time": [1, 2, 1, 2], "y": 1.0})
-        assert balance(df, "id", "time") is None
+        assert balance(df, "id", "time") is not None
 
     def test_still_rejects_the_faults_it_rejected_before(self):
         """The new refusal is additive: duplicated and short panels are still

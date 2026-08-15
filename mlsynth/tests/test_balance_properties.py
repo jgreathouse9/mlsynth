@@ -150,7 +150,7 @@ def test_same_verdict_as_the_previous_implementation(df):
 @SETTINGS
 @given(df=_rectangular())
 def test_a_rectangular_panel_is_always_accepted(df):
-    assert balance(df, "id", "time") is None
+    assert balance(df, "id", "time") is not None
 
 
 # --------------------------------------------------------------------------- #
