@@ -47,8 +47,20 @@ def _fast_pivot(
         return None
     u_codes, u_uniq = pd.factorize(df[columns], sort=False)   # O(n) hash, no sort
     t_codes, t_uniq = pd.factorize(df[index], sort=False)
-    if (u_codes < 0).any() or (t_codes < 0).any():            # NaN key -> pandas
-        return None
+    # A missing key is not a reason to fall back -- it is an error. Deferring to
+    # ``df.pivot`` here is what gave the blank a level named ``nan``, adding a
+    # donor column or a period and shifting ``pre_periods`` with nothing raised.
+    # The codes are already computed, so refusing costs no extra pass.
+    blank = {name: int((codes < 0).sum())
+             for name, codes in ((columns, u_codes), (index, t_codes))
+             if (codes < 0).any()}
+    if blank:
+        details = ", ".join(f"{name}: {count}" for name, count in blank.items())
+        raise MlsynthDataError(
+            f"Missing values found in the panel's key columns -> {details}. "
+            "Every observation must carry both a unit and a time period; clean "
+            "or drop these rows before passing the panel."
+        )
     n_u, n_t = len(u_uniq), len(t_uniq)
     grid = n_u * n_t
     if grid > 2 * n:                     # too sparse: not worth it / avoid huge alloc
@@ -797,14 +809,33 @@ def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name:
     # ``factorize`` has already reduced to integers, and they were 35 to 47
     # percent of ingestion cost -- more than the pivot they precede.
     #
-    # NaN handling is not incidental. ``factorize`` sends missing keys to code
-    # -1 and leaves them out of the levels, so ``len(levels)`` equals the
-    # ``nunique()`` this used to call, and a unit or period that is missing its
-    # key is excluded from the counts exactly as ``groupby`` excluded it.
+    # ``factorize`` sends a missing key to code -1 and leaves it out of the
+    # levels, which is what makes both the refusal below and the counts after it
+    # readable off the codes alone.
     unit_codes, unit_levels = pd.factorize(df[unit_id_column_name], sort=False)
     time_codes, time_levels = pd.factorize(df[time_period_column_name], sort=False)
     n_rows = len(df)
     n_units, n_periods = len(unit_levels), len(time_levels)
+
+    # A row without a unit or without a time is not an observation, and the
+    # checks below cannot see it: they count with the levels, and a missing key
+    # has no level. That silence used to reach the pivot, which *does* give the
+    # blank a level -- one named ``nan`` -- so a blank time added a period and
+    # moved ``pre_periods`` by one with nothing raised. Reading the codes for it
+    # costs nothing, because they are already here.
+    missing = {
+        name: int((codes < 0).sum())
+        for name, codes in ((unit_id_column_name, unit_codes),
+                            (time_period_column_name, time_codes))
+        if (codes < 0).any()
+    }
+    if missing:
+        details = ", ".join(f"{name}: {count}" for name, count in missing.items())
+        raise MlsynthDataError(
+            f"Missing values found in the panel's key columns -> {details}. "
+            "Every observation must carry both a unit and a time period; clean "
+            "or drop these rows before passing the panel."
+        )
 
     # One integer per row identifying its cell. Codes are shifted so the missing
     # key (-1) becomes 0 and cannot collide with a real pair: without the shift,

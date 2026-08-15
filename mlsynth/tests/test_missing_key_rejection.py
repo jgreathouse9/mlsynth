@@ -220,8 +220,11 @@ class TestCost:
         assert len(seen) == 2
 
     def test_ingestion_adds_no_scan_either(self, monkeypatch):
-        """``_fast_pivot`` computed ``(codes < 0).any()`` already, to decide
-        whether it could take its fast path."""
+        """The refusal sits inside ``_fast_pivot``, on codes it had already
+        computed to choose its path -- so ingestion gains no pass over the
+        frame. Checking ``isna`` in ``_wide_pivot`` instead would have cost one
+        scan per key column per pivot, and ``dataprep`` pivots twice.
+        """
         calls = {"isna": 0}
         real = pd.Series.isna
 
@@ -231,7 +234,7 @@ class TestCost:
 
         monkeypatch.setattr(pd.Series, "isna", spy)
         _prep(_panel(10, 10))
-        assert calls["isna"] <= 2, (
+        assert calls["isna"] == 0, (
             f"{calls['isna']} isna passes -- the check should read the codes")
 
 
