@@ -93,6 +93,21 @@ Corrected, the two estimators agree on sign. Local PCA puts the counterfactual
 above: both say the tax cut cost growth, and they differ by 0.20 points of
 magnitude. The published contrast between them does not survive the fix.
 
+The current version of the paper confirms this. Feng (2024), dated 31 July
+2024, Section 6.1: "the average growth rate over the entire post-treatment
+period for the counterfactual Kansas ... is 0.53 percentage points higher than
+that of the observed Kansas. By contrast, SC yields a smaller effect, with an
+average growth rate 0.33 percentage points higher than that of the observed
+Kansas." Both arms now match this port to the printed precision — −0.5306 and
+−0.3340 — and the sign of the SC arm has flipped from the v1 text by exactly
+the omitted column mean. The surrounding argument changed with it: where v1
+called the SC answer implausible "given the poor fit of SC in the pre-treatment
+period", the 2024 text says instead that SC "may be more vulnerable to large
+temporary shocks in a few pre-treatment periods, as the weights used for SC
+prediction are constructed to make the pre-treatment fit as close as possible
+to the observed sequence." The fit claim is gone, which is consistent with what
+the measurement below shows.
+
 ## Where the paper's number could have come from, and where it could not
 
 The port was checked before the provenance was, and two instruments ruled out
@@ -149,8 +164,11 @@ diagnostics.
 Reference code: `yingjieum/Replication_NonlinearFactorModel_2023`, commit
 `ca34fba` (current application script uploaded 2024-08-01 as `59fa89f`; the
 v1-era script recovered from `0608950`, 2023-11-12). Panel:
-`basedata/kansas_taxcut.csv`, 5250 rows. Paper: arXiv:2311.07243v1,
-14 November 2023 — the version whose Section 6.1 the table above compares
-against. The current working paper is linked from the replication repository's
-README and was not reachable from this environment, so whether its Section 6.1
-carries the corrected number is untested.
+`basedata/kansas_taxcut.csv`, 5250 rows.
+
+Two versions of the paper are in play, and the table above compares against the
+first. arXiv:2311.07243v1, 14 November 2023, reports the SC arm as 0.19 points
+below observed Kansas. The current working paper, dated 31 July 2024 and linked
+from the replication repository's README, reports it as 0.33 points above.
+Table 1 of Section 5 is identical in both. Cite the 2024 version for anything
+built on this; cite v1 only when the point is the defect itself.

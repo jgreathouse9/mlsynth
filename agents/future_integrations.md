@@ -1973,9 +1973,13 @@ Full detail in `benchmarks/reference/lpca_kansas/README.md`.
   the LPCA line, so the SC path was compared against an observed series it had
   never been re-centred onto. The 2024 upload of the same script adds the term.
   Reproducing the defect gives +0.1948, matching the paper; correcting it gives
-  −0.3340. Corrected, both estimators agree the tax cut cost growth and differ
-  by 0.20 points of magnitude. Any docs page must not repeat the published
-  comparison.
+  −0.3340. The author's current version confirms the correction: Feng (2024),
+  31 July 2024, reports SC at "0.33 percentage points higher than that of the
+  observed Kansas", so both arms match this port to the printed precision and
+  the SC sign has flipped from the v1 text. Cite the 2024 version. The v1
+  sentence calling the SC answer implausible on pre-treatment fit is also gone
+  from the revision, replaced by a remark about sensitivity to temporary
+  pre-period shocks.
 * **Validate a build on Table 1, not on Kansas.** The Monte Carlo is where
   LPCA is shown to beat global PCA, and it is unaffected by the above. The
   Kansas application is a demonstration that the estimator runs on a real
