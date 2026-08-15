@@ -1909,9 +1909,10 @@ already exists, and the validation target is reproduced and staged.
 
 ## 19. LPCA -- Local Principal Component Analysis (nonlinear factor structure)
 
-**Status: Parked, build-ready. Paper reviewed in full; Path A replication DONE
-and reproduces exactly (`benchmarks/reference/lpca_kansas/`). No estimator code.
-Build the estimator against the paper's Monte Carlo, not against its empirical
+**Status: Parked, build-ready. Paper reviewed in full; Path A and Path B
+replications both DONE and both reproduce
+(`benchmarks/reference/lpca_kansas/`). No estimator code. Nothing blocks a
+build. Validate it against Table 1, not against the paper's empirical
 comparison -- see Learnings.**
 
 ### Source
@@ -1958,10 +1959,14 @@ the reference script.
 
 ### What the replication established
 
-The empirical arm reproduces exactly: the LPCA counterfactual sits 0.5306
-points above observed Kansas growth against the paper's 0.53, and the observed
-series is below the LPCA path in 9 of 16 post-treatment quarters, as reported.
-Full detail in `benchmarks/reference/lpca_kansas/README.md`.
+Both paths reproduce. Path A: the LPCA counterfactual sits 0.5306 points above
+observed Kansas growth against the paper's 0.53, and the observed series is
+below the LPCA path in 9 of 16 post-treatment quarters, as reported. Path B:
+Table 1 at 500 replications against the paper's 2 000, median disagreement 0.83
+Monte Carlo standard errors across the 48 cells, 43 within 2 and 47 within 3,
+with every qualitative claim holding -- including Model 1's blow-up at `K` =
+149 (2.208 against the published 2.203) and global PCA edging local PCA on
+Model 3. Full detail in `benchmarks/reference/lpca_kansas/README.md`.
 
 ### Learnings (keep these)
 
@@ -1981,9 +1986,31 @@ Full detail in `benchmarks/reference/lpca_kansas/README.md`.
   from the revision, replaced by a remark about sensitivity to temporary
   pre-period shocks.
 * **Validate a build on Table 1, not on Kansas.** The Monte Carlo is where
-  LPCA is shown to beat global PCA, and it is unaffected by the above. The
-  Kansas application is a demonstration that the estimator runs on a real
-  panel, not evidence of superiority.
+  LPCA is shown to beat global PCA, it is unaffected by the above, and it now
+  reproduces. The Kansas application is a demonstration that the estimator runs
+  on a real panel, not evidence of superiority.
+* **Two details of the reference decide whether Table 1 reproduces.** The `K`
+  grid is 49/99/149 and not 50/100/150, because the R script computes
+  `n^(2/3)`, which is 99.99999999999999 in double precision, then floors the
+  products. And neighbour selection is a threshold, `tmp.d <= nth(tmp.d, K)`,
+  so exact ties widen the neighbourhood -- Model 3 is binary and ties
+  constantly, inflating a nominal 49 to 51-73 and a nominal 149 to 161-200.
+  That is a plausible explanation for Model 3's row being flat in `K`, and it
+  means the estimator should report the realised neighbourhood, not the
+  requested one.
+* **The per-unit SVD is avoidable and the saving is what makes a faithful
+  replication count affordable.** Only one row of the rank-`r` reconstruction
+  is ever read, and the right singular vectors cancel from it, so
+  `(U[pos, :r] U[:, :r]') B` off the `K x K` Gram eigendecomposition gives the
+  same answer as the `K x p` SVD -- identical to 5e-14, seven times faster.
+  With multiprocessing, pin BLAS to one thread per worker or oversubscription
+  eats the gain.
+* **One Table 1 cell is unexplained.** Model 1's `q_alpha = .9` error comes in
+  low, 0.066 against 0.076 at `K` = 49 (3.9 standard errors), and the `K` = 99
+  cell shares its draws so it is one effect. Model 1's surface is symmetric in
+  the latent variable and the paper's `.1` and `.9` rows reflect that, while
+  this port's do not. No claim turns on it and LPCA still beats the baseline
+  there, but it is open, not resolved.
 * **The pre-fit argument runs the other way.** On the window where both arms
   predict, LPCA's pre-treatment RMSE is 0.866 pp against the synthetic
   control's 0.624 pp. Both are in-sample there and SC is fitted directly

@@ -15,14 +15,18 @@ per capita, Kansas treated from 2012Q2 — which is the same panel Feng ships as
 ## What is here
 
 ```
-lpca_oracle.py   readable port of Algorithm 1 (K-NN matching + local PCA)
-run_kansas.py    ingestion via dataprep, both arms, the tuning sweep
-dump_results.py  regenerates results.json (every number below)
-results.json     generated
+lpca_oracle.py     readable port of Algorithm 1 (K-NN matching + local PCA)
+run_kansas.py      ingestion via dataprep, both arms, the tuning sweep
+dump_results.py    regenerates results.json (the Kansas numbers)
+simulation.py      the three Section 5 DGPs and the global-PCA baseline
+run_simulation.py  regenerates simulation_results.json (Table 1)
+results.json       generated
+simulation_results.json  generated
 ```
 
 ```bash
 python benchmarks/reference/lpca_kansas/dump_results.py
+python benchmarks/reference/lpca_kansas/run_simulation.py 500   # ~45 min on 4 cores
 ```
 
 ## The estimator
@@ -57,6 +61,47 @@ row's 16 post-treatment cells.
 
 All three land on the paper. The third one needs an explanation, because the
 straightforward reading of the current replication script gives −0.3340 pp.
+
+## Path B: Table 1 reproduces
+
+Section 5 is the check the build should rest on, and it is untouched by
+everything below: Table 1 is identical in the November 2023 and July 2024
+versions. Three DGPs at `n = p = 1000`, half the columns for matching, the
+`K` grid 49/99/149, and a global-PCA baseline whose factor count comes from an
+eigenvalue ratio on doubly demeaned data.
+
+500 replications against the paper's 2 000. Across the 48 cells the median
+disagreement is 0.83 Monte Carlo standard errors, 43 land within 2 and 47
+within 3. The maximum-absolute-error row:
+
+| | K=49 | K=99 | K=149 | GPCA |
+|---|---|---|---|---|
+| Model 1 | 0.683 / 0.680 | 0.963 / 0.937 | 2.208 / 2.203 | 1.141 / 1.148 |
+| Model 2 | 0.602 / 0.599 | 0.633 / 0.636 | 0.703 / 0.706 | 0.866 / 0.870 |
+| Model 3 | 0.475 / 0.475 | 0.461 / 0.461 | 0.461 / 0.461 | 0.469 / 0.470 |
+
+Cells are `ported / paper`; `simulation_results.json` carries every cell with
+its standard error.
+
+Each of the paper's qualitative claims holds. Local PCA beats global PCA on
+Models 1 and 2 at the two smaller neighbourhoods and ties it on Model 3, which
+is what "smaller or at least comparable" describes — including the detail that
+global PCA edges local PCA by 0.006 at `K` = 49 on Model 3, an ordering the
+port reproduces. The advantage widens with the severity of the nonlinearity:
+Model 1 at `K` = 49 is 40 percent below the baseline, Model 2 is 30 percent
+below, Model 3 is level. And Model 1 at `K` = 149 blows up to 2.208 against a
+baseline of 1.141, the paper's own warning that too large a neighbourhood
+destroys the local approximation where the surface bends hardest.
+
+One residual has no explanation. Model 1's `q_alpha = .9` prediction error
+comes in low — 0.066 against 0.076 at `K` = 49 (3.9 standard errors) and 0.061
+against 0.068 at `K` = 99 — and those two cells share their draws and
+evaluation units, so it is one effect and not two. The model's surface is
+symmetric in the latent variable, and the paper's `q_alpha = .1` and
+`q_alpha = .9` rows are near-identical as that symmetry implies, while this
+port's are not. Nothing else in the table shows the asymmetry, no claim turns
+on the cell, and local PCA still beats the baseline there by a wide margin
+(0.066 against 0.107). Recorded as open.
 
 ## The comparison arm changed between paper versions
 
