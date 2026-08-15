@@ -20,10 +20,32 @@ mlsynth reproduces the reference / Table-3 full-window ATTs closely:
   ========  ===============  =====================
 
 (The PI/PI-S gaps are ~0.01 implementation slack; PI-Post matches to the printed
-digits.) The case also pins the no-proxy SPSC, the doubly-robust DR, and the
-PIPW (weighting) estimators as regression guards. Path A (scenario 3): the data
-and reference are the authors'; cross-validation is mandatory and done here.
-The case **skips gracefully** when the reference clone is unavailable.
+digits.) The case also pins the no-proxy SPSC estimator as a regression guard.
+Path A (scenario 3): the data and reference are the authors'; cross-validation
+is mandatory and done here. The case **skips gracefully** when the reference
+clone is unavailable.
+
+DR and PIPW are not estimated on this panel. Both route through
+``fit_treatment_bridge``, which solves the square moment system
+
+    E_pre[exp((1,Z) beta) (1,W)] = E_post[(1,W)]
+
+and here it has no solution: the largest absolute residual is 0.401 against a
+tolerance of 1e-06. The system is 49-dimensional -- an intercept and 48
+donor-trust proxies -- and asks for the post-period mean of ``(1,W)`` to be
+reproducible by an exponential tilt of the pre-period, which at T0 = 229 against
+T1 = 182 it is not. That is a property of the design, so the estimator reports
+it instead of retrying.
+
+Both cells were pinned here (``dr_att`` -1.194, ``pipw_att`` -0.854) until #420
+made the stalled solve raise. Before that the root finder returned its
+non-converged iterate, the ATT built from it was an ordinary-looking number, and
+those numbers became the regression guards -- so the two cells recorded the
+solver's failure, not the estimator's answer. They are removed rather than
+re-pinned or given a wider tolerance: the quantities are not identified on this
+panel, and a tolerance cannot supply an identification the design withholds.
+``benchmarks/tests/test_panic1907_bridge_infeasible.py`` holds the diagnosis so
+they cannot come back without the panel or the estimator having changed.
 """
 from __future__ import annotations
 
@@ -66,8 +88,8 @@ def run() -> dict:
     df, donors, surrogates = _panel()
     pi = _att(df, donors, surrogates, ["PI", "PIS", "PIPost"])
     spsc = _att(df, donors, surrogates, ["SPSC"])["SPSC"]
-    dr = _att(df, donors, surrogates, ["DR"])["DR"]
-    pipw = _att(df, donors, surrogates, ["PIPW"])["PIPW"]
+    # DR and PIPW are not requested: both route through the treatment bridge,
+    # which this panel does not identify. See the module docstring.
     return {
         "pi_att": pi["PI"],
         "pis_att": pi["PIS"],
@@ -76,8 +98,6 @@ def run() -> dict:
         "pis_vs_ref": abs(pi["PIS"] - ref["PIS"]),
         "pipost_vs_ref": abs(pi["PIPost"] - ref["PIPost"]),
         "spsc_att": spsc,
-        "dr_att": dr,
-        "pipw_att": pipw,
         "n_donors": float(len(donors)),
         "n_surrogates": float(len(surrogates)),
     }
@@ -126,8 +146,6 @@ EXPECTED = {
     "pis_vs_ref": (0.014, 0.03),         # reproduces freshtaste PI-S
     "pipost_vs_ref": (0.0, 0.01),        # reproduces freshtaste PI-P exactly
     "spsc_att": (-0.892, 0.12),          # single-proxy SC (no surrogates needed)
-    "dr_att": (-1.194, 0.12),            # doubly-robust
-    "pipw_att": (-0.854, 0.12),          # proximal IPW
     "n_donors": (48.0, 0.0),
     "n_surrogates": (3.0, 0.0),
 }
