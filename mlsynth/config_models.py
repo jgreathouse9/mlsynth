@@ -166,6 +166,26 @@ class BaseEstimatorConfig(BaseModel):
             raise MlsynthDataError(
                 f"Missing required columns in DataFrame 'df': {', '.join(sorted(list(missing_columns)))}"
             )
+
+        # A row without a unit or a time is not an observation. Ingestion refuses
+        # it as well, but catching it here names the fault before any pivot
+        # exists -- and this is the base 150 of the library's config references
+        # use, against 14 for ``BaseMAREXConfig``, which has had the check all
+        # along. Scoped to the keys: a blank outcome is a modelling question and
+        # the estimators that tolerate one keep doing so, which is where this
+        # stays narrower than the MAREX contract.
+        blank_keys = {
+            column: int(df[column].isna().sum())
+            for column in (unitid, time)
+            if df[column].isna().any()
+        }
+        if blank_keys:
+            details = ", ".join(f"{col}: {n}" for col, n in blank_keys.items())
+            raise MlsynthDataError(
+                f"Missing values found in the panel's key columns -> {details}. "
+                "Every observation must carry both a unit and a time period; "
+                "clean or drop these rows before passing the panel."
+            )
         return values
 
 # TSSCConfig has been relocated to mlsynth/utils/tssc_helpers/config.py

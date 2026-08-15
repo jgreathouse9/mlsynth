@@ -51,6 +51,24 @@ now returns and the back-compat guarantee.
   reuse the same calibration.
 
 ### Changed
+- A row whose unit or time key is missing is refused, at three points:
+  `BaseEstimatorConfig`, `datautils.balance`, and `datautils._fast_pivot`.
+  `balance` counted with `nunique` and `groupby`, both of which skip missing
+  values, so a panel whose blanks were symmetric across units satisfied every
+  check it made; `_wide_pivot` then pivoted the same frame and pandas kept the
+  blank as a level. The two disagreed about what a key is, and the consequence
+  moved the estimand: on a 3-unit, 4-period panel treated from period 3, rows
+  with a blank time key produced a fifth period sorted to the front and took
+  `pre_periods` from 2 to 3, with nothing raised. A blank unit key produced a
+  donor column named `nan`. `BaseMAREXConfig` has rejected these all along but
+  is referenced 14 times against `BaseEstimatorConfig`'s 150, and 38 modules
+  reach ingestion with neither a config nor `balance` in the call path, so the
+  refusal lives at all three. Scoped to the keys: a blank outcome still
+  constructs and still ingests, which is where this stays narrower than the
+  MAREX contract. Breaking for panels that previously passed with blank keys —
+  those results were computed against a shifted pre/post window.
+
+### Changed
 - `datautils.balance` answers from the panel's key codes instead of two hash
   passes over the frame. Every estimator validates with `balance` and then reads
   with `dataprep`, and between them the `(unit, time)` key structure was

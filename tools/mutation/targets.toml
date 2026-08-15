@@ -846,3 +846,39 @@ timeout = 900.0
   find = "    if len(np.unique(observations_per_unit)) != 1:"
   replace = "    if len(np.unique(observations_per_unit)) > 1:"
   models = "the check that every unit carries the same count, weakened so that having no units at all satisfies it. An empty frame is then accepted where it used to be rejected, and the emptiness surfaces later as a shape error inside an estimator"
+
+[[target]]
+name = "missing-key-refusal"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_missing_key_rejection.py mlsynth/tests/test_balance_properties.py mlsynth/tests/test_datautils.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "ingestion-defers-a-missing-key-to-pandas-again"
+  find = "    if blank:\n        details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  replace = "    if False:\n        details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  models = "the refusal reduced to the fallback it replaced. The pivot defers to df.pivot again, which keeps the blank as a level named nan, so a blank time adds a period and shifts pre_periods -- the silent estimand change #453 exists to stop. The validator still catches it, so only a caller reaching ingestion directly is exposed, which is 38 of the modules that do"
+
+  [[target.mutant]]
+  id = "only-the-unit-key-is-checked-at-ingestion"
+  find = "             for name, codes in ((columns, u_codes), (index, t_codes))"
+  replace = "             for name, codes in ((columns, u_codes),)"
+  models = "half the check. A missing unit is refused and a missing time is not, so the phantom donor is caught and the shifted pre_periods -- the one that moves the estimand -- goes through"
+
+  [[target.mutant]]
+  id = "validator-refuses-only-when-both-keys-are-blank"
+  find = "        if (codes < 0).any()\n    }\n    if missing:"
+  replace = "        if (codes < 0).any()\n    }\n    if len(missing) > 1:"
+  models = "a frame blank in one key column only is admitted by the validator. Ingestion still catches it, so the estimand is safe, but the error arrives from inside the pivot instead of from the check whose job it is, and every caller matching on balance's message stops seeing it"
+
+[[target]]
+name = "missing-key-refusal-config"
+module-path = "mlsynth/config_models.py"
+test-command = "python -m pytest mlsynth/tests/test_missing_key_rejection.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "config-checks-the-outcome-instead-of-the-keys"
+  find = "            for column in (unitid, time)"
+  replace = "            for column in (unitid, outcome)"
+  models = "the config guarding the wrong columns: a blank outcome is refused, which the estimators that tolerate missing outcomes rely on being allowed, and a blank time period -- the one that moves pre_periods -- passes construction untouched"

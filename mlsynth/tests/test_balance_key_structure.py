@@ -60,6 +60,18 @@ def _balance_oracle(df, unit_id_column_name, time_period_column_name):
         )
 
 
+def _has_blank_key(df):
+    """Whether the frame carries a row with no unit or no time.
+
+    Such frames leave the differential's scope. The oracle is the implementation
+    as it stood before this rewrite, and #453 changed the verdict on them
+    deliberately -- from silently admitted to refused -- so asking whether the
+    two agree is the wrong question. ``test_missing_key_rejection.py`` asserts
+    the refusal directly instead.
+    """
+    return bool(df["id"].isna().any() or df["time"].isna().any())
+
+
 def _outcome(fn, df):
     """``None`` if it passes, else ``(type name, message)``."""
     try:
@@ -136,6 +148,9 @@ class TestDecisionsAreIdentical:
     @pytest.mark.parametrize("name", sorted(CORPUS))
     def test_matches_the_oracle_on_the_corpus(self, name):
         df = CORPUS[name]
+        if _has_blank_key(df):
+            pytest.skip("verdict changed deliberately by #453; asserted in "
+                        "test_missing_key_rejection.py")
         assert _outcome(balance, df) == _outcome(_balance_oracle, df), name
 
     @pytest.mark.parametrize("seed", range(8))
@@ -154,6 +169,8 @@ class TestDecisionsAreIdentical:
             elif damage == 3 and len(df):
                 df = df.copy()
                 df.loc[int(rng.integers(len(df))), "id"] = None
+            if _has_blank_key(df):
+                continue
             assert _outcome(balance, df) == _outcome(_balance_oracle, df)
 
     def test_an_unused_categorical_level_is_not_a_unit(self):

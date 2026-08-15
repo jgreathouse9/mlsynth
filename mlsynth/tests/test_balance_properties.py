@@ -60,6 +60,18 @@ def _balance_oracle(df, unit_id_column_name, time_period_column_name):
         )
 
 
+def _has_blank_key(df):
+    """Whether the frame carries a row with no unit or no time.
+
+    Those frames leave the differential's scope. The oracle is the
+    implementation as it stood before the key-code rewrite, and #453 changed the
+    verdict on them deliberately -- from silently admitted to refused -- so
+    agreement with the oracle is the wrong question to ask about them. They are
+    asserted directly in ``test_missing_key_rejection.py`` instead.
+    """
+    return bool(df["id"].isna().any() or df["time"].isna().any())
+
+
 def _outcome(fn, df):
     """``None`` if the frame is accepted, else ``(exception type, message)``."""
     try:
@@ -131,6 +143,7 @@ SETTINGS = settings(max_examples=250, deadline=None,
 @SETTINGS
 @given(df=_panel())
 def test_same_verdict_as_the_previous_implementation(df):
+    assume(not _has_blank_key(df))
     assert _outcome(balance, df) == _outcome(_balance_oracle, df)
 
 
@@ -189,44 +202,44 @@ def test_accepting_means_every_unit_carries_every_observed_period(df):
     """
     if _outcome(balance, df) is not None:
         return
+    assert not _has_blank_key(df), "an accepted frame carries no blank key"
     n_periods = df["time"].nunique()
     per_unit = df.dropna(subset=["id"]).groupby("id")["time"].nunique()
     assert set(per_unit.unique()) <= {n_periods}
 
 
-def test_a_panel_whose_periods_are_all_missing_is_accepted():
-    """A corner of the shipped contract, characterised rather than corrected.
+def test_a_panel_whose_periods_are_all_missing_is_refused():
+    """This corner was characterised first and corrected second, in that order.
 
     ``nunique`` excludes missing values on both sides of the comparison, so a
-    panel where every unit is missing the same period passes: with one unit and
-    times ``[1, NaN]`` there is one distinct period and the unit is observed in
-    one, so the check is satisfied. It is preserved here because 35 estimator
-    modules depend on this verdict, and changing which frames are admitted is a
-    behaviour change and not a speed one.
+    panel where every unit is missing the same period used to pass: one distinct
+    period, and each unit observed in one, so the check was satisfied. The pivot
+    disagreed and gave the blank a level named ``nan``, which added a period and
+    shifted ``pre_periods``. Refused since #453, on both the symmetric frame and
+    the asymmetric one that was already rejected for a different reason.
     """
-    accepted = pd.DataFrame({"id": ["a", "a", "b", "b"],
-                             "time": [1, None, 1, None], "y": 1.0})
-    assert balance(accepted, "id", "time") is None
+    symmetric = pd.DataFrame({"id": ["a", "a", "b", "b"],
+                              "time": [1, None, 1, None], "y": 1.0})
+    with pytest.raises(MlsynthDataError, match="Missing values"):
+        balance(symmetric, "id", "time")
 
-    # Asymmetric, so the counts disagree and it is rejected.
-    rejected = pd.DataFrame({"id": ["a", "a", "b", "b"],
-                             "time": [1, None, 1, 2], "y": 1.0})
-    with pytest.raises(MlsynthDataError,
-                       match="Not all units have observations"):
-        balance(rejected, "id", "time")
+    asymmetric = pd.DataFrame({"id": ["a", "a", "b", "b"],
+                               "time": [1, None, 1, 2], "y": 1.0})
+    with pytest.raises(MlsynthDataError, match="Missing values"):
+        balance(asymmetric, "id", "time")
 
 
-def test_a_row_whose_unit_key_is_missing_is_invisible_to_the_check():
+def test_a_row_whose_unit_key_is_missing_is_refused():
     """The same corner on the other axis, and the sharper one.
 
-    ``groupby`` forms no group for a missing unit key, so rows carrying one are
-    not counted, not compared, and not reported -- the frame is accepted and the
-    row survives into ``dataprep``. Characterised, not corrected: admitting
-    fewer frames is a behaviour change across 35 estimator modules and belongs
-    with the validator's semantics, not with its cost.
+    ``groupby`` formed no group for a missing unit key, so such rows were not
+    counted, not compared and not reported -- and the row then reached the
+    pivot, which turned it into a donor column named ``nan``. Refused since
+    #453.
     """
     df = pd.DataFrame({"id": ["a", None], "time": [1, 1], "y": 1.0})
-    assert balance(df, "id", "time") is None
+    with pytest.raises(MlsynthDataError, match="Missing values"):
+        balance(df, "id", "time")
 
 
 @SETTINGS
