@@ -1909,11 +1909,12 @@ already exists, and the validation target is reproduced and staged.
 
 ## 19. LPCA -- Local Principal Component Analysis (nonlinear factor structure)
 
-**Status: Parked, build-ready. Paper reviewed in full; Path A and Path B
-replications both DONE and both reproduce
-(`benchmarks/reference/lpca_kansas/`). No estimator code. Nothing blocks a
-build. Validate it against Table 1, not against the paper's empirical
-comparison -- see Learnings.**
+**Status: BUILT and merged (#442), golden-benchmarked against the author's own
+R (#444). Path A and Path B replications both reproduce
+(`benchmarks/reference/lpca_kansas/`, `benchmarks/reference/lpca_mc/`). The
+Learnings below are kept because they explain why the docs page says what it
+says -- in particular why it does not repeat the paper's empirical
+comparison.**
 
 ### Source
 
@@ -2042,6 +2043,127 @@ Model 3. Full detail in `benchmarks/reference/lpca_kansas/README.md`.
   sum of squares. Only then did the reference repository's history come into
   it. Cross-validate the machinery before doubting the paper, and read the
   reference's git history before concluding the paper is simply wrong.
+
+---
+
+## 20. Spatial panel factor model with missing data -- assessed, PARKED behind a code release
+
+**Status: Parked. Paper reviewed in full; no replication attempted and no
+estimator code. The gap is real but narrow, the build is the most expensive
+assessed so far, and there is no public reference to validate a port against.
+Unblock conditions at the end of this entry.**
+
+### Source
+
+> Jiang, H., Li, X., Shen, Y., & Zhou, Q. (2026). "Matrix Completion, Factor
+> Analysis and Treatment Effects in the Presence of Spatial Dependence."
+> SSRN preprint 7216602, 31 July 2026. Not peer reviewed.
+
+Footnote 3: "MATLAB codes for simulation are available from the authors upon
+request." No repository, no package.
+
+### The idea in one line
+
+Put the spatial lag inside the untreated-outcome model --
+`y_it = rho * sum_j w_ij y_jt + lambda_i' f_t + u_it` -- estimate `rho` and the
+loadings by QML on the fully observed block, recover the factors by projection
+using control units untouched by treatment, and impute the missing block.
+
+### Why the gap is real
+
+Across the four interference estimators the library now has, none makes the
+untreated outcome spatially dependent:
+
+* `RRSC` (He, Li, Shi & Miao 2026) -- closest by estimand, since it returns a
+  per-unit interference map with intervals and p-values. But `Y(0) = lambda'f`
+  with no spatial term; interference enters as a sparse-outlier component of
+  the *effects*. Its practical advantage over this candidate is large: it needs
+  no prespecified `W`.
+* `SPSYDID` (Serenini & Masek 2024) -- takes a user-supplied `W`, but spillover
+  is one coefficient per unit of exposure layered onto SDID.
+* `SPILLSYNTH` (`method='cd'`, Cao & Dowd 2023) -- per-affected-unit spillover
+  from a user-supplied affected set.
+
+If outcomes genuinely diffuse -- prices, disease, media exposure -- then `Y(0)`
+itself is spatially dependent and all three mis-specify it while estimating a
+spillover effect on top. This paper estimates `rho`, an interpretable diffusion
+parameter, as part of the model. That is the thing mlsynth cannot currently do.
+
+Closest existing estimator: `RRSC`. No acronym collision.
+
+### The identifying assumption
+
+Assumption 4.1, "generalized block interference": `W` has an `N0 x N_tr` zero
+block, so `N0` control units are untouched by any directly treated unit and can
+supply the post-treatment factors. Weaker than the usual block-interference
+condition -- it needs neither symmetry of `W` nor a zero block at the
+bottom-left. In the Prop 99 application this is what makes Utah and Idaho
+usable while Nevada is treated as indirectly exposed.
+
+### Cost, and why it dominates the recommendation
+
+Estimated 5-8 days with a heavy tail. Pure NumPy/SciPy in principle; the hard
+parts are real:
+
+* Bai & Li (2021) QML for a SAR factor model. The likelihood carries
+  `log|I_N - rho*W|`, re-evaluated at every `rho`, alongside a factor-analytic
+  covariance `Lambda Lambda' + Psi`, jointly optimised by an iterative scheme.
+  This is where a port from equations most easily goes subtly wrong.
+* The modified Cahan-Bai-Ng (2023) projection estimator for the factors.
+* Consistent variance estimation with bias correction.
+* Resampling prediction intervals, equal-tailed and symmetric.
+
+With no reference implementation the only validation signal is coverage, and
+coverage is a weak instrument -- many subtly wrong implementations still land
+near nominal.
+
+### Replication targets, if it is ever built
+
+Path B is the stronger one and is fully specified in Section 5: `r = 2`,
+`lambda_i ~ N(0, I_2)`, `f ~ chi^2_1`, `rho = 0.5` (0.25 and 0.75 in
+appendices), four `W` structures x two error structures = 8 setups,
+`N0` in {25, 50, 100, 150}, `T0` in {25, 75, 100}, `N_tr = 1`, `T1 = 1`, 2000
+replications, 1000 resamples. Tables give 95 percent equal-tailed and symmetric
+coverage, bias and RMSE -- Setup 1 at `N0 = T0 = 25` reads EQ 93.90, SY 94.10,
+bias 0.010, RMSE 1.688.
+
+Path A is nearly free on data. Prop 99 via Hsiao & Zhou (2019) is
+`basedata/smoking_data.csv`, and `T0 = 19` / `T1 = 12` matches the paper
+exactly. `basedata/california_W_matrix.csv` is a 38 x 38 donor adjacency matrix
+that already contains Nevada; it needs one row and column for California
+(adjacent only to Nevada within the sample) to become the 39 x 39 the paper
+uses. Reported findings: California tracks Abadie, Diamond & Hainmueller in
+magnitude and trend but turns significant in the first two years where they do
+not, and Nevada is insignificant at first, then negative and significant in
+1996 and 1997.
+
+### Learnings (keep these)
+
+* **The spatial-helper toolkit already exists and would carry most of the
+  plumbing.** `mlsynth/utils/spsydid_helpers/spatial.py` supplies
+  `validate_spatial_matrix`, `row_standardize`, `knn_weights`,
+  `inverse_distance_weights` and `contiguity_weights`, and `SPSYDID` already
+  partitions donors into directly treated, spillover-exposed and pure controls
+  from `D` and `W`. A build reuses all of it.
+* **There is no cheap carve-out.** The one generalisable insight -- that donors
+  adjacent to the treated unit are contaminated, which is why Nevada's 0.234
+  weight in the original Prop 99 synthesis is a problem -- is already
+  implemented as the `SPSYDID` donor partition. Nothing else separates from the
+  QML machinery.
+* **Requiring a known `W` is the binding practical constraint**, and it is
+  exactly what `RRSC` avoids. Any docs page would have to lead with that
+  trade-off, since a user who cannot write down `W` has no route into this
+  estimator.
+* **Four interference estimators need a sharper selection story than the paper
+  supplies.** It compares against none of `RRSC`, `SPSYDID` or Cao-Dowd, so the
+  "which do I pick" question would have to be answered by us, not cited.
+
+### Unblock conditions
+
+Any one of: the authors release code (the MATLAB is available on request, and
+asking is cheap -- it would move the cost estimate substantially); the paper
+places in a journal; or a user brings a panel with a credible known `W` and
+outcomes that plausibly diffuse.
 
 ---
 
