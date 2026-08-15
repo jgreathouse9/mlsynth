@@ -91,6 +91,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/sdid_euets
    replications/brabander_brexit
    replications/mcnnm
+   replications/lpca
    replications/spsydid
    replications/seq_sdid
    replications/clustersc

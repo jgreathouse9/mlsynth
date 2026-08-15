@@ -620,6 +620,8 @@ Q1.7 · Are there missing cells in the panel?
   exploits side information on both margins (a four-component sieve +
   nuclear-norm completion) to impute the treated counterfactual; it reduces to a
   low-rank completion when the covariates are uninformative.
+* Block-missing, the panel is wide in both dimensions, and you doubt the outcome
+  is *linear* in the latent factors -- :doc:`lpca`.
 
 *Which matrix-completion estimator -- and why the missingness mechanism decides.*
 The three estimators differ less in the imputation machinery than in what they
@@ -647,6 +649,20 @@ that travels across short, long, and square panels; prefer :doc:`snn` when the
 gaps are informative -- selected on the outcome itself -- and you need a credible
 counterfactual for specific cells; reach for :doc:`rmsi` when the missing block is
 the treated region and you have margin covariates that carry signal about it.
+
+:doc:`lpca` (Feng (2024)) splits from all three on a prior question: whether the
+outcome matrix is low rank at all. The other three assume the untreated outcome
+is a linear combination of a few common factors, which is what makes the matrix
+low rank and the completion machinery apply. Feng assumes only that outcomes are
+some smooth, possibly nonlinear function of a few latent variables -- which
+generally makes the matrix full rank, so nuclear-norm shrinkage and global
+principal components both misread it. The fix is locality: units matched to their
+nearest neighbours share a latent neighbourhood, and on that neighbourhood a
+first-order expansion makes the structure approximately linear, so principal
+components apply there even though they fail globally. The price is appetite for
+data -- neighbours are only close when many units compete to be one, and half the
+periods are spent finding them -- so :doc:`lpca` belongs on wide panels and not on
+a thirty-donor case study, where :doc:`mcnnm` remains the better bet.
 
 Q1.8 · Is your estimand or treatment effect non-standard (not a scalar mean ATT
 for one binary treatment)?
