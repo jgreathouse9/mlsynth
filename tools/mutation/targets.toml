@@ -855,9 +855,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "ingestion-defers-a-missing-key-to-pandas-again"
-  find = "    blank = {name: int((codes < 0).sum())"
-  replace = "    blank = {name: 0 for name in () if False} or {name: int((codes < 0).sum())"
-  models = "the refusal reduced to the fallback it replaced -- an empty mapping short-circuits the check and the pivot defers to df.pivot, which keeps the blank as a level named nan. A blank time then adds a period and shifts pre_periods, exactly the silent estimand change #453 exists to stop"
+  find = "    if blank:\n        details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  replace = "    if False:\n        details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  models = "the refusal reduced to the fallback it replaced. The pivot defers to df.pivot again, which keeps the blank as a level named nan, so a blank time adds a period and shifts pre_periods -- the silent estimand change #453 exists to stop. The validator still catches it, so only a caller reaching ingestion directly is exposed, which is 38 of the modules that do"
 
   [[target.mutant]]
   id = "only-the-unit-key-is-checked-at-ingestion"
