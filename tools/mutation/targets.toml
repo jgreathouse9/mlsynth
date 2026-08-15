@@ -747,8 +747,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "seeding-is-a-property-of-one-call-site"
-  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start(B, A)\n"
-  replace = ""
+  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start(B, A)"
+  replace = "    if False:\n        warm_start = fista_warm_start(B, A)"
   models = "the defect this change fixed. With the seed computed in one caller instead of in the solver, the other twelve call sites start from the uniform point and the active set sheds one donor per pivot: 117 inner solves for SDID on a 101x120 panel against 31 for VanillaSC on the same panel. Every weight is still correct, so only a work assertion can see it"
 
   [[target.mutant]]
