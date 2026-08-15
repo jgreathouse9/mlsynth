@@ -18,12 +18,12 @@ def prepare_cscm_inputs(df, outcome: str, treat: str, unitid: str, time: str
     ``pre_periods`` (T0), ``post_periods`` (T1), and ``time_labels``.
     """
     try:
-        balance(df, unitid, time)
+        keys = balance(df, unitid, time)
     except Exception as e:  # noqa: BLE001 - defensive re-wrap of balancing errors
         raise MlsynthDataError(f"Error balancing panel data: {e}") from e  # pragma: no cover
 
     try:
-        prep = dataprep(df, unitid, time, outcome, treat)
+        prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
     except MlsynthDataError:
         raise
     except Exception as e:  # noqa: BLE001 - defensive re-wrap of dataprep errors

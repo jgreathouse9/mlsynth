@@ -107,11 +107,11 @@ def prepare_mlsc_inputs(
     """
 
     # Balance both panels independently.
-    balance(df_agg, unitid_agg, time)
+    keys_agg = balance(df_agg, unitid_agg, time)
     balance(df_disagg, unitid_disagg, time)
 
     # ``dataprep`` on the aggregate panel: standard single-treated path.
-    prep_agg = dataprep(df_agg, unitid_agg, time, outcome, treat)
+    prep_agg = dataprep(df_agg, unitid_agg, time, outcome, treat, keys=keys_agg)
     if "cohorts" in prep_agg:
         raise MlsynthDataError(
             "mlSC requires a single treated aggregate; the aggregate panel "

@@ -116,8 +116,8 @@ def prepare_sparse_sc_inputs(
         across all units. Default ``True``.
     """
 
-    balance(df, unitid, time)
-    prep = dataprep(df, unitid, time, outcome, treat)
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
     if "cohorts" in prep:
         raise MlsynthDataError(
             "SparseSC currently supports a single treated unit; the panel "

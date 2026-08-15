@@ -137,8 +137,10 @@ class TestSmoke:
     def test_a_balanced_panel_passes(self):
         balance(_panel(5, 4), "id", "time")
 
-    def test_returns_none(self):
-        assert balance(_panel(3, 3), "id", "time") is None
+    def test_returns_the_panel_scan(self):
+        df = _panel(3, 3)
+        keys = balance(df, "id", "time")
+        assert keys.is_for(df, "id", "time")
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +194,7 @@ class TestDecisionsAreIdentical:
         df = pd.DataFrame({"id": pd.Categorical(["a", "a", "b", "b"],
                                                 categories=["a", "b", "c"]),
                            "time": [1, 2, 1, 2], "y": 1.0})
-        assert balance(df, "id", "time") is None
+        assert balance(df, "id", "time") is not None
 
         counted = df.groupby("id", observed=False)["time"].nunique()
         assert 0 in set(counted.values), (

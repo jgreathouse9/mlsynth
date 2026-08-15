@@ -818,15 +818,15 @@ test-command = "python -m pytest mlsynth/tests/test_balance_key_structure.py mls
 timeout = 900.0
 
   [[target.mutant]]
-  id = "cell-index-built-without-the-missing-key-shift"
-  find = "    cell = (time_codes.astype(np.int64) + 1) * (n_units + 1) + (unit_codes + 1)"
-  replace = "    cell = time_codes.astype(np.int64) * n_units + unit_codes"
-  models = "the linear cell index formed straight from the codes. A missing key is -1, so (unit=-1, period=0) and (unit=n_units-1, period=-1) both land on the same cell and are reported as a duplicate observation -- a panel rejected for a fault it does not have, and only on frames carrying missing keys in both columns"
+  id = "cell-index-built-time-minor"
+  find = "            self._cell = self.time_codes.astype(np.int64) * self.n_units + self.unit_codes"
+  replace = "            self._cell = self.unit_codes.astype(np.int64) * self.n_periods + self.time_codes"
+  models = "the cell index laid out unit-major instead of unit-minor. The cells are still distinct so the duplicate check still passes, and on a square panel the scatter still lands somewhere plausible -- but every value goes to the transposed cell, so the wide frame is the transpose of the panel and each unit's series is read off as a period's cross-section"
 
   [[target.mutant]]
   id = "grid-guard-dropped"
-  find = "    if grid <= 2 * max(n_rows, 1):"
-  replace = "    if True:"
+  find = "            elif self.grid <= 2 * self.n_rows:"
+  replace = "            elif True:"
   models = "the bound that keeps the rejection path proportional to the data. Without it a panel of singleton units counts over a grid quadratic in the row count: 4000 rows asks for 16 million cells, 128 MB, to report that the panel is unbalanced"
 
   [[target.mutant]]
@@ -836,10 +836,10 @@ timeout = 900.0
   models = "each unit's observed periods compared against the number of units instead of the number of periods. Every square panel still passes, so it is invisible on any fixture where units and periods happen to match"
 
   [[target.mutant]]
-  id = "missing-time-rows-counted-as-observed"
-  find = "    observed = (unit_codes >= 0) & (time_codes >= 0)"
-  replace = "    observed = unit_codes >= 0"
-  models = "a row whose period key is missing counted toward that unit's observed periods. The count then matches for a unit that is short one real period but carries one blank, and the panel is admitted -- the previous implementation excluded it, because nunique skips missing values"
+  id = "duplicate-panel-admitted-before-the-counts"
+  find = "    if keys.has_duplicate:\n        raise MlsynthDataError("
+  replace = "    if False:\n        raise MlsynthDataError("
+  models = "the duplicate check dropped, which also removes the precondition the counts below rely on. Counting a unit's rows only counts its distinct periods once duplicate pairs are ruled out, so a panel where one unit has the same period twice and is short another now passes both checks with the right total for the wrong reason"
 
   [[target.mutant]]
   id = "empty-panel-admitted"
@@ -855,21 +855,21 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "ingestion-defers-a-missing-key-to-pandas-again"
-  find = "    if blank:\n        details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
-  replace = "    if False:\n        details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  find = "        if blank:\n            details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  replace = "        if False:\n            details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
   models = "the refusal reduced to the fallback it replaced. The pivot defers to df.pivot again, which keeps the blank as a level named nan, so a blank time adds a period and shifts pre_periods -- the silent estimand change #453 exists to stop. The validator still catches it, so only a caller reaching ingestion directly is exposed, which is 38 of the modules that do"
 
   [[target.mutant]]
   id = "only-the-unit-key-is-checked-at-ingestion"
-  find = "             for name, codes in ((columns, u_codes), (index, t_codes))"
-  replace = "             for name, codes in ((columns, u_codes),)"
+  find = "            for name, codes in ((unit_column, self.unit_codes),\n                                (time_column, self.time_codes))"
+  replace = "            for name, codes in ((unit_column, self.unit_codes),)"
   models = "half the check. A missing unit is refused and a missing time is not, so the phantom donor is caught and the shifted pre_periods -- the one that moves the estimand -- goes through"
 
   [[target.mutant]]
   id = "validator-refuses-only-when-both-keys-are-blank"
-  find = "        if (codes < 0).any()\n    }\n    if missing:"
-  replace = "        if (codes < 0).any()\n    }\n    if len(missing) > 1:"
-  models = "a frame blank in one key column only is admitted by the validator. Ingestion still catches it, so the estimand is safe, but the error arrives from inside the pivot instead of from the check whose job it is, and every caller matching on balance's message stops seeing it"
+  find = "            if (codes < 0).any()\n        }\n        if blank:"
+  replace = "            if (codes < 0).any()\n        }\n        if len(blank) > 1:"
+  models = "a frame blank in one key column only is admitted. Both the validator and ingestion now read the same scan, so weakening it here removes the refusal from every path at once: a blank unit adds a donor column and a blank period adds a period, which moves pre_periods"
 
 [[target]]
 name = "missing-key-refusal-config"
@@ -882,3 +882,51 @@ timeout = 600.0
   find = "            for column in (unitid, time)"
   replace = "            for column in (unitid, outcome)"
   models = "the config guarding the wrong columns: a blank outcome is refused, which the estimators that tolerate missing outcomes rely on being allowed, and a blank time period -- the one that moves pre_periods -- passes construction untouched"
+
+[[target]]
+name = "shared-key-scan"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_panel_key_scan.py mlsynth/tests/test_datautils.py mlsynth/tests/test_missing_key_rejection.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "supplied-scan-used-without-checking-whose-it-is"
+  find = "    if not keys.is_for(df, unit_column, time_column):"
+  replace = "    if False:"
+  models = "a scan taken from one panel applied to another. The codes index cells of the first panel, so the second panel's values scatter into positions derived from a frame they have nothing to do with -- and the result is a well-formed wide frame of the right shape holding the wrong numbers, which no shape or dtype check downstream can see"
+
+  [[target.mutant]]
+  id = "scan-identity-answered-by-shape"
+  find = "        return (df is self._frame\n                and unit_column == self.unit_column\n                and time_column == self.time_column)"
+  replace = "        return (len(df) == self.n_rows\n                and unit_column == self.unit_column\n                and time_column == self.time_column)"
+  models = "identity weakened to a row count. Two panels of the same length with different unit orderings then share a scan, so the values land in each other's cells while every count still agrees"
+
+  [[target.mutant]]
+  id = "dataprep-rescans-per-pivot-again"
+  find = "    keys = _keys_for(df, unit_id_column_name, time_period_column_name, keys)\n\n    # Pivot the treatment indicator"
+  replace = "    keys = None\n\n    # Pivot the treatment indicator"
+  models = "the scan discarded at the top of dataprep, so each pivot takes its own again. Every number is still right -- this is the state the fix left -- and only a count of the passes over the panel can see it"
+
+  [[target.mutant]]
+  id = "cohort-branch-rebuilds-the-treatment-pivot"
+  find = "        treatment_matrix_wide_multi = treatment_matrix_wide"
+  replace = "        treatment_matrix_wide_multi = _wide_pivot(df, index=time_period_column_name, columns=unit_id_column_name, values=treatment_indicator_column_name, keys=keys)"
+  models = "the cohort branch building the treatment pivot a second time. The frames are equal, so no cohort onset moves and no output changes; the only visible difference is a third pivot of a panel that was already pivoted"
+
+  [[target.mutant]]
+  id = "axis-sorts-recomputed-per-pivot"
+  find = "    su = keys.unit_order                  # match pivot's sorted axes\n    st = keys.time_order"
+  replace = "    su = np.argsort(np.asarray(u_uniq), kind=\"stable\")\n    st = np.argsort(np.asarray(t_uniq), kind=\"stable\")"
+  models = "the axis sorts taken again on every pivot instead of once per panel. The permutations are identical, so the frames are identical, and the cost returns without any output moving"
+
+  [[target.mutant]]
+  id = "cached-scan-recomputed-on-every-read"
+  find = "        if self._cell is None:"
+  replace = "        if True:"
+  models = "the cell index rebuilt on every access instead of once. The value is the same each time, so the panel still reads correctly and the duplicate check still agrees -- it is the caching, not the arithmetic, that the shared scan is for"
+
+  [[target.mutant]]
+  id = "covariate-pivots-rescan-the-panel"
+  find = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov,\n                            keys=keys)"
+  replace = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov)"
+  models = "one scan per covariate instead of one for the panel. A ten-covariate panel is scanned eleven times, and every covariate matrix is correct, so nothing but a pass count reports it"
