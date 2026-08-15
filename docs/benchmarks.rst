@@ -332,6 +332,10 @@ Cross-validation against reference implementations
      - LINF vs LinfinitySC (skips if absent)
    * - ``mcnnm_prop99``
      - vs authors' MCPanel R (mcnnm_cv; ATT + California counterfactual path)
+   * - ``lpca_kansas``
+     - vs Feng's own replication scripts (2012 Kansas tax cut): the LPCA counterfactual quarter by quarter, the ATT, the neighbourhood and the local rank; the run also asserts ``basedata/kansas_taxcut.csv`` equals the ``kansas.rda`` the author ships
+   * - ``lpca_mc``
+     - vs Feng's own simulation harness on the three Section 5 designs: maximum absolute error and the three quantile prediction errors, per model and per neighbourhood size, on fixed panels both sides read
    * - ``microsynth_seattle``
      - vs R microsynth panel method (Seattle DMI)
    * - ``mlsc_bottmer``

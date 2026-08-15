@@ -24,6 +24,8 @@ CASES = {
     "sdid_euets": "benchmarks.cases.sdid_euets",  # Path A: Basaglia-Grunau-Drupp 2024 PNAS EU ETS co-benefits, the SDID robustness half -- three pollutants reproduce the authors' Stata sdid log to 3e-4 once the covariate row rule matches; records that Stata's projected fits beta on never-treated units only while Kranz (and mlsynth) use every untreated row      # cross-val vs authors' synthdid R (Prop 99)
     "sdid_ddd_hpv": "benchmarks.cases.sdid_ddd_hpv",    # Path A: SDID synthetic triple difference (Zhuang 2024) on Virginia HPV mandate (Feldman-Semprini 2026); SC-DDD +1.559 / naive SC-DD +0.252 vs Stata sdid
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
+    "lpca_kansas": "benchmarks.cases.lpca_kansas",      # cross-val vs Feng's own R (Kansas tax cut)
+    "lpca_mc": "benchmarks.cases.lpca_mc",              # cross-val vs Feng's own R (Section 5 designs)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "spsydid_lawa_diff": "benchmarks.cases.spsydid_lawa_diff",  # differential cross-val vs authors' functions_ssdid on the real Arizona LAWA CPS panel (SpSyDiD.fit() ATT + spillover agree to solver tolerance under canonical convention)
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",
