@@ -502,6 +502,13 @@ def pda_prediction_intervals(
     # Bootstrap.
     resid_centered = resid_pre - resid_pre.mean()
     S = np.empty((n_boot, T1))
+    # The unstudentized post-period prediction errors. The per-period
+    # intervals below need only the studentized ``S``, but a cumulative band
+    # has to accumulate the errors on their own scale before taking a
+    # standard error -- studentizing per period first would divide each
+    # horizon by a different number and destroy the correlation the running
+    # total depends on.
+    E = np.empty((n_boot, T1))
     # A draw whose refit saturates the bootstrap pre-period leaves a residual
     # scale of order 1e-15 while its post-period extrapolation error stays O(1),
     # so the studentized statistic reaches ~1e15 and drags the quantiles with
@@ -532,11 +539,14 @@ def pda_prediction_intervals(
         ):
             degenerate[b] = True
             S[b] = 0.0          # excluded below; keeps the array finite
+            E[b] = 0.0
             continue
         S[b] = e_star_post / np.where(se_star > 0, se_star, np.inf)
+        E[b] = e_star_post
 
     n_degenerate = int(degenerate.sum())
     S = S[~degenerate]
+    E = E[~degenerate]
     if S.shape[0] < 2:
         raise MlsynthEstimationError(
             f"{n_degenerate} of {n_boot} bootstrap draws were degenerate "
@@ -576,7 +586,16 @@ def pda_prediction_intervals(
         "n_boot_effective": int(n_boot - n_degenerate),
         "post_periods": int(T1),
         "studentization": studentization,
+        # Which multiplier scheme produced these -- Algorithm 2.1's dependent
+        # wild bootstrap or Remark 2.2's i.i.d. one. A band built under each
+        # is not the same number, so the result has to say which it is.
+        "dependent": bool(dependent),
         "se": se if np.ndim(se) else np.full(T1, float(se)),
+        # Raw (unstudentized) post-period prediction errors, one row per usable
+        # draw. The per-period intervals do not need them -- a cumulative band
+        # does, because the running total's standard error has to come from
+        # accumulating the errors before scaling, not after.
+        "error_paths": E,
         "effect": eff_block,
         "counterfactual": cf_block,
     }

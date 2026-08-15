@@ -689,3 +689,52 @@ timeout = 300.0
     best = max(runs, key=len)
     return float(best.min()), float(best.max())"""
   models = "reporting the largest contiguous accepted run instead of the range of the accepted set. A conformal p-value need not be unimodal in the candidate, so the accepted set can have interior gaps; taking the longest run drops candidates the test accepted and reports an interval narrower than the one the procedure defines"
+
+[[target]]
+name = "pda-cumulative-band"
+module-path = "mlsynth/utils/pda_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_cumulative_band.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scale-one-period-instead-of-accumulating"
+  find = "    cum = cumulative_from_paths(R)"
+  replace = "    cum = np.sqrt(np.arange(1, R.shape[1] + 1))[None, :] * R[:, :1]"
+  models = "the sqrt(L) shortcut: take the first period's error and grow it by the square root of the horizon. It is the textbook width for independent errors and looks right on any panel whose estimation error happens to be negligible, but it stops reading the replicates, so a persistent donor-fit error -- the normal case -- is invisible and the band is too narrow"
+
+  [[target.mutant]]
+  id = "sum-the-period-standard-errors"
+  find = "    se = jackknife_se(cum, jackknife=False)      # bootstrap draws, no LOO inflation"
+  replace = "    se = np.cumsum(jackknife_se(R, jackknife=False))"
+  models = "accumulating the standard errors rather than the paths -- the endpoint-summing error written in the scale rather than the interval. It asserts perfectly correlated period errors, so the band grows like L on every panel and is the widest thing anyone builds"
+
+  [[target.mutant]]
+  id = "pointwise-critical-value"
+  find = "    q = supt_critical_value(cum, alpha=float(alpha), n_sims=n_sims, seed=seed)"
+  replace = "    q = float(norm.ppf(1.0 - float(alpha) / 2.0))"
+  models = "reading the cumulative path with a pointwise multiplier. Every individual horizon still covers at 1 - alpha, so nothing looks wrong at any single L, but the path as a whole -- which is how a cumulative band is read -- covers at well below the stated level"
+
+  [[target.mutant]]
+  id = "keep-the-failed-replicates"
+  find = "    R = R[np.isfinite(R).all(axis=1)]"
+  replace = "    R = np.nan_to_num(R, nan=0.0)"
+  models = "letting a replicate whose refit failed contribute a zero path instead of dropping it. Zeros sit at the centre of the distribution, so they shrink the standard error and hand back a tighter band than the surviving draws support"
+
+[[target]]
+name = "pda-pi-dependent"
+module-path = "mlsynth/utils/pda_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_pi_dependent.py -q -p no:cacheprovider"
+timeout = 400.0
+
+  [[target.mutant]]
+  id = "drop-the-flag-on-the-floor"
+  find = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                dependent=pi_dependent)"""
+  replace = "                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)"
+  models = "the defect the plumbing removes, and the one that was actually there: a config field the caller can set that never reaches the bootstrap. Every fit still succeeds and the default behaviour is unchanged, so nothing looks wrong -- the flag simply does nothing, which is worse than its absence because it invites a caller to believe they chose Remark 2.2 when they are still running Algorithm 2.1"
+
+  [[target.mutant]]
+  id = "invert-the-flag"
+  find = "                dependent=pi_dependent)"
+  replace = "                dependent=not pi_dependent)"
+  models = "passing the flag through backwards. The result then records the opposite of what was run, so a band built under the i.i.d. multipliers is labelled as the paper's algorithm -- the one failure that survives being written down"
