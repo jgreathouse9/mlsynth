@@ -119,3 +119,33 @@ class TestConcurrency:
 
     def test_a_superseded_pull_request_run_is_cancelled(self, workflow):
         assert "pull_request" in str(workflow["concurrency"]["cancel-in-progress"])
+
+
+class TestTheTimeoutFitsTheSlowestShard:
+    """Round-robin balances case count, not case cost.
+
+    On the first pull-request run the eight shards' benchmark steps took 6, 17,
+    8, 10, 19, 10, 14 minutes -- and shard 7, which drew most of the Monte Carlo
+    cases, was still running when a 45-minute cap killed it. A killed shard is
+    the worst outcome available: its cases neither pass nor fail, no report is
+    written, and the run reports `cancelled` rather than red, so roughly an
+    eighth of the suite goes unexamined while the PR looks merely unstable.
+
+    The floor is set against the daily suite, which has run this registry to
+    completion for months at 90 minutes with R provisioning on top. Adding heavy
+    cases moves the slowest shard, not the average, so this is the number to
+    revisit -- by raising the shard count -- when a shard next approaches it.
+    """
+
+    #: Minutes. Below this a heavy shard is at risk of being cancelled.
+    FLOOR = 60
+
+    @pytest.mark.parametrize("job", SHARDED_JOBS)
+    def test_the_timeout_clears_the_floor(self, jobs, job):
+        assert jobs[job]["timeout-minutes"] >= self.FLOOR
+
+    def test_the_pr_timeout_is_not_tighter_than_the_daily_one(self, jobs):
+        """The PR job runs the same cases on more shards but without R, so its
+        per-shard work is lower -- never give it a tighter cap than the run
+        that is known to complete."""
+        assert jobs["pr-suite"]["timeout-minutes"] >= jobs["suite"]["timeout-minutes"]

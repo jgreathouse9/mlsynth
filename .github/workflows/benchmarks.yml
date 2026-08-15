@@ -190,7 +190,15 @@ jobs:
   pr-suite:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Matches the daily suite, which runs this registry to completion with R
+    # provisioning on top. Round-robin balances case count, not case cost: on
+    # the first PR run the shards' benchmark steps ranged from 6 to 19 minutes
+    # while shard 7, holding most of the Monte Carlo cases, exceeded a 45-minute
+    # cap and was cancelled -- and a cancelled shard neither passes nor fails
+    # its cases, writes no report, and leaves the run merely "unstable". Adding
+    # heavy cases moves the slowest shard, not the average, so raise the shard
+    # count when one next approaches this.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
