@@ -10,6 +10,18 @@ canonicalisation overhead in the hot conformal / market-selection loops.
 ``scipy.linalg.lstsq``. The free sets here are small enough that the wrapper's
 fixed per-call cost exceeded the LAPACK work it wrapped.
 
+A cold solve seeds itself. Starting from the uniform point, the active set has
+to shed one donor per pivot until only the support is left, so its work scales
+with the *pool* and not with the support it ends on: on factor panels the pivot
+count runs 0.6 to 0.9 times ``J`` from ``J = 20`` to ``J = 320``, while the
+support grows 7 to 43. A Gram-collapsed FISTA warm start
+(:func:`mlsynth.utils.bilevel.accelerate.fista_warm_start`) names that support
+up front and the same pivot counts drop to 0 or 1. So for a pool of at least
+``ACCEL_MIN_DONORS``, with no warm start from the caller, the seed is computed
+here -- once, for every caller -- instead of at a call site. It is speed only:
+the exact active set still determines the weights, and a seed it cannot use is
+discarded. Pass ``accelerate=False`` to force the cold path.
+
 The correctness contract -- cvxpy parity, a solver-independent KKT certificate,
 and a fuzzed differential test -- is pinned in
 ``tests/test_simplex_active_set.py``; the LAPACK call's bit-identity to the
@@ -21,6 +33,8 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 from scipy.linalg import get_lapack_funcs
+
+from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
 
 # Workspace size and LAPACK handle per free-set shape. The active set solves a
 # sequence of small systems whose shapes repeat across pivots, units and
@@ -70,6 +84,7 @@ def solve_simplex_qp(
     tol: float = 1e-9,
     max_iter: Optional[int] = None,
     return_info: bool = False,
+    accelerate: bool = True,
 ):
     """Minimise ``||A - B w||^2`` over ``w >= 0, sum(w) == 1``.
 
@@ -90,6 +105,10 @@ def solve_simplex_qp(
     return_info : bool
         If ``True`` also return a diagnostics dict (``iterations``, ``pivots``,
         ``converged``) so the performance tests can assert bounded work.
+    accelerate : bool
+        Whether a cold solve on a pool of at least ``ACCEL_MIN_DONORS`` may seed
+        itself with a FISTA warm start (default ``True``). Set ``False`` for the
+        cold path -- it changes the work, not the weights.
 
     Returns
     -------
@@ -124,7 +143,10 @@ def solve_simplex_qp(
     c = B.T @ A
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;
-    # otherwise the uniform point.
+    # otherwise the uniform point. A wide pool with nothing from the caller
+    # seeds itself, since the uniform point costs a pivot per donor.
+    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:
+        warm_start = fista_warm_start(B, A)
     w = None
     if warm_start is not None:
         ws = np.asarray(warm_start, dtype=float).ravel()

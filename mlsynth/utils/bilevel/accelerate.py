@@ -16,6 +16,12 @@ FISTA converges to the neighbourhood of the optimum -- and hence the right
 support -- in a few hundred cheap iterations; the exact active-set then certifies
 from that warm start in a handful of pivots.
 
+The support arrives before the weights do, and the support is all the active set
+is being told, so the loop stops on the support and not on the iterate: see
+``SUPPORT_PATIENCE``. :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`
+calls this itself for a wide enough pool, so the seed is a property of the solver
+and reaches every caller.
+
 The accelerator is *speed only*. It supplies a feasible warm start; the exact
 active-set (with the cvxpy fallback) still determines the returned weights, so
 the answer is unchanged for any warm start. Correctness therefore never depends
@@ -23,6 +29,9 @@ on FISTA converging, the Lipschitz estimate being tight, or the problem being
 well-conditioned -- only the runtime does.
 """
 from __future__ import annotations
+
+import numbers
+from typing import Optional
 
 import numpy as np
 
@@ -32,6 +41,34 @@ import numpy as np
 # J = 16 -- stay comfortably on the untouched fast path). Also skipped whenever
 # the caller already supplies a warm start (e.g. the conformal / placebo loops).
 ACCEL_MIN_DONORS = 80
+
+# A coordinate counts as in the support above this. It is the tolerance
+# ``solve_simplex_qp`` itself reads when it turns a warm start into an active
+# set (``active = w <= tol``, ``tol = 1e-9``), so the two agree on what the seed
+# is saying.
+SUPPORT_TOL = 1e-9
+# Consecutive iterations the support must hold before the warm start returns --
+# a quarter of the default budget. The seed's job is to name the support, so
+# once it stops moving the remaining iterations refine weights the exact solve
+# is about to recompute: on the SDID programs of a 101x120 panel the support is
+# final by iteration ~150 of 400.
+#
+# The margin is what the number is for, and it is asymmetric. One saved
+# iteration is worth ~44 us; one extra pivot the seed fails to save costs
+# ~1.2 ms on a 96x99 free set, or about 27 iterations. A stop that fires while
+# the support is still moving therefore loses even when it saves most of the
+# loop, and a design whose support never settles -- the outcome-only SC program
+# of that same panel -- must simply run to ``max_iter``. At a patience of 25
+# that program stopped at iteration 376 with a seed three donors worse and paid
+# 12 percent for it; at 100 the stop does not fire there at all, while SDID's
+# two programs still stop at 261 and 231.
+SUPPORT_PATIENCE = 100
+# Iterations between support samples. The test is three numpy calls on a
+# J-vector, which is ~11 percent of an iteration at these sizes -- enough that
+# checking every iteration cost more than the stop saved on any design where it
+# did not fire. Sampling makes the bookkeeping free and costs at most one
+# sampling interval of lateness.
+SUPPORT_CHECK_EVERY = 10
 
 
 def simplex_project(v: np.ndarray) -> np.ndarray:
@@ -76,13 +113,62 @@ def _spectral_bound(G: np.ndarray, iters: int = 50) -> float:
 
 
 def fista_warm_start(B: np.ndarray, A: np.ndarray, *,
-                     max_iter: int = 400, tol: float = 1e-7) -> np.ndarray:
+                     max_iter: int = 400, tol: float = 1e-7,
+                     support_patience: Optional[int] = SUPPORT_PATIENCE
+                     ) -> np.ndarray:
     """A feasible, near-optimal warm start for ``min ||A - B w||^2`` on the
     simplex, via Gram-collapsed FISTA.
 
     Deterministic. Returns a point on the simplex; it is intended to seed the
     exact active-set solver, not to be used as the final solution.
+
+    Two rules stop the loop. ``tol`` is the usual one, on how far the iterate
+    moved. ``support_patience`` is the one that matters for the job: once the
+    support has been unchanged for that many consecutive iterations, the active
+    set already has everything this function can tell it, and the remaining
+    iterations only refine weights the exact solve is about to recompute. On the
+    two SDID programs of a 101x120 panel the support is final by iteration ~150
+    while the iterate is still moving at 400; the stop fires at 261 and 231 and
+    takes those two programs from 50.0 ms to 36.7 ms end to end. Pass ``None`` to
+    stop on ``tol`` and ``max_iter`` alone.
+
+    The support is sampled every ``SUPPORT_CHECK_EVERY`` iterations, and the
+    counter arms only after the first coordinate is pinned. Both exist because a
+    seed that is *nearly* right is not most of the benefit: an extra pivot costs
+    about 27 iterations, so a stop that fires while the support is still moving
+    is a loss even when it saves most of the loop. On the outcome-only SC program
+    of that same panel the support never settles and the loop correctly runs to
+    ``max_iter``.
+
+    Stopping earlier gives a coarser seed, never a wrong answer: the active set
+    certifies KKT optimality on the design, whatever point it starts from.
+
+    Parameters
+    ----------
+    B : numpy.ndarray, shape (m, J)
+        Donor matching matrix.
+    A : numpy.ndarray, shape (m,)
+        Treated unit's matching vector.
+    max_iter : int
+        Hard cap on iterations.
+    tol : float
+        Stop when the iterate moves less than this in the sup norm.
+    support_patience : int or None
+        Stop when the support (``w > SUPPORT_TOL``) has held for this many
+        consecutive iterations, sampled every ``SUPPORT_CHECK_EVERY`` of them.
+        ``None`` disables the rule.
+
+    Returns
+    -------
+    numpy.ndarray, shape (J,)
     """
+    if support_patience is not None and (
+            not isinstance(support_patience, numbers.Integral)
+            or support_patience < 1):
+        raise ValueError(
+            "support_patience must be a positive integer or None, got "
+            f"{support_patience!r}."
+        )
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
     J = B.shape[1]
@@ -96,13 +182,34 @@ def fista_warm_start(B: np.ndarray, A: np.ndarray, *,
     w = np.full(J, 1.0 / J)
     y = w.copy()
     t = 1.0
-    for _ in range(max_iter):
+    support = None
+    held = 0
+    holds_needed = (None if support_patience is None
+                    else max(1, -(-support_patience // SUPPORT_CHECK_EVERY)))
+    for i in range(max_iter):
         w_new = simplex_project(y - (2.0 * (G @ y - c)) / L)
         t_new = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * t * t))
         y = w_new + ((t - 1.0) / t_new) * (w_new - w)
         if np.max(np.abs(w_new - w)) < tol:
             w = w_new
             break
+        if holds_needed is not None and i % SUPPORT_CHECK_EVERY == 0:
+            current = w_new > SUPPORT_TOL
+            # The counter arms only once FISTA has begun pinning coordinates.
+            # It starts at the uniform point, where every coordinate is
+            # positive, so an unarmed counter reads that plateau as a support
+            # that has settled and returns the whole pool as the seed -- which
+            # is the uniform start under another name, and leaves the active set
+            # the full cold pivot count. Measured on a 96x100 SC design whose
+            # optimum has 16 donors: unarmed, the seed named all 100 and the
+            # solve took the cold 84 pivots; armed, it names 49 and takes 33.
+            armed = int(current.sum()) < J
+            held = held + 1 if (armed and support is not None
+                                and np.array_equal(current, support)) else 0
+            support = current
+            if held >= holds_needed:
+                w = w_new
+                break
         w = w_new
         t = t_new
     return w
