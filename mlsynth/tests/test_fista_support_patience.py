@@ -226,7 +226,91 @@ class TestTheCounterArms:
 
 
 # --------------------------------------------------------------------------- #
-# 5. edges
+# 5. the counter's mechanics, on scripted iterates
+# --------------------------------------------------------------------------- #
+class TestTheCounterMechanics:
+    """The two rules the counter runs on, tested where they bite.
+
+    Which iteration the stop fires at is a property of the counter, not of any
+    design, and on an easy design both the right rule and a wrong one land in
+    the same place. So these drive the loop with a scripted sequence of iterates
+    and assert the firing iteration directly.
+    """
+
+    @staticmethod
+    def _run(script, **kwargs):
+        """Run the loop on ``script[i]`` as the i-th iterate; return the
+        iteration it stopped at."""
+        rng = np.random.default_rng(0)
+        J = script[0].shape[0]
+        B = rng.standard_normal((3 * J, J))
+        A = rng.standard_normal(3 * J)
+        calls = {"n": 0}
+        real = accelerate.simplex_project
+
+        def scripted(_v):
+            i = calls["n"]
+            calls["n"] += 1
+            return script[min(i, len(script) - 1)].copy()
+
+        accelerate.simplex_project = scripted
+        try:
+            fista_warm_start(B, A, **kwargs)
+        finally:
+            accelerate.simplex_project = real
+        return calls["n"]
+
+    @staticmethod
+    def _point(support, J, jitter):
+        """A simplex point supported on ``support``, moved by ``jitter`` so the
+        ``tol`` rule never fires and only the support rule is under test."""
+        w = np.zeros(J)
+        w[list(support)] = 1.0 / len(support)
+        w[support[0]] += jitter
+        w[support[-1]] -= jitter
+        return w
+
+    def test_the_uniform_plateau_does_not_count(self):
+        """Every coordinate positive is the state the loop *starts* in. Counting
+        it means firing on a support that has not moved because it has not
+        started, and returning the whole pool as the seed."""
+        J = 6
+        full = list(range(J))
+        script = [self._point(full, J, 0.01 * (1 + k % 3)) for k in range(400)]
+        assert self._run(script, support_patience=30) == 400
+
+    def test_holds_must_be_consecutive(self):
+        """A support that keeps changing must reset the counter. Accumulating
+        holds instead lets a flickering support reach the threshold and stop the
+        loop while the seed is still moving."""
+        J = 6
+        settled, flicker = [0, 1], [0, 1, 2]
+        pattern = ([full_pool := list(range(J))] * 10
+                   + [settled] * 20 + [flicker] * 10 + [settled] * 10
+                   + [flicker] * 10 + [settled] * 340)
+        script = [self._point(pattern[k], J, 0.001 * (1 + k % 5))
+                  for k in range(400)]
+        # holds_needed = 3 at patience 30, samples every 10 iterations.
+        stopped = self._run(script, support_patience=30)
+        # Consecutive: the runs of `settled` are broken twice, so the third
+        # consecutive hold only lands after the last break. Cumulative counting
+        # would have reached three holds during the earlier runs and stopped
+        # sooner.
+        assert stopped > 60
+
+    def test_sampling_interval_is_honoured(self):
+        """The support is read every ``SUPPORT_CHECK_EVERY`` iterations, so a
+        patience of one interval fires on the second sample -- the first has
+        nothing to compare against."""
+        J = 5
+        settled = [0, 1]
+        script = [self._point(settled, J, 0.001 * (1 + k % 4)) for k in range(400)]
+        stopped = self._run(script, support_patience=SUPPORT_CHECK_EVERY)
+        assert stopped == SUPPORT_CHECK_EVERY + 1
+
+
+# --------------------------------------------------------------------------- #
+# 6. edges
 # --------------------------------------------------------------------------- #
 class TestEdges:
     def test_single_donor_returns_the_vertex_without_iterating(self):
@@ -277,7 +361,7 @@ class TestEdges:
 
 
 # --------------------------------------------------------------------------- #
-# 6. failure -- a bad knob is reported, not absorbed
+# 7. failure -- a bad knob is reported, not absorbed
 # --------------------------------------------------------------------------- #
 class TestFailures:
     @pytest.mark.parametrize("bad", [0, -1, -25])
