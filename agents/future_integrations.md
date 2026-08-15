@@ -2158,11 +2158,50 @@ not, and Nevada is insignificant at first, then negative and significant in
   supplies.** It compares against none of `RRSC`, `SPSYDID` or Cao-Dowd, so the
   "which do I pick" question would have to be answered by us, not cited.
 
+### From the smoke replicate
+
+A pre-build spike ported Algorithm A.1 and the factor projection from the
+equations and ran Setup 1 of the Section 5 Monte Carlo. It did not survive as
+code -- the port was a throwaway -- but three things it established should
+outlive it.
+
+* **The first-order condition for `rho` is correct as printed.** Handed the true
+  loadings and error variances, solving it alone recovers the spatial parameter
+  with textbook consistency: bias −0.013 at `N0 = T0 = 25`, −0.0013 at 100,
+  −0.0008 at 200. The spatial half of the method is sound and can be ported
+  directly.
+* **Algorithm A.1's step order is ambiguous, and the reading changes the
+  answer.** Its second bullet forms `Sigma_u^(n+1)` from a residual containing
+  `F`, and its fourth bullet computes `F^(n+1)`. Read literally, the variance
+  update consumes an `F` from the previous iteration -- produced under a
+  different `Sigma_u` and `rho` -- while `Lambda^(n+1)` comes from the current
+  SVD, so the two do not belong to the same factorisation. Taking `F` from the
+  same SVD makes `Lambda F'` the rank-`r` reconstruction of `(I - rho W) Y`,
+  which is what the residual should measure against. On Setup 1 at
+  `N0 = T0 = 25` the literal order gives `rho` bias −0.181 against −0.038, and
+  convergence goes from 24 of 200 replications to 199 of 200. Whichever the
+  authors intended, a build has to decide this and the PDF does not say.
+* **Table 5.2's RMSE cell is probably the bias-corrected estimate.** The spike
+  reproduced the bias (−0.026 against 0.010) but not the RMSE (1.167 against
+  1.688), and the direction is informative -- the port came out *more* accurate
+  than the paper reports, where a defective port is normally worse. Section 5
+  runs 1000 resamples with bias correction per replication, and a bias
+  correction buys bias at the cost of variance. Since the treated unit carries
+  no spatial links in Setup 1, its error contains `u ~ N(0,1)` outright, so
+  RMSE cannot fall below 1: the two estimation errors are 0.60 against 1.36.
+
+Net effect on the estimate: the ECM and the projection are about 150 readable
+lines and run in seconds, so the *coding* is cheaper than 5-8 days implied. What
+the spike did not shorten is the risk, which it demonstrated instead -- one
+ambiguous line moved the structural parameter by five times its own bias, and
+nothing in the paper flags which reading is meant.
+
 ### Unblock conditions
 
 Any one of: the authors release code (the MATLAB is available on request, and
-asking is cheap -- it would move the cost estimate substantially); the paper
-places in a journal; or a user brings a panel with a credible known `W` and
+asking is cheap -- the smoke replicate above turns every open question into a
+cell-by-cell check the moment a reference exists); the paper places in a
+journal; or a user brings a panel with a credible known `W` and
 outcomes that plausibly diffuse.
 
 ---
