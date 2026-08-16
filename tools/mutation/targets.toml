@@ -1027,3 +1027,51 @@ timeout = 900.0
   find = "    idx = int(np.ceil(vals.size * float(a_star))) - 1"
   replace = "    idx = int(np.ceil(vals.size * float(a_star)))"
   models = "R's one-based sort() index used directly on a zero-based array, so every a takes the next eigenvalue up. At a* = 1 it clamps and is invisible; below that it silently over-penalises"
+
+[[target]]
+name = "ppscm-replicate-conventions"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_replicate_conventions.py -q -p no:cacheprovider"
+timeout = 2400.0
+
+  [[target.mutant]]
+  id = "the-jackknife-refits-augsynths-estimator"
+  find = "                nu=nu_refit, lam=lam, solver=solver, conventions=conventions,"
+  replace = "                nu=nu_refit, lam=lam, solver=solver,"
+  models = "#467 itself: the refit falling back to run_multisynth's defaults while the point estimate runs under the caller's. With scm weights every replicate succeeds, so the standard error is finite and plausible and belongs to a different estimator -- measured at 0.5467 and 0.5464 for two donor pools that must disagree"
+
+  [[target.mutant]]
+  id = "the-conformal-calibration-refits-augsynths-estimator"
+  find = "                lam=lam, solver=solver, conventions=conventions,"
+  replace = "                lam=lam, solver=solver,"
+  models = "the same omission at the rolling-origin calibration. Conformal scores are out-of-sample errors of the fit being calibrated; drawn from a different estimator they are errors of something else, and the band they build covers at a level nobody can state"
+
+  [[target.mutant]]
+  id = "a-nan-pooling-level-is-handed-to-the-refits"
+  find = "    nu_refit = float(nu_used) if np.isfinite(nu_used) else None"
+  replace = "    nu_refit = float(nu_used)"
+  models = "the uniform fit's NaN nu passed on to every replicate. Uniform weights pose no program and record nu_used = NaN; forwarding it means each refit is rejected, and before the finiteness guard existed it reached the CVXPY objective and raised DCPError fifty times"
+
+  [[target.mutant]]
+  id = "a-jackknife-with-nothing-left-returns-nan"
+  find = "    usable = int(np.isfinite(att_loo).sum())\n    if usable < 2:"
+  replace = "    usable = int(np.isfinite(att_loo).sum())\n    if usable < 0:"
+  models = "the post-condition removed, so a jackknife whose every refit raised returns NaN and the estimator reports standard_error=None. This is the fault that hid #467 through a whole review: the wrong estimator was being refit, and the only symptom was a missing number that read as a degenerate panel"
+
+[[target]]
+name = "ppscm-conventions-object"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_replicate_conventions.py mlsynth/tests/test_ppscm.py -q -p no:cacheprovider"
+timeout = 2400.0
+
+  [[target.mutant]]
+  id = "the-default-conventions-are-not-augsynths"
+  find = "    donor_weights: str = \"scm\"\n    base_period: str = \"all_pre\"\n    donor_pool: str = \"window\""
+  replace = "    donor_weights: str = \"scm\"\n    base_period: str = \"pre_treatment\"\n    donor_pool: str = \"window\""
+  models = "the default baseline moved off augsynth's. Every fit that names no convention changes estimator, which is the whole PPSCM port and its multisynth replication, and the event-study shape does not move -- only each cohort's level does"
+
+  [[target.mutant]]
+  id = "a-non-finite-pooling-level-reaches-the-objective"
+  find = "    if nu is not None and not np.isfinite(nu):"
+  replace = "    if nu is not None and not np.isfinite(nu) and False:"
+  models = "the finiteness guard removed, so NaN multiplies the pooled term and CVXPY reports a non-DCP objective instead of the library naming the input. The solver's message does not mention nu, which is why the original failure was read as a solver problem"
