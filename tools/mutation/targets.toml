@@ -1140,3 +1140,21 @@ timeout = 1800.0
   find = "_PROB = (np.sqrt(5.0) + 1.0) / (2.0 * np.sqrt(5.0))"
   replace = "_PROB = 0.5"
   models = "Mammen's two probabilities replaced by a coin flip, keeping his two values. The law's mean goes to 0.5 and its variance to 1.25, and neither is visible downstream: the influence function sums to zero across units, so a non-zero multiplier mean contributes nothing, and the variance error only inflates the simultaneous critical value by about twelve percent -- a band that is wider than the pointwise one either way. Only the moments themselves catch it"
+
+[[target]]
+name = "cs-ridge-limit"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_cs_ridge_limit.py mlsynth/tests/test_ppscm_callaway_santanna.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "uniform-weights-are-not-uniform"
+  find = "            Wg[donors[g]] = 1.0 / len(donors[g])"
+  replace = "            Wg[donors[g]] = 1.0 / len(donors[g]); Wg[donors[g][0]] *= 1.001"
+  models = "the closed-form limit missing the barycenter by a tenth of a percent on one donor. The estimate stays plausible and the weights still sum to one, so only a comparison against the Callaway-Sant'Anna target at machine precision separates the limit from something near it -- which is the whole claim the ridge path is making"
+
+  [[target.mutant]]
+  id = "the-limit-is-taken-over-the-wrong-donor-set"
+  find = "        Wg = np.zeros(n)\n        if len(donors[g]):\n            Wg[donors[g]] = 1.0 / len(donors[g])"
+  replace = "        Wg = np.zeros(n)\n        if len(donors[g]):\n            Wg[donors[g]] = 1.0 / n"
+  models = "the barycenter computed over every unit instead of the admissible donors, so the weights no longer sum to one. The donor pool is the one convention no lam reconciles, and normalising over the wrong set is how that distinction gets lost"

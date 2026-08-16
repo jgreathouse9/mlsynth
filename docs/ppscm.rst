@@ -179,10 +179,8 @@ The three are separate settings, because each is independently meaningful:
 ``donor_weights``
    ``"scm"`` (default) solves the partially-pooled QP; ``"uniform"`` puts equal
    weight on every admissible donor, which is the comparison Callaway-Sant'Anna
-   and Sun-Abraham make. Uniform weights have to be imposed, not approached:
-   driving ``lam`` up saturates the weights at :math:`\max_j |w_j - 1/J| =
-   3.5 \times 10^{-3}`, unmoved between :math:`\lambda = 10^9` and
-   :math:`10^{18}` at any :math:`\nu`.
+   and Sun-Abraham make. It is the :math:`\lambda \to \infty` limit of the
+   same program, written in closed form; the derivation is below.
 
 ``base_period``
    ``"all_pre"`` (default) is augsynth's: each unit's mean over its whole
@@ -212,6 +210,155 @@ On four cohorts spread over a long window the gap is about 1.2e-02. A panel with
 adoptions spread widely lands there, so a difference of that size between
 ``donor_pool="window"`` and ``donor_pool="never_treated"`` is the conventions
 disagreeing, not a bug.
+
+Why the two estimators meet: the ridge path
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The equivalence is not a coincidence of two formulas. Callaway-Sant'Anna sits at
+the end of a path the partially-pooled program already contains, and the
+conventions above are the coordinates of that endpoint. Ben-Michael, Feller and
+Rothstein introduce the :math:`\lambda` term (their Section 3) as
+
+   a term that penalizes the weights towards uniformity, with hyperparameter
+   :math:`\lambda`. While we penalize the sum of the squared weights, there are
+   many options, for example, an entropy or elastic net penalty
+
+so uniformity is what the penalty is for. Following it to its limit is what
+produces the other estimator.
+
+Step 1: the barycenter is what any such penalty selects. Let
+:math:`\Omega : \Delta^{N_0} \to \mathbb{R}` be strictly convex and
+permutation-symmetric, so :math:`\Omega(\mathbf{P}\mathbf{w}) =
+\Omega(\mathbf{w})` for every permutation matrix :math:`\mathbf{P}`. Strict
+convexity gives a unique minimiser :math:`\mathbf{w}^\star`; symmetry makes
+:math:`\mathbf{P}\mathbf{w}^\star` a minimiser too, so
+:math:`\mathbf{P}\mathbf{w}^\star = \mathbf{w}^\star` for all :math:`\mathbf{P}`,
+and the only permutation-invariant point of the simplex is its barycenter:
+
+.. math::
+
+   \operatorname*{arg\,min}_{\mathbf{w} \in \Delta^{N_0}} \Omega(\mathbf{w})
+     = \bar{\mathbf{w}} \coloneqq \tfrac{1}{N_0}\mathbf{1}.
+
+The squared norm :math:`\sum_i w_i^2` and the negative entropy
+:math:`\sum_i w_i \log w_i` are both of this form, so the alternatives BFR list
+have the same endpoint. Geometrically :math:`\bar{\mathbf{w}}` is the point of
+the simplex nearest the origin, which is why the ridge sends the weights there.
+
+Step 2: the program converges to it, and forgets :math:`\nu`. Write the
+partially-pooled objective as :math:`f_\nu(\mathbf{w}) + \lambda
+\Omega(\mathbf{w})`, equivalently :math:`\lambda^{-1} f_\nu(\mathbf{w}) +
+\Omega(\mathbf{w})`. Since :math:`\Delta^{N_0}` is compact and :math:`f_\nu`
+continuous, :math:`\lambda^{-1} f_\nu \to 0` uniformly, so
+:math:`\mathbf{w}_\lambda \to \bar{\mathbf{w}}` for every :math:`\nu`. The
+pooling dial is inert in the limit: it weights a term that has been scaled away.
+
+Step 3: the rate, and what :math:`\nu` does instead. The barycenter has every
+coordinate :math:`1/N_0 > 0`, so it lies in the relative interior and no
+non-negativity constraint is active near it. For large :math:`\lambda` the
+program is therefore smooth on the affine hull :math:`\{\mathbf{1}'\mathbf{w} =
+1\}`, and stationarity :math:`\nabla f_\nu(\mathbf{w}_\lambda) + 2\lambda
+\mathbf{w}_\lambda + \mu\mathbf{1} = \mathbf{0}` linearised at
+:math:`\bar{\mathbf{w}}` gives
+
+.. math::
+
+   \mathbf{w}_\lambda = \bar{\mathbf{w}}
+     - \frac{1}{2\lambda}\,\mathbf{P}\,\nabla f_\nu(\bar{\mathbf{w}})
+     + O(\lambda^{-2}),
+   \qquad
+   \mathbf{P} \coloneqq \mathbf{I} - \tfrac{1}{N_0}\mathbf{1}\mathbf{1}' ,
+
+with :math:`\mathbf{P}` the projection onto the simplex's tangent space. So the
+approach is first order in :math:`\lambda^{-1}` -- not the :math:`\lambda^{-1/2}`
+a boundary solution would give -- along a fixed direction that is tangent to the
+simplex. That direction is where :math:`\nu` survives: it sets the direction in
+which partially pooled SCM departs from Callaway-Sant'Anna, having no say in
+where the path ends.
+
+Measured on a three-cohort panel with 41 never-treated donors, against the
+Callaway-Sant'Anna estimate:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 40 40
+
+   * - :math:`\lambda`
+     - :math:`|\widehat{\tau} - \widehat{\tau}_{\mathrm{CS}}|`
+     - :math:`\max_i |w_i - 1/N_0|`
+   * - 0
+     - 1.0e-01
+     - 2.6e-01
+   * - 1e6
+     - 7.7e-07
+     - 1.4e-07
+   * - 1e12
+     - 7.7e-13
+     - 1.4e-13
+
+A decade of :math:`\lambda` buys a decade of accuracy, in the weights and in the
+estimate alike, down to machine precision. The scaled departure
+:math:`\lambda(\mathbf{w}_\lambda - \bar{\mathbf{w}})` settles to a fixed vector
+(norms 0.410880, 0.411064, 0.411066 at :math:`\lambda = 10^4, 10^6, 10^8`;
+direction cosine 1.000000 to eight decimals), and its size moves with
+:math:`\nu` alone -- 0.2846, 0.6152, 0.9541 at :math:`\nu = 0, 0.5, 1` -- while
+the limit does not move at all.
+
+Step 4: the endpoint is the estimator. At :math:`\bar{\mathbf{w}}`, with
+``base_period="pre_treatment"`` subtracting :math:`Y_{i,g-1}` and
+``donor_pool="never_treated"`` supplying the comparison group
+:math:`\mathcal{C}`, cohort :math:`g`'s horizon-:math:`k` effect is
+
+.. math::
+
+   \widehat{\tau}_{g,g+k}
+     = \frac{1}{n_g}\sum_{i \in \mathcal{G}_g}\bigl(Y_{i,g+k} - Y_{i,g-1}\bigr)
+     - \frac{1}{n_{\mathcal{C}}}\sum_{i \in \mathcal{C}}
+         \bigl(Y_{i,g+k} - Y_{i,g-1}\bigr)
+     = \widehat{ATT}(g, g+k),
+
+the two-period, two-group difference in differences Callaway and Sant'Anna
+identify under their Assumptions 1-4 with a never-treated comparison group. The
+common time effect cancels between the two group means, so removing it changes
+nothing. This is BFR's own reading of their Equation (9): with uniform weights
+it "is the simple average over all two-period, two-group DiD estimates", which
+they call "equivalent to recent proposals ... (see Callaway & Sant'Anna, 2020;
+Sun & Abraham, 2020)".
+
+One difference hides in that sentence. BFR average over all pre-treatment lags,
+where Callaway-Sant'Anna normalise on :math:`g-1` alone -- which is exactly the
+``base_period`` setting, and why the equivalence needs all three conventions and
+not just uniform weights.
+
+Aggregation closes it. PPSCM averages cohorts by size at each horizon and then
+averages horizons,
+
+.. math::
+
+   \widehat{\theta} = \frac{1}{H}\sum_{h} \widehat{\theta}_h ,
+   \qquad
+   \widehat{\theta}_h = \sum_{k \in \mathcal{K}_h}
+     \frac{p_k}{S_h}\,\widehat{\tau}_{g_k, g_k + h} ,
+   \quad S_h = \sum_{k \in \mathcal{K}_h} p_k ,
+
+which is Callaway-Sant'Anna's dynamic aggregation followed by an average over
+event time. It coincides with their simple aggregation when every cohort is the
+same size and reaches every horizon, and not otherwise -- so equal-sized cohorts
+hide the distinction instead of establishing it.
+
+What this does not close is the donor pool. Uniform weights and the :math:`g-1`
+baseline are choices inside the program; :math:`\mathcal{C}` is the set the
+program ranges over. When a later cohort outlives an earlier cohort's estimation
+window the two sets genuinely differ, and no :math:`\lambda` reconciles them --
+which is the regime described above.
+
+In practice ``donor_weights="uniform"`` is the limit written down instead of
+approached: exact, with no quadratic program to solve and no :math:`\lambda` for
+the caller to guess. The path matters because it explains why the two estimators
+are the same object, and it is verified in
+`test_ppscm_cs_ridge_limit.py <https://github.com/jgreathouse9/mlsynth/blob/main/mlsynth/tests/test_ppscm_cs_ridge_limit.py>`_,
+which pins every number quoted above and checks the limit against ``diff-diff``
+itself where it is installed.
 
 Inference
 ---------

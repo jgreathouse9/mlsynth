@@ -119,9 +119,13 @@ def eligible_donors(trt: np.ndarray, adopt: int, n_leads: int, donor_pool: str) 
 def uniform_weights(donors, groups, n) -> Dict[Any, np.ndarray]:
     """Equal weight on every admissible donor -- the CS/Sun-Abraham comparison.
 
-    Imposed, not approximated. Driving ``lam`` up does not reach it: the QP's
-    weights saturate at ``max|w - 1/J| = 3.47e-03`` and do not move between
-    ``lam = 1e9`` and ``1e18`` at any ``nu``.
+    The ``lam -> infinity`` limit of the partially-pooled program, in closed
+    form. The barycenter minimises ``sum_i w_i^2`` over the simplex, so the
+    solved weights approach it as the ridge grows -- at ``O(1/lam)``, for every
+    ``nu``, since the barycenter is interior and no non-negativity constraint
+    binds there. Setting this reaches the limit exactly and skips the program;
+    the QP would otherwise need a ``lam`` the caller has to guess, and would
+    still return the answer to within solver tolerance instead of exactly.
     """
     W: Dict[Any, np.ndarray] = {}
     for g in groups:
