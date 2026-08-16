@@ -1640,6 +1640,13 @@ recipe stays in the pool with its spillover taken out. The waterfall ordering
 is what lets the second affected donor borrow from the first one's cleaned
 series instead of its contaminated one.
 
+The method therefore needs at least one control it can treat as clean --
+the first affected donor has nothing else to be built from. Declaring every
+control affected leaves the waterfall with no first step, and mlsynth raises
+``MlsynthDataError`` instead of returning an estimate. When the spillover
+really does reach every control, ``method='cd'`` is the option that still
+works: it imposes a structure on the spillover instead of needing a clean pool.
+
 How much of the donor gets replaced
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

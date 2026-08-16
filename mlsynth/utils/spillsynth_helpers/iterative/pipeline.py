@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ....exceptions import MlsynthDataError
 from ..structures import IterativeFit, SpillSynthInputs
 from ..iscm.weights import build_unit_sc
 
@@ -85,12 +86,24 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
     spillover_panel_pre: dict = {}
     spillover_att: dict = {}
 
+    # The waterfall bootstraps off units that carry no spillover: the first
+    # affected donor can only be cleaned against the clean controls, and every
+    # later one against those plus the donors already cleaned. With no clean
+    # control there is no first step, and proceeding would fit an affected
+    # donor against another affected donor's contaminated outcomes.
+    if affected and not clean:
+        raise MlsynthDataError(
+            "SPILLSYNTH method='iterative': every control is declared "
+            f"affected ({len(affected)} of {N - 1}), so there is no clean "
+            "control to build the spillover-free synthetics from. Leave at "
+            "least one control out of affected_units, or use method='cd', "
+            "which imposes a spillover structure instead of needing a clean "
+            "pool."
+        )
+
     # --- waterfall: clean each affected control's outcomes ------------------
     for i in affected:
         donors = np.array(sorted(clean + cleaned))
-        if donors.size == 0:                          # nothing clean to learn from
-            cleaned.append(i)
-            continue
         _, cf, _, _, _ = build_unit_sc(
             i, donors, Y, T0, predictors=P, predictor_names=pnames,
             solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept)

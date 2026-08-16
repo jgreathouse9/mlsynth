@@ -32,7 +32,7 @@ import pytest
 
 from mlsynth import SPILLSYNTH
 from mlsynth.config_models import SPILLSYNTHConfig
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 
 _DATA = Path(__file__).resolve().parents[2] / "basedata" / "repgermany.dta"
 
@@ -202,6 +202,57 @@ def test_replace_pre_survives_a_covariate_backend(german_panel):
     b = SPILLSYNTH(dict(cfg, iterative_replace_pre=True)).fit()
     assert np.isfinite(a.att) and np.isfinite(b.att)
     assert a.att != b.att
+
+
+# --------------------------------------------------------------------------
+# the cleaning pool must itself be clean
+# --------------------------------------------------------------------------
+
+def _all_controls_affected_panel(seed=1, T=16, T0=12):
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.normal(0, 1, T)) + 40.0
+    series = {u: f + rng.normal(0, 0.1, T) for u in ("T", "A1", "A2")}
+    series["T"][T0:] += -3.0
+    series["A1"][T0:] += 4.0
+    series["A2"][T0:] += 4.0
+    rows = [{"unit": u, "time": t, "y": s[t], "d": int(u == "T" and t >= T0)}
+            for u, s in series.items() for t in range(T)]
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize("replace_pre", [False, True])
+def test_no_clean_controls_is_rejected(replace_pre):
+    """Every control declared affected leaves nothing spillover-free to learn
+    from, so the waterfall has no first step and the fit must fail."""
+    df = _all_controls_affected_panel()
+    est = SPILLSYNTH(_syn_cfg(df, affected_units=["A1", "A2"],
+                              iterative_replace_pre=replace_pre))
+    with pytest.raises(MlsynthDataError, match="clean control"):
+        est.fit()
+
+
+def test_every_reported_cleaned_unit_was_actually_cleaned():
+    """``cleaned_units`` and ``spillover_att`` describe the same set.
+
+    A unit listed as cleaned but absent from the spillover ledger was passed
+    over, and any later unit that borrowed from it was fit against contaminated
+    outcomes.
+    """
+    rng = np.random.default_rng(7)
+    T, T0 = 18, 13
+    f = np.cumsum(rng.normal(0, 1, T)) + 45.0
+    series = {u: f + rng.normal(0, 0.1, T)
+              for u in ("T", "A1", "A2", "c1", "c2")}
+    series["T"][T0:] += -4.0
+    series["A1"][T0:] += 5.0
+    series["A2"][T0:] += 3.0
+    rows = [{"unit": u, "time": t, "y": s[t], "d": int(u == "T" and t >= T0)}
+            for u, s in series.items() for t in range(T)]
+    res = SPILLSYNTH(_syn_cfg(pd.DataFrame(rows),
+                              affected_units=["A1", "A2"])).fit()
+    f_ = res.iterative
+    assert set(f_.cleaned_units) == set(f_.spillover_att)
+    assert f_.n_clean == 2
 
 
 # --------------------------------------------------------------------------

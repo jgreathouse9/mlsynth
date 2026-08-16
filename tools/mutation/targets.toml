@@ -1223,3 +1223,11 @@ timeout = 900.0
   find = "        naive_synthetic_pre=np.asarray(cf_naive[:T0]),"
   replace = "        naive_synthetic_pre=np.asarray(cf_f[:T0]),"
   models = "the naive pre-period fit read off the cleaned panel instead of the original outcomes. The two coincide exactly when replace_pre is False, so the defect is invisible in the default configuration and silently asserts that the refit changed nothing whenever it did"
+
+  [[target.mutant]]
+  id = "uncleanable-donor-passed-off-as-cleaned"
+  find = """    if affected and not clean:
+        raise MlsynthDataError("""
+  replace = """    if False:
+        raise MlsynthDataError("""
+  models = "the identification requirement dropped, so a panel with no clean control reaches the waterfall. The shape this used to take was the worst one: the first donor was skipped, appended to the cleaned list anyway, and the next donor fit against its contaminated outcomes, which returned a finite and plausible -6.93 against a true -3.0 on a three-unit panel while cleaned_units named both donors and only the one-entry spillover ledger disagreed"
