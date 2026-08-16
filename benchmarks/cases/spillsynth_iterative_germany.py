@@ -84,7 +84,8 @@ reference's live R, captured under
 ``benchmarks/reference/spillsynth_iscm_german/``. mlsynth's own cells are
 deterministic (``mscmt`` seeded at 0) and pinned tightly as regression guards.
 
-Runtime: ~5 min (four global ``mscmt`` V-optimisations).
+Runtime: ~5 s (four global ``mscmt`` V-optimisations; the previous
+"2-3 min" in this docstring was never measured).
 """
 from __future__ import annotations
 
