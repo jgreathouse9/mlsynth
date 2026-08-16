@@ -145,6 +145,8 @@ class PPSCM:
                 global_l2=fit["global_l2"], ind_l2=fit["ind_l2"],
                 scaled_global_l2=fit["scaled_global_l2"],
                 scaled_ind_l2=fit["scaled_ind_l2"],
+                max_donors=int(fit["max_donors"]),
+                balance_periods=int(fit["balance_periods"]),
                 conventions={
                     "donor_weights": self.donor_weights,
                     "base_period": self.base_period,

@@ -1158,3 +1158,21 @@ timeout = 1800.0
   find = "        Wg = np.zeros(n)\n        if len(donors[g]):\n            Wg[donors[g]] = 1.0 / len(donors[g])"
   replace = "        Wg = np.zeros(n)\n        if len(donors[g]):\n            Wg[donors[g]] = 1.0 / n"
   models = "the barycenter computed over every unit instead of the admissible donors, so the weights no longer sum to one. The donor pool is the one convention no lam reconciles, and normalising over the wrong set is how that distinction gets lost"
+
+[[target]]
+name = "ppscm-balance-shape"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_balance_shape.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "balance-periods-taken-from-the-widest-cohort"
+  find = "    periods = min(min(int(adopt_of[g]) for g in groups), int(n_lags))"
+  replace = "    periods = min(max(int(adopt_of[g]) for g in groups), int(n_lags))"
+  models = "the constraint count read off the cohort with the most history instead of the least. The binding cohort is the one that can interpolate freely, so taking the maximum reports a program better constrained than any of its parts and clears the flag exactly where it should fire"
+
+  [[target.mutant]]
+  id = "donor-pool-measured-at-its-narrowest"
+  find = "    widest = max(int(len(donors[g])) for g in groups)"
+  replace = "    widest = min(int(len(donors[g])) for g in groups)"
+  models = "the pool measured at its narrowest, so one late cohort with few admissible donors masks an early one with hundreds. Whether the program could interpolate is decided by the widest pool any cohort was given, not the tightest"
