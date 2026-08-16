@@ -164,6 +164,30 @@ class PPSCMInference:
     replicate_paths: Optional[np.ndarray] = None
     # Simultaneous band for the running total; ``None`` unless asked for.
     cumulative: Optional["PPSCMCumulativeBand"] = None
+    # ---- Callaway-Sant'Anna influence-function inference ------------------ #
+    # Populated only by ``method="influence_function"``; ``None`` for the
+    # jackknife and the bootstrap, which produce no per-cell quantities.
+    #
+    # ``ATT(g, t)`` and its standard error, keyed by the public
+    # ``(adoption time, time)`` labels. The aggregate is a weighted mean of
+    # these cells, so a reader who disagrees with the aggregation can rebuild it.
+    group_time_att: Optional[Dict[Tuple[Any, Any], float]] = None
+    group_time_se: Optional[Dict[Tuple[Any, Any], float]] = None
+    # Two bands on the same event-time path, ``(H, 2)`` each. ``pointwise_band``
+    # covers one horizon at the stated level; ``uniform_band`` covers all of
+    # them at once and is therefore never narrower. Reading a path -- "positive
+    # by horizon three and never back" -- is a statement about every horizon, so
+    # the pair is placed together to make the difference visible.
+    # ``uniform_band`` is ``None`` unless ``cband`` asked for it.
+    pointwise_band: Optional[np.ndarray] = None
+    uniform_band: Optional[np.ndarray] = None
+    # The multiplier behind ``uniform_band``; the normal quantile when none was
+    # tabulated.
+    critical_value: Optional[float] = None
+    # Per-unit, per-horizon influence functions, ``(n, H)`` -- the object every
+    # quantity above is a functional of, kept so an aggregation the estimator
+    # does not offer can still be given a standard error.
+    influence: Optional[np.ndarray] = None
 
 
 @dataclass(frozen=True)

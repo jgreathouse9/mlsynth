@@ -123,10 +123,28 @@ class PPSCMConfig(BaseEstimatorConfig):
     inference_method: str = Field(
         default="jackknife",
         description=(
-            "Inference procedure: 'jackknife' (delete-one, refit per unit) or "
+            "Inference procedure: 'jackknife' (delete-one, refit per unit), "
             "'bootstrap' (augsynth's default Mammen wild/multiplier bootstrap; "
-            "reweights the single fit, no refit). The augsynth multisynth "
-            "vignette prints the bootstrap SEs."
+            "reweights the single fit, no refit), or 'influence_function' "
+            "(Callaway-Sant'Anna's analytical standard errors, one pass over the "
+            "panel and no refit). The augsynth multisynth vignette prints the "
+            "bootstrap SEs. 'influence_function' is the interval that goes with "
+            "the Callaway-Sant'Anna point estimate, and its derivation assumes "
+            "the three conventions that produce that estimate, so it is "
+            "available only with donor_weights='uniform', "
+            "base_period='pre_treatment', donor_pool='never_treated' and "
+            "fixedeff=True; method='callaway_santanna' selects it."
+        ),
+    )
+    cband: bool = Field(
+        default=False,
+        description=(
+            "Tabulate a simultaneous (uniform) band over event-time horizons "
+            "alongside the pointwise one, by Mammen multiplier bootstrap on the "
+            "influence functions. One critical value covers every horizon at "
+            "1 - alpha, which is the level a reader assumes when they read the "
+            "path as a path; the pointwise band read that way covers less. Needs "
+            "inference_method='influence_function'. Off by default."
         ),
     )
     n_boot: int = Field(
@@ -252,14 +270,56 @@ class PPSCMConfig(BaseEstimatorConfig):
                 object.__setattr__(self, "base_period", "pre_treatment")
             if "donor_pool" not in fields:
                 object.__setattr__(self, "donor_pool", "never_treated")
+            # The preset names an estimator, and an estimator is a point
+            # estimate and an interval. It is selected only where the three
+            # conventions actually landed on Callaway-Sant'Anna, so an explicit
+            # convention alongside the preset does not turn into a
+            # configuration error about a field the caller never set.
+            if ("inference_method" not in fields
+                    and self.donor_weights == "uniform"
+                    and self.base_period == "pre_treatment"
+                    and self.donor_pool == "never_treated"
+                    and self.fixedeff):
+                object.__setattr__(self, "inference_method", "influence_function")
         return self
 
     @model_validator(mode="after")
     def _check_inference_method(self):
-        if self.inference_method not in ("jackknife", "bootstrap"):
+        if self.inference_method not in ("jackknife", "bootstrap",
+                                         "influence_function"):
             raise MlsynthConfigError(
-                "inference_method must be 'jackknife' or 'bootstrap'; got "
+                "inference_method must be 'jackknife', 'bootstrap' or "
+                f"'influence_function'; got {self.inference_method!r}.")
+        if self.inference_method == "influence_function":
+            required = {"donor_weights": "uniform",
+                        "base_period": "pre_treatment",
+                        "donor_pool": "never_treated"}
+            wrong = [f"{k}={getattr(self, k)!r} (needs {v!r})"
+                     for k, v in required.items() if getattr(self, k) != v]
+            if not self.fixedeff:
+                wrong.append("fixedeff=False (needs True)")
+            if wrong:
+                raise MlsynthConfigError(
+                    "inference_method='influence_function' is the "
+                    "Callaway-Sant'Anna standard error, and its derivation "
+                    "assumes the conventions that produce their point estimate: "
+                    "equal donor weights against a never-treated comparison "
+                    "group, normalised on the period before adoption. "
+                    + "; ".join(wrong) + ". Solved SCM weights carry an "
+                    "estimation term of their own and a not-yet-treated pool "
+                    "changes composition over time, so the formula does not "
+                    "apply; use inference_method='jackknife' or 'bootstrap' "
+                    "there.")
+        if self.cband and self.inference_method != "influence_function":
+            raise MlsynthConfigError(
+                "cband tabulates its simultaneous critical value from the "
+                "Callaway-Sant'Anna influence functions, so it needs "
+                "inference_method='influence_function'; got "
                 f"{self.inference_method!r}.")
+        if self.cband and not self.run_inference:
+            raise MlsynthConfigError(
+                "cband needs run_inference=True: with inference off there are "
+                "no influence functions to tabulate a critical value from.")
         if self.cumulative_band and not self.run_inference:
             raise MlsynthConfigError(
                 "cumulative_band needs run_inference=True: the band is built "

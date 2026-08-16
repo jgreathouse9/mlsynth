@@ -38,12 +38,20 @@ bottomed out at.
 
 from __future__ import annotations
 
+import importlib.util
+import pathlib
+
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import HealthCheck, given, settings, strategies as st
+from scipy.stats import norm
 
 from mlsynth import PPSCM
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.utils.ppscm_helpers.cs_inference import influence_function_inference
+from mlsynth.utils.ppscm_helpers.engine import Conventions, run_multisynth
+from mlsynth.utils.ppscm_helpers.setup import prepare_ppscm_inputs
 
 try:                                             # corroboration, not the oracle
     from diff_diff import CallawaySantAnna, SunAbraham
@@ -53,6 +61,14 @@ except ImportError:                              # pragma: no cover - CI without
 
 needs_diff_diff = pytest.mark.skipif(
     not HAVE_DIFF_DIFF, reason="diff-diff not installed")
+
+# The vendored transcription of ``diff-diff`` 3.9.0 at ``d9cd475``, which is the
+# oracle for inference. Loaded by path because ``benchmarks/`` is not a package.
+_REF_PATH = (pathlib.Path(__file__).resolve().parents[2]
+             / "benchmarks" / "reference" / "ppscm_cs" / "reference.py")
+_spec = importlib.util.spec_from_file_location("_ppscm_cs_reference", _REF_PATH)
+REF = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(REF)
 
 
 # --------------------------------------------------------------------------- #
@@ -67,7 +83,7 @@ def cs_group_time(df, outcome="y", unit="id", time="time", first_treat="first_tr
         ATT(g,t) = mean_{i in G_g}(Y_it - Y_{i,g-1})
                  - mean_{i in C} (Y_it - Y_{i,g-1})
 
-    Transcribed rather than imported so the identity this module exists to prove
+    Transcribed instead of imported so the identity this module exists to prove
     is enforced wherever the suite runs, and not only where ``diff-diff`` is
     installed. The imported package is compared against separately, which is
     what keeps this transcription honest.
@@ -96,16 +112,21 @@ def oracle_att(df, L):
 # --------------------------------------------------------------------------- #
 # panels
 # --------------------------------------------------------------------------- #
-def staggered(onsets, k=3, n_units=50, n_per=30, seed=0, effect="const"):
+def staggered(onsets, k=3, n_units=50, n_per=30, seed=0, effect="const",
+              sizes=None):
     """Never-treated donors plus cohorts adopting at ``onsets``.
 
     ``effect`` selects the treatment-effect structure, since an identity that
-    only holds for a constant effect would be an artefact of the DGP.
+    only holds for a constant effect would be an artefact of the DGP. ``sizes``
+    gives the cohorts different memberships, which is what separates
+    Callaway-Sant'Anna's size-weighted aggregation from their unweighted one --
+    equal cohorts make the two coincide and hide the distinction.
     """
     rng = np.random.default_rng(seed)
+    sizes = [k] * len(onsets) if sizes is None else list(sizes)
     assign, u = {}, 0
-    for g in onsets:
-        for _ in range(k):
+    for g, size in zip(onsets, sizes):
+        for _ in range(size):
             assign[u] = g
             u += 1
     rows = []
@@ -161,6 +182,59 @@ def reference_sa(df, L):
 
 def leads_of(res):
     return len(next(iter(res.per_unit.values())).tau)
+
+
+# --------------------------------------------------------------------------- #
+# the vendored reference, as an inference oracle
+# --------------------------------------------------------------------------- #
+def ref_parts(df):
+    eff, ses, inf = REF.group_time_att(df, "y", "id", "time", "first_treat")
+    return eff, ses, inf, df.groupby("id")["first_treat"].first().to_numpy()
+
+
+def cells_of(df, L):
+    """The ``(g, t)`` cells PPSCM aggregates: leads ``0 .. L-1`` of each cohort."""
+    eff, _, _, _ = ref_parts(df)
+    return [(g, t) for (g, t) in eff if 0 <= t - g < L]
+
+
+def ref_aggregate(df, L, *, size_weighted=False, wif=True):
+    """The reference's aggregate over PPSCM's cells.
+
+    ``size_weighted`` hands it the cohort-share weights PPSCM uses; its own
+    default is an unweighted mean over cells, and the two agree only when the
+    cohorts are the same size. ``wif=False`` deletes the weight-influence
+    correction, which is how its absence is measured instead of assumed.
+    """
+    eff, _, inf, cohort = ref_parts(df)
+    cells = cells_of(df, L)
+    w = None
+    if size_weighted:
+        pg = np.array([(cohort == g).sum() / cohort.shape[0] for g, _ in cells])
+        w = pg / pg.sum()
+    if wif:
+        est, se, _ = REF.aggregate(cells, eff, inf, cohort, weights=w)
+        return est, se
+    w = np.full(len(cells), 1.0 / len(cells)) if w is None else w
+    psi = np.zeros(cohort.shape[0])
+    for k, c in enumerate(cells):
+        psi[inf[c]["treated_idx"]] += w[k] * inf[c]["treated_inf"]
+        psi[inf[c]["control_idx"]] += w[k] * inf[c]["control_inf"]
+    est = float(np.array([eff[c] for c in cells]) @ w)
+    return est, float(np.sqrt((psi ** 2).sum()))
+
+
+def _refit(df):
+    """The raw ``run_multisynth`` dictionary, for testing the module directly."""
+    inputs = prepare_ppscm_inputs(df[["id", "time", "y", "d"]], outcome="y",
+                                  treat="d", unitid="id", time="time")
+    T, d = inputs.Xy.shape[1], inputs.n_pre
+    return run_multisynth(inputs.Xy, inputs.trt, d, T - d, d,
+                          fixedeff=True, time_cohort=False,
+                          conventions=Conventions(
+                              donor_weights="uniform",
+                              base_period="pre_treatment",
+                              donor_pool="never_treated"))
 
 
 # shapes where every non-focal cohort adopts inside the focal cohort's window,
@@ -329,50 +403,67 @@ class TestDocumentedDivergence:
 # =========================================================================== #
 # 5. inference -- separate from estimation on purpose
 # =========================================================================== #
-@pytest.mark.xfail(strict=True, reason=(
-    "Influence-function inference is the second half of #465 and is not built "
-    "yet. These are written first and left strict on purpose: they fail now, "
-    "and the moment the inference lands they flip to unexpected passes, which "
-    "is what removes this marker. PPSCM's jackknife is still what runs, and "
-    "``parameters_used['inference_method']`` says so."))
 class TestInference:
-    @pytest.mark.parametrize("name,onsets,k", ALIGNED[:3])
-    def test_per_cell_standard_errors_match(self, name, onsets, k):
-        df = staggered(onsets, k=k)
-        res = fit_cs_mode(df, run_inference=True)
-        _, ref = reference_cs(df, leads_of(res))
-        ours = res.inference_detail.group_time_se
-        for (g, t), v in ref.group_time_effects.items():
-            if (g, t) in ours and np.isfinite(v["se"]):
-                assert ours[(g, t)] == pytest.approx(v["se"], rel=1e-9), (g, t)
+    """The interval has to be theirs too.
+
+    Equal point estimates do not make equal intervals, and PPSCM's delete-one
+    jackknife is not the Callaway-Sant'Anna standard error. The oracle here is
+    the vendored transcription (``benchmarks/reference/ppscm_cs/reference.py``),
+    so the claim is enforced wherever the suite runs; ``diff-diff`` corroborates
+    it separately in ``test_ppscm_cs_reference.py``.
+    """
+
+    def test_per_cell_standard_errors_match(self):
+        for name, onsets, k in ALIGNED[:3]:
+            df = staggered(onsets, k=k)
+            res = fit_cs_mode(df, run_inference=True)
+            ours = res.inference_detail.group_time_se
+            _, ses, _, _ = ref_parts(df)
+            for cell in cells_of(df, leads_of(res)):
+                assert ours[cell] == pytest.approx(ses[cell], rel=1e-12), (name, cell)
 
     def test_aggregated_standard_error_matches(self):
         """Includes the weight-influence term; without it the SE is wrong by
         the amount R's did::aggte corrects for."""
         df = staggered((10, 14, 18))
         res = fit_cs_mode(df, run_inference=True)
-        _, ref = reference_cs(df, leads_of(res))
-        assert float(res.inference.standard_error) == pytest.approx(
-            float(ref.se), rel=1e-8)
+        _, se_ref = ref_aggregate(df, leads_of(res))
+        assert float(res.inference.standard_error) == pytest.approx(se_ref, rel=1e-10)
 
     def test_confidence_interval_matches(self):
         df = staggered((10, 14, 18))
         res = fit_cs_mode(df, run_inference=True)
-        _, ref = reference_cs(df, leads_of(res))
-        lo, hi = ref.conf_int
-        assert float(res.inference.ci_lower) == pytest.approx(lo, rel=1e-8)
-        assert float(res.inference.ci_upper) == pytest.approx(hi, rel=1e-8)
+        est, se_ref = ref_aggregate(df, leads_of(res))
+        z = float(norm.ppf(0.975))
+        assert float(res.inference.ci_lower) == pytest.approx(est - z * se_ref, rel=1e-10)
+        assert float(res.inference.ci_upper) == pytest.approx(est + z * se_ref, rel=1e-10)
+
+    @pytest.mark.parametrize("sizes", [(2, 5, 3), (1, 6, 3), (4, 1, 2)])
+    def test_unequal_cohorts_use_the_size_weighted_aggregation(self, sizes):
+        """PPSCM averages cohorts by size at each horizon, which is
+        Callaway-Sant'Anna's dynamic aggregation and not their simple one.
+
+        Equal cohorts hide the difference, so the two aggregations are separated
+        here: handed the same cell weights, the reference reproduces PPSCM's
+        estimate and standard error exactly at every cohort split.
+        """
+        df = staggered((10, 14, 18), sizes=sizes)
+        res = fit_cs_mode(df, run_inference=True)
+        est, se_ref = ref_aggregate(df, leads_of(res), size_weighted=True)
+        assert float(res.att) == pytest.approx(est, abs=1e-12), sizes
+        assert float(res.inference.standard_error) == pytest.approx(se_ref, rel=1e-10)
 
     def test_multiplier_bootstrap_bands_are_wider_than_pointwise(self):
         """Uniform bands cover the whole path simultaneously, so they cannot be
         narrower than the pointwise interval."""
         df = staggered((10, 14, 18))
-        res = fit_cs_mode(df, run_inference=True, n_bootstrap=200, cband=True)
+        res = fit_cs_mode(df, run_inference=True, n_boot=2000, cband=True)
         assert (res.inference.ci_upper - res.inference.ci_lower) > 0
         band = res.inference_detail.uniform_band
         point = res.inference_detail.pointwise_band
         assert all(b[1] - b[0] >= p[1] - p[0] - 1e-12
                    for b, p in zip(band, point))
+        assert res.inference_detail.critical_value > float(norm.ppf(0.975))
 
     def test_inference_is_not_silently_jackknife(self):
         """The preset must report which inference it ran; naming CS while
@@ -381,3 +472,367 @@ class TestInference:
         res = fit_cs_mode(df, run_inference=True)
         assert res.method_details.parameters_used.get("inference_method") == \
             "influence_function"
+        assert res.inference.method == "influence_function"
+
+    def test_the_weight_influence_term_is_carried(self):
+        """Dropping it leaves a standard error that is finite, plausible and
+        too small, so its absence is measured and not assumed."""
+        df = staggered((10, 14, 18))
+        res = fit_cs_mode(df, run_inference=True)
+        psi = res.inference_detail.influence
+        H = psi.shape[1]
+        naive = ref_aggregate(df, H, wif=False)[1]
+        assert float(res.inference.standard_error) != pytest.approx(naive, rel=1e-6)
+
+    def test_the_influence_function_reproduces_every_reported_standard_error(self):
+        """``se`` is a functional of ``influence`` and not a parallel number."""
+        df = staggered((10, 14, 18))
+        res = fit_cs_mode(df, run_inference=True)
+        psi = res.inference_detail.influence
+        assert psi.shape == (50, len(res.event_study.tau))
+        for h, s in enumerate(res.event_study.se):
+            assert s == pytest.approx(float(np.sqrt((psi[:, h] ** 2).sum())), rel=1e-12)
+        agg = psi.mean(axis=1)
+        assert float(res.inference.standard_error) == pytest.approx(
+            float(np.sqrt((agg ** 2).sum())), rel=1e-12)
+
+    def test_the_comparison_group_enters_with_the_opposite_sign(self):
+        """What makes a cell a difference in differences and not a sum.
+
+        A never-treated unit whose outcome rose more than its group's average
+        pulls the estimate down, so its contribution to the influence function
+        is negative. No standard error can see this. The treated and control
+        blocks sit on disjoint units, each cell's control influence sums to
+        zero, and the weight-influence term is a single constant across
+        never-treated units, so flipping the entire control block changes
+        ``sum_i psi_i^2`` by ``4c * sum_i A_i = 0`` -- every reported number
+        stays bit-identical while the object they are computed from is wrong.
+        Measured: the influence matrix moves by 1.36e-01 and its norm by 0.
+
+        ``influence`` is public and documented as what a caller re-aggregates,
+        so its sign convention is part of the contract and not an internal
+        detail.
+        """
+        df = staggered((12,), k=3)          # one cohort, so the wif term is 0
+        res = fit_cs_mode(df, run_inference=True)
+        psi = res.inference_detail.influence
+        wide = df.pivot(index="id", columns="time", values="y")
+        g_of = df.groupby("id")["first_treat"].first().reindex(wide.index)
+        never = np.flatnonzero((g_of == 0).to_numpy())
+        d_co = (wide.iloc[never][12].to_numpy() - wide.iloc[never][11].to_numpy())
+        want = -(d_co - d_co.mean()) / never.size
+        assert np.allclose(psi[never, 0], want, atol=1e-12), (
+            "the comparison group's influence contributions have the wrong sign "
+            "or the wrong scale")
+
+    def test_the_influence_function_is_mean_zero(self):
+        """A mean-zero influence function is what makes the sum of squares a
+        variance; a non-zero mean is a location error masquerading as one."""
+        df = staggered((10, 14, 18))
+        res = fit_cs_mode(df, run_inference=True)
+        psi = res.inference_detail.influence
+        for h in range(psi.shape[1]):
+            assert float(psi[:, h].sum()) == pytest.approx(0.0, abs=1e-12), h
+
+    def test_the_cells_rebuild_the_event_study(self):
+        """``group_time_att`` is the aggregate's parts, so it must recombine."""
+        df = staggered((10, 14, 18), sizes=(2, 5, 3))
+        res = fit_cs_mode(df, run_inference=True)
+        gta = res.inference_detail.group_time_att
+        n1 = {}
+        for f in res.per_unit.values():
+            n1[f.adoption_time] = n1.get(f.adoption_time, 0) + f.n_units
+        for h, tau in enumerate(res.event_study.tau):
+            cs = [(g, g + h) for g in sorted(n1) if (g, g + h) in gta]
+            S = sum(n1[g] for g, _ in cs)
+            rebuilt = sum(n1[g] * gta[(g, t)] for g, t in cs) / S
+            assert rebuilt == pytest.approx(float(tau), abs=1e-12), h
+
+    def test_the_cumulative_band_runs_off_the_influence_functions(self):
+        df = staggered((10, 14, 18))
+        res = fit_cs_mode(df, run_inference=True, cumulative_band=True, n_boot=500)
+        band = res.inference_detail.cumulative
+        assert band.method == "influence_function"
+        assert band.n_replicates == 500
+        assert np.all(band.upper > band.lower)
+
+
+# =========================================================================== #
+# 6. the influence-function mode refuses what it cannot compute
+# =========================================================================== #
+class TestInferenceRestrictions:
+    """The formula is for uniform weights, a ``g-1`` baseline and a
+    never-treated pool. Outside those it is wrong and not approximate, so the
+    configuration refuses it instead of returning a number."""
+
+    @pytest.mark.parametrize("field,value", [
+        ("donor_weights", "scm"), ("base_period", "all_pre"),
+        ("donor_pool", "window"), ("donor_pool", "not_yet_treated"),
+        ("fixedeff", False)])
+    def test_a_broken_convention_is_refused(self, field, value):
+        df = staggered((10, 14))
+        with pytest.raises(MlsynthConfigError, match="Callaway-Sant'Anna"):
+            fit_cs_mode(df, run_inference=True,
+                        inference_method="influence_function", **{field: value})
+
+    def test_the_message_names_the_convention_that_is_wrong(self):
+        df = staggered((10, 14))
+        with pytest.raises(MlsynthConfigError, match="donor_weights='scm'"):
+            fit_cs_mode(df, run_inference=True,
+                        inference_method="influence_function", donor_weights="scm")
+
+    def test_the_preset_selects_it_only_when_the_conventions_survive(self):
+        """Both halves, because either alone is satisfied by doing nothing.
+
+        Left to itself the preset must select the Callaway-Sant'Anna interval;
+        asked for alongside augsynth's donor pool it must not, since that is a
+        coherent question whose answer is the jackknife and not a configuration
+        error about a field the caller never set.
+        """
+        df = staggered((10, 14))
+        assert fit_cs_mode(df, run_inference=True).inference.method == \
+            "influence_function"
+        assert fit_cs_mode(df, run_inference=True,
+                           donor_pool="window").inference.method == "jackknife"
+
+    def test_an_unknown_inference_method_is_refused(self):
+        df = staggered((10, 14))
+        with pytest.raises(MlsynthConfigError, match="influence_function"):
+            fit_cs_mode(df, run_inference=True, inference_method="analytic")
+
+    def test_cband_needs_the_influence_function(self):
+        """Matched on ``influence_function`` and not on ``cband``: an unknown
+        field produces a pydantic message that carries the field's own name, so
+        matching that alone passes against a build where ``cband`` does not
+        exist."""
+        df = staggered((10, 14))
+        with pytest.raises(MlsynthConfigError, match="influence_function"):
+            fit_cs_mode(df, run_inference=True, inference_method="jackknife",
+                        cband=True)
+
+    def test_cband_needs_inference_on(self):
+        df = staggered((10, 14))
+        with pytest.raises(MlsynthConfigError, match="run_inference"):
+            fit_cs_mode(df, run_inference=False, cband=True)
+
+    def test_a_panel_with_no_never_treated_unit_is_caught_at_ingestion(self):
+        """The comparison group is missing before any inference is chosen.
+
+        Not a test of the influence function: ``prepare_ppscm_inputs`` refuses
+        this panel, and the layer that refuses it is the claim. The inference
+        module's own empty-pool guard is reached by calling it directly
+        (:meth:`TestInfluenceModuleEdges.test_a_cohort_with_no_donor_is_reported_not_divided_by`).
+        """
+        df = staggered((10, 14), k=25)          # 50 units, none left untreated
+        with pytest.raises(MlsynthDataError, match="never-treated"):
+            fit_cs_mode(df, run_inference=True)
+
+    def test_the_other_methods_leave_the_cell_fields_empty(self):
+        """A jackknife produces no per-cell quantities, and must not appear to."""
+        df = staggered((10, 14))
+        res = fit_cs_mode(df, run_inference=True, donor_pool="window")
+        d = res.inference_detail
+        assert d.group_time_att is None and d.group_time_se is None
+        assert d.pointwise_band is None and d.uniform_band is None
+        assert d.influence is None and d.critical_value is None
+
+
+# =========================================================================== #
+# 7. properties -- what must hold on any panel, not just the six above
+# =========================================================================== #
+@settings(deadline=None, max_examples=25,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(onsets=st.lists(st.integers(8, 20), min_size=1, max_size=3,
+                       unique=True).map(sorted),
+       sizes=st.lists(st.integers(1, 5), min_size=1, max_size=3),
+       seed=st.integers(0, 2 ** 16))
+def test_the_influence_function_matches_the_reference_on_any_panel(
+        onsets, sizes, seed):
+    """Estimate, standard error and every cell, against the transcription.
+
+    The parametrized cases above are six panels someone chose. This is the same
+    claim on panels nobody chose: cohorts of unequal size, adoptions at
+    arbitrary spacings, and as few as one treated unit.
+    """
+    sizes = (sizes * len(onsets))[:len(onsets)]
+    df = staggered(tuple(onsets), sizes=sizes, seed=seed)
+    res = fit_cs_mode(df, run_inference=True)
+    L = leads_of(res)
+    _, ses, _, _ = ref_parts(df)
+    for cell in cells_of(df, L):
+        assert res.inference_detail.group_time_se[cell] == pytest.approx(
+            ses[cell], rel=1e-10), cell
+    est, se_ref = ref_aggregate(df, L, size_weighted=True)
+    assert float(res.att) == pytest.approx(est, abs=1e-10)
+    assert float(res.inference.standard_error) == pytest.approx(se_ref, rel=1e-9)
+
+
+@settings(deadline=None, max_examples=25,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(onsets=st.lists(st.integers(8, 20), min_size=1, max_size=3,
+                       unique=True).map(sorted),
+       seed=st.integers(0, 2 ** 16))
+def test_the_standard_error_is_positive_and_the_interval_brackets_the_estimate(
+        onsets, seed):
+    df = staggered(tuple(onsets), seed=seed)
+    res = fit_cs_mode(df, run_inference=True)
+    se = float(res.inference.standard_error)
+    assert np.isfinite(se) and se > 0
+    assert res.inference.ci_lower < res.att < res.inference.ci_upper
+    assert np.all(np.isfinite(res.event_study.se))
+    assert np.all(res.event_study.se > 0)
+
+
+@settings(deadline=None, max_examples=20,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(shift=st.floats(-50.0, 50.0), scale=st.floats(0.2, 5.0))
+def test_the_standard_error_scales_with_the_outcome_and_ignores_its_level(
+        shift, scale):
+    """A standard error is in the outcome's units: rescaling the outcome
+    rescales it exactly, and shifting the outcome leaves it alone."""
+    df = staggered((10, 14, 18))
+    base = fit_cs_mode(df, run_inference=True)
+    moved = df.copy()
+    moved["y"] = shift + scale * moved["y"]
+    got = fit_cs_mode(moved, run_inference=True)
+    assert float(got.inference.standard_error) == pytest.approx(
+        scale * float(base.inference.standard_error), rel=1e-9)
+    assert float(got.att) == pytest.approx(scale * float(base.att), abs=1e-9)
+
+
+@settings(deadline=None, max_examples=15,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(alpha=st.floats(0.005, 0.5), seed=st.integers(0, 2 ** 16))
+def test_a_tighter_level_gives_a_wider_interval_around_the_same_estimate(
+        alpha, seed):
+    df = staggered((10, 14, 18), seed=seed)
+    wide = fit_cs_mode(df, run_inference=True, alpha=alpha)
+    tight = fit_cs_mode(df, run_inference=True, alpha=alpha / 2.0)
+    assert float(tight.att) == pytest.approx(float(wide.att), abs=1e-12)
+    assert (tight.inference.ci_upper - tight.inference.ci_lower) > \
+        (wide.inference.ci_upper - wide.inference.ci_lower)
+
+
+@settings(deadline=None, max_examples=15,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(seed=st.integers(0, 2 ** 16))
+def test_relabelling_the_units_does_not_move_the_answer(seed):
+    """The influence function is indexed by unit; a permutation of the unit
+    labels must permute it and change nothing else."""
+    df = staggered((10, 14, 18))
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(df["id"].nunique())
+    shuffled = df.copy()
+    shuffled["id"] = shuffled["id"].map(lambda u: int(perm[u]))
+    a = fit_cs_mode(df, run_inference=True)
+    b = fit_cs_mode(shuffled.sort_values(["id", "time"]), run_inference=True)
+    assert float(b.att) == pytest.approx(float(a.att), abs=1e-10)
+    assert float(b.inference.standard_error) == pytest.approx(
+        float(a.inference.standard_error), rel=1e-10)
+
+
+# =========================================================================== #
+# 8. the module's own edges
+# =========================================================================== #
+class TestInfluenceModuleEdges:
+    def test_a_cohort_with_no_donor_is_reported_not_divided_by(self):
+        df = staggered((10, 14))
+        res = fit_cs_mode(df, run_inference=False)
+        fit = _refit(df)
+        fit["donors"] = {g: np.asarray([], dtype=int) for g in fit["groups"]}
+        with pytest.raises(MlsynthDataError, match="comparison group"):
+            influence_function_inference(
+                fit, np.arange(1, 31), alpha=0.05, att_full=float(res.att),
+                per_time_full=res.event_study.tau)
+
+    def test_a_panel_with_no_estimable_cell_is_reported(self):
+        df = staggered((10, 14))
+        res = fit_cs_mode(df, run_inference=False)
+        fit = _refit(df)
+        # Push every adoption past the last observed column.
+        fit["adopt_of"] = {g: 10_000 for g in fit["groups"]}
+        fit["res"] = {10_000: next(iter(fit["res"].values()))}
+        with pytest.raises(MlsynthDataError, match="no estimable"):
+            influence_function_inference(
+                fit, np.arange(1, 20_001), alpha=0.05, att_full=float(res.att),
+                per_time_full=res.event_study.tau)
+
+    def test_one_treated_unit_carries_no_weight_influence_term(self):
+        """With a single cohort the group share is not estimated against
+        anything, so the correction is exactly zero and the aggregate standard
+        error is the plain weighted one."""
+        df = staggered((12,), k=1)
+        res = fit_cs_mode(df, run_inference=True)
+        psi = res.inference_detail.influence
+        _, ses, inf, _ = ref_parts(df)
+        for h in range(psi.shape[1]):
+            cell = (12, 12 + h)
+            assert res.inference_detail.group_time_se[cell] == pytest.approx(
+                ses[cell], rel=1e-12)
+            assert float(np.sqrt((psi[:, h] ** 2).sum())) == pytest.approx(
+                ses[cell], rel=1e-12)
+
+    def test_time_cohort_collapses_to_the_same_cells(self):
+        """A Callaway-Sant'Anna cell is indexed by adoption time, so pooling
+        units into cohorts up front must not change the inference."""
+        df = staggered((10, 14, 18))
+        a = fit_cs_mode(df, run_inference=True)
+        b = fit_cs_mode(df, run_inference=True, time_cohort=True)
+        assert float(b.att) == pytest.approx(float(a.att), abs=1e-12)
+        assert float(b.inference.standard_error) == pytest.approx(
+            float(a.inference.standard_error), rel=1e-12)
+        assert b.inference_detail.group_time_se.keys() == \
+            a.inference_detail.group_time_se.keys()
+
+    def test_the_multipliers_are_mammens_and_not_rademacher(self):
+        """Mammen's two-point law has mean 0, variance 1 and third moment 1.
+
+        The third moment is the whole reason ``did::mboot`` uses it over
+        Rademacher signs, and it is the only one of the three that tells them
+        apart -- so a band tabulated from signs looks entirely reasonable and
+        has lost the refinement it was drawn for.
+        """
+        from mlsynth.utils.ppscm_helpers.cs_inference import _KAPPA, _PROB
+        vals = np.array([1.0 - _KAPPA, _KAPPA])
+        probs = np.array([_PROB, 1.0 - _PROB])
+        assert float(probs @ vals) == pytest.approx(0.0, abs=1e-12)
+        assert float(probs @ vals ** 2) == pytest.approx(1.0, abs=1e-12)
+        assert float(probs @ vals ** 3) == pytest.approx(1.0, abs=1e-12)
+
+    def test_a_horizon_no_cohort_reaches_comes_back_empty(self):
+        """PPSCM clamps ``n_leads`` to what the last cohort observes, so this is
+        reachable only by asking the module directly. A horizon past the end of
+        the panel has no cell, and it reports ``NaN`` -- not a zero effect with a
+        zero standard error, which is what a silently skipped horizon looks
+        like once it reaches an event-study plot.
+
+        The arithmetic: cohorts adopt at columns 9 and 13 of a 30-column panel,
+        so the earlier one still reaches horizon 20 and only ``h >= 21`` is
+        empty. ``n_leads`` is 17, so 25 horizons leaves exactly four with no
+        cell -- ``n_leads + 4`` would leave none, and every horizon would come
+        back populated.
+        """
+        df = staggered((10, 14))
+        res = fit_cs_mode(df, run_inference=False)
+        fit = _refit(df)
+        assert fit["n_leads"] == 17
+        H = 25
+        fit["n_leads"] = H
+        pt = np.concatenate([res.event_study.tau, np.full(H - 17, np.nan)])
+        out = influence_function_inference(
+            fit, np.arange(1, 31), alpha=0.05, att_full=float(res.att),
+            per_time_full=pt)
+        assert np.all(np.isfinite(out.per_time_se[:-4]))
+        assert np.all(np.isnan(out.per_time_se[-4:]))
+        assert np.all(np.isnan(out.influence[:, -4:]))
+        assert np.isfinite(out.se) and out.se > 0
+
+    def test_the_cells_are_keyed_by_public_time_labels(self):
+        """``(2014, 2017)`` and not ``(9, 12)``: a reader must not have to know
+        the column positions the estimator works in."""
+        df = staggered((10, 14))
+        df = df.assign(time=df["time"] + 2000)
+        res = fit_cs_mode(df, run_inference=True)
+        keys = res.inference_detail.group_time_se.keys()
+        assert (2010, 2010) in keys and (2014, 2014) in keys
+        assert all(g >= 2010 and t >= g for g, t in keys)
