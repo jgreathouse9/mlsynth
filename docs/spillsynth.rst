@@ -1614,6 +1614,101 @@ are rich enough to bind -- with only a few weak covariates mscmt's global
 solution); with the full AG block it agrees with malo at :math:`\approx
 -0.68`. As always, read the ``pre_rmspe`` column as the referee.
 
+Method: ``method='iterative'`` -- Melnychuk (2024)
+--------------------------------------------------
+
+Melnychuk (2024), *Synthetic Controls with Spillover Effects: A Comparative
+Study*, proposes a "waterfall" alternative to the inclusive method's linear
+system. Where the inclusive method writes down every affected unit's gap at
+once and inverts the cross-weight matrix :math:`\Omega`, the iterative method
+cleans the affected donors one at a time and then refits.
+
+The idea
+^^^^^^^^
+
+Take the affected controls in order. For each one, build its own synthetic
+control from the units that carry no spillover -- the clean controls, plus any
+affected controls already cleaned in earlier passes -- with the treated unit
+held out of that donor pool. That synthetic is a spillover-free version of the
+donor, so substituting it for the donor's observed outcomes removes the
+contamination the treatment pushed into it. Once every affected donor has been
+through the mill, refit the treated unit's synthetic control on the cleaned
+pool and read the ATT off that.
+
+Nothing is trimmed: an affected donor that would be dropped by the pure-donor
+recipe stays in the pool with its spillover taken out. The waterfall ordering
+is what lets the second affected donor borrow from the first one's cleaned
+series instead of its contaminated one.
+
+How much of the donor gets replaced
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The substitution step has a switch, ``iterative_replace_pre``, and the two
+settings are different estimators.
+
+With ``False`` (the default) only the post-treatment outcomes are replaced.
+The donor keeps its observed pre-period, so the data the treated unit is fit
+on is unchanged and the refit returns the same weights as the naive fit. The
+correction reaches the estimate through one channel: the cleaned post-period
+counterfactual.
+
+With ``True`` the donor's whole series is replaced. Its pre-period is then an
+exact convex combination of the units it was built from, so the refit has no
+reason to load on it and the weights move -- a second channel. On German
+reunification with the outcome-only backend, Austria's weight in synthetic
+West Germany goes from 0.46 to 0.00 and the ATT moves by roughly 320 USD.
+
+Melnychuk's function signature defaults the switch to ``FALSE``; the call
+sites that produce the paper's tables pass ``TRUE``. Set
+``iterative_replace_pre=True`` to reproduce the published configuration, and
+read the ``replace_pre`` field on the fit to see which branch ran.
+
+The switch acts on outcomes, so in covariate mode the predictor block is
+untouched. That is why it moves the answer much less there: on the German
+covariate specification the two branches differ by tens of USD, against
+hundreds with the outcome-only backend.
+
+Example
+^^^^^^^
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SPILLSYNTH
+
+   d = pd.read_stata("basedata/repgermany.dta")[["country", "year", "gdp"]]
+   d["treat"] = ((d.country == "West Germany") & (d.year >= 1990)).astype(int)
+
+   res = SPILLSYNTH({
+       "df": d, "outcome": "gdp", "treat": "treat",
+       "unitid": "country", "time": "year",
+       "method": "iterative", "affected_units": ["Austria"],
+       "iscm_intercept": True,            # the reference's SCM backend
+       "iterative_replace_pre": True,     # the reference's call-site setting
+       "display_graphs": False,
+   }).fit()
+
+   res.att                                  # cleaned-pool ATT
+   res.att_scm                              # naive ATT, same weights
+   res.iterative.spillover_att["Austria"]   # spillover taken out of Austria
+   res.iterative.donor_weights              # weights over the cleaned pool
+
+``treated_synthetic_pre`` and ``naive_synthetic_pre`` are the treated unit's
+pre-period fits on the cleaned and original panels. They coincide exactly
+under the default and separate under ``iterative_replace_pre=True``, which is
+the observable that says whether the refit refit anything.
+
+When to use it against the inclusive method
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Melnychuk's own simulation study puts the inclusive method first for accuracy
+and the waterfall a close second, and the waterfall is the simpler object: a
+sequence of ordinary synthetic-control fits, with no matrix to invert. Reach
+for it when :math:`\Omega` is near-singular or the affected set is large
+enough that inverting it is uncomfortable, and when you would prefer an
+estimator whose every step is a fit you can inspect. The inclusive method
+remains the sharper tool when the affected set is small and well synthesized.
+
 Method: ``method='grossi'`` -- Grossi et al. (2025)
 ---------------------------------------------------
 
