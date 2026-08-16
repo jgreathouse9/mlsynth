@@ -91,6 +91,13 @@ def _design_mae(sample, m: int):
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "LEXSCM needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     from mlsynth.utils.marex_helpers.simulation import generate_marex_sample
 
     ratios, maes = {}, {}

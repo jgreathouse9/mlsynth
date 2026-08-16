@@ -121,6 +121,13 @@ def _sc_rmse(weights: dict, m: int, n_panels: int) -> float:
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "MAREX needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     ref = load_reference(_REF_CASE)
     weights = ref["weights"]
     n_panels = int(ref["values"]["n_panels"])
