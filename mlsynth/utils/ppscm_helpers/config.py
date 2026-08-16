@@ -64,6 +64,46 @@ class PPSCMConfig(BaseEstimatorConfig):
             "fully-pooled cohort (one synthetic control per cohort)."
         ),
     )
+    donor_weights: Literal["scm", "uniform"] = Field(
+        default="scm",
+        description=(
+            "How donors are weighted. 'scm' solves the partially-pooled QP. "
+            "'uniform' puts equal weight on every admissible donor, which is "
+            "the comparison Callaway-Sant'Anna and Sun-Abraham make; it is "
+            "imposed rather than approached, since driving 'lam' up saturates "
+            "at max|w - 1/J| = 3.5e-03 and never reaches it."
+        ),
+    )
+    base_period: Literal["all_pre", "pre_treatment"] = Field(
+        default="all_pre",
+        description=(
+            "Baseline for the unit fixed effect. 'all_pre' is each unit's mean "
+            "over its whole pre-adoption window, which is augsynth's. "
+            "'pre_treatment' is the single period before adoption, which is "
+            "what Callaway-Sant'Anna normalises against. The choice shifts each "
+            "cohort's level without moving the event-study shape."
+        ),
+    )
+    donor_pool: Literal["window", "never_treated", "not_yet_treated"] = Field(
+        default="window",
+        description=(
+            "Which units may serve as donors. 'window' admits any unit "
+            "untreated through the cohort's estimation window (augsynth). "
+            "'never_treated' and 'not_yet_treated' are the Callaway-Sant'Anna "
+            "comparison groups. 'window' and 'never_treated' coincide exactly "
+            "when every other cohort adopts inside the window."
+        ),
+    )
+    method: Optional[Literal["callaway_santanna"]] = Field(
+        default=None,
+        description=(
+            "Convenience preset. 'callaway_santanna' sets donor_weights="
+            "'uniform', base_period='pre_treatment' and donor_pool="
+            "'never_treated', which together reproduce the Callaway-Sant'Anna "
+            "and Sun-Abraham estimator to machine precision wherever the donor "
+            "pools coincide. Explicitly-set conventions are not overridden."
+        ),
+    )
     lam: float = Field(
         default=0.0,
         ge=0.0,
@@ -194,6 +234,25 @@ class PPSCMConfig(BaseEstimatorConfig):
             "latter. Needs ``run_inference``. Off by default."
         ),
     )
+
+    @model_validator(mode="after")
+    def _apply_method_preset(self):
+        """Expand ``method`` into the three conventions it names.
+
+        Only fields the caller left at their default are set, so an explicit
+        convention alongside the preset is honoured and not silently reversed --
+        someone asking for the CS estimator with augsynth's donor pool is asking
+        a coherent question, and the answer is not the preset's.
+        """
+        if self.method == "callaway_santanna":
+            fields = self.model_fields_set
+            if "donor_weights" not in fields:
+                object.__setattr__(self, "donor_weights", "uniform")
+            if "base_period" not in fields:
+                object.__setattr__(self, "base_period", "pre_treatment")
+            if "donor_pool" not in fields:
+                object.__setattr__(self, "donor_pool", "never_treated")
+        return self
 
     @model_validator(mode="after")
     def _check_inference_method(self):
