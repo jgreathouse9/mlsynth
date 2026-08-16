@@ -100,6 +100,31 @@ class PPSCMDesign:
     #: interval. Together they decide whether the fit is augsynth's multisynth
     #: or the Callaway-Sant'Anna estimator, which the numbers alone do not say.
     conventions: Optional[Dict[str, Any]] = None
+    #: The shape of the balance problem the imbalances above came out of.
+    #: ``max_donors`` is the widest admissible donor pool across cohorts and
+    #: ``balance_periods`` the pre-periods actually balanced, capped by the
+    #: cohort with the least history since that cohort binds. Read them with
+    #: ``global_l2``: a residual near zero means a good fit when the program was
+    #: constrained and describes the geometry when it was not.
+    max_donors: Optional[int] = None
+    balance_periods: Optional[int] = None
+
+    @property
+    def underdetermined(self) -> Optional[bool]:
+        """Whether the balance system had more freedom than constraints.
+
+        Weights on the simplex carry ``max_donors - 1`` degrees of freedom
+        against ``balance_periods`` equations. When the first exceeds the
+        second, exact balance is generically attainable and a near-zero
+        ``global_l2`` says nothing about how well the donors track the treated
+        units. It is a statement about the program's shape and not a verdict on
+        the fit: the simplex is bounded, so a wide pool whose hull misses the
+        treated path still leaves a large residual, and that residual is
+        informative.
+        """
+        if self.max_donors is None or self.balance_periods is None:
+            return None
+        return (self.max_donors - 1) > self.balance_periods
 
     @property
     def pct_improve_global(self) -> float:

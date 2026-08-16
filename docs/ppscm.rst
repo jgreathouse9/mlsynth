@@ -63,6 +63,14 @@ Do not use PPSCM when
   large and noisy. Partial pooling cannot manufacture a hull that does
   not contain the treated units; a factor-model (:doc:`fma`) or low-rank
   (:doc:`clustersc`, :doc:`mcnnm`) approach is better.
+* The pre-period is short relative to the donor pool. Synthetic control needs
+  enough pre-periods to pin the weights down; with more donors than periods to
+  balance, the simplex is wide enough that near-exact balance is available for
+  free and says nothing about how well the donors track the treated units. This
+  is the regime where difference in differences is the justified estimator --
+  it asks for many units and few periods, which is the opposite trade -- so
+  reach for :doc:`sdid`, or for PPSCM's own ``method="callaway_santanna"``.
+  ``design.underdetermined`` reports when a fit is in this regime.
 * Distributional effects (quantiles, tails) -- use :doc:`dsc`.
 
 Notation
@@ -440,6 +448,39 @@ aggregate against
 a transcription of ``diff-diff`` 3.9.0 at commit ``d9cd475`` kept in-tree so the
 check runs without a runtime dependency. Measured agreement is 0.0 per cell and
 5.6e-17 on the aggregate.
+
+Reading the balance diagnostics
+-------------------------------
+
+``design.global_l2`` and ``design.ind_l2`` are the pre-treatment imbalance the
+fitted weights leave, and ``pct_improve_global`` / ``pct_improve_ind`` express
+them against the uniform-weight baseline. A residual near zero means a good fit
+only if the program could have done worse, so the design also reports the shape
+of the problem that produced it:
+
+``max_donors``
+   the widest admissible donor pool across cohorts.
+
+``balance_periods``
+   the pre-periods actually balanced, capped by the cohort with the least
+   history, since that cohort binds.
+
+``underdetermined``
+   whether ``max_donors - 1 > balance_periods``. Weights on the simplex carry
+   ``max_donors - 1`` degrees of freedom against ``balance_periods`` equations,
+   so past that point exact balance is generically attainable.
+
+Both panels ``diff-diff`` ships illustrate the difference. On ``mpdta`` -- 500
+counties over five years, the shape difference in differences is built for --
+the binding cohort adopts in the second period, leaving one pre-period against
+a pool of 480: ``global_l2`` comes to 3.4e-06 and 100 percent better than
+uniform, which describes the geometry. On ``castle_doctrine``, 32 donors
+against five periods cannot reach zero, and its 2.1e-02 is a fit.
+
+``underdetermined`` is a statement about the program's shape and not a verdict.
+The simplex is bounded, so a wide pool whose convex hull misses the treated path
+still leaves a large residual, and that residual is informative. What the flag
+rules out is reading a small one as evidence.
 
 Per-unit fits alongside the pooled report
 -----------------------------------------

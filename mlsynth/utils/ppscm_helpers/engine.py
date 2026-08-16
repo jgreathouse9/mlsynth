@@ -116,6 +116,21 @@ def eligible_donors(trt: np.ndarray, adopt: int, n_leads: int, donor_pool: str) 
         f"got {donor_pool!r}.")
 
 
+def balance_shape(adopt_of, donors, groups, n_lags: int):
+    """The balance problem's shape: widest donor pool, and periods balanced.
+
+    ``balance_periods`` is capped by the cohort with the least pre-history,
+    because that cohort's block is what the padded design can actually
+    constrain -- asking for ten lags of a cohort adopting at t=4 balances
+    three. See ``PPSCMDesign.underdetermined``.
+    """
+    if not groups:                                # pragma: no cover - no treated
+        return 0, 0
+    widest = max(int(len(donors[g])) for g in groups)
+    periods = min(min(int(adopt_of[g]) for g in groups), int(n_lags))
+    return widest, max(periods, 0)
+
+
 def uniform_weights(donors, groups, n) -> Dict[Any, np.ndarray]:
     """Equal weight on every admissible donor -- the CS/Sun-Abraham comparison.
 
@@ -257,6 +272,7 @@ def _uniform_fit(res, groups, adopt_of, members, donors, n1, d, n, n_leads,
     given values that would read as if a QP had run.
     """
     W = uniform_weights(donors, groups, n)
+    _shape = balance_shape(adopt_of, donors, groups, d)
     M = _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n)
     J = len(groups)
     nnz = [max(int((np.abs(M[:, k]) > 1e-12).sum()), 1) for k in range(J)]
@@ -271,6 +287,7 @@ def _uniform_fit(res, groups, adopt_of, members, donors, n1, d, n, n_leads,
         "scaled_global_l2": 1.0, "scaled_ind_l2": 1.0,
         "M": M, "nnz": np.asarray(nnz, dtype=float),
         "res": res, "n": n, "n_leads": n_leads,
+        "max_donors": _shape[0], "balance_periods": _shape[1],
     }
 
 
@@ -310,6 +327,7 @@ def run_multisynth(
     donors = {g: eligible_donors(trt, adopt_of[g], n_leads, donor_pool)
               for g in groups}
     res = fit_feff(Xy, trt, set(adopt_of.values()), fixedeff, base_period)
+    _shape = balance_shape(adopt_of, donors, groups, n_lags)
     if donor_weights not in ("scm", "uniform"):
         raise ValueError(
             f"donor_weights must be 'scm' or 'uniform', got {donor_weights!r}.")
@@ -361,6 +379,7 @@ def run_multisynth(
         "weights": W, "n1": n1, "tau_rel": tau_rel, "per_time": per_time, "att": att,
         "nu_used": nu_used, "global_l2": fin_global, "ind_l2": fin_ind,
         "scaled_global_l2": fin_global / unif_global, "scaled_ind_l2": fin_ind / unif_ind,
+        "max_donors": _shape[0], "balance_periods": _shape[1],
         # Per-cohort final imbalance columns ``M`` (d, J) and the ``nnz`` counts
         # from the separate fit -- the components of ``ind_l2`` (each cohort's
         # in-sample error is ``sqrt((M[:,k]**2).sum() / nnz[k])``), returned so the
