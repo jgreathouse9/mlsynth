@@ -98,6 +98,7 @@ At a glance
      + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + unit sizes differ by orders of magnitude, want % effects ─► STACKEDSC
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+     + want the Callaway-Sant'Anna / Sun-Abraham group-time ATT ─► PPSCM (method="callaway_santanna")
      + latent factors, unit-specific loadings, never-treated pool ─► GSYNTH
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
