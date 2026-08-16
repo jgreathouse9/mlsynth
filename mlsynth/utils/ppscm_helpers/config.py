@@ -69,9 +69,11 @@ class PPSCMConfig(BaseEstimatorConfig):
         description=(
             "How donors are weighted. 'scm' solves the partially-pooled QP. "
             "'uniform' puts equal weight on every admissible donor, which is "
-            "the comparison Callaway-Sant'Anna and Sun-Abraham make; it is "
-            "imposed rather than approached, since driving 'lam' up saturates "
-            "at max|w - 1/J| = 3.5e-03 and never reaches it."
+            "the comparison Callaway-Sant'Anna and Sun-Abraham make. It is the "
+            "'lam' -> infinity limit of the QP in closed form: the barycenter "
+            "minimises the ridge penalty over the simplex, so the solved "
+            "weights approach it at rate O(1/lam) for every 'nu'. Setting it "
+            "reaches the limit exactly and skips the program."
         ),
     )
     base_period: Literal["all_pre", "pre_treatment"] = Field(
@@ -164,8 +166,8 @@ class PPSCMConfig(BaseEstimatorConfig):
         default=None,
         description=(
             "Post-periods to accumulate for a per-unit conformal band on the "
-            "CUMULATIVE effect -- the total each treated unit gained, rather than "
-            "its per-period or time-averaged effect. ``None`` (default) leaves it "
+            "CUMULATIVE effect -- the total each treated unit gained, not its "
+            "per-period or time-averaged effect. ``None`` (default) leaves it "
             "off and nothing changes. Unlike VanillaSC, where "
             "``inference='conformal_cumulative'`` selects one mode, this band is "
             "an additional object: ``inference_method`` still chooses the bootstrap "
