@@ -46,7 +46,14 @@ class PPSCMConfig(BaseEstimatorConfig):
         description=(
             "Number of post-treatment horizons (relative time) to estimate. "
             "None defaults to the number of post-treatment periods of the last "
-            "treated unit."
+            "treated unit, which is the shortest post window, so every cohort "
+            "reaches every horizon and the event study is rectangular. Raising "
+            "it past that adds horizons the early cohorts observe and the late "
+            "ones do not, and those cells report NaN. The ceiling is the "
+            "longest post window -- how far the panel runs past the first "
+            "adoption -- since no cohort observes anything beyond it; a larger "
+            "request is cut to it. With donor_pool='window' a longer window is "
+            "also a stricter donor pool."
         ),
     )
     n_lags: Optional[int] = Field(

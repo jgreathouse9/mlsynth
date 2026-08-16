@@ -354,6 +354,36 @@ event time. It coincides with their simple aggregation when every cohort is the
 same size and reaches every horizon, and not otherwise -- so equal-sized cohorts
 hide the distinction instead of establishing it.
 
+The event-study window decides which cells enter that sum. ``n_leads`` defaults
+to the last cohort's post window, which is the shortest, so every cohort reaches
+every horizon and :math:`\mathcal{K}_h` is the full set of cohorts at each
+:math:`h`. Raising it adds horizons that only the early cohorts observe: the
+late cohorts report ``NaN`` there and :math:`\mathcal{K}_h` thins as :math:`h`
+grows. The ceiling is the longest post window, since no cohort observes anything
+past the end of the panel, and a larger request is cut to it.
+
+That longer window is the one Callaway-Sant'Anna's simple aggregation runs over,
+and the per-unit paths carry it. The mean over their finite entries weights every
+unit-post-period cell equally, which is what ``did::aggte(type = "simple")``
+reports, while ``res.effects.att`` stays the dynamic aggregation above:
+
+.. code-block:: python
+
+   import numpy as np
+
+   res = PPSCM({"df": df, "outcome": "y", "treat": "d", "unitid": "unit",
+                "time": "period", "method": "callaway_santanna",
+                "n_leads": 6}).fit()
+
+   dynamic = res.effects.att                 # aggte(type="dynamic")$overall.att
+   paths = np.vstack([u.tau for u in res.per_unit.values()])
+   simple = np.nanmean(paths)                # aggte(type="simple")$overall.att
+
+Raising the window is not free with ``donor_pool="window"``, where a unit is a
+donor to a cohort only if it stays untreated through that cohort's estimation
+window: a longer window is a stricter pool. The Callaway-Sant'Anna comparison
+groups, ``never_treated`` and ``not_yet_treated``, do not depend on it.
+
 What this does not close is the donor pool. Uniform weights and the :math:`g-1`
 baseline are choices inside the program; :math:`\mathcal{C}` is the set the
 program ranges over. When a later cohort outlives an earlier cohort's estimation
