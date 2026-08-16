@@ -192,6 +192,46 @@ class TestTheEstimateConverges:
             assert gaps[a] / gaps[b] == pytest.approx(1000.0, rel=0.05), (a, b)
         assert gaps[1e12] < 1e-11
 
+    def test_the_weights_reach_uniform_even_where_the_estimate_does_not(self):
+        """Two columns of one table, and the fault #473 records is reading them
+        as one.
+
+        Convergence of the weights is a property of the penalty, so it happens
+        under any conventions. Convergence of the *estimate* to
+        Callaway-Sant'Anna needs the other two conventions as well. The sweep
+        that produced the retracted claim tabulated both columns side by side,
+        saw the estimate's residual hold flat, and attributed it to weights that
+        had in fact converged to 1.8e-10 in the next column along.
+        """
+        df = panel()
+        L = len(next(iter(fit(df, donor_weights="uniform").per_unit.values())).tau)
+        target = cs_oracle(df, L)
+        augsynth = dict(base_period="all_pre", donor_pool="window")
+
+        # The weights converge under both sets of conventions.
+        assert deviation_from_uniform(
+            fit(df, donor_weights="scm", lam=1e12)) < 1e-12
+        assert deviation_from_uniform(
+            fit(df, donor_weights="scm", lam=1e12, **augsynth)) < 1e-12
+
+        # The estimate converges under only one of them.
+        cs_gap = abs(float(fit(df, donor_weights="scm", lam=1e12).att) - target)
+        aug_gap = abs(float(fit(df, donor_weights="scm", lam=1e12,
+                                **augsynth).att) - target)
+        assert cs_gap < 1e-11, cs_gap
+        assert aug_gap > 1e-2, aug_gap
+
+        # And the residual is flat in lam, which is what "saturation" described.
+        # Flat to five significant figures, not exactly constant: the weights
+        # are still making their last decades, so the estimate they produce
+        # drifts by about 1e-06 over the same range the weights cross six
+        # orders of magnitude. Reporting it as motionless was fair; reading the
+        # motionlessness as a property of the weights was not.
+        aug_gap_6 = abs(float(fit(df, donor_weights="scm", lam=1e6,
+                                  **augsynth).att) - target)
+        assert aug_gap == pytest.approx(aug_gap_6, rel=1e-4)
+        assert abs(aug_gap - aug_gap_6) < 1e-5
+
     def test_uniform_weights_are_that_limit_reached_exactly(self):
         """The setting is the limit in closed form: no quadratic program, and
         agreement with the oracle at machine precision instead of at whatever
