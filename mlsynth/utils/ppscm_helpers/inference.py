@@ -8,6 +8,20 @@ fixed), and forms
 
 separately for the overall ATT and each relative-time horizon. Wald intervals
 are built from these SEs around the full-sample point estimates.
+
+Every function here that refits the panel -- the jackknife, and the conformal
+band's rolling origins -- takes the fit's
+:class:`~mlsynth.utils.ppscm_helpers.engine.Conventions` and passes it on. A
+replicate has to be a refit of the estimator that produced the point estimate,
+and #467 is what happens when it is not: the replicates ran augsynth's donor
+weighting, baseline and donor pool while the estimate ran the caller's, giving
+a standard error that was finite, plausible, and for a different estimator.
+
+Two guards follow from the same incident. ``run_multisynth`` refuses a
+non-finite ``nu``, since a uniform-weight fit poses no program and reports
+``nu_used`` as ``NaN``; and a jackknife that ends with fewer than two usable
+replicates raises instead of returning ``NaN``, because a missing standard
+error read as a degenerate panel for a whole review.
 """
 
 from __future__ import annotations
@@ -17,9 +31,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from scipy.stats import norm
 
-from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ...exceptions import (
+    MlsynthConfigError, MlsynthDataError, MlsynthEstimationError)
 
-from .engine import run_multisynth, predict_tau
+from .engine import Conventions, run_multisynth, predict_tau
 
 
 def per_unit_intervals(
@@ -245,7 +260,7 @@ def jackknife_inference(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
     solver: Any, alpha: float, per_time_full: np.ndarray, att_full: float,
-    return_paths: bool = False,
+    conventions: Conventions = Conventions(), return_paths: bool = False,
 ) -> Tuple[float, float, Tuple[float, float], np.ndarray, np.ndarray]:
     """Return ``(att, se, ci, per_time_se, per_time_ci)``.
 
@@ -257,6 +272,10 @@ def jackknife_inference(
     H = n_leads
     att_loo = np.full(n, np.nan)
     pt_loo = np.full((n, H), np.nan)
+    # ``nu_used`` is NaN when no quadratic program was posed (uniform donor
+    # weights), and that branch ignores the pooling level entirely. Passing the
+    # NaN on would trip ``run_multisynth``'s finiteness guard on every replicate.
+    nu_refit = float(nu_used) if np.isfinite(nu_used) else None
 
     for i in range(n):
         keep = np.ones(n, dtype=bool); keep[i] = False
@@ -267,7 +286,7 @@ def jackknife_inference(
             fit_i = run_multisynth(
                 Xy[keep], trt_i, d, n_leads, n_lags,
                 fixedeff=fixedeff, time_cohort=time_cohort,
-                nu=nu_used, lam=lam, solver=solver,
+                nu=nu_refit, lam=lam, solver=solver, conventions=conventions,
             )
         except Exception:
             continue
@@ -282,6 +301,13 @@ def jackknife_inference(
             return float("nan")
         return float(np.sqrt((m - 1) / m * np.sum((x - x.mean()) ** 2)))
 
+    usable = int(np.isfinite(att_loo).sum())
+    if usable < 2:
+        raise MlsynthEstimationError(
+            f"the delete-one jackknife finished with {usable} usable replicate(s) "
+            f"out of {n} units; at least 2 are needed for a standard error. Every "
+            "leave-one-out refit raised, so there is no inference to report -- "
+            "returning NaN here is what hid #467.")
     se = _se(att_loo)
     per_time_se = np.array([_se(pt_loo[:, h]) for h in range(H)])
     z = float(norm.ppf(1.0 - alpha / 2.0))
@@ -297,6 +323,7 @@ def rolling_pooled_block_sums(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
     solver: Any, horizon: int, min_train_frac: float = 0.3,
+    conventions: Conventions = Conventions(),
 ) -> List[np.ndarray]:
     """Per-unit cumulative out-of-sample errors, one pooled solve per origin.
 
@@ -343,7 +370,8 @@ def rolling_pooled_block_sums(
             fo = run_multisynth(
                 Xy, trt_o, origin, horizon, origin,
                 fixedeff=fixedeff, time_cohort=time_cohort,
-                nu=nu_used, lam=lam, solver=solver,
+                nu=(float(nu_used) if np.isfinite(nu_used) else None),
+                lam=lam, solver=solver, conventions=conventions,
             )
         except Exception:  # pragma: no cover - a degenerate origin is skipped
             continue
@@ -359,6 +387,7 @@ def cumulative_conformal_per_unit(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
     solver: Any, alpha: float, horizon: int, min_train_frac: float = 0.3,
+    conventions: Conventions = Conventions(),
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Per-unit conformal band for each treated unit's cumulative effect.
 
@@ -406,7 +435,8 @@ def cumulative_conformal_per_unit(
 
     full = run_multisynth(
         Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
-        nu=nu_used, lam=lam, solver=solver,
+        nu=(float(nu_used) if np.isfinite(nu_used) else None),
+        lam=lam, solver=solver, conventions=conventions,
     )
     n_units = len(full["groups"])
     point = np.array(
@@ -417,7 +447,7 @@ def cumulative_conformal_per_unit(
     per_unit_scores = rolling_pooled_block_sums(
         Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
         nu_used=nu_used, lam=lam, solver=solver, horizon=horizon,
-        min_train_frac=min_train_frac,
+        min_train_frac=min_train_frac, conventions=conventions,
     )
 
     lower = np.full(n_units, np.nan)

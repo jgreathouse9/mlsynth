@@ -28,7 +28,7 @@ from ..exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
-from ..utils.ppscm_helpers.engine import run_multisynth
+from ..utils.ppscm_helpers.engine import Conventions, run_multisynth
 from ..utils.ppscm_helpers.inference import (
     jackknife_inference, bootstrap_inference, per_unit_intervals,
     cumulative_conformal_per_unit, cumulative_supt_band)
@@ -124,12 +124,16 @@ class PPSCM:
 
             nu_arg = None if (isinstance(self.nu, str) and self.nu == "auto") else float(self.nu)
 
+            conventions = Conventions(
+                donor_weights=self.donor_weights,
+                base_period=self.base_period,
+                donor_pool=self.donor_pool,
+            )
             fit = run_multisynth(
                 Xy, trt, d, n_leads, n_lags,
                 fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                 nu=nu_arg, lam=self.lam, solver=self.solver,
-                donor_weights=self.donor_weights, base_period=self.base_period,
-                donor_pool=self.donor_pool,
+                conventions=conventions,
                 Z=inputs.Z,
             )
 
@@ -163,7 +167,7 @@ class PPSCM:
                     fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                     nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
                     alpha=self.alpha, per_time_full=per_time, att_full=att,
-                    return_paths=True,
+                    conventions=conventions, return_paths=True,
                 )
                 method = "jackknife"
             else:
@@ -227,6 +231,7 @@ class PPSCM:
                     nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
                     alpha=self.alpha, horizon=int(self.conformal_horizon),
                     min_train_frac=float(self.conformal_min_train_frac),
+                    conventions=conventions,
                 )
             else:
                 cum_pt = cum_lo = cum_hi = cum_n = None

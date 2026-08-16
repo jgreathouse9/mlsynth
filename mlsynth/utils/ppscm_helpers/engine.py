@@ -17,12 +17,36 @@ ATT=-0.011; time_cohort nu=0.3939, ATT=-0.017).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import cvxpy as cp
 import numpy as np
 
+from ...exceptions import MlsynthConfigError
+
 _EPS = 1e-12
+
+
+@dataclass(frozen=True)
+class Conventions:
+    """The three choices that decide which estimator a fit is.
+
+    Carried as one object because they travel together and are forgotten
+    separately: every place that refits the panel -- the jackknife, the
+    conformal calibration's rolling origins -- has to run the estimator the
+    caller configured, and three keyword arguments with defaults let a refit
+    site keep an older signature and silently pin itself to augsynth's. A
+    fourth convention added here reaches every refit without anyone editing
+    them.
+
+    The defaults are augsynth's ``multisynth``, so a fit that says nothing is
+    the port it has always been.
+    """
+
+    donor_weights: str = "scm"
+    base_period: str = "all_pre"
+    donor_pool: str = "window"
 
 
 def fit_feff(Xy: np.ndarray, trt: np.ndarray, adopt_indices, fixedeff: bool,
@@ -251,10 +275,21 @@ def run_multisynth(
     *, fixedeff: bool = True, time_cohort: bool = False,
     nu: Optional[float] = None, lam: float = 0.0, solver: Any = None,
     Z: Optional[np.ndarray] = None,
-    donor_weights: str = "scm", base_period: str = "all_pre",
-    donor_pool: str = "window",
+    conventions: Conventions = Conventions(),
 ) -> Dict[str, Any]:
     """Run one multisynth fit; returns weights, event study, ATT, diagnostics."""
+    donor_weights = conventions.donor_weights
+    base_period = conventions.base_period
+    donor_pool = conventions.donor_pool
+    # A non-finite pooling level builds an objective CVXPY cannot recognise, and
+    # the solver's complaint is the first anyone hears of it. The uniform fit
+    # poses no program and records ``nu_used = NaN``, so a caller handing that
+    # value back to a refit is the path that produced #467.
+    if nu is not None and not np.isfinite(nu):
+        raise MlsynthConfigError(
+            f"nu must be finite or None (None selects augsynth's ratio); got {nu!r}. "
+            "A uniform-weight fit poses no quadratic program and reports "
+            "nu_used = NaN, which is not a pooling level a later fit can reuse.")
     n = Xy.shape[0]
     ever = np.where(np.isfinite(trt))[0]
 
