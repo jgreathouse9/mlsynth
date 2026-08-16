@@ -976,7 +976,7 @@ timeout = 900.0
 [[target]]
 name = "batch-seed-gate"
 module-path = "mlsynth/utils/bilevel/minnorm.py"
-test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_minnorm.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_simplex_minnorm.py mlsynth/tests/test_bilevel_simplex_batch.py -q -p no:cacheprovider"
 timeout = 900.0
 
   [[target.mutant]]
