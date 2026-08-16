@@ -335,8 +335,13 @@ class WeightsResults(BaseModel):
         not it has them. An estimator whose weights fit no face sets
         ``weights_at`` and stops being indistinguishable from one that has none
         (#475). Pinned for every estimator in ``tests/test_result_contract.py``.
+
+        ``summary_stats`` does not count. It holds descriptive statistics about
+        the weights -- cardinality, a constraint label -- in prose no caller can
+        resolve to a location, which is the state #475 was filed about. A
+        sentence saying the weights are per cohort is not a way to reach them.
         """
-        return not any((self.donor_weights, self.time_weights, self.summary_stats,
+        return not any((self.donor_weights, self.time_weights,
                         self.weights_at)) and self.unit_weights is None
 
     @property
