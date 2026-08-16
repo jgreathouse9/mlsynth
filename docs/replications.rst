@@ -383,10 +383,11 @@ Convex-hull relaxation
 * :doc:`nsc` -- Nonlinear SC. Cross-validation: matched to
   Tian's (2023) own R implementation on the Proposition 99 panel
   (Table 2) -- per-donor NSC weights track the author's to
-  correlation 0.989 (max :math:`|\Delta| = 0.024`), recovering the
-  same signed donor pool, with an average effect :math:`-19.1` and
-  an effect path (:math:`-9.1/-22.6/-27.0` in 1990/1995/2000)
-  matching the paper's :math:`-9.5/-24.5/-28.7`. Path B: the
+  correlation 1.000 (max :math:`|\Delta| = 0.0005`, the author's own
+  3-decimal rounding), recovering the same signed donor pool, with an
+  average effect :math:`-20.59` and an effect path
+  (:math:`-9.51/-24.50/-28.70` in 1990/1995/2000) reproducing the
+  paper's :math:`-9.5/-24.5/-28.7`. Path B: the
   nonlinear-outcome Monte Carlo (Section 4, Table 1) -- on the
   :math:`r = 2` panel NSC's 95% CI covers near nominal
   (:math:`0.93/0.97` at :math:`J = 25/50`, paper
