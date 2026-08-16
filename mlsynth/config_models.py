@@ -336,13 +336,18 @@ class WeightsResults(BaseModel):
         ``weights_at`` and stops being indistinguishable from one that has none
         (#475). Pinned for every estimator in ``tests/test_result_contract.py``.
 
+        The test is ``is None``, not emptiness. An empty ``donor_weights`` is a
+        statement -- the factor-model estimators set ``{}`` and mean "checked,
+        this method has no donor weights", which is exactly what a caller needs
+        to know. ``None`` is the absence of a statement.
+
         ``summary_stats`` does not count. It holds descriptive statistics about
         the weights -- cardinality, a constraint label -- in prose no caller can
         resolve to a location, which is the state #475 was filed about. A
         sentence saying the weights are per cohort is not a way to reach them.
         """
-        return not any((self.donor_weights, self.time_weights,
-                        self.weights_at)) and self.unit_weights is None
+        return (self.donor_weights is None and self.time_weights is None
+                and self.unit_weights is None and self.weights_at is None)
 
     @property
     def weight_vector(self) -> Optional[np.ndarray]:

@@ -1176,3 +1176,21 @@ timeout = 900.0
   find = "    widest = max(int(len(donors[g])) for g in groups)"
   replace = "    widest = min(int(len(donors[g])) for g in groups)"
   models = "the pool measured at its narrowest, so one late cohort with few admissible donors masks an early one with hundreds. Whether the program could interpolate is decided by the widest pool any cohort was given, not the tightest"
+
+[[target]]
+name = "weights-container-contract"
+module-path = "mlsynth/config_models.py"
+test-command = "python -m pytest mlsynth/tests/test_weights_container.py mlsynth/tests/test_result_contract.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "emptiness-tested-by-truthiness"
+  find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
+  replace = "        return not any((self.donor_weights, self.time_weights,\n                        self.weights_at)) and self.unit_weights is None"
+  models = "an empty face read as silence. Six factor-model estimators report donor_weights={} to mean 'checked, this method has none', and truthiness collapses that into the same state as never having said anything -- failing the estimators that are already correct while leaving the ones the contract is aimed at untouched"
+
+  [[target.mutant]]
+  id = "prose-counted-as-a-location"
+  find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
+  replace = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None\n                and self.summary_stats is None)"
+  models = "summary_stats accepted in place of a face or a pointer. It carries a constraint label in prose no caller can resolve to an attribute, so counting it lets an estimator hold real weights, say nothing machine-readable about where, and pass -- which is the exact state #475 was filed about"

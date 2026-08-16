@@ -245,6 +245,7 @@ class SequentialSDID:
                     intervention_time=0,
                 ),
                 weights=WeightsResults(
+                    weights_at=["cohort_effects"],
                     summary_stats={"constraint": "SSDiD unit + time weights "
                                    "(per cohort x horizon)"}),
                 fit_diagnostics=FitDiagnosticsResults(),
