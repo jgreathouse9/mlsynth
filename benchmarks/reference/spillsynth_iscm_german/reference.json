@@ -1,0 +1,18 @@
+{
+  "values": {
+    "nocov_regular_att": -1472.60001,
+    "nocov_inclusive_att": -1651.522724,
+    "nocov_iterative_att_replace_pre_false": -1651.522724,
+    "nocov_iterative_att_replace_pre_true": -1651.524568,
+    "nocov_w_austria_in_west_germany": 0.176232,
+    "nocov_w_west_germany_in_austria": 0.487178,
+    "nocov_omega_det": 0.914144,
+    "nocov_weight_sum_west_germany": 0.966605,
+    "nocov_weight_sum_austria": 1.193265,
+    "cov_regular_att": -1305.879589,
+    "cov_inclusive_att": -1575.211574,
+    "cov_iterative_att_replace_pre_false": -1801.53636,
+    "cov_iterative_att_replace_pre_true": -1869.332122
+  },
+  "weights": {}
+}

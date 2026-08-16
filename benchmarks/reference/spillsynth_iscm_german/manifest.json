@@ -1,0 +1,17 @@
+{
+  "case": "spillsynth_iscm_german",
+  "title": "Inclusive and iterative spillover SCM vs Melnychuk's own R (German reunification)",
+  "paper": "Melnychuk, A. (2024), \"Synthetic Controls with Spillover Effects: A Comparative Study,\" arXiv 2405.01645; the inclusive method is Di Stefano & Mellace (2024), arXiv 2403.17624",
+  "reference_impl": "Melnychuk-Andrii/Spillover-SCM at commit 282b621 (runSCM / runInclusiveSCM / runIterativeSCM on the no-covariate backend, and the *withCov variants on Synth), cloned on demand and run live",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/spillsynth_iscm_german/run_reference.py",
+  "data": [
+    "basedata/repgermany.dta"
+  ],
+  "notes": [
+    "Both branches of replacePreTreatData are captured. The function signature defaults it to FALSE; runAllMethods and runAllMethodsWithCov, the entry points behind the paper's tables, pass TRUE.",
+    "nocov_weight_sum_west_germany and nocov_weight_sum_austria are 0.9666 and 1.1933, not 1. kernlab::ipop returns how = 'converged' on a primal that misses the simplex constraint, so the no-covariate reference's synthetic controls are not convex combinations and its inclusive estimate inherits that. The covariate backend goes through Synth, which standardizes its predictors, and does not show the same behaviour.",
+    "Regenerating needs R with kernlab, MASS, Synth and foreign, plus network access for the pinned clone.",
+    "The covariate cells carry the reference's own solver indeterminacy. Multiplying every predictor by 1 + eps*N(0,1) and refitting Synth::synth moves the iterative estimate over -1869.33 / -1721.24 / -1870.58 / -1771.01 / -1826.04 for eps = 0, 1e-12, 1e-10, 1e-8, 1e-6 -- a 149 USD spread, non-monotone in eps, from perturbations below any measurement precision. mlsynth's mscmt search on the same ladder moves by 0.08 USD. Regenerate this bundle from basedata/repgermany.dta and nothing else: reading the same panel through a CSV round trip perturbs the predictors at 1e-6 and moved the captured inclusive value by 108 USD."
+  ]
+}
