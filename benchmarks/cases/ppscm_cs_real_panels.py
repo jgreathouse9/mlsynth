@@ -28,6 +28,22 @@ synthetic fallback -- a network failure during a benchmark run -- would
 otherwise let this case report real-data agreement against generated data,
 which is the failure mode #473 was about.
 
+Which estimator these panels justify
+------------------------------------
+This case validates PPSCM's ``callaway_santanna`` mode, and only that mode, on
+these panels. Difference in differences is a large-N, short-T estimator, and
+``mpdta`` is exactly that shape: 4 pre-periods against 309 never-treated
+donors, N0/T0 = 77, with 480 donors carrying weight in the window pool. The
+partially-pooled program there fits 480 free parameters to 4 balance
+constraints and reaches a global imbalance of 3.4e-06, which is interpolation
+and not fit. ``castle_doctrine`` at N0/T0 = 3.2 cannot drive its imbalance to
+zero (2.1e-02), which is what a determined problem looks like.
+
+So the agreement recorded below says the Callaway-Sant'Anna estimand is
+reachable from PPSCM and reached exactly, on the data the reference is
+validated against. It is not a comparison of PPSCM's default against
+Callaway-Sant'Anna, and a panel this short does not support one.
+
 The reference is ``diff_diff.CallawaySantAnna(control_group="never_treated",
 estimation_method="dr", n_bootstrap=0)`` run live on the same frame, so the
 target is the package's number and not a transcription of it.
