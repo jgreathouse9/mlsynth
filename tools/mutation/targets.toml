@@ -1194,3 +1194,40 @@ timeout = 1800.0
   find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
   replace = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None\n                and self.summary_stats is None)"
   models = "summary_stats accepted in place of a face or a pointer. It carries a constraint label in prose no caller can resolve to an attribute, so counting it lets an estimator hold real weights, say nothing machine-readable about where, and pass -- which is the exact state #475 was filed about"
+
+[[target]]
+name = "iterative-waterfall-branch"
+module-path = "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_iterative_replace_pre.py mlsynth/tests/test_spillsynth_iterative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "waterfall-always-replaces-the-whole-series"
+  find = """        Y[i, T0:] = cf[T0:]
+        if replace_pre:                               # replacePreTreatData=TRUE"""
+  replace = """        Y[i, :] = cf
+        if replace_pre:                               # replacePreTreatData=TRUE"""
+  models = "Melnychuk's replacePreTreatData pinned to TRUE regardless of the setting. This is the branch the reference's own call sites run, so it is not an implausible reading -- which is why it went unnoticed: before the switch existed the whole spillsynth suite (252 tests) stayed green under it, while on German reunification it moves Austria's weight from 0.46 to 0.00 and the ATT by ~320 USD"
+
+  [[target.mutant]]
+  id = "waterfall-never-replaces-the-pre-period"
+  find = """        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])
+            Y[i, :T0] = cf[:T0]"""
+  replace = """        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])"""
+  models = "the switch recorded but not applied -- the cleaned pre-period is reported on the fit object while the donor matrix keeps the observed one, so the setting reads as honoured and the estimate is the other branch's"
+
+  [[target.mutant]]
+  id = "naive-pre-fit-taken-from-the-cleaned-panel"
+  find = "        naive_synthetic_pre=np.asarray(cf_naive[:T0]),"
+  replace = "        naive_synthetic_pre=np.asarray(cf_f[:T0]),"
+  models = "the naive pre-period fit read off the cleaned panel instead of the original outcomes. The two coincide exactly when replace_pre is False, so the defect is invisible in the default configuration and silently asserts that the refit changed nothing whenever it did"
+
+  [[target.mutant]]
+  id = "uncleanable-donor-passed-off-as-cleaned"
+  find = """    if affected and not clean:
+        raise MlsynthDataError("""
+  replace = """    if False:
+        raise MlsynthDataError("""
+  models = "the identification requirement dropped, so a panel with no clean control reaches the waterfall. The shape this used to take was the worst one: the first donor was skipped, appended to the cleaned list anyway, and the next donor fit against its contaminated outcomes, which returned a finite and plausible -6.93 against a true -3.0 on a three-unit panel while cleaned_units named both donors and only the one-entry spillover ledger disagreed"

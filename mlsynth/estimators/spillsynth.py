@@ -92,6 +92,8 @@ class SPILLSYNTH:
         self.bilevel_solver: str = getattr(config, "bilevel_solver", "malo")
         self.bias_correct: bool = getattr(config, "bias_correct", False)
         self.iscm_intercept: bool = getattr(config, "iscm_intercept", False)
+        self.iterative_replace_pre: bool = getattr(
+            config, "iterative_replace_pre", False)
         self.n_boot: int = getattr(config, "n_boot", 0)
         self.ci_level: float = getattr(config, "ci_level", 0.90)
         self.seed: int = getattr(config, "seed", 0)
@@ -182,7 +184,8 @@ class SPILLSYNTH:
             elif self.method == "iterative":
                 fit = run_iterative(inputs, bilevel_solver=self.bilevel_solver,
                                     bias_correct=self.bias_correct,
-                                    intercept=self.iscm_intercept)
+                                    intercept=self.iscm_intercept,
+                                    replace_pre=self.iterative_replace_pre)
                 results = SpillSynthResults(
                     inputs=inputs, method="iterative", iterative=fit,
                 )
