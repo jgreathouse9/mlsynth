@@ -28,6 +28,7 @@ from ..exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
+from ..utils.ppscm_helpers.cs_inference import influence_function_inference
 from ..utils.ppscm_helpers.engine import Conventions, run_multisynth
 from ..utils.ppscm_helpers.inference import (
     jackknife_inference, bootstrap_inference, per_unit_intervals,
@@ -88,6 +89,7 @@ class PPSCM:
         self.base_period: str = config.base_period
         self.donor_pool: str = config.donor_pool
         self.method: Any = config.method
+        self.cband: bool = config.cband
         self.solver: Any = config.solver
         self.run_inference: bool = config.run_inference
         self.inference_method: str = config.inference_method
@@ -155,7 +157,19 @@ class PPSCM:
             per_time = fit["per_time"]
             att = fit["att"]
             replicate_paths = None
-            if self.run_inference and self.inference_method == "bootstrap":
+            cs = None
+            if self.run_inference and self.inference_method == "influence_function":
+                cs = influence_function_inference(
+                    fit, inputs.time_labels, alpha=self.alpha,
+                    att_full=att, per_time_full=per_time,
+                    n_boot=self.n_boot, seed=self.seed, cband=self.cband,
+                    want_paths=self.cumulative_band,
+                )
+                se, ci = cs.se, cs.ci
+                pt_se, pt_ci = cs.per_time_se, cs.per_time_ci
+                replicate_paths = cs.replicate_paths
+                method = "influence_function"
+            elif self.run_inference and self.inference_method == "bootstrap":
                 att, se, ci, pt_se, pt_ci, replicate_paths = bootstrap_inference(
                     fit, alpha=self.alpha, n_boot=self.n_boot, seed=self.seed,
                     per_time_full=per_time, att_full=att, return_paths=True,
@@ -191,10 +205,16 @@ class PPSCM:
                     jackknife=(method == "jackknife"), seed=self.seed,
                     method=method,
                 )
-            inference = PPSCMInference(att=float(att), se=float(se),
-                                      ci=tuple(ci), method=method,
-                                      replicate_paths=replicate_paths,
-                                      cumulative=cumulative)
+            inference = PPSCMInference(
+                att=float(att), se=float(se), ci=tuple(ci), method=method,
+                replicate_paths=replicate_paths, cumulative=cumulative,
+                group_time_att=(cs.group_time_att if cs is not None else None),
+                group_time_se=(cs.group_time_se if cs is not None else None),
+                pointwise_band=(cs.pointwise_band if cs is not None else None),
+                uniform_band=(cs.uniform_band if cs is not None else None),
+                critical_value=(cs.critical_value if cs is not None else None),
+                influence=(cs.influence if cs is not None else None),
+            )
 
             # donor weights per treated cohort (label -> {donor: weight})
             donor_weights: Dict[Any, Dict[Any, float]] = {}

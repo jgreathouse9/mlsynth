@@ -1075,3 +1075,68 @@ timeout = 2400.0
   find = "    if nu is not None and not np.isfinite(nu):"
   replace = "    if nu is not None and not np.isfinite(nu) and False:"
   models = "the finiteness guard removed, so NaN multiplies the pooled term and CVXPY reports a non-DCP objective instead of the library naming the input. The solver's message does not mention nu, which is why the original failure was read as a solver problem"
+[[target]]
+name = "cs-influence-function"
+module-path = "mlsynth/utils/ppscm_helpers/cs_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_callaway_santanna.py mlsynth/tests/test_ppscm_cs_reference.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "weight-influence-term-dropped"
+  find = "        psi += ((indicator - pg[keep][None, :]) @ (a - theta[h])) / (S * n)"
+  replace = "        psi += 0.0 * ((indicator - pg[keep][None, :]) @ (a - theta[h]))"
+  models = "the cohort shares treated as known when they are estimated from the same panel. The standard error that comes back is finite, is smaller than the truth, and is smaller by an amount nothing in the point estimate reveals -- which is why did::aggte carries the term and why the vendored reference computes it twice, once with and once without"
+
+  [[target.mutant]]
+  id = "weight-influence-term-not-centred-on-its-own-horizon"
+  find = "        psi += ((indicator - pg[keep][None, :]) @ (a - theta[h])) / (S * n)"
+  replace = "        psi += ((indicator - pg[keep][None, :]) @ a) / (S * n)"
+  models = "the delta-method derivative losing its centring. d(theta_h)/d(pg_j) is (ATT_jh - theta_h)/S_h, and dropping theta_h leaves a term that does not vanish when every cohort has the same effect -- the one case where the shares cannot matter"
+
+  [[target.mutant]]
+  id = "cohorts-weighted-equally-instead-of-by-size"
+  find = "        w = pg[keep] / S"
+  replace = "        w = np.full(keep.size, 1.0 / keep.size)"
+  models = "Callaway-Sant'Anna's simple aggregation substituted for their dynamic one. The two coincide exactly when every cohort is the same size, which is every hand-written panel in the identity suite, so this is invisible until a cohort split is deliberately unbalanced"
+
+  [[target.mutant]]
+  id = "group-share-taken-among-the-treated-only"
+  find = "    pg = n1 / float(n)"
+  replace = "    pg = n1 / n1.sum()"
+  models = "the cohort share measured against the treated instead of the panel. The aggregation weights are a ratio of shares and do not move, so the point estimate is untouched; only the weight-influence term's scale changes, and it changes by the square of the treated fraction"
+
+  [[target.mutant]]
+  id = "comparison-group-enters-with-the-treated-sign"
+  find = "            -(d_co - mu_c) / don.size)"
+  replace = "            (d_co - mu_c) / don.size)"
+  models = "the comparison group's influence contributions flipped, which turns each cell from a difference in differences into a sum. Nothing numeric can see it: a per-cell standard error is a sum of squares; the treated and control blocks sit on disjoint units; each cell's control influence sums to zero; and the weight-influence term is one constant across never-treated units, so the aggregate changes by 4c * sum_i A_i = 0. Measured, the influence matrix moves by 1.36e-01 and every reported number is bit-identical. It is caught only by asserting the sign convention on the exposed influence array, which is public and documented as what a caller re-aggregates"
+
+  [[target.mutant]]
+  id = "comparison-group-contributes-no-variance"
+  find = "            se_cell[k, h] = float(np.sqrt((inf_t ** 2).sum() + (inf_c ** 2).sum()))"
+  replace = "            se_cell[k, h] = float(np.sqrt((inf_t ** 2).sum()))"
+  models = "the never-treated group's sampling error omitted from the cell, as if the comparison mean were a known constant. With many controls and few treated the term is small, which is what makes it easy to leave out and hard to see"
+
+  [[target.mutant]]
+  id = "horizons-summed-instead-of-averaged"
+  find = "    psi_agg = np.nanmean(influence[:, finite], axis=1)"
+  replace = "    psi_agg = np.nansum(influence[:, finite], axis=1)"
+  models = "the aggregate influence function summed over event time while the point estimate averages. The standard error is then H times too large and the interval covers at a level nobody asked for -- conservative, so no coverage test would complain"
+
+  [[target.mutant]]
+  id = "simultaneous-critical-value-taken-on-the-raw-scale"
+  find = "            scaled = np.abs(draws[:, finite]) / per_time_se[finite][None, :]"
+  replace = "            scaled = np.abs(draws[:, finite])"
+  models = "the sup taken over unstandardised draws, so the horizon with the largest standard error sets the critical value for all of them. The multiplier is then in outcome units and the band it builds is not simultaneous at the stated level for any horizon but that one"
+
+  [[target.mutant]]
+  id = "simultaneous-band-uses-the-lower-tail"
+  find = "            critical_value = float(np.quantile(np.max(scaled, axis=1), 1.0 - alpha))"
+  replace = "            critical_value = float(np.quantile(np.max(scaled, axis=1), alpha))"
+  models = "the critical value read off the wrong tail. A uniform band narrower than the pointwise one is incoherent, and the only thing that says so is a test that compares the two widths"
+
+  [[target.mutant]]
+  id = "multiplier-law-loses-its-moments"
+  find = "_PROB = (np.sqrt(5.0) + 1.0) / (2.0 * np.sqrt(5.0))"
+  replace = "_PROB = 0.5"
+  models = "Mammen's two probabilities replaced by a coin flip, keeping his two values. The law's mean goes to 0.5 and its variance to 1.25, and neither is visible downstream: the influence function sums to zero across units, so a non-zero multiplier mean contributes nothing, and the variance error only inflates the simultaneous critical value by about twelve percent -- a band that is wider than the pointwise one either way. Only the moments themselves catch it"
