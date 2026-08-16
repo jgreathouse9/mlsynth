@@ -664,7 +664,14 @@ class SpillSynthResults(BaseEstimatorResults):
                 rmse_pre=float(np.sqrt(np.mean(resid ** 2))),
             )
         if self.weights is None:
-            self.weights = WeightsResults()
+            # SPILLSYNTH's weights are the active sub-fit's spillover and SCM
+            # matrices -- alpha is (n, T0) and gamma (n_treated, T0) -- so no
+            # single face is the right shape. Name the sub-result instead of
+            # flattening them into a vector no unit used (#475).
+            self.weights = WeightsResults(
+                weights_at=[self.method],
+                summary_stats={"constraint":
+                               f"SPILLSYNTH/{self.method} spillover + SCM weights"})
         if self.method_details is None:
             self.method_details = MethodDetailsResults(
                 method_name=f"SPILLSYNTH/{self.method}",
