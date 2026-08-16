@@ -276,6 +276,40 @@ def test_flat_accessor_contract(Est, extra, fitted):
 
 
 @pytest.mark.parametrize("Est, extra", OBSERVATIONAL)
+def test_weights_container_says_something(Est, extra, fitted):
+    """An estimator that computed weights must not hand back an empty container.
+
+    ``WeightsResults`` offers four optional faces, and every one being ``None``
+    is indistinguishable from "this estimator has no weights". Several
+    estimators hold real weights on bespoke fields -- per cohort, per treated
+    unit, as factor matrices -- for which no single face is the right shape.
+    Those name where the weights are, in ``weights_at``. What is not allowed is
+    saying nothing: a caller reaching for ``res.weights.donor_weights`` and
+    getting ``None`` cannot tell which case they are in (#475).
+    """
+    res = fitted[Est.__name__]
+    w = res.weights
+    assert not w.is_empty, (
+        f"{Est.__name__} returns a WeightsResults with no face populated and no "
+        "weights_at pointer, so a caller cannot tell whether it has weights")
+
+
+@pytest.mark.parametrize("Est, extra", OBSERVATIONAL)
+def test_weights_pointer_resolves(Est, extra, fitted):
+    """``weights_at`` names attributes that exist and are populated.
+
+    A pointer to nothing is worse than no pointer, so each name is resolved
+    against the result it came from.
+    """
+    res = fitted[Est.__name__]
+    for name in (res.weights.weights_at or []):
+        assert hasattr(res, name), (
+            f"{Est.__name__} weights_at names {name!r}, absent from the result")
+        assert getattr(res, name) is not None, (
+            f"{Est.__name__} weights_at names {name!r}, which is None")
+
+
+@pytest.mark.parametrize("Est, extra", OBSERVATIONAL)
 def test_serializable(Est, extra, fitted):
     """A standardized result serializes through pydantic (reproducibility)."""
     res = fitted[Est.__name__]
