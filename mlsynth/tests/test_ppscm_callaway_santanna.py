@@ -45,8 +45,52 @@ import pytest
 from mlsynth import PPSCM
 from mlsynth.exceptions import MlsynthConfigError
 
-dd = pytest.importorskip("diff_diff", reason="CS reference implementation")
-from diff_diff import CallawaySantAnna, SunAbraham  # noqa: E402
+try:                                             # corroboration, not the oracle
+    from diff_diff import CallawaySantAnna, SunAbraham
+    HAVE_DIFF_DIFF = True
+except ImportError:                              # pragma: no cover - CI without it
+    HAVE_DIFF_DIFF = False
+
+needs_diff_diff = pytest.mark.skipif(
+    not HAVE_DIFF_DIFF, reason="diff-diff not installed")
+
+
+# --------------------------------------------------------------------------- #
+# the oracle: Callaway-Sant'Anna's group-time ATT, transcribed
+# --------------------------------------------------------------------------- #
+def cs_group_time(df, outcome="y", unit="id", time="time", first_treat="first_treat"):
+    """``ATT(g, t)`` with a never-treated comparison group and no covariates.
+
+    With those two restrictions the estimator is a two-period, two-group DiD per
+    cell, against the base period ``g - 1``::
+
+        ATT(g,t) = mean_{i in G_g}(Y_it - Y_{i,g-1})
+                 - mean_{i in C} (Y_it - Y_{i,g-1})
+
+    Transcribed rather than imported so the identity this module exists to prove
+    is enforced wherever the suite runs, and not only where ``diff-diff`` is
+    installed. The imported package is compared against separately, which is
+    what keeps this transcription honest.
+    """
+    wide = df.pivot(index=unit, columns=time, values=outcome)
+    g_of = df.groupby(unit)[first_treat].first()
+    never = g_of.index[g_of == 0]
+    out = {}
+    for g in sorted(x for x in g_of.unique() if x != 0):
+        treated = g_of.index[g_of == g]
+        for t in wide.columns:
+            if t < g or (g - 1) not in wide.columns:
+                continue
+            d_tr = (wide.loc[treated, t] - wide.loc[treated, g - 1]).mean()
+            d_co = (wide.loc[never, t] - wide.loc[never, g - 1]).mean()
+            out[(g, t)] = float(d_tr - d_co)
+    return out
+
+
+def oracle_att(df, L):
+    """The oracle's ATT over leads ``0 .. L-1``, aggregated as PPSCM aggregates."""
+    gt = cs_group_time(df)
+    return float(np.mean([v for (g, t), v in gt.items() if 0 <= t - g < L]))
 
 
 # --------------------------------------------------------------------------- #
@@ -174,12 +218,31 @@ class TestConfigSurface:
 # =========================================================================== #
 class TestIdentityWithCallawaySantAnna:
     @pytest.mark.parametrize("name,onsets,k", ALIGNED)
+    def test_matches_the_callaway_santanna_oracle(self, name, onsets, k):
+        df = staggered(onsets, k=k)
+        res = fit_cs_mode(df)
+        assert float(res.att) == pytest.approx(oracle_att(df, leads_of(res)),
+                                               abs=1e-12), name
+
+    @needs_diff_diff
+    @pytest.mark.parametrize("name,onsets,k", ALIGNED)
     def test_matches_callaway_santanna(self, name, onsets, k):
+        """Corroboration against an independent implementation."""
         df = staggered(onsets, k=k)
         res = fit_cs_mode(df)
         ref, _ = reference_cs(df, leads_of(res))
         assert float(res.att) == pytest.approx(ref, abs=1e-12), name
 
+    @needs_diff_diff
+    @pytest.mark.parametrize("name,onsets,k", ALIGNED)
+    def test_the_oracle_agrees_with_the_package(self, name, onsets, k):
+        """If these ever disagree, the transcription is what to distrust."""
+        df = staggered(onsets, k=k)
+        L = leads_of(fit_cs_mode(df))
+        ref, _ = reference_cs(df, L)
+        assert oracle_att(df, L) == pytest.approx(ref, abs=1e-12), name
+
+    @needs_diff_diff
     @pytest.mark.parametrize("name,onsets,k", ALIGNED)
     def test_matches_sun_abraham(self, name, onsets, k):
         df = staggered(onsets, k=k)
@@ -192,23 +255,22 @@ class TestIdentityWithCallawaySantAnna:
         """A DGP-specific identity would be worthless; vary the effect."""
         df = staggered((10, 14, 18), effect=effect)
         res = fit_cs_mode(df)
-        ref, _ = reference_cs(df, leads_of(res))
-        assert float(res.att) == pytest.approx(ref, abs=1e-12), effect
+        assert float(res.att) == pytest.approx(oracle_att(df, leads_of(res)),
+                                               abs=1e-12), effect
 
     @pytest.mark.parametrize("seed", range(4))
     def test_identity_holds_across_seeds(self, seed):
         df = staggered((10, 14, 18), seed=seed)
         res = fit_cs_mode(df)
-        ref, _ = reference_cs(df, leads_of(res))
-        assert float(res.att) == pytest.approx(ref, abs=1e-12)
+        assert float(res.att) == pytest.approx(oracle_att(df, leads_of(res)),
+                                               abs=1e-12)
 
     def test_event_study_path_matches_lead_for_lead(self):
         """The ATT is one number; the path is where an estimator can hide."""
         df = staggered((10, 14, 18))
         res = fit_cs_mode(df)
         L = leads_of(res)
-        _, ref = reference_cs(df, L)
-        gt = {(g, t): v["effect"] for (g, t), v in ref.group_time_effects.items()}
+        gt = cs_group_time(df)
         for l in range(L):
             ours = float(np.nanmean([f.tau[l] for f in res.per_unit.values()]))
             theirs = float(np.mean([v for (g, t), v in gt.items() if t - g == l]))
@@ -257,7 +319,7 @@ class TestDocumentedDivergence:
         cs_mode = float(fit_cs_mode(df).att)
         window = float(fit_cs_mode(df, donor_pool="window").att)
         res = fit_cs_mode(df)
-        ref, _ = reference_cs(df, leads_of(res))
+        ref = oracle_att(df, leads_of(res))
         assert cs_mode == pytest.approx(ref, abs=1e-12), (
             "never_treated must still match CS exactly")
         assert abs(window - ref) > 1e-4, (
@@ -267,6 +329,12 @@ class TestDocumentedDivergence:
 # =========================================================================== #
 # 5. inference -- separate from estimation on purpose
 # =========================================================================== #
+@pytest.mark.xfail(strict=True, reason=(
+    "Influence-function inference is the second half of #465 and is not built "
+    "yet. These are written first and left strict on purpose: they fail now, "
+    "and the moment the inference lands they flip to unexpected passes, which "
+    "is what removes this marker. PPSCM's jackknife is still what runs, and "
+    "``parameters_used['inference_method']`` says so."))
 class TestInference:
     @pytest.mark.parametrize("name,onsets,k", ALIGNED[:3])
     def test_per_cell_standard_errors_match(self, name, onsets, k):
