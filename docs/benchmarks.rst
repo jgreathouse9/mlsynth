@@ -172,7 +172,8 @@ Path A — empirical replications
    * - ``spillsynth_iscm_germany``
      - inclusive SCM German reunification (Di Stefano-Mellace)
    * - ``spillsynth_iterative_germany``
-     - iterative waterfall SCM German reunification (Melnychuk)
+     - iterative waterfall SCM German reunification (Melnychuk), both
+       replacePreTreatData branches, cross-checked against the authors' live R
    * - ``spotsynth_real_data``
      - SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
    * - ``tssc_brooklyn``
@@ -368,7 +369,8 @@ Cross-validation against reference implementations
    * - ``snn_prop99``
      - vs deshen24/syntheticNN (Prop 99)
    * - ``spillsynth_iscm_xval``
-     - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German)
+     - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German), against both
+       the authors' shipped output and their algorithm solved to the simplex
    * - ``spillsynth_prop99``
      - vs jcao0/synthetic-control-spillover (Cao-Dowd Prop 99)
    * - ``spsydid_state_mc``
