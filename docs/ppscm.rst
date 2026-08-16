@@ -223,6 +223,77 @@ for the overall ATT and each relative-time horizon, with Wald intervals.
 ``inference_method="bootstrap"`` swaps in augsynth's default Mammen wild
 bootstrap, which reweights the single fit instead of refitting.
 
+Analytical standard errors under the Callaway-Sant'Anna conventions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``method="callaway_santanna"`` reaches their point estimate exactly, and an
+equal point estimate does not make an equal interval. The preset therefore
+also selects ``inference_method="influence_function"``, which is the standard
+error that goes with that estimate.
+
+Under those conventions each cell is a two-period, two-group difference in
+differences and its influence function is available in closed form:
+
+.. math::
+
+   \widehat{\phi}_i(g,t) =
+     \frac{\Delta_i - \bar{\Delta}_{\mathcal{G}_g}}{n_g}\ \ (i \in \mathcal{G}_g),
+   \qquad
+   \widehat{\phi}_i(g,t) =
+     -\frac{\Delta_i - \bar{\Delta}_{\mathcal{C}}}{n_{\mathcal{C}}}\ \ (i \in \mathcal{C}),
+
+with :math:`\Delta_i = Y_{it} - Y_{i,g-1}` and
+:math:`\widehat{\text{se}}(g,t) = \sqrt{\sum_i \widehat{\phi}_i(g,t)^2}`. A
+standard error then costs one pass over the panel, where the jackknife costs one
+refit per unit.
+
+PPSCM averages cohorts by size at each horizon and then averages horizons,
+:math:`\widehat{\theta} = \tfrac1H \sum_h \widehat{\theta}_h` with
+:math:`\widehat{\theta}_h = \sum_{k \in \mathcal{K}_h} p_k \widehat{\tau}_{kh} / S_h`
+and :math:`S_h = \sum_{k \in \mathcal{K}_h} p_k`. That is Callaway and
+Sant'Anna's dynamic aggregation followed by an average over event time, and it
+coincides with their simple aggregation when every cohort is the same size and
+reaches every horizon. The cohort shares :math:`p_k` are estimated from the same
+panel, so the aggregate carries their sampling error through
+:math:`\partial \theta_h / \partial p_j = (\tau_{jh} - \theta_h)/S_h` -- the term
+R's ``did::aggte`` calls ``wif``. Deleting it leaves a standard error that is
+finite, plausible and too small, so the test suite computes the aggregate both
+ways and pins the difference.
+
+``results.inference_detail`` then carries ``group_time_att`` and
+``group_time_se`` keyed by the public ``(adoption time, time)`` labels, the
+per-unit ``influence`` matrix every reported standard error is a functional of,
+and two bands on the event-time path. ``cband=True`` tabulates the second one:
+
+.. math::
+
+   c_{1-\alpha} = \text{quantile}_{1-\alpha}\ \max_h
+     \Bigl| \sum_i v_i \widehat{\psi}_{h,i} \Bigr| \big/ \widehat{\text{se}}_h ,
+
+with :math:`v_i` Mammen (1993) multipliers. One critical value covers every
+horizon at once, which is the level a reader assumes when they read the path as
+a path ("positive by horizon three and never back"); the pointwise band read
+that way covers less. No refit is involved -- the multipliers act on the
+influence functions the point estimate already produced.
+
+The derivation assumes the conventions that produce the Callaway-Sant'Anna
+estimate, so ``inference_method="influence_function"`` is available only with
+``donor_weights="uniform"``, ``base_period="pre_treatment"``,
+``donor_pool="never_treated"`` and ``fixedeff=True``. Solved SCM weights are
+estimated too and contribute a term of their own, and a not-yet-treated pool
+changes the comparison group's composition over time; outside the four the
+formula is wrong and not approximate, and the configuration raises
+``MlsynthConfigError`` naming the convention that broke it. Setting a convention
+explicitly alongside the preset is a coherent question whose answer is the
+jackknife, so the preset stands down instead of raising.
+
+Verification: the analytical standard errors are pinned cell by cell and in
+aggregate against
+`benchmarks/reference/ppscm_cs/reference.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/ppscm_cs/reference.py>`_,
+a transcription of ``diff-diff`` 3.9.0 at commit ``d9cd475`` kept in-tree so the
+check runs without a runtime dependency. Measured agreement is 0.0 per cell and
+5.6e-17 on the aggregate.
+
 Per-unit fits alongside the pooled report
 -----------------------------------------
 
