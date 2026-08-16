@@ -107,11 +107,27 @@ class TestOptimization:
             assert b > 0.0
 
     def test_scale_a_uses_combined_design(self):
+        """``b`` enters ``a``'s spectrum, and not only by shifting it.
+
+        This asserted ``a`` rises with ``b`` at every ``a*``, which was a
+        property of the old scaling and is not one of the method (#463). Adding
+        the ridge lifts ``2J - rank`` zero eigenvalues above the reference's
+        ``1e-7`` filter, so the spectrum this indexes grows -- on a 5 x 4 design
+        from 4 entries to 10 -- and ``ceil(a* n)`` can land on the ridge value
+        where it used to land on a data eigenvalue. Tian's own code does the
+        same: at ``a* = 0.5`` it returns 1.636, 0.500 and 5.000 for ``b`` of 0,
+        1 and 10.
+
+        What does hold at every ``b`` is the anchor the docstring claims: at
+        ``a* = 1`` the largest eigenvalue is taken, which is ``max(2 lambda) +
+        b`` and therefore increasing in ``b``.
+        """
         rng = np.random.default_rng(0)
         Z0 = rng.standard_normal((5, 4))
-        a_no_b = scale_a(0.5, Z0, 0.0)
-        a_with_b = scale_a(0.5, Z0, 1.0)
-        assert a_with_b >= a_no_b
+        assert scale_a(1.0, Z0, 1.0) > scale_a(1.0, Z0, 0.0)
+        assert scale_a(0.5, Z0, 10.0) > scale_a(0.5, Z0, 1.0)
+        # the non-monotone step, pinned so it is a decision and not a surprise
+        assert scale_a(0.5, Z0, 1.0) < scale_a(0.5, Z0, 0.0)
 
     def test_solve_nsc_weights_sum_to_one(self):
         rng = np.random.default_rng(0)

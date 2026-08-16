@@ -930,3 +930,39 @@ timeout = 900.0
   find = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov,\n                            keys=keys)"
   replace = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov)"
   models = "one scan per covariate instead of one for the panel. A ten-covariate panel is scanned eleven times, and every covariate matrix is correct, so nothing but a pass count reports it"
+
+[[target]]
+name = "nsc-penalty-scaling"
+module-path = "mlsynth/utils/nsc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_nsc_penalty_scaling.py mlsynth/tests/test_nsc.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "b-indexes-the-unstacked-gram"
+  find = "    vals = 2.0 * np.linalg.eigvalsh(M)"
+  replace = "    vals = np.linalg.eigvalsh(M)"
+  models = "the defect this target exists for, restored: the spectrum of Z0 Z0' where the reference indexes the stacked Z* Z*', whose non-zero eigenvalues are twice as large. Every b is halved and, through b, every a, so the paper's tuning parameters buy half the penalty they name -- on Prop 99 an ATT of -19.13 against -20.59, which the previous tolerances were wide enough to admit"
+
+  [[target.mutant]]
+  id = "a-indexes-a-spectrum-of-length-J"
+  find = "    vals = np.concatenate([nonzero + ridge,\n                           np.full(2 * J - nonzero.size, ridge)])"
+  replace = "    vals = np.concatenate([nonzero + ridge,\n                           np.full(J - nonzero.size, ridge)])"
+  models = "the ridge counted once per donor instead of once per stacked variable. The spectrum is then J long where the reference's is 2J, so ceil(a* n) selects a different element -- identical on a low-rank design, where both land on the ridge value, and wrong once the rank approaches J. This is the half of the fault that a blanket doubling would not have caught"
+
+  [[target.mutant]]
+  id = "eigenvalue-filter-loosened-to-machine-zero"
+  find = "_EIG_TOL = 1e-7"
+  replace = "_EIG_TOL = 1e-12"
+  models = "the threshold that decides how many eigenvalues are indexed, moved off the reference's. At b = 0 the ridge is 1e-8, which the reference filters out and this keeps, so the a spectrum grows from rank(Z0) entries to 2J and the selected element changes"
+
+  [[target.mutant]]
+  id = "reference-ridge-dropped-from-the-a-spectrum"
+  find = "    ridge = float(b_raw) + 1e-8"
+  replace = "    ridge = float(b_raw)"
+  models = "the reference's positive-definiteness nudge removed. At b = 0 the ridge entries become exactly zero instead of 1e-8, which changes nothing downstream because both are filtered -- but at any b it shifts every entry of the spectrum a and b are read from"
+
+  [[target.mutant]]
+  id = "scaling-index-off-by-one"
+  find = "    idx = int(np.ceil(vals.size * float(a_star))) - 1"
+  replace = "    idx = int(np.ceil(vals.size * float(a_star)))"
+  models = "R's one-based sort() index used directly on a zero-based array, so every a takes the next eigenvalue up. At a* = 1 it clamps and is invisible; below that it silently over-penalises"

@@ -35,28 +35,39 @@ reported in Table 2, so we fix those and match the per-donor weights:
      - mlsynth NSC
      - Tian Table 2 / paper
    * - weight correlation (38 donors)
-     - 0.989
+     - 1.000
      - —
    * - max per-donor :math:`|\Delta|`
-     - 0.024
+     - 0.0005
      - (Table 2 rounded to 3 dp)
    * - mean per-donor :math:`|\Delta|`
-     - 0.006
+     - 0.0001
      - —
    * - average post-period effect
-     - :math:`-19.1`
-     - :math:`\approx -19`
+     - :math:`-20.59`
+     - :math:`-20.59`
    * - effect in 1990 / 1995 / 2000
-     - :math:`-9.1 / -22.6 / -27.0`
+     - :math:`-9.51 / -24.50 / -28.70`
      - :math:`-9.5 / -24.5 / -28.7`
 
 mlsynth's NSC is a faithful port of the reference QP — eigenvalue-scaled penalty,
 the ``rbind(Z, -Z)`` negativity trick, distance-weighted L1 — so it recovers the
 same signed donor pool (positive weights concentrated on Idaho, Montana,
 Colorado, Connecticut; small negative weights on Alabama, Arkansas, Tennessee)
-and the paper's growing effect path. The residual per-weight differences
-(:math:`<0.025`) come from the standardisation convention and Table 2's
-three-decimal rounding.
+and the paper's growing effect path. The one remaining difference is Table 2's
+three-decimal rounding, which bounds any single weight at :math:`5 \times
+10^{-4}`; the effect path, computed from unrounded weights on both sides, agrees
+to :math:`10^{-6}` packs.
+
+Earlier versions of this page reported a correlation of 0.989 and an average
+effect of :math:`-19.1`, attributing the gap to the standardisation convention.
+That attribution was wrong -- the standardisation already agreed -- and the cause
+was the penalty scaling: ``NSC.R`` writes the :math:`\ell_1` term by splitting
+each weight into a non-negative pair, which stacks the design as :math:`Z^* =
+[Z; -Z]`, and indexes the eigenvalues of :math:`Z^* Z^{*\prime}`. mlsynth wrote
+the same term with auxiliary variables and indexed :math:`Z Z'`, whose non-zero
+eigenvalues are exactly half of the stacked ones, so :math:`(a^*, b^*)` bought
+half the penalty they name. Fixed in #463.
 
 The durable check lives in ``benchmarks/cases/nsc_prop99.py``::
 
