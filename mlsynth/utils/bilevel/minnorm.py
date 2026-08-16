@@ -46,6 +46,8 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from .accelerate import BATCH_ACCEL_MIN_DONORS, fista_warm_start_batch
+
 # Ridge on the *scale-normalised* corral system. It exists to keep the batched
 # LU factorisation defined when the donors in a support are affinely dependent
 # (duplicate or collinear donors, or fewer matching rows than donors), where the
@@ -77,7 +79,9 @@ def gram_reduction_is_safe(B: np.ndarray, tol: float = 1e-8) -> bool:
     * If the design is rank deficient and the minimiser is a face and not a
       point, both solvers are correct and they land in different places: on an
       8-row, 39-donor design whose target the donors reproduce exactly, they
-      agree on the fitted values to 1e-11 while differing by 0.19 in the weights.
+      agree on the fitted values to 1e-11 while differing in the weights -- by
+      0.015 since the Gram solver gained a first-order seed, and by 0.209 before
+      it, the seed starting it from a spread point instead of a vertex.
       Nothing is wrong, but anything reading the weights -- a donor table, a
       counterfactual built from post-period donor outcomes -- would change.
 
@@ -365,6 +369,7 @@ def solve_simplex_minnorm(
     *,
     warm_start: Optional[np.ndarray] = None,
     max_iter: Optional[int] = None,
+    accelerate: bool = True,
     return_info: bool = False,
 ):
     """Minimise ``w' G w`` over ``w >= 0, sum(w) == 1`` for one Gram matrix.
@@ -381,6 +386,11 @@ def solve_simplex_minnorm(
         Feasible starting weights.
     max_iter : int, optional
         Cap on active-set iterations.
+    accelerate : bool, default True
+        Seed the corral from a first-order pass when the pool is wide enough.
+        Speed only; see :func:`solve_simplex_minnorm_batch`. A single problem
+        still pays for itself -- measured 2.4x at 40 donors and 3.9x at 99 --
+        because the seed's cost scales with the pool and not with the batch.
     return_info : bool
         If ``True`` also return ``{"iterations", "converged"}``.
 
@@ -393,7 +403,8 @@ def solve_simplex_minnorm(
     warm = None if warm_start is None else np.asarray(
         warm_start, dtype=float).reshape(1, -1)
     out = solve_simplex_minnorm_batch(
-        G[None], warm_start=warm, max_iter=max_iter, return_info=return_info)
+        G[None], warm_start=warm, max_iter=max_iter, accelerate=accelerate,
+        return_info=return_info)
     if not return_info:
         return out[0]
     W, info = out
@@ -406,6 +417,7 @@ def solve_simplex_minnorm_batch(
     *,
     warm_start: Optional[np.ndarray] = None,
     max_iter: Optional[int] = None,
+    accelerate: bool = True,
     return_info: bool = False,
 ):
     """Minimise ``w' G_s w`` on the simplex for every ``G_s`` in a stack.
@@ -426,9 +438,16 @@ def solve_simplex_minnorm_batch(
         generation's solution, when the population moves slowly. A row that is
         not usable (negative, all-zero, non-finite), or a whole array of the
         wrong shape, is discarded in favour of the cold start; a warm start
-        changes only how much work the solve costs.
+        changes only how much work the solve costs. Supplying one turns the
+        accelerator off: a caller with a seed of its own has better information
+        than a cold first-order pass.
     max_iter : int, optional
         Cap on active-set iterations. Defaults to ``max(50, 10 * J)``.
+    accelerate : bool, default True
+        Seed the corrals from a batched FISTA pass when the pool is wide enough
+        to pay for it (``BATCH_ACCEL_MIN_DONORS``). Set ``False`` to force the
+        cold start. Speed only: the optimality test below decides the answer,
+        so this changes how much work the solve costs and nothing else.
     return_info : bool
         If ``True`` also return ``{"iterations", "converged"}``, where
         ``converged`` is a length-``S`` boolean array. A candidate that hits
@@ -448,6 +467,15 @@ def solve_simplex_minnorm_batch(
     donors than matching rows, so the optimal set is a face and not a point --
     which of them is returned depends on the starting corral, and so on the warm
     start. The objective does not. Compare losses, not weights.
+
+    The cold start is a vertex and the corral grows by one donor per iteration,
+    so an optimum supported on ``k`` donors costs at least ``k`` iterations of a
+    ``(k, k)`` solve. That is cheap when the optimum is sparse and quadratically
+    expensive when it is not, and the ridged programs SDID builds are not: their
+    optima sit on a face carrying most of the pool, because spreading the weight
+    is what the ridge is for. The accelerator exists for that case -- it names
+    the support up front so the corrals start at the answer instead of walking
+    to it (#461).
     """
     G = _validate(G, ndim=3)
     S, J = G.shape[0], G.shape[-1]
@@ -466,6 +494,8 @@ def solve_simplex_minnorm_batch(
     # optimum outright whenever the treated unit is nearest one donor.
     W = np.zeros((S, J))
     W[np.arange(S), np.argmin(gdiag, axis=1)] = 1.0
+    if warm_start is None and accelerate and J >= BATCH_ACCEL_MIN_DONORS:
+        warm_start = fista_warm_start_batch(G)
     if warm_start is not None:
         ws = np.asarray(warm_start, dtype=float)
         if ws.shape == (S, J):

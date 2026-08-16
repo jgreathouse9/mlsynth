@@ -765,8 +765,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "support-patience-counts-total-instead-of-consecutive-holds"
-  find = "            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else 0"
-  replace = "            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else held"
+  find = "            armed = int(current.sum()) < J\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else 0"
+  replace = "            armed = int(current.sum()) < J\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else held"
   models = "a patience counter that never resets, so a support that flickers still accumulates holds and the warm start returns while the support is moving -- the seed is then rejected coordinate by coordinate and the solve pays the cold pivot count anyway"
 
   [[target.mutant]]
@@ -930,6 +930,67 @@ timeout = 900.0
   find = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov,\n                            keys=keys)"
   replace = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov)"
   models = "one scan per covariate instead of one for the panel. A ten-covariate panel is scanned eleven times, and every covariate matrix is correct, so nothing but a pass count reports it"
+
+[[target]]
+name = "batch-support-seed"
+module-path = "mlsynth/utils/bilevel/accelerate.py"
+test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "batch-projection-takes-the-first-threshold-not-the-last"
+  find = "    rho = J - 1 - np.argmax(cond[:, ::-1], axis=1)"
+  replace = "    rho = np.argmax(cond, axis=1)"
+  models = "the projection reading the first index where the threshold condition holds instead of the last. Index zero always satisfies it, so every row projects onto its own largest coordinate: the seed becomes a vertex, which is feasible, is what the cold start already was, and names a support of one"
+
+  [[target.mutant]]
+  id = "batch-seed-support-counter-never-arms"
+  find = "            armed = bool((current.sum(axis=1) < J).all())"
+  replace = "            armed = True"
+  models = "the counter armed on the uniform plateau every row starts from, where all J coordinates are positive. The stop then fires on the first sample and hands back the whole pool as the support -- the uniform start renamed, which leaves the exact solver its full cold iteration count"
+
+  [[target.mutant]]
+  id = "degenerate-problems-take-a-step-anyway"
+  find = "    usable = np.isfinite(L) & (L > 0.0)"
+  replace = "    usable = np.isfinite(L)"
+  models = "a zero Gram, whose objective is flat and whose Lipschitz constant is zero, divided through by its own zero step size. The seed comes back non-finite for that row, and a non-finite warm start is discarded, so the row silently loses its seed rather than keeping the feasible uniform point"
+
+  [[target.mutant]]
+  id = "lipschitz-estimate-not-inflated"
+  find = "    return np.where(lam > 0.0, lam * 1.1, 0.0)"
+  replace = "    return np.where(lam > 0.0, lam, 0.0)"
+  models = "the ten percent margin removed from a bound that power iteration approaches from below, so the step is too long and FISTA oscillates. The answer is unaffected -- the projection keeps every iterate feasible and the exact solver certifies whatever it is handed -- and only the seed's quality, and so the pivot count, degrades"
+
+  [[target.mutant]]
+  id = "batch-patience-counts-total-instead-of-consecutive-holds"
+  find = "            armed = bool((current.sum(axis=1) < J).all())\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else 0"
+  replace = "            armed = bool((current.sum(axis=1) < J).all())\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else held"
+  models = "the batch counter never resetting, so a support that flickers in any row still accumulates holds and the seed returns while rows are still moving. Those rows are seeded with the wrong support and the exact solver pays to fix each one"
+
+  [[target.mutant]]
+  id = "batch-stop-fires-when-any-row-settles"
+  find = "            armed = bool((current.sum(axis=1) < J).all())"
+  replace = "            armed = bool((current.sum(axis=1) < J).any())"
+  models = "the stop read across the batch with any instead of all, so one row pinning a coordinate arms the counter for every row. A batch is paced by its hardest member -- which is also true of the solve it seeds -- and this stops it at its easiest"
+
+[[target]]
+name = "batch-seed-gate"
+module-path = "mlsynth/utils/bilevel/minnorm.py"
+test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_simplex_minnorm.py mlsynth/tests/test_bilevel_simplex_batch.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "narrow-pools-are-seeded-too"
+  find = "    if warm_start is None and accelerate and J >= BATCH_ACCEL_MIN_DONORS:"
+  replace = "    if warm_start is None and accelerate:"
+  models = "the gate dropped, so a ten-donor batch pays for a first-order pass to name a support the cold start reaches in eleven cheap iterations. Every answer is unchanged; the measured cost is 0.45x to 0.74x, and only a count of who was seeded can see it"
+
+  [[target.mutant]]
+  id = "caller-warm-start-overridden-by-the-seed"
+  find = "    if warm_start is None and accelerate and J >= BATCH_ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start_batch(G)"
+  replace = "    if accelerate and J >= BATCH_ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start_batch(G)"
+  models = "the accelerator overwriting a seed the caller supplied. The placebo chain hands on the previous draw's certified solution, which is strictly better information than a cold first-order pass, and both the chain's benefit and the pass's cost are invisible in the answer"
+
 
 [[target]]
 name = "nsc-penalty-scaling"
