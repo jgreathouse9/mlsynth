@@ -718,6 +718,15 @@ Verification
    only by inference procedure. This is locked in by
    ``test_matches_augsynth_vignette`` in ``mlsynth/tests/test_ppscm.py``.
 
+A cross-package case on real data covers both modes at once: the
+cannabis-alcohol panel of Ronczewski (2026), which runs ``augsynth`` and
+``did`` side by side on one sample. PPSCM's default reproduces the published
+``multisynth`` ATT to 8.2e-08 and its ``callaway_santanna`` mode reproduces
+the published ``did::aggte`` simple aggregate to 4.9e-17, with all six
+dynamic event-study coefficients to 2.0e-16. Both need ``n_leads = 6``, which
+the paper sets against a default of 2. See `benchmarks/cases/ronczewski_cannabis.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`_.
+
 Core API
 --------
 
