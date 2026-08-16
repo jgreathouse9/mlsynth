@@ -162,6 +162,57 @@ This reproduces ``augsynth::multisynth``'s covariate mode
 ``ppscm_paglayan_covs`` benchmark for the cell-by-cell cross-check against a
 live ``augsynth 0.2.0`` run.
 
+.. _ppscm-cs-mode:
+
+Reaching Callaway-Sant'Anna and Sun-Abraham
+-------------------------------------------
+
+Ben-Michael, Feller and Rothstein (2022, p.369) observe that with uniform donor
+weights their intercept-shifted estimator "is equivalent to recent proposals for
+DiD estimators that allow for treatment effect heterogeneity with a fixed donor
+set per treatment time cohort (see Callaway & Sant'Anna, 2020; Sun & Abraham,
+2020)". Measured, that is not an approximation: three independent
+implementations agree to 1e-14 once three conventions are aligned.
+
+The three are separate settings, because each is independently meaningful:
+
+``donor_weights``
+   ``"scm"`` (default) solves the partially-pooled QP; ``"uniform"`` puts equal
+   weight on every admissible donor, which is the comparison Callaway-Sant'Anna
+   and Sun-Abraham make. Uniform weights have to be imposed, not approached:
+   driving ``lam`` up saturates the weights at :math:`\max_j |w_j - 1/J| =
+   3.5 \times 10^{-3}`, unmoved between :math:`\lambda = 10^9` and
+   :math:`10^{18}` at any :math:`\nu`.
+
+``base_period``
+   ``"all_pre"`` (default) is augsynth's: each unit's mean over its whole
+   pre-adoption window. ``"pre_treatment"`` is the single period :math:`g-1`
+   that Callaway-Sant'Anna normalise against. On its own the choice shifts each
+   cohort's level without moving the event-study shape.
+
+``donor_pool``
+   ``"window"`` (default) admits any unit untreated through the cohort's whole
+   estimation window, :math:`g_i > g + H`. ``"never_treated"`` and
+   ``"not_yet_treated"`` are the Callaway-Sant'Anna comparison groups. The first
+   two coincide exactly when every other cohort adopts inside the window.
+
+``method="callaway_santanna"`` sets all three at once (and selects their
+standard error, below), leaving any convention the caller set explicitly alone:
+
+.. code-block:: python
+
+   res = PPSCM({"df": df, "outcome": "y", "treat": "d",
+                "unitid": "unit", "time": "period",
+                "method": "callaway_santanna"}).fit()
+
+The three estimators diverge in exactly one regime, and it is a documented
+difference and not a defect: when a later cohort outlives an earlier cohort's
+estimation window, augsynth admits it as a donor and Callaway-Sant'Anna do not.
+On four cohorts spread over a long window the gap is about 1.2e-02. A panel with
+adoptions spread widely lands there, so a difference of that size between
+``donor_pool="window"`` and ``donor_pool="never_treated"`` is the conventions
+disagreeing, not a bug.
+
 Inference
 ---------
 
@@ -169,6 +220,8 @@ Inference
 full estimator (holding :math:`\nu` fixed), and form
 :math:`\widehat{\text{se}}^2 = \tfrac{N-1}{N}\sum_{j \in \mathcal{N}}(\widehat{\tau}_j - \bar{\tau})^2`
 for the overall ATT and each relative-time horizon, with Wald intervals.
+``inference_method="bootstrap"`` swaps in augsynth's default Mammen wild
+bootstrap, which reweights the single fit instead of refitting.
 
 Per-unit fits alongside the pooled report
 -----------------------------------------
