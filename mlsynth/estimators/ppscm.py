@@ -119,8 +119,18 @@ class PPSCM:
 
             # augsynth defaults: n_leads = post periods of last-treated unit,
             # n_lags = all pre-treatment periods.
+            #
+            # The default and the ceiling are different quantities and
+            # multisynth_class.R:127-134 computes them separately. The default
+            # is the last cohort's post window, which is the shortest, so every
+            # cohort reaches every horizon and the event study is rectangular.
+            # The ceiling is the longest post window -- how far the panel runs
+            # past the first adoption -- because that is the last horizon any
+            # cohort observes. Using the default for both discarded any raised
+            # n_leads and put horizons the panel observes out of reach (#481).
+            # Ingestion guarantees a treated unit, so trt has a finite entry.
             n_leads = self.n_leads if self.n_leads is not None else (T - d)
-            n_leads = min(n_leads, T - d)
+            n_leads = min(n_leads, T - int(np.min(trt[np.isfinite(trt)])))
             n_lags = self.n_lags if self.n_lags is not None else d
             n_lags = min(n_lags, d)
 
