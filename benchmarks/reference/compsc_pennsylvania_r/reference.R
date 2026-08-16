@@ -1,5 +1,9 @@
-# Boussim (2026) "Compositional Synthetic Controls" -- the authors' replication
-# script, unedited above the REFERENCE VALUES block appended at the end.
+# csc_replication.R -- (c) O. Boussim, author of "Compositional Synthetic
+# Controls" (arXiv:2607.16991). Provided by the author and reproduced here
+# unmodified above the capture block at the end, solely so mlsynth's COMPSC
+# estimator can be checked against it. Authorship of the method and of this
+# script is his; mlsynth claims neither. The two additive changes below are
+# marked, and nothing in the estimation path is altered.
 #
 # The script as supplied reads "data_energy.csv" from the working directory and
 # prints its tables rounded to three decimals. Two changes, both additive: the

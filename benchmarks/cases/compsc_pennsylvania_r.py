@@ -2,9 +2,10 @@
 
 Cross-validates ``COMPSC(geometry="alr", baseline="renewables")`` against the
 replication script for Boussim, O. (2026), *"Compositional Synthetic Controls"*
-(arXiv:2607.16991) -- ``quadprog::solve.QP`` on the stacked ALR log-odds, the
-Aitchison distance, and the 42-donor placebo permutation, run live and captured
-under ``benchmarks/reference/compsc_pennsylvania_r/``.
+(arXiv:2607.16991), provided by the author -- ``quadprog::solve.QP`` on the
+stacked ALR log-odds, the Aitchison distance, and the 42-donor placebo
+permutation, run live and captured under
+``benchmarks/reference/compsc_pennsylvania_r/``.
 
 The companion case ``compsc_pennsylvania`` pins the same fit against the
 *published tables*. This one pins it against the code that produced them, which
@@ -175,10 +176,10 @@ def comparison() -> dict:
                        "outcomes": list(_CATEGORIES), "target": "gas"},
         },
         "reference": {
-            "impl": "Boussim (2026) csc_replication.R (quadprog::solve.QP on the "
-                    "stacked ALR log-odds), run live on basedata/"
-                    "pa_aeps_generation.csv",
-            "version": "arXiv:2607.16991 replication script",
+            "impl": "Boussim (2026) csc_replication.R, author-provided "
+                    "(quadprog::solve.QP on the stacked ALR log-odds), run live "
+                    "on basedata/pa_aeps_generation.csv",
+            "version": "arXiv:2607.16991, author-provided replication script",
         },
     }
 

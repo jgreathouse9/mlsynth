@@ -331,7 +331,7 @@ default clr geometry moves the weights by 0.85 in :math:`L_1`, changes the donor
 set, improves the Aitchison pre-treatment fit from 0.187 to 0.177, and reduces
 the 2022 natural-gas effect from 60.4 to 51.1 percentage points.
 
-Since then the author's replication script has become available, so the fit is
+The author has since provided his replication script, so the fit is
 also checked against the code that produced those tables and not only against
 their printed form. On the same panel, mlsynth and the author's
 ``quadprog::solve.QP`` agree value for value: all ten donor weights to 3e-9,

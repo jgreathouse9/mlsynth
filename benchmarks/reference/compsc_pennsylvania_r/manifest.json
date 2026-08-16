@@ -2,12 +2,14 @@
   "case": "compsc_pennsylvania_r",
   "title": "Compositional synthetic controls vs the author's replication R (Pennsylvania AEPS)",
   "paper": "Boussim, O. (2026), \"Compositional Synthetic Controls,\" arXiv:2607.16991",
-  "reference_impl": "The author's csc_replication.R (quadprog::solve.QP on the stacked ALR log-odds, Aitchison distance, placebo permutation), run live",
+  "reference_impl": "csc_replication.R, provided by the paper's author (quadprog::solve.QP on the stacked ALR log-odds, Aitchison distance, placebo permutation), run live",
   "path_type": "cross-validation",
   "command": "Rscript benchmarks/reference/compsc_pennsylvania_r/reference.R basedata/pa_aeps_generation.csv",
-  "data": ["basedata/pa_aeps_generation.csv"],
+  "data": [
+    "basedata/pa_aeps_generation.csv"
+  ],
   "notes": [
-    "The script is the author's, unedited above the appended capture block. Two additive changes: the input path comes from argv, and a machine-readable block prints the same quantities at ten decimals instead of the three the console tables round to.",
+    "The script is the author's own, provided directly and not published as a package. It is unedited above the appended capture block; two additive changes: the input path comes from argv, and a machine-readable block prints the same quantities at ten decimals instead of the three the console tables round to.",
     "It runs against basedata/pa_aeps_generation.csv, the panel mlsynth itself reads, so the comparison is like for like and the provenance records that file's checksum. The script derives its own donor pool -- structural zeros plus OH, WV, VT -- and on the pre-filtered panel that step finds nothing left to drop, giving the same 42 donors it derives from the full 51-state file.",
     "The author's data_energy.csv and basedata/pa_aeps_generation.csv agree to 1e-5 relative (max 147 MWh on gas, 12 on renewables, out of millions); the two runs are compared in the case docstring.",
     "Regenerating needs R with quadprog."
