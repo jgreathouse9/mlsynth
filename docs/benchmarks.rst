@@ -307,6 +307,12 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``compsc_pennsylvania_r``
+     - vs the author's ``csc_replication.R`` (``quadprog``) run live on the same
+       panel: all ten donor weights to 3e-9, every post-period effect across
+       twenty years and five columns to 1e-7, and the whole 42-donor placebo --
+       ratio, retained count and p-value -- to 1e-8. Also settles the Arkansas
+       weight the paper's Table 1 omits and ``quadprog`` does not
    * - ``dsc_disco_xval``
      - DSC against the authors' ``DiSCos`` R package on the Dube panel, in both feasible sets. The reference draws its quadrature points with ``runif``, so a single run is not a target; this scores mlsynth against the mean of 40 seeds at M = 10,000 and reads the across-seed spread as the yardstick. Max donor-weight gap 0.0079 (simplex) and 0.0103 (sum-to-one) against reference seed standard deviations of 0.0160 and 0.0300 -- closer to the reference's centre than the reference is to itself, which settles issue #304
    * - ``disco_tenure``

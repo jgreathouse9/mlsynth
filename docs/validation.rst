@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **81 cross-validation checks** against original
-implementations across **44 estimators** -- 30 reproduce the reference to display precision, 29 to
+Coverage: **82 cross-validation checks** against original
+implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
 within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -50,8 +50,8 @@ Summary
      - 3 exact · 1 tight
      - 0.036
    * - :ref:`COMPSC <val-compsc>`
-     - 1
-     - 1 tight
+     - 2
+     - 1 exact · 1 tight
      - 0.047
    * - :ref:`CSCM <val-cscm>`
      - 1
@@ -361,6 +361,12 @@ COMPSC
      - 0.047
      - tight
      - `compsc_pennsylvania <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania.py>`__
+   * - Boussim (2026) csc_replication.R (quadprog::solve.QP on the stacked ALR log-odds), run live on basedata/pa_aeps_generation.csv
+     - ``pa_aeps_generation.csv`` (7d7c0aebf62e…)
+     - 23
+     - 0
+     - exact — matches to display precision
+     - `compsc_pennsylvania_r <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania_r.py>`__
 
 .. _val-cscm:
 
