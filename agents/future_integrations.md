@@ -2206,6 +2206,183 @@ outcomes that plausibly diffuse.
 
 ---
 
+## 21. CSC -- Correlated Synthetic Controls (Moev 2025) -- replicated, PARKED
+
+**Status: Parked. Paper read in full, method ported, the paper's Monte Carlo
+run under both of its own protocols. The gap is real and the port is cheap,
+but the estimator as specified does not pin down its own estimand in the
+regime it advertises. Unblock conditions at the end of this entry.**
+
+### Source
+
+> Moev, T. (2025). "Correlated Synthetic Controls." arXiv:2507.08918
+> (v1, 11 July 2025). An Oxford MPhil thesis (2021) posted to arXiv;
+> unpublished, single-authored, not peer reviewed.
+
+Reference code: [`tzvetanmoev/Correlated-Synthetic-Controls`](https://github.com/tzvetanmoev/Correlated-Synthetic-Controls)
+(R + CVXR; the estimator is `run_rwscm`, after the method's original name,
+Random Weights SCM). The spike lives in `benchmarks/spikes/csc/`.
+
+### The idea in one line
+
+For panels with many treated units and a short pre-period, make each treated
+unit's donor weights a correlated-random-coefficients function of its own
+time-invariant covariates -- `w_ij = omega_j + x_i alpha_j`, still on the
+simplex -- so units with similar observables get similar (correlated)
+synthetic controls, splitting the difference between one SC per treated unit
+and one pooled SC for all of them.
+
+### Why the gap is real
+
+Nothing in the library parameterises donor weights by treated-unit
+covariates. The neighbours are all doing something else:
+
+* `VanillaSC(penalized)` -- Abadie-L'Hour PSC, the paper's own benchmark and
+  closest sibling. Resolves multiplicity with a pairwise matching penalty,
+  one QP per treated unit, weights unrelated across units.
+* `PPSCM` -- Ben-Michael, Feller & Rothstein. The paper distinguishes it in
+  Section 3.d: PPSCM pools the treated units' *outcomes*, CSC pools the
+  *weights*. PPSCM also targets staggered adoption, which CSC rules out.
+* `MicroSynth` -- many treated micro units, one weight vector, covariate
+  moments instead of the outcome path, no per-unit effects.
+* `MLSC` -- shrinks disaggregate weights toward the aggregate SC solution; a
+  different pooling axis.
+
+Closest existing estimator: `VanillaSC(penalized)`. Acronym collision: `CSC`
+sits one letter from `CSCM` (Bonander count SC) and shares a prefix with
+`CSCIPCA` (Wang). Build it as `CRCSC` if it is ever built.
+
+### Demonstrate-first findings (the reason it is parked) -- KEEP THESE
+
+Full detail and re-runnable scripts in `benchmarks/spikes/csc/README.md`.
+
+1. **The estimator does not pin down its ATT at the paper's own dimensions.**
+   The program fits `n1 * T0` residuals with `n0 * (1 + K) + n1` free
+   parameters -- about 60 equations for 500 parameters at the baseline
+   (`N = 100`, `T0 = 4`, `K = 5`, `n1 ~ 15`) -- so the minimiser is a face,
+   not a point. Maximising and minimising the ATT over the near-optimal set
+   (`identified_set.py`) gives an interval of roughly `[-0.79, +1.78]`
+   against a true effect of `1.0`. Four solvers on the identical program
+   return ATTs differing by 0.12 in median, 0.70 at worst. The set closes
+   only once equations per parameter reach ~0.76.
+
+   This is the multiplicity of solutions the paper claims CSC removes
+   (Section 3.e: "by construction, there does not exist a SC which exactly
+   matches both of their time series at the same time"). Pooling the weights
+   lowers the parameter count against a separate SC per unit; it does not
+   make the program determined.
+
+2. **A ridge tie-break fixes it for free.** `ridge * (||omega||^2 +
+   ||alpha||_F^2)` at `1e-2` takes cross-solver weight disagreement from
+   `1.3e-1` to `2.9e-3` and the ATT spread to 0.002, with no measurable loss
+   of pre-treatment fit -- the face is flat, so choosing its minimum-norm
+   point costs nothing. Any build must add this or an equivalent selector;
+   it is not in the paper. Same shape as `RESCM`'s relaxation branch, which
+   picks among near-optimal weights by a strictly convex divergence.
+
+3. **The paper's headline reproduces, but only under the paper's stated
+   protocol.** Appendix A.f says `lambda` and `gamma` were drawn once and
+   held constant; the shipped driver redraws them inside the replication
+   loop. 150 panels, true `tau = 1.0`, signed mean error / mean absolute
+   error:
+
+   | protocol | CSC | fDiD | PSC | iDiD |
+   | --- | --- | --- | --- | --- |
+   | factors redrawn (the driver) | +0.02 / 0.78 | -0.01 / 1.77 | -0.43 / 0.85 | +0.01 / 0.22 |
+   | factors fixed at eq. (26)-(27) (Appendix A.f) | +0.01 / 0.38 | -1.54 / 1.54 | -0.57 / 0.67 | -0.00 / 0.22 |
+
+   Held fixed, DiD carries the large negative bias Table 1 reports (-1.54
+   here against the paper's -0.94) and CSC is near-unbiased (+0.01 against
+   -0.11) -- ordering and rough magnitude reproduce. Redrawn, DiD's bias
+   flips sign across replications and its signed mean is -0.01, so on the
+   paper's own metric DiD looks unbiased. DiD's mean absolute error, 1.77,
+   is the worst of the four under both protocols, so CSC's advantage over
+   DiD is real; the signed-mean metric Table 1 uses is what hides it.
+   Footnote 27 says the absolute version was not run for lack of time.
+
+   Across the full grid under the fixed-factor protocol (250 replications
+   per row, `mc.py --fixed-factors`, table in the spike README): the
+   mechanism reproduces cleanly -- dialling assignment's dependence on the
+   loadings from full to half to none moves fDiD from -1.54 to -1.18 to
+   +0.00 while CSC stays between -0.02 and -0.06 -- and so does the
+   ordering, with CSC beating fDiD on mean absolute error in eight of nine
+   rows and PSC in seven of nine. Two cells do not reproduce: `T = 7`, where
+   the paper has CSC pulling ahead as the pre-period lengthens and here fDiD
+   wins (0.77 against 0.93), and PSC's magnitude at `T = 4`, where the paper
+   has it worst at 4.71 and mlsynth's `penalized_weights` puts it best among
+   the feasible estimators at 0.59. Under a fixed-factor protocol every cell
+   is conditional on one realised `lambda`, which is the reason to read the
+   grid as orderings and not as cells.
+
+4. **The reference's DiD marks one donor as treated.** `run_did` builds its
+   treatment column starting at index `T * n0`, the last donor's
+   post-treatment cell, so `n1 + 1` cells are treated and one of them is a
+   control. The cost is cell-dependent and runs in both directions: at the
+   redrawn baseline it turns `+0.03` into `-0.32`, at the fixed-factor
+   `T = 4` row it halves DiD's bias from `+4.04` to `+2.02`, and under
+   random assignment it manufactures a bias of `-0.34` where the corrected
+   version reports `-0.03`. So the comparator CSC is measured against is
+   wrong by roughly a fifth to a whole effect size, in whichever direction
+   the draw supplies. Reproduced by
+   `baselines.twfe_did(..., reference_offbyone=True)`.
+
+5. **Continuous covariates do not make the program infeasible.** Section 3.f
+   says they do, and the reference thresholds continuous predictors into
+   dummies to avoid it. Adding up requires `X1 S = (1 - W0) 1` for `S` the
+   column sums of `alpha`; `S = 0` with `sum_j omega_j = 1` satisfies it for
+   any `X1` and gives the pooled SC, so the feasible set is never empty.
+   `feasibility.py` solves a continuous covariate, dummies plus a continuous
+   covariate, and two non-exhaustive binaries -- all four solve, and the
+   continuous designs return `sum_j alpha_jk = 0` to machine precision. The
+   real cost is the lost level freedom, which halved weight heterogeneity in
+   the tested panels. The paper's stated headline limitation is softer than
+   advertised, which is good news for the method and bad news for taking its
+   Section 3.f at face value.
+
+6. **CSC needs no ingestion module.** `dataprep`'s cohort branch already
+   returns the treated block (`cohorts[t]['y']`, T x n1), the donor block
+   (`donor_matrix`, T x n0) and `pre_periods`, and `covariates=[...]` returns
+   a per-unit `covariate_matrix` sliceable by treated units. `ingest.py`
+   round-trips all four against the simulator. An earlier read of this said
+   CSC would need a MicroSynth-style `setup.py`; it does not.
+
+### Cost, if it is ever built
+
+Small: 2-3 days. One convex QP in cvxpy (already a core dependency), no new
+deps, ~0.1 s per solve at the paper's dimensions. The work is in the
+selector (finding 2), the covariate contract, a documented ceiling on the
+`n1 x n0` non-negativity block, and inference -- the paper has none that is
+defensible, since its intervals are `1.96 x` the cross-sectional sd of
+per-unit effects and it says outright that weight uncertainty is unaccounted
+for and the question is open.
+
+### What could not be checked
+
+CRAN is unreachable from the sandbox (the proxy answers 403 to
+`cloud.r-project.org`), so CVXR could not be installed and `run_rwscm` could
+not be executed. There is no cell-for-cell cross-validation against the
+authors' solver. The substitutes: `reference_form.py` rebuilds the
+reference's own stacked construction in cvxpy and reaches the same optimum as
+the compact eq. (24) form to `1.4e-9` relative over ten panels, plus
+four-solver agreement and the reference's intercept convention. Path A (Mariel /
+PSID) was not attempted -- PSID registration, a five-script `psidR`
+extraction, restricted redistribution, and a headline that is a hold-out
+RMSE table on 42 treated workers.
+
+### Unblock conditions
+
+Any one of: (a) an environment with CRAN access, so `run_rwscm` can be run
+cell-for-cell against the port -- this is the cheapest remaining check and it
+is the one a build should not start without; (b) the paper places in a
+journal with the identification problem in finding 1 addressed, or the author
+adds a selector; (c) a user brings a panel in the target regime -- many
+treated units, one adoption date, short pre-period, discrete unit covariates,
+per-unit effects wanted -- in which case build it as `CRCSC` with the ridge
+selector on by default and the identified-set width reported as a
+diagnostic.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
