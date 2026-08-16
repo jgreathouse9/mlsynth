@@ -84,6 +84,10 @@ class PPSCM:
         self.n_lags = config.n_lags
         self.time_cohort: bool = config.time_cohort
         self.lam: float = config.lam
+        self.donor_weights: str = config.donor_weights
+        self.base_period: str = config.base_period
+        self.donor_pool: str = config.donor_pool
+        self.method: Any = config.method
         self.solver: Any = config.solver
         self.run_inference: bool = config.run_inference
         self.inference_method: str = config.inference_method
@@ -124,6 +128,8 @@ class PPSCM:
                 Xy, trt, d, n_leads, n_lags,
                 fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                 nu=nu_arg, lam=self.lam, solver=self.solver,
+                donor_weights=self.donor_weights, base_period=self.base_period,
+                donor_pool=self.donor_pool,
                 Z=inputs.Z,
             )
 
@@ -133,6 +139,13 @@ class PPSCM:
                 global_l2=fit["global_l2"], ind_l2=fit["ind_l2"],
                 scaled_global_l2=fit["scaled_global_l2"],
                 scaled_ind_l2=fit["scaled_ind_l2"],
+                conventions={
+                    "donor_weights": self.donor_weights,
+                    "base_period": self.base_period,
+                    "donor_pool": self.donor_pool,
+                    "inference_method": (
+                        self.inference_method if self.run_inference else None),
+                },
             )
 
             per_time = fit["per_time"]

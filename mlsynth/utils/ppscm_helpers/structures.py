@@ -95,6 +95,11 @@ class PPSCMDesign:
     ind_l2: float
     scaled_global_l2: float
     scaled_ind_l2: float
+    #: The three conventions this fit ran under -- donor weighting, unit-effect
+    #: baseline and donor eligibility -- plus which inference produced the
+    #: interval. Together they decide whether the fit is augsynth's multisynth
+    #: or the Callaway-Sant'Anna estimator, which the numbers alone do not say.
+    conventions: Optional[Dict[str, Any]] = None
 
     @property
     def pct_improve_global(self) -> float:
@@ -287,5 +292,14 @@ class PPSCMResults(_BaseEstimatorResults):
             ci_lower=(ci_lo if finite_ci else None),
             ci_upper=(ci_hi if finite_ci else None), details=inf))
         set_("fit_diagnostics", _FitDiagnosticsResults())
-        set_("method_details", _MethodDetailsResults(method_name="PPSCM"))
+        # The conventions this fit ran under go in the standardized
+        # ``parameters_used``, not as bespoke fields: which donor weighting,
+        # baseline and donor pool were used is what decides whether this fit is
+        # augsynth's multisynth or the Callaway-Sant'Anna estimator, and a
+        # reader of the result should not have to consult the config to find
+        # out. ``inference_method`` is here for the same reason -- an equal
+        # point estimate does not make an equal interval.
+        set_("method_details", _MethodDetailsResults(
+            method_name="PPSCM",
+            parameters_used=dict(self.design.conventions or {})))
         return self
