@@ -109,3 +109,39 @@ timeout = 120.0
   find = "+ norm_sq * np.outer(ones, ones)"
   replace = "+ 0.5 * norm_sq * np.outer(ones, ones)"
   models = "a penalty whose kernel is no longer the population-proportional ray, so lambda stops pricing departure from the classical aggregation and starts penalising the aggregation itself"
+
+[[target]]
+name = "lexsearch"
+module-path = "mlsynth/utils/fast_scm_helpers/lexsearch.py"
+test-command = "python -m pytest mlsynth/tests/test_lexsearch_properties.py mlsynth/tests/test_lexsearch.py mlsynth/tests/test_lexscm_perf.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "design-loss-drops-the-simplex-solve"
+  find = "    W = solve_simplex_minnorm_batch(Qs)\n    return np.einsum('ni,nij,nj->n', W, Qs, W)"
+  replace = "    return np.diagonal(Qs, axis1=1, axis2=2).min(axis=1)"
+  models = "ranking tuples by their best single unit instead of by the best convex combination of them, which is the vertex bound rather than the objective and agrees with it exactly when the optimum happens to sit at a vertex"
+
+  [[target.mutant]]
+  id = "probe-losses-enter-the-solution-pool"
+  find = "                memo[keys[i]] = v"
+  replace = "                memo[keys[i]] = v; pool[keys[i]] = v"
+  models = "the loss cache leaking into the solution pool, so the top-K is ranked over every tuple ever probed instead of over the tuples the search visited -- the defect that changed the selected markets on the DMA panel while all 213 tests passed"
+
+  [[target.mutant]]
+  id = "memo-returns-a-stale-loss-for-a-different-tuple"
+  find = "        keys = [tuple(r) for r in arr.tolist()]"
+  replace = "        keys = [tuple(sorted(r)[:-1]) for r in arr.tolist()]"
+  models = "a cache key that ignores the last unit of each tuple, so two designs differing only in one market collide and the second silently receives the first's loss"
+
+  [[target.mutant]]
+  id = "relaxation-bound-reported-above-the-loss"
+  find = "    loss = float(w @ (Q @ w))\n    return loss, w, loss"
+  replace = "    loss = float(w @ (Q @ w))\n    return loss, w, loss * 1.05"
+  models = "a lower bound that exceeds the value it bounds, which would make the reported optimality gap negative and the relaxation diagnostic meaningless"
+
+  [[target.mutant]]
+  id = "search-ranks-by-largest-imbalance"
+  find = "    ranked = sorted(pool.items(), key=lambda kv: kv[1])[:top_K]"
+  replace = "    ranked = sorted(pool.items(), key=lambda kv: -kv[1])[:top_K]"
+  models = "the top-K taken from the wrong end of the pool, returning the worst-balanced designs the search found rather than the best"
