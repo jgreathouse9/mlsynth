@@ -23,6 +23,24 @@ from the plain simplex solution, the support stays at the same three donors
 (Florida 0.373, New York 0.356, Illinois 0.272), negative weights sum to -0.002,
 and the pre-fit improves by 0.2%. ASCM has degenerated to SCM.
 
+It does not do so for want of trying. Texas is the harder problem of the two --
+its treated unit sits at the 96th percentile of the donor pool, rank 3 of 51 in
+every pre-treatment year, and the simplex fit misses by 20% of the treated
+series' own pre-period standard deviation against Proposition 99's 14.6%. Handed
+a penalty of 10, the augmentation extrapolates six times harder there than on
+Proposition 99: negative weights sum to -4.55 against -0.72. What it cannot do
+is make that extrapolation generalise. The best held-out improvement available
+over plain SCM across a penalty grid is 0.7% on Texas and 28% on Proposition 99,
+so the cross-validation discards the correction on one panel and keeps it on the
+other.
+
+Which is why near-zero negative weights are not the diagnostic they look like.
+They are equally consistent with a simplex fit so good the correction has
+nothing to do, and with an augmentation the cross-validation switched off over a
+fit that is poor; the two are told apart by the pre-treatment residual, not by
+the weights. Texas is the second, and reading it as the first inverts what the
+panel is saying.
+
 The penalty gap is not units. Prison counts run about 19,400 against 116 packs
 per capita, so an outcome-scale penalty would differ by roughly 2.8e+04 between
 the panels; the selected penalties differ by 4.0e+07, three orders beyond that.
@@ -162,10 +180,78 @@ def _fit(study: str) -> dict:
     return out
 
 
+# Penalty grid for the out-of-sample probe, and a probe penalty far below
+# either study's cross-validated pick, used to ask what the augmentation would
+# do if it were allowed to.
+_LOO_GRID = (1e0, 1e2, 1e4, 1e6, 1e8, 1e10, 1e12)
+_PROBE_LAMBDA = 10.0
+_NO_AUGMENTATION = 1e18          # ridge shrunk to nothing, i.e. plain SCM
+
+
+def _loo_rmse(y, Y0, lam):
+    """Held-out pre-period RMSE: drop each pre-period, refit at ``lam``, predict it.
+
+    The penalty is forced, so this measures the augmentation itself and not the
+    package's choice of penalty.
+    """
+    from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+    T0 = len(y)
+    errs = []
+    for t in range(T0):
+        keep = np.arange(T0) != t
+        w = ridge_augment_weights(y[keep], Y0[keep], lambda_=lam).W
+        errs.append(y[t] - Y0[t] @ w)
+    return float(np.sqrt(np.mean(np.square(errs))))
+
+
+def _extrapolation_probe(study: str) -> dict:
+    """What the augmentation would do, and whether it would generalise.
+
+    Two questions the fitted numbers cannot answer on their own, because the
+    cross-validated penalty has already resolved them. First: how much
+    out-of-sample accuracy is available from augmenting at all --
+    ``loo_best_gain``, the largest held-out improvement over plain SCM across a
+    fixed penalty grid. Second: how hard the augmentation would extrapolate if
+    the penalty let it -- ``sum_neg_probe``, the total negative weight at a
+    penalty far below either study's pick.
+
+    The pair separates want from worth. Texas wants to extrapolate six times
+    harder than Proposition 99 does -- its treated unit sits at the 96th
+    percentile of the donor pool and no convex combination reaches it -- and
+    gets essentially nothing for it out of sample, so the cross-validation
+    discards the correction. Proposition 99 wants less and gains far more, so
+    the correction survives. That is the mechanism behind the penalty gap the
+    case pins above, and it is what a reader of the fitted weights alone would
+    have to guess at: near-zero negative weights are equally consistent with a
+    perfect simplex fit and with an augmentation that was switched off, and only
+    the second is true here.
+    """
+    from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+
+    y, Y0, _ = donor_pre_matrix(study)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        scm = _loo_rmse(y, Y0, _NO_AUGMENTATION)
+        best = min(_loo_rmse(y, Y0, lam) for lam in _LOO_GRID)
+        w_probe = ridge_augment_weights(y, Y0, lambda_=_PROBE_LAMBDA).W
+        w_cv = ridge_augment_weights(y, Y0).W
+        w_scm = ridge_augment_weights(y, Y0, lambda_=_NO_AUGMENTATION).W
+    return {
+        f"loo_best_gain_{study}": 1.0 - best / scm,
+        f"sum_neg_probe_{study}": float(w_probe[w_probe < 0].sum()),
+        f"sum_neg_cv_{study}": float(w_cv[w_cv < 0].sum()),
+        # The base fit is a genuine simplex solution: no negative weights at all.
+        # augsynth's own plain SCM returns 46 of them here at -4e-09, which is
+        # osqp's solve tolerance and not a feature of the program.
+        f"scm_base_negatives_{study}": float((w_scm < -1e-9).sum()),
+    }
+
+
 def run() -> dict:
     out = {}
     for study in _STUDIES:
         out.update(_fit(study))
+        out.update(_extrapolation_probe(study))
     # The same estimator meeting opposite problems: the penalty the CV selects
     # differs by seven orders of magnitude, because the Texas simplex fit
     # already interpolates and there is nothing left to penalise. Pinned as an
@@ -257,6 +343,23 @@ EXPECTED = {
     # removed on Prop 99, essentially nothing on Texas. Tolerances are 1% of
     # each value, loose enough for the solver difference and far too tight to
     # let the two studies swap behaviour.
+    # What the augmentation is worth out of sample, and how hard it would pull
+    # if the penalty let it. Proposition 99 can buy 28% better held-out fit by
+    # augmenting; Texas can buy 0.7%, which is nothing, while wanting to
+    # extrapolate six times harder (-4.55 against -0.72 of negative weight at
+    # the probe penalty). That is why the cross-validation keeps the correction
+    # on one panel and discards it on the other. Tolerances are 2% relative on
+    # the gains and 1% on the weight sums, well inside the solver difference and
+    # far too tight to let the two studies trade places.
+    "loo_best_gain_prop99": (0.283085, 0.0057),
+    "loo_best_gain_texas": (0.006613, 0.00014),
+    "sum_neg_probe_prop99": (-0.723178, 0.0073),
+    "sum_neg_probe_texas": (-4.548414, 0.046),
+    "sum_neg_cv_prop99": (-0.280887, 0.0029),
+    "sum_neg_cv_texas": (-0.001961, 2.0e-05),
+    # The base fit is a genuine simplex solution on both panels.
+    "scm_base_negatives_prop99": (0.0, 0.0),
+    "scm_base_negatives_texas": (0.0, 0.0),
     "ridge_rmse_gain_prop99": (0.55705, 0.006),
     "ridge_rmse_gain_texas": (0.00181, 2e-05),
     "ridge_weight_shift_prop99": (0.0501815, 5e-04),

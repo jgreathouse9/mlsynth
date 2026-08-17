@@ -186,7 +186,7 @@ Canonical workhorses
   ``scpi``'s published in-sample band (durable: ``scpi_staggered``,
   ``scpi_staggered_pi``).
   → dedicated page: :doc:`replications/vanillasc_staggered`.
-* :doc:`ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
+* :doc:`replications/ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
   (the ridge-augmentation layer on VanillaSC). Cross-validation vs
   ``augsynth``\ : the canonical Kansas tax-cut ladder reproduced
   value-for-value -- classic SCM (ATT :math:`-0.029`), ridge ASCM
@@ -197,7 +197,7 @@ Canonical workhorses
   and bias reduction across four Kansas-calibrated DGPs. Status: done.
   → dedicated page: :doc:`replications/ascm_kansas`; durable cases
   ``ascm_kansas`` and ``augsynth_calibrated``.
-* :doc:`ascm_mixtape` -- ridge ASCM on the two Mixtape applications
+* :doc:`replications/ascm_mixtape` -- ridge ASCM on the two Mixtape applications
   (Cunningham): Proposition 99 and Texas prisons. Cross-validation vs a live
   ``augsynth`` run through the public estimator -- ATT, pre-fit :math:`L_2` and
   scaled imbalance, the jackknife+ interval and all 88 donor weights, worst
@@ -208,16 +208,16 @@ Canonical workhorses
   pre-periods leave the cross-validation unable to justify it. Status: done.
   → dedicated page: :doc:`replications/ascm_mixtape`; durable case
   ``ascm_mixtape``.
-* :doc:`ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
+* :doc:`replications/ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
   ASCM, the leave-one-pre-period-out interval, cross-validated against a live
   augsynth run on the Kansas panel at the per-drop seam as well as end to end
   → dedicated page: :doc:`replications/ascm_jackknife_plus`; durable case
   ``ascm_jackknife_plus``.
-* :doc:`ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
+* :doc:`replications/ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
   cross-validation and 1-SE rule, cross-validated against augsynth on two panels
   chosen so that one of them cannot detect the defects the other does
   → dedicated page: :doc:`replications/ascm_ridge_cv`.
-* :doc:`song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
+* :doc:`replications/song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
   ridge-ASCM half of their two-stage ML-ASCM. Path A against the authors'
   published ``main_result.csv`` *and* cross-validation against a live augsynth
   0.2.0 run on the same cells, carried separately because they answer different

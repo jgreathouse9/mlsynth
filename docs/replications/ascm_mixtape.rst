@@ -72,6 +72,58 @@ panels by roughly :math:`2.8\times 10^{4}`; the selected penalties differ by
 :math:`4.0\times 10^{7}`, three orders beyond that. The short pre-period is what
 drives it.
 
+Near-zero negative weights are not the diagnostic they look like
+-----------------------------------------------------------------
+
+Negative donor weights are the augmentation. The correction added to the simplex
+solution is a map of the pre-treatment residual, so it vanishes exactly when
+that residual vanishes: on a synthetic panel whose treated unit is an exact
+convex combination of donors, the correction is identically zero and no weight
+goes negative, and as residual is added the total negative weight grows with it.
+
+That makes near-zero negatives ambiguous, because they have two causes. Either
+the simplex fit is so good the correction has nothing to do, or the
+cross-validation has switched an augmentation off over a fit that is poor. On
+Texas it is the second, and the two are told apart by the residual and not by
+the weights.
+
+Handed a penalty of 10 — far below either study's cross-validated pick — the
+augmentation on Texas extrapolates six times harder than on Proposition 99:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 22 22
+
+   * -
+     - Proposition 99
+     - Texas
+   * - Total negative weight at :math:`\lambda = 10`
+     - :math:`-0.723`
+     - :math:`-4.548`
+   * - Total negative weight at the CV penalty
+     - :math:`-0.281`
+     - :math:`-0.00196`
+   * - Best held-out gain over plain SCM
+     - 28.3%
+     - 0.7%
+
+Texas wants the extrapolation more and gets less for it. Its treated unit sits
+at the 96th percentile of the donor pool — rank 3 of 51 in every pre-treatment
+year, behind only California and New York — and no convex combination of donors
+reaches it, so the simplex fit misses by 20.0% of the treated series' own
+pre-period standard deviation against Proposition 99's 14.6%. With 8
+pre-periods against 50 donors, none of what the ridge model learns generalises:
+holding out each pre-period in turn and refitting, the best improvement over
+plain SCM available anywhere on a penalty grid is 0.7%, against 28.3% on
+Proposition 99. The cross-validation is right to discard it.
+
+One further reading of the weights to guard against. The base fit here is a
+genuine simplex solution — zero negative weights on both panels, pinned by the
+case. ``augsynth``'s own ``progfunc = "None"`` returns 46 negative weights on
+the Texas panel, but at :math:`-4\times 10^{-9}` summing to zero, which is
+``osqp``'s solve tolerance. The ridge fit's negatives are four orders of
+magnitude larger, and on Proposition 99 five.
+
 What the case guards
 --------------------
 
@@ -81,7 +133,12 @@ penalty grid was clamped, or whose cross-validation shrank differently at short
 pre-treatment fit by only 0.2% there, the fitted path would look the same in a
 plot while the post-period counterfactual, and so the ATT, moved. Pinning the
 ATT alone would catch it after the fact without saying why; the case pins the
-mechanism as well, as ``ridge_rmse_gain`` and ``ridge_weight_shift``.
+mechanism as well — ``ridge_rmse_gain`` and ``ridge_weight_shift`` for what the
+augmentation does to the fit, and ``loo_best_gain`` and ``sum_neg_probe`` for
+what it would do if the penalty let it. The second pair is the stronger guard:
+it fails the moment anything clamps the penalty grid, because a clamped grid
+cannot reproduce a total negative weight of :math:`-4.55` at
+:math:`\lambda = 10` alongside :math:`-0.002` at the selected penalty.
 
 Cross-validation results
 ------------------------
