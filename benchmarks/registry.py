@@ -7,10 +7,13 @@ import importlib
 CASES = {
     "spcd_prop99": "benchmarks.cases.spcd_prop99",      # Path A: SPCD design vs random/SC on Prop 99 (Lu et al. 2022)
     "syndes_bls": "benchmarks.cases.syndes_bls",        # Path B: Doudchenko et al. 2021 Monte Carlo (BLS unemployment)
+    "syndes_exact_vs_mip": "benchmarks.cases.syndes_exact_vs_mip",  # solver cross-check: the two-way treated-set search vs SCIP proving optimality on the BLS panel
     "si_prop99": "benchmarks.cases.si_prop99",          # cross-val vs Agarwal-Shah-Shen 2026 authors' code (Prop 99)
     "snn_prop99": "benchmarks.cases.snn_prop99",        # cross-val vs deshen24/syntheticNN (Prop 99)
     "ppscm_paglayan": "benchmarks.cases.ppscm_paglayan",  # cross-val vs augsynth::multisynth (jackknife + bootstrap SEs)
     "ppscm_paglayan_covs": "benchmarks.cases.ppscm_paglayan_covs",  # cross-val vs augsynth::multisynth Sec 5.2 (auxiliary covariates)
+    "ppscm_cs_real_panels": "benchmarks.cases.ppscm_cs_real_panels",  # cross-val vs diff-diff CallawaySantAnna on mpdta / castle_doctrine / walmart
+    "ppscm_bfr_mc": "benchmarks.cases.ppscm_bfr_mc",  # Path B: BFR sharp-null designs (ATT coverage both methods + cumulative band)
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
@@ -22,6 +25,8 @@ CASES = {
     "sdid_euets": "benchmarks.cases.sdid_euets",  # Path A: Basaglia-Grunau-Drupp 2024 PNAS EU ETS co-benefits, the SDID robustness half -- three pollutants reproduce the authors' Stata sdid log to 3e-4 once the covariate row rule matches; records that Stata's projected fits beta on never-treated units only while Kranz (and mlsynth) use every untreated row      # cross-val vs authors' synthdid R (Prop 99)
     "sdid_ddd_hpv": "benchmarks.cases.sdid_ddd_hpv",    # Path A: SDID synthetic triple difference (Zhuang 2024) on Virginia HPV mandate (Feldman-Semprini 2026); SC-DDD +1.559 / naive SC-DD +0.252 vs Stata sdid
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs authors' MCPanel R (Prop 99)
+    "lpca_kansas": "benchmarks.cases.lpca_kansas",      # cross-val vs Feng's own R (Kansas tax cut)
+    "lpca_mc": "benchmarks.cases.lpca_mc",              # cross-val vs Feng's own R (Section 5 designs)
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "spsydid_lawa_diff": "benchmarks.cases.spsydid_lawa_diff",  # differential cross-val vs authors' functions_ssdid on the real Arizona LAWA CPS panel (SpSyDiD.fit() ATT + spillover agree to solver tolerance under canonical convention)
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",
@@ -47,7 +52,10 @@ CASES = {
     "pcr_rsc_ref": "benchmarks.cases.pcr_rsc_ref",              # cross-val: mlsynth PCR vs original RSC (jehangiramjad/tslib, Prop 99)
     "lexscm_walmart": "benchmarks.cases.lexscm_walmart",        # Path A: Walmart placebo design
     "lexscm_design_mc": "benchmarks.cases.lexscm_design_mc",    # Path B: Abadie-Zhao design sim
-    "marex_walmart": "benchmarks.cases.marex_walmart",          # Path A: MAREX Walmart placebo design (Abadie-Zhao SCDesign, 10-store subset)
+    "marex_walmart": "benchmarks.cases.marex_walmart",
+    "marex_section5_mc": "benchmarks.cases.marex_section5_mc",  # Path B: Abadie-Zhao Section 5 / Table 2 simulation (MAE, RMSE, ||w||_0 by cardinality) + the weakly-targeted design family          # Path A: MAREX Walmart placebo design (Abadie-Zhao SCDesign, 10-store subset)
+    "marex_scdesign_sim": "benchmarks.cases.marex_scdesign_sim",  # cross-val vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
+    "marex_table3": "benchmarks.cases.marex_table3",  # Path B: Abadie-Zhao Table 3 -- MAREX computes the SC column on the authors' panels and beats every published alternative at every cardinality
     "scmo_germany": "benchmarks.cases.scmo_germany",            # Path A: Tian et al. West Germany balance
     "scmo_concatenated_mc": "benchmarks.cases.scmo_concatenated_mc",  # Path B: Tian Table 1 / Sun Sim1
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
@@ -73,6 +81,10 @@ CASES = {
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
     "lto_refined_placebo": "benchmarks.cases.lto_refined_placebo",  # cross-val vs authors' LTO code (Sudijono-Lei): leave-two-out refined placebo p-value on Prop 99 + West Germany + Basque, value-for-value
     "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2025 Table 5 carbon-tax debiased t-test
+    "cwz_conformal": "benchmarks.cases.cwz_conformal",    # cross-val vs scinference conformal (CWZ 2021 JASA Sec 5 application)
+    "cwz_conformal_mc": "benchmarks.cases.cwz_conformal_mc",  # Path B: CWZ 2021 JASA Sec 4 size, live against the authors' simulation design
+    "cwz_ttest_mc": "benchmarks.cases.cwz_ttest_mc",          # Path B: CWZ Table 3, live against the authors' calibrated design
+    "cwz_rae": "benchmarks.cases.cwz_rae",                    # Path B: CWZ Table 1 relative efficiency, the formula behind ttest_K="auto"
     "cwz_mc": "benchmarks.cases.cwz_mc",                      # Path B: CWZ 2025 Table 3 application-based Monte Carlo
     "masc_basque": "benchmarks.cases.masc_basque",            # Path A: MASC Basque/ETA (KMPT Sec 5)
     "masc_crossval": "benchmarks.cases.masc_crossval",        # cross-val vs authors' own R MASC (maxkllgg/masc, nogurobi) on Basque, value-for-value
@@ -96,7 +108,10 @@ CASES = {
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
-    "pda_table1": "benchmarks.cases.pda_table1",              # Path B: Shi-Huang Table 1 fs-vs-LASSO size/power geometry
+    "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design
+    "fspda_dense_mc": "benchmarks.cases.fspda_dense_mc",      # cross-val vs fsPDA FS()/lasso.BIC() on their own dense-MC panels
+    "fspda_sparse_mc": "benchmarks.cases.fspda_sparse_mc",    # cross-val vs fsPDA fs()/lasso_ic()/oracle() on their three sparse DGPs
+    "fspda_table1": "benchmarks.cases.fspda_table1",          # Path B: all 108 cells of Shi-Huang Table 1, vs the paper and vs their own code
     "pda_lasso_sim": "benchmarks.cases.pda_lasso_sim",        # Path B: Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
     "pda_l2_sim": "benchmarks.cases.pda_l2_sim",              # Path B: Shi-Wang Table 2 L2-relaxation size/power
     "pda_luxurywatch": "benchmarks.cases.pda_luxurywatch",    # Path A: Shi-Huang China luxury-watch fsPDA (prewhitened-NW)
@@ -117,6 +132,7 @@ CASES = {
     "esc_prop99": "benchmarks.cases.esc_prop99",              # Path A: ESC California (Prop 99) reproduces classic SC path + informative PI
     "esc_saopaulo": "benchmarks.cases.esc_saopaulo",          # Path A: ESC Sao Paulo homicides (T0=9) short-panel interval on lives saved
     "dr_proximal_mc": "benchmarks.cases.dr_proximal_mc",      # Path B: DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
+    "dr_proximal_scenarios": "benchmarks.cases.dr_proximal_scenarios",  # cross-val vs DR_Proximal_SC correct.DR/correct.q on all 7 just-identified scenarios
     "dr_proximal_brazil": "benchmarks.cases.dr_proximal_brazil",  # cross-val vs LIVE R (authors' analysis.Rmd commit 3bcb5ec): over-identified DR-OID, Brazil vaccine/pneumonia
     "brazil_vaccine_scm_vs_proximal": "benchmarks.cases.brazil_vaccine_scm_vs_proximal",  # cross-val vs LIVE R: standard SC (VanillaSC) vs proximal (DR-OID h/DR), Brazil vaccine/pneumonia contrast
     "proximal_surrogates_mc": "benchmarks.cases.proximal_surrogates_mc",  # Path B: PI/PIS/PIPost vs SC under trending factor (Liu et al.)
@@ -175,6 +191,7 @@ CASES = {
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)
     "compsc_pennsylvania": "benchmarks.cases.compsc_pennsylvania",  # Path A: Boussim 2026 Pennsylvania AEPS -- Table 1 weights, all of Table 2, and the sec 6.4 placebo (p=0.111) reproduced from public EIA generation data
+    "compsc_pennsylvania_r": "benchmarks.cases.compsc_pennsylvania_r",  # cross-val vs the author's csc_replication.R (quadprog) run live: all ten donor weights, every Table-2 cell, and the 42-donor placebo agree to solver tolerance
     "fsc_okano": "benchmarks.cases.fsc_okano",  # Path A (reference port): Okano-Kurisu 2026 functional SC -- all three applications, both fits each, and Tables 1-3 reproduced exactly from the authors' data
     "fsc_estimator": "benchmarks.cases.fsc_estimator",  # Path A: mlsynth.FSC itself on the same three applications -- fertility exact, and the mortality/service divergences measured and pinned
     "vanillasc_xval_references": "benchmarks.cases.vanillasc_xval_references",  # cross-val vs Synth (uniform V) + tidysynth (ADH spec): placebo rank/p-value agreement, plus recorded solver-quality gaps

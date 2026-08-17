@@ -102,11 +102,15 @@ class PDA:
                        fs_intercept=self.config.fs_intercept,
                        lrvar_lag=self.config.lrvar_lag,
                        l2_standardize=self.config.l2_standardize,
+                       lasso_criterion=self.config.lasso_criterion,
+                       lasso_mbic_const=self.config.lasso_mbic_const,
                        hcw_criterion=self.config.hcw_criterion,
                        hcw_nvmax=self.config.hcw_nvmax,
                        hcw_backend=self.config.hcw_backend,
                        prediction_intervals=self.config.prediction_intervals,
+                       cumulative_band=self.config.cumulative_band,
                        pi_n_boot=self.config.pi_n_boot,
+                       pi_dependent=self.config.pi_dependent,
                        pi_seed=self.config.pi_seed)
         results = assemble_pda_results(inputs, fits, selected_variant=methods[0])
 

@@ -1,5 +1,15 @@
 """CWZ debiased SC t-test (arXiv:1812.10820): Section 6 Monte Carlo (Path B).
 
+This case tracks the paper's printed Table 3 cells, not the authors' code. The
+DGP below is reimplemented in Python from the paper's description, and the
+targets are the published values, which are rounded to two decimals -- so
+agreement here is agreement to the printing precision. ``cwz_ttest_mc`` is the
+live counterpart: it runs the authors' own ``calibration_dgps.R`` and
+``common_functions.R`` and compares at full precision, including panel-by-panel
+against seed-matched draws. Both are kept because they fail differently -- this
+one would catch a drift away from what the paper reports, and that one a drift
+away from what the authors' code computes.
+
 Reproduces, through the public API (``VanillaSC(inference="ttest")``), the
 defining behaviour of the paper's Table 3 application-based simulations,
 calibrated to the Andersson (2019) carbon-tax data: a 4-factor model fit to the

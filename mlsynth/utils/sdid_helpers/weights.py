@@ -54,7 +54,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+from mlsynth.utils.bilevel.minnorm import ridged_gram_reduction_is_safe
 
 
 def _solve_intercept_simplex(
@@ -129,11 +129,18 @@ def solve_intercept_simplex_many(
     Notes
     -----
     A group is batched only where
-    :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` passes on its
-    centred design, and solved one at a time otherwise. Forming the Gram squares
-    the design's condition number, and on a rank-deficient design the optimum is
-    a face whose points the two solvers pick differently -- the same fit, other
-    weights. The guard is on the design, not on the caller.
+    :func:`~mlsynth.utils.bilevel.minnorm.ridged_gram_reduction_is_safe` passes
+    on its centred design, and solved one at a time otherwise. Forming the Gram
+    squares the design's condition number, and on a rank-deficient design the
+    optimum is a face whose points the two solvers pick differently -- the same
+    fit, other weights. The guard is on the design, not on the caller.
+
+    That guard was the fit's largest single cost before it was asked this way:
+    1000 problems per fit at ``B=500``, each answered with a full singular
+    spectrum, all 1000 answering yes. The unit-weight program carries a ridge,
+    and a ridge bounds the augmented Gram's smallest eigenvalue from below for
+    free, so its half of those spectra is now never computed. The time-weight
+    program carries none and still pays.
 
     Which of SDID's two programs clears that guard depends on the panel's shape.
     The unit-weight design is ``T0`` by ``N0`` and carries the ridge, so it
@@ -172,10 +179,12 @@ def solve_intercept_simplex_many(
         # The safety test is on the design the solve actually sees, ridge block
         # included: a ridge large enough to condition the problem is what makes
         # an otherwise rank-deficient design safe, and one too small to do that
-        # is precisely the case the guard exists to catch.
-        augmented = (np.vstack([design_c, np.sqrt(ridge) * np.eye(J)])
-                     if ridge > 0.0 else design_c)
-        if J == 1 or not gram_reduction_is_safe(augmented):
+        # is precisely the case the guard exists to catch. Asked through
+        # ``ridged_gram_reduction_is_safe``, which describes that block instead
+        # of building and factorising it wherever the ridge alone settles the
+        # question -- the same decision, and for the unit-weight family no
+        # spectrum at all.
+        if J == 1 or not ridged_gram_reduction_is_safe(design_c, ridge):
             shape = design_c.shape
             solved = _solve_intercept_simplex(
                 design, target, ridge, warm_start=last_fallback.get(shape)

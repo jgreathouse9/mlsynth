@@ -166,6 +166,26 @@ class BaseEstimatorConfig(BaseModel):
             raise MlsynthDataError(
                 f"Missing required columns in DataFrame 'df': {', '.join(sorted(list(missing_columns)))}"
             )
+
+        # A row without a unit or a time is not an observation. Ingestion refuses
+        # it as well, but catching it here names the fault before any pivot
+        # exists -- and this is the base 150 of the library's config references
+        # use, against 14 for ``BaseMAREXConfig``, which has had the check all
+        # along. Scoped to the keys: a blank outcome is a modelling question and
+        # the estimators that tolerate one keep doing so, which is where this
+        # stays narrower than the MAREX contract.
+        blank_keys = {
+            column: int(df[column].isna().sum())
+            for column in (unitid, time)
+            if df[column].isna().any()
+        }
+        if blank_keys:
+            details = ", ".join(f"{col}: {n}" for col, n in blank_keys.items())
+            raise MlsynthDataError(
+                f"Missing values found in the panel's key columns -> {details}. "
+                "Every observation must carry both a unit and a time period; "
+                "clean or drop these rows before passing the panel."
+            )
         return values
 
 # TSSCConfig has been relocated to mlsynth/utils/tssc_helpers/config.py
@@ -285,13 +305,49 @@ class WeightsResults(BaseModel):
       period weights);
     * ``unit_weights``  -- a weight matrix / array (e.g. MCNNM / ISCM unit
       factors, per-unit weight matrices).
+
+    Some estimators hold weights that fit none of these: one mapping per cohort
+    (PPSCM), unit and time weights per cohort (SequentialSDID), factor matrices
+    per treated unit (SPILLSYNTH). Collapsing those to a single vector would
+    produce an object no cohort used, so they leave the faces empty and set
+    ``weights_at`` to name where the weights actually are. ``is_empty`` is what
+    separates that from an estimator with no weights at all.
     """
     donor_weights: Optional[Dict[str, float]] = Field(default=None, description="Dictionary mapping donor unit names/IDs to their weights.")
     time_weights: Optional[Dict[Any, float]] = Field(default=None, description="Dictionary mapping time periods to weights (e.g. SDID lambda, DSC period weights).")
     unit_weights: Optional[np.ndarray] = Field(default=None, description="Unit weight matrix/array for estimators whose weights are not a donor mapping (e.g. MCNNM/ISCM).")
     summary_stats: Optional[Dict[str, Any]] = Field(default=None, description="Summary statistics about weights (e.g., cardinality).")
+    weights_at: Optional[List[str]] = Field(default=None, description=(
+        "Attribute names on the result where this estimator's weights live, for "
+        "estimators whose weights fit none of the faces above -- per cohort, per "
+        "treated unit, or as factor matrices. Names a location; it does not hold "
+        "weights."))
     # For estimators returning multiple sets of weights (e.g. TSSC sub-methods), this might be part of a list or dict structure.
     # donor_names is removed as it's incorporated into donor_weights dict keys
+
+    @property
+    def is_empty(self) -> bool:
+        """No face populated and no pointer: the container says nothing.
+
+        The four faces are optional because weights are not one thing across
+        synthetic-control methods, and that permissiveness has a failure mode:
+        every face ``None`` reads as "this estimator has no weights" whether or
+        not it has them. An estimator whose weights fit no face sets
+        ``weights_at`` and stops being indistinguishable from one that has none
+        (#475). Pinned for every estimator in ``tests/test_result_contract.py``.
+
+        The test is ``is None``, not emptiness. An empty ``donor_weights`` is a
+        statement -- the factor-model estimators set ``{}`` and mean "checked,
+        this method has no donor weights", which is exactly what a caller needs
+        to know. ``None`` is the absence of a statement.
+
+        ``summary_stats`` does not count. It holds descriptive statistics about
+        the weights -- cardinality, a constraint label -- in prose no caller can
+        resolve to a location, which is the state #475 was filed about. A
+        sentence saying the weights are per cohort is not a way to reach them.
+        """
+        return (self.donor_weights is None and self.time_weights is None
+                and self.unit_weights is None and self.weights_at is None)
 
     @property
     def weight_vector(self) -> Optional[np.ndarray]:
@@ -648,6 +704,7 @@ _RELOCATED_CONFIGS = {
     "CASTConfig": "mlsynth.utils.cast_helpers.config",
     "RRSCConfig": "mlsynth.utils.rrsc_helpers.config",
     "ESCConfig": "mlsynth.utils.esc_helpers.config",
+    "LPCAConfig": "mlsynth.utils.lpca_helpers.config",
 }
 
 

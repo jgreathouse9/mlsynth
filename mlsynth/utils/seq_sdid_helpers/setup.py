@@ -54,8 +54,8 @@ def prepare_seq_sdid_inputs(
         estimable effect fits inside the panel.
     """
 
-    balance(df, unitid, time)
-    prep: Dict[str, Any] = dataprep(df, unitid, time, outcome, treat)
+    keys = balance(df, unitid, time)
+    prep: Dict[str, Any] = dataprep(df, unitid, time, outcome, treat, keys=keys)
 
     Ywide = prep["Ywide"]
     time_labels = np.asarray(prep["time_labels"])

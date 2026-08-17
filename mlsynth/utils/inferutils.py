@@ -59,34 +59,10 @@ def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
     return np.asarray(w.value).ravel()
 
 
-def split_conformal_quantile(residuals, alpha: float = 0.05) -> float:
-    r"""Split-conformal prediction-band half-width (Chernozhukov, Wuthrich & Zhu 2021).
-
-    Returns ``q``, the constant half-width of the symmetric prediction band
-    ``counterfactual +/- q``: the ``ceil((n+1)(1-alpha))``-th order statistic of
-    the absolute pre-period residuals (gaps). Under exchangeability of the
-    residuals this band has finite-sample :math:`(1-\alpha)` coverage. When
-    ``n < ceil(1/alpha) - 1`` the required order statistic does not exist and
-    ``q`` is ``+inf`` (an uninformative band).
-
-    This is the constant-width "split" construction used by R ``Synth``'s
-    ``synth_inference(method = "conformal")`` (Hainmueller's j-hai/Synth), as
-    distinct from the test-inversion conformal band (which widens over the
-    post-period).
-
-    Parameters
-    ----------
-    residuals : array-like
-        Pre-treatment gaps (treated minus synthetic), one per pre-period.
-    alpha : float
-        Miscoverage level in ``(0, 1)``; the band targets ``1 - alpha`` coverage.
-    """
-    r = np.sort(np.abs(np.asarray(residuals, dtype=float)))
-    n = r.size
-    if n == 0:
-        return float("inf")
-    k = int(np.ceil((n + 1) * (1.0 - alpha)))
-    return float(r[k - 1]) if k <= n else float("inf")
+# ``split_conformal_quantile`` now lives with the rest of the conformal machinery
+# in :mod:`mlsynth.utils.conformal`; re-exported here so existing imports keep
+# working.
+from .conformal.quantile import split_conformal_quantile  # noqa: E402,F401
 
 
 def debiased_sc_ttest(
@@ -526,6 +502,13 @@ def pda_prediction_intervals(
     # Bootstrap.
     resid_centered = resid_pre - resid_pre.mean()
     S = np.empty((n_boot, T1))
+    # The unstudentized post-period prediction errors. The per-period
+    # intervals below need only the studentized ``S``, but a cumulative band
+    # has to accumulate the errors on their own scale before taking a
+    # standard error -- studentizing per period first would divide each
+    # horizon by a different number and destroy the correlation the running
+    # total depends on.
+    E = np.empty((n_boot, T1))
     # A draw whose refit saturates the bootstrap pre-period leaves a residual
     # scale of order 1e-15 while its post-period extrapolation error stays O(1),
     # so the studentized statistic reaches ~1e15 and drags the quantiles with
@@ -556,11 +539,14 @@ def pda_prediction_intervals(
         ):
             degenerate[b] = True
             S[b] = 0.0          # excluded below; keeps the array finite
+            E[b] = 0.0
             continue
         S[b] = e_star_post / np.where(se_star > 0, se_star, np.inf)
+        E[b] = e_star_post
 
     n_degenerate = int(degenerate.sum())
     S = S[~degenerate]
+    E = E[~degenerate]
     if S.shape[0] < 2:
         raise MlsynthEstimationError(
             f"{n_degenerate} of {n_boot} bootstrap draws were degenerate "
@@ -600,7 +586,16 @@ def pda_prediction_intervals(
         "n_boot_effective": int(n_boot - n_degenerate),
         "post_periods": int(T1),
         "studentization": studentization,
+        # Which multiplier scheme produced these -- Algorithm 2.1's dependent
+        # wild bootstrap or Remark 2.2's i.i.d. one. A band built under each
+        # is not the same number, so the result has to say which it is.
+        "dependent": bool(dependent),
         "se": se if np.ndim(se) else np.full(T1, float(se)),
+        # Raw (unstudentized) post-period prediction errors, one row per usable
+        # draw. The per-period intervals do not need them -- a cumulative band
+        # does, because the running total's standard error has to come from
+        # accumulating the errors before scaling, not after.
+        "error_paths": E,
         "effect": eff_block,
         "counterfactual": cf_block,
     }

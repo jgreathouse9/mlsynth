@@ -450,7 +450,8 @@ Several inference modes are available via ``inference=``:
 Each mode returns one kind of output, and the fit always tells you which.
 ``"placebo"``, ``"lto"`` and ``"ttest"`` are tests: they return a p-value (the
 t-test also returns an ATT confidence interval). ``"conformal"``,
-``"conformal_split"``, ``"scpi"``, ``"eiv"`` and ``"jackknife_plus"`` are
+``"conformal_split"``, ``"conformal_cumulative"``, ``"scpi"``, ``"eiv"`` and
+``"jackknife_plus"`` are
 prediction intervals: they
 return the per-period counterfactual
 bands on ``res.time_series`` (``counterfactual_lower`` / ``counterfactual_upper``)
@@ -519,6 +520,67 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     ``res.inference.details["counterfactual_lower" / "counterfactual_upper"]``
     (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
     :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
+
+    Which control is refit under the null follows the estimator, and is reported
+    in ``res.inference.details["refit"]``. A plain synthetic control is refit as
+    one (``"sc"``, the rule the procedure was published on and the one the
+    authors' ``scinference`` package uses); with ``augment="ridge"`` the
+    ridge-augmented control is refit instead, matching ``augsynth``. The
+    distinction is not cosmetic. Refitting an unconstrained control under the
+    null lets it absorb the effect by re-levelling the series, and the level it
+    adds lands in the pre-treatment residuals the test calibrates against, so
+    both sides of the comparison grow together and the :math:`p`-value stops
+    responding to the effect size. Convex weights cannot do that, which is what
+    leaves the effect where the test can see it. Against ``scinference`` on the
+    Swedish carbon tax panel, the simplex refit returns the authors' 0.391 under
+    the null and :math:`1/T = 0.0217` for any injected effect from 1 upward.
+
+    ``conformal_type`` picks the permutation scheme: ``"iid"`` (the default)
+    draws random permutations of the residual path and assumes the errors are
+    exchangeable, while ``"block"`` uses the :math:`T` cyclic shifts, preserving
+    serial dependence. ``"block"`` is ``scinference``'s default and the one to
+    prefer on a panel with persistent errors; being a set of :math:`T` shifts,
+    one of which is the observed path, its :math:`p`-value cannot fall below
+    :math:`1/T`, and at :math:`\alpha < 1/T` it never rejects.
+
+    ``conformal_n_perm`` sets the draw count behind an ``"iid"`` :math:`p`-value
+    (``scinference`` draws 5000; the default reuses ``scpi_sims``, which is 200,
+    and at 200 the Monte-Carlo error on a :math:`p`-value near 0.02 is about
+    half its own size). ``"block"`` enumerates its reference set and draws
+    nothing, so the setting does not reach it. ``conformal_finite_sample``
+    switches the :math:`p`-value to
+    :math:`(1 + \#\{S \geq S_{\mathrm{obs}}\}) / (1 + B)`, which is
+    ``scinference``'s form for iid permutations and the one valid in finite
+    samples: :math:`B` draws cannot evidence a :math:`p`-value below
+    :math:`1/(B+1)`, which the plain mean reports as zero. The plain mean stays
+    the default because it is ``augsynth``'s, and the ASCM cases reproduce it.
+
+    ``conformal_grid`` supplies the candidate effects the per-period inversion
+    sweeps, ``scinference``'s ``ci_grid``. The interval's endpoints are grid
+    points, so the grid is the resolution of the answer; the automatic grid,
+    built per period from the panel's own noise scale, is the default because it
+    adapts where a fixed grid cannot, and a shared grid is what makes a
+    comparison against another implementation value-for-value.
+
+    A candidate is kept when :math:`p > \alpha`, so a candidate whose
+    :math:`p`-value equals :math:`\alpha` exactly is rejected and lies outside
+    the interval. For a continuous statistic that boundary is a technicality. A
+    conformal :math:`p`-value is discrete -- its reference set has
+    :math:`T_0 + 1` members for a single-period inversion -- so it takes only the
+    values :math:`k/(T_0+1)`, and whenever :math:`\alpha` is one of them the
+    boundary carries a whole level of the reference set. On the authors' own
+    application (:math:`T_0 + 1 = 20`, :math:`\alpha = 0.1`) the inclusive
+    reading widens every per-period interval by 15 to 40 percent; on the Swedish
+    carbon tax panel (:math:`T_0 + 1 = 31`) the two readings coincide. See
+    :func:`mlsynth.utils.conformal.inversion.confidence_set_bounds`.
+
+    Verification: the whole procedure is cross-validated against the authors'
+    own ``scinference`` on the panel their paper uses as its application, in
+    :doc:`replications/cwz_conformal` (durable case
+    `benchmarks/cases/cwz_conformal.py
+    <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal.py>`__).
+    The moving-block :math:`p`-value, all six pointwise intervals on the paper's
+    grid, and the three placebo specification tests reproduce exactly.
 
 ``"jackknife_plus"`` -- jackknife+ over pre-treatment periods (Ben-Michael, Feller & Rothstein 2021)
     ``augsynth``'s ``inf_type = "jackknife+"``, and only defined for the
@@ -734,6 +796,46 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     tallies. It shares the placebo test's assumptions but is far more powerful
     in small donor pools. See *The leave-two-out refined placebo test* and the
     two theory subsections below for the full treatment.
+
+``"conformal_cumulative"`` -- band for the cumulative (total) effect
+    The other modes report the effect period by period, or its average. This one
+    reports the interval for the *sum* over the post-period -- the total the
+    intervention added -- which is often the figure a decision rests on.
+
+    A confidence interval for a running total is not the running total of the
+    per-period intervals. Adding the endpoints up assumes the weekly errors move
+    in lockstep, so the width grows with the number of periods rather than with
+    its square root; rescaling one period's interval by the horizon assumes the
+    opposite. Which is right depends on how the errors accumulate, so this mode
+    measures that directly: it slides an origin across the pre-period, refits the
+    control on the data strictly before each origin, and reads the *summed* error
+    over the next ``conformal_horizon`` periods. Those sums are conformity scores
+    for exactly the quantity being reported, and the half-width is the
+    :math:`\lceil (m+1)(1-\alpha) \rceil`-th order statistic of the centred
+    scores -- the same finite-sample construction ``conformal_split`` uses, over
+    blocks instead of single periods.
+
+    Because each refit sees only data before the window it scores, the scores
+    carry no in-sample optimism; because the origins step by a whole horizon, the
+    windows do not overlap and the scores stay exchangeable.
+
+    ``conformal_horizon`` sets the number of periods accumulated, defaulting to
+    the whole post-period. The cumulative figure and its band land in
+    ``res.inference.details`` (``cumulative_effect``, ``cumulative_lower``,
+    ``cumulative_upper``, ``conformal_q``, ``n_calibration_windows``);
+    ``res.inference.ci_lower``/``ci_upper`` carry the per-period equivalent only
+    when the horizon spans the whole post-period, since a shorter window is not
+    the ATT.
+
+    What it costs is pre-period. Non-overlapping windows of length :math:`L` are
+    scarce: a :math:`1-\alpha` band needs at least :math:`\lceil 1/\alpha
+    \rceil - 1` of them, so roughly :math:`T_0 \gtrsim L / (\alpha\,(1 -
+    \texttt{min\_train\_frac}))`. At :math:`\alpha = 0.1` that is about ten
+    windows: 104 pre-periods support an 8-period horizon, but not a 16-period one.
+    When the windows run out the band is ``±inf`` with a warning naming the
+    shortfall, rather than a narrow band that does not cover.
+
+    Reference: :func:`mlsynth.utils.conformal.cumulative_conformal_from_refit`.
 
 ``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2025)
     A :math:`K`-fold cross-fitting debiasing with a self-normalized statistic

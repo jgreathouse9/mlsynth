@@ -27,8 +27,155 @@ KEY_DONOR_PROXIES = "donorproxies"
 KEY_SURROGATE_VARS = "surrogatevars"
 
 
+class PanelKeys:
+    """A panel's ``(unit, time)`` key structure, scanned once.
+
+    Establishing which unit and which period a row belongs to is the first
+    thing every pivot does and the only thing ``balance`` does, and the answer
+    depends on the frame and its two key columns alone -- never on the values
+    being pivoted. Holding the scan in an object lets one pass serve the
+    validation and both pivots of a fit; without it each consumer starts again
+    from the raw columns, because a pivot returns a frame and ``balance``
+    returns a verdict, so neither can hand on what it computed.
+
+    Everything past the two ``factorize`` calls is derived on demand: a caller
+    that only validates never pays for the axis sorts a pivot needs, and a
+    caller that only pivots a dense grid never pays for the hash fallback.
+
+    Rows with a missing key are refused at construction. ``factorize`` sends
+    them to code ``-1`` and leaves them out of the levels, so every later count
+    here would silently omit them while ``df.pivot`` would give the blank a
+    level of its own -- which is how a blank time period used to add a period
+    and move ``pre_periods`` by one.
+    """
+
+    __slots__ = ("unit_column", "time_column", "unit_codes", "time_codes",
+                 "unit_levels", "time_levels", "n_rows", "n_units", "n_periods",
+                 "_frame", "_cell", "_has_duplicate", "_unit_order",
+                 "_time_order")
+
+    def __init__(self, df: pd.DataFrame, unit_column: str, time_column: str) -> None:
+        self.unit_column = unit_column
+        self.time_column = time_column
+        self.unit_codes, self.unit_levels = pd.factorize(df[unit_column], sort=False)
+        self.time_codes, self.time_levels = pd.factorize(df[time_column], sort=False)
+        self.n_rows = len(df)
+        self.n_units = len(self.unit_levels)
+        self.n_periods = len(self.time_levels)
+        # Held so ``is_for`` can answer by identity. A scan is only valid for
+        # the frame it was taken from, and comparing contents to find that out
+        # would cost the pass this class exists to avoid.
+        self._frame = df
+        self._cell: Optional[np.ndarray] = None
+        self._has_duplicate: Optional[bool] = None
+        self._unit_order: Optional[np.ndarray] = None
+        self._time_order: Optional[np.ndarray] = None
+
+        blank = {
+            name: int((codes < 0).sum())
+            for name, codes in ((unit_column, self.unit_codes),
+                                (time_column, self.time_codes))
+            if (codes < 0).any()
+        }
+        if blank:
+            details = ", ".join(f"{name}: {count}" for name, count in blank.items())
+            raise MlsynthDataError(
+                f"Missing values found in the panel's key columns -> {details}. "
+                "Every observation must carry both a unit and a time period; clean "
+                "or drop these rows before passing the panel."
+            )
+
+    def is_for(self, df: pd.DataFrame, unit_column: str, time_column: str) -> bool:
+        """Whether this scan describes ``df`` keyed on these two columns."""
+        return (df is self._frame
+                and unit_column == self.unit_column
+                and time_column == self.time_column)
+
+    @property
+    def cell(self) -> np.ndarray:
+        """One integer per row identifying its ``(time, unit)`` grid cell.
+
+        Unit-minor, matching the ``(n_periods, n_units)`` block a pivot fills.
+        Codes are non-negative here -- missing keys were refused -- so the
+        plain linear index cannot collide.
+        """
+        if self._cell is None:
+            self._cell = self.time_codes.astype(np.int64) * self.n_units + self.unit_codes
+        return self._cell
+
+    @property
+    def grid(self) -> int:
+        return self.n_units * self.n_periods
+
+    @property
+    def has_duplicate(self) -> bool:
+        """Whether any ``(unit, time)`` pair appears more than once.
+
+        Counting cells directly is the cheapest route, but only where the grid
+        is not much larger than the data. An unbalanced panel is precisely the
+        case where it is: 4000 singleton units would ask for a 16-million-cell
+        count to report an error, so beyond the bound the cells are hashed
+        instead, which is bounded by the row count.
+        """
+        if self._has_duplicate is None:
+            if self.n_rows == 0:
+                self._has_duplicate = False
+            elif self.grid <= 2 * self.n_rows:
+                counts = np.bincount(self.cell, minlength=self.grid)
+                self._has_duplicate = bool(counts.max() > 1)
+            else:
+                self._has_duplicate = len(pd.factorize(self.cell, sort=False)[1]) != self.n_rows
+        return self._has_duplicate
+
+    @property
+    def unit_order(self) -> np.ndarray:
+        """Permutation putting the unit levels in the order ``df.pivot`` uses."""
+        if self._unit_order is None:
+            self._unit_order = np.argsort(np.asarray(self.unit_levels), kind="stable")
+        return self._unit_order
+
+    @property
+    def time_order(self) -> np.ndarray:
+        if self._time_order is None:
+            self._time_order = np.argsort(np.asarray(self.time_levels), kind="stable")
+        return self._time_order
+
+    def observations_per_unit(self) -> np.ndarray:
+        """Rows per unit.
+
+        With duplicate pairs ruled out, each unit's rows carry distinct time
+        codes, so this counts a unit's distinct observed periods.
+        """
+        return np.bincount(self.unit_codes, minlength=self.n_units)
+
+
+def _keys_for(
+    df: pd.DataFrame, unit_column: str, time_column: str,
+    keys: Optional[PanelKeys],
+) -> PanelKeys:
+    """Return ``keys`` if it describes this panel, otherwise scan.
+
+    A scan supplied for some other frame or some other pair of columns is a
+    caller error and not something to work around: reusing it would scatter
+    values into cells derived from a different panel, and the result would be
+    wrong without being obviously wrong.
+    """
+    if keys is None:
+        return PanelKeys(df, unit_column, time_column)
+    if not keys.is_for(df, unit_column, time_column):
+        raise MlsynthDataError(
+            "The supplied key scan is not for this panel: it was taken from a "
+            f"different panel or different key columns (scanned "
+            f"{keys.unit_column!r}/{keys.time_column!r}, asked for "
+            f"{unit_column!r}/{time_column!r}). Pass the scan returned by "
+            "``balance`` on the same frame, or omit it."
+        )
+    return keys
+
+
 def _fast_pivot(
-    df: pd.DataFrame, index: str, columns: str, values: str
+    df: pd.DataFrame, index: str, columns: str, values: str,
+    keys: Optional[PanelKeys] = None,
 ) -> Optional[pd.DataFrame]:
     """O(n) equivalent of ``df.pivot`` for panels with unique (index, columns) keys.
 
@@ -38,30 +185,35 @@ def _fast_pivot(
     built by a single hash-``factorize`` + scatter -- several times faster and
     byte-identical to ``pivot`` (same sorted labels, index/column names, and
     dtype). Returns ``None`` (so the caller falls back to ``df.pivot``) when the
-    fast path does not apply: empty input, missing (NaN) keys, a grid too sparse
-    to be worth materialising, or duplicate (index, columns) pairs -- which
-    ``pivot`` itself rejects.
+    fast path does not apply: empty input, a grid too sparse to be worth
+    materialising, or duplicate (index, columns) pairs -- which ``pivot`` itself
+    rejects. A missing (NaN) key is not a reason to fall back but an error, and
+    :class:`PanelKeys` raises on it.
+
+    ``keys`` is the panel's key structure if a caller already scanned it. Every
+    step up to the scatter -- the two ``factorize``s, the cell index, the
+    duplicate count, the two axis sorts -- depends on ``(df, index, columns)``
+    and not on ``values``, so a caller pivoting the same panel twice can hand
+    the same scan to both calls and pay for it once.
     """
     n = len(df)
     if n == 0:
         return None
-    u_codes, u_uniq = pd.factorize(df[columns], sort=False)   # O(n) hash, no sort
-    t_codes, t_uniq = pd.factorize(df[index], sort=False)
-    if (u_codes < 0).any() or (t_codes < 0).any():            # NaN key -> pandas
-        return None
-    n_u, n_t = len(u_uniq), len(t_uniq)
-    grid = n_u * n_t
+    keys = _keys_for(df, columns, index, keys)
+    n_u, n_t = keys.n_units, keys.n_periods
+    grid = keys.grid
     if grid > 2 * n:                     # too sparse: not worth it / avoid huge alloc
         return None
-    lin = t_codes.astype(np.int64) * n_u + u_codes
-    if np.bincount(lin, minlength=grid).max() > 1:            # duplicate key -> pandas
+    lin = keys.cell
+    if keys.has_duplicate:                                    # duplicate key -> pandas
         return None
+    u_uniq, t_uniq = keys.unit_levels, keys.time_levels
     vals = df[values].to_numpy()
     wide = (np.empty((n_t, n_u), dtype=vals.dtype) if n == grid
             else np.full((n_t, n_u), np.nan))
     wide.reshape(-1)[lin] = vals
-    su = np.argsort(np.asarray(u_uniq), kind="stable")        # match pivot's sorted axes
-    st = np.argsort(np.asarray(t_uniq), kind="stable")
+    su = keys.unit_order                  # match pivot's sorted axes
+    st = keys.time_order
     # ``pivot`` returns a C-contiguous values block; match its memory *layout*,
     # not just its values. A value-equal but F-contiguous array changes BLAS
     # reduction order, perturbing float-sensitive downstream code (e.g. a seeded
@@ -80,11 +232,14 @@ def _fast_pivot(
 
 
 def _wide_pivot(
-    df: pd.DataFrame, index: str, columns: str, values: str
+    df: pd.DataFrame, index: str, columns: str, values: str,
+    keys: Optional[PanelKeys] = None,
 ) -> pd.DataFrame:
     """``df.pivot(index=index, columns=columns, values=values)`` with an O(n)
     fast path (:func:`_fast_pivot`) for balanced/unique panels, falling back to
     the pandas pivot otherwise (which also raises on duplicate keys).
+
+    ``keys`` is forwarded to the fast path: see :func:`_fast_pivot`.
 
     The fast path is used only when it reproduces ``df.pivot``'s C-contiguous
     ``.to_numpy()`` layout -- not just its values. The layout that a transposed
@@ -96,7 +251,7 @@ def _wide_pivot(
     is reliably C-contiguous, keeping the output byte- and layout-identical on
     every pandas version.
     """
-    fast = _fast_pivot(df, index, columns, values)
+    fast = _fast_pivot(df, index, columns, values, keys)
     if fast is not None and fast.to_numpy().flags["C_CONTIGUOUS"]:
         return fast
     return df.pivot(index=index, columns=columns, values=values)
@@ -266,6 +421,7 @@ def build_covariate_matrix(
     *,
     aggregation: str = "pre_mean",
     normalize: bool = True,
+    keys: Optional[PanelKeys] = None,
 ) -> Tuple[np.ndarray, Tuple[str, ...], np.ndarray, np.ndarray]:
     """Per-unit covariate matrix aligned to ``unit_order``.
 
@@ -279,6 +435,10 @@ def build_covariate_matrix(
     ``unit_order``) so all covariates are unit-free, which is the standard
     pre-step before applying SCM-style predictor weights or computing
     standardized mean differences for balance diagnostics.
+    keys : PanelKeys, optional
+        The panel's key structure, if the caller already scanned it. One pivot
+        per covariate follows, all keyed on the same two columns, so a supplied
+        scan serves every one of them.
 
     Returns
     -------
@@ -298,7 +458,8 @@ def build_covariate_matrix(
         if cov not in df.columns:
             raise MlsynthDataError(f"covariate {cov!r} not present in df.columns")
         pivot = _wide_pivot(df, index=time_period_column_name,
-                            columns=unit_id_column_name, values=cov)
+                            columns=unit_id_column_name, values=cov,
+                            keys=keys)
         if aggregation == "pre_mean":
             if pre_periods <= 0:
                 raise MlsynthDataError(
@@ -343,6 +504,7 @@ def dataprep(
     covariate_aggregation: Literal["pre_mean"] = "pre_mean",
     normalize_covariates: bool = True,
     marex: bool = False,
+    keys: Optional[PanelKeys] = None,
 ) -> Dict[str, Any]:
     """Prepare data for synthetic control methods.
 
@@ -389,6 +551,13 @@ def dataprep(
         predictor matrix ``X = [Y_pre; covariates^T]`` plus its
         population-weighted aggregate, surfacing the inputs that the
         MAREX-family experimental-design estimators consume.
+    keys : PanelKeys, optional
+        The panel's key structure, if the caller already scanned it -- the
+        value :func:`balance` returns. Both pivots below key on the same two
+        columns, so the scan is taken once here and shared between them; a
+        caller that validated the same frame first can supply its scan and the
+        panel is read once for the whole fit. A scan taken from a different
+        frame or different columns is refused.
 
     Returns
     -------
@@ -420,12 +589,19 @@ def dataprep(
         - If a covariate column name is not present in ``df.columns``.
         - If ``covariate_aggregation`` is unknown.
     """
+    # Both pivots below key on the same two columns and differ only in which
+    # values they scatter, so the panel is scanned once here and the scan is
+    # handed to each of them. A scan supplied by the caller is checked against
+    # this frame before it is used.
+    keys = _keys_for(df, unit_id_column_name, time_period_column_name, keys)
+
     # Pivot the treatment indicator column to a wide format (time x units).
     treatment_matrix_wide = _wide_pivot(
         df,
         index=time_period_column_name,
         columns=unit_id_column_name,
         values=treatment_indicator_column_name,
+        keys=keys,
     )
     treatment_array_wide = treatment_matrix_wide.to_numpy()
     treatment_analysis_results = logictreat(treatment_array_wide)
@@ -442,6 +618,7 @@ def dataprep(
             index=time_period_column_name,
             columns=unit_id_column_name,
             values=outcome_column_name,
+            keys=keys,
         )
         treated_unit_name = outcome_matrix_wide.columns[treated_unit_column_index[0]]
         treated_unit_outcome_vector = outcome_matrix_wide[treated_unit_name].to_numpy()
@@ -480,6 +657,7 @@ def dataprep(
                 covariates, num_pre_treatment_periods, unit_order,
                 aggregation=covariate_aggregation,
                 normalize=normalize_covariates,
+                keys=keys,
             )
             n_donors = len(donor_names)
             out["covariate_matrix"] = cov_matrix                      # (N, M)
@@ -529,13 +707,12 @@ def dataprep(
             index=time_period_column_name,
             columns=unit_id_column_name,
             values=outcome_column_name,
+            keys=keys,
         )
-        treatment_matrix_wide_multi = _wide_pivot(
-            df,
-            index=time_period_column_name,
-            columns=unit_id_column_name,
-            values=treatment_indicator_column_name,
-        )
+        # The treatment pivot built before the branch. It is read only above
+        # (``.to_numpy()`` into ``logictreat``), so rebuilding it here produced
+        # an equal frame from unchanged inputs.
+        treatment_matrix_wide_multi = treatment_matrix_wide
 
         first_treatment_time_by_unit = (treatment_matrix_wide_multi == 1).idxmax().to_dict()
         cohort_treatment_start_times_map: Dict[Any, List[Any]] = {}
@@ -583,6 +760,7 @@ def dataprep(
                 covariates, max(min_pre, 1), unit_order,
                 aggregation=covariate_aggregation,
                 normalize=normalize_covariates,
+                keys=keys,
             )
             out_multi["covariate_matrix"] = cov_matrix
             out_multi["covariate_names"] = cov_names
@@ -762,7 +940,9 @@ def geoex_dataprep(
     }
 
 
-def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name: str) -> None:
+def balance(
+    df: pd.DataFrame, unit_id_column_name: str, time_period_column_name: str
+) -> PanelKeys:
     """Check if the panel is strongly balanced.
 
     A strongly balanced panel means every unit has an observation for every
@@ -780,74 +960,56 @@ def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name:
 
     Returns
     -------
-    None
-        This function does not return a value but raises an error if the
-        panel is not strongly balanced or contains duplicates.
+    PanelKeys
+        The key scan these checks were answered from. A caller that goes on to
+        read the same frame with :func:`dataprep` passes it as ``keys=`` and the
+        panel is scanned once for the whole fit instead of once per pivot.
+        Callers that discard the return value are unaffected.
 
     Raises
     ------
     MlsynthDataError
+        If a row is missing its unit or its time period.
         If duplicate unit-time observations are found.
         If the panel is not strongly balanced (i.e., not all units have
         observations for all time periods).
     """
-    # Check for unique observations: each unit-time pair should be unique.
-    if df.duplicated([unit_id_column_name, time_period_column_name]).any():
+    # Both questions below are about the panel's (unit, time) key structure, and
+    # the key codes answer them. ``duplicated`` on the pair and
+    # ``groupby(unit)[time].nunique()`` are two more hash passes over columns
+    # ``factorize`` has already reduced to integers, and they were 35 to 47
+    # percent of ingestion cost -- more than the pivot they precede.
+    #
+    # The scan is returned, so the pivots that follow can read it instead of
+    # taking it again. Scanning here also puts the missing-key refusal first: a
+    # blank key has no level, so every count below would omit it while
+    # ``df.pivot`` would give it a level named ``nan``, adding a period and
+    # moving ``pre_periods`` by one.
+    keys = PanelKeys(df, unit_id_column_name, time_period_column_name)
+    n_periods = keys.n_periods
+
+    if keys.has_duplicate:
         raise MlsynthDataError(
             "Duplicate observations found. Ensure each combination of unit and time is unique."
         )
 
-    # The following commented-out block represents a previous, more complex approach to checking balance.
-    # It involved creating a wide matrix of observation counts.
-    # # Group by unit and count the number of observations for each unit
-    # unit_time_observation_counts = (
-    #     df.groupby([unit_id_column_name, time_period_column_name], observed=False).size().unstack(fill_value=0)
-    # )
-    # # Check if all units have the same number of observations for all time periods present in the data
-    # # A simple check for strong balance is that all cells in the unstacked count matrix should be 1
-    # # (assuming no missing time periods for any unit that has at least one observation).
-    # # The original logic `(unit_time_observation_counts.nunique(axis=1) == 1).all()` checks if each unit has the same number of time periods.
-    # # For strong balance, we also need each unit to have *all* time periods.
-    # # A more direct check:
-    # if not (unit_time_observation_counts > 0).all().all() or not (unit_time_observation_counts.sum(axis=1) == unit_time_observation_counts.shape[1]).all():
-    #      # This checks if all cells are >0 (meaning every unit has every time period)
-    #      # and if the sum of observations per unit equals the total number of unique time periods.
-    #      # However, the original nunique check is simpler if the goal is just that all units have the *same count* of periods.
-    #      # For true strong balance, every unit must appear in every time period.
-    #      # A robust check:
-    #      num_unique_time_periods_in_data = df[time_period_column_name].nunique()
-    #      observations_per_unit_check = df.groupby(unit_id_column_name)[time_period_column_name].nunique()
-    #      if not (observations_per_unit_check == num_unique_time_periods_in_data).all():
-    #         raise MlsynthDataError( # Changed to MlsynthDataError
-    #             "The panel is not strongly balanced. Not all units have observations "
-    #             "for all time periods."
-    #         )
+    # With duplicate pairs ruled out, each unit's rows carry distinct time codes,
+    # so counting a unit's rows *is* counting its distinct observed periods --
+    # what ``groupby(unit)[time].nunique()`` returned.
+    observations_per_unit = keys.observations_per_unit()
 
-    # Simplified and more direct check for strong balance:
-    # 1. Determine the total number of unique time periods present in the entire dataset.
-    total_unique_time_periods = df[time_period_column_name].nunique()
-    
-    # 2. For each unit, count the number of unique time periods for which it has observations.
-    #    `groupby(unit_id_column_name)[time_period_column_name].count()` also works if there are no duplicates,
-    #    but `nunique()` is more robust if we only care about the presence of each time period per unit.
-    observations_per_unit = df.groupby(unit_id_column_name)[time_period_column_name].nunique() # Changed from .count() to .nunique() for robustness
-    
-    # 3. Check if all units have observations for *all* unique time periods found in the dataset.
-    #    If `(observations_per_unit == total_unique_time_periods).all()` is true,
-    #    it means every unit has an observation for every distinct time period that exists in the data.
-    if not (observations_per_unit == total_unique_time_periods).all():
+    if not bool((observations_per_unit == n_periods).all()):
         raise MlsynthDataError(
             "The panel is not strongly balanced. Not all units have observations "
             "for all unique time periods in the dataset."
             )
-    # 4. Additionally, ensure all units have the same number of observations.
-    #    This is somewhat redundant if the above check passes and implies a rectangular structure,
-    #    but it's a good explicit check. If all units have `total_unique_time_periods` observations,
-    #    then `observations_per_unit.nunique()` will be 1.
-    if observations_per_unit.nunique() != 1:
+    # An empty panel has no units, so it has no single common count -- which is
+    # what the ``nunique() != 1`` this replaces reported for it.
+    if len(np.unique(observations_per_unit)) != 1:
         raise MlsynthDataError(
             "The panel is not strongly balanced. Units have different numbers of observations."
             )
+    return keys
 
 
 def clean_surrogates2(

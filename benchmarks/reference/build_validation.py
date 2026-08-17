@@ -110,12 +110,30 @@ _ESTIMATOR_REMAP = {
 }
 
 
+def _exported_names() -> dict:
+    """``{lowercased export name: export name}`` for everything mlsynth exposes.
+
+    Case authors write the estimator field by hand, so the same estimator arrives
+    spelled two ways -- ``CLUSTERSC`` from one bundle and ``ClusterSC/PCR
+    (run_pcr ...)`` from another. Both name the class ``mlsynth.CLUSTERSC``, and
+    resolving against the package's own exports is what folds them together
+    without a hand-maintained list of spellings.
+    """
+    try:
+        import mlsynth
+    except ImportError:                       # pragma: no cover - packaging guard
+        return {}
+    return {name.lower(): name for name in getattr(mlsynth, "__all__", [])}
+
+
 def _canon(est: str) -> str:
     """Canonical estimator label: strip the descriptive backend/config suffix the
-    case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``) and map
-    the handful of function-name fields to the estimator a reader recognises."""
+    case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``), map
+    the handful of function-name fields to the estimator a reader recognises, and
+    settle on the spelling mlsynth exports so case variants land in one section."""
     base = (est or "?").split("(")[0].split("/")[0].strip() or "?"
-    return _ESTIMATOR_REMAP.get(base, base)
+    base = _ESTIMATOR_REMAP.get(base, base)
+    return _exported_names().get(base.lower(), base)
 
 
 def collect() -> dict:
@@ -187,6 +205,28 @@ def _slug(est: str) -> str:
     return "val-" + "".join(c.lower() if c.isalnum() else "-" for c in est)
 
 
+def _check_slugs(ests) -> None:
+    """Refuse to emit two sections that would claim the same anchor.
+
+    The slug lowercases, so two estimator spellings differing only in case
+    produce one label defined twice. Sphinx reports that as a duplicate label and
+    every ``:ref:`` to it as undefined, which is how ``CLUSTERSC`` and
+    ``ClusterSC`` broke the summary table's links: both rows pointed at
+    ``val-clustersc`` and neither resolved.
+    """
+    seen: dict = {}
+    for est in ests:
+        seen.setdefault(_slug(est), []).append(est)
+    clashes = {slug: names for slug, names in seen.items() if len(names) > 1}
+    if clashes:
+        detail = "; ".join(f"{slug} <- {names}" for slug, names in sorted(clashes.items()))
+        raise SystemExit(
+            "build_validation: estimator names collide on their anchor: "
+            f"{detail}. Add the canonical spelling to _ESTIMATOR_REMAP, or export "
+            "it from mlsynth so _canon can resolve it."
+        )
+
+
 def _verdict_mix(recs: list) -> str:
     """A compact honest summary like ``4 exact · 3 tight``."""
     counts = {}
@@ -199,6 +239,7 @@ def _verdict_mix(recs: list) -> str:
 def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> str:
     ests = [only] if only else sorted(by_est)
     ests = [e for e in ests if by_est.get(e)]
+    _check_slugs(ests)
     pend = pend or []
     n_checks = sum(len(by_est[e]) for e in ests)
     n_exact = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "exact")

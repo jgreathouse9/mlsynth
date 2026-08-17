@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-08-12T23:00:13Z",
+  "git_sha": "935920b834bd69f251eea965d451e3450b4ff90b",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/fspda_sparse_mc/reference.R",
+  "data": [],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "sandwich": "3.1-0",
+    "glmnet": "4.1-8",
+    "Matrix": "1.6-5",
+    "MASS": "7.3-60.0.1",
+    "zoo": "1.8-12",
+    "compiler": "4.3.3",
+    "survival": "3.5-8",
+    "Rcpp": "1.0.12",
+    "splines": "4.3.3",
+    "codetools": "0.2-19",
+    "grid": "4.3.3",
+    "iterators": "1.0.14",
+    "foreach": "1.5.2",
+    "shape": "1.4.6",
+    "lattice": "0.22-5"
+  }
+}

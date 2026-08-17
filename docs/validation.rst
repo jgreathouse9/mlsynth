@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **76 cross-validation checks** against original
-implementations across **43 estimators** -- 29 reproduce the reference to display precision, 28 to
-within two percent. A further 2 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **82 cross-validation checks** against original
+implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
+within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -46,21 +46,17 @@ Summary
      - 1 tight
      - 0.00041
    * - :ref:`CLUSTERSC <val-clustersc>`
-     - 2
-     - 2 exact
-     - 0
+     - 4
+     - 3 exact · 1 tight
+     - 0.036
    * - :ref:`COMPSC <val-compsc>`
-     - 1
-     - 1 tight
+     - 2
+     - 1 exact · 1 tight
      - 0.047
    * - :ref:`CSCM <val-cscm>`
      - 1
      - 1 tight
      - 0.014
-   * - :ref:`ClusterSC <val-clustersc>`
-     - 2
-     - 1 exact · 1 tight
-     - 0.036
    * - :ref:`DPSC <val-dpsc>`
      - 1
      - 1 exact
@@ -77,6 +73,10 @@ Summary
      - 1
      - 1 exact
      - 0.00032
+   * - :ref:`GEOX <val-geox>`
+     - 1
+     - 1 close
+     - 0.71
    * - :ref:`LINF <val-linf>`
      - 2
      - 1 tight · 1 close
@@ -175,8 +175,8 @@ Summary
      - 0
    * - :ref:`SPILLSYNTH <val-spillsynth>`
      - 4
-     - 1 exact · 1 tight · 1 close · 1 documented
-     - 7.6
+     - 1 exact · 1 close · 2 documented
+     - 3.7e+02
    * - :ref:`SPSC <val-spsc>`
      - 2
      - 2 exact
@@ -198,9 +198,13 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 16
-     - 5 exact · 5 tight · 5 close · 1 documented
+     - 19
+     - 5 exact · 7 tight · 6 close · 1 documented
      - 4.1
+   * - :ref:`mlsynth.utils.inferutils.rae <val-mlsynth-utils-inferutils-rae>`
+     - 1
+     - 1 exact
+     - 0
 
 .. _val--:
 
@@ -317,6 +321,18 @@ CLUSTERSC
      - 0
      - exact — matches to display precision
      - `clustersc_rpca_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/clustersc_rpca_germany.py>`__
+   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 8
+     - 0.036
+     - tight
+     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
+   * - deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
+     - —
+     - 6
+     - 0
+     - exact — matches to display precision
+     - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
    * - scpi_pkg scest(w_constr={'name':'ridge'}) + df_EST
      - ``scpi_germany.csv`` (10b150fbcc2c…)
      - 3
@@ -345,6 +361,12 @@ COMPSC
      - 0.047
      - tight
      - `compsc_pennsylvania <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania.py>`__
+   * - Boussim (2026) csc_replication.R (quadprog::solve.QP on the stacked ALR log-odds), run live on basedata/pa_aeps_generation.csv
+     - ``pa_aeps_generation.csv`` (7d7c0aebf62e…)
+     - 23
+     - 0
+     - exact — matches to display precision
+     - `compsc_pennsylvania_r <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania_r.py>`__
 
 .. _val-cscm:
 
@@ -367,34 +389,6 @@ CSCM
      - 0.014
      - tight
      - `cscm_viszero <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cscm_viszero.py>`__
-
-.. _val-clustersc:
-
-ClusterSC
----------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 28 8 12 14 16
-
-   * - Reference
-     - Dataset
-     - #
-     - max \|Δ\|
-     - Verdict
-     - Case
-   * - jehangiramjad/tslib RobustSyntheticControl (live run, captured), modelType='svd', kSingularValuesToKeep=3
-     - ``smoking_data.csv`` (a13dd4d5d6e4…)
-     - 8
-     - 0.036
-     - tight
-     - `pcr_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pcr_rsc_ref.py>`__
-   * - deshen24/panel-data-regressions var.var_est (homoskedastic + jackknife)
-     - —
-     - 6
-     - 0
-     - exact — matches to display precision
-     - `rsc_shen_coverage <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_shen_coverage.py>`__
 
 .. _val-dpsc:
 
@@ -483,6 +477,28 @@ FDID
      - 0.00032
      - exact — matches to display precision
      - `fdid_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fdid_hongkong.py>`__
+
+.. _val-geox:
+
+GEOX
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - mlsynth SDID (the engine GEOX wraps)
+     - —
+     - 3
+     - 0.71
+     - close
+     - `geox_sdid_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_sdid_equivalence.py>`__
 
 .. _val-linf:
 
@@ -1087,11 +1103,11 @@ SPILLSYNTH
      - max \|Δ\|
      - Verdict
      - Case
-   * - Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights/runInclusiveSCM), transcribed to NumPy
+   * - Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights / runInclusiveSCM). The first four rows solve the same program to the simplex; the rows marked 'reference as shipped' are the authors' ipop output, whose weights sum to 0.9666 and 1.1933
      - —
-     - 4
-     - 7.6
-     - tight
+     - 10
+     - 3.7e+02
+     - documented — see notes
      - `spillsynth_iscm_xval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spillsynth_iscm_xval.py>`__
    * - jcao0/synthetic-control-spillover MATLAB spillover.csv (CA row)
      - —
@@ -1255,12 +1271,30 @@ VanillaSC
      - 0.0091
      - tight
      - `ascm_kansas <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ascm_kansas.py>`__
+   * - R package scinference (conformal, live run, captured), cross-checked against the JASA supplement's own functions
+     - ``logfemrate.txt`` (fcdf30c41522…)
+     - 17
+     - 0.0002
+     - tight
+     - `cwz_conformal <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal.py>`__
+   * - R package scinference (conformal) driven by the authors' own simulation design
+     - —
+     - 14
+     - 0.02
+     - tight
+     - `cwz_conformal_mc <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal_mc.py>`__
    * - `R package scinference (sc.cf t-test, live run, captured) <https://github.com/kwuthrich/scinference>`__
      - ``carbontax_data.dta`` (815787c1e448…)
      - 3
      - 0
      - exact — matches to display precision
      - `cwz_ttest <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_ttest.py>`__
+   * - R package scinference (ttest) driven by the authors' own calibrated simulation design
+     - ``carbontax_data.dta`` (815787c1e448…)
+     - 21
+     - 0.073
+     - close
+     - `cwz_ttest_mc <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_ttest_mc.py>`__
    * - Ferman (2021) JASA Table 1 (SC columns 1-4, OLS se col 5-8)
      - —
      - 12
@@ -1346,6 +1380,28 @@ VanillaSC
      - close
      - `vanillasc_xval_references <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_xval_references.py>`__
 
+.. _val-mlsynth-utils-inferutils-rae:
+
+mlsynth.utils.inferutils.rae
+----------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - the authors' RAE.R (JPE replication package), live run
+     - —
+     - 12
+     - 0
+     - exact — matches to display precision
+     - `cwz_rae <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_rae.py>`__
+
 Pending capture
 ---------------
 
@@ -1363,4 +1419,8 @@ action records them once its toolchain provisions.
      - —
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
+   * - `marex_scdesign_sim <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_scdesign_sim.py>`__
+     - jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)
+   * - `ppscm_cs_real_panels <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_cs_real_panels.py>`__
+     - —
 

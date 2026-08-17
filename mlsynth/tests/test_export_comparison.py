@@ -2,9 +2,9 @@
 
 The daily benchmark action creates a per-case ``comparison.csv`` for any
 cross-validation case that lacks one (``--missing``), then rebuilds the public
-web-native dashboard ``docs/validation.rst`` from the committed CSVs -- rather
-than re-running every (stochastic) case daily. These pin that behaviour without
-a live reference run.
+web-native dashboard ``docs/validation.rst`` from the committed CSVs, instead of
+re-running every (stochastic) case daily. These pin that behaviour without a
+live reference run.
 """
 from __future__ import annotations
 
@@ -82,9 +82,38 @@ def test_validation_verdict_bands():
 
 def test_validation_canonicalises_estimator_labels():
     bv = _bv()
-    assert bv._canon("ClusterSC/PCR (run_pcr OLS, fixed rank)") == "ClusterSC"
     assert bv._canon("ridge_augment_weights") == "VanillaSC"   # remapped
     assert bv._canon("VanillaSC") == "VanillaSC"
+
+
+def test_validation_folds_case_variants_onto_the_exported_name():
+    """Two spellings of one estimator have to reach one section.
+
+    Case authors write the estimator field by hand, so ``CLUSTERSC`` arrived
+    from one bundle and ``ClusterSC/PCR (run_pcr ...)`` from another. The anchor
+    is lowercased, so the two produced one label defined twice: Sphinx reported
+    a duplicate label and both ``:ref:`` links to it as undefined, which left the
+    dashboard's summary row pointing nowhere.
+    """
+    bv = _bv()
+    assert bv._canon("CLUSTERSC") == "CLUSTERSC"
+    assert bv._canon("ClusterSC/PCR (run_pcr OLS, fixed rank)") == "CLUSTERSC"
+    assert bv._canon("clustersc") == "CLUSTERSC"
+    assert bv._slug(bv._canon("CLUSTERSC")) == bv._slug(bv._canon("ClusterSC"))
+
+
+def test_validation_refuses_two_sections_claiming_one_anchor():
+    """A slug collision is a broken page, so the build stops instead of writing it."""
+    bv = _bv()
+    bv._check_slugs(["VanillaSC", "CLUSTERSC"])          # distinct anchors: fine
+    with pytest.raises(SystemExit, match="collide on their anchor"):
+        bv._check_slugs(["CLUSTERSC", "ClusterSC"])
+
+
+def test_validation_corpus_has_no_colliding_anchors():
+    """The committed corpus itself must not reintroduce the collision."""
+    bv = _bv()
+    bv._check_slugs(sorted(bv.collect()))
 
 
 def test_validation_page_builds_from_real_corpus():

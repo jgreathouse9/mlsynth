@@ -202,6 +202,10 @@ def test_estimate_pipw_recovers_effect():
     assert beta.shape == (Z.shape[1] + 1,)
     assert abs(att - 3.0) < 0.6
     assert np.isfinite(se) and se > 0
+    # `se > 0` holds for every parameter's standard error, including the ones
+    # this estimator is not reporting; the Wald interval is what ties it to the
+    # ATT. See test_proximal_sandwich_index.py.
+    assert abs(att - 3.0) <= 1.96 * se
 
 
 def test_dr_pipw_deterministic():

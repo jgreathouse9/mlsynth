@@ -189,7 +189,7 @@ def _covariate_observed(config):
     obs = {(str(u), int(y)): float(v) for u, y, v in zip(
         treated[config.unitid], treated[config.time], treated[config.outcome])}
     adopt = {str(u): int(y) for u, y in
-             treated.groupby(config.unitid)[config.time].min().items()}
+             treated.groupby(config.unitid, observed=True)[config.time].min().items()}
     return obs, adopt
 
 

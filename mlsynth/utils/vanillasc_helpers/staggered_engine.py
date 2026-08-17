@@ -241,7 +241,7 @@ def scdata_multi(data, outcome_var, features, cov_adj, constant,
     treated_post = list(treated_units)
 
     treated_periods = (data.loc[data['status'] == 1, ['country', 'year']]
-                       .groupby('country').min()['year'].to_dict())
+                       .groupby('country', observed=True).min()['year'].to_dict())
 
     blocks = {}
     P_blocks = []
@@ -729,7 +729,7 @@ def df_EST(w_constr, w, B, J, KM):
 def u_des_prep_one(B, C, coig_data, constant, index, index_w):
     """u_order=1, u_lags=0."""
     if coig_data:
-        B_diff = B - B.groupby('feature').shift(1)
+        B_diff = B - B.groupby('feature', observed=True).shift(1)
         u_des_0 = pd.concat([B_diff, C], axis=1).loc[:, index]
     else:
         Z = pd.concat([B, C], axis=1)
@@ -761,7 +761,7 @@ def e_des_prep_one(B, C, P, res, Y_donors, out_feat, J, index, index_w, coig_dat
     e_res = res.loc[(outcome_var,), ]
 
     if coig_data:
-        B_diff = B - B.groupby('feature').shift(1)
+        B_diff = B - B.groupby('feature', observed=True).shift(1)
         e_des_0 = pd.concat([B_diff, C], axis=1).loc[:, index]
         if effect == "time":
             P_first = (P.iloc[[0], :J] * iota - B.iloc[T0 - 1, :].values) / iota
@@ -1023,19 +1023,19 @@ def scpi_out(y, x, preds, e_method, alpha, effect):
         fit = cond_pred(y, x, x_more, 'lm')
         e_mean = fit[:len(preds_arr)]
         if effect == "time":
-            e_mean = pd.DataFrame(e_mean, index=idx).groupby(level='Time').mean().values[:, 0]
+            e_mean = pd.DataFrame(e_mean, index=idx).groupby(level='Time', observed=True).mean().values[:, 0]
         y_fit = fit[len(preds_arr):]
         y_var = np.log((y - y_fit) ** 2)
         var_pred = cond_pred(y_var, x, x_more, 'lm')
         res_var = var_pred[len(preds_arr):]
         if effect == "time":
-            var_pred_p = pd.DataFrame(var_pred[:len(preds_arr)], index=idx).groupby(level='Time').mean().values[:, 0]
+            var_pred_p = pd.DataFrame(var_pred[:len(preds_arr)], index=idx).groupby(level='Time', observed=True).mean().values[:, 0]
         else:
             var_pred_p = var_pred[:len(preds_arr)]
         q_pred = cond_pred(y - y_fit, x, x_more, 'qreg', tau=[0.25, 0.75])
         if effect == "time":
-            q3 = pd.DataFrame(q_pred[:len(preds_arr), 1], index=idx).groupby(level='Time').mean().values[:, 0]
-            q1 = pd.DataFrame(q_pred[:len(preds_arr), 0], index=idx).groupby(level='Time').mean().values[:, 0]
+            q3 = pd.DataFrame(q_pred[:len(preds_arr), 1], index=idx).groupby(level='Time', observed=True).mean().values[:, 0]
+            q1 = pd.DataFrame(q_pred[:len(preds_arr), 0], index=idx).groupby(level='Time', observed=True).mean().values[:, 0]
         else:
             q3 = q_pred[:len(preds_arr), 1]
             q1 = q_pred[:len(preds_arr), 0]
@@ -1059,8 +1059,8 @@ def scpi_out(y, x, preds, e_method, alpha, effect):
     elif e_method == 'qreg':
         e_pred = cond_pred(y, x, preds_arr, 'qreg', tau=[alpha, 1 - alpha])
         if effect == "time":
-            lb = pd.DataFrame(e_pred[:, 0], index=idx).groupby(level='Time').mean().values[:, 0].reshape(-1, 1)
-            ub = pd.DataFrame(e_pred[:, 1], index=idx).groupby(level='Time').mean().values[:, 0].reshape(-1, 1)
+            lb = pd.DataFrame(e_pred[:, 0], index=idx).groupby(level='Time', observed=True).mean().values[:, 0].reshape(-1, 1)
+            ub = pd.DataFrame(e_pred[:, 1], index=idx).groupby(level='Time', observed=True).mean().values[:, 0].reshape(-1, 1)
         else:
             lb = e_pred[:, [0]]
             ub = e_pred[:, [1]]

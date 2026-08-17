@@ -83,7 +83,7 @@ def build_candidate_mask(working_df, candidate_col, unit_index, unitid):
         Boolean mask of candidate units aligned with `unit_index`.
     """
     return (
-        working_df.groupby(unitid)[candidate_col]
+        working_df.groupby(unitid, observed=True)[candidate_col]
         .first()
         .reindex(unit_index)
         .fillna(False)
@@ -201,7 +201,7 @@ def build_f_vector(working_df, weight_col, unitid, unit_index):
 
     if weight_col is not None:
         weights = (
-            working_df.groupby(unitid)[weight_col]
+            working_df.groupby(unitid, observed=True)[weight_col]
             .first()
             .reindex(unit_index)
             .to_numpy(dtype=float)

@@ -1907,6 +1907,305 @@ already exists, and the validation target is reproduced and staged.
 
 ---
 
+## 19. LPCA -- Local Principal Component Analysis (nonlinear factor structure)
+
+**Status: BUILT and merged (#442), golden-benchmarked against the author's own
+R (#444). Path A and Path B replications both reproduce
+(`benchmarks/reference/lpca_kansas/`, `benchmarks/reference/lpca_mc/`). The
+Learnings below are kept because they explain why the docs page says what it
+says -- in particular why it does not repeat the paper's empirical
+comparison.**
+
+### Source
+
+> Feng, Y. (2023). "Optimal Estimation of Large-Dimensional Nonlinear Factor
+> Models." arXiv:2311.07243v1.
+
+Replication code released: `yingjieum/Replication_NonlinearFactorModel_2023`
+(R; ~60 lines for the estimator). The panel for the empirical application is
+already in the repository as `basedata/kansas_taxcut.csv`.
+
+Do not confuse it with Feng (2020), "Causal Inference in Possibly Nonlinear
+Factor Models" (arXiv:2008.13651), which applies the same local-PCA building
+block to cross-sectional treatment effects with mismeasured confounders. That
+one is out of lane; this one has the panel application.
+
+### The idea in one line
+
+Split the time index in two; match each unit to its `K` nearest neighbours on
+the first block under a pseudo-max distance; take a truncated SVD of the
+neighbour submatrix on the second block. The nonlinear surface is approximated
+by its local tangent plane, so the outcome matrix has to be low-rank only
+locally.
+
+### Why it fills a real gap
+
+Across the 74 exports, every factor-structure estimator -- `MCNNM`, `RMSI`,
+`CFM`, `FMA`, `GSYNTH`, `CSCIPCA`, `DMLFM`, `SNN` -- assumes the untreated
+outcome matrix is globally low-rank in a linear factor structure. That is the
+assumption this drops.
+
+Closest existing estimator: `SNN` (Agarwal et al. 2021), also nearest
+neighbours plus a low-rank imputation, but its neighbours come from the
+sparsity pattern (anchor rows and columns) and it regresses; here they come
+from a distance on a held-out time block and the step is a local SVD.
+`NSC` is a name collision only -- "nonlinear" there refers to the outcome, and
+the method is a penalized donor-weight scheme. `LPCA` is free as a name.
+
+### Cost
+
+Low. Pure NumPy/SciPy: a Gram matrix, `argpartition`, one truncated SVD of a
+`K x p` block. No solver, no compiled dependency. Every tuning constant is in
+the reference script.
+
+### What the replication established
+
+Both paths reproduce. Path A: the LPCA counterfactual sits 0.5306 points above
+observed Kansas growth against the paper's 0.53, and the observed series is
+below the LPCA path in 9 of 16 post-treatment quarters, as reported. Path B:
+Table 1 at 500 replications against the paper's 2 000, median disagreement 0.83
+Monte Carlo standard errors across the 48 cells, 43 within 2 and 47 within 3,
+with every qualitative claim holding -- including Model 1's blow-up at `K` =
+149 (2.208 against the published 2.203) and global PCA edging local PCA on
+Model 3. Full detail in `benchmarks/reference/lpca_kansas/README.md`.
+
+### Learnings (keep these)
+
+* **The paper's synthetic-control comparison is a v1 defect, since fixed.**
+  Section 6.1 reports SC predicting growth 0.19 points *below* observed Kansas
+  against LPCA's 0.53 *above* -- opposite signs, which is the whole rhetorical
+  contrast and the basis for calling the SC answer implausible. The v1
+  application script omitted `+ col.mean` on the SC line while carrying it on
+  the LPCA line, so the SC path was compared against an observed series it had
+  never been re-centred onto. The 2024 upload of the same script adds the term.
+  Reproducing the defect gives +0.1948, matching the paper; correcting it gives
+  −0.3340. The author's current version confirms the correction: Feng (2024),
+  31 July 2024, reports SC at "0.33 percentage points higher than that of the
+  observed Kansas", so both arms match this port to the printed precision and
+  the SC sign has flipped from the v1 text. Cite the 2024 version. The v1
+  sentence calling the SC answer implausible on pre-treatment fit is also gone
+  from the revision, replaced by a remark about sensitivity to temporary
+  pre-period shocks.
+* **Validate a build on Table 1, not on Kansas.** The Monte Carlo is where
+  LPCA is shown to beat global PCA, it is unaffected by the above, and it now
+  reproduces. The Kansas application is a demonstration that the estimator runs
+  on a real panel, not evidence of superiority.
+* **Two details of the reference decide whether Table 1 reproduces.** The `K`
+  grid is 49/99/149 and not 50/100/150, because the R script computes
+  `n^(2/3)`, which is 99.99999999999999 in double precision, then floors the
+  products. And neighbour selection is a threshold, `tmp.d <= nth(tmp.d, K)`,
+  so exact ties widen the neighbourhood -- Model 3 is binary and ties
+  constantly, inflating a nominal 49 to 51-73 and a nominal 149 to 161-200.
+  That is a plausible explanation for Model 3's row being flat in `K`, and it
+  means the estimator should report the realised neighbourhood, not the
+  requested one.
+* **The per-unit SVD is avoidable and the saving is what makes a faithful
+  replication count affordable.** Only one row of the rank-`r` reconstruction
+  is ever read, and the right singular vectors cancel from it, so
+  `(U[pos, :r] U[:, :r]') B` off the `K x K` Gram eigendecomposition gives the
+  same answer as the `K x p` SVD -- identical to 5e-14, seven times faster.
+  With multiprocessing, pin BLAS to one thread per worker or oversubscription
+  eats the gain.
+* **One Table 1 cell is unexplained.** Model 1's `q_alpha = .9` error comes in
+  low, 0.066 against 0.076 at `K` = 49 (3.9 standard errors), and the `K` = 99
+  cell shares its draws so it is one effect. Model 1's surface is symmetric in
+  the latent variable and the paper's `.1` and `.9` rows reflect that, while
+  this port's do not. No claim turns on it and LPCA still beats the baseline
+  there, but it is open, not resolved.
+* **The pre-fit argument runs the other way.** On the window where both arms
+  predict, LPCA's pre-treatment RMSE is 0.866 pp against the synthetic
+  control's 0.624 pp. Both are in-sample there and SC is fitted directly
+  against Kansas, so the ordering is unsurprising -- but it means "poor
+  pre-treatment fit" cannot be the reason to prefer LPCA.
+* **Two of the three tuning constants move the answer by 40 percent, and the
+  paper sits at the extreme of both.** The sign is stable across everything
+  tried. `K` (paper: `round(n^(2/3))` = 14) spans −0.369 to −0.531 over
+  {7, 10, 14, 20, 25, 30}, and the component cap spans −0.413 to −0.531 over
+  {2, 3, 4, 5}. The matching-block split is tame: 40 through 60 quarters give
+  the same answer. Remark 4.3 defers rank selection to future research, so a
+  build should surface the chosen rank and the neighbourhood as diagnostics
+  and not present the point estimate as settled.
+* **The paper reports no inference of any kind** -- no standard errors,
+  confidence intervals or p-values, and Figure 3 has no bands. Theorem 6.1 is
+  a uniform max-norm rate. Anything mlsynth attaches (the moving-block
+  conformal machinery is already in the library) is the library's addition and
+  the docs have to say so.
+* **`p - p0` is assumed fixed.** Zeroing the treated post-treatment cells is
+  defensible only when the post-period is short relative to the panel -- 16 of
+  104 quarters here. The config needs a guard, not a footnote.
+* **A defect can reproduce a published number exactly and still be a defect.**
+  The check that caught this was not re-reading the port; it was pinning the
+  solver against an independently validated reference (`ascm_kansas`'s
+  classic-SCM rung, itself cross-validated against live augsynth) to 1.3e-07,
+  then showing that the published number is unreachable: holding the
+  pre-period fit at its optimum, the achievable post-treatment mean is the
+  single point +0.5026, and reaching the published value costs 156 percent in
+  sum of squares. Only then did the reference repository's history come into
+  it. Cross-validate the machinery before doubting the paper, and read the
+  reference's git history before concluding the paper is simply wrong.
+
+---
+
+## 20. Spatial panel factor model with missing data -- assessed, PARKED behind a code release
+
+**Status: Parked. Paper reviewed in full; no replication attempted and no
+estimator code. The gap is real but narrow, the build is the most expensive
+assessed so far, and there is no public reference to validate a port against.
+Unblock conditions at the end of this entry.**
+
+### Source
+
+> Jiang, H., Li, X., Shen, Y., & Zhou, Q. (2026). "Matrix Completion, Factor
+> Analysis and Treatment Effects in the Presence of Spatial Dependence."
+> SSRN preprint 7216602, 31 July 2026. Not peer reviewed.
+
+Footnote 3: "MATLAB codes for simulation are available from the authors upon
+request." No repository, no package.
+
+### The idea in one line
+
+Put the spatial lag inside the untreated-outcome model --
+`y_it = rho * sum_j w_ij y_jt + lambda_i' f_t + u_it` -- estimate `rho` and the
+loadings by QML on the fully observed block, recover the factors by projection
+using control units untouched by treatment, and impute the missing block.
+
+### Why the gap is real
+
+Across the four interference estimators the library now has, none makes the
+untreated outcome spatially dependent:
+
+* `RRSC` (He, Li, Shi & Miao 2026) -- closest by estimand, since it returns a
+  per-unit interference map with intervals and p-values. But `Y(0) = lambda'f`
+  with no spatial term; interference enters as a sparse-outlier component of
+  the *effects*. Its practical advantage over this candidate is large: it needs
+  no prespecified `W`.
+* `SPSYDID` (Serenini & Masek 2024) -- takes a user-supplied `W`, but spillover
+  is one coefficient per unit of exposure layered onto SDID.
+* `SPILLSYNTH` (`method='cd'`, Cao & Dowd 2023) -- per-affected-unit spillover
+  from a user-supplied affected set.
+
+If outcomes genuinely diffuse -- prices, disease, media exposure -- then `Y(0)`
+itself is spatially dependent and all three mis-specify it while estimating a
+spillover effect on top. This paper estimates `rho`, an interpretable diffusion
+parameter, as part of the model. That is the thing mlsynth cannot currently do.
+
+Closest existing estimator: `RRSC`. No acronym collision.
+
+### The identifying assumption
+
+Assumption 4.1, "generalized block interference": `W` has an `N0 x N_tr` zero
+block, so `N0` control units are untouched by any directly treated unit and can
+supply the post-treatment factors. Weaker than the usual block-interference
+condition -- it needs neither symmetry of `W` nor a zero block at the
+bottom-left. In the Prop 99 application this is what makes Utah and Idaho
+usable while Nevada is treated as indirectly exposed.
+
+### Cost, and why it dominates the recommendation
+
+Estimated 5-8 days with a heavy tail. Pure NumPy/SciPy in principle; the hard
+parts are real:
+
+* Bai & Li (2021) QML for a SAR factor model. The likelihood carries
+  `log|I_N - rho*W|`, re-evaluated at every `rho`, alongside a factor-analytic
+  covariance `Lambda Lambda' + Psi`, jointly optimised by an iterative scheme.
+  This is where a port from equations most easily goes subtly wrong.
+* The modified Cahan-Bai-Ng (2023) projection estimator for the factors.
+* Consistent variance estimation with bias correction.
+* Resampling prediction intervals, equal-tailed and symmetric.
+
+With no reference implementation the only validation signal is coverage, and
+coverage is a weak instrument -- many subtly wrong implementations still land
+near nominal.
+
+### Replication targets, if it is ever built
+
+Path B is the stronger one and is fully specified in Section 5: `r = 2`,
+`lambda_i ~ N(0, I_2)`, `f ~ chi^2_1`, `rho = 0.5` (0.25 and 0.75 in
+appendices), four `W` structures x two error structures = 8 setups,
+`N0` in {25, 50, 100, 150}, `T0` in {25, 75, 100}, `N_tr = 1`, `T1 = 1`, 2000
+replications, 1000 resamples. Tables give 95 percent equal-tailed and symmetric
+coverage, bias and RMSE -- Setup 1 at `N0 = T0 = 25` reads EQ 93.90, SY 94.10,
+bias 0.010, RMSE 1.688.
+
+Path A is nearly free on data. Prop 99 via Hsiao & Zhou (2019) is
+`basedata/smoking_data.csv`, and `T0 = 19` / `T1 = 12` matches the paper
+exactly. `basedata/california_W_matrix.csv` is a 38 x 38 donor adjacency matrix
+that already contains Nevada; it needs one row and column for California
+(adjacent only to Nevada within the sample) to become the 39 x 39 the paper
+uses. Reported findings: California tracks Abadie, Diamond & Hainmueller in
+magnitude and trend but turns significant in the first two years where they do
+not, and Nevada is insignificant at first, then negative and significant in
+1996 and 1997.
+
+### Learnings (keep these)
+
+* **The spatial-helper toolkit already exists and would carry most of the
+  plumbing.** `mlsynth/utils/spsydid_helpers/spatial.py` supplies
+  `validate_spatial_matrix`, `row_standardize`, `knn_weights`,
+  `inverse_distance_weights` and `contiguity_weights`, and `SPSYDID` already
+  partitions donors into directly treated, spillover-exposed and pure controls
+  from `D` and `W`. A build reuses all of it.
+* **There is no cheap carve-out.** The one generalisable insight -- that donors
+  adjacent to the treated unit are contaminated, which is why Nevada's 0.234
+  weight in the original Prop 99 synthesis is a problem -- is already
+  implemented as the `SPSYDID` donor partition. Nothing else separates from the
+  QML machinery.
+* **Requiring a known `W` is the binding practical constraint**, and it is
+  exactly what `RRSC` avoids. Any docs page would have to lead with that
+  trade-off, since a user who cannot write down `W` has no route into this
+  estimator.
+* **Four interference estimators need a sharper selection story than the paper
+  supplies.** It compares against none of `RRSC`, `SPSYDID` or Cao-Dowd, so the
+  "which do I pick" question would have to be answered by us, not cited.
+
+### From the smoke replicate
+
+A pre-build spike ported Algorithm A.1 and the factor projection from the
+equations and ran Setup 1 of the Section 5 Monte Carlo. It did not survive as
+code -- the port was a throwaway -- but three things it established should
+outlive it.
+
+* **The first-order condition for `rho` is correct as printed.** Handed the true
+  loadings and error variances, solving it alone recovers the spatial parameter
+  with textbook consistency: bias −0.013 at `N0 = T0 = 25`, −0.0013 at 100,
+  −0.0008 at 200. The spatial half of the method is sound and can be ported
+  directly.
+* **Algorithm A.1's step order is ambiguous, and the reading changes the
+  answer.** Its second bullet forms `Sigma_u^(n+1)` from a residual containing
+  `F`, and its fourth bullet computes `F^(n+1)`. Read literally, the variance
+  update consumes an `F` from the previous iteration -- produced under a
+  different `Sigma_u` and `rho` -- while `Lambda^(n+1)` comes from the current
+  SVD, so the two do not belong to the same factorisation. Taking `F` from the
+  same SVD makes `Lambda F'` the rank-`r` reconstruction of `(I - rho W) Y`,
+  which is what the residual should measure against. On Setup 1 at
+  `N0 = T0 = 25` the literal order gives `rho` bias −0.181 against −0.038, and
+  convergence goes from 24 of 200 replications to 199 of 200. Whichever the
+  authors intended, a build has to decide this and the PDF does not say.
+* **Table 5.2's RMSE cell is probably the bias-corrected estimate.** The spike
+  reproduced the bias (−0.026 against 0.010) but not the RMSE (1.167 against
+  1.688), and the direction is informative -- the port came out *more* accurate
+  than the paper reports, where a defective port is normally worse. Section 5
+  runs 1000 resamples with bias correction per replication, and a bias
+  correction buys bias at the cost of variance. Since the treated unit carries
+  no spatial links in Setup 1, its error contains `u ~ N(0,1)` outright, so
+  RMSE cannot fall below 1: the two estimation errors are 0.60 against 1.36.
+
+Net effect on the estimate: the ECM and the projection are about 150 readable
+lines and run in seconds, so the *coding* is cheaper than 5-8 days implied. What
+the spike did not shorten is the risk, which it demonstrated instead -- one
+ambiguous line moved the structural parameter by five times its own bias, and
+nothing in the paper flags which reading is meant.
+
+### Unblock conditions
+
+Any one of: the authors release code (the MATLAB is available on request, and
+asking is cheap -- the smoke replicate above turns every open question into a
+cell-by-cell check the moment a reference exists); the paper places in a
+journal; or a user brings a panel with a credible known `W` and
+outcomes that plausibly diffuse.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*

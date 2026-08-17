@@ -67,6 +67,8 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/mtgp
    replications/bpscs
    replications/tssc
+   replications/cwz_conformal
+   replications/cwz_ttest
    replications/vanillasc
    replications/vanillasc_olympics
    replications/lamba_tigers
@@ -89,6 +91,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/sdid_euets
    replications/brabander_brexit
    replications/mcnnm
+   replications/lpca
    replications/spsydid
    replications/seq_sdid
    replications/clustersc
@@ -130,6 +133,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/gsynth_av_laws
    replications/cscipca
    replications/medsc
+   replications/fspda_table1
 
 .. _replications-canonical:
 
@@ -156,6 +160,23 @@ Canonical workhorses
   Connecticut 0.068, each within 0.005 of the paper; durable:
   ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`vanillasc` (debiased t-test) -- Chernozhukov, Wuthrich & Zhu.
+  Path A on the authors' carbon tax panel (ATT -0.273903, 90% CI
+  [-0.406425, -0.141380], cross-validated against their scinference), Path B
+  on their Table 3 simulation design run live from the JPE replication
+  package, and Table 1's efficiency formula -- the rule behind
+  ``ttest_K="auto"`` -- matched to 1e-9.
+  -> dedicated page: :doc:`replications/cwz_ttest`; durable cases
+  ``cwz_ttest``, ``cwz_ttest_mc``, ``cwz_rae``, ``cwz_mc``.
+* :doc:`vanillasc` (conformal inference) -- Chernozhukov, Wuthrich &
+  Zhu (2021, JASA). Cross-validation against the authors' own R
+  (``scinference`` v1.0.0, cross-checked against the JASA supplement's
+  functions) on the panel their Section 5 uses: Rhode Island's 2003
+  decriminalization of indoor prostitution. The moving-block p-value
+  (0.040000), all six pointwise 90% intervals on the paper's own grid, and
+  the three placebo specification tests reproduce exactly.
+  -> dedicated page: :doc:`replications/cwz_conformal`; durable case
+  ``cwz_conformal``.
 * :doc:`vanillasc` (staggered adoption) -- Cattaneo, Feng, Palomba &
   Titiunik (2025) multiple-treated-unit prediction intervals. Cross-validation
   vs the ``scpi`` package on the Germany reunification panel: the event-time
@@ -362,10 +383,11 @@ Convex-hull relaxation
 * :doc:`nsc` -- Nonlinear SC. Cross-validation: matched to
   Tian's (2023) own R implementation on the Proposition 99 panel
   (Table 2) -- per-donor NSC weights track the author's to
-  correlation 0.989 (max :math:`|\Delta| = 0.024`), recovering the
-  same signed donor pool, with an average effect :math:`-19.1` and
-  an effect path (:math:`-9.1/-22.6/-27.0` in 1990/1995/2000)
-  matching the paper's :math:`-9.5/-24.5/-28.7`. Path B: the
+  correlation 1.000 (max :math:`|\Delta| = 0.0005`, the author's own
+  3-decimal rounding), recovering the same signed donor pool, with an
+  average effect :math:`-20.59` and an effect path
+  (:math:`-9.51/-24.50/-28.70` in 1990/1995/2000) reproducing the
+  paper's :math:`-9.5/-24.5/-28.7`. Path B: the
   nonlinear-outcome Monte Carlo (Section 4, Table 1) -- on the
   :math:`r = 2` panel NSC's 95% CI covers near nominal
   (:math:`0.93/0.97` at :math:`J = 25/50`, paper
@@ -424,15 +446,21 @@ High-dimensional donor pools
   reproducing Shi & Wang's Appendix-E.1 headline of
   :math:`+2.65\%` (:math:`t = 8.35`); LASSO and forward
   selection bracket it at 3.3% and 3.9% (durable:
-  ``pda_hongkong``). Path B: Table-1 size/power geometry on
-  the four-factor DGP -- forward selection stays parsimonious
-  (~4 donors) and correctly sized (≈ 0.08-0.09) under both
-  factor structures, while LASSO over-selects (9-15) and its
-  size inflates under *dynamic* factors (0.14 vs 0.065 i.i.d.),
-  matching the paper; both fully powered at ``D5`` (durable:
-  ``pda_table1``). mlsynth's LASSO is cross-validated, not the
-  paper's modified-BIC, so its LASSO cells are a CV variant, not
-  a cell-by-cell match. Path B (LASSO): Li & Bell (2017) Table 2
+  ``pda_hongkong``). Path B: Table 1 in full, all 108 cells
+  (durable: ``fspda_table1``, and see
+  :doc:`replications/fspda_table1`) -- the median donor count is
+  the published integer in eleven of the twelve rows and one donor
+  low in the twelfth, RMSPE lands within 0.005 for forward
+  selection, and all 84 rejection deviations are within 0.033.
+  The same design at mlsynth's *defaults* -- cross-validated
+  penalty, Li & Bell variance -- is ``pda_table1``, which is where
+  the cost of those defaults is measured. The panel-level check is
+  a cross-validation case: ``fspda_dense_mc`` drives ``PDA`` on
+  panels from their ``FS.simulation.dense.R`` and compares against
+  their ``FS()`` and ``lasso.BIC()`` -- forward selection matches
+  to :math:`10^{-13}` on all eight panels, and the modified-BIC
+  LASSO matches their selected donors, penalty and t-statistic on
+  all eight once ``glmnet`` is run to convergence. Path B (LASSO): Li & Bell (2017) Table 2
   on a dense three-factor DGP with :math:`N=31 > T_1=25` -- the LASSO
   control-unit selection stays parsimonious (~7 of 30) and its
   out-of-sample PMSE scales with the idiosyncratic noise
@@ -763,17 +791,30 @@ Identification under endogeneity
 Experimental design
 -------------------
 
-* :doc:`syndes` -- Abadie & Zhao (2025) synthetic design.
+* :doc:`syndes` -- Doudchenko et al. (2021) synthetic design.
   Path B: Section 5 ablation across the three design types
   (``per_unit`` / ``two_way_global`` / ``one_way_global``) at 40
   reps under AR(1) factors; ``per_unit`` design RMSE = 0.098
   against a random-DiM baseline of 0.982, power = 0.50 at
   MDE = 0.157.
-* :doc:`marex` -- Abadie & Zhao (2025) market-exclusion design.
+* :doc:`marex` -- Abadie & Zhao (2024) market-exclusion design.
   Path A: Walmart 45-store weekly-sales placebo design --
   pre-fit RMSE 2.2%, placebo ATT :math:`-1.0%`, p-value 0.937
   against the paper's 0.933. Path B: Lin-factor DGP recovers
-  the treatment effect across the MAE-vs-effect-scale sweep.
+  the treatment effect across the MAE-vs-effect-scale sweep;
+  and the paper's own Section 5 / Table 2 simulation --- MAE
+  3.02 / 1.33 / 0.75 at :math:`m = 1 / 3 /` unconstrained
+  against the paper's 2.93 / 1.26 / 0.83, with the
+  unconstrained design selecting 6.83 units against 6.76, on panels
+  captured from the authors' own DGP under their driver's seeding
+  --- which reproduces Table 2's effect path to 0.004 (durable:
+  ``marex_section5_mc``). Cross-validation: on twelve of those
+  panels the authors' cardinality-constrained R routine and MAREX
+  select the same treated units every time and agree on the weights
+  to 7.0e-05 (durable: ``marex_scdesign_sim``). Table 3: MAREX
+  computes the SC column on those panels and beats the strongest
+  published randomized alternative at every cardinality, by a
+  factor of two to four (durable: ``marex_table3``).
 * :doc:`pangeo` -- Parallel-Trends Supergeo Design. Path B:
   seasonal-sales panel with up-trend, down-trend, and cyclical
   trajectories; PANGEO RMSE :math:`\approx 0.2` against scalar-

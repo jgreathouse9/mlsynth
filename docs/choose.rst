@@ -98,6 +98,7 @@ At a glance
      + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + unit sizes differ by orders of magnitude, want % effects ─► STACKEDSC
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+     + want the Callaway-Sant'Anna / Sun-Abraham group-time ATT ─► PPSCM (method="callaway_santanna")
      + latent factors, unit-specific loadings, never-treated pool ─► GSYNTH
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
@@ -620,6 +621,8 @@ Q1.7 · Are there missing cells in the panel?
   exploits side information on both margins (a four-component sieve +
   nuclear-norm completion) to impute the treated counterfactual; it reduces to a
   low-rank completion when the covariates are uninformative.
+* Block-missing, the panel is wide in both dimensions, and you doubt the outcome
+  is *linear* in the latent factors -- :doc:`lpca`.
 
 *Which matrix-completion estimator -- and why the missingness mechanism decides.*
 The three estimators differ less in the imputation machinery than in what they
@@ -647,6 +650,20 @@ that travels across short, long, and square panels; prefer :doc:`snn` when the
 gaps are informative -- selected on the outcome itself -- and you need a credible
 counterfactual for specific cells; reach for :doc:`rmsi` when the missing block is
 the treated region and you have margin covariates that carry signal about it.
+
+:doc:`lpca` (Feng (2024)) splits from all three on a prior question: whether the
+outcome matrix is low rank at all. The other three assume the untreated outcome
+is a linear combination of a few common factors, which is what makes the matrix
+low rank and the completion machinery apply. Feng assumes only that outcomes are
+some smooth, possibly nonlinear function of a few latent variables -- which
+generally makes the matrix full rank, so nuclear-norm shrinkage and global
+principal components both misread it. The fix is locality: units matched to their
+nearest neighbours share a latent neighbourhood, and on that neighbourhood a
+first-order expansion makes the structure approximately linear, so principal
+components apply there even though they fail globally. The price is appetite for
+data -- neighbours are only close when many units compete to be one, and half the
+periods are spent finding them -- so :doc:`lpca` belongs on wide panels and not on
+a thirty-donor case study, where :doc:`mcnnm` remains the better bet.
 
 Q1.8 · Is your estimand or treatment effect non-standard (not a scalar mean ATT
 for one binary treatment)?
@@ -921,7 +938,9 @@ methods then split on two axes: the estimand they target, and how they solve the
 (NP-hard) assignment problem. Doudchenko et al. cast the joint choice of treated
 set and donor weights as a mixed-integer program that directly minimises the
 *ATT estimator's* mean squared error (:doc:`syndes`) -- provably optimal but
-combinatorial. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
+combinatorial. mlsynth solves its two-way form by searching treated sets over
+the Gram matrix instead, which is exact wherever the candidate count is
+enumerable and reports a bound where it is not. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
 balancing design but reformulate it as a phase-synchronisation problem solved by
 a spectrally-initialised power method (:doc:`spcd`), trading the MIP's
 exactness for a *global* optimality guarantee under the linear factor model and
@@ -941,8 +960,8 @@ budget is handled by the ATT/ATE designs above (:doc:`syndes`, :doc:`lexscm`,
 
 Q3.1 · Do you only care about the ATT (the effect on the treated units)?
 
-* Yes -- :doc:`syndes` (a MIP that minimises the *ATT estimator's* MSE, exactly
-  :math:`K` treated) or :doc:`spcd` (a fast spectral phase-synchronisation
+* Yes -- :doc:`syndes` (minimises the *ATT estimator's* MSE over exactly
+  :math:`K` treated units) or :doc:`spcd` (a fast spectral phase-synchronisation
   design). A weakly-targeted :doc:`marex` design can also be pointed at the
   treated set if you want a convex design that leans ATT-ward.
 

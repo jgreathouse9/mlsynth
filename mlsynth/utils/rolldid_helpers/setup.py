@@ -56,7 +56,7 @@ def rolldid_setup(
 
     # Per-unit cohort g = first period the indicator is on; never-treated have none.
     cohort_of: Dict[Any, Any] = {}
-    for unit, sub in work.groupby(unit_id):
+    for unit, sub in work.groupby(unit_id, observed=True):
         sub = sub.sort_values(time_id)
         on = sub[sub[treat] == 1]
         if on.empty:

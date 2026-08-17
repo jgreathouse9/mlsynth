@@ -8,10 +8,17 @@ import numpy as np
 
 from .structures import FS, HCW, L2, LASSO, PDAInputs, PDAMethodFit
 from .l2 import fit_l2, l2_ate_inference
-from .lasso import fit_lasso, lasso_ate_inference, lasso_cv_alpha
+from .lasso import (
+    MBIC_CONST,
+    fit_lasso,
+    lasso_ate_inference,
+    lasso_cv_alpha,
+    lasso_mbic_alpha,
+)
 from .fs import forward_select, fs_ate_inference
 from .hcw import fit_hcw, hcw_ate_inference
 from ..inferutils import pda_prediction_intervals
+from .inference import cumulative_supt_band
 
 # Map config method strings to internal keys.
 _NORMALIZE = {"l2": L2, "L2": L2, "LASSO": LASSO, "lasso": LASSO, "fs": FS,
@@ -19,20 +26,28 @@ _NORMALIZE = {"l2": L2, "L2": L2, "LASSO": LASSO, "lasso": LASSO, "fs": FS,
 
 
 def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alpha,
+                 lasso_criterion="cv",
                  hcw_criterion="AICc", hcw_nvmax=None, hcw_backend="fw"):
     """A bootstrap refit callback for the engine: ``y_boot -> (cf, support_idx)``.
 
     Each variant refits on the bootstrap pre-period at *fixed* tuning parameters
     (the L2 penalty ``tau``, the LASSO penalty ``lasso_alpha``; forward selection
-    re-runs its deterministic greedy search), per Jiang et al. (2025).
+    re-runs its deterministic greedy search), per Jiang et al. (2025). The LASSO
+    refit also has to keep the fit conventions of the criterion that chose the
+    penalty, since the modified-BIC path drops the intercept and scales the
+    donors the way ``glmnet`` does.
     """
     if method == L2:
         def refit(y_boot):
             beta, _, cf, _ = fit_l2(y_boot, X, T0, tau=tau, standardize=l2_standardize)
             return cf, np.where(np.abs(beta) > 1e-8)[0]
     elif method == LASSO:
+        intercept, standardize = _lasso_conventions(lasso_criterion)
+
         def refit(y_boot):
-            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha)
+            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha,
+                                             intercept=intercept,
+                                             standardize=standardize)
             return cf, np.where(support)[0]
     elif method == FS:
         def refit(y_boot):
@@ -46,6 +61,19 @@ def _build_refit(method, X, T0, *, tau, l2_standardize, fs_intercept, lasso_alph
     else:  # pragma: no cover - guarded by resolve_methods
         raise ValueError(f"Unknown PDA method: {method!r}")
     return refit
+
+
+def _lasso_conventions(lasso_criterion: str) -> tuple:
+    """``(intercept, standardize)`` for a LASSO penalty rule.
+
+    Cross-validation follows Li & Bell (2017) and fits an intercept on the raw
+    donors. The modified BIC follows ``fsPDA``'s ``lasso.BIC``, whose call is
+    ``glmnet(..., standardize = TRUE, intercept = FALSE)``; the criterion scores
+    that fit, so the estimate has to be that fit.
+    """
+    if lasso_criterion == "mbic":
+        return False, True
+    return True, False
 
 
 def resolve_methods(method: str, methods: Optional[List[str]]) -> List[str]:
@@ -62,9 +90,11 @@ def run_pda(
     inputs: PDAInputs, methods: List[str], tau: Optional[float], alpha: float,
     fs_intercept: bool = False, lrvar_lag: Optional[int] = None,
     l2_standardize: bool = True, l2_tau_grid: Optional[Sequence[float]] = None,
+    lasso_criterion: str = "cv", lasso_mbic_const: float = MBIC_CONST,
     hcw_criterion: str = "AICc", hcw_nvmax: Optional[int] = None,
     hcw_backend: str = "fw",
-    prediction_intervals: bool = False, pi_n_boot: int = 999,
+    prediction_intervals: bool = False, cumulative_band: bool = False,
+    pi_n_boot: int = 999, pi_dependent: bool = True,
     pi_seed: Optional[int] = 0,
 ) -> Dict[str, PDAMethodFit]:
     """Fit each requested PDA variant with its own paper's inference.
@@ -89,10 +119,20 @@ def run_pda(
             meta["tau"] = tau_used
             support_idx = np.where(np.abs(beta) > 1e-8)[0]
         elif m == LASSO:
-            beta, intercept, cf, support = fit_lasso(y, X, T0)
-            att, se, ci, p = lasso_ate_inference(y, X, cf, support, T0, alpha=alpha)
+            use_intercept, standardize = _lasso_conventions(lasso_criterion)
+            if lasso_criterion == "mbic":
+                lasso_alpha = lasso_mbic_alpha(y, X, T0, const=lasso_mbic_const)
+            beta, intercept, cf, support = fit_lasso(
+                y, X, T0, alpha=lasso_alpha, intercept=use_intercept,
+                standardize=standardize)
+            att, se, ci, p = lasso_ate_inference(
+                y, X, cf, support, T0, alpha=alpha, lrvar_lag=lrvar_lag)
             support_idx = np.where(support)[0]
             selected = [labels[i] for i in support_idx]
+            meta["criterion"] = lasso_criterion
+            if lasso_criterion == "mbic":
+                meta["alpha"] = lasso_alpha
+                meta["const"] = lasso_mbic_const
         elif m == FS:
             sel_idx, beta, intercept, cf = forward_select(y, X, T0, intercept=fs_intercept)
             att, se, ci, p = fs_ate_inference(y, cf, T0, alpha=alpha, lrvar_lag=lrvar_lag)
@@ -113,22 +153,29 @@ def run_pda(
             raise ValueError(f"Unknown PDA method: {m!r}")
 
         pis = None
+        cum_band = None
         if prediction_intervals:
-            if m == LASSO:
+            if m == LASSO and lasso_alpha is None:
                 lasso_alpha = lasso_cv_alpha(y, X, T0)
+                meta["alpha"] = lasso_alpha
             refit = _build_refit(
                 m, X, T0, tau=meta.get("tau", tau),
                 l2_standardize=l2_standardize, fs_intercept=fs_intercept,
-                lasso_alpha=lasso_alpha, hcw_criterion=hcw_criterion,
+                lasso_alpha=lasso_alpha, lasso_criterion=lasso_criterion,
+                hcw_criterion=hcw_criterion,
                 hcw_nvmax=hcw_nvmax, hcw_backend=hcw_backend)
             pis = pda_prediction_intervals(
                 y, X, T0, counterfactual=cf, support=support_idx, refit=refit,
-                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)
+                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                dependent=pi_dependent)
+            if cumulative_band:
+                cum_band = cumulative_supt_band(
+                    (y - cf)[T0:], pis["error_paths"], alpha=alpha)
 
         fits[m] = PDAMethodFit(
             name=m, beta=beta, intercept=intercept, counterfactual=cf,
             gap=y - cf, att=att, att_se=se, ci=ci, p_value=p,
             donor_weights=_weights_dict(beta, labels),
-            selected_donors=selected, prediction_intervals=pis, metadata=meta,
+            selected_donors=selected, prediction_intervals=pis, cumulative_band=cum_band, metadata=meta,
         )
     return fits

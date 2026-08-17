@@ -62,7 +62,8 @@ below moves between vanilla Robust SCM, its convex variant from Dennis
 Shen's MIT master's thesis (`MIT DSpace
 <https://dspace.mit.edu/bitstream/handle/1721.1/115743/1036986794-MIT.pdf?sequence=1&isAllowed=y>`_),
 the clustered variant of `Rho et al. (2025)
-<https://arxiv.org/pdf/2503.21629>`_, and `the Bayesian variant<https://jmlr.csail.mit.edu/papers/volume19/17-777/17-777.pdf>`_ -- all
+<https://arxiv.org/pdf/2503.21629>`_, and `the Bayesian variant
+<https://jmlr.csail.mit.edu/papers/volume19/17-777/17-777.pdf>`_ -- all
 via the same :class:`~mlsynth.CLUSTERSC` class:
 
 .. code-block:: python

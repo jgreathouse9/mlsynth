@@ -35,10 +35,22 @@ jobs:
     # It was raised 40 -> 55 once and was reached again: the suite grows, a slow
     # runner lands within a few minutes of the cap, and a healthy run is killed
     # at 99%, which GitHub reports as 'cancelled' -- neither a pass nor a
-    # failure, and a full re-run to tell them apart. Sharding is the fix; each
-    # shard now runs a quarter of the modules, so 30 is generous and the guard
-    # bites long before a whole afternoon is spent on a hang.
-    timeout-minutes: 30
+    # failure, and a full re-run to tell them apart.
+    #
+    # Sharding reduced the work per job but not evenly. The split is round-robin
+    # over sorted module names, which is blind to how long a module takes, and
+    # shard 0 measures about twice shard 1 on every interpreter (#479): on
+    # 2026-08-16 across one matrix, shard 0 ran 22:22 / >30 / >30 against shard
+    # 1's 7:06 / 15:11 / 17:16. 30 was set on the reasoning that a quarter of
+    # the modules is a quarter of the work, and it is not; it killed a green
+    # shard on three PRs, once after the suite had already printed
+    # '2561 passed'.
+    #
+    # The cap has to clear the SLOWEST shard on the slowest interpreter, not the
+    # average, so 50 leaves headroom over today's 30 while still bounding a
+    # hang. Balancing the shards by duration is the actual fix and is tracked
+    # separately; this stops healthy runs being reported as cancelled meanwhile.
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -151,7 +163,9 @@ jobs:
     # Same reasoning as `build` above. These are the jobs that reached the old
     # cap first: 3.12 and 3.13 run slower than the 3.11 `build` job on identical
     # work, so they were the ones killed at 99%.
-    timeout-minutes: 30
+    # Same cap and the same measurement as `build` above (#479); these are the
+    # jobs that lost shards.
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:

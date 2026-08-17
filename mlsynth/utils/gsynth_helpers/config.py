@@ -74,11 +74,25 @@ class GSYNTHConfig(BaseEstimatorConfig):
     )
     r: Optional[int] = Field(
         default=None, ge=0,
-        description="Number of factors; None selects it by Algorithm 1.",
+        description=(
+            "Number of factors. None selects it by Xu (2017) Algorithm 1: "
+            "leave-one-pre-treatment-period-out prediction error at each "
+            "candidate rank, taking a larger rank only when it beats the "
+            "running minimum by more than 1%. That is the criterion gsynth "
+            "implements through 1.3.x. From gsynth 1.4.0 the R package "
+            "forwards to fect, whose cross-validation masks a random share of "
+            "observed cells over k rounds and weights the error across "
+            "relative periods, so it can choose a different rank on the same "
+            "panel. Fix r to compare the estimators themselves."
+        ),
     )
     r_max: int = Field(
         default=5, ge=0,
-        description="Largest rank the cross-validation considers.",
+        description=(
+            "Largest rank the cross-validation considers. Lowered further when "
+            "the shortest treated pre-period history cannot identify that many "
+            "loadings."
+        ),
     )
     force: Literal["none", "unit", "time", "two-way"] = Field(
         default="two-way",

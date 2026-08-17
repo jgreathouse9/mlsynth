@@ -1,0 +1,109 @@
+== REFERENCE VALUES ==
+p_mb	0.0400000000
+p_iid	0.0227954409
+p_mb_supplement	0.0400000000
+p_iid_supplement	0.0227954409
+lb_2004	-0.2600000000
+ub_2004	0.7000000000
+lb_2005	-0.8600000000
+ub_2005	-0.0100000000
+lb_2006	-0.8100000000
+ub_2006	0.1700000000
+lb_2007	-1.1600000000
+ub_2007	-0.3300000000
+lb_2008	-1.4600000000
+ub_2008	-0.3300000000
+lb_2009	-1.3100000000
+ub_2009	-0.1900000000
+lb_2004_supplement	-0.2600000000
+ub_2004_supplement	0.7000000000
+lb_2005_supplement	-0.8600000000
+ub_2005_supplement	-0.0100000000
+lb_2006_supplement	-0.8100000000
+ub_2006_supplement	0.1700000000
+lb_2007_supplement	-1.1600000000
+ub_2007_supplement	-0.3300000000
+lb_2008_supplement	-1.4600000000
+ub_2008_supplement	-0.3300000000
+lb_2009_supplement	-1.3100000000
+ub_2009_supplement	-0.1900000000
+placebo_mb_T1_1	0.3157894737
+placebo_mb_T1_2	0.3157894737
+placebo_mb_T1_3	0.2631578947
+weight	donor01	0.0000000000
+weight	donor02	0.0000000000
+weight	donor03	0.0000000000
+weight	donor04	0.0000000000
+weight	donor05	0.0000000000
+weight	donor06	0.0000000000
+weight	donor07	0.0000000000
+weight	donor08	0.0000000000
+weight	donor09	0.0000000000
+weight	donor10	0.1206489709
+weight	donor11	0.0000000000
+weight	donor12	0.0000000000
+weight	donor13	0.0000000000
+weight	donor14	0.0375636160
+weight	donor15	0.0000000000
+weight	donor16	0.0000000000
+weight	donor17	0.0000000000
+weight	donor18	0.0000000000
+weight	donor19	0.1226379791
+weight	donor20	0.0000000000
+weight	donor21	0.0000000000
+weight	donor22	0.0000000000
+weight	donor23	0.0000000000
+weight	donor24	0.0000000000
+weight	donor25	0.0000000000
+weight	donor26	0.0000000000
+weight	donor27	0.1227224909
+weight	donor28	0.0000000000
+weight	donor29	0.0807552295
+weight	donor30	0.0000000000
+weight	donor31	0.4078808920
+weight	donor32	0.0000000000
+weight	donor33	0.0000000000
+weight	donor34	0.0000000000
+weight	donor35	0.0075159676
+weight	donor36	0.0000000000
+weight	donor37	0.0000000000
+weight	donor38	0.0000000000
+weight	donor39	0.0000000000
+weight	donor40	0.0000000000
+weight	donor41	0.0000000000
+weight	donor42	0.0000000000
+weight	donor43	0.0000000000
+weight	donor44	0.0000000000
+weight	donor45	0.1002748540
+weight	donor46	0.0000000000
+weight	donor47	0.0000000000
+weight	donor48	0.0000000000
+weight	donor49	0.0000000000
+weight	donor50	0.0000000000
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] scinference_0.0.0.9000
+
+loaded via a namespace (and not attached):
+[1] MASS_7.3-60.0.1 compiler_4.3.3  limSolve_2.0.3  lpSolve_5.6.20 
+[5] quadprog_1.5-8 

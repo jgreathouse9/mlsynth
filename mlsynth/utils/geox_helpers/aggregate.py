@@ -61,7 +61,7 @@ def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
         aggs["investment"] = ("investment", "mean")
     # sort=False: candidate keys are frozensets (unorderable).
     return tmp.groupby(
-        ["candidate", "duration", "effect_size"], as_index=False, sort=False
+        ["candidate", "duration", "effect_size"], as_index=False, sort=False, observed=True
     ).agg(**aggs)
 
 
@@ -93,7 +93,7 @@ def compute_mde(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> p
 
     rows: List[dict] = []
     for (candidate, duration), group in power_table.groupby(
-        ["candidate", "duration"], sort=False
+        ["candidate", "duration"], sort=False, observed=True
     ):
         detectable = group.loc[group["power"] > power_threshold, "effect_size"].to_numpy()
         if detectable.size == 0:
@@ -142,7 +142,7 @@ def compute_exact_mde(cube: pd.DataFrame, *,
     rows: List[dict] = []
     per_sim = cube.drop_duplicates(subset=["candidate", "duration", "sim"])
     for (candidate, duration), group in per_sim.groupby(
-        ["candidate", "duration"], sort=False
+        ["candidate", "duration"], sort=False, observed=True
     ):
         ups = group["boundary_up"].to_numpy(dtype=float)
         downs = group["boundary_down"].to_numpy(dtype=float)

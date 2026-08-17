@@ -164,10 +164,21 @@ def test_full_rank_designs_agree_with_the_design_form_on_the_weights():
 
 def test_rank_deficient_designs_agree_on_the_fit_but_not_the_weights():
     """The other side of the guard, stated as a fact and not an aspiration: on a
-    face the two solvers land in different places, both optimal. The Gram form
-    concentrates the weight; the design form spreads it. Anything reading the
-    weights themselves -- a donor table, a counterfactual built from post-period
-    donor outcomes -- would change if it swapped one for the other."""
+    face the two solvers land in different places, both optimal. Anything reading
+    the weights themselves -- a donor table, a counterfactual built from
+    post-period donor outcomes -- would change if it swapped one for the other.
+
+    Which places they land in depends on where each one starts, and the Gram
+    form's start moved when it gained a first-order seed (#461). Cold, it began
+    at a vertex and certified at a sparse corner of the face: 9 donors, 0.209
+    from the design form's answer. Seeded, it begins at a spread point and
+    certifies near it: 38 donors -- the design form's own support, exactly -- and
+    0.015 away within that face. The two forms therefore agree better than they
+    did, which narrows this failure without closing it: they now pick the same
+    donors and still disagree on how much each one carries, so a donor table
+    still moves when one is swapped for the other, and the guard is still what
+    decides whether the reduction is allowed.
+    """
     rng = np.random.default_rng(2)
     from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
 
@@ -177,8 +188,28 @@ def test_rank_deficient_designs_agree_on_the_fit_but_not_the_weights():
     w_gram = solve_simplex_minnorm(simplex_gram(B, A))
     w_design = solve_simplex_qp(B, A)
     assert np.allclose(B @ w_gram, B @ w_design, atol=1e-7)     # same fit
-    assert np.abs(w_gram - w_design).max() > 0.05               # different point
-    assert (w_gram > 1e-9).sum() < (w_design > 1e-9).sum()      # and sparser
+    assert np.abs(w_gram - w_design).max() > 1e-3               # different point
+    assert np.array_equal(w_gram > 1e-9, w_design > 1e-9)       # same donors now
+
+
+def test_the_cold_gram_solver_still_lands_at_the_sparse_corner():
+    """The behaviour above, pinned on both sides of the seed.
+
+    The seed is speed only, so it may move which optimum on a face comes back
+    and may not move the fit. Both are asserted here rather than inferred: the
+    cold and seeded answers differ from each other by more than either differs
+    in fit, and both reproduce the design form's fitted values.
+    """
+    rng = np.random.default_rng(2)
+    B = np.cumsum(rng.normal(size=(8, 39)), axis=0) + 10.0
+    A = B @ rng.dirichlet(np.ones(39)) + 0.05 * rng.normal(size=8)
+    G = simplex_gram(B, A)
+    w_cold = solve_simplex_minnorm(G, accelerate=False)
+    w_seeded = solve_simplex_minnorm(G)
+    assert (w_cold > 1e-9).sum() < (w_seeded > 1e-9).sum()
+    assert np.abs(w_cold - w_seeded).max() > 0.05
+    for w in (w_cold, w_seeded):
+        assert np.allclose(B @ w, B @ solve_simplex_qp(B, A), atol=1e-7)
 
 
 # --------------------------------------------------------------------------- #

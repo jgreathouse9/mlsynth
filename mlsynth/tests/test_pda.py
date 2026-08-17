@@ -272,9 +272,11 @@ def test_hac_lrv_iid_positive():
 
 def test_hac_lrv_explicit_lag_bartlett():
     z = np.array([1.0, -1.0, 1.0, -1.0, 1.0, -1.0])
-    # bartlett with L=1: w = 1 - 1/2 = 0.5 -> gamma0 + 2*0.5*gamma1 = 1 + (-1) = 0
+    # bartlett with L=1: w = 1 - 1/2 = 0.5. Autocovariances divide by n = 6, as
+    # R's acf(type = "covariance") does, so gamma0 = 1, gamma1 = -5/6 and the sum
+    # is 1 + 2*0.5*(-5/6) = 1/6. See test_pda_lrvar_normalisation.py.
     lrv_bart = hac_lrv(z, lag=1, kernel="bartlett")
-    assert lrv_bart == pytest.approx(0.0, abs=1e-9)
+    assert lrv_bart == pytest.approx(1.0 / 6.0, rel=1e-12)
 
 
 def test_hac_lrv_negative_is_clamped_to_zero():
@@ -442,15 +444,20 @@ def test_cross_validate_tau_returns_float():
     assert isinstance(tau, float) and tau >= 0.0
 
 
-def test_cross_validate_tau_handles_solver_failures(monkeypatch):
-    """If every grid solve is non-finite, the MSE is inf throughout but CV still
-    returns a grid member (does not crash)."""
+def test_cross_validate_tau_reports_a_grid_with_no_usable_fit(monkeypatch):
+    """Every grid solve failing is a failure, and has to be reported as one.
+
+    Each candidate then scores ``inf``, and ``argmin`` over all-``inf`` returns
+    index 0 -- so returning a grid member would mean returning a tau chosen by
+    its position in the array, which the caller has no way to tell apart from a
+    tau chosen by validation error.
+    """
     def all_nan(Sigma, eta, taus):
         return np.full((np.asarray(taus).shape[0], np.asarray(eta).ravel().shape[0]), np.nan)
     monkeypatch.setattr(l2_estimation, "l2_relax_grid", all_nan)
     rng = np.random.default_rng(4)
-    tau = cross_validate_tau(rng.normal(0, 1, 30), rng.normal(0, 1, (30, 2)))
-    assert isinstance(tau, float)
+    with pytest.raises(MlsynthEstimationError, match="no usable fit"):
+        cross_validate_tau(rng.normal(0, 1, 30), rng.normal(0, 1, (30, 2)))
 
 
 def test_fit_l2_autotune_vs_fixed_tau():

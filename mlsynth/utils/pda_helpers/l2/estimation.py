@@ -108,9 +108,16 @@ def cross_validate_tau(
         out = np.full(grid.shape[0], np.inf)
         for i, beta_tilde in enumerate(betas_tilde):
             if not np.all(np.isfinite(beta_tilde)):
-                continue
+                continue                                     # no fit at this tau
             b, a = _destandardize(beta_tilde, mu_y, Mu_X, sd_y, Sd_X)
             out[i] = float(np.mean((yv - (Xv @ b + a)) ** 2))
+        if not np.any(np.isfinite(out)):
+            raise MlsynthEstimationError(
+                "L2-relaxation cross-validation failed: the solver returned no "
+                f"usable fit at any of the {grid.shape[0]} candidate tau values. "
+                "The pre-period moment matrix is likely near-singular; supply "
+                "`tau` directly or shorten the donor pool."
+            )
         return out
 
     if tau_grid is not None:

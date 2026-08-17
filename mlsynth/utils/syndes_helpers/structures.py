@@ -295,15 +295,14 @@ class SYNDESMultiArmResults:
 
     Returned by :class:`mlsynth.estimators.SYNDES` when an ``arm`` column is
     configured: the SYNDES design problem is solved **independently within
-    each arm's units**, and each arm's full result (a :class:`SYNDESResults`
-    for the MIP modes, or a ``RelaxedSolverResults`` for the annealed mode)
+    each arm's units**, and each arm's full result (a :class:`SYNDESResults`)
     is collected here.
 
     Parameters
     ----------
     arm_designs : dict
         ``{arm_label: SYNDESResults}`` -- one independent SYNDES solution per
-        arm (or ``RelaxedSolverResults`` under ``mode="two_way_global_annealed"``).
+        arm.
     arm : str
         Name of the arm column the units were partitioned on.
     """

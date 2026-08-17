@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-08-15T11:02:39Z",
+  "git_sha": "71261dfd086762ee2049cf97af5d2cc3f600a9d5",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/lpca_kansas/reference.R",
+  "data": [
+    {
+      "path": "basedata/kansas_taxcut.csv",
+      "sha256": "cd7b068fd3cf8e553bc16ea1544913b58aaab11a1b30d5e89c8dd1d6272a00a0"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "irlba": "2.3.5.1",
+    "Matrix": "1.6-5",
+    "Rfast": "2.1.5.2",
+    "RcppParallel": "5.1.7",
+    "zigg": "0.0.2",
+    "Rcpp": "1.0.12",
+    "compiler": "4.3.3",
+    "grid": "4.3.3",
+    "lattice": "0.22-5"
+  }
+}

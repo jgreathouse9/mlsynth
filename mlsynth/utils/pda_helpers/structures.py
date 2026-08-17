@@ -90,6 +90,32 @@ class PDAInputs:
 
 
 @dataclass(frozen=True)
+class PDACumulativeBand:
+    """Simultaneous band for the cumulative (running-total) effect path.
+
+    ``lower[L]`` and ``upper[L]`` bound the total effect over horizons ``0..L``,
+    and the band covers *every* ``L`` at once with probability ``1 - alpha``, so a
+    statement about the path is covered at the level it claims.
+
+    ``se`` is the standard error of the running total at each horizon, taken from
+    the replicate paths themselves -- which is what makes the band's growth an
+    observation rather than an assumption: independent period errors grow it like
+    ``sqrt(L)``, perfectly correlated ones like ``L``, and the replicates carry
+    whichever is true.
+    """
+
+    horizons: np.ndarray          # 1, 2, ..., H
+    point: np.ndarray             # cumulative effect at each horizon
+    lower: np.ndarray
+    upper: np.ndarray
+    se: np.ndarray
+    critical_value: float         # the shared sup-t multiplier
+    alpha: float
+    n_replicates: int
+    method: str
+
+
+@dataclass(frozen=True)
 class PDAMethodFit:
     """A single PDA-variant fit (l2 / lasso / fs)."""
 
@@ -105,6 +131,7 @@ class PDAMethodFit:
     donor_weights: Dict[Any, float]
     selected_donors: Optional[List[Any]] = None      # fs / lasso support
     prediction_intervals: Optional[Dict[str, Any]] = None  # Jiang et al. (2025) PIs
+    cumulative_band: Optional[PDACumulativeBand] = None     # sup-t running total
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

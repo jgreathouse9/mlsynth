@@ -57,7 +57,7 @@ def prepare_dsc_inputs(
         raise MlsynthDataError("Outcome column contains NaN values.")
 
     treat_by_cell = (
-        df.groupby([unitid, time])[treat].first().reset_index()
+        df.groupby([unitid, time], observed=True)[treat].first().reset_index()
     )
     treated_cells = treat_by_cell[treat_by_cell[treat] == 1]
     if treated_cells.empty:
@@ -101,7 +101,7 @@ def prepare_dsc_inputs(
     unit_names = [treated_unit_name] + donor_units
 
     cell_samples: Dict[Tuple[Any, Any], np.ndarray] = {}
-    for (u, t), grp in df.groupby([unitid, time]):
+    for (u, t), grp in df.groupby([unitid, time], observed=True):
         arr = grp[outcome].to_numpy(dtype=float)
         if arr.size == 0:
             raise MlsynthDataError(

@@ -21,8 +21,18 @@ fix those and match:
 
 mlsynth's NSC is a faithful port of the reference QP (eigenvalue-scaled penalty,
 the ``rbind(Z, -Z)`` negativity trick, distance-weighted L1), so the weights
-match to a correlation of ~0.99; residual per-weight differences (<~0.025) come
-from the standardisation convention and the author's 3-decimal weight rounding.
+match to a correlation of 1.000 and the effect path to ~1e-6 packs. What remains
+is the author's 3-decimal rounding of the returned weights, which bounds any
+single weight's deviation at 5e-4.
+
+Until #463 this case carried tolerances an order of magnitude wider (ATT within
+1.7 packs, correlation 0.989) and attributed them to "the standardisation
+convention and the author's 3-decimal weight rounding". Both were wrong: the
+standardisation already agreed, and the rounding accounted for 2 percent of the
+observed gap. The cause was that mlsynth indexed its penalties on the spectrum
+of ``Z_0 Z_0'`` where the reference indexes the stacked ``Z* Z*'``, so the
+paper's ``(a*, b*)`` bought half the penalty they name. The tolerances here are
+now what a faithful port reaches, so they fail if that regresses.
 
 The reference side is a live captured run of Tian's own ``NSC()`` (vendored at
 ``benchmarks/R/nsc_tian2023_reference.R``, executed at ``a = 0.3, b = 0.7``),
@@ -133,19 +143,21 @@ def comparison() -> dict:
 
 # Deterministic (penalty fixed at the Table-2 values; no stochastic CV) => exact
 # re-runs. The reference values are pinned from the live captured NSC.R run
-# (benchmarks/reference/nsc_prop99/) via reference_value; tolerances absorb the
-# standardisation convention and the author's 3-decimal weight rounding while
-# pinning the cross-validation: mlsynth's NSC weights track the author's code to
-# correlation ~0.99 with no per-weight gap above ~0.025, recover the same
-# (signed) donor pool, and reproduce its effect path.
+# (benchmarks/reference/nsc_prop99/) via reference_value. The tolerances are set
+# to what a faithful port reaches and not to what mlsynth happened to produce:
+# the only irreducible difference is NSC.R rounding its returned weights to three
+# decimals, which bounds a single weight at 5e-4 and leaves the effect path,
+# computed from unrounded weights on both sides, agreeing to ~1e-6 packs. The
+# effect-path bands are 0.02 packs -- 0.1 percent of the estimate -- which is
+# headroom for BLAS and solver-version drift, not for a methodological gap.
 _ns = lambda k: reference_value("nsc_prop99", k)
 EXPECTED = {
     "n_donors": (_ns("n_donors"), 0.0),
-    "weight_max_abs_dev": (0.024, 0.020),     # largest single-donor gap < ~0.044
-    "weight_mean_abs_dev": (0.006, 0.008),
-    "weight_correlation": (0.989, 0.02),      # fails below ~0.97
-    "att_mean_post": (_ns("att_mean_post"), 1.7),   # mlsynth -19.13 vs NSC.R -20.59
-    "ite_1990": (_ns("ite_1990"), 0.8),       # mlsynth -9.05 vs NSC.R -9.51
-    "ite_1995": (_ns("ite_1995"), 2.2),       # mlsynth -22.62 vs NSC.R -24.50
-    "ite_2000": (_ns("ite_2000"), 2.0),       # mlsynth -27.01 vs NSC.R -28.70
+    "weight_max_abs_dev": (0.0, 1.5e-3),      # 3-decimal rounding floor: 5e-4
+    "weight_mean_abs_dev": (0.0, 5.0e-4),
+    "weight_correlation": (1.0, 1.0e-4),
+    "att_mean_post": (_ns("att_mean_post"), 0.02),
+    "ite_1990": (_ns("ite_1990"), 0.02),
+    "ite_1995": (_ns("ite_1995"), 0.02),
+    "ite_2000": (_ns("ite_2000"), 0.02),
 }

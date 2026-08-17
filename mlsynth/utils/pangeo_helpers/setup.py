@@ -122,8 +122,8 @@ def prepare_pangeo_inputs(
     Y = wide.loc[unit_names, time_labels].to_numpy(dtype=float)
 
     # Arm membership is time-invariant per unit.
-    arm_by_unit = df.groupby(unitid)[arm].agg(lambda s: s.iloc[0])
-    if df.groupby(unitid)[arm].nunique().max() > 1:
+    arm_by_unit = df.groupby(unitid, observed=True)[arm].agg(lambda s: s.iloc[0])
+    if df.groupby(unitid, observed=True)[arm].nunique().max() > 1:
         raise MlsynthDataError("The arm column varies within a unit over time.")
     arm_of = {u: arm_by_unit.loc[u] for u in unit_names}
 
@@ -146,7 +146,7 @@ def prepare_pangeo_inputs(
         if df[covariates].isna().any().any():
             raise MlsynthDataError("Covariate column(s) contain NaN values.")
         cov_names = list(covariates)
-        baseline = df.groupby(unitid)[cov_names].mean()
+        baseline = df.groupby(unitid, observed=True)[cov_names].mean()
         cov = baseline.loc[unit_names].to_numpy(dtype=float)  # (N, M)
         if standardize_covariates:
             scales = cov.std(axis=0, ddof=0)
@@ -158,7 +158,7 @@ def prepare_pangeo_inputs(
     if weight_col is not None:
         if df[weight_col].isna().any():
             raise MlsynthDataError("Weight column contains NaN values.")
-        wser = df.groupby(unitid)[weight_col].mean().loc[unit_names]
+        wser = df.groupby(unitid, observed=True)[weight_col].mean().loc[unit_names]
         weights = wser.to_numpy(dtype=float)
         if np.any(weights <= 0):
             raise MlsynthConfigError("Weight column must be strictly positive.")

@@ -305,6 +305,35 @@ the fit never sees periods later than the validation tail -- unlike the
 released ``L2relax.CV``, whose 5-block K-fold trains on both past *and* future
 of each block.
 
+Solving the grid, and reading the solver
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The grid and the fit ask the solver for different things. The fit is the
+estimate that gets reported, so it is solved to :math:`10^{-9}`; the grid only
+has to *order* its candidates by validation error, and its winner is refit
+afterwards. That distinction is most of the runtime of an ``l2`` fit. As
+:math:`\varepsilon` shrinks the feasible set thins toward the moment condition
+:math:`\widehat{\boldsymbol{\Sigma}}\boldsymbol{\beta} =
+\widehat{\boldsymbol{\eta}}`, and the small-:math:`\varepsilon` end of the grid
+drives the ADMM solver to its iteration cap: at :math:`N = 400` donors on
+:math:`T_0 = 150` pre-periods, an eighty-point grid takes 271 s at
+:math:`10^{-9}` and 25 s at :math:`10^{-6}`, and picks the same
+:math:`\varepsilon`.
+
+The solver also answers with a status, and that status has to be read. On a
+pre-period where :math:`\widehat{\boldsymbol{\Sigma}}` is near-singular -- 24
+Hong Kong donors on 24 periods, so its rank is 23 -- OSQP returns a primal
+infeasibility certificate at the small-:math:`\varepsilon` end. The certificate
+is false there, since the smallest reachable :math:`\|\widehat{\boldsymbol{\eta}}
+- \widehat{\boldsymbol{\Sigma}}\boldsymbol{\beta}\|_\infty` is about
+:math:`10^{-12}`, well below the :math:`\varepsilon` it fires at. Either way a
+certificate is not a solution to the problem that was posed, and its vector is
+finite -- entries of order :math:`10^{9}` on that panel -- so a finiteness check
+alone admits it into the validation ranking. ``mlsynth`` keeps the statuses that
+carry a primal iterate, imprecise ones included, and refuses the rest; an
+:math:`\varepsilon` with no fit drops out of the ranking, and a grid with no fit
+anywhere raises.
+
 .. note::
 
    Standardisation. Following the authors' released ``L2relax``, the treated
@@ -429,13 +458,84 @@ post-period effects, and :math:`\widehat{\Sigma}_1` is the first-stage
 (pre-period estimation) variance -- the OLS prediction variance of the mean
 post-period counterfactual on the selected support. Li & Bell note
 :math:`\widehat{\Sigma}_1` is negligible when :math:`T_0 \gg T_2`, so the
-post-period term dominates in long-pre-period panels.
+post-period term dominates in long-pre-period panels. When :math:`T_0` is
+comparable to :math:`T_2` it is not negligible at all: on Shi & Huang's
+Monte Carlo design, where :math:`T_0 = T_2`, it accounts for 44-46% of
+:math:`\widehat{\Sigma}` and inflates the standard error by about a third.
+
+Supplying ``lrvar_lag`` selects a different test -- Shi & Huang's, the one their
+``lasso.BIC`` computes:
+
+.. math::
+
+   Z = \frac{\widehat{\tau}}{\sqrt{\widehat{\omega}(h) / T_2}},
+
+with :math:`\widehat{\omega}(h)` the Bartlett long-run variance of the
+post-period effects at the truncation lag :math:`h` and no first-stage term.
+Pair it with ``lasso_criterion="mbic"`` to reproduce ``lasso.BIC`` end to end;
+mlsynth's :math:`Z` then matches theirs to :math:`7\times 10^{-6}` on the panels
+carried in the ``fspda_dense_mc`` benchmark bundle.
 
 When to use. A genuinely sparse set of relevant controls; very large
 :math:`N` (even :math:`N/T_0 \to \infty`); when an interpretable, computa-
 tionally cheap selection is preferred. (For selection *consistency*, Li & Bell
 note the adaptive LASSO; for prediction, plain LASSO already beats AIC/BIC and
 leave-many-out CV in their simulations.)
+
+.. _pda-lasso-criterion:
+
+Choosing :math:`\lambda`: ``lasso_criterion``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Cross-validation is one rule for the penalty and it is the default here, but it
+is not the rule every paper in this literature uses. Shi & Huang's ``fsPDA``
+package selects the penalty by an information criterion instead -- the same
+modified BIC their forward selection uses, applied along the LASSO path:
+
+.. math::
+
+   \mathrm{IC}(\lambda) = \log\bigl(\widehat{\sigma}^2(\lambda)\bigr)
+     + H\,\log(\log N)\,\frac{\log T_0}{T_0}\,k(\lambda),
+
+where :math:`\widehat{\sigma}^2(\lambda)` is the pre-period mean squared
+residual, :math:`k(\lambda)` counts the selected donors, and :math:`H` is a
+constant the authors tune "to allow Lasso to take in more variables"
+(Remark 4 cont., p. 521). The minimiser over their grid
+:math:`\lambda \in \{0.01, 0.02, \dots, 1\}` is the penalty.
+
+Set ``lasso_criterion="mbic"`` to use it, and ``lasso_mbic_const`` to set
+:math:`H` (their default is 2; a smaller value selects more donors, a larger one
+fewer). Three things move together:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 39 39
+
+   * -
+     - ``lasso_criterion="cv"`` (default)
+     - ``lasso_criterion="mbic"``
+   * - penalty
+     - 5-fold cross-validation
+     - argmin of :math:`\mathrm{IC}(\lambda)` over their grid
+   * - intercept
+     - fitted
+     - none (``glmnet(..., intercept = FALSE)``)
+   * - donor scaling
+     - raw
+     - divided by each column's standard deviation, coefficients returned
+       on the original scale (``standardize = TRUE``)
+
+The intercept and the scaling are part of the rule. The criterion scores a
+particular fit, so the estimate it selects a penalty for has to be that fit;
+changing only the criterion gives a penalty chosen for a model the estimator
+never fits. The port agrees with ``glmnet`` 4.1.8 to 5e-09 on the scaled path.
+
+Which to use. Cross-validation targets prediction and is the safer default when
+the donor pool is a convenience sample and you have no reason to prefer one
+sparsity level. Use ``mbic`` when you are comparing against Shi & Huang or
+another ``fsPDA``-based result, or when you want the selection to be
+scale-explicit and deterministic -- it has no fold randomness, so the same panel
+always returns the same donors.
 
 Forward selection (``fs``, Shi & Huang)
 ---------------------------------------
@@ -457,6 +557,119 @@ on the :math:`r`-unit set. The counterfactual is the OLS extrapolation on the
 chosen set :math:`\widehat{U}_{\widehat{R}}`. Forward selection evaluates
 :math:`\sum_r (N-r+1)` regressions -- *linear* in :math:`N` -- versus the
 :math:`2^N` of exhaustive subset search.
+
+Computing the greedy step
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The step as the paper states it. At step :math:`r`, with
+:math:`\widehat{U}_r` the donors already chosen, forward selection scores every
+remaining donor by the pre-period fit its admission would produce, and keeps the
+best:
+
+.. math::
+
+   j^\star = \operatorname*{argmin}_{j \notin \widehat{U}_r}
+             \widehat{\sigma}^2\bigl(\widehat{U}_r \cup \{j\}\bigr),
+   \qquad
+   \widehat{\sigma}^2(S) = \frac{1}{T_0}\,
+       \min_{\boldsymbol{\beta}}
+       \bigl\lVert \mathbf{y}_1 - \mathbf{X}_S\,\boldsymbol{\beta}
+       \bigr\rVert_2^2 .
+
+Read literally that is :math:`N - r` separate least-squares problems per step,
+each on a :math:`T_0 \times (r+1)` design, and the recursion repeats them from
+scratch at every step.
+
+The step as ``mlsynth`` computes it. Let :math:`P_r` be the orthogonal
+projection onto the span of the chosen donors (the constant adjoined when one is
+fitted), and write
+
+.. math::
+
+   \mathbf{e}_r = (\mathbf{I} - P_r)\,\mathbf{y}_1,
+   \qquad
+   \mathbf{z}_j = (\mathbf{I} - P_r)\,\mathbf{x}_j
+
+for the current pre-period residual and for a candidate donor orthogonalised
+against that span. The fit after admitting :math:`j` is then available in
+closed form,
+
+.. math::
+
+   T_0\,\widehat{\sigma}^2\bigl(\widehat{U}_r \cup \{j\}\bigr)
+     = \bigl\lVert\mathbf{e}_r\bigr\rVert_2^2 - \Delta_j,
+   \qquad
+   \Delta_j = \frac{\bigl(\mathbf{x}_j^\top\mathbf{e}_r\bigr)^2}
+                   {\bigl\lVert\mathbf{z}_j\bigr\rVert_2^2},
+
+with :math:`\mathbf{x}_j^\top\mathbf{e}_r =
+\mathbf{z}_j^\top\mathbf{e}_r` because :math:`\mathbf{e}_r` is orthogonal to the
+span by construction. The subtracted term is the only part that depends on
+:math:`j`, so the two selection rules coincide:
+
+.. math::
+
+   \operatorname*{argmin}_{j \notin \widehat{U}_r}
+     \widehat{\sigma}^2\bigl(\widehat{U}_r \cup \{j\}\bigr)
+   \;=\;
+   \operatorname*{argmax}_{j \notin \widehat{U}_r} \Delta_j .
+
+All :math:`N - r` numerators are one matrix-vector product
+:math:`\mathbf{Z}^\top\mathbf{e}_r`, and the denominators reach the next step
+through a rank-one downdate of :math:`\mathbf{Z}`. A donor lying inside the span
+has :math:`\lVert\mathbf{z}_j\rVert_2 = 0` and contributes
+:math:`\Delta_j = 0`, which is the closed form saying it cannot lower the
+residual.
+
+What differs, and what does not. The displayed equality is an identity in exact
+arithmetic, not an approximation, so the two rules select the same donor. The
+criterion :math:`\mathrm{IC}(r)` still reads a :math:`\widehat{\sigma}^2`
+returned by an ordinary least-squares solve on the design the step selects, so
+the stopping rule is evaluated on the same quantity in both forms. What changes
+is the arithmetic spent getting there:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Form of the step
+     - Arithmetic per step
+     - Least-squares solves per step
+   * - Scoring by refitting
+     - :math:`O(N T_0 r^2)`
+     - :math:`N - r`
+   * - Scoring by projection
+     - :math:`O(T_0 N)`
+     - :math:`1`
+
+Where the difference is felt. A single fit on :math:`N = 1000` donors over
+:math:`T_0 = 300` pre-periods goes from 189 ms to 7.7 ms. The effect compounds
+wherever the selection is re-run: setting ``prediction_intervals=True`` refits
+the estimator on every bootstrap sample (999 by default -- see
+:ref:`the prediction-interval section <pda-prediction-intervals>`), so a
+forward-selected fit with intervals on 120 donors goes from 22.3 s to 1.3 s.
+
+The estimate is unchanged, and the benchmarks check it --
+``fspda_dense_mc`` reproduces the released R package's selected set on 8 of 8
+Monte Carlo cells, with coefficients, ATE and z-statistic agreeing to
+:math:`10^{-13}`; ``fspda_sparse_mc`` agrees with the authors' ``nonsparse/FS.R``
+rule on 30 of 30 panels; ``pda_table1`` and ``pda_luxurywatch`` return the values
+they returned before.
+
+Where the two forms can name different donors. Donors that fit the pre-period
+identically -- an exact duplicate of a selected donor, or a pool spanning fewer
+directions than it has members -- carry equal :math:`\Delta_j` up to rounding.
+The search settles such a tie by the least-squares comparison itself, across a
+bounded number of the tied candidates, and on the pools an applied panel
+presents it selects what the definition selects. Two regimes sit outside that
+bound: a tied group larger than the shortlist, and a pre-period that has
+interpolated. In the second, once :math:`\mathbf{y}_1` lies exactly in the donor
+span the residual falls to the level of rounding noise, and each further step
+compares one :math:`\widehat{\sigma}^2` of order :math:`10^{-31}` against
+another; both forms admit a few extra donors, and which ones follows the
+floating-point library. In either regime the donors named can differ within a
+set that fits the pre-period equally well, the extras carry coefficients at the
+:math:`10^{-16}` level, and the counterfactual agrees to machine precision.
 
 Assumptions (Shi & Huang). Asymptotics are *multi-index*: :math:`N\to\infty`
 with :math:`T_0 = T_0(N)` deterministic, :math:`\log N / T_0 \to 0`, and
@@ -531,7 +744,11 @@ simplest of the three.
    (default lag :math:`\lfloor T_2^{1/4}\rfloor`, capped at
    :math:`\lfloor\sqrt{T_2}\rfloor`); on the watch panel that no-prewhitening
    form gives an insignificant :math:`t \approx -1.15`, versus the prewhitened
-   default's :math:`-2.51` (the paper reports :math:`-2.457`).
+   default's :math:`-2.51` (the paper reports :math:`-2.457`). The field is read
+   by ``fs``, ``hcw`` and ``lasso``, and it means the same thing in all three:
+   studentize by the fixed-lag Bartlett long-run variance of the post-period
+   effects alone. For ``lasso`` that also drops Li & Bell's first-stage term,
+   since the test being selected is the one that does not have it.
 
 When to use. A large candidate-control pool where the goal is to
 *synthesize an ensemble* that mimics the outcome (not to interpret which
@@ -677,7 +894,9 @@ variance consistently estimable by Newey-West. For ``l2`` and
 ``lasso``, both the pre-period (first-stage) and post-period
 HAC variances enter; for ``fs``, sample-splitting absorbs the
 first-stage term and only the post-period HAC variance
-enters.
+enters. Shi & Huang apply the same sample-splitting argument to
+their modified-BIC LASSO, which is why ``lrvar_lag`` drops the
+first-stage term there too.
 
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -924,6 +1143,8 @@ signed coefficients (pre-RMSE 0.012); ``lasso`` keeps 11; ``fs`` grows to 9. The
 four estimates bracket the Forward-DiD result on the same data (0.025), a useful
 cross-method check.
 
+.. _pda-prediction-intervals:
+
 Prediction intervals
 --------------------
 
@@ -941,7 +1162,18 @@ fixed tuning parameter, and reads quantiles of the self-normalized statistic
 :math:`\widehat e_t / \sqrt{\widehat V_t + \widehat\sigma^2}`.
 
 The implementation lives at the shared :func:`mlsynth.utils.inferutils.pda_prediction_intervals`
-so any panel-data estimator can reuse it. Both the equal-tailed (``eq``) and
+so any panel-data estimator can reuse it. The pre-period error is resampled
+with the dependent wild bootstrap of their Algorithm 2.1 -- Bartlett-correlated
+multipliers whose dependence range is a bandwidth in :math:`T_0`, so a persistent
+error is resampled as a persistent one. ``pi_dependent=False`` switches to the
+ordinary i.i.d. multipliers of their Remark 2.2, which is cheaper and valid only
+when the errors are independent to begin with; the choice is recorded on the
+result, since a band built under each is not the same number. The correction is
+modest and shows up on average rather than on every panel -- over eight simulated
+panels the dependent scheme gave the wider band on five to eight of them, with a
+mean width ratio of 1.015 under white noise and 1.043 at :math:`\rho = 0.9`.
+Persistence is what makes it matter, which is why the paper's algorithm is the
+default. Both the equal-tailed (``eq``) and
 symmetric (``sy``) intervals are returned, and each variant reports which
 studentization it used: ``sandwich`` for the post-selection OLS HAC variance
 :math:`\widehat V_t` (``hcw``, ``lasso`` and ``fs``, which all select then run
@@ -977,6 +1209,59 @@ Each band is wider than the ATE confidence interval, because it carries the
 out-of-sample prediction error on top of the estimation error, and it tightens
 or widens quarter by quarter as the fitted controls track each period better or
 worse.
+
+The cumulative effect
+---------------------
+
+The intervals above bound one period at a time. The number an event study is
+usually quoted by is the running total -- how much the treated unit gained over
+the first :math:`L` periods -- and ``cumulative_band=True`` attaches a band for
+it:
+
+.. code-block:: python
+
+   res = PDA({..., "prediction_intervals": True, "cumulative_band": True}).fit()
+   band = res.fits["lasso"].cumulative_band
+   for L in (1, 4, 8):
+       i = L - 1
+       print(f"L={L}: {band.point[i]:+.3f}  ({band.lower[i]:+.3f}, {band.upper[i]:+.3f})")
+
+An interval for a running total is not the running total of the period
+intervals, and the two obvious shortcuts are both wrong. Adding the period
+endpoints treats every period's error as moving in lockstep, so the width grows
+in proportion to :math:`L` whatever the data does. Rescaling a single period's
+interval by :math:`\sqrt{L}` assumes the opposite, that the errors are
+independent, and for a donor fit the estimation error persists across horizons,
+so that one is wrong as well. Neither measures anything.
+
+What mlsynth does instead is accumulate each bootstrap replicate's error path
+first and take the standard error afterwards. Whatever correlation the period
+errors have is then carried into the band rather than assumed into it:
+independent errors widen it like :math:`\sqrt{L}`, perfectly correlated ones
+like :math:`L`, and the replicates decide which. On the Oregon opioid panel of
+Wheeler's ``LassoSynth`` -- 13 post-periods, one treated state -- the standard
+error grows by a factor of 4.43, against :math:`\sqrt{13} = 3.61` for
+independence and :math:`13` for lockstep. It sits between them, which is the
+whole point of measuring it. The resulting half-width is 1.37 where summing the
+period endpoints would have given 3.78, against a cumulative point estimate of
+7.59.
+
+The band is simultaneous over horizons rather than pointwise. A cumulative path
+is read as a path -- "positive by period six and never back" is a claim about
+every horizon at once -- and a pointwise band read that way covers at well below
+its nominal level. One shared critical value
+(:func:`mlsynth.utils.supt.supt_critical_value`, following Montiel Olea and
+Plagborg-Moller) restores the level for the path as a whole; on the Oregon panel
+it is 2.54 where the pointwise normal quantile would be 1.96.
+
+The band reuses the replicate paths the prediction-interval bootstrap already
+produced, so it costs no extra refits, and it therefore requires
+``prediction_intervals=True``. Asking for it without the bootstrap raises rather
+than returning an empty field, since a caller reading a missing band as an
+absent effect is the one failure worth ruling out. PPSCM's ``cumulative_band``
+is the same object built the same way, sharing
+:mod:`mlsynth.utils.supt`, so the two estimators cannot drift apart in what the
+phrase means.
 
 ``hcw`` produces these same intervals, with one practical caveat: the bootstrap
 refits the entire selection on every draw, and HCW's refit re-runs the
@@ -1024,22 +1309,39 @@ Verification
    95%, while the normal-quantile intervals under-cover (to about 77% under
    exponential errors).
 
+   Table 1 in full (Path B). All 108 cells of Shi & Huang's Monte Carlo are
+   reproduced by ``benchmarks/cases/fspda_table1.py``, against the paper and
+   against their own ``FS.R`` and ``lasso.BIC.R``. Details:
+   :doc:`replications/fspda_table1`.
+
 Simulation study (Path B): forward selection vs LASSO
 -----------------------------------------------------
 
 Shi & Huang's (2023) Table 1 compares forward selection against LASSO on a
-four-factor DGP, re-implemented in
+four-factor DGP, ported from their released ``FS.simulation.dense.R`` into
 :func:`mlsynth.utils.pda_helpers.simulation.simulate_pda_panel`: four factors
 (``f1`` i.i.d.; ``f2`` AR(1) 0.9; ``f3`` MA(2) (0.8,0.4); ``f4`` ARMA(1,1)
-(0.5,0.5) under the *dynamic* structure, all i.i.d. ``N(0,1)`` under the
-*i.i.d.* structure); loadings ``U(1,2)`` on the treated + 4 relevant controls
-and ``U(-0.1,0.1)`` on the remaining 96; idiosyncratic ``N(0,0.5)``; one treated
-unit, :math:`N=100` controls, :math:`T_0=T_2`. Shocks ``D1``-``D7`` set the
-post-period ATE (``D1``-``D3`` null → *size*; ``D4``-``D7`` non-zero → *power*).
-Driving the packaged ``PDA`` (``methods=["fs","LASSO"]``,
-``fs_intercept=False``) at :math:`T_0=100` (200 reps for size, 60 for power):
+(0.5,0.5) under the *dynamic* structure; under the *i.i.d.* structure factor
+:math:`\ell` is ``N(0, \ell^2)``, so the fourth carries sixteen times the
+variance of the first); loadings ``U(1,2)`` on the treated + 4 relevant controls
+and ``U(-0.5,0.5)`` on the remaining 96; idiosyncratic ``N(0, 0.5^2)``; one
+treated unit, :math:`N=100` controls, :math:`T_0=T_2`. Shocks ``D1``-``D7`` set
+the post-period ATE (``D1``-``D3`` null -> *size*; ``D4``-``D7`` non-zero ->
+*power*).
 
-.. list-table:: forward selection vs LASSO, :math:`T_0=100`
+The irrelevant loadings are the detail that decides the design. Section 4.1 of
+the paper gives them as ``U(-0.1,0.1)``; the ``loading.RData`` their driver
+loads has them five times wider, and that is what Table 1 was run on. At the
+wider range the 96 irrelevant donors carry real signal, the regression is dense,
+and no method can select its way to a sparse truth -- which is the paper's
+subject.
+
+The full table, all 108 cells, is the ``fspda_table1`` case. Driving the
+packaged ``PDA`` at its *defaults* (``LassoCV`` for the penalty, Li & Bell's
+two-component variance for the test) at :math:`T_0=100`, with 200 replications
+for size and 60 for power:
+
+.. list-table:: mlsynth's defaults on the Table-1 design, :math:`T_0=100`
    :header-rows: 1
    :widths: 12 8 10 10 10
 
@@ -1050,48 +1352,88 @@ Driving the packaged ``PDA`` (``methods=["fs","LASSO"]``,
      - power (D5)
    * - i.i.d.
      - fs
-     - 3.9
-     - 0.090
+     - 5.5
+     - 0.095
      - 1.00
    * - i.i.d.
      - LASSO
-     - 9.5
-     - 0.065
+     - 13.5
+     - 0.070
      - 1.00
    * - dynamic
      - fs
-     - 4.5
-     - 0.075
+     -
+     - 0.095
      - 1.00
    * - dynamic
      - LASSO
-     - 15.0
-     - 0.140
+     -
+     - 0.045
      - 1.00
 
-The paper's geometry reproduces. Forward selection is parsimonious -- it
-keeps to ~the 4 relevant donors in both structures -- while LASSO
-over-selects (9-15 donors). Forward selection's test is correctly sized
-(≈ 0.05-0.09) under *both* factor structures, the robustness Shi & Huang
-emphasise. LASSO is correctly sized under i.i.d. factors (0.065, matching
-the paper's 0.058) but its size inflates under dynamic factors (0.140;
-paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
-*dynamic-factor* phenomenon, not an i.i.d. one. Both tests are fully powered at
-``D5`` (mean-1 shift). Durable case: ``pda_table1``.
+Forward selection is the parsimonious rule in both structures and its test is
+sized at 0.095 under either, against the paper's 0.059 and 0.088. The
+cross-validated LASSO takes in 13.5 donors where the paper's modified BIC takes
+11.
+
+The paper's size inflation does not appear here, and the reason is the penalty
+rule. Shi & Huang report the LASSO's null rejection rate going from 0.058 under
+i.i.d. factors to 0.184 under dynamic ones. Holding the variance estimator fixed
+at Li & Bell's and changing only the penalty reproduces the split: under the
+modified BIC the rate goes 0.013 to 0.087 at this length, and under
+cross-validation it goes 0.070 to 0.045. The inflation belongs to their
+selection rule, not to L1 selection. Both rules are fully powered at ``D5``
+(mean-1 shift). Durable cases: ``fspda_table1`` for the paper's table,
+``pda_table1`` for the defaults.
 
 .. note::
 
-   mlsynth's LASSO is cross-validated; the paper's is not. Shi & Huang
+   The LASSO cells above are cross-validated; the paper's are not. Shi & Huang
    select the Lasso penalty with a modified BIC (Remark 4 cont., p.521:
    "we tune the constants in the modified BIC to allow Lasso to take in more
-   variables"); ``mlsynth``'s L1-PDA selects it with ``LassoCV`` (5-fold
-   cross-validation). The two are different penalty rules, so the LASSO cells
-   above are ``mlsynth``'s CV variant, not a cell-by-cell match of the paper's
-   Lasso. What both share -- and what the benchmark pins -- is the geometry:
-   LASSO over-selects relative to fs and its size inflates under dynamic
-   factors, while forward selection (the paper's *method*, validated cell-by-
-   cell on Hong Kong in ``pda_hongkong``) stays parsimonious and correctly
-   sized.
+   variables"); ``mlsynth``'s L1-PDA defaults to ``LassoCV`` (5-fold
+   cross-validation). Their rule is ``lasso_criterion="mbic"`` (see
+   :ref:`Choosing lambda <pda-lasso-criterion>` above), and pairing it with
+   ``lrvar_lag`` gives their test as well. Under both, ``fspda_table1``
+   reproduces Table 1 cell by cell; the table above is what the defaults do on
+   the same design.
+
+   The panel-level comparison against their code is a third case:
+   ``fspda_dense_mc`` runs ``PDA`` on panels generated by their own
+   ``FS.simulation.dense.R`` and compares to what their ``FS()`` and
+   ``lasso.BIC()`` return on those same panels.
+
+.. admonition:: Cross-validated against fsPDA on their own panels
+
+   ``fspda_dense_mc`` is the cell-level check. On eight panels from their dense
+   Monte Carlo (``T1 = T2 = 50``, 100 donors, four factors), forward selection
+   picks the same donors on every one, with coefficients, ATE, pre-period
+   R-squared and t-statistic agreeing to about :math:`10^{-13}`.
+
+   Their third column, the simplex-constrained synthetic control, is covered by
+   the same case through ``VanillaSC``: the two attain the same optimum of
+   ``scm.R``'s program, agreeing on the objective to :math:`10^{-11}` and on the
+   selected donors on every panel.
+
+   The sparse half of their ``simulation/`` directory is ``fspda_sparse_mc``,
+   which runs their ``fs()``, ``lasso_ic()`` and ``oracle()`` on the three sparse
+   DGPs. Those are deliberately different rules from the ones mlsynth
+   implements -- their sparse forward selection searches all donors at each step
+   and scores ``var(e)``, and their LASSO criterion uses a different residual
+   variance and a different penalty grid -- so that case pins agreement rates and
+   error ratios instead of digits. Forward selection lands on the identical donor
+   set on 28 of 30 panels regardless, within 5.4 percent on out-of-sample RMSE.
+
+   The LASSO under ``lasso_criterion="mbic"`` agrees on the selected donors and
+   the selected penalty on all eight panels when their ``lasso.BIC`` is run with
+   ``glmnet`` converged, with coefficients to :math:`2\times10^{-5}`. Against
+   their function as published it agrees on five of eight. The difference is
+   ``glmnet``'s default ``thresh = 1e-7``, which stops short in this
+   :math:`p = 100`, :math:`n = 50` design: ``mlsynth``'s coefficients attain a
+   lower value of the LASSO objective than ``glmnet``'s do, and because the
+   criterion scores those coefficients, an under-converged fit can hand a
+   different grid point the minimum. The benchmark records both runs so the two
+   claims stay separable.
 
 .. admonition:: The ``fs_intercept`` knob -- valid size on factor data
 
@@ -1114,9 +1456,13 @@ paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
 L2-relaxation (Shi & Wang). The ``l2`` method's out-of-sample MPSE falls
 with :math:`T` and its test approaches the nominal 5% size as :math:`T_0 \to
 \infty`, matching Shi & Wang's Table 2 (size :math:`0.142` at :math:`T_0=50`
-→ :math:`0.072` at :math:`200`). Its per-fit cross-validation over the
-:math:`\varepsilon` grid makes large Monte Carlos expensive (~5 s/fit), so the full
-table is summarized, not swept here.
+→ :math:`0.072` at :math:`200`). Each fit cross-validates :math:`\varepsilon`
+over its own grid, which is what makes a large Monte Carlo costly here: at the
+100 donors this study uses, one fit on the default grid takes about a second at
+:math:`T_0 = 50`, against 5 s before the ranking sweep was separated from the
+reported fit (see the note on solving the grid above). The case runs a coarse
+twelve-point grid and summarizes the table, so the full sweep stays out of the
+test suite.
 
 Multiple treated units
 ----------------------

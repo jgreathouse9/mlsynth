@@ -50,9 +50,32 @@ timeout = 120.0
 
   [[target.mutant]]
   id = "standardized-att-scales-by-the-pre-period"
-  find = "np.sqrt(t1) * r_post.mean() / denom"
-  replace = "np.sqrt(t0) * r_post.mean() / denom"
+  find = "    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"
+  replace = "    return float(np.sqrt(t0 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"
   models = "a SATT that scales by the pre-period count, which leaves both scale invariance and the sign intact and so is invisible to every test that checks only those"
+
+  [[target.mutant]]
+  id = "standardized-att-squares-before-it-roots"
+  find = """    rms_norm = float(np.sqrt(np.mean((r_pre / largest) ** 2)))
+    post_norm = float(r_post.mean()) / largest
+    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"""
+  replace = """    mean_sq_resid = float(r_pre @ r_pre / t0)
+    denom = np.sqrt((t1 / t0) * mean_sq_resid + mean_sq_resid)
+    return float(np.sqrt(t1) * r_post.mean() / denom) if denom != 0 else float("nan")"""
+  models = "the shipped form, which forms r_pre . r_pre and so squares before it takes a root. It is algebraically identical and agrees to 7e-16 over 1e-140 to 1e140, which is why it stood: what it loses is the ends. Below about 1e-154 the square is subnormal or zero and the statistic returns nan; above about 1e154 it overflows and the statistic returns 0. Both are what an honestly tiny effect looks like, so neither announces itself"
+
+  [[target.mutant]]
+  id = "standardized-att-reconstitutes-the-scale-before-dividing"
+  find = "    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)"
+  replace = """    rms_resid = largest * rms_norm
+    return float(np.sqrt(t1) * r_post.mean() / (rms_resid * np.sqrt(t1 / t0 + 1.0)))"""
+  models = "the factored-out scale multiplied back in before the division, which is algebraically the same and agrees everywhere the exponent has room. It fails on the subnormal grid, whose spacing is absolute: at a pre-period gap of 2^-1074 the denominator wants sqrt(2) * 2^-1074, whose neighbours are 2^-1074 and 2^-1073, so the statistic comes out at 1.0 where the answer is 1/sqrt(2) -- a 41% error that looks like an ordinary number"
+
+  [[target.mutant]]
+  id = "standardized-att-divides-by-a-zero-scale"
+  find = "    if not (largest > 0.0) or not np.isfinite(largest):"
+  replace = "    if False:"
+  models = "the guard on the factored-out scale removed. A pre-period gap of exactly zero then divides by zero inside the root, and the nan that comes back is the same nan the guard returns -- until the warning it also raises turns into an error under a stricter numpy policy, or a caller reads the intermediate"
 
   [[target.mutant]]
   id = "split-loses-a-period-at-the-seam"
@@ -109,6 +132,1105 @@ timeout = 120.0
   find = "+ norm_sq * np.outer(ones, ones)"
   replace = "+ 0.5 * norm_sq * np.outer(ones, ones)"
   models = "a penalty whose kernel is no longer the population-proportional ray, so lambda stops pricing departure from the classical aggregation and starts penalising the aggregation itself"
+
+[[target]]
+name = "syndes-gram"
+module-path = "mlsynth/utils/syndes_helpers/gram.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_gram_properties.py mlsynth/tests/test_syndes_gram.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "closed-form-claims-exactness-everywhere"
+  find = "exact = np.all(signs * contrast >= tol, axis=1)"
+  replace = "exact = np.ones(signs.shape[0], dtype=bool)"
+  models = "a bound that reports itself as the optimum on every design, so wherever the dropped sign conditions actually bind the caller receives a number strictly below the true objective and believes it exact"
+
+  [[target.mutant]]
+  id = "rayleigh-caps-with-the-wrong-end-of-the-spectrum"
+  find = "top = float(np.linalg.eigvalsh(self.R)[-1])"
+  replace = "top = float(np.linalg.eigvalsh(self.R)[0])"
+  models = "a global bound built from the smallest eigenvalue of the cut matrix instead of the largest, which inverts the inequality and yields a 'lower bound' above the optimum -- valid-looking, and wrong in the direction that matters"
+
+  [[target.mutant]]
+  id = "conditioning-guard-never-fires"
+  find = "reliable = bool(np.isfinite(condition) and condition <= float(condition_max))"
+  replace = "reliable = True"
+  models = "an engine that inverts a Gram matrix it cannot resolve, returning a confidently wrong bound in the one regime the module promises to return none"
+
+  [[target.mutant]]
+  id = "maxcut-scores-against-a-stale-gradient"
+  find = "g += 2.0 * (R[:, j] - R[:, i])"
+  replace = "g += 2.0 * R[:, j]"
+  models = "an incremental update that adds the entering unit without removing the leaving one, so every later sweep scores its neighbourhood against a gradient for a design that was never visited and the returned set is not a local optimum"
+
+[[target]]
+name = "syndes-partition"
+module-path = "mlsynth/utils/syndes_helpers/partition.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_exact_properties.py mlsynth/tests/test_syndes_partition.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "contrast-sums-the-two-synthetic-paths"
+  find = "contrast[rows, control_idx] = -b"
+  replace = "contrast[rows, control_idx] = b"
+  models = "a residual built from the sum of the treated and control synthetic paths instead of their difference, which optimises a program the paper never wrote while still returning feasible-looking weights"
+
+  [[target.mutant]]
+  id = "duality-gap-taken-against-the-worst-vertex"
+  find = "- grad_a.min(axis=1) - grad_b.min(axis=1)"
+  replace = "- grad_a.max(axis=1) - grad_b.max(axis=1)"
+  models = "a Frank-Wolfe gap linearised toward the worst vertex of each simplex instead of the best, so 'value - gap' stops bounding the optimum from below and the exact backend can prune the design it was looking for"
+
+[[target]]
+name = "syndes-exact"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_exact.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "screen-never-escalates-to-the-inner-solver"
+  find = "alive = np.flatnonzero((~scored.exact) & (scored.lower < best_value))"
+  replace = "alive = np.flatnonzero(np.zeros(scored.lower.shape, dtype=bool))"
+  models = "a search that trusts the closed form for every design and never solves a survivor, so on any instance where the sign conditions bind it returns whichever design happened to settle in closed form and calls it optimal"
+
+  [[target.mutant]]
+  id = "budget-is-validated-then-ignored"
+  find = "if float(self.costs[list(subset)].sum()) > self.budget + 1e-9:"
+  replace = "if float(self.costs[list(subset)].sum()) < 0.0:"
+  models = "a cost budget checked for well-formedness at configuration time and then never enforced during the search, so the returned design can cost more than the experiment can pay"
+
+  [[target.mutant]]
+  id = "forcing-satisfied-by-any-one-named-unit"
+  find = "if not self.forced_in <= chosen:"
+  replace = "if self.forced_in and not (self.forced_in & chosen):"
+  models = "a to_be_treated rule read as 'at least one of these' instead of 'all of these', which silently drops units the experimenter committed to treating"
+
+[[target]]
+name = "syndes-enumeration"
+module-path = "mlsynth/utils/syndes_helpers/enumeration.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_enumeration.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "gate-reads-the-unrestricted-count"
+  find = "size=ways[0][k_free],"
+  replace = "size=comb(int(N), int(K)),"
+  models = "the count this module exists to compute, reverted to the binomial the search used before -- the walk still visits only admissible designs, but the enumeration limit is measured against designs that do not exist, so a restricted instance is refused for being large in a space it never enters"
+
+  [[target.mutant]]
+  id = "quota-ignores-forced-members"
+  find = "held = len(forced & member_set)"
+  replace = "held = 0"
+  models = "a stratum quota that does not credit the forced units already inside the group, so a ceiling of one admits a design holding a forced member plus another, and the returned design breaks the coverage rule it was given"
+
+  [[target.mutant]]
+  id = "overlapping-strata-treated-as-a-partition"
+  find = "if not strata or not _disjoint(strata):"
+  replace = "if not strata:"
+  models = "disjointness assumed instead of checked, so a unit shared by two strata is drawn once by each -- the walk emits sets with a repeated unit and the same design more than once, and the count inherits both"
+
+  [[target.mutant]]
+  id = "forbidden-units-stay-in-the-ground-set"
+  find = "if i not in forced_set and i not in forbidden_set]"
+  replace = "if i not in forced_set]"
+  models = "a ground set that drops the forced units but keeps the forbidden ones, so units the design is required to leave alone are offered to the walk and can be treated"
+
+  [[target.mutant]]
+  id = "stratum-floor-is-dropped"
+  find = "low = max(0, (0 if lo is None else int(lo)) - held)"
+  replace = "low = 0"
+  models = "only the ceilings of a coverage quota enforced, so a minimum-per-stratum rule is accepted and silently does nothing, and designs that cover too few groups are admitted"
+
+  [[target.mutant]]
+  id = "fast-path-ignores-forced-units"
+  find = "if not self.forced and len(self.groups) == 1:"
+  replace = "if len(self.groups) == 1:"
+  models = "the single-group shortcut taken when forced units exist, so the units the design must contain are never merged in and every emitted set is short by the forced count -- the specialisation for the unrestricted case silently applied to a restricted one"
+
+  [[target.mutant]]
+  id = "group-order-assumed-ascending"
+  find = "_presorted=not forced_set and _ascending(groups))"
+  replace = "_presorted=not forced_set)"
+  models = "the sort skipped whenever no unit is forced, on the assumption that the groups run uphill -- a stratum over the high units leaves the low ones to the leftover group, which lands last, so the emitted tuple runs downhill and names a treated set whose units are read in the wrong positions"
+
+[[target]]
+name = "miqp-accel"
+module-path = "mlsynth/utils/miqp_accel.py"
+test-command = "python -m pytest mlsynth/tests/test_miqp_accel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "warm-bits-follow-the-index-set-iteration-order"
+  find = "return sorted(data[s.BOOL_IDX])"
+  replace = "return list(data[s.BOOL_IDX])"
+  models = "the defect this helper exists to prevent: cvxpy returns the boolean columns as a set, so iterating it pairs each warm bit with whichever variable the hash table happens to yield, and SCIP is started from a design the caller never named -- correct below the size where the two orders diverge, and silently wrong above it"
+
+  [[target.mutant]]
+  id = "warm-start-reported-applied-without-being-stored"
+  find = "self.warm_applied = bool(model.addSol(sol))"
+  replace = "model.addSol(sol); self.warm_applied = True"
+  models = "the flag set from having called addSol instead of from what it returned, so a start SCIP declined is reported to the caller as applied and a solve that was never accelerated looks as though it was"
+
+  # Recorded, not carried: replacing the objective's support with every column
+  # ("nz = np.arange(c.shape[0])") is an equivalent mutant. The extra terms all
+  # carry coefficient zero, so quicksum builds the same constraint and only the
+  # time spent building it changes. It survived, correctly, and is retired here
+  # so nobody re-adds it expecting a kill.
+
+  [[target.mutant]]
+  id = "invalid-bound-backstop-only-catches-a-failed-solve"
+  find = "if val is None or val < L - 1e-6 * max(1.0, abs(L)):"
+  replace = "if val is None:"
+  models = "the backstop reduced to a check that the solve produced a value. The objective is an epigraph variable, so a cut above the true optimum does not make the model infeasible -- it inflates that variable and returns a design whose real objective sits below the cut floor. Without the comparison the caller keeps that design and the too-high bound is never detected"
+
+[[target]]
+name = "pda-lasso-mbic"
+module-path = "mlsynth/utils/pda_helpers/lasso/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_mbic.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "criterion-scores-a-fit-the-estimator-never-uses"
+  find = """    beta, _, _, _ = fit_lasso(y, X, T0, alpha=alpha, intercept=False,
+                              standardize=True)"""
+  replace = "    beta, _, _, _ = fit_lasso(y, X, T0, alpha=alpha)"
+  models = "the criterion evaluated under mlsynth's own conventions -- intercept, unscaled donors -- while the estimate it selects a penalty for is fitted under glmnet's. The rule still returns a penalty from the grid and the argmin is still an argmin, so every structural test passes; what changes is that the penalty was chosen for a different model than the one estimated, which is the defect that produced two failures the first time this landed"
+
+  [[target.mutant]]
+  id = "glmnet-standardisation-centres-the-donors"
+  find = "    model.fit(X_pre / scale, y_pre)"
+  replace = "    model.fit((X_pre - X_pre.mean(axis=0)) / scale, y_pre)"
+  models = "the donors centred before the penalised fit, which is what glmnet does when it fits an intercept and not what it does without one. It moves the selected coefficient on the reference panel from 0.51838043 to 0.49909512, and no invariant of the rule notices: the support is the same, the argmin is still an argmin, and the criterion is still log MSE plus the charge. Only the pinned glmnet value separates them"
+
+  # Recorded, not carried: centring inside `_glmnet_scale`
+  # ("X_pre = X_pre - X_pre.mean(axis=0)" before the np.std call) is an
+  # equivalent mutant. Standard deviation is shift invariant, so the returned
+  # scale agrees to 2e-16 and the fit is unchanged. It survived, correctly, and
+  # is retired here so nobody re-adds it expecting a kill -- the centring that
+  # does change the answer is the one above, on the matrix that gets fitted.
+
+  [[target.mutant]]
+  id = "penalty-charge-counts-periods-instead-of-donors"
+  find = "    penalty = const * loglog * np.log(T0) / T0 * k"
+  replace = "    penalty = const * loglog * np.log(T0) / T0"
+  models = "the per-donor charge applied once instead of once per selected donor. The criterion is then log MSE plus a constant, so it is minimised at the densest fit for every value of the constant, and the constant stops being the knob the paper tunes"
+
+  [[target.mutant]]
+  id = "loglog-floor-inverted-for-small-donor-pools"
+  find = "    loglog = max(np.log(np.log(n_donors)) if n_donors > 1 else 0.0, 0.0)"
+  replace = "    loglog = np.log(np.log(n_donors)) if n_donors > 1 else 0.0"
+  models = "the floor removed, so a pool of two donors gives log(log(2)) = -0.37 and the charge per donor turns into a reward per donor. Two donors is an ordinary pool, and the rule would select the densest fit there for the same reason it should select the sparsest"
+
+  [[target.mutant]]
+  id = "argmin-over-the-grid-becomes-argmax"
+  find = "    return float(penalties[int(np.argmin(scores))])"
+  replace = "    return float(penalties[int(np.argmax(scores))])"
+  models = "the grid search keeping the worst penalty by its own criterion. It still returns a grid point and still moves with the constant, so only a test that recomputes the criterion independently sees it"
+
+  [[target.mutant]]
+  id = "zero-penalty-admitted-to-the-grid"
+  find = "    if np.any(penalties <= 0):"
+  replace = "    if np.any(penalties < 0):"
+  models = "a zero penalty accepted as a path point. That is ordinary least squares on every donor, whose pre-period MSE is the smallest available, so it wins the criterion whenever a caller's grid starts at zero and the selection stops being a LASSO selection at all"
+
+[[target]]
+name = "pda-orchestration"
+module-path = "mlsynth/utils/pda_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_mbic.py mlsynth/tests/test_pda.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "mbic-penalty-selected-then-discarded"
+  find = """            beta, intercept, cf, support = fit_lasso(
+                y, X, T0, alpha=lasso_alpha, intercept=use_intercept,
+                standardize=standardize)"""
+  replace = """            beta, intercept, cf, support = fit_lasso(
+                y, X, T0, intercept=use_intercept, standardize=standardize)"""
+  models = "the criterion computed and then dropped on the floor: the penalty is selected, recorded in the metadata the caller reads, and the fit cross-validates its own anyway. Everything the estimator reports about which rule it used stays true and the number it reports is from the other rule"
+
+  [[target.mutant]]
+  id = "mbic-fitted-under-mlsynths-conventions"
+  find = """    if lasso_criterion == "mbic":
+        return False, True
+    return True, False"""
+  replace = "    return True, False"
+  models = "the modified BIC paired with an intercept and unscaled donors. The penalty was chosen by scoring a glmnet fit, so it is being applied to a different model -- the same mismatch that made the criterion and the estimate disagree the first time this landed, moved from the criterion to the estimator"
+
+  [[target.mutant]]
+  id = "bootstrap-refits-under-the-other-conventions"
+  find = """            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha,
+                                             intercept=intercept,
+                                             standardize=standardize)"""
+  replace = "            beta, _, cf, support = fit_lasso(y_boot, X, T0, alpha=lasso_alpha)"
+  models = "the prediction-interval bootstrap refitting under the cross-validated conventions while the point estimate it is meant to be the sampling distribution of was fitted under glmnet's. The intervals still come back the right shape and still cover something; what they cover is not the estimator that produced the point"
+
+[[target]]
+name = "pda-lrvar"
+module-path = "mlsynth/utils/pda_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lrvar_normalisation.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "lagged-autocovariance-divides-by-its-own-count"
+  find = "        gl = float(np.sum(zc[l:] * zc[:-l]) / n)"
+  replace = "        gl = float(np.mean(zc[l:] * zc[:-l]))"
+  models = "the defect this module was fixed for: the lag-l autocovariance averaged over its n-l products instead of divided by n. It inflates each lagged term by n/(n-l), which is under 3% at one lag on fifty periods and grows with the truncation -- small enough to survive every sign, positivity and ordering check, and large enough to move a t-statistic in its third decimal and break the claim that the fixed-lag branch reproduces fsPDA"
+
+  [[target.mutant]]
+  id = "bartlett-weight-uses-the-lag-count-as-its-denominator"
+  find = "        w = (1.0 - l / (L + 1.0)) if kernel == \"bartlett\" else 1.0"
+  replace = "        w = (1.0 - l / L) if kernel == \"bartlett\" else 1.0"
+  models = "the Bartlett weight without the +1, so the outermost lag is weighted zero and the kernel effectively truncates one lag early. At L = 1 it discards the only lag there is, leaving gamma_0 -- the estimator silently stops correcting for serial correlation at exactly the setting the fsPDA package uses on short post-periods"
+
+  [[target.mutant]]
+  id = "series-not-demeaned-before-the-autocovariances"
+  find = "    zc = z - z.mean()"
+  replace = "    zc = z"
+  models = "autocovariances taken about zero instead of the sample mean. The post-period effect series is centred by the caller in most paths, so this is invisible wherever the mean is already near zero and wrong wherever a real effect shifts it -- the case the estimator exists to test"
+
+[[target]]
+name = "proximal-sandwich-index"
+module-path = "mlsynth/utils/proximal_helpers/pipw/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_proximal_sandwich_index.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "phi-index-off-by-one"
+  find = "    phi_index = 2 * nU + 2"
+  replace = "    phi_index = 2 * nU + 3"
+  models = "the defect this module was fixed for: the sandwich asked for the index one past the ATT, which holds psi_minus, a nuisance mean. It returns that parameter's standard error instead -- finite, positive, and 44 percent larger on the authors' own normal simulation, where it inflated Wald coverage to 0.99 against a nominal 0.95 and was recorded in the benchmark as conservative inference. The guard added with the fix turns this into a raised error; without the guard only the DR-versus-PIPW agreement catches it"
+
+  [[target.mutant]]
+  id = "sandwich-index-unchecked-and-off-by-one"
+  find = """    se = gmm_sandwich_se(theta, moments, phi_index, T, hac_bandwidth,
+                         expected_value=phi)"""
+  replace = "    se = gmm_sandwich_se(theta, moments, 2 * nU + 3, T, hac_bandwidth)"
+  models = "the pre-fix state exactly: the wrong index and no check tying it to the estimand. This is the mutant that matters, because it is what the code looked like while every test passed. Nothing about the returned value is malformed, so it survives every assertion of the form `isfinite(se) and se > 0`; what kills it is the invariant that DR and PIPW, being the same estimator in the just-identified design, must report the same standard error"
+
+[[target]]
+name = "proximal-bridge-convergence"
+module-path = "mlsynth/utils/proximal_helpers/bridges.py"
+test-command = "python -m pytest mlsynth/tests/test_proximal_bridge_convergence.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "non-converged-bridge-returned-as-a-solution"
+  find = "        if residual <= _BRIDGE_TOL:\n            return sol.x"
+  replace = "        return sol.x"
+  models = "the defect this module was fixed for: the root finder's own success flag discarded and the last iterate returned. The vector is finite and right-shaped, and the estimate built from it looks ordinary -- on the authors' short_post and small_T designs it landed within 1e-2 of theirs with standard errors of 8.5 to 12.4 -- so nothing downstream can tell a solution from a stalled search. Only checking the moment residual at the returned beta separates them"
+
+  [[target.mutant]]
+  id = "bridge-tolerance-loose-enough-to-admit-anything"
+  find = "_BRIDGE_TOL = 1e-6"
+  replace = "_BRIDGE_TOL = 1e6"
+  models = "the convergence check kept but its threshold widened past every attainable residual, which is the shape a tolerance takes when it is relaxed to make a red test green. The square system solves to machine precision when a root exists, so any tolerance loose enough to admit a stalled search is loose enough to admit all of them"
+
+[[target]]
+name = "pda-forward-selection"
+module-path = "mlsynth/utils/pda_helpers/fs/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_fs_orthogonal_search.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "candidate-score-drops-the-orthogonal-norm"
+  find = "gain[usable] = proj[usable] ** 2 / norm[usable]"
+  replace = "gain[usable] = proj[usable] ** 2"
+  models = "the projection score written as a plain correlation, without dividing by the candidate's orthogonalised norm. It ranks donors by covariance with the residual instead of by the residual sum of squares they remove, so it prefers a large-variance donor over a better-aligned small one -- and on standardised donors, where the norms are near-equal, it agrees with the correct rule often enough to pass a smoke test"
+
+  [[target.mutant]]
+  id = "shortlist-keeps-only-the-argmax"
+  find = "    n_keep = max(1, min(n_tied, _SHORTLIST_MAX))"
+  replace = "    n_keep = 1"
+  models = "the tie band collapsed to the single highest-scoring candidate, which is what an argmax alone would select. Every step still returns a donor and the fit is still sensible, so nothing about the output looks wrong; what it loses is the exact comparison that settles duplicated or collinear donors the way the definitional scan settles them"
+
+[[target]]
+name = "pda-lasso-fspda-inference"
+module-path = "mlsynth/utils/pda_helpers/lasso/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_lasso_fspda_inference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-supplied-lag-is-accepted-and-dropped"
+  find = """    if lrvar_lag is not None:
+        lag = fspda_lrvar_lag(T2, lrvar_lag)"""
+  replace = """    if False:
+        lag = fspda_lrvar_lag(T2, lrvar_lag)"""
+  models = "the defect as it shipped: the parameter is on the signature, the config accepts it, and the branch that reads it never runs. Every downstream check passes -- the standard error is finite and positive, the p-value is in range, the confidence interval brackets the estimate -- because a standard error computed from the wrong variance is still a standard error. What separates the two is that the answer stops moving when the lag moves"
+
+  [[target.mutant]]
+  id = "the-fspda-branch-keeps-the-first-stage-term"
+  find = "        se = float(np.sqrt(hac_lrv(post_effect - att, lag=lag) / T2))"
+  replace = """        se = float(np.sqrt(hac_lrv(post_effect - att, lag=lag) / T2
+                           + 0.2 * np.var(post_effect) / T2))"""
+  models = "the fixed lag honoured but Li & Bell's first-stage variance left in the sum. It is the half of the defect that the lag alone does not fix: on the Table 1 design that term is 44-46% of the total variance, and carrying it holds the t-statistic 4.5e-01 away from their lasso.BIC where dropping it lands within 7.4e-06"
+
+  [[target.mutant]]
+  id = "the-automatic-lag-branch-loses-the-first-stage-term"
+  find = "    se = float(np.sqrt(var_first + var_post))"
+  replace = "    se = float(np.sqrt(var_post))"
+  models = "the default path converted to the fsPDA convention. mlsynth's LASSO PDA is Li & Bell's estimator and its two-component variance is the inference its own paper prescribes; supplying a lag is what asks for the other one. Changing the default would make every existing LASSO interval narrower with nothing in the call to say so"
+
+[[target]]
+name = "pda-dense-dgp"
+module-path = "mlsynth/utils/pda_helpers/simulation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_simulation.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "iid-factors-all-drawn-standard-normal"
+  find = """        return rng.standard_normal((T, _N_FACTORS)) * np.arange(
+            1.0, _N_FACTORS + 1.0)"""
+  replace = "        return rng.standard_normal((T, _N_FACTORS))"
+  models = "the shipped port's reading of Section 4.1's `N(0, I^2)` as four standard normals, where their `rnorm(Tn, sd = k * sigma.u)` gives factor k a standard deviation of k. It is a fault of omission with no visible symptom: the panel keeps its shape, its labels and its seed reproducibility, the estimators still run, and the only thing that moves is which donors carry signal -- which is the entire object of a variable-selection study"
+
+  [[target.mutant]]
+  id = "idiosyncratic-noise-variance-read-as-a-standard-deviation"
+  find = "_NOISE_SD = 0.5                  # sigma.eta: idiosyncratic N(0, 0.5^2)"
+  replace = "_NOISE_SD = float(np.sqrt(0.5))   # idiosyncratic N(0, 0.5)"
+  models = "`e_jt ~ N(0, 0.5^2)` read as a variance, putting 41% more noise on every series than `sigma.eta = 0.5` does. Nothing structural changes and every rejection rate in Table 1 moves"
+
+  [[target.mutant]]
+  id = "irrelevant-loadings-taken-from-the-prose"
+  find = "    irrelevant_loading: float = 0.5,"
+  replace = "    irrelevant_loading: float = 0.1,"
+  models = "the U(-0.1, 0.1) the paper's Section 4.1 states, against the U(-0.5, 0.5) of the `loading.RData` its driver loads and its table was run on. The narrower block makes the irrelevant donors nearly inert, which turns the dense regression the paper is about into a sparse one"
+
+  [[target.mutant]]
+  id = "each-shock-process-drawn-independently"
+  find = """        if rho == 0.0:
+            out[:, k] = mu + w[burn:]
+            continue"""
+  replace = """        w = rng.standard_normal(T2 + burn)
+        if rho == 0.0:
+            out[:, k] = mu + w[burn:]
+            continue"""
+  models = "an independent innovation sequence per column, against DGP.Delta drawing one and building all six from it. Every column keeps its correct marginal law -- the right mean, the right variance, the right autocorrelation -- so any test that looks at one column at a time passes. What breaks is the joint: D4 no longer sits exactly 0.5 above D2 in the same period, and the size and power cells of Table 1, which are read off the same replication, stop being comparable"
+
+  [[target.mutant]]
+  id = "autoregressive-shocks-start-at-zero"
+  find = "        d, path = 0.0, np.empty(T2 + burn)"
+  replace = "        d, path = 0.0, np.empty(T2 + burn)\n        burn = 0"
+  models = "the AR columns entering the window at zero instead of their stationary mean mu/(1-rho), which is what dropping DGP.Delta's burn-in does. At T2 = 50 it drags the finite-sample mean of D6 and D7 below the 0.5 and 1.0 the power cells are read against"
+
+[[target]]
+name = "pda-l2-grid-solver"
+module-path = "mlsynth/utils/pda_helpers/l2/batch.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_l2_grid_solver.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "solver-status-ignored"
+  find = "            if (res.x is not None and _usable_status(res.info.status)\n                    and np.all(np.isfinite(res.x))):"
+  replace = "            if res.x is not None and np.all(np.isfinite(res.x)):"
+  models = "the pre-fix state exactly: the sweep keeps whatever the solver returns as long as it is finite, and never reads the status. This is what the code looked like while every test passed. An infeasibility certificate is finite and right-shaped, so it survives any check of the form isfinite(beta); on 24 Hong Kong donors over 24 pre-periods it carries entries of order 1e9 and enters the validation ranking as a candidate fit"
+
+  [[target.mutant]]
+  id = "certificates-admitted-as-solutions"
+  find = '''    "run time limit reached",
+})'''
+  replace = '''    "run time limit reached",
+    "primal infeasible",
+    "primal infeasible inaccurate",
+})'''
+  models = "the accept list widened to take the infeasibility certificates too, which is the shape the rule takes when a status is added to stop a test failing. The distinction the list exists to draw -- an imprecise solution against an answer to a different question -- is exactly what this erases"
+
+  [[target.mutant]]
+  id = "grid-tolerance-too-loose-to-rank"
+  find = "_GRID_EPS = 1e-6"
+  replace = "_GRID_EPS = 1e-2"
+  models = "the ranking tolerance relaxed past the point where the sweep can order its candidates, which is the shape a tolerance takes when it is widened for speed without checking what it costs. Every solve still returns a finite beta and the fit still looks ordinary; what breaks is the ordering, and with it the tau the caller is handed -- across the four Hong Kong windows it moves the winner on three and the validation errors by 0.32 to 4.99 relative, against 3.9e-3 at the shipped value"
+
+[[target]]
+name = "conformal-cumulative-scores"
+module-path = "mlsynth/utils/conformal/scores.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "overlapping-calibration-origins"
+  find = "for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):"
+  replace = "for origin in range(start, int(pre_periods) - int(horizon) + 1, 1):"
+  models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive blocks share periods; the scores stop being exchangeable and the band is calibrated on a correlated, artificially large calibration set"
+
+  [[target.mutant]]
+  id = "scores-average-instead-of-accumulate"
+  find = "scores.append(float(np.sum(y[block] - Y0[block] @ w)))"
+  replace = "scores.append(float(np.mean(y[block] - Y0[block] @ w)))"
+  models = "scoring the per-period average error rather than the accumulated error, so the band is calibrated for the wrong estimand -- the defect that makes a per-period interval rescaled by the horizon look like a cumulative one"
+
+  [[target.mutant]]
+  id = "calibration-refit-sees-its-own-block"
+  find = "w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()"
+  replace = "w = np.asarray(weight_fn(np.arange(origin + int(horizon))), dtype=float).ravel()"
+  models = "fitting each calibration refit on data that includes the very block it is about to score, so the conformity scores measure in-sample fit rather than prediction error and the band comes out too narrow"
+
+[[target]]
+name = "conformal-cumulative-band"
+module-path = "mlsynth/utils/conformal/cumulative.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "uncentred-conformity-scores"
+  find = "half = float(split_conformal_quantile(s - s.mean(), alpha=alpha))"
+  replace = "half = float(split_conformal_quantile(s, alpha=alpha))"
+  models = "calibrating on raw rather than centred scores, so a systematic offset in the calibration windows is read as spread and inflates the band"
+
+[[target]]
+name = "conformal-quantile"
+module-path = "mlsynth/utils/conformal/quantile.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "naive-quantile-instead-of-finite-sample-order-statistic"
+  find = "k = int(np.ceil((n + 1) * (1.0 - alpha)))"
+  replace = "k = int(np.ceil(n * (1.0 - alpha)))"
+  models = "the plug-in sample quantile in place of the finite-sample split-conformal order statistic, which under-covers at small calibration sizes and silently returns a finite band where the requested level is in fact unreachable"
+
+[[target]]
+name = "ppscm-conformal-cumulative"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_cumulative.py mlsynth/tests/test_ppscm_conformal_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "cumulative-scores-average-instead-of-accumulate"
+  find = "scores.setdefault(k, []).append(float(path.sum()))"
+  replace = "scores.setdefault(k, []).append(float(path.mean()))"
+  models = "calibrating on each unit's average post-period error rather than its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
+
+  [[target.mutant]]
+  id = "cumulative-calibration-origins-overlap"
+  find = "for origin in range(start, earliest - horizon + 1, horizon):"
+  replace = "for origin in range(start, earliest - horizon + 1, 1):"
+  models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive windows share periods; the scores stop being exchangeable and the calibration set is inflated with near-duplicates"
+
+  # EQUIVALENT MUTANT, recorded rather than dropped silently. Advancing the `d` and
+  # `n_lags` arguments to `origin + horizon` -- intended to make each calibration fit
+  # balance on the window it scores -- changes nothing: `run_multisynth` takes the
+  # adoption boundary from `trt`, so `adopt_of` stays at the origin and the extra
+  # periods are clipped. Verified directly: both call forms return byte-identical
+  # `tau_rel` sums. The defect it was meant to model is expressed below instead, at
+  # the line that actually controls what each fit is held out from.
+
+  [[target.mutant]]
+  id = "cumulative-calibration-keeps-the-real-adoption-time"
+  find = "        trt_o[adopted] = origin"
+  replace = "        trt_o[adopted] = trt[adopted]"
+  models = "forgetting to move adoption to the calibration origin, so every fit is the real one and each 'calibration score' is the actual treatment effect rather than a placebo window -- the scores stop measuring prediction error entirely and the band is calibrated on the thing it is supposed to be testing"
+
+[[target]]
+name = "simultaneous-band"
+module-path = "mlsynth/utils/supt.py"
+test-command = "python -m pytest mlsynth/tests/test_supt.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "supt-collapses-to-the-pointwise-critical-value"
+  find = "    m = np.max(np.abs(z / scale), axis=1)"
+  replace = "    m = np.abs(z / scale)[:, 0]"
+  models = "taking one horizon's deviation instead of the largest across horizons, which is the pointwise critical value wearing a simultaneous band's name. Every shape, sign and monotonicity assertion still passes; what fails is the coverage the band claims, and only a test that compares the correction against its own simulation error can see it"
+
+  [[target.mutant]]
+  id = "jackknife-inflation-dropped"
+  find = "        out[h] = np.sqrt((m - 1) / m * ss) if jackknife else np.sqrt(ss / (m - 1))"
+  replace = "        out[h] = np.sqrt(ss / (m - 1))"
+  models = "treating delete-one replicates as if they were bootstrap draws. Jackknife replicates differ from the full estimate by O(1/m), so without the inflation the standard error is smaller by roughly (m-1)/sqrt(m) -- a factor of eight at 66 units -- and the band looks precise while covering almost nothing"
+
+  [[target.mutant]]
+  id = "cumulative-averages-instead-of-accumulating"
+  find = "    return np.cumsum(paths, axis=1)"
+  replace = "    return np.cumsum(paths, axis=1) / np.arange(1, paths.shape[1] + 1)"
+  models = "reporting the running mean where the running total was asked for, so the band is for a different estimand and its growth law inverts -- shrinking with the horizon instead of growing"
+
+[[target]]
+name = "conformal-refit-rule"
+module-path = "mlsynth/utils/conformal/refit.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_refit.py mlsynth/tests/test_conformal_refit_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "refit-rule-ignored-and-always-augments"
+  find = '    if rule == "sc":'
+  replace = "    if False:"
+  models = "the defect this module was written to remove: the conformal null refit ignoring which control the caller asked for and always using the ridge-augmented one. Unconstrained weights can re-level an arbitrarily large post-period effect away and spread it over the pre-period residuals the test calibrates against, so the observed statistic and its reference distribution scale together and the p-value stalls -- 0.348 on the Swedish carbon tax panel whether the injected effect is 5 or 100, where the authors' scinference returns 1/T"
+
+  [[target.mutant]]
+  id = "sc-refit-drops-the-simplex-constraint"
+  find = "        w = np.asarray(simplex_qp(Y0, y, warm_start=warm_start), dtype=float)"
+  replace = "        w = np.linalg.lstsq(Y0, y, rcond=None)[0]"
+  models = "solving the 'sc' refit by unconstrained least squares instead of over the simplex. The in-sample fit is better, which is what makes it tempting, and every shape and range assertion still passes -- but convexity is the whole mechanism: without the bound the fitted path follows an injected effect without limit and the test loses its power in exactly the way the augmented refit does"
+
+  [[target.mutant]]
+  id = "covariates-silently-dropped-by-the-sc-rule"
+  find = """        if Z0 is not None or z1 is not None:
+            raise MlsynthConfigError("""
+  replace = """        if False:
+            raise MlsynthConfigError("""
+  models = "accepting covariates on the outcome-only rule and quietly ignoring them, so the refit answers a question the caller did not ask and no output records the substitution"
+
+[[target]]
+name = "conformal-inversion"
+module-path = "mlsynth/utils/conformal/inversion.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_inversion.py mlsynth/tests/test_vanillasc_conformal_cwz.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "ties-counted-as-acceptances"
+  find = "    kept = grid[pvalues > float(alpha)]"
+  replace = "    kept = grid[pvalues >= float(alpha)]"
+  models = "keeping the nulls a level-alpha test rejects, which is what the inversion did before this module existed. A comparison flip, so cosmic-ray would generate it too, but the site is the one where it carries meaning: a conformal p-value is discrete, living on k/n for a reference set of n members, so whenever alpha is attainable the boundary is a whole level of that set, not a measure-zero tie. On the authors' own JASA application (n = 20, alpha = 0.1, attained exactly) the inclusive rule widens all six per-period intervals by 15 to 40 percent against scinference; on the Swedish carbon tax panel (n = 31, alpha unattainable) it changes nothing, which is how it survived every existing case"
+
+  [[target.mutant]]
+  id = "bounds-read-off-the-longest-run-instead-of-the-range"
+  find = "    return float(kept.min()), float(kept.max())"
+  replace = """    runs = np.split(kept, np.flatnonzero(np.diff(np.sort(kept)) > np.diff(np.sort(grid)).min() * 1.5) + 1)
+    best = max(runs, key=len)
+    return float(best.min()), float(best.max())"""
+  models = "reporting the largest contiguous accepted run instead of the range of the accepted set. A conformal p-value need not be unimodal in the candidate, so the accepted set can have interior gaps; taking the longest run drops candidates the test accepted and reports an interval narrower than the one the procedure defines"
+
+[[target]]
+name = "pda-cumulative-band"
+module-path = "mlsynth/utils/pda_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_cumulative_band.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scale-one-period-instead-of-accumulating"
+  find = "    cum = cumulative_from_paths(R)"
+  replace = "    cum = np.sqrt(np.arange(1, R.shape[1] + 1))[None, :] * R[:, :1]"
+  models = "the sqrt(L) shortcut: take the first period's error and grow it by the square root of the horizon. It is the textbook width for independent errors and looks right on any panel whose estimation error happens to be negligible, but it stops reading the replicates, so a persistent donor-fit error -- the normal case -- is invisible and the band is too narrow"
+
+  [[target.mutant]]
+  id = "sum-the-period-standard-errors"
+  find = "    se = jackknife_se(cum, jackknife=False)      # bootstrap draws, no LOO inflation"
+  replace = "    se = np.cumsum(jackknife_se(R, jackknife=False))"
+  models = "accumulating the standard errors rather than the paths -- the endpoint-summing error written in the scale rather than the interval. It asserts perfectly correlated period errors, so the band grows like L on every panel and is the widest thing anyone builds"
+
+  [[target.mutant]]
+  id = "pointwise-critical-value"
+  find = "    q = supt_critical_value(cum, alpha=float(alpha), n_sims=n_sims, seed=seed)"
+  replace = "    q = float(norm.ppf(1.0 - float(alpha) / 2.0))"
+  models = "reading the cumulative path with a pointwise multiplier. Every individual horizon still covers at 1 - alpha, so nothing looks wrong at any single L, but the path as a whole -- which is how a cumulative band is read -- covers at well below the stated level"
+
+  [[target.mutant]]
+  id = "keep-the-failed-replicates"
+  find = "    R = R[np.isfinite(R).all(axis=1)]"
+  replace = "    R = np.nan_to_num(R, nan=0.0)"
+  models = "letting a replicate whose refit failed contribute a zero path instead of dropping it. Zeros sit at the centre of the distribution, so they shrink the standard error and hand back a tighter band than the surviving draws support"
+
+[[target]]
+name = "pda-pi-dependent"
+module-path = "mlsynth/utils/pda_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_pi_dependent.py -q -p no:cacheprovider"
+timeout = 400.0
+
+  [[target.mutant]]
+  id = "drop-the-flag-on-the-floor"
+  find = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                dependent=pi_dependent)"""
+  replace = "                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)"
+  models = "the defect the plumbing removes, and the one that was actually there: a config field the caller can set that never reaches the bootstrap. Every fit still succeeds and the default behaviour is unchanged, so nothing looks wrong -- the flag simply does nothing, which is worse than its absence because it invites a caller to believe they chose Remark 2.2 when they are still running Algorithm 2.1"
+
+  [[target.mutant]]
+  id = "invert-the-flag"
+  find = "                dependent=pi_dependent)"
+  replace = "                dependent=not pi_dependent)"
+  models = "passing the flag through backwards. The result then records the opposite of what was run, so a band built under the i.i.d. multipliers is labelled as the paper's algorithm -- the one failure that survives being written down"
+
+[[target]]
+name = "simplex-active-set-seeding"
+module-path = "mlsynth/utils/bilevel/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_sdid_warm_start_accel.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "seeding-is-a-property-of-one-call-site"
+  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start(B, A)"
+  replace = "    if False:\n        warm_start = fista_warm_start(B, A)"
+  models = "the defect this change fixed. With the seed computed in one caller instead of in the solver, the other twelve call sites start from the uniform point and the active set sheds one donor per pivot: 117 inner solves for SDID on a 101x120 panel against 31 for VanillaSC on the same panel. Every weight is still correct, so only a work assertion can see it"
+
+  [[target.mutant]]
+  id = "seeding-overrides-the-callers-warm-start"
+  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:"
+  replace = "    if accelerate and J >= ACCEL_MIN_DONORS:"
+  models = "a seed recomputed on top of one the caller already has. The placebo loop chains the previous draw's solution through this argument, so discarding it pays for a FISTA run per draw to replace a start that was already on the answer"
+
+[[target]]
+name = "fista-support-stop"
+module-path = "mlsynth/utils/bilevel/accelerate.py"
+test-command = "python -m pytest mlsynth/tests/test_fista_support_patience.py mlsynth/tests/test_sdid_warm_start_accel.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "support-patience-counts-total-instead-of-consecutive-holds"
+  find = "            armed = int(current.sum()) < J\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else 0"
+  replace = "            armed = int(current.sum()) < J\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else held"
+  models = "a patience counter that never resets, so a support that flickers still accumulates holds and the warm start returns while the support is moving -- the seed is then rejected coordinate by coordinate and the solve pays the cold pivot count anyway"
+
+  [[target.mutant]]
+  id = "counter-arms-on-the-uniform-plateau"
+  find = "            armed = int(current.sum()) < J"
+  replace = "            armed = True"
+  models = "the counter allowed to run before the first coordinate is pinned. FISTA starts at the uniform point, where every coordinate is positive and the support has therefore not changed for the reason that it has not started, so the stop fires immediately and hands back the whole pool -- the uniform start under another name. On a 96x100 design whose optimum has 16 donors it took the solve from 33 pivots back to the cold 84"
+
+  [[target.mutant]]
+  id = "support-read-at-a-tolerance-the-solver-does-not-use"
+  find = "SUPPORT_TOL = 1e-9"
+  replace = "SUPPORT_TOL = 1e-3"
+  models = "the seed's support read at a coarser threshold than the one solve_simplex_qp pins variables at, so the two disagree about what the seed says and the loop stops on a support the active set will not adopt"
+
+[[target]]
+name = "ridged-gram-guard"
+module-path = "mlsynth/utils/bilevel/minnorm.py"
+test-command = "python -m pytest mlsynth/tests/test_ridged_gram_guard.py mlsynth/tests/test_sdid_placebo_guard_cost.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "certificate-bounds-the-spectrum-by-a-norm-that-does-not-bound-it"
+  find = "    if np.sqrt(ridge / (frob_sq + ridge)) > tol:"
+  replace = "    if np.sqrt(ridge / (np.sqrt(frob_sq) + ridge)) > tol:"
+  models = "the largest eigenvalue bounded by the Frobenius norm instead of by its square. The bound is then too large on any design whose norm exceeds one, so it certifies designs whose true ratio is below the tolerance -- the one direction a guard must never fail in, and invisible to anything that only checks the certified cases were fine"
+
+  [[target.mutant]]
+  id = "certificate-fires-on-a-bound-it-did-not-clear"
+  find = "    if np.sqrt(ridge / (frob_sq + ridge)) > tol:\n        return True"
+  replace = "    if np.sqrt(ridge / (frob_sq + ridge)) > tol * tol:\n        return True"
+  models = "the bound compared against the square of the tolerance, so it certifies eight orders of magnitude too eagerly. Every design mlsynth ships still passes, because they clear the real tolerance by four to seven orders -- so only a design built near the threshold can see it"
+
+  [[target.mutant]]
+  id = "zero-ridge-takes-the-certificate-instead-of-the-spectrum"
+  find = "    if ridge == 0.0:\n        return gram_reduction_is_safe(design, tol)"
+  replace = "    if ridge < 0.0:\n        return gram_reduction_is_safe(design, tol)"
+  models = "an unridged design falling through to a bound that is vacuous at ridge zero. sqrt(0 / ||X||^2) is zero, never clears the tolerance, and the spectrum runs anyway -- so the answer stays right and only the wide and empty shape tests, which the shipped guard applies first, are skipped"
+
+  [[target.mutant]]
+  id = "non-finite-design-certified-instead-of-refused"
+  find = "    if not np.isfinite(frob_sq):\n        return False"
+  replace = "    if not np.isfinite(frob_sq):\n        return True"
+  models = "a design carrying nan or inf declared safe. The batched Gram solver then runs on it and returns weights that are nan without anything having refused the input"
+
+[[target]]
+name = "balance-key-structure"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_balance_key_structure.py mlsynth/tests/test_balance_properties.py mlsynth/tests/test_datautils.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cell-index-built-time-minor"
+  find = "            self._cell = self.time_codes.astype(np.int64) * self.n_units + self.unit_codes"
+  replace = "            self._cell = self.unit_codes.astype(np.int64) * self.n_periods + self.time_codes"
+  models = "the cell index laid out unit-major instead of unit-minor. The cells are still distinct so the duplicate check still passes, and on a square panel the scatter still lands somewhere plausible -- but every value goes to the transposed cell, so the wide frame is the transpose of the panel and each unit's series is read off as a period's cross-section"
+
+  [[target.mutant]]
+  id = "grid-guard-dropped"
+  find = "            elif self.grid <= 2 * self.n_rows:"
+  replace = "            elif True:"
+  models = "the bound that keeps the rejection path proportional to the data. Without it a panel of singleton units counts over a grid quadratic in the row count: 4000 rows asks for 16 million cells, 128 MB, to report that the panel is unbalanced"
+
+  [[target.mutant]]
+  id = "per-unit-counts-compared-against-the-unit-count"
+  find = "    if not bool((observations_per_unit == n_periods).all()):"
+  replace = "    if not bool((observations_per_unit == n_units).all()):"
+  models = "each unit's observed periods compared against the number of units instead of the number of periods. Every square panel still passes, so it is invisible on any fixture where units and periods happen to match"
+
+  [[target.mutant]]
+  id = "duplicate-panel-admitted-before-the-counts"
+  find = "    if keys.has_duplicate:\n        raise MlsynthDataError("
+  replace = "    if False:\n        raise MlsynthDataError("
+  models = "the duplicate check dropped, which also removes the precondition the counts below rely on. Counting a unit's rows only counts its distinct periods once duplicate pairs are ruled out, so a panel where one unit has the same period twice and is short another now passes both checks with the right total for the wrong reason"
+
+  [[target.mutant]]
+  id = "empty-panel-admitted"
+  find = "    if len(np.unique(observations_per_unit)) != 1:"
+  replace = "    if len(np.unique(observations_per_unit)) > 1:"
+  models = "the check that every unit carries the same count, weakened so that having no units at all satisfies it. An empty frame is then accepted where it used to be rejected, and the emptiness surfaces later as a shape error inside an estimator"
+
+[[target]]
+name = "missing-key-refusal"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_missing_key_rejection.py mlsynth/tests/test_balance_properties.py mlsynth/tests/test_datautils.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "ingestion-defers-a-missing-key-to-pandas-again"
+  find = "        if blank:\n            details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  replace = "        if False:\n            details = \", \".join(f\"{name}: {count}\" for name, count in blank.items())"
+  models = "the refusal reduced to the fallback it replaced. The pivot defers to df.pivot again, which keeps the blank as a level named nan, so a blank time adds a period and shifts pre_periods -- the silent estimand change #453 exists to stop. The validator still catches it, so only a caller reaching ingestion directly is exposed, which is 38 of the modules that do"
+
+  [[target.mutant]]
+  id = "only-the-unit-key-is-checked-at-ingestion"
+  find = "            for name, codes in ((unit_column, self.unit_codes),\n                                (time_column, self.time_codes))"
+  replace = "            for name, codes in ((unit_column, self.unit_codes),)"
+  models = "half the check. A missing unit is refused and a missing time is not, so the phantom donor is caught and the shifted pre_periods -- the one that moves the estimand -- goes through"
+
+  [[target.mutant]]
+  id = "validator-refuses-only-when-both-keys-are-blank"
+  find = "            if (codes < 0).any()\n        }\n        if blank:"
+  replace = "            if (codes < 0).any()\n        }\n        if len(blank) > 1:"
+  models = "a frame blank in one key column only is admitted. Both the validator and ingestion now read the same scan, so weakening it here removes the refusal from every path at once: a blank unit adds a donor column and a blank period adds a period, which moves pre_periods"
+
+[[target]]
+name = "missing-key-refusal-config"
+module-path = "mlsynth/config_models.py"
+test-command = "python -m pytest mlsynth/tests/test_missing_key_rejection.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "config-checks-the-outcome-instead-of-the-keys"
+  find = "            for column in (unitid, time)"
+  replace = "            for column in (unitid, outcome)"
+  models = "the config guarding the wrong columns: a blank outcome is refused, which the estimators that tolerate missing outcomes rely on being allowed, and a blank time period -- the one that moves pre_periods -- passes construction untouched"
+
+[[target]]
+name = "shared-key-scan"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_panel_key_scan.py mlsynth/tests/test_datautils.py mlsynth/tests/test_missing_key_rejection.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "supplied-scan-used-without-checking-whose-it-is"
+  find = "    if not keys.is_for(df, unit_column, time_column):"
+  replace = "    if False:"
+  models = "a scan taken from one panel applied to another. The codes index cells of the first panel, so the second panel's values scatter into positions derived from a frame they have nothing to do with -- and the result is a well-formed wide frame of the right shape holding the wrong numbers, which no shape or dtype check downstream can see"
+
+  [[target.mutant]]
+  id = "scan-identity-answered-by-shape"
+  find = "        return (df is self._frame\n                and unit_column == self.unit_column\n                and time_column == self.time_column)"
+  replace = "        return (len(df) == self.n_rows\n                and unit_column == self.unit_column\n                and time_column == self.time_column)"
+  models = "identity weakened to a row count. Two panels of the same length with different unit orderings then share a scan, so the values land in each other's cells while every count still agrees"
+
+  [[target.mutant]]
+  id = "dataprep-rescans-per-pivot-again"
+  find = "    keys = _keys_for(df, unit_id_column_name, time_period_column_name, keys)\n\n    # Pivot the treatment indicator"
+  replace = "    keys = None\n\n    # Pivot the treatment indicator"
+  models = "the scan discarded at the top of dataprep, so each pivot takes its own again. Every number is still right -- this is the state the fix left -- and only a count of the passes over the panel can see it"
+
+  [[target.mutant]]
+  id = "cohort-branch-rebuilds-the-treatment-pivot"
+  find = "        treatment_matrix_wide_multi = treatment_matrix_wide"
+  replace = "        treatment_matrix_wide_multi = _wide_pivot(df, index=time_period_column_name, columns=unit_id_column_name, values=treatment_indicator_column_name, keys=keys)"
+  models = "the cohort branch building the treatment pivot a second time. The frames are equal, so no cohort onset moves and no output changes; the only visible difference is a third pivot of a panel that was already pivoted"
+
+  [[target.mutant]]
+  id = "axis-sorts-recomputed-per-pivot"
+  find = "    su = keys.unit_order                  # match pivot's sorted axes\n    st = keys.time_order"
+  replace = "    su = np.argsort(np.asarray(u_uniq), kind=\"stable\")\n    st = np.argsort(np.asarray(t_uniq), kind=\"stable\")"
+  models = "the axis sorts taken again on every pivot instead of once per panel. The permutations are identical, so the frames are identical, and the cost returns without any output moving"
+
+  [[target.mutant]]
+  id = "cached-scan-recomputed-on-every-read"
+  find = "        if self._cell is None:"
+  replace = "        if True:"
+  models = "the cell index rebuilt on every access instead of once. The value is the same each time, so the panel still reads correctly and the duplicate check still agrees -- it is the caching, not the arithmetic, that the shared scan is for"
+
+  [[target.mutant]]
+  id = "covariate-pivots-rescan-the-panel"
+  find = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov,\n                            keys=keys)"
+  replace = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov)"
+  models = "one scan per covariate instead of one for the panel. A ten-covariate panel is scanned eleven times, and every covariate matrix is correct, so nothing but a pass count reports it"
+
+[[target]]
+name = "batch-support-seed"
+module-path = "mlsynth/utils/bilevel/accelerate.py"
+test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "batch-projection-takes-the-first-threshold-not-the-last"
+  find = "    rho = J - 1 - np.argmax(cond[:, ::-1], axis=1)"
+  replace = "    rho = np.argmax(cond, axis=1)"
+  models = "the projection reading the first index where the threshold condition holds instead of the last. Index zero always satisfies it, so every row projects onto its own largest coordinate: the seed becomes a vertex, which is feasible, is what the cold start already was, and names a support of one"
+
+  [[target.mutant]]
+  id = "batch-seed-support-counter-never-arms"
+  find = "            armed = bool((current.sum(axis=1) < J).all())"
+  replace = "            armed = True"
+  models = "the counter armed on the uniform plateau every row starts from, where all J coordinates are positive. The stop then fires on the first sample and hands back the whole pool as the support -- the uniform start renamed, which leaves the exact solver its full cold iteration count"
+
+  [[target.mutant]]
+  id = "degenerate-problems-take-a-step-anyway"
+  find = "    usable = np.isfinite(L) & (L > 0.0)"
+  replace = "    usable = np.isfinite(L)"
+  models = "a zero Gram, whose objective is flat and whose Lipschitz constant is zero, divided through by its own zero step size. The seed comes back non-finite for that row, and a non-finite warm start is discarded, so the row silently loses its seed rather than keeping the feasible uniform point"
+
+  [[target.mutant]]
+  id = "lipschitz-estimate-not-inflated"
+  find = "    return np.where(lam > 0.0, lam * 1.1, 0.0)"
+  replace = "    return np.where(lam > 0.0, lam, 0.0)"
+  models = "the ten percent margin removed from a bound that power iteration approaches from below, so the step is too long and FISTA oscillates. The answer is unaffected -- the projection keeps every iterate feasible and the exact solver certifies whatever it is handed -- and only the seed's quality, and so the pivot count, degrades"
+
+  [[target.mutant]]
+  id = "batch-patience-counts-total-instead-of-consecutive-holds"
+  find = "            armed = bool((current.sum(axis=1) < J).all())\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else 0"
+  replace = "            armed = bool((current.sum(axis=1) < J).all())\n            held = held + 1 if (armed and support is not None\n                                and np.array_equal(current, support)) else held"
+  models = "the batch counter never resetting, so a support that flickers in any row still accumulates holds and the seed returns while rows are still moving. Those rows are seeded with the wrong support and the exact solver pays to fix each one"
+
+  [[target.mutant]]
+  id = "batch-stop-fires-when-any-row-settles"
+  find = "            armed = bool((current.sum(axis=1) < J).all())"
+  replace = "            armed = bool((current.sum(axis=1) < J).any())"
+  models = "the stop read across the batch with any instead of all, so one row pinning a coordinate arms the counter for every row. A batch is paced by its hardest member -- which is also true of the solve it seeds -- and this stops it at its easiest"
+
+[[target]]
+name = "batch-seed-gate"
+module-path = "mlsynth/utils/bilevel/minnorm.py"
+test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_simplex_minnorm.py mlsynth/tests/test_bilevel_simplex_batch.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "narrow-pools-are-seeded-too"
+  find = "    if warm_start is None and accelerate and J >= BATCH_ACCEL_MIN_DONORS:"
+  replace = "    if warm_start is None and accelerate:"
+  models = "the gate dropped, so a ten-donor batch pays for a first-order pass to name a support the cold start reaches in eleven cheap iterations. Every answer is unchanged; the measured cost is 0.45x to 0.74x, and only a count of who was seeded can see it"
+
+  [[target.mutant]]
+  id = "caller-warm-start-overridden-by-the-seed"
+  find = "    if warm_start is None and accelerate and J >= BATCH_ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start_batch(G)"
+  replace = "    if accelerate and J >= BATCH_ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start_batch(G)"
+  models = "the accelerator overwriting a seed the caller supplied. The placebo chain hands on the previous draw's certified solution, which is strictly better information than a cold first-order pass, and both the chain's benefit and the pass's cost are invisible in the answer"
+
+
+[[target]]
+name = "nsc-penalty-scaling"
+module-path = "mlsynth/utils/nsc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_nsc_penalty_scaling.py mlsynth/tests/test_nsc.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "b-indexes-the-unstacked-gram"
+  find = "    vals = 2.0 * np.linalg.eigvalsh(M)"
+  replace = "    vals = np.linalg.eigvalsh(M)"
+  models = "the defect this target exists for, restored: the spectrum of Z0 Z0' where the reference indexes the stacked Z* Z*', whose non-zero eigenvalues are twice as large. Every b is halved and, through b, every a, so the paper's tuning parameters buy half the penalty they name -- on Prop 99 an ATT of -19.13 against -20.59, which the previous tolerances were wide enough to admit"
+
+  [[target.mutant]]
+  id = "a-indexes-a-spectrum-of-length-J"
+  find = "    vals = np.concatenate([nonzero + ridge,\n                           np.full(2 * J - nonzero.size, ridge)])"
+  replace = "    vals = np.concatenate([nonzero + ridge,\n                           np.full(J - nonzero.size, ridge)])"
+  models = "the ridge counted once per donor instead of once per stacked variable. The spectrum is then J long where the reference's is 2J, so ceil(a* n) selects a different element -- identical on a low-rank design, where both land on the ridge value, and wrong once the rank approaches J. This is the half of the fault that a blanket doubling would not have caught"
+
+  [[target.mutant]]
+  id = "eigenvalue-filter-loosened-to-machine-zero"
+  find = "_EIG_TOL = 1e-7"
+  replace = "_EIG_TOL = 1e-12"
+  models = "the threshold that decides how many eigenvalues are indexed, moved off the reference's. At b = 0 the ridge is 1e-8, which the reference filters out and this keeps, so the a spectrum grows from rank(Z0) entries to 2J and the selected element changes"
+
+  [[target.mutant]]
+  id = "reference-ridge-dropped-from-the-a-spectrum"
+  find = "    ridge = float(b_raw) + 1e-8"
+  replace = "    ridge = float(b_raw)"
+  models = "the reference's positive-definiteness nudge removed. At b = 0 the ridge entries become exactly zero instead of 1e-8, which changes nothing downstream because both are filtered -- but at any b it shifts every entry of the spectrum a and b are read from"
+
+  [[target.mutant]]
+  id = "scaling-index-off-by-one"
+  find = "    idx = int(np.ceil(vals.size * float(a_star))) - 1"
+  replace = "    idx = int(np.ceil(vals.size * float(a_star)))"
+  models = "R's one-based sort() index used directly on a zero-based array, so every a takes the next eigenvalue up. At a* = 1 it clamps and is invisible; below that it silently over-penalises"
+
+[[target]]
+name = "ppscm-replicate-conventions"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_replicate_conventions.py -q -p no:cacheprovider"
+timeout = 2400.0
+
+  [[target.mutant]]
+  id = "the-jackknife-refits-augsynths-estimator"
+  find = "                nu=nu_refit, lam=lam, solver=solver, conventions=conventions,"
+  replace = "                nu=nu_refit, lam=lam, solver=solver,"
+  models = "#467 itself: the refit falling back to run_multisynth's defaults while the point estimate runs under the caller's. With scm weights every replicate succeeds, so the standard error is finite and plausible and belongs to a different estimator -- measured at 0.5467 and 0.5464 for two donor pools that must disagree"
+
+  [[target.mutant]]
+  id = "the-conformal-calibration-refits-augsynths-estimator"
+  find = "                lam=lam, solver=solver, conventions=conventions,"
+  replace = "                lam=lam, solver=solver,"
+  models = "the same omission at the rolling-origin calibration. Conformal scores are out-of-sample errors of the fit being calibrated; drawn from a different estimator they are errors of something else, and the band they build covers at a level nobody can state"
+
+  [[target.mutant]]
+  id = "a-nan-pooling-level-is-handed-to-the-refits"
+  find = "    nu_refit = float(nu_used) if np.isfinite(nu_used) else None"
+  replace = "    nu_refit = float(nu_used)"
+  models = "the uniform fit's NaN nu passed on to every replicate. Uniform weights pose no program and record nu_used = NaN; forwarding it means each refit is rejected, and before the finiteness guard existed it reached the CVXPY objective and raised DCPError fifty times"
+
+  [[target.mutant]]
+  id = "a-jackknife-with-nothing-left-returns-nan"
+  find = "    usable = int(np.isfinite(att_loo).sum())\n    if usable < 2:"
+  replace = "    usable = int(np.isfinite(att_loo).sum())\n    if usable < 0:"
+  models = "the post-condition removed, so a jackknife whose every refit raised returns NaN and the estimator reports standard_error=None. This is the fault that hid #467 through a whole review: the wrong estimator was being refit, and the only symptom was a missing number that read as a degenerate panel"
+
+[[target]]
+name = "ppscm-conventions-object"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_replicate_conventions.py mlsynth/tests/test_ppscm.py -q -p no:cacheprovider"
+timeout = 2400.0
+
+  [[target.mutant]]
+  id = "the-default-conventions-are-not-augsynths"
+  find = "    donor_weights: str = \"scm\"\n    base_period: str = \"all_pre\"\n    donor_pool: str = \"window\""
+  replace = "    donor_weights: str = \"scm\"\n    base_period: str = \"pre_treatment\"\n    donor_pool: str = \"window\""
+  models = "the default baseline moved off augsynth's. Every fit that names no convention changes estimator, which is the whole PPSCM port and its multisynth replication, and the event-study shape does not move -- only each cohort's level does"
+
+  [[target.mutant]]
+  id = "a-non-finite-pooling-level-reaches-the-objective"
+  find = "    if nu is not None and not np.isfinite(nu):"
+  replace = "    if nu is not None and not np.isfinite(nu) and False:"
+  models = "the finiteness guard removed, so NaN multiplies the pooled term and CVXPY reports a non-DCP objective instead of the library naming the input. The solver's message does not mention nu, which is why the original failure was read as a solver problem"
+[[target]]
+name = "cs-influence-function"
+module-path = "mlsynth/utils/ppscm_helpers/cs_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_callaway_santanna.py mlsynth/tests/test_ppscm_cs_reference.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "weight-influence-term-dropped"
+  find = "        psi += ((indicator - pg[keep][None, :]) @ (a - theta[h])) / (S * n)"
+  replace = "        psi += 0.0 * ((indicator - pg[keep][None, :]) @ (a - theta[h]))"
+  models = "the cohort shares treated as known when they are estimated from the same panel. The standard error that comes back is finite, is smaller than the truth, and is smaller by an amount nothing in the point estimate reveals -- which is why did::aggte carries the term and why the vendored reference computes it twice, once with and once without"
+
+  [[target.mutant]]
+  id = "weight-influence-term-not-centred-on-its-own-horizon"
+  find = "        psi += ((indicator - pg[keep][None, :]) @ (a - theta[h])) / (S * n)"
+  replace = "        psi += ((indicator - pg[keep][None, :]) @ a) / (S * n)"
+  models = "the delta-method derivative losing its centring. d(theta_h)/d(pg_j) is (ATT_jh - theta_h)/S_h, and dropping theta_h leaves a term that does not vanish when every cohort has the same effect -- the one case where the shares cannot matter"
+
+  [[target.mutant]]
+  id = "cohorts-weighted-equally-instead-of-by-size"
+  find = "        w = pg[keep] / S"
+  replace = "        w = np.full(keep.size, 1.0 / keep.size)"
+  models = "Callaway-Sant'Anna's simple aggregation substituted for their dynamic one. The two coincide exactly when every cohort is the same size, which is every hand-written panel in the identity suite, so this is invisible until a cohort split is deliberately unbalanced"
+
+  [[target.mutant]]
+  id = "group-share-taken-among-the-treated-only"
+  find = "    pg = n1 / float(n)"
+  replace = "    pg = n1 / n1.sum()"
+  models = "the cohort share measured against the treated instead of the panel. The aggregation weights are a ratio of shares and do not move, so the point estimate is untouched; only the weight-influence term's scale changes, and it changes by the square of the treated fraction"
+
+  [[target.mutant]]
+  id = "comparison-group-enters-with-the-treated-sign"
+  find = "            -(d_co - mu_c) / don.size)"
+  replace = "            (d_co - mu_c) / don.size)"
+  models = "the comparison group's influence contributions flipped, which turns each cell from a difference in differences into a sum. Nothing numeric can see it: a per-cell standard error is a sum of squares; the treated and control blocks sit on disjoint units; each cell's control influence sums to zero; and the weight-influence term is one constant across never-treated units, so the aggregate changes by 4c * sum_i A_i = 0. Measured, the influence matrix moves by 1.36e-01 and every reported number is bit-identical. It is caught only by asserting the sign convention on the exposed influence array, which is public and documented as what a caller re-aggregates"
+
+  [[target.mutant]]
+  id = "comparison-group-contributes-no-variance"
+  find = "            se_cell[k, h] = float(np.sqrt((inf_t ** 2).sum() + (inf_c ** 2).sum()))"
+  replace = "            se_cell[k, h] = float(np.sqrt((inf_t ** 2).sum()))"
+  models = "the never-treated group's sampling error omitted from the cell, as if the comparison mean were a known constant. With many controls and few treated the term is small, which is what makes it easy to leave out and hard to see"
+
+  [[target.mutant]]
+  id = "horizons-summed-instead-of-averaged"
+  find = "    psi_agg = np.nanmean(influence[:, finite], axis=1)"
+  replace = "    psi_agg = np.nansum(influence[:, finite], axis=1)"
+  models = "the aggregate influence function summed over event time while the point estimate averages. The standard error is then H times too large and the interval covers at a level nobody asked for -- conservative, so no coverage test would complain"
+
+  [[target.mutant]]
+  id = "simultaneous-critical-value-taken-on-the-raw-scale"
+  find = "            scaled = np.abs(draws[:, finite]) / per_time_se[finite][None, :]"
+  replace = "            scaled = np.abs(draws[:, finite])"
+  models = "the sup taken over unstandardised draws, so the horizon with the largest standard error sets the critical value for all of them. The multiplier is then in outcome units and the band it builds is not simultaneous at the stated level for any horizon but that one"
+
+  [[target.mutant]]
+  id = "simultaneous-band-uses-the-lower-tail"
+  find = "            critical_value = float(np.quantile(np.max(scaled, axis=1), 1.0 - alpha))"
+  replace = "            critical_value = float(np.quantile(np.max(scaled, axis=1), alpha))"
+  models = "the critical value read off the wrong tail. A uniform band narrower than the pointwise one is incoherent, and the only thing that says so is a test that compares the two widths"
+
+  [[target.mutant]]
+  id = "multiplier-law-loses-its-moments"
+  find = "_PROB = (np.sqrt(5.0) + 1.0) / (2.0 * np.sqrt(5.0))"
+  replace = "_PROB = 0.5"
+  models = "Mammen's two probabilities replaced by a coin flip, keeping his two values. The law's mean goes to 0.5 and its variance to 1.25, and neither is visible downstream: the influence function sums to zero across units, so a non-zero multiplier mean contributes nothing, and the variance error only inflates the simultaneous critical value by about twelve percent -- a band that is wider than the pointwise one either way. Only the moments themselves catch it"
+
+[[target]]
+name = "cs-ridge-limit"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_cs_ridge_limit.py mlsynth/tests/test_ppscm_callaway_santanna.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "uniform-weights-are-not-uniform"
+  find = "            Wg[donors[g]] = 1.0 / len(donors[g])"
+  replace = "            Wg[donors[g]] = 1.0 / len(donors[g]); Wg[donors[g][0]] *= 1.001"
+  models = "the closed-form limit missing the barycenter by a tenth of a percent on one donor. The estimate stays plausible and the weights still sum to one, so only a comparison against the Callaway-Sant'Anna target at machine precision separates the limit from something near it -- which is the whole claim the ridge path is making"
+
+  [[target.mutant]]
+  id = "the-limit-is-taken-over-the-wrong-donor-set"
+  find = "        Wg = np.zeros(n)\n        if len(donors[g]):\n            Wg[donors[g]] = 1.0 / len(donors[g])"
+  replace = "        Wg = np.zeros(n)\n        if len(donors[g]):\n            Wg[donors[g]] = 1.0 / n"
+  models = "the barycenter computed over every unit instead of the admissible donors, so the weights no longer sum to one. The donor pool is the one convention no lam reconciles, and normalising over the wrong set is how that distinction gets lost"
+
+[[target]]
+name = "ppscm-balance-shape"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_balance_shape.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "balance-periods-taken-from-the-widest-cohort"
+  find = "    periods = min(min(int(adopt_of[g]) for g in groups), int(n_lags))"
+  replace = "    periods = min(max(int(adopt_of[g]) for g in groups), int(n_lags))"
+  models = "the constraint count read off the cohort with the most history instead of the least. The binding cohort is the one that can interpolate freely, so taking the maximum reports a program better constrained than any of its parts and clears the flag exactly where it should fire"
+
+  [[target.mutant]]
+  id = "donor-pool-measured-at-its-narrowest"
+  find = "    widest = max(int(len(donors[g])) for g in groups)"
+  replace = "    widest = min(int(len(donors[g])) for g in groups)"
+  models = "the pool measured at its narrowest, so one late cohort with few admissible donors masks an early one with hundreds. Whether the program could interpolate is decided by the widest pool any cohort was given, not the tightest"
+
+[[target]]
+name = "weights-container-contract"
+module-path = "mlsynth/config_models.py"
+test-command = "python -m pytest mlsynth/tests/test_weights_container.py mlsynth/tests/test_result_contract.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "emptiness-tested-by-truthiness"
+  find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
+  replace = "        return not any((self.donor_weights, self.time_weights,\n                        self.weights_at)) and self.unit_weights is None"
+  models = "an empty face read as silence. Six factor-model estimators report donor_weights={} to mean 'checked, this method has none', and truthiness collapses that into the same state as never having said anything -- failing the estimators that are already correct while leaving the ones the contract is aimed at untouched"
+
+  [[target.mutant]]
+  id = "prose-counted-as-a-location"
+  find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
+  replace = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None\n                and self.summary_stats is None)"
+  models = "summary_stats accepted in place of a face or a pointer. It carries a constraint label in prose no caller can resolve to an attribute, so counting it lets an estimator hold real weights, say nothing machine-readable about where, and pass -- which is the exact state #475 was filed about"
+
+[[target]]
+name = "iterative-waterfall-branch"
+module-path = "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_iterative_replace_pre.py mlsynth/tests/test_spillsynth_iterative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "waterfall-always-replaces-the-whole-series"
+  find = """        Y[i, T0:] = cf[T0:]
+        if replace_pre:                               # replacePreTreatData=TRUE"""
+  replace = """        Y[i, :] = cf
+        if replace_pre:                               # replacePreTreatData=TRUE"""
+  models = "Melnychuk's replacePreTreatData pinned to TRUE regardless of the setting. This is the branch the reference's own call sites run, so it is not an implausible reading -- which is why it went unnoticed: before the switch existed the whole spillsynth suite (252 tests) stayed green under it, while on German reunification it moves Austria's weight from 0.46 to 0.00 and the ATT by ~320 USD"
+
+  [[target.mutant]]
+  id = "waterfall-never-replaces-the-pre-period"
+  find = """        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])
+            Y[i, :T0] = cf[:T0]"""
+  replace = """        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])"""
+  models = "the switch recorded but not applied -- the cleaned pre-period is reported on the fit object while the donor matrix keeps the observed one, so the setting reads as honoured and the estimate is the other branch's"
+
+  [[target.mutant]]
+  id = "naive-pre-fit-taken-from-the-cleaned-panel"
+  find = "        naive_synthetic_pre=np.asarray(cf_naive[:T0]),"
+  replace = "        naive_synthetic_pre=np.asarray(cf_f[:T0]),"
+  models = "the naive pre-period fit read off the cleaned panel instead of the original outcomes. The two coincide exactly when replace_pre is False, so the defect is invisible in the default configuration and silently asserts that the refit changed nothing whenever it did"
+
+  [[target.mutant]]
+  id = "uncleanable-donor-passed-off-as-cleaned"
+  find = """    if affected and not clean:
+        raise MlsynthDataError("""
+  replace = """    if False:
+        raise MlsynthDataError("""
+  models = "the identification requirement dropped, so a panel with no clean control reaches the waterfall. The shape this used to take was the worst one: the first donor was skipped, appended to the cleaned list anyway, and the next donor fit against its contaminated outcomes, which returned a finite and plausible -6.93 against a true -3.0 on a three-unit panel while cleaned_units named both donors and only the one-entry spillover ledger disagreed"
 
 [[target]]
 name = "lexsearch"

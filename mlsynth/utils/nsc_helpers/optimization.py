@@ -43,8 +43,38 @@ from ...exceptions import MlsynthEstimationError
 # Eigenvalue-based (a, b) scaling
 # ---------------------------------------------------------------------------
 
+# NSC.R filters both spectra at this level before indexing them, so the same
+# threshold decides how many eigenvalues ``a`` and ``b`` are chosen from.
+_EIG_TOL = 1e-7
+
+
 def design_eigenvalues(Z0: np.ndarray) -> np.ndarray:
-    """Return ascending non-zero eigenvalues of ``Z_0 Z_0'``.
+    """Ascending non-zero eigenvalues of the *stacked* donor Gram.
+
+    The matrix is the one the reference program is posed on. ``NSC.R`` writes
+    the L1 term by splitting each weight into a non-negative pair, which stacks
+    the design as ``Z* = [Z_0; -Z_0]`` and makes the quadratic form
+    ``Z* Z*'`` -- a ``(2J, 2J)`` matrix -- and it is that spectrum the
+    dimensionless ``b`` indexes.
+
+    It is not built here. Writing ``A = Z_0 Z_0'``,
+
+    .. math::
+
+       Z^* Z^{*\prime} = \begin{pmatrix} A & -A \\ -A & A \end{pmatrix}
+                        = \begin{pmatrix} 1 & -1 \\ -1 & 1 \end{pmatrix}
+                          \otimes A,
+
+    and the left factor has eigenvalues ``{0, 2}``, so the Kronecker product's
+    spectrum is ``{0}`` together with ``{2 lambda_i(A)}``. The non-zero part is
+    therefore twice the non-zero spectrum of ``A``, available from one ``(J, J)``
+    decomposition instead of a ``(2J, 2J)`` one. Equality with the literal
+    construction is asserted in ``test_nsc_penalty_scaling``.
+
+    Taking the spectrum of ``A`` itself -- which the auxiliary-variable encoding
+    of the same L1 term suggests, since it never forms ``Z*`` -- halves every
+    ``b``, and through ``b`` every ``a``, so the paper's tuning parameters buy
+    half the penalty they name (#463).
 
     Parameters
     ----------
@@ -55,8 +85,8 @@ def design_eigenvalues(Z0: np.ndarray) -> np.ndarray:
         return np.asarray([], dtype=float)
     M = Z0 @ Z0.T
     M = 0.5 * (M + M.T)
-    vals = np.linalg.eigvalsh(M)
-    vals = vals[vals > 1e-12]
+    vals = 2.0 * np.linalg.eigvalsh(M)
+    vals = vals[vals > _EIG_TOL]
     return np.sort(vals)
 
 
@@ -83,23 +113,44 @@ def scale_b(b_star: float, eigvals: np.ndarray) -> float:
 def scale_a(a_star: float, Z0: np.ndarray, b_raw: float) -> float:
     """Eigenvalue-scaled L1-discrepancy multiplier.
 
-    Uses the eigenvalues of ``Z_0 Z_0' + b * I`` (where ``b`` is the
-    *already-scaled* raw L2 multiplier) so the L1 anchor maxes out at
-    the nearest-neighbour solution when ``a_star = 1`` regardless of
-    the L2 penalty.
+    Indexes the spectrum of the ridged stacked Gram ``Z* Z*' + b I`` -- the
+    matrix ``NSC.R`` forms once ``b`` is fixed -- so the L1 anchor maxes out at
+    the nearest-neighbour solution when ``a_star = 1`` whatever the L2 penalty.
+
+    Adding ``b`` to the diagonal makes it full rank, so the spectrum has ``2J``
+    entries and not ``rank(Z_0)`` of them: the ``2J - rank`` zero eigenvalues of
+    ``Z* Z*'`` become ``b``, and the rest become ``2 lambda_i + b``. That
+    multiplicity is why the error this corrects was not a constant. Indexing the
+    ``(J, J)`` spectrum instead leaves ``J - rank`` copies of ``b`` where there
+    should be ``2J - rank``, so ``ceil(a^* n)`` lands on the ridge value in both
+    when the rank is low -- and on structurally different elements once the rank
+    approaches ``J``, where the multipliers differ by 1.36 to 1.63 and not by
+    two (#463).
+
+    The tiny ``1e-8`` is the reference's, added so the quadratic form is
+    positive definite for its solver; it is kept so the filtering threshold
+    below decides the same way.
     """
     if a_star <= 0.0:
         return 0.0
-    M = Z0 @ Z0.T + float(b_raw) * np.eye(Z0.shape[0])
+    J = Z0.shape[0]
+    if J == 0:
+        return 0.0
+    M = Z0 @ Z0.T
     M = 0.5 * (M + M.T)
-    vals = np.linalg.eigvalsh(M)
-    vals = vals[vals > 1e-12]
+    lam = 2.0 * np.linalg.eigvalsh(M)
+    ridge = float(b_raw) + 1e-8
+    nonzero = lam[lam > _EIG_TOL]
+    # The (2J, 2J) ridged spectrum, assembled from the (J, J) one: the stacked
+    # Gram's non-zero eigenvalues shifted, and one copy of the ridge for each of
+    # its 2J - rank zeros.
+    vals = np.concatenate([nonzero + ridge,
+                           np.full(2 * J - nonzero.size, ridge)])
+    vals = np.sort(vals[vals > _EIG_TOL])
     if vals.size == 0:
         return 0.0
-    vals = np.sort(vals)
-    n = vals.size
-    idx = int(np.ceil(n * float(a_star))) - 1
-    idx = max(0, min(idx, n - 1))
+    idx = int(np.ceil(vals.size * float(a_star))) - 1
+    idx = max(0, min(idx, vals.size - 1))
     return float(a_star) * float(vals[idx])
 
 

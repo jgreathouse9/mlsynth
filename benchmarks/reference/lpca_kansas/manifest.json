@@ -1,0 +1,9 @@
+{
+  "case": "lpca_kansas",
+  "title": "Local PCA vs Feng's own R (2012 Kansas tax cut, Section 6.1)",
+  "paper": "Feng, Y. (2024), 'Optimal Estimation of Large-Dimensional Nonlinear Factor Models', arXiv:2311.07243 (working paper dated 31 July 2024)",
+  "reference_impl": "The author's replication scripts, yingjieum/Replication_NonlinearFactorModel_2023 @ ca34fba (Application/Feng_LPCA_app_suppfuns.R, run live)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/lpca_kansas/reference.R",
+  "data": ["basedata/kansas_taxcut.csv"]
+}

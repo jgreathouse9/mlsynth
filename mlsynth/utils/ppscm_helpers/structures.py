@@ -95,6 +95,36 @@ class PPSCMDesign:
     ind_l2: float
     scaled_global_l2: float
     scaled_ind_l2: float
+    #: The three conventions this fit ran under -- donor weighting, unit-effect
+    #: baseline and donor eligibility -- plus which inference produced the
+    #: interval. Together they decide whether the fit is augsynth's multisynth
+    #: or the Callaway-Sant'Anna estimator, which the numbers alone do not say.
+    conventions: Optional[Dict[str, Any]] = None
+    #: The shape of the balance problem the imbalances above came out of.
+    #: ``max_donors`` is the widest admissible donor pool across cohorts and
+    #: ``balance_periods`` the pre-periods actually balanced, capped by the
+    #: cohort with the least history since that cohort binds. Read them with
+    #: ``global_l2``: a residual near zero means a good fit when the program was
+    #: constrained and describes the geometry when it was not.
+    max_donors: Optional[int] = None
+    balance_periods: Optional[int] = None
+
+    @property
+    def underdetermined(self) -> Optional[bool]:
+        """Whether the balance system had more freedom than constraints.
+
+        Weights on the simplex carry ``max_donors - 1`` degrees of freedom
+        against ``balance_periods`` equations. When the first exceeds the
+        second, exact balance is generically attainable and a near-zero
+        ``global_l2`` says nothing about how well the donors track the treated
+        units. It is a statement about the program's shape and not a verdict on
+        the fit: the simplex is bounded, so a wide pool whose hull misses the
+        treated path still leaves a large residual, and that residual is
+        informative.
+        """
+        if self.max_donors is None or self.balance_periods is None:
+            return None
+        return (self.max_donors - 1) > self.balance_periods
 
     @property
     def pct_improve_global(self) -> float:
@@ -116,6 +146,33 @@ class PPSCMEventStudy:
 
 
 @dataclass(frozen=True)
+class PPSCMCumulativeBand:
+    """Simultaneous band for the cumulative (running-total) effect path.
+
+    ``lower[L]`` and ``upper[L]`` bound the total effect over horizons ``0..L``,
+    and the band covers *every* ``L`` at once with probability ``1 - alpha`` --
+    so a statement about the path ("positive by week six and never back") is
+    covered at the stated level, which a pointwise band read the same way is not.
+
+    ``se`` is the standard error of the running total at each horizon, taken
+    from the replicate paths themselves. That is what makes the band's growth
+    an observation instead of an assumption: independent period errors grow it
+    like ``sqrt(L)``, perfectly correlated ones like ``L``, and the replicates
+    carry whichever is true.
+    """
+
+    horizons: np.ndarray          # 1, 2, ..., H
+    point: np.ndarray             # cumulative effect at each horizon
+    lower: np.ndarray
+    upper: np.ndarray
+    se: np.ndarray
+    critical_value: float         # the shared sup-t multiplier
+    alpha: float
+    n_replicates: int
+    method: str                   # "jackknife" or "bootstrap"
+
+
+@dataclass(frozen=True)
 class PPSCMInference:
     """Overall (post-period average) ATT and its inference."""
 
@@ -123,6 +180,39 @@ class PPSCMInference:
     se: float
     ci: Tuple[float, float]
     method: str
+    # The per-horizon replicate paths behind ``se`` -- ``(n_replicates, H)``,
+    # one row per leave-one-out refit or bootstrap draw. Kept because collapsing
+    # them to a per-horizon standard error discards how the horizons move
+    # together, which is the only thing a cumulative band needs; a caller who
+    # wants one would otherwise have to refit everything a second time to
+    # recover what this pass already computed. ``None`` when inference is off.
+    replicate_paths: Optional[np.ndarray] = None
+    # Simultaneous band for the running total; ``None`` unless asked for.
+    cumulative: Optional["PPSCMCumulativeBand"] = None
+    # ---- Callaway-Sant'Anna influence-function inference ------------------ #
+    # Populated only by ``method="influence_function"``; ``None`` for the
+    # jackknife and the bootstrap, which produce no per-cell quantities.
+    #
+    # ``ATT(g, t)`` and its standard error, keyed by the public
+    # ``(adoption time, time)`` labels. The aggregate is a weighted mean of
+    # these cells, so a reader who disagrees with the aggregation can rebuild it.
+    group_time_att: Optional[Dict[Tuple[Any, Any], float]] = None
+    group_time_se: Optional[Dict[Tuple[Any, Any], float]] = None
+    # Two bands on the same event-time path, ``(H, 2)`` each. ``pointwise_band``
+    # covers one horizon at the stated level; ``uniform_band`` covers all of
+    # them at once and is therefore never narrower. Reading a path -- "positive
+    # by horizon three and never back" -- is a statement about every horizon, so
+    # the pair is placed together to make the difference visible.
+    # ``uniform_band`` is ``None`` unless ``cband`` asked for it.
+    pointwise_band: Optional[np.ndarray] = None
+    uniform_band: Optional[np.ndarray] = None
+    # The multiplier behind ``uniform_band``; the normal quantile when none was
+    # tabulated.
+    critical_value: Optional[float] = None
+    # Per-unit, per-horizon influence functions, ``(n, H)`` -- the object every
+    # quantity above is a functional of, kept so an aggregation the estimator
+    # does not offer can still be given a standard error.
+    influence: Optional[np.ndarray] = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +281,14 @@ class PPSCMUnitFit:
     # inference is off. See ``per_unit_intervals`` in ``inference.py``.
     tau_lower: Optional[np.ndarray] = None
     tau_upper: Optional[np.ndarray] = None
+    # Conformal band on this unit's CUMULATIVE effect over ``conformal_horizon``
+    # periods -- the total it gained, calibrated on out-of-sample windows of the
+    # same length. None unless ``conformal_horizon`` is set. See
+    # ``cumulative_conformal_per_unit`` in ``inference.py``.
+    cumulative_effect: Optional[float] = None
+    cumulative_lower: Optional[float] = None
+    cumulative_upper: Optional[float] = None
+    cumulative_windows: Optional[int] = None
 
 
 class PPSCMResults(_BaseEstimatorResults):
@@ -236,12 +334,23 @@ class PPSCMResults(_BaseEstimatorResults):
             observed_outcome=tau, counterfactual_outcome=_np.zeros_like(tau),
             estimated_gap=tau, time_periods=_np.asarray(es.horizons),
             intervention_time=0))
-        set_("weights", _WeightsResults(summary_stats={
-            "constraint": "partially-pooled SC donor weights (per cohort)"}))
+        set_("weights", _WeightsResults(
+            weights_at=["donor_weights_by_cohort", "per_unit"],
+            summary_stats={
+                "constraint": "partially-pooled SC donor weights (per cohort)"}))
         set_("inference", _InferenceResults(
             method=inf.method, standard_error=se,
             ci_lower=(ci_lo if finite_ci else None),
             ci_upper=(ci_hi if finite_ci else None), details=inf))
         set_("fit_diagnostics", _FitDiagnosticsResults())
-        set_("method_details", _MethodDetailsResults(method_name="PPSCM"))
+        # The conventions this fit ran under go in the standardized
+        # ``parameters_used``, not as bespoke fields: which donor weighting,
+        # baseline and donor pool were used is what decides whether this fit is
+        # augsynth's multisynth or the Callaway-Sant'Anna estimator, and a
+        # reader of the result should not have to consult the config to find
+        # out. ``inference_method`` is here for the same reason -- an equal
+        # point estimate does not make an equal interval.
+        set_("method_details", _MethodDetailsResults(
+            method_name="PPSCM",
+            parameters_used=dict(self.design.conventions or {})))
         return self

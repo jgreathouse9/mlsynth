@@ -160,7 +160,7 @@ def _covariate_means(
     else:
         rows = []
         for cov, years in zip(covariates, year_sets):
-            g = df[df[time].isin(years)].groupby(unitid)[cov].mean()
+            g = df[df[time].isin(years)].groupby(unitid, observed=True)[cov].mean()
             rows.append([float(g.get(u, np.nan)) for u in units])
         X = np.asarray(rows, dtype=float)
 
@@ -432,15 +432,38 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Conformal test-inversion prediction intervals (Chernozhukov, Wuthrich &
     # Zhu 2021; augsynth's default ASCM inference). Reuses the fitted ridge
     # penalty across refits, matching augsynth.
+    #
+    # The refit rule follows the estimator, and must: the refit is the only
+    # place the test touches the fit, and an augmented refit -- unconstrained by
+    # construction -- can re-level a large post-period effect away, spreading it
+    # over the pre-period residuals that form the reference distribution. Both
+    # halves of the test then scale together and the p-value stalls. Against
+    # ``scinference`` on the Swedish carbon tax panel that ceiling is visible
+    # directly: an augmented refit gives 0.348 for an injected effect of 5 or of
+    # 100, where the simplex refit gives the authors' 1 / T = 0.0217 for both.
     if mode == "conformal" and gap[pre:].size:
         from ..bilevel import conformal_intervals
-        Z0 = X0.T if X0 is not None else None
-        z1 = X1 if X1 is not None else None
+        refit = "ridge" if config.augment == "ridge" else "sc"
+        if refit == "sc" and covariates:
+            raise MlsynthConfigError(
+                "inference='conformal' with covariates needs augment='ridge': "
+                "the null refit for a plain simplex SCM matches on outcomes "
+                "alone (as scinference's estimation_method='sc' does), so the "
+                f"covariates {list(covariates)} would not enter it. Set "
+                "augment='ridge' to match on them, or drop them."
+            )
+        Z0 = X0.T if X0 is not None and refit == "ridge" else None
+        z1 = X1 if X1 is not None and refit == "ridge" else None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             ci = conformal_intervals(
                 y, Y0, pre, lambda_=res.lambda_, Z0=Z0, z1=z1,
-                alpha=config.alpha, ns=config.scpi_sims, seed=config.seed,
+                alpha=config.alpha,
+                ns=int(config.conformal_n_perm or config.scpi_sims),
+                seed=config.seed, refit=refit,
+                conformal_type=config.conformal_type,
+                grid=config.conformal_grid,
+                finite_sample=config.conformal_finite_sample,
                 ridge_kwargs={"residualize": config.residualize},
             )
         # per-period counterfactual bands: gap tau in [lower, upper] => cf in
@@ -462,6 +485,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "counterfactual_upper": cf_upper,
                 "period_p_value": ci.p_value,
                 "joint_p_value": ci.joint_p_value,
+                "conformal_type": config.conformal_type,
+                "refit": refit,
+                "n_perm": int(config.conformal_n_perm or config.scpi_sims),
+                "finite_sample": config.conformal_finite_sample,
+                "grid": config.conformal_grid,
                 "lambda": res.lambda_,
             },
         )
@@ -615,31 +643,34 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2025).
     # The cross-fit refits the configured backend on each block-complement of
     # the pre-period; inferutils owns the blocking, rescale, and t_{K-1} CI.
+    # Refitting on a subset of the periods is how two modes recalibrate: the
+    # debiased t-test drops folds, the cumulative conformal band rolls an origin.
+    # One closure serves both so they cannot drift apart.
+    if oracle_w is not None:
+        # Oracle case: known weights, no per-fold refit (skip the solve).
+        def _refit_weight_fn(keep_idx):
+            return oracle_w
+    else:
+        def _refit_weight_fn(keep_idx):
+            keep_idx = np.asarray(keep_idx)
+            yk, Y0k = y[keep_idx], Y0[keep_idx]
+            X1k = X0k = None
+            if covariates:
+                kept_labels = list(time_labels[keep_idx])
+                Xk = _scale_unit_variance(_covariate_means(
+                    config.df, list(units.labels), covariates, windows,
+                    kept_labels, config.unitid, config.time))
+                X1k, X0k = Xk[:, 0], Xk[:, 1:]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
+                                donor_names=donor_names, predictor_names=pred_names)
+            return np.asarray(rk.W, dtype=float).ravel()
+
     if mode == "ttest" and gap[pre:].size:
         from scipy.stats import t as _tdist
 
         from mlsynth.utils.inferutils import debiased_sc_ttest, select_K
-
-        if oracle_w is not None:
-            # Oracle case: known weights, no per-fold refit (skip the solve).
-            def _ttest_weight_fn(keep_idx):
-                return oracle_w
-        else:
-            def _ttest_weight_fn(keep_idx):
-                keep_idx = np.asarray(keep_idx)
-                yk, Y0k = y[keep_idx], Y0[keep_idx]
-                X1k = X0k = None
-                if covariates:
-                    kept_labels = list(time_labels[keep_idx])
-                    Xk = _scale_unit_variance(_covariate_means(
-                        config.df, list(units.labels), covariates, windows,
-                        kept_labels, config.unitid, config.time))
-                    X1k, X0k = Xk[:, 0], Xk[:, 1:]
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
-                                    donor_names=donor_names, predictor_names=pred_names)
-                return np.asarray(rk.W, dtype=float).ravel()
 
         T1_post = int(len(y) - pre)
         if config.ttest_K == "auto":
@@ -648,7 +679,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             K_used, k_info = int(config.ttest_K), None
         tt = debiased_sc_ttest(
             y, Y0, T0=pre, T1=T1_post, K=K_used,
-            alpha=config.alpha, weight_fn=_ttest_weight_fn,
+            alpha=config.alpha, weight_fn=_refit_weight_fn,
         )
         p_val = float(2.0 * _tdist.sf(abs(tt["tstat"]), tt["dof"]))
         inference = InferenceResults(
@@ -664,6 +695,49 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "alpha": tt["alpha"],
                 "K_auto": config.ttest_K == "auto",
                 "rho_hat": (k_info["rho_hat"] if k_info else None),
+            },
+        )
+
+    # Cumulative-effect conformal band: the interval for the SUM of the effect
+    # over the horizon, calibrated on out-of-sample windows of the same length so
+    # the way period-to-period errors accumulate is measured, not assumed.
+    if mode == "conformal_cumulative" and gap[pre:].size:
+        from mlsynth.utils.conformal import cumulative_conformal_from_refit
+
+        T1_post = int(len(y) - pre)
+        horizon = int(config.conformal_horizon or T1_post)
+        band = cumulative_conformal_from_refit(
+            y, Y0, pre_periods=int(pre), horizon=horizon,
+            weight_fn=_refit_weight_fn, alpha=config.alpha,
+        )
+        if not np.isfinite(band.half_width):
+            warnings.warn(
+                "cumulative conformal band is uninformative (half-width=inf): "
+                f"{band.n_scores} non-overlapping calibration window(s) of length "
+                f"{horizon} fit in the pre-period, but finite-sample coverage at "
+                f"alpha={config.alpha} needs at least "
+                f"{int(np.ceil(1.0 / config.alpha)) - 1}. Shorten "
+                "conformal_horizon or extend the pre-period.",
+                UserWarning, stacklevel=2,
+            )
+        # Dividing the band by the horizon gives the per-period mean over the same
+        # window; that is the ATT only when the horizon spans the whole post-period,
+        # so a partial window reports the cumulative figure alone.
+        spans_post = horizon == T1_post
+        inference = InferenceResults(
+            ci_lower=(band.lower / horizon) if spans_post else None,
+            ci_upper=(band.upper / horizon) if spans_post else None,
+            confidence_level=1.0 - config.alpha,
+            method="split-conformal cumulative-effect band (rolling origin)",
+            details={
+                "cumulative_effect": band.point,
+                "cumulative_lower": band.lower,
+                "cumulative_upper": band.upper,
+                "conformal_q": band.half_width,
+                "n_calibration_windows": band.n_scores,
+                "horizon": horizon,
+                "spans_post_period": spans_post,
+                "alpha": band.alpha,
             },
         )
 

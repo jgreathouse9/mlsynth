@@ -28,9 +28,11 @@ from ..exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
-from ..utils.ppscm_helpers.engine import run_multisynth
+from ..utils.ppscm_helpers.cs_inference import influence_function_inference
+from ..utils.ppscm_helpers.engine import Conventions, run_multisynth
 from ..utils.ppscm_helpers.inference import (
-    jackknife_inference, bootstrap_inference, per_unit_intervals)
+    jackknife_inference, bootstrap_inference, per_unit_intervals,
+    cumulative_conformal_per_unit, cumulative_supt_band)
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -83,12 +85,20 @@ class PPSCM:
         self.n_lags = config.n_lags
         self.time_cohort: bool = config.time_cohort
         self.lam: float = config.lam
+        self.donor_weights: str = config.donor_weights
+        self.base_period: str = config.base_period
+        self.donor_pool: str = config.donor_pool
+        self.method: Any = config.method
+        self.cband: bool = config.cband
         self.solver: Any = config.solver
         self.run_inference: bool = config.run_inference
         self.inference_method: str = config.inference_method
         self.n_boot: int = config.n_boot
         self.seed: int = config.seed
         self.alpha: float = config.alpha
+        self.conformal_horizon = config.conformal_horizon
+        self.conformal_min_train_frac = config.conformal_min_train_frac
+        self.cumulative_band: bool = config.cumulative_band
         self.covariates = config.covariates
 
         self.display_graphs: bool = config.display_graphs
@@ -109,17 +119,33 @@ class PPSCM:
 
             # augsynth defaults: n_leads = post periods of last-treated unit,
             # n_lags = all pre-treatment periods.
+            #
+            # The default and the ceiling are different quantities and
+            # multisynth_class.R:127-134 computes them separately. The default
+            # is the last cohort's post window, which is the shortest, so every
+            # cohort reaches every horizon and the event study is rectangular.
+            # The ceiling is the longest post window -- how far the panel runs
+            # past the first adoption -- because that is the last horizon any
+            # cohort observes. Using the default for both discarded any raised
+            # n_leads and put horizons the panel observes out of reach (#481).
+            # Ingestion guarantees a treated unit, so trt has a finite entry.
             n_leads = self.n_leads if self.n_leads is not None else (T - d)
-            n_leads = min(n_leads, T - d)
+            n_leads = min(n_leads, T - int(np.min(trt[np.isfinite(trt)])))
             n_lags = self.n_lags if self.n_lags is not None else d
             n_lags = min(n_lags, d)
 
             nu_arg = None if (isinstance(self.nu, str) and self.nu == "auto") else float(self.nu)
 
+            conventions = Conventions(
+                donor_weights=self.donor_weights,
+                base_period=self.base_period,
+                donor_pool=self.donor_pool,
+            )
             fit = run_multisynth(
                 Xy, trt, d, n_leads, n_lags,
                 fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                 nu=nu_arg, lam=self.lam, solver=self.solver,
+                conventions=conventions,
                 Z=inputs.Z,
             )
 
@@ -129,22 +155,45 @@ class PPSCM:
                 global_l2=fit["global_l2"], ind_l2=fit["ind_l2"],
                 scaled_global_l2=fit["scaled_global_l2"],
                 scaled_ind_l2=fit["scaled_ind_l2"],
+                max_donors=int(fit["max_donors"]),
+                balance_periods=int(fit["balance_periods"]),
+                conventions={
+                    "donor_weights": self.donor_weights,
+                    "base_period": self.base_period,
+                    "donor_pool": self.donor_pool,
+                    "inference_method": (
+                        self.inference_method if self.run_inference else None),
+                },
             )
 
             per_time = fit["per_time"]
             att = fit["att"]
-            if self.run_inference and self.inference_method == "bootstrap":
-                att, se, ci, pt_se, pt_ci = bootstrap_inference(
+            replicate_paths = None
+            cs = None
+            if self.run_inference and self.inference_method == "influence_function":
+                cs = influence_function_inference(
+                    fit, inputs.time_labels, alpha=self.alpha,
+                    att_full=att, per_time_full=per_time,
+                    n_boot=self.n_boot, seed=self.seed, cband=self.cband,
+                    want_paths=self.cumulative_band,
+                )
+                se, ci = cs.se, cs.ci
+                pt_se, pt_ci = cs.per_time_se, cs.per_time_ci
+                replicate_paths = cs.replicate_paths
+                method = "influence_function"
+            elif self.run_inference and self.inference_method == "bootstrap":
+                att, se, ci, pt_se, pt_ci, replicate_paths = bootstrap_inference(
                     fit, alpha=self.alpha, n_boot=self.n_boot, seed=self.seed,
-                    per_time_full=per_time, att_full=att,
+                    per_time_full=per_time, att_full=att, return_paths=True,
                 )
                 method = "bootstrap"
             elif self.run_inference:
-                att, se, ci, pt_se, pt_ci = jackknife_inference(
+                att, se, ci, pt_se, pt_ci, replicate_paths = jackknife_inference(
                     Xy, trt, d, n_leads, n_lags,
                     fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                     nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
                     alpha=self.alpha, per_time_full=per_time, att_full=att,
+                    conventions=conventions, return_paths=True,
                 )
                 method = "jackknife"
             else:
@@ -157,8 +206,27 @@ class PPSCM:
             event_study = PPSCMEventStudy(
                 horizons=np.arange(n_leads), tau=per_time, se=pt_se, ci=pt_ci,
             )
-            inference = PPSCMInference(att=float(att), se=float(se),
-                                      ci=tuple(ci), method=method)
+            # The cumulative band, when asked for. Built from the replicate paths
+            # the pass above already produced -- the jackknife needs the
+            # delete-one inflation, the bootstrap draws are already on the
+            # estimator's scale.
+            cumulative = None
+            if self.cumulative_band and replicate_paths is not None:
+                cumulative = cumulative_supt_band(
+                    per_time, replicate_paths, alpha=self.alpha,
+                    jackknife=(method == "jackknife"), seed=self.seed,
+                    method=method,
+                )
+            inference = PPSCMInference(
+                att=float(att), se=float(se), ci=tuple(ci), method=method,
+                replicate_paths=replicate_paths, cumulative=cumulative,
+                group_time_att=(cs.group_time_att if cs is not None else None),
+                group_time_se=(cs.group_time_se if cs is not None else None),
+                pointwise_band=(cs.pointwise_band if cs is not None else None),
+                uniform_band=(cs.uniform_band if cs is not None else None),
+                critical_value=(cs.critical_value if cs is not None else None),
+                influence=(cs.influence if cs is not None else None),
+            )
 
             # donor weights per treated cohort (label -> {donor: weight})
             donor_weights: Dict[Any, Dict[Any, float]] = {}
@@ -184,6 +252,21 @@ class PPSCM:
             else:
                 nan = np.full(len(fit["groups"]), np.nan)
                 pu_lo, pu_hi, pu_p, pu_tlo, pu_thi = nan, nan, nan, None, None
+
+            # Per-unit band on the CUMULATIVE effect -- the total each unit gained.
+            # Additional to the pooled inference above, not a replacement for it, so
+            # it is off unless a horizon is asked for.
+            if self.conformal_horizon is not None:
+                cum_pt, cum_lo, cum_hi, cum_n = cumulative_conformal_per_unit(
+                    Xy, trt, d, n_leads, n_lags,
+                    fixedeff=self.fixedeff, time_cohort=self.time_cohort,
+                    nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
+                    alpha=self.alpha, horizon=int(self.conformal_horizon),
+                    min_train_frac=float(self.conformal_min_train_frac),
+                    conventions=conventions,
+                )
+            else:
+                cum_pt = cum_lo = cum_hi = cum_n = None
             per_unit: Dict[Any, PPSCMUnitFit] = {}
             for k, g in enumerate(fit["groups"]):
                 key = (str(inputs.time_labels[fit["adopt_of"][g]]) if self.time_cohort
@@ -206,6 +289,10 @@ class PPSCM:
                                if pu_tlo is not None else None),
                     tau_upper=(np.asarray(pu_thi[k], dtype=float)
                                if pu_thi is not None else None),
+                    cumulative_effect=(float(cum_pt[k]) if cum_pt is not None else None),
+                    cumulative_lower=(float(cum_lo[k]) if cum_lo is not None else None),
+                    cumulative_upper=(float(cum_hi[k]) if cum_hi is not None else None),
+                    cumulative_windows=(int(cum_n[k]) if cum_n is not None else None),
                 )
 
             results = PPSCMResults(

@@ -1,0 +1,96 @@
+{
+  "panel": {
+    "units": 50,
+    "periods": 105,
+    "periods_differenced": 104,
+    "pre_periods_differenced": 88,
+    "post_periods": 16,
+    "treatment_start": 2012.25,
+    "observed_post_mean_growth": 0.16858636407190986
+  },
+  "lpca": {
+    "K": 14,
+    "match_periods": 40,
+    "local_rank_selected": 2,
+    "neighbours": [
+      "Alabama",
+      "Arkansas",
+      "Florida",
+      "Illinois",
+      "Kansas",
+      "Massachusetts",
+      "Montana",
+      "New Jersey",
+      "Pennsylvania",
+      "South Carolina",
+      "Utah",
+      "Virginia",
+      "West Virginia",
+      "Wisconsin"
+    ],
+    "post_mean": 0.6991867843121629,
+    "gap": -0.530600420240253,
+    "pre_period_rmse": 0.866115377412277,
+    "paper_gap": -0.53,
+    "post_periods_observed_below": 9,
+    "paper_post_periods_observed_below": 9
+  },
+  "sc": {
+    "gap_recentred": -0.33397973760061317,
+    "gap_demeaned": 0.19484541375436676,
+    "paper_gap": 0.19,
+    "post_mean_recentred": 0.502566101672523,
+    "pre_period_rmse": 0.50336113219373,
+    "pre_period_rmse_shared_window": 0.6238743745468245,
+    "col_mean_post_average": 0.52882515135498,
+    "active_donors": {
+      "Connecticut": 0.121145,
+      "Illinois": 0.218744,
+      "Iowa": 0.003053,
+      "Minnesota": 0.03996,
+      "North Carolina": 0.016046,
+      "North Dakota": 0.10878,
+      "Oklahoma": 0.18638,
+      "South Dakota": 0.036511,
+      "Texas": 0.007285,
+      "Wisconsin": 0.262097
+    }
+  },
+  "sensitivity": {
+    "default_K": 14,
+    "gap_by_n_neighbours": {
+      "7": -0.39666308859310306,
+      "10": -0.36860313428143476,
+      "14": -0.530600420240253,
+      "20": -0.3966259660207134,
+      "25": -0.4641535292867124,
+      "30": -0.4540839193398375
+    },
+    "gap_by_match_periods": {
+      "20": -0.4290800673154981,
+      "30": -0.3788186780399262,
+      "40": -0.530600420240253,
+      "50": -0.5291616961464013,
+      "60": -0.5263057889744457,
+      "70": -0.4514628162239466
+    },
+    "gap_by_max_components": {
+      "2": {
+        "gap": -0.5222254776199524,
+        "rank": 1
+      },
+      "3": {
+        "gap": -0.530600420240253,
+        "rank": 2
+      },
+      "4": {
+        "gap": -0.4284348250919374,
+        "rank": 3
+      },
+      "5": {
+        "gap": -0.41267449138835954,
+        "rank": 4
+      }
+    }
+  }
+}

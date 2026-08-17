@@ -43,7 +43,7 @@ def _covariate_block(
     benign fill that leaves fully-observed panels unchanged).
     """
     pre = df[df[time].isin(list(pre_labels))]
-    means = pre.groupby(unitid)[covariates].mean()
+    means = pre.groupby(unitid, observed=True)[covariates].mean()
     donor = means.reindex(units)
     donor = donor.fillna(donor.mean())
     treated = means.reindex([treated_name])

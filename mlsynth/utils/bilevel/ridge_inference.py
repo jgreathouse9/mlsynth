@@ -1,10 +1,10 @@
-"""Conformal inference for ridge-augmented SCM (Ben-Michael, Feller & Rothstein
-2021, §5.4; augsynth ``inf_type="conformal"``, the package default).
+"""Conformal test inversion for synthetic control (Chernozhukov, Wuthrich & Zhu
+2021; augsynth ``inf_type="conformal"``, the package default, applies it to ASCM
+-- Ben-Michael, Feller & Rothstein 2021, §5.4).
 
-The conformal procedure of Chernozhukov, Wuthrich & Zhu (2019) adapted to ASCM:
-for a sharp null ``H0: tau = tau0`` it subtracts ``tau0`` from the treated
-post-treatment outcomes, **refits** the ridge ASCM treating the (adjusted) post
-periods as additional matching periods, and asks whether the post-treatment
+For a sharp null ``H0: tau = tau0`` the procedure subtracts ``tau0`` from the
+treated post-treatment outcomes, **refits** the control treating the (adjusted)
+post periods as additional matching periods, and asks whether the post-treatment
 residual "conforms" with the pre-treatment residuals -- comparing the post-block
 test statistic ``(sum|x|^q / sqrt(n))^(1/q)`` against permutations of the
 residual path.
@@ -13,10 +13,30 @@ Two products, mirroring augsynth:
 
 * :func:`conformal_pvalue` -- the joint-null p-value (the ``( p )`` printed next
   to the Average ATT). The treated outcomes are unchanged (``tau0 = 0``), the
-  ASCM is refit on **all** periods, and the post-block statistic is compared to
-  ``ns`` i.i.d. permutations of the residuals.
+  control is refit on **all** periods, and the post-block statistic is compared
+  to ``ns`` i.i.d. permutations of the residuals.
 * :func:`conformal_intervals` -- per-period confidence intervals (Eq. 29) by
   inverting the test on a grid of nulls for each post period.
+
+Two things decide whether the test has any power, and both are the caller's:
+
+``refit``
+    Which control the null refit uses -- the simplex synthetic control
+    (``"sc"``, the procedure as published, and ``scinference``'s
+    ``estimation_method = "sc"``) or the ridge-augmented one (``"ridge"``, the
+    default here, which is what augsynth's conformal mode is defined on). It
+    should match the estimator whose effect is being tested; the reasoning is in
+    :mod:`mlsynth.utils.conformal.refit`, which owns the choice.
+
+``lambda_``
+    Whether the ridge penalty is pinned at the fitted value or re-selected. Not
+    a performance knob. Re-selection cross-validates on the conformal matching
+    window, which *includes the post block*, and on the Swedish carbon tax panel
+    that picks a penalty around 0.1 where the pre-period fit picks 688 -- the
+    augmentation is then free to re-level the treated series, absorbing the
+    effect into the pre-period residuals the test calibrates against. The
+    p-value reads 0.348 whether the injected effect is 5 or 100. Pass the fitted
+    penalty, as augsynth does.
 """
 
 from __future__ import annotations
@@ -26,6 +46,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ..conformal.inversion import confidence_set_bounds
+from ..conformal.refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from .ridge_augment import ridge_augment_weights
 
 
@@ -75,22 +98,53 @@ def _augmented_gaps(
     ridge_kwargs: Dict[str, Any],
     warm_start: Optional[np.ndarray] = None,
     return_base: bool = False,
+    refit: str = "ridge",
 ):
-    """Refit ridge ASCM matching on the full (given) outcome window; return gaps.
+    """Refit the control matching on the full (given) outcome window; return gaps.
 
     Passing the *entire* outcome path as the matching window is exactly augsynth's
-    conformal refit (``X <- cbind(X, y)``): the ASCM balances every period and
+    conformal refit (``X <- cbind(X, y)``): the control balances every period and
     the residuals are the treated-minus-synthetic gaps over the whole window.
     ``warm_start`` seeds the base simplex solve (e.g. the previous tau0 in a grid
     sweep); ``return_base`` also returns the base weights so the caller can chain
     the warm start. The default (no warm start, gaps only) is unchanged.
+
+    ``refit`` picks which control is refit -- ``"ridge"`` for the augmented one
+    augsynth's conformal mode is defined on (the default here, so this module's
+    augsynth-facing behaviour is unchanged), ``"sc"`` for the simplex control the
+    conformal procedure was published on. The rule matters for power, not just
+    for fidelity; see :mod:`mlsynth.utils.conformal.refit`, which owns the
+    choice so the two cannot drift apart between callers.
     """
-    ra = ridge_augment_weights(y, Y0, Z0=Z0, z1=z1, warm_start=warm_start,
-                               **ridge_kwargs)
-    gaps = np.asarray(y, dtype=float) - np.asarray(Y0, dtype=float) @ ra.W
-    if return_base:
-        return gaps, ra.W_base
-    return gaps
+    return conformal_refit_gaps(
+        y, Y0, rule=refit, Z0=Z0, z1=z1, ridge_kwargs=ridge_kwargs,
+        warm_start=warm_start, return_base=return_base,
+    )
+
+
+def _pre_fit_gaps(
+    y: np.ndarray,
+    Y0: np.ndarray,
+    pre: int,
+    refit: str,
+    ridge_kwargs: Dict[str, Any],
+) -> np.ndarray:
+    """Gaps over the full window from weights fit on the pre-block alone.
+
+    Distinct from :func:`_augmented_gaps`, which matches on every period: this
+    is the ordinary point fit, used to centre a search or to report the effect,
+    and it must never see the post block. Dispatches on the same rule so the
+    centre and the refits around it describe the same control.
+    """
+    y = np.asarray(y, dtype=float)
+    Y0 = np.asarray(Y0, dtype=float)
+    if refit == "sc":
+        from .ridge_augment import simplex_qp
+
+        w = simplex_qp(Y0[:pre], y[:pre])
+    else:
+        w = ridge_augment_weights(y[:pre], Y0[:pre], **ridge_kwargs).W
+    return y - Y0 @ w
 
 
 def conformal_pvalue(
@@ -107,6 +161,7 @@ def conformal_pvalue(
     conformal_type: str = "iid",
     fixed_effects: bool = False,
     finite_sample: bool = False,
+    refit: str = "ridge",
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Conformal p-value for the joint null of no post-treatment effect.
@@ -122,8 +177,17 @@ def conformal_pvalue(
     lambda_ : float, optional
         Ridge penalty to **reuse** in the refit. augsynth fixes the penalty at
         the originally CV-selected value for every conformal refit (it does not
-        re-cross-validate); pass the fitted ``lambda_`` to reproduce it. ``None``
-        re-selects by CV on each refit (slower, and slightly anti-conservative).
+        re-cross-validate); pass the fitted ``lambda_`` to reproduce it.
+
+        ``None`` re-selects by CV on each refit, and that is not merely slower.
+        The conformal matching window is the whole path, post block included, so
+        the CV that picks the penalty is run on data containing the effect. On
+        the Swedish carbon tax panel it returns 0.105 where the pre-period fit
+        returns 688, and the augmentation that penalty permits absorbs the
+        effect: the block-scheme p-value is 0.348 for an injected effect of 5
+        and 0.348 for one of 100, against 1/T = 0.0217 with the penalty pinned.
+        Only leave it ``None`` when no fitted penalty exists, and do not read the
+        resulting p-value as evidence of no effect.
     Z0, z1 : np.ndarray, optional
         Auxiliary covariates (donor ``(J, K)`` / treated ``(K,)``).
     q : float
@@ -141,11 +205,25 @@ def conformal_pvalue(
         ``ns`` draws cannot evidence more than ``1 / (ns + 1)``.
     fixed_effects : bool, default False
         Unit fixed effects (augsynth ``fixed_effects=TRUE``): demean every unit
-        by its mean over the full matching window before the refit, so the donor
-        pool cannot absorb a post-period level shift. Use the same value as the
-        point fit.
+        by its mean over the full matching window before the refit. Use the same
+        value as the point fit. Note that this does *not* stop the refit
+        absorbing a post-period level shift -- a shift of ``tau`` over ``T1`` of
+        ``T`` periods survives demeaning as the same pre-to-post contrast, and
+        on the Swedish carbon tax panel the p-value under the ``"ridge"`` rule
+        is 0.348 at an injected effect of 100 with fixed effects on or off.
+        Absorption is governed by ``refit``, not by this.
+    refit : {"ridge", "sc"}, default "ridge"
+        Which control the null refit uses. ``"ridge"`` is the ridge-augmented
+        ASCM augsynth's conformal mode is defined on, and is the default so this
+        function keeps reproducing that package. ``"sc"`` is the simplex
+        synthetic control of ``scinference``'s ``estimation_method = "sc"``,
+        which is what a plain SCM point estimate should be tested against: the
+        augmented refit can re-level an arbitrarily large post-period effect
+        away, and then the test has no power against it. See
+        :mod:`mlsynth.utils.conformal.refit`.
     ridge_kwargs : dict, optional
         Other hyper-parameters forwarded to :func:`ridge_augment_weights`.
+        Ignored under ``refit="sc"``.
 
     Returns
     -------
@@ -153,6 +231,11 @@ def conformal_pvalue(
         The conformal p-value ``mean(stat(observed_post) <= stat(permuted_post))``,
         or its finite-sample correction when ``finite_sample`` is set.
     """
+    if refit not in CONFORMAL_REFIT_RULES:
+        raise MlsynthConfigError(
+            f"conformal refit rule must be one of {CONFORMAL_REFIT_RULES}; "
+            f"got {refit!r}."
+        )
     ridge_kwargs = dict(ridge_kwargs or {})
     if lambda_ is not None:
         ridge_kwargs["lambda_"] = lambda_
@@ -164,7 +247,7 @@ def conformal_pvalue(
         # full path -- so the donor pool cannot absorb a post-period level shift.
         y = y - y.mean()
         Y0 = Y0 - Y0.mean(axis=0)
-    resids = _augmented_gaps(y, Y0, Z0, z1, ridge_kwargs)
+    resids = _augmented_gaps(y, Y0, Z0, z1, ridge_kwargs, refit=refit)
     obs = _stat(resids[pre:], q)
     perm = _reference_stats(
         resids, slice(pre, None), q, conformal_type=conformal_type, ns=ns, seed=seed
@@ -232,19 +315,20 @@ def conformal_att_interval(
     y = np.asarray(y, dtype=float)
     Y0 = np.asarray(Y0, dtype=float)
     kwargs.setdefault("conformal_type", "block")
+    refit = kwargs.get("refit", "ridge")
     ridge_kwargs = {k: v for k, v in (("lambda_", kwargs.get("lambda_")),)
                     if v is not None}
 
     # Centre on the pre-period fit, as `conformal_intervals` does: an
     # all-period refit treats the post block as matching periods and pulls its
-    # gaps toward zero, which would centre the search away from the effect.
+    # gaps toward zero, which would centre the search away from the effect. The
+    # centring fit uses the same rule as the refits it centres, so the search
+    # starts on the control the test is about.
     if kwargs.get("fixed_effects"):
         y_m, Y0_m = y[:pre].mean(), Y0[:pre].mean(axis=0)
-        ra = ridge_augment_weights(y[:pre] - y_m, Y0[:pre] - Y0_m, **ridge_kwargs)
-        fitted = (y - y_m) - (Y0 - Y0_m) @ ra.W
+        fitted = _pre_fit_gaps(y - y_m, Y0 - Y0_m, pre, refit, ridge_kwargs)
     else:
-        ra = ridge_augment_weights(y[:pre], Y0[:pre], **ridge_kwargs)
-        fitted = y - Y0 @ ra.W
+        fitted = _pre_fit_gaps(y, Y0, pre, refit, ridge_kwargs)
     centre = float(np.mean(fitted[pre:]))
     scale = float(np.std(fitted[:pre])) or abs(centre) or 1.0
 
@@ -268,7 +352,7 @@ def conformal_att_interval(
             shifted = shifted - shifted.mean()
             Z = Z - Z.mean(axis=0)
         gaps = _augmented_gaps(shifted, Z, kwargs.get("Z0"), kwargs.get("z1"),
-                               ridge_kwargs)
+                               ridge_kwargs, refit=kwargs.get("refit", "ridge"))
         return _stat(gaps[pre:], kwargs.get("q", 1.0))
 
     def most_conforming() -> float:
@@ -357,6 +441,7 @@ def _period_pvalue(
     warm_start: Optional[np.ndarray] = None,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
+    refit: str = "ridge",
 ):
     """Conformal p-value for ``H0: tau_j = tau0`` at a single post period ``j``.
 
@@ -377,7 +462,8 @@ def _period_pvalue(
         y_fit = y_fit - y_fit.mean()
         Y0_fit = Y0_fit - Y0_fit.mean(axis=0)
     resids, w_base = _augmented_gaps(y_fit, Y0_fit, Z0, z1, ridge_kwargs,
-                                     warm_start=warm_start, return_base=True)
+                                     warm_start=warm_start, return_base=True,
+                                     refit=refit)
     obs = _stat(resids[-1:], q)
     perm = _reference_stats(
         resids, slice(-1, None), q, conformal_type=conformal_type, ns=ns, seed=seed
@@ -397,9 +483,12 @@ def conformal_intervals(
     q: float = 1.0,
     ns: int = 1000,
     grid_size: int = 50,
+    grid: Optional[np.ndarray] = None,
     seed: Optional[int] = 0,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
+    refit: str = "ridge",
+    finite_sample: bool = False,
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> ConformalIntervals:
     """Per-period conformal confidence intervals by test inversion (Eq. 29).
@@ -408,7 +497,31 @@ def conformal_intervals(
     point estimate is tested; the interval is the range of nulls not rejected at
     level ``alpha``. Also returns the joint-null p-value. ``lambda_`` is reused
     across refits (augsynth's behaviour; pass the fitted penalty).
+
+    ``refit`` selects the control the null refits use, and should match the
+    estimator whose effect is being tested -- ``"sc"`` for a plain simplex
+    synthetic control, ``"ridge"`` (the default) for a ridge-augmented one. It
+    is not a tuning knob: an augmented refit can re-level a large post-period
+    effect away, and the test then has no power against it. See
+    :mod:`mlsynth.utils.conformal.refit`.
+
+    ``grid`` replaces the automatic per-period grid with one the caller supplies,
+    used unchanged for every post period. The endpoints an inversion returns are
+    grid points, so the grid sets the resolution of the answer; supplying one is
+    what makes a comparison against another implementation value-for-value
+    instead of resolution-limited (``scinference`` takes the same argument as
+    ``ci_grid``). The automatic grid stays the default because it adapts its
+    width to the panel's noise scale, which a fixed grid cannot.
+
+    Which nulls survive is decided by
+    :func:`~mlsynth.utils.conformal.inversion.confidence_set_bounds`; see there
+    for why the rule is strict.
     """
+    if refit not in CONFORMAL_REFIT_RULES:
+        raise MlsynthConfigError(
+            f"conformal refit rule must be one of {CONFORMAL_REFIT_RULES}; "
+            f"got {refit!r}."
+        )
     ridge_kwargs = dict(ridge_kwargs or {})
     if lambda_ is not None:
         ridge_kwargs["lambda_"] = lambda_
@@ -424,7 +537,16 @@ def conformal_intervals(
     # fixed effects, demean each unit by its pre-period mean and restore the
     # level (the residual gap is invariant to the treated mean), mirroring
     # ``fit_augsynth_once(fixed_effects=True)``.
-    if fixed_effects:
+    if refit == "sc":
+        from .ridge_augment import simplex_qp
+
+        if fixed_effects:
+            y_pre_m, Y0_pre_m = y[:pre].mean(), Y0[:pre].mean(axis=0)
+            w = simplex_qp(Y0[:pre] - Y0_pre_m, y[:pre] - y_pre_m)
+            gap_full = (y - y_pre_m) - (Y0 - Y0_pre_m) @ w
+        else:
+            gap_full = y - Y0 @ simplex_qp(Y0[:pre], y[:pre])
+    elif fixed_effects:
         y_pre_m = y[:pre].mean()
         Y0_pre_m = Y0[:pre].mean(axis=0)
         ra = ridge_augment_weights(y[:pre] - y_pre_m, Y0[:pre] - Y0_pre_m,
@@ -439,32 +561,46 @@ def conformal_intervals(
     scale = float(np.sqrt(np.mean(gap_full[:pre] ** 2)))
     half = max(6.0 * scale, 2.0 * float(np.sqrt(np.mean(att ** 2))), 1e-9)
 
+    user_grid = None
+    if grid is not None:
+        user_grid = np.asarray(grid, dtype=float).ravel()
+        if user_grid.size == 0:
+            raise MlsynthDataError(
+                "conformal grid must hold at least one candidate effect; got an "
+                "empty grid."
+            )
+        if not np.isfinite(user_grid).all():
+            raise MlsynthDataError("conformal grid must be finite.")
+
     lower = np.full(len(post), np.nan)
     upper = np.full(len(post), np.nan)
     pvals = np.full(len(post), np.nan)
     for k, j in enumerate(post):
-        grid = np.linspace(att[k] - half, att[k] + half, grid_size)
-        grid = np.append(grid, 0.0)
+        if user_grid is None:
+            tau_grid = np.linspace(att[k] - half, att[k] + half, grid_size)
+        else:
+            tau_grid = user_grid
+        # Zero is appended so the reported per-period p-value is the p-value of
+        # the no-effect null whatever the grid, which a caller-supplied grid need
+        # not contain.
+        tau_grid = np.append(tau_grid, 0.0)
         # Sweep the tau0 grid warm-starting each base solve from the previous
         # (nearly identical) one -- the refits collapse to ~0 pivots.
-        ps = np.empty(grid.size)
+        ps = np.empty(tau_grid.size)
         w_prev = None
-        for gi, tau0 in enumerate(grid):
+        for gi, tau0 in enumerate(tau_grid):
             ps[gi], w_prev = _period_pvalue(
                 y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs,
                 warm_start=w_prev, conformal_type=conformal_type,
-                fixed_effects=fixed_effects,
+                fixed_effects=fixed_effects, refit=refit,
             )
-        kept = grid[ps >= alpha]
-        if kept.size:
-            lower[k] = float(kept.min())
-            upper[k] = float(kept.max())
-        pvals[k] = float(ps[grid == 0.0][0])
+        lower[k], upper[k] = confidence_set_bounds(tau_grid, ps, alpha)
+        pvals[k] = float(ps[tau_grid == 0.0][0])
 
     joint_p = conformal_pvalue(
         y, Y0, pre, Z0=Z0, z1=z1, q=q, ns=ns, seed=seed,
         conformal_type=conformal_type, fixed_effects=fixed_effects,
-        ridge_kwargs=ridge_kwargs,
+        refit=refit, finite_sample=finite_sample, ridge_kwargs=ridge_kwargs,
     )
     return ConformalIntervals(
         periods=post, att=att, lower=lower, upper=upper,

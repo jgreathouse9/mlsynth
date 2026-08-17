@@ -38,14 +38,21 @@ on:
     # Eastern in summer (EDT). Runs every day regardless of whether code changed.
     - cron: "0 7 * * *"
   workflow_dispatch:
+  # Every pull request runs the pure-Python suite (see the pr-suite job). The
+  # daily run is the full gate; this is the one that fails a change before it
+  # lands. A regression that reaches main is otherwise invisible until 07:00 UTC.
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
-# One benchmark run at a time; let an in-flight run finish rather than cancel it.
+# One scheduled/dispatched benchmark run at a time; let an in-flight run finish
+# rather than cancel it. Pull requests get a group per ref instead, so a PR never
+# queues behind the daily run, and a new push supersedes its own stale run.
 concurrency:
-  group: benchmarks
-  cancel-in-progress: false
+  group: benchmarks-${{ github.event_name == 'pull_request' && github.ref || 'default' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -70,6 +77,8 @@ jobs:
   # run (best-effort, into the system library).
   # ---------------------------------------------------------------------------
   suite:
+    # Reference-provisioning is the expensive half; pull requests get pr-suite.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -164,6 +173,75 @@ jobs:
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
+  # Pull-request suite: every registered case, no reference toolchain.
+  #
+  # NEEDS_REFERENCE is empty, so --with-reference gates nothing: all cases are
+  # selected either way, and the ones wanting an external reference raise
+  # BenchmarkSkipped when it is absent. So dropping the R stack costs coverage
+  # only of the live cross-checks, not of the estimators themselves -- the daily
+  # run remains the full gate. What is left is the pure-Python numerical suite,
+  # which is what a code change can actually break.
+  #
+  # Provisioning R is the slow half of `suite`; without it the wall-clock is the
+  # cases themselves, so the shard count goes up to buy the time back. Shard
+  # width and NUM_SHARDS are pinned together by
+  # benchmarks/tests/test_workflow_sharding.py.
+  # ---------------------------------------------------------------------------
+  pr-suite:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Matches the daily suite, which runs this registry to completion with R
+    # provisioning on top. Round-robin balances case count, not case cost: on
+    # the first PR run the shards' benchmark steps ranged from 6 to 19 minutes
+    # while shard 7, holding most of the Monte Carlo cases, exceeded a 45-minute
+    # cap and was cancelled -- and a cancelled shard neither passes nor fails
+    # its cases, writes no report, and leaves the run merely "unstable". Adding
+    # heavy cases moves the slowest shard, not the average, so raise the shard
+    # count when one next approaches this.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      NUM_SHARDS: "8"
+      # Same determinism pinning as `suite`; see the note there.
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth + optional backends (design + bayes)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[all]' -c benchmarks/constraints.txt
+
+      - name: Run benchmark suite shard
+        run: |
+          python -u benchmarks/run_benchmarks.py --all --report \
+            --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}"
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-benchmark-report-shard-${{ matrix.shard }}
+          path: |
+            benchmarks/REPORT.md
+            benchmarks/report.json
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
   # Python reference cross-checks. These packages pull numpy<2 (incompatible with
   # the JAX backend in `suite`), so they get clean environments WITHOUT the bayes
   # extra and run only the cases that call them live. They are split into two jobs
@@ -179,6 +257,7 @@ jobs:
   # references, so they need no Python reference package and run in the main suite.)
   # ---------------------------------------------------------------------------
   python-refs-relax:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -215,6 +294,7 @@ jobs:
   # spsydid's spatial reference needs libpysal but NOT scmrelax -- isolating it
   # keeps mosek out of the env so cvxpy uses CLARABEL (see note above).
   python-refs-spsydid:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -249,6 +329,9 @@ jobs:
   # changed, and commits only when the page changed.
   # ---------------------------------------------------------------------------
   validation-dashboard:
+    # Never on a pull request: this job commits the rebuilt dashboard
+    # back to the default branch.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:

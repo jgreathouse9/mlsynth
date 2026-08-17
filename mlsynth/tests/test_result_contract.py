@@ -31,8 +31,9 @@ from mlsynth import (
     DTWSC,
     BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
-    MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
-    SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC, TSSC,
+    LPCA, MCNNM, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
+    PPSCM, SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC,
+    TSSC,
     VanillaSC,
 )
 from mlsynth.config_models import (
@@ -147,6 +148,7 @@ OBSERVATIONAL = [
     pytest.param(SNN, {}, id="SNN"),
     pytest.param(MSQRT, {"lambda_": 0.5}, id="MSQRT"),
     pytest.param(MCNNM, {}, id="MCNNM"),
+    pytest.param(LPCA, {}, id="LPCA"),
     pytest.param(SparseSC, {"outcome_lag_periods": [1, 2]}, id="SparseSC"),
     pytest.param(TASC, {"d": 2, "n_em_iter": 2}, id="TASC"),
     pytest.param(CLUSTERSC, {"clustering": False}, id="CLUSTERSC"),
@@ -180,6 +182,7 @@ OBSERVATIONAL = [
                          "inference": False}, id="MEDSC"),
     pytest.param(SDID, {}, id="SDID"),
     pytest.param(SequentialSDID, {"n_bootstrap": 20, "seed": 0}, id="SequentialSDID"),
+    pytest.param(PPSCM, {"run_inference": False}, id="PPSCM"),
     pytest.param(SSC, {}, id="SSC"),
     pytest.param(BVSS, {"n_iter": 30, "burn_in": 10, "seed": 0}, id="BVSS"),
     pytest.param(BSCM, {"n_iter": 60, "burn_in": 30, "chains": 2, "seed": 0}, id="BSCM"),
@@ -272,6 +275,40 @@ def test_flat_accessor_contract(Est, extra, fitted):
 
     ci = res.att_ci
     assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])
+
+
+@pytest.mark.parametrize("Est, extra", OBSERVATIONAL)
+def test_weights_container_says_something(Est, extra, fitted):
+    """An estimator that computed weights must not hand back an empty container.
+
+    ``WeightsResults`` offers four optional faces, and every one being ``None``
+    is indistinguishable from "this estimator has no weights". Several
+    estimators hold real weights on bespoke fields -- per cohort, per treated
+    unit, as factor matrices -- for which no single face is the right shape.
+    Those name where the weights are, in ``weights_at``. What is not allowed is
+    saying nothing: a caller reaching for ``res.weights.donor_weights`` and
+    getting ``None`` cannot tell which case they are in (#475).
+    """
+    res = fitted[Est.__name__]
+    w = res.weights
+    assert not w.is_empty, (
+        f"{Est.__name__} returns a WeightsResults with no face populated and no "
+        "weights_at pointer, so a caller cannot tell whether it has weights")
+
+
+@pytest.mark.parametrize("Est, extra", OBSERVATIONAL)
+def test_weights_pointer_resolves(Est, extra, fitted):
+    """``weights_at`` names attributes that exist and are populated.
+
+    A pointer to nothing is worse than no pointer, so each name is resolved
+    against the result it came from.
+    """
+    res = fitted[Est.__name__]
+    for name in (res.weights.weights_at or []):
+        assert hasattr(res, name), (
+            f"{Est.__name__} weights_at names {name!r}, absent from the result")
+        assert getattr(res, name) is not None, (
+            f"{Est.__name__} weights_at names {name!r}, which is None")
 
 
 @pytest.mark.parametrize("Est, extra", OBSERVATIONAL)

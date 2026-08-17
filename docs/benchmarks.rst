@@ -53,8 +53,16 @@ Path A — empirical replications
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``clustersc_rpca_germany``
      - RPCA-SC West Germany
+   * - ``cwz_conformal``
+     - CWZ 2021 (JASA) conformal test inversion against the authors' own scinference, on their Section 5 Rhode Island application: the moving-block p-value, all six pointwise intervals on the paper's grid, and the three placebo specification tests, all exact
+   * - ``cwz_conformal_mc``
+     - CWZ 2021 (JASA) Section 4 size, run live from the authors' own simulation design: ten seed-matched panels per error structure reproduced exactly, and the size cells for four weight vectors at rho = 0 and rho = 0.6
+   * - ``cwz_rae``
+     - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest``
      - CWZ 2025 Table 5 carbon-tax debiased t-test
+   * - ``cwz_ttest_mc``
+     - CWZ Table 3 run live from the authors' calibration_dgps.R and common_functions.R: seed-matched panels reproduced exactly, plus coverage, length and bias across all nine DGPs
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
@@ -110,6 +118,12 @@ Path A — empirical replications
      - dense L-inf vs sparse SC (Prop 99)
    * - ``marex_walmart``
      - MAREX Walmart placebo design vs live SCDesign (Abadie-Zhao, full 45-store panel + covariates, open quadprog, no Gurobi)
+   * - ``marex_section5_mc``
+     - MAREX vs Abadie-Zhao Section 5 / Table 2 on panels captured from the authors' DGP: effect path, MAE, RMSE and treated count by cardinality, plus the weakly-targeted design family
+   * - ``marex_scdesign_sim``
+     - MAREX vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
+   * - ``marex_table3``
+     - MAREX computes Abadie-Zhao Table 3's SC column on the authors' panels and beats every published randomized alternative at every cardinality
    * - ``masc_basque``
      - MASC Basque/ETA (KMPT Sec 5)
    * - ``pda_brexit``
@@ -158,7 +172,8 @@ Path A — empirical replications
    * - ``spillsynth_iscm_germany``
      - inclusive SCM German reunification (Di Stefano-Mellace)
    * - ``spillsynth_iterative_germany``
-     - iterative waterfall SCM German reunification (Melnychuk)
+     - iterative waterfall SCM German reunification (Melnychuk), both
+       replacePreTreatData branches, cross-checked against the authors' live R
    * - ``spotsynth_real_data``
      - SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
    * - ``tssc_brooklyn``
@@ -198,6 +213,8 @@ Path B — Monte Carlo / simulation
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
      - CWZ 2025 Table 3 application-based Monte Carlo
+   * - ``dr_proximal_scenarios``
+     - DR_Proximal_SC ``correct.DR`` / ``correct.q`` across their scenario directory
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
    * - ``dsc_mc``
@@ -222,14 +239,20 @@ Path B — Monte Carlo / simulation
      - nonlinear coverage + error-shrinks-with-J
    * - ``pangeo_supergeo_mc``
      - PANGEO trajectory match vs scalar (Chen et al.)
+   * - ``fspda_dense_mc``
+     - fsPDA ``FS()`` / ``lasso.BIC()`` / ``scm.R`` cell by cell on their own dense-MC panels
+   * - ``fspda_sparse_mc``
+     - fsPDA ``fs()`` / ``lasso_ic()`` / ``oracle()`` on their three sparse DGPs
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
      - Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
    * - ``pda_pi_coverage``
      - Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+   * - ``fspda_table1``
+     - all 108 cells of Shi-Huang Table 1, vs the paper and their own code
    * - ``pda_table1``
-     - Shi-Huang Table 1 fs-vs-LASSO size/power geometry
+     - mlsynth's default PDA path on the Table-1 design
    * - ``proximal_surrogates_mc``
      - PI/PIS/PIPost vs SC under trending factor (Liu et al.)
    * - ``rescm_relax_mc``
@@ -266,6 +289,8 @@ Path B — Monte Carlo / simulation
      - SPSC IFEM recovery + DT-vs-NoDT coverage (Park-Tchetgen)
    * - ``syndes_bls``
      - Doudchenko et al. 2021 Monte Carlo (BLS unemployment)
+   * - ``syndes_exact_vs_mip``
+     - SYNDES two-way treated-set search vs SCIP proving optimality on the same program (BLS panel)
    * - ``tasc_mc``
      - TASC vs SC state-space ablation (Rho et al.)
    * - ``tssc_figure2``
@@ -282,6 +307,12 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``compsc_pennsylvania_r``
+     - vs the author's ``csc_replication.R`` (``quadprog``) run live on the same
+       panel: all ten donor weights to 3e-9, every post-period effect across
+       twenty years and five columns to 1e-7, and the whole 42-donor placebo --
+       ratio, retained count and p-value -- to 1e-8. Also settles the Arkansas
+       weight the paper's Table 1 omits and ``quadprog`` does not
    * - ``dsc_disco_xval``
      - DSC against the authors' ``DiSCos`` R package on the Dube panel, in both feasible sets. The reference draws its quadrature points with ``runif``, so a single run is not a target; this scores mlsynth against the mean of 40 seeds at M = 10,000 and reads the across-seed spread as the yardstick. Max donor-weight gap 0.0079 (simplex) and 0.0103 (sum-to-one) against reference seed standard deviations of 0.0160 and 0.0300 -- closer to the reference's centre than the reference is to itself, which settles issue #304
    * - ``disco_tenure``
@@ -308,6 +339,10 @@ Cross-validation against reference implementations
      - LINF vs LinfinitySC (skips if absent)
    * - ``mcnnm_prop99``
      - vs authors' MCPanel R (mcnnm_cv; ATT + California counterfactual path)
+   * - ``lpca_kansas``
+     - vs Feng's own replication scripts (2012 Kansas tax cut): the LPCA counterfactual quarter by quarter, the ATT, the neighbourhood and the local rank; the run also asserts ``basedata/kansas_taxcut.csv`` equals the ``kansas.rda`` the author ships
+   * - ``lpca_mc``
+     - vs Feng's own simulation harness on the three Section 5 designs: maximum absolute error and the three quantile prediction errors, per model and per neighbourhood size, on fixed panels both sides read
    * - ``microsynth_seattle``
      - vs R microsynth panel method (Seattle DMI)
    * - ``mlsc_bottmer``
@@ -316,6 +351,9 @@ Cross-validation against reference implementations
      - vs authors' bsynth R package (rstan): posterior counterfactual + credible bands + ATT, West Germany reunification (Martinez & Vives-i-Bastida)
    * - ``nsc_prop99``
      - vs Tian's NSC.R (Prop 99 Table 2)
+   * - ``ppscm_bfr_mc``
+     - BFR sharp-null designs: ATT coverage for both inference paths, plus the
+       cumulative conformal band in two calibration regimes
    * - ``ppscm_paglayan``
      - vs augsynth::multisynth (jackknife + bootstrap SEs)
    * - ``dr_proximal_brazil``
@@ -337,7 +375,8 @@ Cross-validation against reference implementations
    * - ``snn_prop99``
      - vs deshen24/syntheticNN (Prop 99)
    * - ``spillsynth_iscm_xval``
-     - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German)
+     - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German), against both
+       the authors' shipped output and their algorithm solved to the simplex
    * - ``spillsynth_prop99``
      - vs jcao0/synthetic-control-spillover (Cao-Dowd Prop 99)
    * - ``spsydid_state_mc``
