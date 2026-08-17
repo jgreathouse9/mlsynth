@@ -55,8 +55,26 @@ def block_resample_windows(series_list, n_post, n_draws, block_len, rng):
     wraparound) until the window has length ``n_post``.  Preserves within-series
     autocorrelation and pools across series.
     """
-    out = np.empty((n_draws, n_post))
     n_series = len(series_list)
+    n_blocks = int(np.ceil(n_post / block_len))
+    lengths = {len(s) for s in series_list}
+
+    if len(lengths) == 1:
+        # Equal-length pool -- the usual case, since every placebo series spans
+        # the same blank window. The whole draw is index arithmetic: one
+        # gather instead of n_draws * n_blocks calls into `take`.
+        Ls = lengths.pop()
+        S = np.asarray(series_list, dtype=float)
+        sidx = rng.integers(n_series, size=n_draws)
+        starts = rng.integers(Ls, size=(n_draws, n_blocks))
+        idx = (starts[:, :, None] + np.arange(block_len)) % Ls
+        drawn = S[sidx[:, None, None], idx]
+        return drawn.reshape(n_draws, -1)[:, :n_post]
+
+    # Ragged pool: series of differing length cannot share one index array, so
+    # the per-draw loop stands. Correctness first; this path is not the one
+    # that shows up in a profile.
+    out = np.empty((n_draws, n_post))
     for d in range(n_draws):
         s = series_list[rng.integers(n_series)]
         Ls = len(s)
