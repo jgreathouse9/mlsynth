@@ -1,0 +1,9 @@
+{
+  "case": "ascm_mixtape",
+  "title": "Ridge ASCM vs augsynth on Cunningham's two Mixtape studies (Prop 99, Texas prisons)",
+  "paper": "Ben-Michael, Feller & Rothstein (2021), JASA 116(536); augsynth R package (ebenmichael/augsynth)",
+  "reference_impl": "R package augsynth 0.2.0 (live run, commit-pinned 7a90ea48)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/ascm_mixtape/reference.R",
+  "data": ["basedata/smoking_data.csv", "basedata/texas_bmprison.csv"]
+}

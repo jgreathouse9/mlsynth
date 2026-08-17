@@ -1686,6 +1686,14 @@ in ``mlsynth/tests/test_vanillasc_ascm.py::test_augsynth_kansas_ladder_public_ap
 vs augsynth) and ``augsynth_calibrated`` (Path B), locked in
 ``mlsynth/tests/test_bilevel_ridge.py``.
 
+Two further applications are cross-validated against the same package on panels
+of a different shape -- Proposition 99 and the Texas prison study from
+Cunningham's Mixtape -- and they are paired because the augmentation behaves
+oppositely on them. On Proposition 99 it halves the pre-treatment error; on
+Texas, where only 8 pre-periods are available, the cross-validation selects a
+penalty of :math:`1.7\times 10^{10}` and the fit reverts to plain SCM. See the
+dedicated page :doc:`replications/ascm_mixtape`; durable case ``ascm_mixtape``.
+
 The solver underneath the covariate backends is validated on its own terms by
 `mscmt_solver <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/mscmt_solver.py>`__,
 which checks the batched active set against cvxpy's interior-point solver on the

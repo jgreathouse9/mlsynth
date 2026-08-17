@@ -1,0 +1,817 @@
+state,statefip,year,bmprison
+Alabama,1,1985,6227.0
+Alabama,1,1986,6657.0
+Alabama,1,1987,7281.0
+Alabama,1,1988,7244.0
+Alabama,1,1989,8056.0
+Alabama,1,1990,9282.0
+Alabama,1,1991,10119.0
+Alabama,1,1992,10660.0
+Alabama,1,1993,11450.0
+Alabama,1,1994,11996.0
+Alabama,1,1995,12715.0
+Alabama,1,1996,13397.0
+Alabama,1,1997,13784.0
+Alabama,1,1998,14080.0
+Alabama,1,1999,15206.0
+Alabama,1,2000,14727.0
+Alaska,2,1985,198.0
+Alaska,2,1986,211.0
+Alaska,2,1987,217.0
+Alaska,2,1988,271.0
+Alaska,2,1989,310.0
+Alaska,2,1990,288.0
+Alaska,2,1991,314.0
+Alaska,2,1992,327.0
+Alaska,2,1993,313.0
+Alaska,2,1994,415.0
+Alaska,2,1995,440.0
+Alaska,2,1996,486.0
+Alaska,2,1997,538.0
+Alaska,2,1998,509.0
+Alaska,2,1999,467.0
+Alaska,2,2000,474.0
+Arizona,4,1985,1297.0
+Arizona,4,1986,1452.0
+Arizona,4,1987,1675.0
+Arizona,4,1988,1775.0
+Arizona,4,1989,2033.0
+Arizona,4,1990,2283.0
+Arizona,4,1991,2432.0
+Arizona,4,1992,2654.0
+Arizona,4,1993,2865.0
+Arizona,4,1994,3085.0
+Arizona,4,1995,3142.0
+Arizona,4,1996,3172.0
+Arizona,4,1997,3255.0
+Arizona,4,1998,3444.0
+Arizona,4,1999,3539.0
+Arizona,4,2000,3544.0
+Arkansas,5,1985,2153.0
+Arkansas,5,1986,2238.0
+Arkansas,5,1987,2536.0
+Arkansas,5,1988,2646.0
+Arkansas,5,1989,3126.0
+Arkansas,5,1990,3648.5
+Arkansas,5,1991,4171.0
+Arkansas,5,1992,4449.0
+Arkansas,5,1993,4642.0
+Arkansas,5,1994,4612.0
+Arkansas,5,1995,4841.0
+Arkansas,5,1996,4873.0
+Arkansas,5,1997,5222.0
+Arkansas,5,1998,5421.0
+Arkansas,5,1999,4839.0
+Arkansas,5,2000,5772.0
+California,6,1985,16138.0
+California,6,1986,19549.0
+California,6,1987,22184.0
+California,6,1988,26438.0
+California,6,1989,30066.0
+California,6,1990,32190.0
+California,6,1991,32981.0
+California,6,1992,34279.0
+California,6,1993,36461.0
+California,6,1994,37472.0
+California,6,1995,39399.0
+California,6,1996,42300.0
+California,6,1997,44682.0
+California,6,1998,46235.0
+California,6,1999,46578.0
+California,6,2000,46243.0
+Colorado,8,1985,665.0
+Colorado,8,1986,786.0
+Colorado,8,1987,959.0
+Colorado,8,1988,1229.0
+Colorado,8,1989,1492.0
+Colorado,8,1990,1525.0
+Colorado,8,1991,1801.0
+Colorado,8,1992,1912.0
+Colorado,8,1993,2152.0
+Colorado,8,1994,2364.0
+Colorado,8,1995,2496.0
+Colorado,8,1996,2747.0
+Colorado,8,1997,3030.0
+Colorado,8,1998,3059.0
+Colorado,8,1999,3310.0
+Colorado,8,2000,3586.0
+Connecticut,9,1985,2620.0
+Connecticut,9,1986,2890.0
+Connecticut,9,1987,3070.0
+Connecticut,9,1988,3541.0
+Connecticut,9,1989,4172.0
+Connecticut,9,1990,4818.0
+Connecticut,9,1991,4856.0
+Connecticut,9,1992,4897.0
+Connecticut,9,1993,5873.0
+Connecticut,9,1994,6175.0
+Connecticut,9,1995,6406.0
+Connecticut,9,1996,6396.0
+Connecticut,9,1997,7456.0
+Connecticut,9,1998,7675.0
+Connecticut,9,1999,8042.0
+Connecticut,9,2000,7882.0
+Delaware,10,1985,1356.0
+Delaware,10,1986,1545.0
+Delaware,10,1987,1595.0
+Delaware,10,1988,1823.0
+Delaware,10,1989,2045.0
+Delaware,10,1990,2102.0
+Delaware,10,1991,2287.0
+Delaware,10,1992,2476.0
+Delaware,10,1993,2606.0
+Delaware,10,1994,2797.0
+Delaware,10,1995,2929.0
+Delaware,10,1996,3060.0
+Delaware,10,1997,3237.0
+Delaware,10,1998,3260.0
+Delaware,10,1999,4070.0
+Delaware,10,2000,3965.0
+District of Columbia,11,1985,6021.0
+District of Columbia,11,1986,6241.0
+District of Columbia,11,1987,7126.0
+District of Columbia,11,1988,8205.0
+District of Columbia,11,1989,9320.0
+District of Columbia,11,1990,9222.0
+District of Columbia,11,1991,9513.0
+District of Columbia,11,1992,9996.0
+District of Columbia,11,1993,10023.0
+District of Columbia,11,1994,10129.0
+District of Columbia,11,1995,9070.0
+District of Columbia,11,1996,8617.0
+District of Columbia,11,1997,8704.0
+District of Columbia,11,1998,9229.0
+District of Columbia,11,1999,8058.0
+District of Columbia,11,2000,9319.0
+Florida,12,1985,13427.0
+Florida,12,1986,15486.0
+Florida,12,1987,16074.0
+Florida,12,1988,17510.0
+Florida,12,1989,20750.0
+Florida,12,1990,23824.0
+Florida,12,1991,25607.0
+Florida,12,1992,26823.0
+Florida,12,1993,29385.0
+Florida,12,1994,31335.0
+Florida,12,1995,34313.0
+Florida,12,1996,33643.0
+Florida,12,1997,33958.0
+Florida,12,1998,35265.0
+Florida,12,1999,35982.0
+Florida,12,2000,36147.0
+Georgia,13,1985,9043.0
+Georgia,13,1986,9847.0
+Georgia,13,1987,10865.0
+Georgia,13,1988,11429.0
+Georgia,13,1989,13001.0
+Georgia,13,1990,14025.0
+Georgia,13,1991,15031.0
+Georgia,13,1992,16125.0
+Georgia,13,1993,17713.0
+Georgia,13,1994,21153.0
+Georgia,13,1995,21838.0
+Georgia,13,1996,22206.0
+Georgia,13,1997,22996.0
+Georgia,13,1998,24508.0
+Georgia,13,1999,26271.0
+Georgia,13,2000,27126.0
+Hawaii,15,1985,98.0
+Hawaii,15,1986,101.0
+Hawaii,15,1987,109.0
+Hawaii,15,1988,140.0
+Hawaii,15,1989,137.0
+Hawaii,15,1990,132.0
+Hawaii,15,1991,145.0
+Hawaii,15,1992,156.0
+Hawaii,15,1993,152.0
+Hawaii,15,1994,162.0
+Hawaii,15,1995,156.0
+Hawaii,15,1996,187.0
+Hawaii,15,1997,208.0
+Hawaii,15,1998,204.0
+Hawaii,15,1999,192.0
+Hawaii,15,2000,210.0
+Idaho,16,1985,31.0
+Idaho,16,1986,31.0
+Idaho,16,1987,25.0
+Idaho,16,1988,23.0
+Idaho,16,1989,24.0
+Idaho,16,1990,27.0
+Idaho,16,1991,29.0
+Idaho,16,1992,26.0
+Idaho,16,1993,47.0
+Idaho,16,1994,35.0
+Idaho,16,1995,50.0
+Idaho,16,1996,57.0
+Idaho,16,1997,59.0
+Idaho,16,1998,53.0
+Idaho,16,1999,71.0
+Idaho,16,2000,74.0
+Illinois,17,1985,10721.0
+Illinois,17,1986,11103.0
+Illinois,17,1987,11422.0
+Illinois,17,1988,11975.0
+Illinois,17,1989,14276.0
+Illinois,17,1990,16220.0
+Illinois,17,1991,17501.0
+Illinois,17,1992,19444.0
+Illinois,17,1993,21428.0
+Illinois,17,1994,22794.0
+Illinois,17,1995,23153.0
+Illinois,17,1996,23751.0
+Illinois,17,1997,24841.0
+Illinois,17,1998,26374.0
+Illinois,17,1999,27204.0
+Illinois,17,2000,27271.0
+Indiana,18,1985,3249.0
+Indiana,18,1986,3216.0
+Indiana,18,1987,3192.0
+Indiana,18,1988,3367.0
+Indiana,18,1989,4488.0
+Indiana,18,1990,4566.0
+Indiana,18,1991,4687.0
+Indiana,18,1992,5255.0
+Indiana,18,1993,5565.0
+Indiana,18,1994,5909.0
+Indiana,18,1995,6484.0
+Indiana,18,1996,6769.0
+Indiana,18,1997,7262.0
+Indiana,18,1998,7629.0
+Indiana,18,1999,7728.0
+Indiana,18,2000,7754.0
+Iowa,19,1985,545.0
+Iowa,19,1986,525.0
+Iowa,19,1987,573.0
+Iowa,19,1988,629.0
+Iowa,19,1989,735.0
+Iowa,19,1990,810.0
+Iowa,19,1991,885.0
+Iowa,19,1992,1000.0
+Iowa,19,1993,1121.0
+Iowa,19,1994,1271.0
+Iowa,19,1995,1362.0
+Iowa,19,1996,1457.0
+Iowa,19,1997,1569.0
+Iowa,19,1998,1671.0
+Iowa,19,1999,1627.0
+Iowa,19,2000,1719.0
+Kansas,20,1985,1556.0
+Kansas,20,1986,1681.0
+Kansas,20,1987,1829.0
+Kansas,20,1988,1857.0
+Kansas,20,1989,1757.0
+Kansas,20,1990,1876.0
+Kansas,20,1991,2014.0
+Kansas,20,1992,2112.0
+Kansas,20,1993,2099.0
+Kansas,20,1994,2356.0
+Kansas,20,1995,2581.0
+Kansas,20,1996,2771.0
+Kansas,20,1997,2830.0
+Kansas,20,1998,2851.0
+Kansas,20,1999,2878.0
+Kansas,20,2000,2803.0
+Kentucky,21,1985,1520.0
+Kentucky,21,1986,1645.0
+Kentucky,21,1987,1702.0
+Kentucky,21,1988,2058.0
+Kentucky,21,1989,2356.0
+Kentucky,21,1990,2563.0
+Kentucky,21,1991,2929.0
+Kentucky,21,1992,3140.0
+Kentucky,21,1993,3275.0
+Kentucky,21,1994,3746.0
+Kentucky,21,1995,4109.0
+Kentucky,21,1996,4451.0
+Kentucky,21,1997,5176.0
+Kentucky,21,1998,5166.0
+Kentucky,21,1999,5335.0
+Kentucky,21,2000,4850.0
+Louisiana,22,1985,9562.0
+Louisiana,22,1986,9845.0
+Louisiana,22,1987,10585.0
+Louisiana,22,1988,11213.0
+Louisiana,22,1989,11922.0
+Louisiana,22,1990,12830.0
+Louisiana,22,1991,14135.0
+Louisiana,22,1992,15303.0
+Louisiana,22,1993,16424.0
+Louisiana,22,1994,17593.0
+Louisiana,22,1995,18439.0
+Louisiana,22,1996,19561.0
+Louisiana,22,1997,21085.0
+Louisiana,22,1998,23149.0
+Louisiana,22,1999,23475.0
+Louisiana,22,2000,25374.0
+Maine,23,1985,15.0
+Maine,23,1986,11.0
+Maine,23,1987,15.0
+Maine,23,1988,15.0
+Maine,23,1989,16.0
+Maine,23,1990,29.0
+Maine,23,1991,34.0
+Maine,23,1992,29.0
+Maine,23,1993,34.0
+Maine,23,1994,25.0
+Maine,23,1995,26.0
+Maine,23,1996,41.0
+Maine,23,1997,56.0
+Maine,23,1998,56.0
+Maine,23,1999,60.0
+Maine,23,2000,46.0
+Maryland,24,1985,9093.0
+Maryland,24,1986,9333.0
+Maryland,24,1987,9382.0
+Maryland,24,1988,10031.0
+Maryland,24,1989,11674.0
+Maryland,24,1990,13135.0
+Maryland,24,1991,13946.0
+Maryland,24,1992,14570.0
+Maryland,24,1993,14816.0
+Maryland,24,1994,15454.0
+Maryland,24,1995,15879.0
+Maryland,24,1996,16349.0
+Maryland,24,1997,16423.0
+Maryland,24,1998,16690.0
+Maryland,24,1999,17183.0
+Maryland,24,2000,17481.0
+Massachusetts,25,1985,1740.0
+Massachusetts,25,1986,1721.0
+Massachusetts,25,1987,2001.0
+Massachusetts,25,1988,2215.0
+Massachusetts,25,1989,2657.0
+Massachusetts,25,1990,2895.0
+Massachusetts,25,1991,2899.0
+Massachusetts,25,1992,3062.0
+Massachusetts,25,1993,2883.0
+Massachusetts,25,1994,2866.0
+Massachusetts,25,1995,2718.0
+Massachusetts,25,1996,3328.0
+Massachusetts,25,1997,3290.0
+Massachusetts,25,1998,3223.0
+Massachusetts,25,1999,3034.0
+Massachusetts,25,2000,2837.0
+Michigan,26,1985,9497.0
+Michigan,26,1986,11174.0
+Michigan,26,1987,12674.0
+Michigan,26,1988,14939.0
+Michigan,26,1989,17290.0
+Michigan,26,1990,18616.0
+Michigan,26,1991,19930.0
+Michigan,26,1992,21272.0
+Michigan,26,1993,21026.0
+Michigan,26,1994,21686.0
+Michigan,26,1995,21859.0
+Michigan,26,1996,22493.0
+Michigan,26,1997,23763.0
+Michigan,26,1998,24186.0
+Michigan,26,1999,24476.0
+Michigan,26,2000,25076.0
+Minnesota,27,1985,480.0
+Minnesota,27,1986,514.0
+Minnesota,27,1987,576.0
+Minnesota,27,1988,707.0
+Minnesota,27,1989,795.0
+Minnesota,27,1990,838.0
+Minnesota,27,1991,991.0
+Minnesota,27,1992,1126.0
+Minnesota,27,1993,1335.0
+Minnesota,27,1994,1458.0
+Minnesota,27,1995,1620.0
+Minnesota,27,1996,1758.0
+Minnesota,27,1997,1858.0
+Minnesota,27,1998,1981.0
+Minnesota,27,1999,2112.0
+Minnesota,27,2000,2157.0
+Mississippi,28,1985,4156.0
+Mississippi,28,1986,4432.0
+Mississippi,28,1987,4542.0
+Mississippi,28,1988,4898.0
+Mississippi,28,1989,5221.0
+Mississippi,28,1990,5663.0
+Mississippi,28,1991,6055.0
+Mississippi,28,1992,6069.0
+Mississippi,28,1993,6945.0
+Mississippi,28,1994,7693.0
+Mississippi,28,1995,8852.0
+Mississippi,28,1996,9726.0
+Mississippi,28,1997,9946.0
+Mississippi,28,1998,11643.0
+Mississippi,28,1999,12707.0
+Mississippi,28,2000,13662.0
+Missouri,29,1985,3766.0
+Missouri,29,1986,3942.0
+Missouri,29,1987,4240.0
+Missouri,29,1988,5369.0
+Missouri,29,1989,6129.0
+Missouri,29,1990,6531.0
+Missouri,29,1991,6941.0
+Missouri,29,1992,7282.0
+Missouri,29,1993,7284.0
+Missouri,29,1994,8666.0
+Missouri,29,1995,8626.0
+Missouri,29,1996,9665.0
+Missouri,29,1997,10225.0
+Missouri,29,1998,10450.0
+Missouri,29,1999,10971.0
+Missouri,29,2000,11112.0
+Montana,30,1985,16.0
+Montana,30,1986,16.0
+Montana,30,1987,22.0
+Montana,30,1988,17.0
+Montana,30,1989,24.0
+Montana,30,1990,20.0
+Montana,30,1991,19.0
+Montana,30,1992,24.0
+Montana,30,1993,27.0
+Montana,30,1994,32.0
+Montana,30,1995,36.0
+Montana,30,1996,51.0
+Montana,30,1997,33.0
+Montana,30,1998,48.0
+Montana,30,1999,48.0
+Montana,30,2000,45.0
+Nebraska,31,1985,524.0
+Nebraska,31,1986,539.0
+Nebraska,31,1987,547.0
+Nebraska,31,1988,593.0
+Nebraska,31,1989,711.0
+Nebraska,31,1990,727.0
+Nebraska,31,1991,773.0
+Nebraska,31,1992,787.0
+Nebraska,31,1993,796.0
+Nebraska,31,1994,831.0
+Nebraska,31,1995,896.0
+Nebraska,31,1996,931.0
+Nebraska,31,1997,932.0
+Nebraska,31,1998,908.0
+Nebraska,31,1999,896.0
+Nebraska,31,2000,920.0
+Nevada,32,1985,1123.0
+Nevada,32,1986,1300.0
+Nevada,32,1987,1245.0
+Nevada,32,1988,1421.0
+Nevada,32,1989,1351.0
+Nevada,32,1990,1529.0
+Nevada,32,1991,1567.0
+Nevada,32,1992,1622.0
+Nevada,32,1993,1709.0
+Nevada,32,1994,1861.0
+Nevada,32,1995,1954.0
+Nevada,32,1996,2127.0
+Nevada,32,1997,2208.0
+Nevada,32,1998,2435.0
+Nevada,32,1999,2460.0
+Nevada,32,2000,2526.0
+New Hampshire,33,1985,11.0
+New Hampshire,33,1986,21.0
+New Hampshire,33,1987,21.0
+New Hampshire,33,1988,32.0
+New Hampshire,33,1989,46.0
+New Hampshire,33,1990,56.0
+New Hampshire,33,1991,79.0
+New Hampshire,33,1992,78.0
+New Hampshire,33,1993,73.0
+New Hampshire,33,1994,97.0
+New Hampshire,33,1995,121.0
+New Hampshire,33,1996,110.0
+New Hampshire,33,1997,117.0
+New Hampshire,33,1998,108.0
+New Hampshire,33,1999,115.0
+New Hampshire,33,2000,98.0
+New Jersey,34,1985,7238.0
+New Jersey,34,1986,7542.0
+New Jersey,34,1987,8697.0
+New Jersey,34,1988,9393.0
+New Jersey,34,1989,11448.0
+New Jersey,34,1990,12856.0
+New Jersey,34,1991,14226.0
+New Jersey,34,1992,14038.0
+New Jersey,34,1993,14885.0
+New Jersey,34,1994,15256.0
+New Jersey,34,1995,16668.0
+New Jersey,34,1996,16991.0
+New Jersey,34,1997,17653.0
+New Jersey,34,1998,19205.0
+New Jersey,34,1999,19196.0
+New Jersey,34,2000,17691.0
+New Mexico,35,1985,230.0
+New Mexico,35,1986,205.0
+New Mexico,35,1987,257.0
+New Mexico,35,1988,284.0
+New Mexico,35,1989,312.0
+New Mexico,35,1990,295.0
+New Mexico,35,1991,300.0
+New Mexico,35,1992,339.0
+New Mexico,35,1993,367.0
+New Mexico,35,1994,402.0
+New Mexico,35,1995,444.0
+New Mexico,35,1996,496.0
+New Mexico,35,1997,488.0
+New Mexico,35,1998,506.0
+New Mexico,35,1999,533.0
+New Mexico,35,2000,490.0
+New York,36,1985,16958.0
+New York,36,1986,18844.0
+New York,36,1987,19576.0
+New York,36,1988,21495.0
+New York,36,1989,24112.0
+New York,36,1990,26026.0
+New York,36,1991,27438.0
+New York,36,1992,29314.0
+New York,36,1993,33221.0
+New York,36,1994,34218.0
+New York,36,1995,34953.0
+New York,36,1996,35501.0
+New York,36,1997,35394.0
+New York,36,1998,36079.0
+New York,36,1999,36963.0
+New York,36,2000,33972.0
+North Carolina,37,1985,8930.0
+North Carolina,37,1986,9133.0
+North Carolina,37,1987,8983.0
+North Carolina,37,1988,9256.0
+North Carolina,37,1989,9673.0
+North Carolina,37,1990,10500.0
+North Carolina,37,1991,10939.0
+North Carolina,37,1992,12167.0
+North Carolina,37,1993,13288.0
+North Carolina,37,1994,14674.0
+North Carolina,37,1995,18104.0
+North Carolina,37,1996,18919.0
+North Carolina,37,1997,19346.0
+North Carolina,37,1998,19290.0
+North Carolina,37,1999,18691.0
+North Carolina,37,2000,18935.0
+North Dakota,38,1985,4.0
+North Dakota,38,1986,6.0
+North Dakota,38,1987,4.0
+North Dakota,38,1988,7.0
+North Dakota,38,1989,4.0
+North Dakota,38,1990,5.0
+North Dakota,38,1991,4.0
+North Dakota,38,1992,7.0
+North Dakota,38,1993,12.0
+North Dakota,38,1994,18.0
+North Dakota,38,1995,18.0
+North Dakota,38,1996,22.0
+North Dakota,38,1997,19.0
+North Dakota,38,1998,30.0
+North Dakota,38,1999,38.0
+North Dakota,38,2000,45.0
+Ohio,39,1985,8904.0
+Ohio,39,1986,10415.0
+Ohio,39,1987,10576.0
+Ohio,39,1988,12196.0
+Ohio,39,1989,14557.0
+Ohio,39,1990,15535.0
+Ohio,39,1991,17896.0
+Ohio,39,1992,19166.0
+Ohio,39,1993,20665.0
+Ohio,39,1994,21562.0
+Ohio,39,1995,22739.0
+Ohio,39,1996,23516.0
+Ohio,39,1997,24344.0
+Ohio,39,1998,24216.0
+Ohio,39,1999,23111.0
+Ohio,39,2000,22175.0
+Oklahoma,40,1985,2271.0
+Oklahoma,40,1986,2621.0
+Oklahoma,40,1987,2675.0
+Oklahoma,40,1988,3003.0
+Oklahoma,40,1989,3457.0
+Oklahoma,40,1990,3793.0
+Oklahoma,40,1991,4090.0
+Oklahoma,40,1992,4644.0
+Oklahoma,40,1993,5066.0
+Oklahoma,40,1994,5334.0
+Oklahoma,40,1995,5796.0
+Oklahoma,40,1996,6123.0
+Oklahoma,40,1997,6310.0
+Oklahoma,40,1998,6338.0
+Oklahoma,40,1999,6593.0
+Oklahoma,40,2000,6575.0
+Oregon,41,1985,462.0
+Oregon,41,1986,529.0
+Oregon,41,1987,670.0
+Oregon,41,1988,703.0
+Oregon,41,1989,872.0
+Oregon,41,1990,811.0
+Oregon,41,1991,849.0
+Oregon,41,1992,855.0
+Oregon,41,1993,817.0
+Oregon,41,1994,823.0
+Oregon,41,1995,938.0
+Oregon,41,1996,981.0
+Oregon,41,1997,940.0
+Oregon,41,1998,1046.0
+Oregon,41,1999,1043.0
+Oregon,41,2000,1040.0
+Pennsylvania,42,1985,7731.0
+Pennsylvania,42,1986,8263.0
+Pennsylvania,42,1987,8817.0
+Pennsylvania,42,1988,9785.0
+Pennsylvania,42,1989,10975.0
+Pennsylvania,42,1990,11672.0
+Pennsylvania,42,1991,12510.0
+Pennsylvania,42,1992,13542.0
+Pennsylvania,42,1993,14068.0
+Pennsylvania,42,1994,17828.0
+Pennsylvania,42,1995,17563.0
+Pennsylvania,42,1996,18772.0
+Pennsylvania,42,1997,19108.0
+Pennsylvania,42,1998,19656.0
+Pennsylvania,42,1999,19623.0
+Pennsylvania,42,2000,19596.0
+Rhode Island,44,1985,362.0
+Rhode Island,44,1986,384.0
+Rhode Island,44,1987,393.0
+Rhode Island,44,1988,619.0
+Rhode Island,44,1989,761.0
+Rhode Island,44,1990,722.0
+Rhode Island,44,1991,843.0
+Rhode Island,44,1992,844.0
+Rhode Island,44,1993,835.0
+Rhode Island,44,1994,954.0
+Rhode Island,44,1995,964.0
+Rhode Island,44,1996,1096.0
+Rhode Island,44,1997,1119.0
+Rhode Island,44,1998,930.0
+Rhode Island,44,1999,831.0
+Rhode Island,44,2000,879.0
+South Carolina,45,1985,6032.0
+South Carolina,45,1986,6489.0
+South Carolina,45,1987,7242.0
+South Carolina,45,1988,8131.0
+South Carolina,45,1989,9361.0
+South Carolina,45,1990,10598.0
+South Carolina,45,1991,11410.0
+South Carolina,45,1992,11857.0
+South Carolina,45,1993,12151.0
+South Carolina,45,1994,12502.0
+South Carolina,45,1995,12931.0
+South Carolina,45,1996,13464.0
+South Carolina,45,1997,13893.0
+South Carolina,45,1998,14429.0
+South Carolina,45,1999,14269.0
+South Carolina,45,2000,14467.0
+South Dakota,46,1985,21.0
+South Dakota,46,1986,28.0
+South Dakota,46,1987,24.0
+South Dakota,46,1988,28.0
+South Dakota,46,1989,32.0
+South Dakota,46,1990,39.0
+South Dakota,46,1991,31.0
+South Dakota,46,1992,41.0
+South Dakota,46,1993,47.0
+South Dakota,46,1994,57.0
+South Dakota,46,1995,63.0
+South Dakota,46,1996,80.0
+South Dakota,46,1997,93.0
+South Dakota,46,1998,92.0
+South Dakota,46,1999,84.0
+South Dakota,46,2000,105.0
+Tennessee,47,1985,3045.0
+Tennessee,47,1986,3000.0
+Tennessee,47,1987,3019.0
+Tennessee,47,1988,2972.0
+Tennessee,47,1989,4364.0
+Tennessee,47,1990,4428.0
+Tennessee,47,1991,5287.0
+Tennessee,47,1992,5586.0
+Tennessee,47,1993,5965.0
+Tennessee,47,1994,6918.0
+Tennessee,47,1995,7537.0
+Tennessee,47,1996,7711.0
+Tennessee,47,1997,8121.0
+Tennessee,47,1998,8662.0
+Tennessee,47,1999,11440.0
+Tennessee,47,2000,11108.0
+Texas,48,1985,14828.0
+Texas,48,1986,15207.0
+Texas,48,1987,15780.0
+Texas,48,1988,16956.0
+Texas,48,1989,19366.0
+Texas,48,1990,22634.0
+Texas,48,1991,23249.0
+Texas,48,1992,27568.0
+Texas,48,1993,29260.0
+Texas,48,1994,40451.0
+Texas,48,1995,55602.0
+Texas,48,1996,55810.0
+Texas,48,1997,58393.0
+Texas,48,1998,59709.0
+Texas,48,1999,60785.0
+Texas,48,2000,61861.0
+Utah,49,1985,142.0
+Utah,49,1986,143.0
+Utah,49,1987,161.0
+Utah,49,1988,167.0
+Utah,49,1989,196.0
+Utah,49,1990,208.0
+Utah,49,1991,207.0
+Utah,49,1992,234.0
+Utah,49,1993,230.0
+Utah,49,1994,253.0
+Utah,49,1995,278.0
+Utah,49,1996,311.0
+Utah,49,1997,318.0
+Utah,49,1998,324.0
+Utah,49,1999,390.0
+Utah,49,2000,420.0
+Vermont,50,1985,0.0
+Vermont,50,1986,0.0
+Vermont,50,1987,0.0
+Vermont,50,1988,0.0
+Vermont,50,1989,0.0
+Vermont,50,1990,0.0
+Vermont,50,1991,0.0
+Vermont,50,1992,0.0
+Vermont,50,1993,0.0
+Vermont,50,1994,29.0
+Vermont,50,1995,15.0
+Vermont,50,1996,14.0
+Vermont,50,1997,35.0
+Vermont,50,1998,45.0
+Vermont,50,1999,66.0
+Vermont,50,2000,75.0
+Virginia,51,1985,6825.0
+Virginia,51,1986,7291.0
+Virginia,51,1987,7488.0
+Virginia,51,1988,8239.0
+Virginia,51,1989,9739.0
+Virginia,51,1990,10617.0
+Virginia,51,1991,12109.0
+Virginia,51,1992,12896.0
+Virginia,51,1993,14093.0
+Virginia,51,1994,17002.0
+Virginia,51,1995,17403.0
+Virginia,51,1996,17436.0
+Virginia,51,1997,17859.0
+Virginia,51,1998,18888.0
+Virginia,51,1999,16158.0
+Virginia,51,2000,18709.0
+Washington,53,1985,1218.0
+Washington,53,1986,1182.0
+Washington,53,1987,1129.0
+Washington,53,1988,1225.0
+Washington,53,1989,1315.0
+Washington,53,1990,1489.0
+Washington,53,1991,1810.0
+Washington,53,1992,2036.0
+Washington,53,1993,2096.0
+Washington,53,1994,2278.0
+Washington,53,1995,2500.0
+Washington,53,1996,2694.0
+Washington,53,1997,2742.0
+Washington,53,1998,2997.0
+Washington,53,1999,3035.0
+Washington,53,2000,3052.0
+West Virginia,54,1985,244.0
+West Virginia,54,1986,201.0
+West Virginia,54,1987,200.0
+West Virginia,54,1988,199.0
+West Virginia,54,1989,211.0
+West Virginia,54,1990,215.0
+West Virginia,54,1991,208.0
+West Virginia,54,1992,239.0
+West Virginia,54,1993,257.0
+West Virginia,54,1994,274.0
+West Virginia,54,1995,405.0
+West Virginia,54,1996,416.0
+West Virginia,54,1997,472.0
+West Virginia,54,1998,520.0
+West Virginia,54,1999,526.0
+West Virginia,54,2000,598.0
+Wisconsin,55,1985,1954.0
+Wisconsin,55,1986,2136.0
+Wisconsin,55,1987,2234.0
+Wisconsin,55,1988,2244.0
+Wisconsin,55,1989,2501.0
+Wisconsin,55,1990,2783.0
+Wisconsin,55,1991,3148.0
+Wisconsin,55,1992,3775.0
+Wisconsin,55,1993,3908.0
+Wisconsin,55,1994,4577.0
+Wisconsin,55,1995,5094.0
+Wisconsin,55,1996,5989.0
+Wisconsin,55,1997,7292.0
+Wisconsin,55,1998,8397.0
+Wisconsin,55,1999,9127.0
+Wisconsin,55,2000,8851.0
+Wyoming,56,1985,33.0
+Wyoming,56,1986,32.0
+Wyoming,56,1987,30.0
+Wyoming,56,1988,52.0
+Wyoming,56,1989,51.0
+Wyoming,56,1990,49.0
+Wyoming,56,1991,48.0
+Wyoming,56,1992,48.0
+Wyoming,56,1993,53.0
+Wyoming,56,1994,55.0
+Wyoming,56,1995,65.0
+Wyoming,56,1996,73.0
+Wyoming,56,1997,74.0
+Wyoming,56,1998,69.0
+Wyoming,56,1999,81.0
+Wyoming,56,2000,93.0

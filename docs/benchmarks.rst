@@ -307,6 +307,14 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``ascm_mixtape``
+     - vs a live augsynth 0.2.0 run on Cunningham's two Mixtape studies,
+       through the public estimator: Proposition 99 and Texas prisons. ATT,
+       pre-fit L2 and scaled imbalance, the jackknife+ interval, the selected
+       ridge penalty and all 88 donor weights. The pair contrasts an
+       augmentation that halves the pre-fit error with one the cross-validation
+       switches off at T0 = 8 -- a difference invisible in the fitted path but
+       not in the ATT
    * - ``compsc_pennsylvania_r``
      - vs the author's ``csc_replication.R`` (``quadprog``) run live on the same
        panel: all ten donor weights to 3e-9, every post-period effect across

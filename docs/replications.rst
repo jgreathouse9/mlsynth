@@ -82,6 +82,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ascm_kansas
    replications/ascm_jackknife_plus
    replications/ascm_ridge_cv
+   replications/ascm_mixtape
    replications/song_ml_ascm
    replications/bilgel_turkey_lockdown
    replications/pensynth
@@ -196,6 +197,17 @@ Canonical workhorses
   and bias reduction across four Kansas-calibrated DGPs. Status: done.
   → dedicated page: :doc:`replications/ascm_kansas`; durable cases
   ``ascm_kansas`` and ``augsynth_calibrated``.
+* :doc:`ascm_mixtape` -- ridge ASCM on the two Mixtape applications
+  (Cunningham): Proposition 99 and Texas prisons. Cross-validation vs a live
+  ``augsynth`` run through the public estimator -- ATT, pre-fit :math:`L_2` and
+  scaled imbalance, the jackknife+ interval and all 88 donor weights, worst
+  relative gap :math:`6.3\times 10^{-7}` on the ATT. The pair is chosen for
+  contrast: the augmentation halves the pre-fit error on Proposition 99
+  (:math:`\lambda = 430`) and switches itself off on Texas
+  (:math:`\lambda = 1.7\times 10^{10}`, pre-fit moved 0.2%), where only 8
+  pre-periods leave the cross-validation unable to justify it. Status: done.
+  → dedicated page: :doc:`replications/ascm_mixtape`; durable case
+  ``ascm_mixtape``.
 * :doc:`ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
   ASCM, the leave-one-pre-period-out interval, cross-validated against a live
   augsynth run on the Kansas panel at the per-drop seam as well as end to end

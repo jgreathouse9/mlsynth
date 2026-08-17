@@ -164,6 +164,7 @@ CASES = {
     "disco_tenure": "benchmarks.cases.disco_tenure",  # cross-val vs the disco Stata Journal published weights (deterministic reference; the R package's are a Monte Carlo draw)                  # Path A: DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
     "dtwsc_basque": "benchmarks.cases.dtwsc_basque",          # Cross-validation: DTWSC warp vs the conflictlab/dsc R package on Basque
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+    "ascm_mixtape": "benchmarks.cases.ascm_mixtape",          # cross-val vs live augsynth 0.2.0: Cunningham Mixtape studies -- Prop 99 (well-posed) and Texas prisons (interpolating fit, runaway ridge CV)
     "wied_nj_minwage": "benchmarks.cases.wied_nj_minwage",  # Path A: Wied (2026) NJ minimum wage, DRSC conditional distributional effects
     "wine_tennessee": "benchmarks.cases.wine_tennessee",  # Path A: Sun et al. (2025 AJAE) Tennessee wine reform, SCM + SDID(optimized); Study 1 unreplicable (NielsenIQ)
     "ascm_jackknife_plus": "benchmarks.cases.ascm_jackknife_plus",  # cross-val vs augsynth inf_type="jackknife+": per-period bounds on Kansas, both branches
