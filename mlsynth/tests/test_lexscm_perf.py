@@ -9,12 +9,6 @@ Speed is asserted the way ``test_simplex_active_set_perf`` asserts it: with
 machine-independent proxies for the work done, not wall-clock, which flakes in
 CI. Two proxies are used here.
 
-``_afw_batched`` contracts an ``(N, m, m)`` batch against an ``(N, m)`` matrix
-twice per iteration -- once for the gradient and once for ``Q @ D``. The second
-is avoidable: ``D`` is always ``-W + e_s`` or ``W - e_a``, so ``Q @ D`` is the
-already-computed ``Q @ W`` plus or minus one column of ``Q``. The contract is
-one batched contraction per iteration.
-
 ``block_resample_windows`` builds every block with its own ``arange`` and
 ``take`` inside a double loop, so its Python-level call count scales with
 ``n_draws``. The contract is that it does not: the resampled index set is one
@@ -59,53 +53,18 @@ GOLDEN = {
 
 @pytest.mark.parametrize("tag, shape", [("A", (7, 4, 9)), ("B", (5, 6, 8))])
 def test_afw_losses_match_the_recorded_values(tag, shape):
-    """Reusing the gradient to build ``Q @ D`` is an algebraic identity.
+    """The losses are pinned, whatever solves for them.
 
-    It reassociates the arithmetic, so the result moves at floating-point
-    level and no further. A tolerance that admits a genuinely different
-    trajectory would defeat the purpose of recording the values at all.
+    Recorded from the away-step Frank-Wolfe implementation these batches are
+    small and well conditioned enough for it to have solved exactly, and
+    reproduced by the Wolfe active set that replaced it. A change here means
+    the search is ranking designs by different numbers.
     """
     got = _afw_batched(_batch(*shape, seed=11), iters=80)
     assert np.allclose(got, GOLDEN[tag], rtol=1e-9, atol=1e-11)
 
 
 # --- and the work must come down ------------------------------------------
-
-
-class _CountingArray(np.ndarray):
-    """Counts batched ``(N, m, m) x (N, m)`` contractions performed on it."""
-
-
-def _count_batched_contractions(monkeypatch):
-    """Return a dict tallying ``einsum`` / ``matmul`` calls with a 3-D operand."""
-    tally = {"n": 0}
-    real_einsum, real_matmul = np.einsum, np.matmul
-
-    def einsum(subscripts, *operands, **kw):
-        if any(np.ndim(o) == 3 for o in operands):
-            tally["n"] += 1
-        return real_einsum(subscripts, *operands, **kw)
-
-    def matmul(a, b, *args, **kw):
-        if np.ndim(a) == 3 or np.ndim(b) == 3:
-            tally["n"] += 1
-        return real_matmul(a, b, *args, **kw)
-
-    monkeypatch.setattr(np, "einsum", einsum)
-    monkeypatch.setattr(np, "matmul", matmul)
-    return tally
-
-
-def test_afw_does_one_batched_contraction_per_iteration(monkeypatch):
-    """Two per iteration is one more than the algebra needs."""
-    tally = _count_batched_contractions(monkeypatch)
-    iters = 40
-    _afw_batched(_batch(7, 4, 9, seed=11), iters=iters)
-    # one per iteration for the gradient, plus the closing loss evaluation
-    assert tally["n"] <= iters + 1, (
-        f"{tally['n']} batched contractions for {iters} iterations; "
-        "Q @ D should be built from the gradient, not recomputed"
-    )
 
 
 def test_block_resampling_cost_does_not_scale_with_draws(monkeypatch):

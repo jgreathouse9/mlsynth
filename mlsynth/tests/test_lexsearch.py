@@ -138,3 +138,74 @@ def test_consensus_reported_and_pool_mirrors_topK():
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+# ------------------------------------------------- the losses are optima
+def _kkt_residual(Q, w):
+    """How far ``w`` is from solving ``min_w w'Qw`` on the simplex.
+
+    The program is homogeneous, so with ``g = Q w`` and ``nu = w'Qw`` the KKT
+    conditions are ``g_j >= nu`` everywhere, with equality wherever ``w_j > 0``.
+    Computed from ``Q`` and ``w`` alone, so it certifies a point whatever solver
+    produced it -- which is what lets these tests check the search's arithmetic
+    without standing one solver in for another.
+    """
+    g = Q @ w
+    nu = float(w @ g)
+    scale = max(abs(nu), float(np.abs(np.diag(Q)).max()), 1e-12)
+    support = w > 1e-10
+    return max(float(np.max(np.maximum(nu - g, 0.0))) / scale,        # g_j >= nu
+               float(np.max(np.abs(g[support] - nu))) / scale)        # tight on support
+
+
+def _panel_grams(n, m, seed=3, M=40, T=30):
+    """Grams from a panel shaped like a real one: one dominant factor.
+
+    Conditioning is the whole difficulty. A Gram of independent gaussians is
+    well separated and Frank-Wolfe reaches its optimum on it, so a test built
+    that way passes while the estimator is wrong in the field. Geo panels are
+    not like that: on the 211-market DMA panel a single component carried 97%
+    of the two-way-demeaned variance, the columns are near-collinear, the
+    quadratic is degenerate and a fixed iteration budget stops short.
+    """
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.standard_normal(T))                 # the common factor
+    load = rng.uniform(0.6, 1.6, M)
+    X = np.outer(f, load) + 0.15 * rng.standard_normal((T, M))
+    X = (X - X.mean(1, keepdims=True)) / np.std(X, 1, keepdims=True)
+    G = X.T @ X
+    subs = np.sort(rng.choice(M, size=(n, m), replace=True), axis=1)
+    return G[subs[:, :, None], subs[:, None, :]]
+
+
+@pytest.mark.parametrize("m", [2, 4, 5, 8])
+def test_afw_batched_returns_the_certified_optimum(m):
+    """The loss must be the minimum, not an iterate near it.
+
+    ``L(S)`` ranks candidate designs against one another, so an error that is
+    small in absolute terms still reorders the shortlist. A fixed iteration
+    budget on a sublinearly-convergent method does not deliver the minimum:
+    at 80 Frank-Wolfe steps the median relative error on the DMA panel was 9%,
+    high on two thirds of subsets.
+    """
+    from mlsynth.utils.bilevel.minnorm import solve_simplex_minnorm_batch
+
+    Qs = _panel_grams(150, m)
+    W = solve_simplex_minnorm_batch(Qs)
+    for Q, w in zip(Qs[:30], W[:30]):                 # the reference is certified
+        assert _kkt_residual(Q, w) < 1e-7
+    optimum = np.einsum('ni,nij,nj->n', W, Qs, W)
+    got = _afw_batched(Qs, iters=80)
+    assert np.allclose(got, optimum, rtol=1e-7, atol=1e-9)
+
+
+@pytest.mark.parametrize("m", [2, 4, 5, 8])
+def test_afw_single_returns_a_certified_optimum(m):
+    """Same contract for the single-problem solver, which reports the final
+    design losses and the relaxation bound."""
+    for Q in _panel_grams(40, m, seed=9):
+        loss, w, lb = _afw_single(Q, iters=600, tol=1e-14)
+        assert w.min() >= -1e-12 and abs(w.sum() - 1.0) < 1e-9
+        assert _kkt_residual(Q, w) < 1e-7
+        assert loss == pytest.approx(float(w @ Q @ w), rel=1e-9, abs=1e-12)
+        assert lb <= loss + 1e-9              # the bound must not exceed the value
