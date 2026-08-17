@@ -109,26 +109,34 @@ def _afw_batched(Qs: np.ndarray, iters: int = 80) -> np.ndarray:
     W = np.zeros((N, m)); W[np.arange(N), d.argmin(1)] = 1.0
     rows = np.arange(N)
     for _ in range(iters):
-        grad = 2.0 * np.einsum('nij,nj->ni', Qs, W)
+        # The one batched contraction. `Q @ W` is reused below to build
+        # `Q @ D` without a second pass over Qs, which is where this loop
+        # previously spent half its time.
+        QW = np.matmul(Qs, W[:, :, None])[:, :, 0]
+        grad = 2.0 * QW
         s = grad.argmin(1)
         ga = np.where(W > 1e-14, grad, -np.inf)
         a = ga.argmax(1)
         d_fw = -W.copy(); d_fw[rows, s] += 1.0
         d_aw = W.copy();  d_aw[rows, a] -= 1.0
-        use_fw = np.einsum('ni,ni->n', grad, d_fw) <= np.einsum('ni,ni->n', grad, d_aw)
+        use_fw = (grad * d_fw).sum(1) <= (grad * d_aw).sum(1)
         D = np.where(use_fw[:, None], d_fw, d_aw)
         wa = W[rows, a]
         gmax = np.where(use_fw, 1.0, np.where(wa < 1.0, wa / (1.0 - wa + 1e-18), 1e12))
-        QD = np.einsum('nij,nj->ni', Qs, D)
-        quad = np.einsum('ni,ni->n', D, QD)
-        lin = 2.0 * np.einsum('ni,ni->n', W, QD)
+        # D is -W + e_s (Frank-Wolfe) or W - e_a (away step), so Q @ D is
+        # -QW + Q[:, :, s] or QW - Q[:, :, a]: one column of Qs, gathered.
+        QD = np.where(use_fw[:, None],
+                      Qs[rows, :, s] - QW,
+                      QW - Qs[rows, :, a])
+        quad = (D * QD).sum(1)
+        lin = 2.0 * (W * QD).sum(1)
         safe = quad > 1e-18
         g = gmax.copy()
         g[safe] = -lin[safe] / (2.0 * quad[safe])
         g = np.clip(g, 0.0, gmax)
         W = W + g[:, None] * D
         W[W < 1e-14] = 0.0
-    return np.einsum('ni,nij,nj->n', W, Qs, W)
+    return (W * np.matmul(Qs, W[:, :, None])[:, :, 0]).sum(1)
 
 
 def _losses_for(G: np.ndarray, subsets: np.ndarray, iters: int = 70) -> np.ndarray:
