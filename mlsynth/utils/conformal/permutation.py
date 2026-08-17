@@ -24,6 +24,35 @@ oscillates around zero share a mean absolute residual and have entirely differen
 totals, so the per-period statistic cannot see the thing a cumulative band is
 about.
 
+The precondition the two statistics do not share
+------------------------------------------------
+
+The permutation argument needs the trailing block to be exchangeable with its own
+rotations *in whatever the statistic measures*, and a fitted synthetic-control
+residual satisfies that for magnitude but not for sign.
+
+Measured on a fitted PPSCM residual path, the per-period magnitude profile is
+flat -- 0.99 to 1.04 of the path mean at every position -- while the standardized
+absolute block sum ramps from 0.733 in the interior to 0.956 near the end of the
+balanced window and 1.114 at the final position. The quadratic program leaves
+end-of-window residuals positively correlated, so their signs stop cancelling and
+their sums grow, without their magnitudes growing at all. Wrapping blocks, which
+splice the end of the path to its start, show the same inflation (0.874 against
+0.757 for contiguous ones) because they join two edge regions.
+
+The trailing block always occupies the most inflated position, so a sum statistic
+reads that coherence as evidence: on a null panel, ``abs_sum`` rejects at 0.225
+against a nominal 0.10, while ``mean_abs`` on the identical paths sits at 0.092.
+Placing the block at a random position instead restores calibration (0.108), which
+is what identifies the position -- not the path, and not the statistic -- as the
+fault.
+
+So ``abs_sum`` is valid on an exchangeable path (0.091 to 0.096 on iid and AR
+draws, constrained and unconstrained) and invalid on a fitted residual path
+without first removing the position effect. A cumulative band cannot be obtained
+merely by swapping the statistic underneath this function. ``test_conformal_
+moving_block.py`` pins both halves of that.
+
 This function is the single definition. The statistic is currently written out
 again in :mod:`mlsynth.utils.cscipca_helpers.inference`,
 :mod:`mlsynth.utils.bilevel.ridge_inference`,

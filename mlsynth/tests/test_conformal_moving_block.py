@@ -176,3 +176,81 @@ def test_an_empty_path_is_refused():
 def test_an_unknown_statistic_is_refused_by_name():
     with pytest.raises(MlsynthConfigError, match="statistic"):
         moving_block_pvalue(np.zeros(20), block=4, statistic="median_abs")
+
+
+# --------------------------------------------------------------------------- #
+# the precondition: exchangeability must hold for the statistic being used     #
+# --------------------------------------------------------------------------- #
+def _position_coherent_path(T=66, block=6, seed=0):
+    """A path with flat magnitudes and sign coherence that grows toward the end.
+
+    This is what a fitted synthetic-control residual looks like. The QP makes the
+    residual orthogonal to the donor space over the window it balances, and the
+    residual that leaves behind is not position-homogeneous: measured on a fitted
+    PPSCM path, the standardized absolute block sum runs 0.733 in the interior,
+    0.956 near the end, and 1.114 at the final position, while the per-period
+    magnitude profile stays flat at 0.99 to 1.04. The coherence is in the signs.
+    """
+    rng = np.random.default_rng(seed)
+    mag = np.abs(rng.normal(size=T))                  # flat magnitudes
+    sign = rng.choice([-1.0, 1.0], size=T)
+    # progressively align the signs toward the end of the path
+    ramp = np.linspace(0.0, 1.0, T) ** 3
+    aligned = rng.random(T) < ramp
+    sign[aligned] = 1.0
+    return mag * sign
+
+
+def test_a_sum_statistic_needs_position_exchangeable_signs():
+    """The precondition a magnitude statistic does not have, stated as a test.
+
+    ``abs_sum`` reads sign coherence as signal. On a path whose signs align
+    toward the end -- flat magnitudes throughout -- the trailing block is not
+    exchangeable with its own rotations, and the p-value is anti-conservative.
+    ``mean_abs`` cannot see the coherence and stays calibrated on the same paths.
+
+    This is why a running-total band cannot simply swap the statistic underneath
+    a moving-block permutation: the reference set has to be exchangeable in the
+    thing the statistic measures, not merely in magnitude.
+    """
+    p_sum = np.array([moving_block_pvalue(_position_coherent_path(seed=s), block=6,
+                                          statistic="abs_sum") for s in range(400)])
+    p_abs = np.array([moving_block_pvalue(_position_coherent_path(seed=s), block=6,
+                                          statistic="mean_abs") for s in range(400)])
+    assert np.mean(p_sum <= 0.10) > 0.15, "the sum statistic should over-reject here"
+    assert np.mean(p_abs <= 0.10) < 0.14, "the magnitude statistic should not"
+
+
+def test_both_statistics_are_calibrated_when_the_path_is_exchangeable():
+    """The control for the test above: remove the position effect and the sum
+    statistic is fine. The fault is the interaction, not the statistic."""
+    rng = np.random.default_rng(5)
+    p_sum, p_abs = [], []
+    for _ in range(400):
+        u = rng.normal(size=66)
+        p_sum.append(moving_block_pvalue(u, block=6, statistic="abs_sum"))
+        p_abs.append(moving_block_pvalue(u, block=6, statistic="mean_abs"))
+    for p in (np.array(p_sum), np.array(p_abs)):
+        assert 0.05 < np.mean(p <= 0.10) < 0.15
+
+
+def test_the_sum_statistic_is_two_sided():
+    """A large negative block is as much evidence as a large positive one.
+
+    Without the absolute value the score is signed, so a negative block ranks at
+    the bottom of the reference set rather than the top and is never rejected --
+    the band would cover only one tail while appearing to be two-sided. A
+    cumulative effect is as likely to be a loss as a gain, so this is the more
+    consequential direction, not the symmetric afterthought.
+    """
+    quiet = np.random.default_rng(2).normal(scale=0.1, size=114)
+    for sign in (+1.0, -1.0):
+        u = np.concatenate([quiet, np.full(6, sign * 9.0)])
+        assert moving_block_pvalue(u, block=6, statistic="abs_sum") < 0.05
+
+
+def test_the_sum_statistic_scores_a_block_and_its_negation_alike():
+    u = np.concatenate([np.random.default_rng(8).normal(size=40), np.full(5, 2.5)])
+    v = np.concatenate([u[:40], -u[40:]])
+    assert moving_block_pvalue(u, block=5, statistic="abs_sum") == \
+           pytest.approx(moving_block_pvalue(v, block=5, statistic="abs_sum"))
