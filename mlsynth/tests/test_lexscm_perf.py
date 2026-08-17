@@ -152,6 +152,86 @@ def test_resampled_windows_come_from_the_pool_and_keep_its_scale():
     assert abs(out.std() / pool.std() - 1.0) < 0.05  # and the scale survives
 
 
+def test_the_search_scores_each_subset_once():
+    """The heuristic search revisits tuples; it should not re-solve them.
+
+    ``_local_search`` explores swap neighbourhoods from many starts, and
+    neighbourhoods overlap: on a 211-market panel the search asked for 612,912
+    subset losses covering 297,901 distinct tuples, so half the simplex solves
+    reproduced an answer already in hand. Deduplicating within a batch saves
+    nothing -- each batch is internally distinct -- so the memo has to persist
+    across calls, which is what ``pool`` was already doing for the incumbent
+    and not for the batches.
+
+    The saving is exact: ``_afw_batched`` is deterministic and row-independent,
+    so a cached loss is the loss that would have been recomputed.
+    """
+    from mlsynth.utils.fast_scm_helpers import lexsearch as ls
+
+    solved, real_afw = {"rows": 0, "keys": set()}, ls._afw_batched
+
+    def spy_afw(Qs, iters=80):
+        solved["rows"] += len(Qs)
+        return real_afw(Qs, iters=iters)
+
+    rng = np.random.default_rng(5)
+    X = rng.standard_normal((25, 40))
+    X = X - X.mean(1, keepdims=True)
+    G = X.T @ X
+
+    ls._afw_batched = spy_afw
+    try:
+        out = ls.select_treated_designs(G, range(40), 4, top_K=5,
+                                        method="heuristic", n_starts=8,
+                                        random_state=0)
+    finally:
+        ls._afw_batched = real_afw
+
+    # `subsets_evaluated` is what the search asked for; the spy counts what was
+    # actually solved. Repeats are the gap between them.
+    requested = out["stats"]["search"]["subsets_evaluated"]
+    assert requested > 0
+    assert solved["rows"] < requested, (
+        f"{solved['rows']} tuples solved for {requested} requested -- "
+        "the search is re-solving tuples it already has"
+    )
+
+
+def test_probing_a_tuple_does_not_enter_it_in_the_solution_pool():
+    """The loss cache and the solution pool are different objects.
+
+    ``_local_search`` ranks its top-K out of the tuples it *visited*. A
+    neighbourhood probe is not a visit: the descent scores hundreds of swaps to
+    pick one, and the rejected ones were never adopted. Caching probe losses in
+    the pool silently turns the search into "rank everything ever evaluated",
+    which on the 211-market panel changed the selected markets outright and
+    moved the MDE from 5.34% to 9.80% -- an answer no existing test objected
+    to, because every suite passed while it was wrong.
+
+    The configuration matters. A small problem with a small ``top_K`` cannot
+    tell the two apart, because the best tuple in a neighbourhood is the one
+    the descent adopts, so the best probed and the best visited coincide. The
+    gap opens further down the ranking: at ``top_K = 20`` on 80 candidates with
+    few starts, the leak puts ``(1, 39, 41, 61, 69)`` third -- a tuple the
+    search probed and rejected.
+    """
+    from mlsynth.utils.fast_scm_helpers import lexsearch as ls
+
+    rng = np.random.default_rng(7)
+    X = rng.standard_normal((25, 80))
+    X = X - X.mean(1, keepdims=True)
+    out = ls.select_treated_designs(X.T @ X, range(80), 5, top_K=20,
+                                    method="heuristic", n_starts=4,
+                                    random_state=0)
+    got = [tuple(d.indices) for d in out["top_designs"]]
+    assert got[:3] == [(33, 37, 40, 56, 61),
+                       (1, 39, 50, 61, 69),
+                       (1, 17, 39, 61, 69)], (
+        f"top-3 is {got[:3]}; (1, 39, 41, 61, 69) in third place means probe "
+        "losses are being ranked as if the search had visited them"
+    )
+
+
 def test_resampled_windows_preserve_within_block_dependence():
     """Moving blocks exist to carry serial correlation; that is the invariant."""
     rng = np.random.default_rng(4)

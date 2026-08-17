@@ -269,15 +269,54 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
                 and is_independent(conflict, S)
                 and _strata.within_max(strata, S, max_per))
     diag = np.diag(G)
+    # Two dictionaries with two jobs. `pool` is the *solution* pool: the tuples
+    # the search actually visited, ranked at the end to produce the top-K. It
+    # must keep exactly the membership it had before, or the search returns a
+    # different answer. `memo` is the loss cache: every tuple ever solved,
+    # including the hundreds of thousands merely probed inside a neighbourhood
+    # and never adopted. Those belong in the cache and not in the pool.
     pool: Dict[tuple, float] = {}
+    memo: Dict[tuple, float] = {}
     work = [0]                      # total subsets scored ("simplex iterations")
     best = [np.inf]                 # global incumbent objective
     trail: List[tuple] = []         # (work, objective) at each incumbent improvement
 
     def score(subs):
+        """Losses for a batch of tuples, solving only the ones not seen before.
+
+        Swap neighbourhoods overlap heavily across descent steps and across
+        starts, so the same tuple is asked for repeatedly -- about twice on
+        average. Solving it once and remembering the answer is exact:
+        ``_afw_batched`` is deterministic and treats rows independently, so a
+        remembered loss is the loss that would have been recomputed. Tuples
+        arrive sorted from every caller, so the key is canonical.
+
+        The answer goes in ``memo``, never in ``pool``. Probing a tuple inside
+        a neighbourhood is not visiting it, and only visited tuples may compete
+        for the top-K.
+
+        ``work`` still counts every tuple requested, not every tuple solved: it
+        is the search's reported effort diagnostic, and the number of tuples
+        the search considered has not changed.
+        """
         arr = np.asarray(subs)
         work[0] += len(arr)
-        return _losses_for(G, arr, iters=iters)
+        keys = [tuple(r) for r in arr.tolist()]
+        out = np.empty(len(keys), dtype=float)
+        missing = []
+        for i, k in enumerate(keys):
+            v = memo.get(k)
+            if v is None:
+                missing.append(i)
+            else:
+                out[i] = v
+        if missing:
+            idx = np.asarray(missing, dtype=int)
+            vals = _losses_for(G, arr[idx], iters=iters)
+            out[idx] = vals
+            for i, v in zip(missing, vals.tolist()):
+                memo[keys[i]] = v
+        return out
 
     def loss_of(S):
         v = pool.get(tuple(S))
