@@ -1267,3 +1267,39 @@ timeout = 300.0
   find = "    ranked = sorted(pool.items(), key=lambda kv: kv[1])[:top_K]"
   replace = "    ranked = sorted(pool.items(), key=lambda kv: -kv[1])[:top_K]"
   models = "the top-K taken from the wrong end of the pool, returning the worst-balanced designs the search found rather than the best"
+
+[[target]]
+name = "control_qp"
+module-path = "mlsynth/utils/fast_scm_helpers/fast_scm_control_helpers.py"
+test-command = "python -m pytest mlsynth/tests/test_control_qp_batch.py mlsynth/tests/test_lexscm_spillover.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "penalty-dropped-from-the-homogeneous-form"
+  find = "    d = lambda_penalty * c - 2.0 * b"
+  replace = "    d = -2.0 * b"
+  models = "the Abadie-L'Hour discrepancy penalty silently absent from the reduction, so the batch solves plain simplex least squares and the donor pool spreads over units that individually track the treated series badly"
+
+  [[target.mutant]]
+  id = "homogeneous-form-not-symmetrised"
+  find = "    return Q + 0.5 * (d[..., :, None] + d[..., None, :])"
+  replace = "    return Q + d[..., None, :]"
+  models = "the rank-one lift written one-sided, which still reproduces the linear term on the simplex but hands the active set an asymmetric matrix, so its corral solves and its optimality test disagree about the gradient"
+
+  [[target.mutant]]
+  id = "batch-scattered-into-the-wrong-donor-pool"
+  find = "            v[C[row]] = W[row]"
+  replace = "            v[C[0]] = W[row]"
+  models = "every design in a width group scattered through the first design's pool, so weights land on units the design excluded and the treated units come back with nonzero control weight"
+
+  [[target.mutant]]
+  id = "one-treated-series-used-for-the-whole-group"
+  find = "        b = np.einsum('sjt,st->sj', XT[C], Ys)"
+  replace = "        b = np.einsum('sjt,t->sj', XT[C], Ys[0])"
+  models = "the batch fitted against the first design's synthetic treated series throughout, which is the failure a rectangular stack invites and which leaves every weight vector feasible and plausible"
+
+  [[target.mutant]]
+  id = "spillover-neighbours-left-in-the-donor-pool"
+  find = "        if exclude_idx_list is not None and exclude_idx_list[k] is not None:\n            excluded |= {int(j) for j in exclude_idx_list[k]}"
+  replace = "        pass"
+  models = "the exclusion restriction dropped for the batch path, letting a treated unit's conflict neighbours serve as its own controls"

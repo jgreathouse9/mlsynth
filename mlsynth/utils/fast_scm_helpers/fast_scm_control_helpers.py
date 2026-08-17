@@ -1,6 +1,8 @@
 import cvxpy as cp
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, Sequence
+
+from ..bilevel.minnorm import solve_simplex_minnorm_batch
 
 def _build_objective(
     X_E: np.ndarray,
@@ -185,6 +187,142 @@ def solve_control_qp(
     v[control_idx] = solution_control
     return v
 
+
+
+def _homogeneous_gram(Q: np.ndarray, b: np.ndarray, yy: np.ndarray,
+                      lambda_penalty: float) -> np.ndarray:
+    """The penalised control objective as a homogeneous form on the simplex.
+
+    With ``Q = A'A``, ``b = A'y`` and ``c_j = ||A[:, j] - y||^2`` the objective is
+
+        ||A v - y||^2 + lam * sum_j v_j c_j  =  v'Q v + d'v + y'y,
+        d = lam c - 2 b,   c_j = Q_jj - 2 b_j + y'y
+
+    and the equality constraint absorbs the linear part: ``1'v = 1`` gives
+    ``d'v = d'v (1'v) = v'(d 1')v``, so symmetrising,
+
+        S = Q + (d 1' + 1 d') / 2
+
+    leaves ``v'S v`` equal to the objective up to the constant ``y'y``. The
+    minimiser is therefore unchanged and the program is the one Wolfe's active
+    set solves.
+
+    ``S`` is not itself positive semi-definite -- the rank-one correction sees to
+    that, and no shift repairs it, since ``1 1'`` has rank one while ``Q`` is
+    singular in every direction the donors do not span. What the active set
+    needs is convexity on the *feasible* set, and that holds exactly: for any
+    ``z`` with ``1'z = 0``, ``z'S z = z'Q z >= 0``. Every step the method takes
+    -- corral solves and line searches alike -- stays on ``{1'v = 1}``, so it
+    only ever sees the restriction.
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (..., J, J)
+        Donor Gram matrices, batched over any leading axes.
+    b : np.ndarray, shape (..., J)
+        ``A'y`` for each problem.
+    yy : np.ndarray, shape (...,)
+        ``y'y`` for each problem.
+    lambda_penalty : float
+        Weight on the Abadie-L'Hour discrepancy penalty.
+
+    Returns
+    -------
+    np.ndarray, shape (..., J, J)
+        The homogeneous forms ``S``.
+    """
+    diag = np.einsum('...jj->...j', Q)
+    c = diag - 2.0 * b + yy[..., None]
+    d = lambda_penalty * c - 2.0 * b
+    return Q + 0.5 * (d[..., :, None] + d[..., None, :])
+
+
+def solve_control_qps(
+    X_E: np.ndarray,
+    treated_vecs: Sequence[np.ndarray],
+    treated_idx_list: Sequence[Sequence[int]],
+    lambda_penalty: float = 0.1,
+    exclude_idx_list: Optional[Sequence[Optional[Sequence[int]]]] = None,
+) -> List[Optional[np.ndarray]]:
+    """Solve the control QP for a whole shortlist of designs at once.
+
+    Same program as :func:`solve_control_qp`, once per design, but reduced to
+    the homogeneous form (see :func:`_homogeneous_gram`) and handed to the
+    batched Wolfe active set, which runs the stack in lockstep: iterations are
+    set by the hardest design in the shortlist and not by their number.
+
+    Designs are grouped by donor-pool width, since a stack has to be
+    rectangular and the spillover exclusions ``N(S)`` differ in size between
+    designs. With no conflict graph every pool is ``N - m`` wide and there is
+    one group.
+
+    Parameters
+    ----------
+    X_E : np.ndarray, shape (T_E, N)
+        Standardized feature matrix over the estimation period.
+    treated_vecs : sequence of np.ndarray, each shape (T_E,)
+        Synthetic treated series, one per design.
+    treated_idx_list : sequence of sequences of int
+        Treated units to exclude from the donor pool, one per design.
+    lambda_penalty : float, default=0.1
+        Regularization strength for mismatch penalties.
+    exclude_idx_list : sequence of (sequence of int or None), optional
+        Additional indices to drop per design -- the spillover neighbours
+        ``N(S)``. ``None`` or an empty sequence means no extra exclusions.
+
+    Returns
+    -------
+    list of (np.ndarray, shape (N,) or None)
+        Control weights per design, aligned with the input order. Entries at
+        treated and excluded indices are exactly zero. A design whose exclusions
+        empty the donor pool comes back as ``None`` at its own position, so the
+        caller can skip it without the list shifting under the others.
+    """
+    n = len(treated_vecs)
+    if n != len(treated_idx_list):
+        raise ValueError(
+            f"{n} treated series for {len(treated_idx_list)} designs; "
+            "the two must align.")
+    if n == 0:
+        return []
+
+    _, N = X_E.shape
+    out: List[Optional[np.ndarray]] = [None] * n
+
+    # Donor pools, one per design. Exclusion is by construction -- the columns
+    # leave the problem -- so the excluded weights are exactly zero and not zero
+    # to a solver tolerance.
+    pools: List[np.ndarray] = []
+    for k in range(n):
+        excluded = {int(j) for j in treated_idx_list[k]}
+        if exclude_idx_list is not None and exclude_idx_list[k] is not None:
+            excluded |= {int(j) for j in exclude_idx_list[k]}
+        pools.append(np.array([i for i in range(N) if i not in excluded],
+                              dtype=int))
+
+    widths: dict = {}
+    for k, ctrl in enumerate(pools):
+        if ctrl.size:
+            widths.setdefault(ctrl.size, []).append(k)
+
+    G_full = X_E.T @ X_E
+    XT = X_E.T
+
+    for width, members in widths.items():
+        C = np.stack([pools[k] for k in members])                # (S, width)
+        Ys = np.stack([np.asarray(treated_vecs[k], dtype=float)
+                       for k in members])                        # (S, T_E)
+        Q = G_full[C[:, :, None], C[:, None, :]]                 # (S, w, w)
+        b = np.einsum('sjt,st->sj', XT[C], Ys)
+        yy = np.einsum('st,st->s', Ys, Ys)
+        W = solve_simplex_minnorm_batch(
+            _homogeneous_gram(Q, b, yy, lambda_penalty))
+        for row, k in enumerate(members):
+            v = np.zeros(N)
+            v[C[row]] = W[row]
+            out[k] = v
+
+    return out
 
 
 def compute_nmse(X: np.ndarray, w: np.ndarray, target: np.ndarray, idx: np.ndarray, treated_idx: list) -> float:
