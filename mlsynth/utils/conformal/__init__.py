@@ -35,12 +35,14 @@ from __future__ import annotations
 
 from .cumulative import cumulative_conformal_from_refit, cumulative_conformal_interval
 from .inversion import confidence_set_bounds
+from .permutation import BLOCK_STATISTICS, moving_block_pvalue
 from .quantile import split_conformal_quantile
 from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from .scores import MIN_TRAIN_PERIODS, rolling_origin_block_sums
 from .structure import CumulativeConformalBand
 
 __all__ = [
+    "BLOCK_STATISTICS",
     "CONFORMAL_REFIT_RULES",
     "MIN_TRAIN_PERIODS",
     "CumulativeConformalBand",
@@ -48,6 +50,7 @@ __all__ = [
     "conformal_refit_gaps",
     "cumulative_conformal_from_refit",
     "cumulative_conformal_interval",
+    "moving_block_pvalue",
     "rolling_origin_block_sums",
     "split_conformal_quantile",
 ]
