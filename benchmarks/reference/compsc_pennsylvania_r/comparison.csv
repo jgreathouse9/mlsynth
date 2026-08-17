@@ -1,0 +1,31 @@
+# case: compsc_pennsylvania_r
+# generated_at: 2026-08-16T23:13:52Z
+# mlsynth_version: 2.0.0
+# estimator: COMPSC
+# config: {"baseline": "renewables", "geometry": "alr", "outcomes": ["gas", "fossil", "renewables"], "target": "gas"}
+# reference_impl: Boussim (2026) csc_replication.R (quadprog::solve.QP on the stacked ALR log-odds), run live on basedata/pa_aeps_generation.csv
+# reference_version: arXiv:2607.16991 replication script
+quantity,mlsynth,reference,abs_diff
+weight[IL],0.233281444,0.233281442,0.0
+weight[WY],0.208182484,0.208182484,0.0
+weight[IA],0.167729397,0.167729396,0.0
+weight[NE],0.148860399,0.148860398,0.0
+weight[MA],0.101852905,0.101852905,0.0
+weight[CT],0.047546573,0.047546574,0.0
+weight[NJ],0.042941368,0.042941369,0.0
+weight[IN],0.032499126,0.032499129,0.0
+weight[MT],0.016181811,0.016181812,0.0
+weight[AR],0.000924492,0.000924492,0.0
+Aitchison RMSPE (pre),0.186748245,0.186748245,0.0
+"share RMSPE (pre, pp)",1.339407898,1.339407896,0.0
+ATT_gas[2010] (pp),16.543331011,16.543330999,0.0
+LRTE_gas|fos[2010],1.456981151,1.456981149,0.0
+ATT_gas[2016] (pp),37.321912137,37.321912068,0.0
+LRTE_gas|fos[2016],1.676703344,1.676703338,0.0
+ATT_gas[2022] (pp),60.386951974,60.38695188,0.0
+LRTE_gas|fos[2022],2.373389321,2.373389315,0.0
+ATT_gas[2023] (pp),59.129176472,59.12917636,0.0
+LRTE_gas|fos[2023],2.34821349,2.348213484,0.0
+placebo RMSPE ratio (PA),9.179571456,9.179571444,0.0
+placebo units retained,36.0,36.0,0.0
+placebo p-value,0.111111111,0.111111111,0.0

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-08-16T23:23:37Z",
+  "git_sha": "febcdddb609ca1815763f44aa3687fbd8e132ba0",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/compsc_pennsylvania_r/reference.R basedata/pa_aeps_generation.csv",
+  "data": [
+    {
+      "path": "basedata/pa_aeps_generation.csv",
+      "sha256": "7d7c0aebf62e8787aaeb260b556621495f01b27cd8ef7ea102057c235666b373"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "compiler": "4.3.3"
+  }
+}
