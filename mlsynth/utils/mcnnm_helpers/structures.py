@@ -10,7 +10,7 @@ forms treatment effects as observed minus imputed.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import numpy as np
 from pydantic import ConfigDict, Field as PydField
@@ -97,6 +97,8 @@ class MCNNMResults(BaseEstimatorResults):
         Unit fixed effects, shape ``(N,)``.
     delta : np.ndarray
         Time fixed effects, shape ``(T,)``.
+    lambda_source : {"cv", "user"}
+        Whether ``best_lambda`` was cross-validated or supplied by the caller.
     best_lambda : float
         Cross-validation-selected singular-value threshold.
     rank : int
@@ -129,6 +131,7 @@ class MCNNMResults(BaseEstimatorResults):
     gamma: np.ndarray
     delta: np.ndarray
     best_lambda: float
+    lambda_source: Literal["cv", "user"] = "cv"
     rank: int
     unit_factors: Optional[np.ndarray] = None
     time_factors: Optional[np.ndarray] = None
