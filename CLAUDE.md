@@ -241,6 +241,26 @@ Reusable, codified workflows live in `.claude/commands/`:
   port → validate vs reference → decide build).
 - `/new-estimator <name>` — scaffold a new estimator to the contract above.
 - `/ai-review` — cross-model review of the working diff before a PR.
+- `/rca <failure>` — diagnose a failure to its root cause, leaving the five-why
+  ladder behind as tests (`agents/agents_tests.md`).
+
+### Root-cause analyses belong in the PR body
+
+When a change comes out of an `/rca`, the whole ladder goes in the pull request
+description, not only in the commit message. Every rung, with its measurement and
+whether it passed, including the hypotheses that were eliminated and any mutant
+that survived a first run.
+
+The reason is that the ladder's most valuable output is usually a negative
+result — a construction that cannot work, an invariant that does not hold, an
+explanation that measured out wrong — and a negative result nobody can find gets
+rediscovered the expensive way. A commit message is read once, by whoever
+reviews that commit. The PR is what a person finds a year later when they reach
+for the same approach, and it is where the reasoning has to be waiting for them.
+
+Include the wrong turns explicitly. "The obvious explanation was X, measured at
+Y, and X is not the cause" is worth as much as the cause itself, because it is
+the branch the next person would otherwise take.
 
 Optional plan-gate: `.claude/hooks/check-plan-review.sh` (wire via
 `.claude/settings.json`) blocks plan approval until a plan review exists.
