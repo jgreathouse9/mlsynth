@@ -1303,3 +1303,33 @@ timeout = 300.0
   find = "        if exclude_idx_list is not None and exclude_idx_list[k] is not None:\n            excluded |= {int(j) for j in exclude_idx_list[k]}"
   replace = "        pass"
   models = "the exclusion restriction dropped for the batch path, letting a treated unit's conflict neighbours serve as its own controls"
+
+[[target]]
+name = "moving-block-pvalue"
+module-path = "mlsynth/utils/conformal/permutation.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_moving_block.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "exclude-the-observed-block-from-its-own-reference-set"
+  find = "    stats = np.array([_score(np.roll(u, s)[-block:], statistic)\n                      for s in range(u.size)], dtype=float)"
+  replace = "    stats = np.array([_score(np.roll(u, s)[-block:], statistic)\n                      for s in range(1, u.size)], dtype=float)"
+  models = "dropping the shift that reproduces the observed block, so the p-value can reach zero. A permutation test over T reference values cannot produce more evidence than 1/T, and a zero p-value claims certainty the reference set does not contain"
+
+  [[target.mutant]]
+  id = "strict-instead-of-weak-comparison"
+  find = "    return float(np.mean(stats >= observed))"
+  replace = "    return float(np.mean(stats > observed))"
+  models = "excluding ties from the count. On a continuous statistic this changes nothing; on a discrete reference set it drops the observed block itself and every block equal to it, which is the same anti-conservative error as excluding the observed shift, arrived at through the comparison instead of the range"
+
+  [[target.mutant]]
+  id = "sum-without-the-absolute-value"
+  find = "    return abs(float(np.sum(window)))"
+  replace = "    return float(np.sum(window))"
+  models = "scoring a signed rather than a two-sided statistic. A band inverted from it covers only one tail, so a negative effect of any size is never detected while a positive one is over-detected"
+
+  [[target.mutant]]
+  id = "disjoint-blocks-instead-of-every-rotation"
+  find = "                      for s in range(u.size)], dtype=float)"
+  replace = "                      for s in range(0, u.size, block)], dtype=float)"
+  models = "reverting to a disjoint reference set, which is the split-conformal block count this function exists to improve on. The p-value's granularity falls from 1/T to block/T, which at an eight-period horizon over a hundred pre-periods is coarser than the level being inverted at"
