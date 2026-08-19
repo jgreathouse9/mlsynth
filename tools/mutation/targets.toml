@@ -1333,3 +1333,28 @@ timeout = 300.0
   find = "                      for s in range(u.size)], dtype=float)"
   replace = "                      for s in range(0, u.size, block)], dtype=float)"
   models = "reverting to a disjoint reference set, which is the split-conformal block count this function exists to improve on. The p-value's granularity falls from 1/T to block/T, which at an eight-period horizon over a hundred pre-periods is coarser than the level being inverted at"
+
+[[target]]
+name = "auto-nu"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_auto_nu.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "auto-nu-unclamped"
+  find = """    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 1.0))
+               if nu is None else float(nu))"""
+  replace = "    nu_used = float(global_l2 * np.sqrt(d) / avg_l2) if nu is None else float(nu)"
+  models = "the defect this clamp removes: trusting a triangle-inequality ratio to stay inside the unit interval it is bounded by in exact arithmetic. On a single-treated-unit panel the bound is tight, so rounding decides the sign of 1 - nu, and one unit in the last place above one makes the objective a negative multiple of a convex quadratic that cvxpy refuses outright. The same panel in different units lands on opposite sides"
+
+  [[target.mutant]]
+  id = "auto-nu-clamped-to-the-wrong-interval"
+  find = "    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 1.0))"
+  replace = "    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 0.99))"
+  models = "keeping the problem convex by holding nu off its own boundary. Every fit still solves, so the DCPError is gone and the failure that motivated the clamp is invisible -- but a single treated unit belongs at nu = 1, where the separate term drops out, and this gives it one percent of a fit it should not be blending in at all"
+
+  [[target.mutant]]
+  id = "an-explicit-nu-is-clamped-too"
+  find = "               if nu is None else float(nu))"
+  replace = "               if nu is None else float(np.clip(nu, 0.0, 1.0)))"
+  models = "extending the clamp past the computed ratio to the caller's own value. It reads as defensive and changes nothing on any valid input, but it converts an out-of-range nu from something a caller can discover into a silently substituted one"

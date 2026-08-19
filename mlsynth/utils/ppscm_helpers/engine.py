@@ -354,7 +354,18 @@ def run_multisynth(
     avg_l2 = float(np.mean([np.sqrt((M0[:, k] ** 2).sum()) for k in range(J)]))
     nnz = [max(int((np.abs(M0[:, k]) > 1e-12).sum()), 1) for k in range(J)]
     ind_l2 = float(np.sqrt(np.mean([(M0[:, k] ** 2).sum() / nnz[k] for k in range(J)])))
-    nu_used = float(global_l2 * np.sqrt(d) / avg_l2) if nu is None else float(nu)
+    # The ratio is ||mean_k m_k|| / mean_k ||m_k||, a triangle inequality, so it
+    # lies in [0, 1] and is tight when the treated units share one imbalance
+    # vector -- which a single treated unit does by definition, putting the ratio
+    # exactly on the bound. It is computed from two square roots and a division,
+    # and floating point can land it a unit in the last place above one. The
+    # objective below weights the separate term by 1 - nu, so that becomes a
+    # negative multiple of a convex quadratic and cvxpy refuses the problem as
+    # non-convex before the solver runs. Clamping restores the bound the formula
+    # already has. NaN survives the clamp, so a degenerate separate fit still
+    # shows up as one. An explicit nu is the caller's choice and passes through.
+    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 1.0))
+               if nu is None else float(nu))
 
     W = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
                         nu_used, global_l2 ** 2, ind_l2 ** 2, lam, solver, zt=zt, Zc=Zc)
