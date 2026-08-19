@@ -1423,4 +1423,8 @@ action records them once its toolchain provisions.
      - jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)
    * - `ppscm_cs_real_panels <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_cs_real_panels.py>`__
      - —
+   * - `ronczewski_cannabis <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`__
+     - Alexr951/Cannabis_Alcohol_Substitution (Ronczewski 2026): PPSCM, SDID and
+       GSYNTH against the paper's published augsynth 0.2.0 / did 2.3.0 /
+       synthdid 0.0.9 / gsynth 1.4.0 numbers, on the NIAAA source file
 

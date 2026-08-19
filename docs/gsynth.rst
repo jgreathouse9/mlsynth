@@ -381,6 +381,15 @@ in all sixteen outcome-by-force combinations. See
 `benchmarks/cases/gsynth_av_laws.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/gsynth_av_laws.py>`_.
 
+A third case is a cross-package one on real data: the cannabis-alcohol panel
+of Ronczewski (2026). At a fixed factor number GSYNTH matches the paper's
+published ``gsynth`` estimate to 6.9e-18. The cross-validation is where the
+two part -- Algorithm 1 selects 4 where the paper's ``gsynth`` 1.4.0 selects
+1, and the estimate differs by a factor of 2.6 -- so the case validates the
+estimator at a fixed rank and records the selected rank as its own metric.
+See `benchmarks/cases/ronczewski_cannabis.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`_.
+
 Core API
 --------
 
