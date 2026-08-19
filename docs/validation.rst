@@ -9,7 +9,7 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **82 cross-validation checks** against original
+Coverage: **83 cross-validation checks** against original
 implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
 within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
@@ -122,9 +122,9 @@ Summary
      - 4 exact · 1 close
      - 0.056
    * - :ref:`PPSCM <val-ppscm>`
-     - 1
-     - 1 tight
-     - 0.0022
+     - 2
+     - 1 tight · 1 documented
+     - 3
    * - :ref:`PROPSC <val-propsc>`
      - 1
      - 1 exact
@@ -805,6 +805,12 @@ PPSCM
      - 0.0022
      - tight
      - `ppscm_paglayan <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_paglayan.py>`__
+   * - Ronczewski (2026) replication package, Results/csv/
+     - —
+     - 14
+     - 3
+     - documented — see notes
+     - `ronczewski_cannabis <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`__
 
 .. _val-propsc:
 
@@ -1423,8 +1429,4 @@ action records them once its toolchain provisions.
      - jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)
    * - `ppscm_cs_real_panels <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_cs_real_panels.py>`__
      - —
-   * - `ronczewski_cannabis <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`__
-     - Alexr951/Cannabis_Alcohol_Substitution (Ronczewski 2026): PPSCM, SDID and
-       GSYNTH against the paper's published augsynth 0.2.0 / did 2.3.0 /
-       synthdid 0.0.9 / gsynth 1.4.0 numbers, on the NIAAA source file
 
