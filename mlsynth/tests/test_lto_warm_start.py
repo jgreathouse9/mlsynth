@@ -181,3 +181,36 @@ def test_covariate_path_is_unchanged_by_the_seed():
     cold = lto_placebo_test(BilevelSCM(), y, Y0, 14, warm_start=False, **kw)
     warm = lto_placebo_test(BilevelSCM(), y, Y0, 14, warm_start=True, **kw)
     assert warm == cold
+
+
+# --- pre-existing gaps in the same file, closed while it is open ---------------
+
+def test_too_few_donors_is_refused():
+    """Two donors cannot be left out of two and leave a pool behind."""
+    y, Y0 = _panel(1, 12, 2, 8)
+    with pytest.raises(ValueError, match="at least 3 donor units"):
+        _run(y, Y0, 8, warm_start=True)
+
+
+def test_max_pairs_subsamples_deterministically_and_says_so():
+    """The cap is a deterministic draw, so two runs at one seed agree."""
+    y, Y0 = _panel(6, 24, 10, 15)
+    full = _run(y, Y0, 15, warm_start=True)
+    assert full["n_pairs"] == 45 and not full["subsampled"]
+
+    kw = dict(alpha=0.05, max_pairs=12, seed=3)
+    capped = lto_placebo_test(BilevelSCM(), y, Y0, 15, **kw)
+    assert capped["subsampled"] and capped["n_pairs"] == 12
+    assert capped == lto_placebo_test(BilevelSCM(), y, Y0, 15, **kw)
+
+
+def test_type_i_rate_function_clamps_outside_its_valid_alpha_range():
+    """`f(N, alpha)` takes a square root of a quantity decreasing in alpha, which
+    goes negative past the range the Type-I bound is defined on. It clamps there,
+    so the rate saturates instead of returning nan."""
+    from mlsynth.utils.vanillasc_helpers.lto import lto_f
+
+    saturated = (3.0 - 3.0 / 40) / 2.0
+    assert lto_f(40, 0.74) < saturated             # still inside the range
+    for alpha in (0.75, 0.9, 1.0):
+        assert lto_f(40, alpha) == pytest.approx(saturated)
