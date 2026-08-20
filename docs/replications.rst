@@ -61,6 +61,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/rrsc
    replications/src
    replications/bscm
+   replications/bltvp
    replications/bfsc
    replications/dmlfm
    replications/mvbbsc

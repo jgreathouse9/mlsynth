@@ -8,8 +8,9 @@ with independent Bayesian Lasso shrinkage on each, so the model chooses per
 donor whether the relationship is time-varying, static, or absent.
 
 Table 2 reports the average reduction in California's per-capita cigarette
-sales for seven methods. This case pins the BL-TVP row against a port of the
-paper's own sampler (``benchmarks/reference/bltvp_prop99/bltvp_reference.py``).
+sales for seven methods. This case pins the BL-TVP row against :class:`mlsynth.BLTVP`. The standalone
+port the replication was first demonstrated with is kept alongside, at
+``benchmarks/reference/bltvp_prop99/bltvp_reference.py``, as a readable oracle.
 
   =====================  =======  =========  ==========
   Quantity               paper    port       MCSE
@@ -65,14 +66,12 @@ Provenance
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 _BASE = Path(__file__).resolve().parents[2] / "basedata"
-_REF = Path(__file__).resolve().parents[1] / "reference" / "bltvp_prop99"
 
 # Klinenberg (2023) Table 2, BL-TVP row (p.1075).
 PAPER = {"avg": 17.7, "lo": -16.1, "hi": 51.7}
@@ -80,53 +79,54 @@ PAPER = {"avg": 17.7, "lo": -16.1, "hi": 51.7}
 T0, T = 19, 31
 
 
-def _panel():
+def _fit(seed: int = 0):
+    """Fit mlsynth's BLTVP at the settings the author's 3-BLTVP.R uses."""
+    from mlsynth import BLTVP
+
     df = pd.read_csv(_BASE / "smoking_data.csv")
     df["treat"] = ((df["state"] == "California") & (df["year"] >= 1989)).astype(int)
-    from mlsynth.utils.datautils import dataprep
-
-    p = dataprep(df, "state", "year", "cigsale", "treat")
-    return np.asarray(p["y"], float).ravel(), np.asarray(p["donor_matrix"], float)
-
-
-def _fit(seed: int = 0):
-    if str(_REF) not in sys.path:
-        sys.path.insert(0, str(_REF))
-    from bltvp_reference import bltvp
-
-    y, Y0 = _panel()
-    # No intercept, per the author's 3-BLTVP.R; 10000/5000 are its settings.
-    pred = bltvp(y, Y0, T0, niter=10000, nburn=5000, seed=seed)
-    return y, pred
+    return BLTVP({
+        "df": df, "outcome": "cigsale", "unitid": "state", "time": "year",
+        "treat": "treat",
+        "n_iter": 10000, "burn_in": 5000, "chains": 1, "seed": seed,
+        "intercept": False,          # per 3-BLTVP.R; see above
+        "display_graphs": False,
+    }).fit()
 
 
-def _table2(y, pred):
-    """ca_table.R's statistic: per-period posterior mean / 2.5th / 97.5th of
-    (counterfactual - observed), averaged over periods 19..31 inclusive."""
-    d = pred - y[:, None]
+def _table2(res):
+    """ca_table.R's statistic, read off the public result object.
+
+    Per period it takes the posterior mean / 2.5th / 97.5th percentile of
+    (counterfactual - observed) and averages those over periods 19 to 31.
+    Since the observed series is fixed, a quantile of the difference is the
+    quantile of the counterfactual minus the observation, so the estimator's
+    own credible bands give the same three numbers.
+    """
+    y = np.asarray(res.time_series.observed_outcome, dtype=float)
+    det = res.inference_detail
     w = slice(18, 31)
-    return (float(d.mean(axis=1)[w].mean()),
-            float(np.quantile(d, 0.025, axis=1)[w].mean()),
-            float(np.quantile(d, 0.975, axis=1)[w].mean()))
+    return (float((det.counterfactual_mean - y)[w].mean()),
+            float((det.counterfactual_lower - y)[w].mean()),
+            float((det.counterfactual_upper - y)[w].mean()))
 
 
 def run() -> dict:
-    y, pred = _fit(seed=0)
-    avg, lo, hi = _table2(y, pred)
-    pre_rmse = float(np.sqrt(np.mean((pred[:T0].mean(axis=1) - y[:T0]) ** 2)))
+    res = _fit(seed=0)
+    avg, lo, hi = _table2(res)
     return {
         "avg_decrease_vs_paper": abs(avg - PAPER["avg"]),
         "lower_2p5_vs_paper": abs(lo - PAPER["lo"]),
         "upper_97p5_vs_paper": abs(hi - PAPER["hi"]),
         "effect_band_spans_zero": 1.0 if lo < 0.0 < hi else 0.0,
-        "pre_period_rmse": pre_rmse,
+        "pre_period_rmse": float(res.fit_diagnostics.rmse_pre),
     }
 
 
 def comparison() -> dict:
     """mlsynth's BL-TVP port vs Klinenberg (2023) Table 2, BL-TVP row."""
-    y, pred = _fit(seed=0)
-    avg, lo, hi = _table2(y, pred)
+    res = _fit(seed=0)
+    avg, lo, hi = _table2(res)
     rows = [
         {"quantity": "Average decrease", "mlsynth": round(avg, 2), "reference": PAPER["avg"]},
         {"quantity": "2.5th percentile", "mlsynth": round(lo, 2), "reference": PAPER["lo"]},
@@ -134,9 +134,9 @@ def comparison() -> dict:
     ]
     return {
         "rows": rows,
-        "mlsynth_call": {"estimator": "BL-TVP (replication port)",
-                         "config": {"niter": 10000, "nburn": 5000, "intercept": False,
-                                    "window": "periods 19-31"}},
+        "mlsynth_call": {"estimator": "BLTVP",
+                         "config": {"n_iter": 10000, "burn_in": 5000, "chains": 1,
+                                    "intercept": False, "window": "periods 19-31"}},
         "reference": {"impl": "Klinenberg (2023) Table 2, printed",
                       "version": "JBES 41(4), 1065-1076, p.1075"},
     }

@@ -474,11 +474,11 @@ already in hand. It needs at least as many covariates as factors and a
 pre-period longer than covariates-times-factors, and reports a per-period
 moving-block conformal band. With no covariates, use :doc:`fma` or :doc:`cfm`.
 
-*Which Bayesian synthetic control?* Six estimators are Bayesian, and they
-split on what carries the prior. :doc:`mvbbsc`, :doc:`bscm`, and :doc:`bvss`
-put a prior on the *donor weights* and all report donor weights -- reach for
-them, at Q1.2 or Q1.6, when you want interpretable weights with a credible
-interval. They differ in the constraint: :doc:`mvbbsc` (Martinez and
+*Which Bayesian synthetic control?* Seven estimators are Bayesian, and they
+split on what carries the prior. :doc:`mvbbsc`, :doc:`bscm`, :doc:`bvss` and
+:doc:`bltvp` put a prior on the *donor weights* and all report donor weights --
+reach for them, at Q1.2 or Q1.6, when you want interpretable weights with a
+credible interval. They differ in the constraint: :doc:`mvbbsc` (Martinez and
 Vives-i-Bastida) keeps the *hard simplex* with a uniform prior, standardizes
 internally so the fit is unit-free, and carries a Bernstein-von Mises guarantee
 that makes its credible interval a valid confidence interval -- the choice when
@@ -486,7 +486,15 @@ the treated unit is inside the donors' hull and you want principled inference on
 the classical convex-combination model; :doc:`bscm` drops the simplex for
 shrinkage (horseshoe or spike-and-slab) on *unconstrained* weights; :doc:`bvss`
 keeps a *soft* simplex and adds spike-and-slab donor selection with inclusion
-probabilities. :doc:`bfsc` and :doc:`mtgp` put the prior on a *latent-factor
+probabilities. :doc:`bltvp` is the one whose weights are allowed to *move*: it
+splits each weight into a fixed level and a random-walk component and shrinks
+the two separately, so the model decides per donor whether that relationship
+drifts, holds still, or is absent. Reach for it when an ordinary synthetic
+control fits the pre-period poorly and you suspect the donor relationships are
+not stable over a long window; it needs enough pre-periods for drift to be
+visible, and like :doc:`bscm` it places no simplex constraint. Setting
+``time_varying=False`` collapses it to a static Bayesian Lasso, which makes the
+comparison against a fixed-weight fit a switch inside one estimator. :doc:`bfsc` and :doc:`mtgp` put the prior on a *latent-factor
 model* of the outcome and report a counterfactual band with no donor weights --
 reach for them when a shared factor structure, not a weighted average of
 donors is the right model. The two factor models differ in one thing:

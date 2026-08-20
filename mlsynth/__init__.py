@@ -66,6 +66,7 @@ from .estimators.cmbsts import CMBSTS
 from .estimators.sbc import SBC
 from .estimators.bvss import BVSS
 from .estimators.bscm import BSCM
+from .estimators.bltvp import BLTVP
 from .estimators.bfsc import BFSC
 from .estimators.mvbbsc import MVBBSC
 from .estimators.mtgp import MTGP
@@ -159,7 +160,7 @@ __all__ = [
     "plot_mde_ranking",
     "TASC",
     "CMBSTS",
-    "SBC", "BVSS", "BSCM", "BFSC", "MVBBSC", "MTGP", "BPSCS",
+    "SBC", "BVSS", "BSCM", "BLTVP", "BFSC", "MVBBSC", "MTGP", "BPSCS",
     "MLSC",
     "MSQRT",
     "SSC",
