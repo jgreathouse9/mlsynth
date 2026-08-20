@@ -90,7 +90,49 @@ def test_warm_start_collapses_solver_work(monkeypatch):
     _run(y, Y0, 18, warm_start=True)
     warm = calls["n"]
 
+    solves = 3 * (20 * 19 // 2)
     assert warm * 3 < cold, f"seeded path did not collapse work: {warm} vs {cold}"
+    # Absolute bound, not just a ratio. A seed that is merely feasible -- the
+    # treated unit's base carried onto a donor's subproblem, say -- still beats
+    # the uniform point by enough to pass a ratio test, while costing about
+    # twice the pivots of the right seed (4.2 vs 2.2 per solve here).
+    assert warm < 3.0 * solves, f"{warm / solves:.1f} calls/solve; the seed is wrong"
+
+
+def test_every_subproblem_leaves_out_both_donors_of_the_pair(monkeypatch):
+    """The design the pair loop actually builds, pinned by donor count.
+
+    Leaving out one donor instead of two is the ordinary placebo test wearing
+    LTO's name, and it is invisible to any test that only compares the seeded
+    path against the cold one -- it moves both alike.
+    """
+    from mlsynth.utils.bilevel import engine as engine_mod
+
+    widths: list[int] = []
+    inner = engine_mod.BilevelSCM.fit
+
+    def recording(self, y_pre, Y0_pre, **kw):
+        widths.append(Y0_pre.shape[1])
+        return inner(self, y_pre, Y0_pre, **kw)
+
+    monkeypatch.setattr(engine_mod.BilevelSCM, "fit", recording)
+
+    J, pre = 7, 12
+    y, Y0 = _panel(4, 20, J, pre)
+
+    widths.clear()
+    res = _run(y, Y0, pre, warm_start=False)
+    n_pairs = J * (J - 1) // 2
+    assert res["n_pairs"] == n_pairs
+    assert widths == [J - 2] * (3 * n_pairs)
+
+    widths.clear()
+    _run(y, Y0, pre, warm_start=True)
+    # One treated base on the full pool, one per donor on the other J-1, then
+    # the pair loop. The seeding cost is O(J) against the loop's O(J^2).
+    assert widths[0] == J
+    assert widths[1:1 + J] == [J - 1] * J
+    assert widths[1 + J:] == [J - 2] * (3 * n_pairs)
 
 
 # --- rung 4: the contract on the seed itself -----------------------------------
