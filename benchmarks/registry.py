@@ -80,6 +80,7 @@ CASES = {
     "vanillasc_olympics": "benchmarks.cases.vanillasc_olympics",  # Path A (Yoneoka et al. 2022 BMJ Open, Tokyo 2020 Olympics -> COVID cases: 143072/89210 cumulative exact) + cross-val vs pinned tidysynth 0.2.0; records that the authors' donor weights are no longer reproducible (0.183) while the p-value is
     "ibex_dap": "benchmarks.cases.ibex_dap",                  # cross-val vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price (Haro Ruiz-Schult-Wunder 2024), weights value-for-value
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
+    "bltvp_prop99": "benchmarks.cases.bltvp_prop99",  # Path A vs Klinenberg (2023) JBES Table 2: BL-TVP average reduction in California per-capita cigarette sales, point estimate and both credibility bounds
     "lto_refined_placebo": "benchmarks.cases.lto_refined_placebo",  # cross-val vs authors' LTO code (Sudijono-Lei): leave-two-out refined placebo p-value on Prop 99 + West Germany + Basque, value-for-value
     "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2025 Table 5 carbon-tax debiased t-test
     "cwz_conformal": "benchmarks.cases.cwz_conformal",    # cross-val vs scinference conformal (CWZ 2021 JASA Sec 5 application)
