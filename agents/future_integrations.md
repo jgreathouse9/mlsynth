@@ -2206,13 +2206,40 @@ outcomes that plausibly diffuse.
 
 ---
 
-## 21. Batching the forward-selection scan -- shipped for FSCM, rejected for the screen
+## 21. The FSCM forward scan -- three attempts, and the one that was a bug
 
-**Status: the batched scan is in (`simplex_lstsq_gram_many` plus
-`scan_candidates` / `rolling_origin_rmspe_batched`). Frank-Wolfe candidate
-screening was prototyped alongside it and rejected on measurement. Keep the
-negative result -- the reason it fails is the reason the analogous fsPDA trick
-works, and someone will propose it again.**
+**Status: the scan solves each candidate exactly with the active-set QP,
+warm-started along the chain (`scan_candidates`,
+`rolling_origin_rmspe_exact`). Prop 99 runs in 0.155s against 43.5s, 280x, with
+ATT and every donor weight unchanged. Three earlier attempts are recorded below
+because each was rejected on measurement and each would otherwise be proposed
+again: Frank-Wolfe screening, batched FISTA, and an objective-based stopping
+rule. The batched FISTA shipped first and was then removed -- it was superseded
+by a primitive that is both exact and faster, and dead machinery is worse than
+a revert.**
+
+### What it turned out to be
+
+Not a performance problem. FISTA exhausts its 2000-iteration budget on these
+designs and returns an optimum up to 9.3e-05 too high in RMSPE, which is
+invisible while the fit is still improving and becomes visible the moment it
+saturates: on Prop 99 the reported path *rose* by 3.5e-05 at steps 8 to 10.
+The true optimum cannot rise, because the k-donor simplex is the face of the
+(k+1)-donor simplex where the new weight is zero. So the scan was reporting
+fits it had not achieved, and the speed work was chasing the symptom.
+
+The RCA ladder is in the commit history; two things from it are general.
+
+Hypothesis found a far simpler counterexample than the hand-built one. Hunting
+by hand produced a violation only at `collinearity = 0.999`; the search shrank
+straight past that to `N=8, T0=5`, no collinearity, no noise -- a panel fitted
+exactly, where the path still rose by 1.4e-08. The conditioning story was not
+the boundary, and would have been written into the docstring as if it were.
+
+It also found a second defect, introduced by the batching and not inherited:
+the Gram form `y'y - 2 w'A'y + w'A'A w` cancels catastrophically once the fit is
+close, and the `max(sse, 0)` clamp hid the negative it produced. The scan now
+forms the residual directly.
 
 ### The question
 
@@ -2228,7 +2255,7 @@ Measured first: the cost per `simplex_lstsq` call is nearly flat in `T0` and in
 the number of donors, so it is per-call Python overhead, not flops. That points
 at the number of calls, and at two ways to cut it.
 
-### A. Batching (exact) -- shipped
+### A. Batching FISTA -- shipped, then removed
 
 At step `k` every candidate design `[X_S, x_j]` shares its first `k` columns, so
 every candidate Gram is a `(k+1) x (k+1)` submatrix of the one donor Gram
@@ -2247,6 +2274,10 @@ End to end the scan alone gave 2.1x and exposed the rolling-origin CV as the
 next cost. Its designs `Y[:t]` are nested, so their Grams are a running row sum
 and the whole family solves together too: Prop 99 43.5s -> 11.3s, Basque 11.5s
 -> 4.0s, ATT and every donor weight bit-identical.
+
+Removed once the exact QP landed. Bit-identity with FISTA was the wrong
+contract to have chased -- it made the change provably faithful to a reference
+that was itself wrong.
 
 ### B. Frank-Wolfe screening (heuristic) -- rejected
 
@@ -2320,18 +2351,21 @@ they are different claims and the first was asserted before the second was
 checked. What established it was an independent exact solver, not agreement
 between two runs of the same algorithm.
 
-### If more speed is wanted
+### D. The exact active-set QP -- shipped
 
-Two routes, neither taken:
+A forward scan is a chain of neighbouring problems, so each candidate starts
+from the incumbent weights padded with a zero for the new donor: feasible by
+construction, and the pattern `test_simplex_active_set_perf` reports the active
+set collapsing on. Per call it is 12 to 33 times faster than the FISTA
+primitive; end to end Prop 99 goes 43.5s -> 0.155s and Basque 11.5s -> 0.138s,
+with the pinned ATT and weights unchanged because the rolling CV selects three
+donors, well before the saturated region where the paths diverge.
 
-* Cut the per-iteration cost while keeping exactness. `_project_simplex_rows`
-  sorts every row every iteration and is the largest single line item (5.9s of
-  15.2s on Prop 99, 146,389 calls).
-* Replace FISTA in the scan with the exact active-set QP. A forward scan is a
-  chain of neighbouring problems, which is the case
-  `test_simplex_active_set_perf` reports warm starts collapsing to near-zero
-  pivots. The batched-FISTA route was taken without checking whether the exact
-  solver was the better primitive for this shape.
+Being exact, it cannot be tested against the loop it replaced, and testing it
+against itself would be circular. The oracle is cvxpy, and the tolerance is set
+by cvxpy's accuracy, not the code's: across 40 designs the active set
+attains the strictly lower objective 25 times to cvxpy's 11, so asserting
+tighter than about 1e-07 would pin the oracle's error.
 
 ### Learnings (keep these)
 
