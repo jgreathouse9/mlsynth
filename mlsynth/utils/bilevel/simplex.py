@@ -435,10 +435,11 @@ def _lipschitz_rows(AtA: np.ndarray, iters: int = 40) -> np.ndarray:
     rng = np.random.default_rng(0)
     x0 = rng.normal(size=n)
     nx = np.linalg.norm(x0)
-    if nx < _EPS:
+    if nx < _EPS:  # pragma: no cover - the seeded start vector is never zero
         return np.ones(M)
     x = np.broadcast_to(x0 / nx, (M, n)).copy()
     lam = np.ones(M)
+    dead = np.zeros(M, dtype=bool)
     for _ in range(iters):
         v = np.einsum("mij,mj->mi", AtA, x)
         nv = np.linalg.norm(v, axis=1)

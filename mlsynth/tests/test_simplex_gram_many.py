@@ -22,7 +22,13 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthEstimationError
-from mlsynth.utils.bilevel.simplex import simplex_lstsq, simplex_lstsq_gram_many
+from mlsynth.utils.bilevel.simplex import (
+    _lipschitz_rows,
+    _project_simplex_rows,
+    project_simplex,
+    simplex_lstsq,
+    simplex_lstsq_gram_many,
+)
 
 
 def _grams(designs, b):
@@ -45,6 +51,54 @@ def _candidates(T0=24, n_sel=3, M=9, seed=0):
     extra = rng.normal(size=(T0, M))
     designs = [np.column_stack([base, extra[:, j]]) for j in range(M)]
     return designs, rng.normal(size=T0)
+
+
+# ------------------------------------------------- the row-wise projection
+class TestTheRowProjection:
+    """The batched twin of ``project_simplex``, asserted against it directly.
+
+    ``simplex_lstsq_gram_many`` short-circuits the one-donor case before the
+    projection is reached, so its degenerate branch has no route in from there.
+    """
+
+    @pytest.mark.parametrize("n,M,scale", [(1, 6, 1.0), (2, 4, 10.0),
+                                           (9, 30, 1e3), (40, 7, 1e-3)])
+    def test_it_agrees_with_the_scalar_version_row_by_row(self, n, M, scale):
+        rng = np.random.default_rng(n * 31 + M)
+        V = rng.normal(size=(M, n)) * scale
+        got = _project_simplex_rows(V)
+        for m in range(M):
+            assert np.allclose(got[m], project_simplex(V[m]), atol=1e-12)
+
+    def test_a_single_column_is_the_degenerate_branch(self):
+        got = _project_simplex_rows(np.array([[-4.0], [0.0], [9.0]]))
+        assert np.allclose(got, 1.0)
+
+    def test_a_point_already_on_the_simplex_is_left_alone(self):
+        V = np.array([[0.2, 0.3, 0.5], [1.0, 0.0, 0.0]])
+        assert np.allclose(_project_simplex_rows(V), V, atol=1e-12)
+
+    def test_ties_take_the_last_qualifying_index(self):
+        """Where several indices satisfy the threshold condition the scalar
+        projection takes the last; taking the first lands on the wrong face."""
+        V = np.array([[0.5, 0.5, 0.5, 0.5]])
+        assert np.allclose(_project_simplex_rows(V)[0], project_simplex(V[0]))
+
+
+class TestTheStepSize:
+    def test_it_matches_the_scalar_lipschitz_constant(self):
+        from mlsynth.utils.bilevel.simplex import _lipschitz_constant
+
+        rng = np.random.default_rng(21)
+        designs = [rng.normal(size=(25, 4)) for _ in range(5)]
+        got = _lipschitz_rows(np.stack([A.T @ A for A in designs]))
+        want = np.array([_lipschitz_constant(A) for A in designs])
+        assert np.allclose(got, want, rtol=1e-8)
+
+    def test_a_zero_gram_does_not_divide_by_zero(self):
+        out = _lipschitz_rows(np.zeros((3, 4, 4)))
+        assert np.isfinite(out).all()
+        assert (out > 0).all()
 
 
 # ------------------------------------------------------------------- smoke

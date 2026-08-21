@@ -2206,6 +2206,94 @@ outcomes that plausibly diffuse.
 
 ---
 
+## 21. Batching the forward-selection scan -- shipped for FSCM, rejected for the screen
+
+**Status: the batched scan is in (`simplex_lstsq_gram_many` plus
+`scan_candidates` / `rolling_origin_rmspe_batched`). Frank-Wolfe candidate
+screening was prototyped alongside it and rejected on measurement. Keep the
+negative result -- the reason it fails is the reason the analogous fsPDA trick
+works, and someone will propose it again.**
+
+### The question
+
+FDID and fsPDA both scan every remaining donor at every step and both are fast,
+because their inner problem has a closed form. FDID's counterfactual is an
+unweighted mean, so admitting a donor is a rank-1 running-sum update; fsPDA
+fits OLS, so the gain is `(x_j'r)^2 / ||x_j||^2` exactly, and it screens on that
+before refitting. FSCM has neither: every candidate needs a simplex-constrained
+solve, so the released scan spent N solver calls per step and ~N^2/2 over the
+path -- 43s on Prop 99's 38 donors, 314s at 100 donors.
+
+Measured first: the cost per `simplex_lstsq` call is nearly flat in `T0` and in
+the number of donors, so it is per-call Python overhead, not flops. That points
+at the number of calls, and at two ways to cut it.
+
+### A. Batching (exact) -- shipped
+
+At step `k` every candidate design `[X_S, x_j]` shares its first `k` columns, so
+every candidate Gram is a `(k+1) x (k+1)` submatrix of the one donor Gram
+`X'X`. FISTA runs on `(A'A, A'b)` and never refers to the design, so all
+candidates advance under one Python loop with each frozen at its own stopping
+iterate.
+
+| N | released scan | batched scan | speedup |
+| --- | --- | --- | --- |
+| 38 (Prop 99) | 9.48s | 1.31s | 7.2x |
+| 150 | 74.29s | 3.48s | 21.4x |
+| 300 | 158.18s | 5.50s | 28.7x |
+| 600 | 303.20s | 9.21s | 32.9x |
+
+End to end the scan alone gave 2.1x and exposed the rolling-origin CV as the
+next cost. Its designs `Y[:t]` are nested, so their Grams are a running row sum
+and the whole family solves together too: Prop 99 43.5s -> 11.3s, Basque 11.5s
+-> 4.0s, ATT and every donor weight bit-identical.
+
+### B. Frank-Wolfe screening (heuristic) -- rejected
+
+At the incumbent `w*` the first-order decrease from admitting donor `j` is
+proportional to `r*'(x_j - X_S w*)`. Rank on that, solve exactly for a
+shortlist, and the scan stops depending on `N` at all -- measured 1.5s at every
+size from 38 to 600 donors, against the batched scan's 9.2s at 600.
+
+It does not reproduce the selection. Over 60 random panels with `N` in
+[30, 200]:
+
+| shortlist | full path same | first 4 same | max dRMSPE |
+| --- | --- | --- | --- |
+| 1 | 0% | 0% | 1.5e-1 |
+| 5 | 2% | 15% | 1.0e-1 |
+| 10 | 25% | 33% | 7.3e-2 |
+
+The reason is the difference between an exact gain and a first-order one. For
+OLS, `(x_j'r)^2 / ||x_j||^2` *is* the residual reduction, so fsPDA's shortlist
+ranks on the same quantity it would compute exactly. On the simplex,
+`r*'(x_j - X_S w*)` is only the initial slope: it prices the descent direction
+and ignores how far the incumbent weights re-allocate once the new donor is
+admitted, and under a sum-to-one constraint that re-allocation is large. The
+screen ranks by where the objective starts moving; the criterion is where it
+stops.
+
+### Learnings (keep these)
+
+* **Prop 99 alone would have sold the heuristic.** On that panel screening
+  matched the first nine steps and diverged only in the flat tail, where the
+  RMSPE agrees to five decimals and the rolling-CV size rule never reaches.
+  Random panels killed it. A single real dataset is not a validation set for a
+  selection rule -- the same trap as reading one of a package's four copies of
+  a file and taking it for the others.
+* **An OLS acceleration does not transfer to a constrained fit just because the
+  loop shape matches.** Check whether the reference trick computes the exact
+  objective change or a first-order proxy before porting it.
+* **Fix the top cost and measure again.** Batching the scan alone gave 2.1x
+  end-to-end, not the 7x the isolated scan showed, because the rolling-origin
+  CV was next. Each fix reveals the following one, so quote the end-to-end
+  number and not the isolated one.
+* **Predictor mode is untouched.** Its lower-level problem carries the
+  predictor block and is not a plain simplex least squares, so it keeps the
+  per-candidate loop; anyone batching it needs a different factorisation.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*

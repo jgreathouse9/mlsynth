@@ -1372,11 +1372,15 @@ timeout = 300.0
         AtA[:, k, :k] = 0.0"""
   models = "candidate Grams assembled as if the new donor were orthogonal to every selected one. The blocks are still square, PSD and simplex-feasible, so every shape and geometry assertion passes; what breaks is that the scan stops seeing the overlap it exists to price, and picks donors that duplicate the incumbents"
 
-  [[target.mutant]]
-  id = "candidate-gram-transposes-the-cross-block"
-  find = "        cross = G[np.ix_(selected, candidates)].T"
-  replace = "        cross = G[np.ix_(candidates, selected)]"
-  models = "the selected-by-candidate block read in the wrong orientation. On a symmetric Gram these agree, so the mutant is expected to be equivalent -- it is here to record that, not to be killed by a stronger assertion"
+  # Recorded, not carried: reading the cross block as
+  # "G[np.ix_(candidates, selected)]" instead of
+  # "G[np.ix_(selected, candidates)].T" is an equivalent mutant. G = X'X is
+  # symmetric by construction and np.ix_ only reorders reads of stored floats
+  # rather than recomputing them, so the two are bitwise identical -- checked
+  # over 500 random Grams, max difference 0.0. It survived, correctly, and is
+  # retired here so nobody re-adds it expecting a kill. The orientation error
+  # that would change the answer is dropping the block entirely, which is the
+  # mutant above.
 
   [[target.mutant]]
   id = "scan-maximises-instead-of-minimising"
