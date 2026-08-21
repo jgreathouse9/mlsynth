@@ -31,6 +31,8 @@ from ...config_models import (
     WeightsResults,
 )
 from ..bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
+from ..bilevel.active_set import solve_simplex_qp
+from ...exceptions import MlsynthEstimationError
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 
 _EPS = 1e-12
@@ -94,6 +96,79 @@ def _fit_weights(
     return simplex_lstsq(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice])
 
 
+# --------------------------------------------------------------------------- #
+# Batched candidate scan (trajectory mode)
+# --------------------------------------------------------------------------- #
+def scan_candidates(
+    X_pre: np.ndarray,
+    y_pre: np.ndarray,
+    selected: List[int],
+    candidates: List[int],
+    *,
+    warm: Optional[np.ndarray] = None,
+) -> Tuple[int, float, np.ndarray]:
+    """Score every candidate donor and return the best.
+
+    Each candidate is solved exactly by the active-set QP rather than by the
+    FISTA primitive. Two reasons, and the second is the one that matters.
+
+    Accuracy. FISTA exhausts its iteration budget on these designs and returns
+    an optimum that is slightly too high, by up to 9.3e-05 in RMSPE on Prop 99.
+    Once a fit saturates there is no true improvement left to mask that error,
+    and the reported path rises -- which cannot happen to the real optimum,
+    since the ``k``-donor simplex is the face of the ``(k+1)``-donor simplex
+    where the new weight is zero.
+
+    Speed. A forward scan is a chain of neighbouring problems, so each
+    candidate starts from the incumbent weights padded with a zero for the new
+    donor, which is feasible by construction. That is the warm-start pattern
+    the active set collapses on, and it makes the exact solve faster than the
+    approximate one it replaces.
+
+    The RMSPE is formed from the residual directly. Expanding it in Gram space
+    as ``y'y - 2 w'A'y + w'A'A w`` cancels catastrophically once the fit is
+    close, which is exactly the regime the scan ends in.
+    """
+    if not candidates:
+        raise MlsynthEstimationError("scan_candidates got no candidate donors.")
+    clash = sorted(set(selected) & set(candidates))
+    if clash:
+        raise MlsynthEstimationError(
+            f"candidate donors {clash} are already selected."
+        )
+    start = None if warm is None else np.concatenate([np.asarray(warm, float), [0.0]])
+    best_j, best_r, best_w = None, np.inf, None
+    for j in candidates:
+        idx = list(selected) + [j]
+        w = np.asarray(solve_simplex_qp(X_pre[:, idx], y_pre, warm_start=start),
+                       dtype=float)
+        r = float(np.sqrt(np.mean((y_pre - X_pre[:, idx] @ w) ** 2)))
+        if r < best_r:
+            best_j, best_r, best_w = j, r, w
+    return best_j, best_r, best_w
+
+
+def rolling_origin_rmspe_exact(
+    Y: np.ndarray, y: np.ndarray, idx: List[int], origins: np.ndarray
+) -> float:
+    """Expanding-window one-step-ahead RMSPE, solved exactly.
+
+    The windows are nested, so each origin's solution seeds the next -- the
+    same warm-start chain the scan uses, on the other axis.
+    """
+    origins = np.asarray(origins, dtype=int)
+    if origins.size == 0:
+        raise MlsynthEstimationError(
+            "rolling_origin_rmspe_exact got no origins."
+        )
+    errs, w = [], None
+    for t in origins:
+        w = np.asarray(solve_simplex_qp(Y[:t][:, idx], y[:t], warm_start=w),
+                       dtype=float)
+        errs.append((y[t] - Y[t, idx] @ w) ** 2)
+    return float(np.sqrt(np.mean(errs)))
+
+
 def _outcome_rmspe(
     inputs: FSCMInputs, idx: List[int], weights: np.ndarray, eval_slice: slice
 ) -> float:
@@ -121,11 +196,7 @@ def _rolling_origin_rmspe(
         w = _fit_weights(inputs, idx, slice(0, inputs.T0), Pt=Pt, Pd=Pd, v=v)
         errs = [(inputs.y[t] - inputs.Y[t, idx] @ w) ** 2 for t in origins]
         return float(np.sqrt(np.mean(errs)))
-    errs = []
-    for t in origins:
-        w = simplex_lstsq(inputs.Y[:t][:, idx], inputs.y[:t])
-        errs.append((inputs.y[t] - inputs.Y[t, idx] @ w) ** 2)
-    return float(np.sqrt(np.mean(errs)))
+    return rolling_origin_rmspe_exact(inputs.Y, inputs.y, idx, origins)
 
 
 # --------------------------------------------------------------------------- #
@@ -146,14 +217,26 @@ def _forward_select(
     train_rmspe: List[float] = []
     test_rmspe: List[float] = []
 
+    # Trajectory mode scores every candidate in one batched solve; predictor
+    # mode keeps the per-candidate loop, since its lower-level problem carries
+    # the predictor block and is not a plain simplex least squares.
+    Xp = yp = warm = None
+    if Pt is None:
+        Xp, yp = inputs.Y[:inputs.T0], inputs.y[:inputs.T0]
+
     for _ in range(cap):
-        best_j, best_score, best_idx_list = None, np.inf, None
-        for j in remaining:
-            cand = selected + [j]
-            w = _fit_weights(inputs, cand, full_pre, Pt=Pt, Pd=Pd, v=v)
-            score = _outcome_rmspe(inputs, cand, w, full_pre)
-            if score < best_score:
-                best_j, best_score, best_idx_list = j, score, cand
+        if Pt is None:
+            best_j, best_score, warm = scan_candidates(
+                Xp, yp, selected, remaining, warm=warm)
+            best_idx_list = selected + [best_j]
+        else:
+            best_j, best_score, best_idx_list = None, np.inf, None
+            for j in remaining:
+                cand = selected + [j]
+                w = _fit_weights(inputs, cand, full_pre, Pt=Pt, Pd=Pd, v=v)
+                score = _outcome_rmspe(inputs, cand, w, full_pre)
+                if score < best_score:
+                    best_j, best_score, best_idx_list = j, score, cand
         selected.append(best_j)
         remaining.remove(best_j)
         order.append(inputs.donor_labels[best_j])

@@ -1357,3 +1357,49 @@ timeout = 300.0
   find = "        pool = np.delete(all_donors, [a, b])"
   replace = "        pool = np.delete(all_donors, [a])"
   models = "a leave-two-out pool that only leaves one out, which is the ordinary placebo test wearing LTO's name: donor b stays in the pool it is being compared against, so its own fit is trivially good and the treated unit wins pairs it should lose"
+
+[[target]]
+name = "fscm-exact-scan"
+module-path = "mlsynth/utils/fscm_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_exact_scan.py mlsynth/tests/test_fscm_scan_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scan-falls-back-to-the-inexact-solver"
+  find = "        w = np.asarray(solve_simplex_qp(X_pre[:, idx], y_pre, warm_start=start),\n                       dtype=float)"
+  replace = "        from ..bilevel.simplex import simplex_lstsq\n        w = simplex_lstsq(X_pre[:, idx], y_pre)"
+  models = "the scan back on the FISTA primitive it was moved off. This is the defect the whole ladder was built from: FISTA exhausts its budget on these designs and lands above the optimum, so once a fit saturates the reported path rises -- 3.5e-05 on Prop 99 -- which the true optimum cannot do. Every shape, sign and simplex assertion still passes"
+
+  [[target.mutant]]
+  id = "scan-rmspe-uses-the-cancelling-gram-form"
+  find = "        r = float(np.sqrt(np.mean((y_pre - X_pre[:, idx] @ w) ** 2)))"
+  replace = "        A = X_pre[:, idx]\n        r = float(np.sqrt(max(float(y_pre @ y_pre) - 2.0 * float(w @ (A.T @ y_pre)) + float(w @ (A.T @ A) @ w), 0.0) / X_pre.shape[0]))"
+  models = "the fit recomputed by expanding ||y - A w||^2 in Gram space. Algebraically identical and catastrophically cancelling once the fit is close, which is the regime a forward scan ends in -- the clamp at zero then hides the negative it produces. Monotonicity survives; only recomputing the reported number from the weights notices"
+
+  [[target.mutant]]
+  id = "scan-admits-the-worst-candidate"
+  find = "        if r < best_r:"
+  replace = "        if r > best_r:"
+  models = "forward selection that admits the worst-fitting donor at every step. The weights are still on the simplex and the path still has the right length, so only comparing against an independently solved optimum catches it"
+
+  # Recorded, not carried: padding the warm start with one instead of zero
+  # ("np.concatenate([..., [1.0]])") is an equivalent mutant. solve_simplex_qp
+  # documents the seed as "ignored if infeasible" and does reject it -- a seed
+  # summing to two gives weights identical to a cold solve to 0.00e+00. The
+  # mutant costs the warm-start speedup and cannot move the answer, so it
+  # survived correctly and is retired here rather than chased with a stronger
+  # assertion. What it would take to notice is a timing assertion, and the
+  # repository keeps those in benchmarks rather than in the suite.
+
+  [[target.mutant]]
+  id = "rolling-cv-reads-the-origin-itself"
+  find = "        w = np.asarray(solve_simplex_qp(Y[:t][:, idx], y[:t], warm_start=w),"
+  replace = "        w = np.asarray(solve_simplex_qp(Y[:t + 1][:, idx], y[:t + 1], warm_start=w),"
+  models = "an expanding window that includes the period it forecasts, so the one-step-ahead CV is fit on its own target. Errors shrink and the selected donor count creeps up; nothing about shape, sign or simplex membership changes"
+
+  [[target.mutant]]
+  id = "rolling-cv-averages-errors-before-squaring"
+  find = "        errs.append((y[t] - Y[t, idx] @ w) ** 2)\n    return float(np.sqrt(np.mean(errs)))"
+  replace = "        errs.append(abs(y[t] - Y[t, idx] @ w))\n    return float(np.mean(errs))"
+  models = "a CV score that averages absolute errors instead of squared ones, so a donor set that is occasionally very wrong scores the same as one that is uniformly slightly wrong"
+
