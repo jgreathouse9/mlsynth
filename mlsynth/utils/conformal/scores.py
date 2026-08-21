@@ -24,11 +24,28 @@ import numpy as np
 MIN_TRAIN_PERIODS = 10
 
 
-def _origin_schedule(pre_periods: int, horizon: int, min_train_frac: float):
-    """The origins both readers score, in increasing order.
+def origin_schedule(pre_periods: int, horizon: int, min_train_frac: float):
+    """The origins a calibration pass scores, in increasing order.
 
-    One definition of the schedule, so the summing reader and the per-period
-    reader cannot disagree about which windows were calibrated on.
+    One definition of the schedule, so every reader of it -- the summing reader,
+    the per-period reader, and the PDA reader that asks its estimator for a
+    counterfactual instead of a weight vector -- calibrates on the same windows.
+
+    Parameters
+    ----------
+    pre_periods : int
+        Number of pre-treatment periods ``T0``.
+    horizon : int
+        Window length ``L``; also the stride, so the windows do not overlap and
+        the scores stay exchangeable.
+    min_train_frac : float
+        Earliest origin as a fraction of ``T0``, floored at
+        :data:`MIN_TRAIN_PERIODS` absolute periods.
+
+    Returns
+    -------
+    range
+        The origins, empty when the pre-period admits none.
     """
     start = max(MIN_TRAIN_PERIODS, int(pre_periods * float(min_train_frac)))
     return range(start, int(pre_periods) - int(horizon) + 1, int(horizon))
@@ -50,7 +67,7 @@ def _rolling_origin_blocks(
     :func:`rolling_origin_period_errors` concatenates them.
     """
     blocks = []
-    for origin in _origin_schedule(pre_periods, horizon, min_train_frac):
+    for origin in origin_schedule(pre_periods, horizon, min_train_frac):
         w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()
         block = slice(origin, origin + int(horizon))
         blocks.append(np.asarray(y[block] - Y0[block] @ w, dtype=float))
