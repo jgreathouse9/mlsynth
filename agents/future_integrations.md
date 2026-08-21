@@ -2206,7 +2206,7 @@ outcomes that plausibly diffuse.
 
 ---
 
-## 21. The FSCM forward scan -- three attempts, and the one that was a bug
+## 21. The FSCM forward scan -- a performance hunt that turned out to be a bug
 
 **Status: the scan solves each candidate exactly with the active-set QP,
 warm-started along the chain (`scan_candidates`,
@@ -2240,6 +2240,38 @@ It also found a second defect, introduced by the batching and not inherited:
 the Gram form `y'y - 2 w'A'y + w'A'A w` cancels catastrophically once the fit is
 close, and the `max(sse, 0)` clamp hid the negative it produced. The scan now
 forms the residual directly.
+
+### The ladder
+
+Run after the exact QP exposed the discrepancy, on Prop 99. Rung 0 passing is
+the normal shape: the quantity a reader checks first is the one the defect does
+not move.
+
+| Rung | Question | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 0 | Which reported quantity looks wrong? | pass | ATT bit-identical under every solver tried, 0.00e+00. Final donor set and weights unchanged. |
+| 1 | Which other outputs moved with it? | fail | The selection order from step 7 on, and `train_rmspe` in the selection path. The final answer survives only because the rolling CV stops at three donors. |
+| 2 | Which step produced them? | fail | `simplex_lstsq` exhausts its 2000-iteration cap from k=3 onward; excess SSE over the exact optimum runs 1.8e-09 at k=2 to 3.7e-03 at k=10, tracking `cond(A)` as it grows 1 -> 384. Rank is full at every step, so the first guess -- rank deficiency -- was wrong. |
+| 3 | Which invariant does it violate? | fail | Admitting a donor cannot raise the optimum. Prop 99 rises 3.5e-05 at steps 8-10 and sits 9.3e-05 above the exact path, which is flat to 6.7e-16. Stated per solve as dominance, `simplex_lstsq` breaks it on 25 of 300 random designs and `solve_simplex_qp` on 0. |
+| 4 | Which contract was never enforced? | fail | `simplex_lstsq` has no accuracy contract: `warn=False` by default and no returned convergence flag, so five of its six call sites cannot distinguish a converged answer from one truncated at `max_iter`. |
+| 5 | Would the suite have caught it? | fail | The monotonicity property existed and asserted the right thing at `<= 1e-9`. Its generator drew donors independently with more pre-periods than factors, so the path fell whatever the solver did -- max rise 8.2e-15 on the panel it used. |
+
+Both confirmation questions answer no for FSCM. With the dominance invariant
+searched over a family that can saturate, the FISTA scan fails at authoring
+time; with the exact solver in place and that property kept, the class of defect
+does not recur. For the other callers of `simplex_lstsq` the second answer is
+yes, which is why the blast radius below is scoped out and not fixed.
+
+### Blast radius
+
+`simplex_lstsq` is called by FSCM, `sbc_helpers/synthetic.py`,
+`spillsynth_helpers/iscm/weights.py`, `spillsynth_helpers/grossi/inference.py`,
+`bilevel/penalized.py` and `bilevel/regression_v.py`. Only FSCM was moved off
+it. The same inaccuracy is present for the others, but each carries pinned
+numbers that a solver change would move, so that is a shared-helper change on
+its own branch per `CLAUDE.md` -- not something to fold into a fix for one
+estimator. What would make it tractable there is the contract rung 4 names: a
+convergence flag, so a caller can at least tell.
 
 ### The question
 
