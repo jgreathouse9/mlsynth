@@ -31,6 +31,8 @@ from ...config_models import (
     WeightsResults,
 )
 from ..bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
+from ..bilevel.simplex import simplex_lstsq_gram_many
+from ...exceptions import MlsynthEstimationError
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 
 _EPS = 1e-12
@@ -94,6 +96,91 @@ def _fit_weights(
     return simplex_lstsq(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice])
 
 
+# --------------------------------------------------------------------------- #
+# Batched candidate scan (trajectory mode)
+# --------------------------------------------------------------------------- #
+def candidate_grams(
+    G: np.ndarray, c: np.ndarray, selected: List[int], candidates: List[int]
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Stack the candidate designs' Gram systems out of the donor Gram.
+
+    At step ``k`` every candidate design ``[X_S, x_j]`` shares its first ``k``
+    columns, so its Gram is the ``(k+1) x (k+1)`` submatrix of ``G = X'X`` on
+    rows and columns ``selected + [j]``. Reading them off ``G`` costs no
+    reference to the pre-period at all, which is what lets one Gram serve the
+    whole scan.
+
+    The new donor occupies the last coordinate, so ``W[:, :k]`` are the
+    incumbent donors' weights and ``W[:, k]`` the candidate's.
+    """
+    k, M = len(selected), len(candidates)
+    AtA = np.empty((M, k + 1, k + 1))
+    Atb = np.empty((M, k + 1))
+    if k:
+        AtA[:, :k, :k] = G[np.ix_(selected, selected)]
+        cross = G[np.ix_(selected, candidates)].T
+        AtA[:, :k, k] = cross
+        AtA[:, k, :k] = cross
+        Atb[:, :k] = c[selected]
+    AtA[:, k, k] = G[candidates, candidates]
+    Atb[:, k] = c[candidates]
+    return AtA, Atb
+
+
+def scan_candidates(
+    G: np.ndarray,
+    c: np.ndarray,
+    yy: float,
+    selected: List[int],
+    candidates: List[int],
+    T0: int,
+) -> Tuple[int, float, np.ndarray]:
+    """Score every candidate donor in one batched solve.
+
+    Returns the winning donor, its pre-period RMSPE and the refit weights over
+    ``selected + [winner]``. The RMSPE is formed in Gram space from
+    ``||y - A w||^2 = y'y - 2 w'A'y + w'A'A w``, so the scan never touches the
+    donor matrix after ``G`` and ``c`` are built.
+    """
+    if not candidates:
+        raise MlsynthEstimationError("scan_candidates got no candidate donors.")
+    clash = sorted(set(selected) & set(candidates))
+    if clash:
+        raise MlsynthEstimationError(
+            f"candidate donors {clash} are already selected."
+        )
+    AtA, Atb = candidate_grams(G, c, selected, candidates)
+    W = simplex_lstsq_gram_many(AtA, Atb)
+    sse = (yy - 2.0 * np.einsum("mi,mi->m", W, Atb)
+           + np.einsum("mi,mij,mj->m", W, AtA, W))
+    rmspe = np.sqrt(np.maximum(sse, 0.0) / T0)
+    best = int(np.argmin(rmspe))
+    return candidates[best], float(rmspe[best]), W[best]
+
+
+def rolling_origin_rmspe_batched(
+    Y: np.ndarray, y: np.ndarray, idx: List[int], origins: np.ndarray
+) -> float:
+    """Expanding-window one-step-ahead RMSPE, all origins in one solve.
+
+    The design for origin ``t`` is ``Y[:t, idx]``, so its Gram is a running row
+    sum and the whole family comes from one cumulative stack. Without this the
+    CV re-enters the solver once per origin, which is what dominates the step
+    once the candidate scan itself is batched.
+    """
+    origins = np.asarray(origins, dtype=int)
+    if origins.size == 0:
+        raise MlsynthEstimationError(
+            "rolling_origin_rmspe_batched got no origins."
+        )
+    Xi = Y[:, idx]
+    cumG = np.cumsum(np.einsum("ti,tj->tij", Xi, Xi), axis=0)
+    cumb = np.cumsum(Xi * y[:, None], axis=0)
+    W = simplex_lstsq_gram_many(cumG[origins - 1], cumb[origins - 1])
+    err = y[origins] - np.einsum("mi,mi->m", Xi[origins], W)
+    return float(np.sqrt(np.mean(err ** 2)))
+
+
 def _outcome_rmspe(
     inputs: FSCMInputs, idx: List[int], weights: np.ndarray, eval_slice: slice
 ) -> float:
@@ -121,11 +208,7 @@ def _rolling_origin_rmspe(
         w = _fit_weights(inputs, idx, slice(0, inputs.T0), Pt=Pt, Pd=Pd, v=v)
         errs = [(inputs.y[t] - inputs.Y[t, idx] @ w) ** 2 for t in origins]
         return float(np.sqrt(np.mean(errs)))
-    errs = []
-    for t in origins:
-        w = simplex_lstsq(inputs.Y[:t][:, idx], inputs.y[:t])
-        errs.append((inputs.y[t] - inputs.Y[t, idx] @ w) ** 2)
-    return float(np.sqrt(np.mean(errs)))
+    return rolling_origin_rmspe_batched(inputs.Y, inputs.y, idx, origins)
 
 
 # --------------------------------------------------------------------------- #
@@ -146,14 +229,27 @@ def _forward_select(
     train_rmspe: List[float] = []
     test_rmspe: List[float] = []
 
+    # Trajectory mode scores every candidate in one batched solve; predictor
+    # mode keeps the per-candidate loop, since its lower-level problem carries
+    # the predictor block and is not a plain simplex least squares.
+    G = c = None
+    if Pt is None:
+        Xp, yp = inputs.Y[:inputs.T0], inputs.y[:inputs.T0]
+        G, c, yy = Xp.T @ Xp, Xp.T @ yp, float(yp @ yp)
+
     for _ in range(cap):
-        best_j, best_score, best_idx_list = None, np.inf, None
-        for j in remaining:
-            cand = selected + [j]
-            w = _fit_weights(inputs, cand, full_pre, Pt=Pt, Pd=Pd, v=v)
-            score = _outcome_rmspe(inputs, cand, w, full_pre)
-            if score < best_score:
-                best_j, best_score, best_idx_list = j, score, cand
+        if Pt is None:
+            best_j, best_score, _w = scan_candidates(
+                G, c, yy, selected, remaining, inputs.T0)
+            best_idx_list = selected + [best_j]
+        else:
+            best_j, best_score, best_idx_list = None, np.inf, None
+            for j in remaining:
+                cand = selected + [j]
+                w = _fit_weights(inputs, cand, full_pre, Pt=Pt, Pd=Pd, v=v)
+                score = _outcome_rmspe(inputs, cand, w, full_pre)
+                if score < best_score:
+                    best_j, best_score, best_idx_list = j, score, cand
         selected.append(best_j)
         remaining.remove(best_j)
         order.append(inputs.donor_labels[best_j])
