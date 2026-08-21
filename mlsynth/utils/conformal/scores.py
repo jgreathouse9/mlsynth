@@ -24,6 +24,39 @@ import numpy as np
 MIN_TRAIN_PERIODS = 10
 
 
+def _origin_schedule(pre_periods: int, horizon: int, min_train_frac: float):
+    """The origins both readers score, in increasing order.
+
+    One definition of the schedule, so the summing reader and the per-period
+    reader cannot disagree about which windows were calibrated on.
+    """
+    start = max(MIN_TRAIN_PERIODS, int(pre_periods * float(min_train_frac)))
+    return range(start, int(pre_periods) - int(horizon) + 1, int(horizon))
+
+
+def _rolling_origin_blocks(
+    y: np.ndarray,
+    Y0: np.ndarray,
+    pre_periods: int,
+    horizon: int,
+    weight_fn: Callable[[np.ndarray], np.ndarray],
+    min_train_frac: float,
+) -> list:
+    """One array of ``horizon`` out-of-sample per-period errors per origin.
+
+    The refit at each origin sees only periods strictly before it, so the errors
+    carry no in-sample optimism. Callers reduce these however their band needs:
+    :func:`rolling_origin_block_sums` sums each block into a conformity score,
+    :func:`rolling_origin_period_errors` concatenates them.
+    """
+    blocks = []
+    for origin in _origin_schedule(pre_periods, horizon, min_train_frac):
+        w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()
+        block = slice(origin, origin + int(horizon))
+        blocks.append(np.asarray(y[block] - Y0[block] @ w, dtype=float))
+    return blocks
+
+
 def rolling_origin_block_sums(
     y: np.ndarray,
     Y0: np.ndarray,
@@ -69,10 +102,98 @@ def rolling_origin_block_sums(
     :func:`~mlsynth.utils.conformal.cumulative.cumulative_conformal_interval`
     directly; this helper is the single-treated-unit path.
     """
-    start = max(MIN_TRAIN_PERIODS, int(pre_periods * float(min_train_frac)))
-    scores = []
-    for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):
-        w = np.asarray(weight_fn(np.arange(origin)), dtype=float).ravel()
-        block = slice(origin, origin + int(horizon))
-        scores.append(float(np.sum(y[block] - Y0[block] @ w)))
-    return np.asarray(scores, dtype=float)
+    blocks = _rolling_origin_blocks(y, Y0, pre_periods, horizon, weight_fn,
+                                    min_train_frac)
+    return np.asarray([float(np.sum(b)) for b in blocks], dtype=float)
+
+
+def rolling_origin_period_errors(
+    y: np.ndarray,
+    Y0: np.ndarray,
+    pre_periods: int,
+    horizon: int,
+    weight_fn: Callable[[np.ndarray], np.ndarray],
+    *,
+    min_train_frac: float = 0.3,
+) -> np.ndarray:
+    """The same pass, kept per period: the blocks concatenated in origin order.
+
+    :func:`rolling_origin_block_sums` reduces each window to the sum of its
+    residuals, which is the conformity score a split-conformal band needs. A
+    resampled band needs what the sum destroys -- the ordering of the periods
+    inside a window, and across consecutive windows -- so this returns them.
+
+    Because origins step by a whole horizon and are visited in increasing order,
+    the result is a contiguous stretch of out-of-sample periods: origin ``o``
+    scores ``o .. o + L - 1`` and the next origin picks up at ``o + L``. Serial
+    correlation in the returned series is therefore the panel's own, and a block
+    bootstrap over it means something.
+
+    Parameters
+    ----------
+    y : np.ndarray, shape ``(T,)``
+        Treated-unit outcome over the full sample.
+    Y0 : np.ndarray, shape ``(T, J)``
+        Donor outcomes aligned to ``y``.
+    pre_periods : int
+        Number of pre-treatment periods ``T0``; origins are drawn from within it.
+    horizon : int
+        Window length ``L`` -- both the block length and the origin stride.
+    weight_fn : callable
+        ``weight_fn(keep_idx) -> w``, the estimator's own refit on the periods
+        indexed by ``keep_idx``, as in :func:`rolling_origin_block_sums`.
+    min_train_frac : float, optional
+        Earliest origin as a fraction of ``T0`` (default ``0.3``), floored at
+        ``MIN_TRAIN_PERIODS`` absolute periods.
+
+    Returns
+    -------
+    np.ndarray, shape ``(m * L,)``
+        The per-period errors, in time order. Empty when the pre-period admits no
+        origin.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If ``horizon`` is not a positive integer, or ``min_train_frac`` is not a
+        number in ``[0, 1]``.
+    MlsynthDataError
+        If ``Y0`` does not align with ``y``, or ``pre_periods`` exceeds the sample.
+    """
+    from ...exceptions import MlsynthConfigError, MlsynthDataError
+
+    if isinstance(horizon, bool) or not isinstance(horizon, (int, np.integer)) \
+            or int(horizon) < 1:
+        raise MlsynthConfigError(
+            f"horizon must be an integer of at least 1; got {horizon!r}."
+        )
+    if isinstance(min_train_frac, bool) \
+            or not isinstance(min_train_frac, (int, float, np.floating)) \
+            or not 0.0 <= float(min_train_frac) <= 1.0:
+        raise MlsynthConfigError(
+            f"min_train_frac must be a number in [0, 1]; got {min_train_frac!r}."
+        )
+
+    y = np.asarray(y, dtype=float).ravel()
+    Y0 = np.asarray(Y0, dtype=float)
+    if Y0.ndim != 2 or Y0.shape[0] != y.size:
+        raise MlsynthDataError(
+            f"Y0 must align with y on the time axis: y has {y.size} periods, Y0 "
+            f"has shape {Y0.shape}."
+        )
+    if isinstance(pre_periods, bool) or not isinstance(pre_periods, (int, np.integer)) \
+            or int(pre_periods) < 1:
+        raise MlsynthConfigError(
+            f"pre_periods must be an integer of at least 1; got {pre_periods!r}."
+        )
+    if int(pre_periods) > y.size:
+        raise MlsynthDataError(
+            f"pre_periods ({int(pre_periods)}) exceeds the {y.size} periods "
+            "supplied; there is no pre-period to calibrate on."
+        )
+
+    blocks = _rolling_origin_blocks(y, Y0, int(pre_periods), int(horizon),
+                                    weight_fn, float(min_train_frac))
+    if not blocks:
+        return np.asarray([], dtype=float)
+    return np.concatenate(blocks)

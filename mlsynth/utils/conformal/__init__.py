@@ -38,7 +38,8 @@ from .inversion import confidence_set_bounds
 from .permutation import BLOCK_STATISTICS, moving_block_pvalue
 from .quantile import split_conformal_quantile
 from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
-from .scores import MIN_TRAIN_PERIODS, rolling_origin_block_sums
+from .scores import (MIN_TRAIN_PERIODS, rolling_origin_block_sums,
+                     rolling_origin_period_errors)
 from .structure import CumulativeConformalBand
 
 __all__ = [
@@ -52,5 +53,6 @@ __all__ = [
     "cumulative_conformal_interval",
     "moving_block_pvalue",
     "rolling_origin_block_sums",
+    "rolling_origin_period_errors",
     "split_conformal_quantile",
 ]
