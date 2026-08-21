@@ -2273,6 +2273,66 @@ admitted, and under a sum-to-one constraint that re-allocation is large. The
 screen ranks by where the objective starts moving; the criterion is where it
 stops.
 
+### C. Objective-based stopping (faster, less accurate) -- rejected
+
+After the batching landed, profiling showed 99.4 percent of FSCM's remaining
+runtime still inside `simplex_lstsq_gram_many`, not elsewhere in the estimator:
+73 of 74 solver invocations run to the `max_iter = 2000` cap and 93 percent of
+individual problems never meet the step-norm tolerance. `simplex_lstsq_batch`
+already switched to an objective test for what looks like the same reason, so
+the obvious move was to follow it -- 13 to 27 times fewer iterations, and Prop
+99 5.4s against 11.2s.
+
+It does not survive measurement. Over 80 random panels the objective stop picks
+a different donor on 5.6 percent of steps, and tightening does not touch that:
+
+| tol | check every | patience | flips | max dRMSPE | mean iters |
+| --- | --- | --- | --- | --- | --- |
+| 1e-11 | 25 | 1 | 5.62% | 1.34e-04 | 523 |
+| 1e-13 | 10 | 2 | 5.00% | 1.47e-05 | 763 |
+| 1e-15 | 5 | 3 | 6.25% | 1.14e-04 | 894 |
+| 0 | 10 | 2 | 6.25% | 1.47e-05 | 1548 |
+
+Against the exact active-set QP (`bilevel/active_set.solve_simplex_qp`) as
+ground truth, over 300 steps:
+
+| | wrong donor | max \|reported RMSPE - exact\| |
+| --- | --- | --- |
+| scalar FISTA loop | 12 (4.00%) | 6.9e-10 |
+| batched, objective stop | 14 (4.67%) | 2.8e-05 |
+
+The objective stop costs four orders of magnitude of accuracy to buy 2x, and
+its wrong picks are a superset of the scalar's -- the same twelve, plus two.
+The shared 4 percent is genuine near-ties, where two candidates differ by less
+than 1e-9 and the exact solver's tie-break decides.
+
+### The correction this produced
+
+The step-norm rule never firing looked like evidence the scalar solver was not
+converging, and it is not. Along a flat optimal face the *iterate* keeps
+drifting after the *objective* has settled, so the test cannot fire even though
+the answer is accurate to 6.9e-10. Two thousand iterations buy that accuracy
+instead of wasting it, and the shipped batched scan inherits it exactly by
+being bit-identical.
+
+So "identical to the reference" and "correct" happened to coincide here, but
+they are different claims and the first was asserted before the second was
+checked. What established it was an independent exact solver, not agreement
+between two runs of the same algorithm.
+
+### If more speed is wanted
+
+Two routes, neither taken:
+
+* Cut the per-iteration cost while keeping exactness. `_project_simplex_rows`
+  sorts every row every iteration and is the largest single line item (5.9s of
+  15.2s on Prop 99, 146,389 calls).
+* Replace FISTA in the scan with the exact active-set QP. A forward scan is a
+  chain of neighbouring problems, which is the case
+  `test_simplex_active_set_perf` reports warm starts collapsing to near-zero
+  pivots. The batched-FISTA route was taken without checking whether the exact
+  solver was the better primitive for this shape.
+
 ### Learnings (keep these)
 
 * **Prop 99 alone would have sold the heuristic.** On that panel screening
@@ -2291,6 +2351,9 @@ stops.
 * **Predictor mode is untouched.** Its lower-level problem carries the
   predictor block and is not a plain simplex least squares, so it keeps the
   per-candidate loop; anyone batching it needs a different factorisation.
+* **A stopping rule that never fires is not the same as a solver that never
+  converges.** Check the objective against an independent exact solve before
+  concluding an iteration budget is being wasted.
 
 ---
 
