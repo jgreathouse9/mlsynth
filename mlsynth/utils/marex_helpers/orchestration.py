@@ -55,12 +55,21 @@ def solve_marex(
     restrictions=None,
     warm_start=None,
     time_limit=None,
+    cumulative_band=False,
+    cumulative_block=0,
+    cumulative_n_sim=2000,
+    cumulative_seed=0,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
     With ``relaxed=True`` the continuous-``z`` QP with post-hoc discretization is
     used; otherwise the exact MIQP. With ``inference=True``, blank-period
     placebo inference is computed for every cluster and the aggregate.
+
+    ``cumulative_band=True`` adds a band for the total post-period effect to that
+    inference, block-resampling the blank-period effects with block length
+    ``cumulative_block`` (``0`` means the whole horizon) into ``cumulative_n_sim``
+    accumulated paths, seeded by ``cumulative_seed``. It needs no extra solve.
     """
     solve = solve_design_relaxed if relaxed else solve_design
     solve_kw = dict(
@@ -102,7 +111,11 @@ def solve_marex(
             return None
         return compute_inference(syn_t, syn_c, T0_eff, TcE, blank_periods,
                                  alpha=alpha, max_combinations=max_combinations,
-                                 random_state=random_state)
+                                 random_state=random_state,
+                                 cumulative_band=cumulative_band,
+                                 cumulative_block=cumulative_block,
+                                 cumulative_n_sim=cumulative_n_sim,
+                                 cumulative_seed=cumulative_seed)
 
     # swap labels so the *treated* group is the smaller-support set (Abadie &
     # Zhao's convention: treat as few units as possible), ties broken by the

@@ -21,6 +21,7 @@ import numpy as np
 from pydantic import ConfigDict
 
 from ...config_models import DesignResult
+from ..conformal.structure import CumulativeConformalBand
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,16 @@ class MAREXInference:
         (pre-period rows are ``NaN``).
     alpha : float
         Two-sided significance level.
+    cumulative_band : CumulativeConformalBand, optional
+        Band for the TOTAL post-period effect, present only when
+        ``cumulative_band=True`` was requested. ``ci`` above is pointwise: a
+        constant half-width laid around each period's effect, which bounds one
+        period at a time. Stacking those endpoints would bound the total only if
+        the period errors moved in lockstep, and dividing one by the horizon only
+        if they were independent. This band measures how they accumulate, by
+        block-resampling the blank-period effects into whole paths and taking the
+        quantile of their totals. Its ``n_scores`` is the number of blank periods
+        drawn from.
     """
 
     treated_effects: np.ndarray
@@ -69,6 +80,7 @@ class MAREXInference:
     per_period_pvals: np.ndarray
     ci: np.ndarray
     alpha: float = 0.05
+    cumulative_band: Optional[CumulativeConformalBand] = None
 
 
 @dataclass(frozen=True)
