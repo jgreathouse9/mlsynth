@@ -60,8 +60,11 @@ def test_it_is_exactly_the_two_step_composition(block):
     y, X = panel()
     refit_at = ols_refit_at(y, X)
     series = rolling_origin_counterfactual_errors(y, refit_at, 48, 6)
-    stepwise = block_error_paths(series, horizon=6, block=block, n_sim=800,
-                                 rng=np.random.default_rng(11))
+    # the composer derives the window count from the schedule and hands it on
+    _m = len(list(origin_schedule(48, 6, 0.3)))
+    stepwise = block_error_paths(
+        series, horizon=6, block=block, n_sim=800,
+        rng=np.random.default_rng(11), n_windows=_m if _m >= 2 else 0)
     one_call = resample_cumulative_paths(y, refit_at, 48, 6, block=block,
                                          n_sim=800, seed=11)
     np.testing.assert_array_equal(one_call, stepwise)
@@ -74,8 +77,10 @@ def test_the_training_fraction_reaches_the_calibration_pass(frac):
     refit_at = ols_refit_at(y, X)
     series = rolling_origin_counterfactual_errors(y, refit_at, 48, 6,
                                                   min_train_frac=frac)
-    stepwise = block_error_paths(series, horizon=6, block=0, n_sim=300,
-                                 rng=np.random.default_rng(2))
+    _m = len(list(origin_schedule(48, 6, frac)))
+    stepwise = block_error_paths(
+        series, horizon=6, block=0, n_sim=300,
+        rng=np.random.default_rng(2), n_windows=_m if _m >= 2 else 0)
     one_call = resample_cumulative_paths(y, refit_at, 48, 6, n_sim=300, seed=2,
                                          min_train_frac=frac)
     np.testing.assert_array_equal(one_call, stepwise)
@@ -316,3 +321,98 @@ def test_the_correction_holds_the_per_period_scale_across_block_lengths():
             got[b].append(_blocksum_sd(x, b, b, n_sim=20_000) / (np.sqrt(b) * target))
     means = [float(np.mean(got[b])) for b in blocks]
     assert all(abs(m - 1.0) < 0.08 for m in means), dict(zip(blocks, means))
+
+
+# --------------------------------------------------------------------------- #
+# Two-level draw: the window's own level, and the fluctuation about it
+# --------------------------------------------------------------------------- #
+# A horizon total is H times the mean error over that horizon, so it is driven by
+# the calibration window's LEVEL, not by fluctuation about it. Centring removes the
+# grand level, and a block of length L drawn from m concatenated windows usually
+# straddles a boundary and averages two levels, diluting what is left. Passing
+# ``n_windows`` splits the two apart: each drawn path gets one window's level plus
+# blocks of the within-window residuals, so the level enters at full weight.
+def _two_level_series(m, L, level_sd, noise_sd, seed=0):
+    """m windows of length L, each with its own level."""
+    rng = np.random.default_rng(seed)
+    levels = rng.normal(0, level_sd, m)
+    return np.concatenate([lv + rng.normal(0, noise_sd, L) for lv in levels]), levels
+
+
+def test_the_level_reaches_the_total_at_full_weight():
+    """With a level ten times the noise, the H-period total must be dominated by
+    it: sd(total) should be near H * sd(level), not a diluted fraction."""
+    m, L = 6, 10
+    s, levels = _two_level_series(m, L, level_sd=1.0, noise_sd=0.1, seed=3)
+    paths = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                              rng=np.random.default_rng(0), n_windows=m)
+    got = paths.sum(axis=1).std()
+    target = L * np.std(levels - levels.mean(), ddof=1)
+    assert got == pytest.approx(target, rel=0.15), (got, target)
+
+
+def test_without_n_windows_the_level_is_diluted():
+    """The contrast that motivates the parameter: the same series drawn flat gives
+    a materially smaller total, because most blocks straddle a boundary."""
+    m, L = 6, 10
+    s, _ = _two_level_series(m, L, level_sd=1.0, noise_sd=0.1, seed=3)
+    flat = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                             rng=np.random.default_rng(0)).sum(axis=1).std()
+    split = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                              rng=np.random.default_rng(0), n_windows=m).sum(axis=1).std()
+    assert split > 1.25 * flat, (split, flat)
+
+
+def test_a_flat_series_is_unchanged_by_splitting_it():
+    """When the windows share a level there is nothing to separate, so the two
+    draws must agree."""
+    rng = np.random.default_rng(7)
+    s = rng.normal(0, 1.0, 60)
+    a = block_error_paths(s, horizon=10, block=10, n_sim=40_000,
+                          rng=np.random.default_rng(0)).sum(axis=1).std()
+    b = block_error_paths(s, horizon=10, block=10, n_sim=40_000,
+                          rng=np.random.default_rng(0), n_windows=6).sum(axis=1).std()
+    assert b == pytest.approx(a, rel=0.20), (a, b)
+
+
+def test_one_window_cannot_identify_a_level():
+    """With a single window every level deviation is zero by construction, so the
+    variance the total needs is unidentified. The draw says so."""
+    s = np.random.default_rng(8).normal(size=30)
+    with pytest.raises(MlsynthDataError, match="two windows|n_windows"):
+        block_error_paths(s, horizon=6, block=6, n_sim=100, n_windows=1)
+
+
+@pytest.mark.parametrize("bad", [-1, 2.5, "3", True])
+def test_a_bad_window_count_is_refused(bad):
+    s = np.random.default_rng(9).normal(size=30)
+    with pytest.raises(MlsynthConfigError, match="n_windows"):
+        block_error_paths(s, horizon=6, block=6, n_sim=100, n_windows=bad)
+
+
+def test_more_windows_than_periods_is_refused():
+    s = np.random.default_rng(10).normal(size=8)
+    with pytest.raises(MlsynthDataError, match="n_windows"):
+        block_error_paths(s, horizon=4, block=2, n_sim=100, n_windows=9)
+
+
+def test_the_level_carries_m_minus_one_degrees_of_freedom():
+    """The m window means are deviations from the grand mean, so they sum to zero
+    and carry m-1 degrees of freedom. Drawing from them as if they were m
+    independent observations understates the level by sqrt((m-1)/m) -- eighteen
+    percent at three windows, which is what a blank window of three horizons gives.
+    Measured at m=3, where the two conventions are furthest apart."""
+    m, L = 3, 8
+    got, ddof1, ddof0 = [], [], []
+    for seed in range(12):
+        s, levels = _two_level_series(m, L, level_sd=1.0, noise_sd=0.05, seed=seed)
+        paths = block_error_paths(s, horizon=L, block=2, n_sim=20_000,
+                                  rng=np.random.default_rng(seed), n_windows=m)
+        got.append(paths.sum(axis=1).std())
+        c = levels - levels.mean()
+        ddof1.append(L * np.std(c, ddof=1))
+        ddof0.append(L * np.std(c, ddof=0))
+    r1 = float(np.mean(got) / np.mean(ddof1))
+    r0 = float(np.mean(got) / np.mean(ddof0))
+    assert abs(r1 - 1.0) < 0.10, ("unbiased target", r1)
+    assert r0 > 1.12, ("must exceed the ddof=0 target", r0)

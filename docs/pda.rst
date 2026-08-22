@@ -1329,6 +1329,35 @@ autocovariances themselves. A short calibration series understates persistence,
 and a scalar factor cannot recover it, so a band drawn from few windows still runs
 narrow on a strongly persistent panel. More rolling origins is the only remedy.
 
+The level, and the fluctuation about it
+"""""""""""""""""""""""""""""""""""""""
+
+A cumulative band has a second term, and it is the larger one. The total over
+:math:`L` periods is :math:`L` times the mean error over those periods, so what
+drives it is the calibration window's *level*, not the fluctuation about that
+level. Drawn from one flat series the level is invisible: every block shares it, so
+it contributes nothing to their spread, and centring removes it outright. Drawn
+from :math:`m` windows laid end to end the level is present but diluted, since a
+block of length :math:`L` usually straddles a boundary and averages two windows'
+levels.
+
+So the draw separates them. Each path takes one window's level, sign-flipped like
+everything else and held across the whole horizon, and blocks of the within-window
+residuals on top of it. The window means are deviations from the grand mean and
+carry :math:`m - 1` degrees of freedom, so they are scaled by
+:math:`\sqrt{m/(m-1)}` before being drawn from. Because each window's residuals now
+sum to zero, the zero-sum constraint binds at the window length instead of the
+series length, and the block is capped at half a window and corrected against it.
+
+Measured on a panel built from real weekly market data -- 104 pre-periods, a
+13-period horizon -- separating the two moves the realised coverage of the total
+from 0.85 to 0.96 for VanillaSC on designs whose treated unit its simplex can
+actually track, and from 0.72 to 0.94 for a blank-window design. Where the fit
+carries little systematic discrepancy the level term is mostly estimation noise and
+the band turns conservative instead: PDA's own coverage moves from 0.95 to 0.98 on
+the same panels. Erring wide is the safe direction for a band, and a caller who
+wants the older, narrower construction can ask for a single window.
+
 Where the scores come from differs from Wheeler as well, and the difference has a
 direction. He calibrates on leave-one-out residuals: each is scored by a model
 that saw every pre-period point but one, so it measures interpolation. mlsynth
