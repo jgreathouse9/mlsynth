@@ -251,8 +251,16 @@ def block_error_paths(
             f"n_windows={n_windows} exceeds the {e.size} calibration periods, so the "
             f"windows would be empty."
         )
+    if n_windows >= 2 and e.size < 2 * h:
+        raise MlsynthDataError(
+            f"a level needs two windows and a window is the horizon, so splitting "
+            f"asks for at least {2 * h} calibration periods; there are {e.size}. "
+            f"Calibrate on a longer series, shorten the horizon, or pass "
+            f"n_windows=0 to draw the series flat and accept that the total carries "
+            f"fluctuation only."
+        )
     if n_windows >= 2:
-        mu, e, width = _level_split(e, n_windows)
+        mu, e, width = _level_split(e, n_windows, h)
         # one level per path, sign-flipped like everything else, held across the
         # whole horizon; the fluctuation is drawn from the within-window residuals
         # below and added on top.
@@ -293,18 +301,28 @@ def block_error_paths(
     return fluct + lvl
 
 
-def _level_split(e, n_windows):
+def _level_split(e, n_windows, horizon):
     """Window levels and within-window residuals, from a centred series.
 
-    The series is ``m`` equal-length windows laid end to end. Its own level is
-    already removed, so the window means are deviations summing to zero; their
-    spread is what a horizon total is made of. Returned with the small-sample
-    correction, since ``m`` windows give ``m - 1`` degrees of freedom for it.
+    The window is the horizon. A total over ``H`` periods is ``H`` times the mean
+    error over ``H`` periods, so the level the band needs is a level over exactly
+    that span; deriving the width from the series length instead would measure a
+    level over some other span whenever the series does not divide evenly, and
+    would rescale the block cap and the zero-sum correction against that other span
+    too.
+
+    Where the series holds more periods than ``m`` windows need, the ones kept are
+    the most recent, since they sit closest to the horizon being predicted. For a
+    caller whose series is exactly ``m`` horizons long -- a rolling-origin pass laid
+    end to end -- nothing is dropped and the choice does not arise.
+
+    The series is already centred, so the window means are deviations summing to
+    zero and their spread is what a horizon total is made of.
     """
-    m = int(n_windows)
-    width = e.size // m
+    width = int(horizon)
+    m = min(int(n_windows), e.size // width)
     used = m * width
-    panel = e[:used].reshape(m, width)
+    panel = e[e.size - used:].reshape(m, width)
     mu = panel.mean(axis=1)
     mu = mu - mu.mean()
     resid = (panel - panel.mean(axis=1, keepdims=True)).ravel()
