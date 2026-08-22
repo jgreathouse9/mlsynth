@@ -224,23 +224,18 @@ def block_error_paths(
     # Centring costs the block sums some of their spread, and the loss is exact
     # enough to undo. Because the centred series sums to zero, its circular
     # autocovariances sum to zero too, so for a b-block
-    #     Var(S_b) = sum_{|k| < b} (b - |k|) c(k) = b v (1 - (b - 1) / (n - 1)),
-    # and the drawn totals come out narrow by sqrt((n - b) / (n - 1)) -- sixteen
-    # percent at a 13-period block drawn from 47 calibration periods, which is
-    # under-coverage in every band built on them. Scaling by the inverse restores
-    # it. The factor is exactly 1 at b = 1, so Wheeler's single-period draw, and
-    # the parity pinned on it, are unchanged.
+    #     Var(S_b) = sum_{|k|<b} (b - |k|) chat(k) = b v (1 - (b-1)/(n-1)),
+    # and the drawn totals come out narrow by sqrt((n-b)/(n-1)) -- 16 percent at a
+    # 13-period block drawn from 47 calibration periods. Scaling by the inverse
+    # restores it. The factor is exactly 1 at b = 1, so the single-period draw --
+    # Wheeler's construction, and the parity pinned on it -- is unchanged.
     #
     # It is exact for a horizon made of whole blocks, which the default
     # block = horizon always is. A horizon shorter than one block is scaled by
     # this factor too and comes out slightly wide, since a partial block of length
-    # h < b loses sqrt((n - h) / (n - 1)) and not sqrt((n - b) / (n - 1)). Erring
-    # wide is the safe direction for a band, and a per-horizon factor cannot be
-    # applied to a path without changing its shape.
-    #
-    # The b <= n / 2 guard above is the far end of this same curve, where the
-    # spread collapses to nothing. The shrinkage is continuous and present at
-    # every b; the guard only refuses where it inverts.
+    # h < b loses sqrt((n-h)/(n-1)) and not sqrt((n-b)/(n-1)). Erring wide is the
+    # safe direction for a band, and the alternative -- a per-horizon factor --
+    # cannot be applied to a path without changing its shape.
     scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0
     return (draws * signs).reshape(n_sim, n_blocks * b)[:, :h] * scale
 
