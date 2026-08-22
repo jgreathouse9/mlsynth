@@ -874,11 +874,11 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     ``conformal_horizon`` is what buys them, since :math:`m` is how many
     non-overlapping horizons the pre-period holds.
 
-    Measured on panels built from real weekly market data, separating the two moves
-    the realised coverage of the total from 0.85 to 0.96 on designs the simplex can
-    actually track. Where a fit carries little systematic discrepancy the level term
-    is mostly estimation noise and the band turns conservative instead; erring wide
-    is the safe direction for a band.
+    The level is shrunk against a noise floor before it is drawn from, since the
+    window means scatter even when every window shares a level; :doc:`pda` gives the
+    estimator. Measured on panels built from real weekly market data, with a treated
+    unit the donors can reproduce, separating the two and shrinking it moves the
+    realised coverage of the total from 0.85 to 0.94 against a nominal 0.95.
 
     The construction is Andrew Wheeler's ``LassoSynth`` band, generalised from a
     period to a block and split by window. :doc:`pda` develops it in full, including

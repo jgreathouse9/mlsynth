@@ -559,10 +559,16 @@ timeout = 300.0
   models = "the pre-fix state with the window structure known but unused. A horizon total is H times the mean error over the horizon, so it is the between-window level and not the fluctuation that sizes it; drawing only the fluctuation gave 0.72 coverage on a blank-window design and 0.85 on a simplex fit, against a nominal 0.95, while the band stayed finite, symmetric and right-shaped throughout"
 
   [[target.mutant]]
-  id = "level-degrees-of-freedom-ignored"
-  find = "        mu = mu * np.sqrt(m / (m - 1.0))"
-  replace = "        mu = mu"
-  models = "m window means that sum to zero treated as m independent observations. They carry m-1 degrees of freedom, so drawing from them unscaled understates the level's spread by sqrt((m-1)/m) -- ten percent at the five rolling origins a hundred-period pre-period supplies"
+  id = "level-noise-floor-not-subtracted"
+  find = "        s2_level = max(0.0, s2_between - s2_within / width)"
+  replace = "        s2_level = s2_between"
+  models = "the level charged at the full scatter of the window means, with no allowance for the fact that each mean is an average of `width` noisy periods and would scatter even if every window shared a level. On a series with no level at all this inflates the total by about 1.40 at any number of windows, since the spurious level variance then equals the fluctuation variance exactly"
+
+  [[target.mutant]]
+  id = "level-variance-allowed-negative"
+  find = "        s2_level = max(0.0, s2_between - s2_within / width)"
+  replace = "        s2_level = s2_between - s2_within / width"
+  models = "the floor removed from a variance estimator that can go negative by chance. Sampling puts s2_between below the noise floor often at small m, and a negative variance makes the scale a NaN, which propagates silently into every drawn path and then into the band"
 
   [[target.mutant]]
   id = "block-capped-against-the-series-not-the-window"

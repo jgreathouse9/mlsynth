@@ -62,10 +62,13 @@ sqrt((H + 2 sum_k (H-k) rho^k)/H) on a flat draw.
 This figure has moved twice and both moves are recorded here. It read 1.31 before
 the centring correction, 1.58 after it, and 1.03 once the level was separated out.
 
-``width_ratio`` moved with it, 1.43 to 1.92. Wheeler calibrates on leave-one-out
-residuals of a single fit and has no between-window level to draw, so separating
-one out is a divergence from his construction and not a closer approach to it. The
-two still coincide exactly at block one, where no level is drawn, which is what
+``width_ratio`` moved with it, 1.43 to 1.92 when the level was separated out and
+back to 1.39 once it was shrunk. Wheeler calibrates on leave-one-out residuals of a
+single fit and has no between-window level to draw, so separating one out is a
+divergence from his construction and not a closer approach to it; shrinking it
+against the noise floor puts the two back within forty percent of each other, which
+is roughly where the difference in calibration set alone had them. The two still
+coincide exactly at block one, where no level is drawn, which is what
 ``parity_max_gap`` pins.
 
 Cross-validation (scenario: reference implementation available). Wheeler's
@@ -209,7 +212,7 @@ def run() -> dict:
 EXPECTED = {
     "parity_max_gap": (0.004, 0.012),        # the two constructions coincide at block=1
     "parity_h1_atoms_apart": (1.0, 1.0),     # horizon 1 differs by at most one pool atom
-"width_ratio": (1.92, 0.35),             # rolling-origin scores exceed leave-one-out
+"width_ratio": (1.39, 0.35),             # rolling-origin scores exceed leave-one-out
     "block_widening": (1.03, 0.20),          # the level dominates the total now;
                                              # the block mechanism is pinned in
                                              # test_pda_resample_band.py instead

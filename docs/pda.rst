@@ -1349,14 +1349,32 @@ carry :math:`m - 1` degrees of freedom, so they are scaled by
 sum to zero, the zero-sum constraint binds at the window length instead of the
 series length, and the block is capped at half a window and corrected against it.
 
-Measured on a panel built from real weekly market data -- 104 pre-periods, a
-13-period horizon -- separating the two moves the realised coverage of the total
-from 0.85 to 0.96 for VanillaSC on designs whose treated unit its simplex can
-actually track, and from 0.72 to 0.94 for a blank-window design. Where the fit
-carries little systematic discrepancy the level term is mostly estimation noise and
-the band turns conservative instead: PDA's own coverage moves from 0.95 to 0.98 on
-the same panels. Erring wide is the safe direction for a band, and a caller who
-wants the older, narrower construction can ask for a single window.
+The level is shrunk before it is drawn from. The :math:`m` window means scatter even
+when every window shares a level, since each is an average of :math:`L` noisy
+periods, so their variance estimates :math:`\sigma^2_{\text{level}} +
+\sigma^2_{\text{within}}/L`. Drawing from them whole charges the band for a level
+that may not be there -- on a series with none it inflates the total by about 1.40
+at any number of windows, the spurious level variance and the fluctuation variance
+being equal by construction. So the noise floor is subtracted, giving the one-way
+random-effects estimator
+
+.. math::
+
+   \hat\sigma^2_{\text{level}}
+       = \max\left(0,\ s^2_{\text{between}} - s^2_{\text{within}}/L\right),
+
+which leaves a strongly levelled series almost untouched. The floor is not free:
+truncating the negative side of an estimator whose mean is zero biases it up, so on
+a level-free series the total still runs about 1.12 times wide at six windows,
+falling to 1.04 at forty. More windows is what buys that back.
+
+Measured on panels built from real weekly market data -- 104 pre-periods, a
+13-period horizon, a treated unit the donors can reproduce -- the realised coverage
+of the total moves from 0.85 to 0.94 for VanillaSC and from 0.72 to 0.94 for a
+blank-window design, against a nominal 0.95. PDA reads 0.98 on the same panels, and
+that is its band working as specified and not conservatism: its cumulative band is
+simultaneous over the whole horizon path, so any single horizon is covered at more
+than :math:`1-\alpha` by construction.
 
 Where the scores come from differs from Wheeler as well, and the difference has a
 direction. He calibrates on leave-one-out residuals: each is scored by a model

@@ -416,3 +416,80 @@ def test_the_level_carries_m_minus_one_degrees_of_freedom():
     r0 = float(np.mean(got) / np.mean(ddof0))
     assert abs(r1 - 1.0) < 0.10, ("unbiased target", r1)
     assert r0 > 1.12, ("must exceed the ddof=0 target", r0)
+
+
+# --------------------------------------------------------------------------- #
+# Shrinking the level toward zero when the windows do not disagree
+# --------------------------------------------------------------------------- #
+# The m window means scatter even when every window shares a level, because each
+# mean is an average of L noisy periods. Their variance estimates
+#     sigma_level^2 + sigma_within^2 / L,
+# so drawing from them whole charges the band for a level that is not there. The
+# draw subtracts the noise floor -- the ANOVA estimator
+# max(0, s2_between - s2_within / L) -- which leaves a strongly levelled series
+# almost untouched and collapses the term to nothing on a flat one.
+def _flat_ratio(m, width=10, horizon=10, block=5, reps=10, seed=11):
+    """Split-draw total over flat-draw total, on a series with no true level."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(reps):
+        s = rng.normal(0, 1.0, m * width)
+        flat = block_error_paths(s, horizon=horizon, block=block, n_sim=8_000,
+                                 rng=np.random.default_rng(0)).sum(axis=1).std()
+        split = block_error_paths(s, horizon=horizon, block=block, n_sim=8_000,
+                                  rng=np.random.default_rng(0),
+                                  n_windows=m).sum(axis=1).std()
+        out.append(split / flat)
+    return float(np.mean(out))
+
+
+def test_a_flat_series_keeps_most_of_the_level_away():
+    """No true level, so the split should stay near the flat draw. It does not
+    reach it exactly: ``max(0, .)`` truncates the negative side of an estimator
+    whose mean is zero, so the floored estimate is biased up. Unshrunk the level
+    inflates the total by about 1.40 at any m -- the level variance and the
+    fluctuation variance are then equal by construction -- and shrinking takes that
+    to roughly 1.12 at six windows."""
+    assert _flat_ratio(6) < 1.25, _flat_ratio(6)
+
+
+def test_the_floor_bias_falls_as_windows_are_added():
+    """The bias is a small-sample property of the estimator, so more windows must
+    shrink it. This is what a longer pre-period buys a cumulative band."""
+    few, many = _flat_ratio(6), _flat_ratio(30)
+    assert many < few, (few, many)
+    assert many < 1.12, many
+
+
+def test_a_strongly_levelled_series_keeps_its_level():
+    """The noise floor is small against a real level, so the term survives nearly
+    whole and the total is still driven by it."""
+    m, L = 6, 10
+    s, levels = _two_level_series(m, L, level_sd=1.0, noise_sd=0.1, seed=3)
+    paths = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                              rng=np.random.default_rng(0), n_windows=m)
+    got = paths.sum(axis=1).std()
+    target = L * np.std(levels - levels.mean(), ddof=1)
+    assert got == pytest.approx(target, rel=0.15), (got, target)
+
+
+def test_the_shrinkage_is_monotone_in_how_much_the_windows_disagree():
+    m, L = 6, 10
+    widths = []
+    for level_sd in (0.0, 0.2, 0.5, 1.0):
+        s, _ = _two_level_series(m, L, level_sd=level_sd, noise_sd=0.3, seed=5)
+        widths.append(block_error_paths(s, horizon=L, block=L, n_sim=20_000,
+                                        rng=np.random.default_rng(0),
+                                        n_windows=m).sum(axis=1).std())
+    assert all(np.diff(widths) > 0), widths
+
+
+def test_the_level_variance_never_goes_negative():
+    """s2_between can fall below the noise floor by chance; the estimator floors
+    at zero instead of producing a negative variance."""
+    rng = np.random.default_rng(13)
+    for seed in range(6):
+        s = rng.normal(0, 1.0, 24)
+        p = block_error_paths(s, horizon=4, block=2, n_sim=4000,
+                              rng=np.random.default_rng(seed), n_windows=6)
+        assert np.isfinite(p).all()
