@@ -1333,3 +1333,27 @@ timeout = 300.0
   find = "                      for s in range(u.size)], dtype=float)"
   replace = "                      for s in range(0, u.size, block)], dtype=float)"
   models = "reverting to a disjoint reference set, which is the split-conformal block count this function exists to improve on. The p-value's granularity falls from 1/T to block/T, which at an eight-period horizon over a hundred pre-periods is coarser than the level being inverted at"
+
+[[target]]
+name = "lto-warm-start"
+module-path = "mlsynth/utils/vanillasc_helpers/lto.py"
+test-command = "python -m pytest mlsynth/tests/test_lto_warm_start.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "seed-not-renormalised"
+  find = "    return v / total"
+  replace = "    return v"
+  models = "a seed carried onto the pair's pool without renormalising, so it sums to less than one whenever either removed donor held weight. The active set checks feasibility and discards it, so every number the test reports is still correct and only the speed is gone -- the defect this catalogue exists to catch, since no assertion on the p-value can see it"
+
+  [[target.mutant]]
+  id = "donor-seeded-from-the-treated-base"
+  find = "            ws_a = _seed_from_base(donor_bases[a], pool)"
+  replace = "            ws_a = _seed_from_base(treated_base, pool)"
+  models = "seeding a donor's placebo fit from the treated unit's base instead of its own. The seed is still a feasible simplex point, so the certified weights and the p-value are untouched; what it costs is the pivots, because the treated unit's support is not the donor's"
+
+  [[target.mutant]]
+  id = "pair-drops-one-donor-not-two"
+  find = "        pool = np.delete(all_donors, [a, b])"
+  replace = "        pool = np.delete(all_donors, [a])"
+  models = "a leave-two-out pool that only leaves one out, which is the ordinary placebo test wearing LTO's name: donor b stays in the pool it is being compared against, so its own fit is trivially good and the treated unit wins pairs it should lose"
