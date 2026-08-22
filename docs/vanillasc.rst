@@ -804,7 +804,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
 
     A confidence interval for a running total is not the running total of the
     per-period intervals. Adding the endpoints up assumes the weekly errors move
-    in lockstep, so the width grows with the number of periods rather than with
+    in lockstep, so the width grows with the number of periods, not with
     its square root; rescaling one period's interval by the horizon assumes the
     opposite. Which is right depends on how the errors accumulate, so this mode
     measures that directly: it slides an origin across the pre-period, refits the
@@ -833,9 +833,34 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     \texttt{min\_train\_frac}))`. At :math:`\alpha = 0.1` that is about ten
     windows: 104 pre-periods support an 8-period horizon, but not a 16-period one.
     When the windows run out the band is ``±inf`` with a warning naming the
-    shortfall, rather than a narrow band that does not cover.
+    shortfall, not a narrow band that does not cover.
 
-    Reference: :func:`mlsynth.utils.conformal.cumulative_conformal_from_refit`.
+    ``conformal_method="resample"`` spends that pre-period differently. It runs
+    the same rolling-origin pass, but keeps each window's errors period by period
+    instead of summing each window into a single score, so :math:`m` windows
+    supply :math:`m \times L` values where the order statistic had :math:`m`. The
+    half-width is then a quantile of totals accumulated from draws of those
+    values, which exists at any :math:`m \geq 1` -- the band is finite on
+    pre-periods that leave the split band at ``±inf``, which is the practical
+    reason to reach for it.
+
+    The draw is a circular block bootstrap of the centred errors with each block's
+    sign flipped at random. ``conformal_block`` sets the block length: ``0``, the
+    default, is the whole horizon, and ``1`` draws periods independently, which
+    understates the spread of a total whenever the period errors are positively
+    autocorrelated. ``conformal_n_sim`` sets how many paths are drawn -- they cost
+    no refits, since the refits are the calibration origins -- and
+    ``conformal_seed`` fixes the draw. What comes back is the same object with the
+    same fields; ``res.inference.method`` records which construction produced it.
+
+    The construction is Andrew Wheeler's ``LassoSynth`` band, generalised from a
+    period to a block. :doc:`pda` develops it in full, including the
+    :math:`L\gamma_0 + 2\sum_{k} (L-k)\gamma_k` variance of an :math:`L`-period
+    total that the block length is there to carry, and the reference-implementation
+    benchmark that pins the two constructions against each other.
+
+    Reference: :func:`mlsynth.utils.conformal.cumulative_conformal_from_refit`,
+    :func:`mlsynth.utils.conformal.resample_cumulative_paths_from_weights`.
 
 ``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2025)
     A :math:`K`-fold cross-fitting debiasing with a self-normalized statistic

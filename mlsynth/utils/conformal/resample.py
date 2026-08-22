@@ -256,3 +256,64 @@ def resample_cumulative_paths(
         y, refit_at, pre_periods, horizon, min_train_frac=min_train_frac)
     return block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
                              rng=np.random.default_rng(seed))
+
+
+def resample_cumulative_paths_from_weights(
+    y,
+    Y0,
+    pre_periods: int,
+    horizon: int,
+    weight_fn,
+    *,
+    block: int = WHOLE_HORIZON,
+    n_sim: int = 2000,
+    seed=0,
+    min_train_frac: float = 0.3,
+) -> np.ndarray:
+    """The same composition for a fit that returns donor weights.
+
+    :func:`resample_cumulative_paths` serves an estimator that hands back a
+    counterfactual; this one serves the classical case, where the fit is a weight
+    vector over donors and the error is ``y - Y0 @ w``. The two agree wherever
+    both apply, which
+    ``tests/test_conformal_resample_paths_weights.py`` asserts.
+
+    Where a split-conformal band needs ``ceil(1/alpha) - 1`` calibration windows
+    before its order statistic exists, this draws from the ``m * L`` per-period
+    errors inside those windows, so it stays finite on pre-periods that leave a
+    split band infinite.
+
+    Parameters
+    ----------
+    y : array-like, shape ``(T,)``
+        Treated-unit outcome over the full sample.
+    Y0 : array-like, shape ``(T, J)``
+        Donor outcomes aligned to ``y``.
+    pre_periods : int
+        Number of pre-treatment periods ``T0``.
+    horizon : int
+        Post-period length ``L``; also the calibration window length and stride.
+    weight_fn : callable
+        ``weight_fn(keep_idx) -> w``, the estimator's refit on the periods indexed
+        by ``keep_idx``, as :func:`rolling_origin_block_sums` takes it.
+    block, n_sim, seed, min_train_frac
+        As :func:`resample_cumulative_paths`.
+
+    Returns
+    -------
+    numpy.ndarray, shape ``(n_sim, horizon)``
+
+    Raises
+    ------
+    MlsynthConfigError
+        For a malformed ``horizon``, ``block``, ``n_sim`` or ``min_train_frac``.
+    MlsynthDataError
+        If ``Y0`` does not align with ``y``, the pre-period admits no window, or
+        the calibration pass yields nothing to resample.
+    """
+    from .scores import rolling_origin_period_errors
+
+    series = rolling_origin_period_errors(
+        y, Y0, pre_periods, horizon, weight_fn, min_train_frac=min_train_frac)
+    return block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
+                             rng=np.random.default_rng(seed))

@@ -47,7 +47,9 @@ from .permutation import BLOCK_STATISTICS, moving_block_pvalue
 from .quantile import split_conformal_quantile
 from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from .resample import (WHOLE_HORIZON, block_error_paths,
-                       resample_cumulative_paths, resolve_block)
+                       resample_cumulative_paths,
+                       resample_cumulative_paths_from_weights,
+                       resolve_block)
 from .scores import (MIN_TRAIN_PERIODS, origin_schedule,
                      rolling_origin_block_sums,
                      rolling_origin_counterfactual_errors,
@@ -68,6 +70,7 @@ __all__ = [
     "block_error_paths",
     "origin_schedule",
     "resample_cumulative_paths",
+    "resample_cumulative_paths_from_weights",
     "resolve_block",
     "rolling_origin_counterfactual_errors",
     "rolling_origin_block_sums",
