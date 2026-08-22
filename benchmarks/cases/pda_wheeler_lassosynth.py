@@ -50,7 +50,15 @@ horizon, and this records by how much.
 
 ``block_widening`` is the generalisation working. On a persistent panel the
 whole-horizon block must give a wider band than the independent draw, since that
-is the correlation the blocks exist to carry.
+is the correlation the blocks exist to carry. The AR(1) closed form says how much:
+over the eight post periods at rho = 0.7 the total's spread is
+sqrt((H + 2 sum_k (H-k) rho^k)/H) = 1.96 times the independent one. The case
+records 1.58, and the shortfall has a named cause. Three rolling origins fit in
+this pre-period, so the calibration series is 24 periods and an eight-period block
+is a third of it; the draw corrects the spread that centring such a short series
+removes, but the sample autocovariances of 24 points still understate AR(0.7)
+persistence, and no scalar correction recovers that. Before the centring
+correction this figure read 1.31.
 
 Cross-validation (scenario: reference implementation available). Wheeler's
 construction is transcribed here instead of imported, since the post ships a
@@ -194,5 +202,6 @@ EXPECTED = {
     "parity_max_gap": (0.004, 0.012),        # the two constructions coincide at block=1
     "parity_h1_atoms_apart": (1.0, 1.0),     # horizon 1 differs by at most one pool atom
     "width_ratio": (1.43, 0.35),             # rolling-origin scores exceed leave-one-out
-    "block_widening": (1.31, 0.20),          # blocks carry AR(0.7) persistence
+    "block_widening": (1.58, 0.20),          # blocks carry AR(0.7) persistence;
+                                             # closed form is 1.96, see above
 }
