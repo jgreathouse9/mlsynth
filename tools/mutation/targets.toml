@@ -559,6 +559,18 @@ timeout = 300.0
   models = "the pre-fix state with the window structure known but unused. A horizon total is H times the mean error over the horizon, so it is the between-window level and not the fluctuation that sizes it; drawing only the fluctuation gave 0.72 coverage on a blank-window design and 0.85 on a simplex fit, against a nominal 0.95, while the band stayed finite, symmetric and right-shaped throughout"
 
   [[target.mutant]]
+  id = "window-width-from-the-series-not-the-horizon"
+  find = "    width = int(horizon)\n    m = min(int(n_windows), e.size // width)"
+  replace = "    width = e.size // int(n_windows)\n    m = int(n_windows)"
+  models = "the width derived by splitting the series into n_windows equal chunks. A horizon total is H times the mean error over H periods, so the level must be a level over H periods; splitting a 47-period blank window three ways measures it over 15 instead, and rescales the block cap and the zero-sum correction against 15 too. Callers whose series is exactly m horizons long are unaffected, which is why this hid"
+
+  [[target.mutant]]
+  id = "calibrates-on-the-earliest-periods"
+  find = "    panel = e[e.size - used:].reshape(m, width)"
+  replace = "    panel = e[:used].reshape(m, width)"
+  models = "keeping the oldest periods when the series holds more than the windows need, instead of the ones nearest the horizon being predicted. On a blank window of 47 against a horizon of 13 that is a different eight periods dropped, and the level is read off a stretch further from the post period"
+
+  [[target.mutant]]
   id = "level-noise-floor-not-subtracted"
   find = "        s2_level = max(0.0, s2_between - s2_within / width)"
   replace = "        s2_level = s2_between"

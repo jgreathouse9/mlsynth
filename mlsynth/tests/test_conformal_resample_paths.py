@@ -493,3 +493,51 @@ def test_the_level_variance_never_goes_negative():
         p = block_error_paths(s, horizon=4, block=2, n_sim=4000,
                               rng=np.random.default_rng(seed), n_windows=6)
         assert np.isfinite(p).all()
+
+
+# --------------------------------------------------------------------------- #
+# The window is the horizon
+# --------------------------------------------------------------------------- #
+# A horizon total is H times the mean error over H periods, so the level the band
+# needs is a level over H periods. Deriving the window width from the series length
+# instead -- ``size // m`` -- measures a level over some other span whenever the
+# series does not divide evenly, and rescales the block cap and the zero-sum
+# correction against that other span too.
+def test_the_window_width_is_the_horizon_not_the_series_split():
+    """A 47-period series with three windows: the windows are 13 periods, the
+    horizon, and not the 15 that splitting 47 three ways would give."""
+    H = 13
+    # Three clean 13-period levels at the END, with the 8 spare periods leading, so
+    # the windows the draw keeps line up with them. Splitting 47 three ways would
+    # give 15-period chunks, which straddle the boundaries and blunt the levels.
+    lv = np.array([-3.0, 0.0, 3.0])
+    s = np.concatenate([np.zeros(8), np.repeat(lv[0], H), np.repeat(lv[1], H),
+                        np.repeat(lv[2], H)])
+    s = s + np.random.default_rng(0).normal(0, 0.01, s.size)
+    paths = block_error_paths(s, horizon=H, block=H, n_sim=20_000,
+                              rng=np.random.default_rng(0), n_windows=3)
+    got = paths.sum(axis=1).std()
+    # windows of exactly the horizon see levels -3, 0, 3 cleanly
+    target = H * np.std(lv - lv.mean(), ddof=1)
+    assert got == pytest.approx(target, rel=0.20), (got, target)
+
+
+def test_it_calibrates_on_the_periods_nearest_the_horizon():
+    """When the series holds more periods than the windows need, the ones kept are
+    the most recent -- they are the closest thing to the horizon being predicted."""
+    H = 5
+    early = np.repeat([-8.0, 8.0], H)             # 10 periods, wild
+    late = np.concatenate([np.repeat(-0.5, H), np.repeat(0.5, H)])
+    s = np.concatenate([early, late])              # 20 periods
+    s = s + np.random.default_rng(1).normal(0, 0.01, s.size)
+    got = block_error_paths(s, horizon=H, block=H, n_sim=20_000,
+                            rng=np.random.default_rng(0),
+                            n_windows=2).sum(axis=1).std()
+    late_target = H * np.std(np.array([-0.5, 0.5]) - 0.0, ddof=1)
+    assert got == pytest.approx(late_target, rel=0.30), (got, late_target)
+
+
+def test_a_series_too_short_for_two_horizons_is_refused():
+    s = np.random.default_rng(2).normal(size=9)
+    with pytest.raises(MlsynthDataError, match="two windows|n_windows|horizon"):
+        block_error_paths(s, horizon=5, block=2, n_sim=100, n_windows=2)
