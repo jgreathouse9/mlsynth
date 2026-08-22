@@ -204,3 +204,14 @@ def test_a_horizon_longer_than_the_series_draws_from_short_blocks():
                               rng=np.random.default_rng(0))
     assert paths.shape == (500, 12)
     assert np.quantile(np.abs(paths.sum(axis=1)), 0.95) > 0.0
+
+
+def test_a_single_calibration_error_says_what_is_wrong():
+    """One error carries no spread: centring it leaves exactly zero, and there is
+    no shorter block to fall back on. The refusal says that instead of suggesting
+    a block length below one."""
+    with pytest.raises(MlsynthDataError) as exc:
+        block_error_paths(np.array([2.0]), horizon=3, block=0, n_sim=10)
+    msg = str(exc.value)
+    assert "block <= 0" not in msg
+    assert "single" in msg or "one" in msg

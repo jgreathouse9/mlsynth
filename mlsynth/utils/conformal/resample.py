@@ -164,9 +164,9 @@ def block_error_paths(
         right kind.
     MlsynthDataError
         If ``series`` holds no finite value, since there is nothing to resample,
-        or if the resolved block is not shorter than the series, which would make
-        every drawn path sum to the same value and collapse the band to zero
-        width.
+        if the series holds a single value, which carries no spread, or if the
+        resolved block is not shorter than the series, which would make every
+        drawn path sum to the same value and collapse the band to zero width.
     """
     h = _check_horizon(horizon)
     b = resolve_block(block, h)
@@ -195,6 +195,12 @@ def block_error_paths(
     # zero: a band asserting perfect certainty about the accumulated effect, which
     # is a worse answer than the infinite half-width this construction was reached
     # for. Neither outcome is delivered under the requested block length.
+    if e.size == 1:
+        raise MlsynthDataError(
+            "a single calibration error carries no spread: centring it leaves "
+            "exactly zero, so every drawn path would sum to zero and the band "
+            "would have no width. Calibrate on a series of at least two periods."
+        )
     if b >= e.size:
         raise MlsynthDataError(
             f"block length {b} is not shorter than the {e.size}-period "
