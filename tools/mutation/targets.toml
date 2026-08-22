@@ -548,14 +548,14 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "overlapping-calibration-origins"
-  find = "for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):"
-  replace = "for origin in range(start, int(pre_periods) - int(horizon) + 1, 1):"
+  find = "    return range(start, int(pre_periods) - int(horizon) + 1, int(horizon))"
+  replace = "    return range(start, int(pre_periods) - int(horizon) + 1, 1)"
   models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive blocks share periods; the scores stop being exchangeable and the band is calibrated on a correlated, artificially large calibration set"
 
   [[target.mutant]]
   id = "scores-average-instead-of-accumulate"
-  find = "scores.append(float(np.sum(y[block] - Y0[block] @ w)))"
-  replace = "scores.append(float(np.mean(y[block] - Y0[block] @ w)))"
+  find = "    return np.asarray([float(np.sum(b)) for b in blocks], dtype=float)"
+  replace = "    return np.asarray([float(np.mean(b)) for b in blocks], dtype=float)"
   models = "scoring the per-period average error rather than the accumulated error, so the band is calibrated for the wrong estimand -- the defect that makes a per-period interval rescaled by the horizon look like a cumulative one"
 
   [[target.mutant]]

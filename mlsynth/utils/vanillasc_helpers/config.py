@@ -457,6 +457,53 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "in the pre-period, and the band widens accordingly.",
     )
 
+    conformal_method: Literal["split", "resample"] = Field(
+        default="split",
+        description="How the cumulative band is calibrated. 'split' (default) "
+                    "takes the finite-sample order statistic of the m "
+                    "rolling-origin window sums, which exists only once m reaches "
+                    "ceil(1/alpha) - 1 and otherwise returns an infinite "
+                    "half-width. 'resample' keeps the same windows per period, "
+                    "giving m * horizon values, and block-resamples them into "
+                    "accumulated paths; the band is then the quantile of those "
+                    "totals. It stays finite on pre-periods where the order "
+                    "statistic does not exist, and it carries the serial "
+                    "correlation of the period errors into the total instead of "
+                    "reading it off a single summed score.",
+    )
+    conformal_block: int = Field(
+        default=0,
+        description="conformal_method='resample' only: block length in periods "
+                    "for the circular block bootstrap. 0 (default) means the whole "
+                    "horizon; 1 draws periods independently, which understates the "
+                    "spread of a total whenever the period errors are positively "
+                    "autocorrelated.",
+    )
+    conformal_n_sim: int = Field(
+        default=2000,
+        description="conformal_method='resample' only: number of accumulated paths "
+                    "to draw. These cost no refits -- the refits are the "
+                    "calibration origins -- so this buys quantile precision "
+                    "cheaply.",
+    )
+    conformal_seed: int = Field(
+        default=0,
+        description="conformal_method='resample' only: seed for the draw, so the "
+                    "band is reproducible.",
+    )
+
+    @field_validator("conformal_block", "conformal_n_sim", "conformal_seed",
+                     mode="before")
+    @classmethod
+    def _validate_conformal_draw(cls, v, info):
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(f"{info.field_name} must be an integer.")
+        if info.field_name == "conformal_block" and v < 0:
+            raise ValueError("conformal_block must be >= 0 (0 means the horizon).")
+        if info.field_name == "conformal_n_sim" and v < 2:
+            raise ValueError("conformal_n_sim must be >= 2 to take a quantile.")
+        return v
+
     @field_validator("conformal_horizon")
     @classmethod
     def _validate_conformal_horizon(cls, v):

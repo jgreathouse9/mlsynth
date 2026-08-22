@@ -119,6 +119,7 @@ CASES = {
     "pda_ppi": "benchmarks.cases.pda_ppi",                    # Path A: Shi-Wang China PPI L2-relaxation (real-estate policy)
     "pda_brexit": "benchmarks.cases.pda_brexit",              # Path A: Shi-Wang Brexit multi-treated-units L2-relaxation
     "pda_pi_coverage": "benchmarks.cases.pda_pi_coverage",    # Path B: Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+    "pda_wheeler_lassosynth": "benchmarks.cases.pda_wheeler_lassosynth",  # cross-val vs Wheeler's LassoSynth: the resampled cumulative band reduces to his construction at block=1
     "mlsc_bottmer": "benchmarks.cases.mlsc_bottmer",          # cross-val vs Bottmer's mlSC_estimator (skips if absent)
     "proximal_panic1907": "benchmarks.cases.proximal_panic1907",  # cross-val vs freshtaste/proximal (Panic 1907 Table 3)
     "proximal_germany_oid": "benchmarks.cases.proximal_germany_oid",  # cross-val vs authors' manuscript code (Shi et al. 2026 JASA): over-identified PI (PIOID) on German reunification, ATT + GMM CI value-for-value
