@@ -48,6 +48,7 @@ def solve_marex(
     relaxed=False,
     inference=False,
     alpha=0.05,
+    power_target=0.80,
     max_combinations=1000,
     random_state=42,
     unit_index=None,
@@ -188,7 +189,8 @@ def solve_marex(
     # gap residuals (or the pre-period gap when no blank window was carved
     # out). Skipped when no pre window or both windows are degenerate.
     try:
-        power = compute_power_analysis(post_fit, alpha=alpha)
+        power = compute_power_analysis(post_fit, alpha=alpha,
+                                       power_target=power_target)
         post_fit = _dc_replace(post_fit, power=power)
     except Exception:                # never let power analysis break a fit
         pass

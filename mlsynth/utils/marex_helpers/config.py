@@ -172,7 +172,12 @@ class MAREXConfig(BaseMAREXConfig):
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided significance level for the MDE power curve.",
+        description="Two-sided significance level. Sets the MDE power curve, and "
+                    "with inference=True the half-width of the blank-period "
+                    "placebo band, which is the 1 - alpha quantile of the "
+                    "absolute blank-period effects. It does not move the "
+                    "permutation p-values, which are tail probabilities of the "
+                    "observed statistic and are the same numbers at any level.",
     )
     power_target: float = Field(
         default=0.80, gt=0.0, lt=1.0,

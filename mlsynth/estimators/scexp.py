@@ -173,6 +173,7 @@ class MAREX:
                 standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
+                alpha=self.config.alpha, power_target=self.config.power_target,
                 unit_index=panel.unit_index, time_index=panel.time_index,
                 restrictions=restrictions,
                 warm_start=warm_idx, time_limit=self.time_limit,
