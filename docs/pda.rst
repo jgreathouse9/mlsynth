@@ -1308,6 +1308,27 @@ how much serial correlation is carried. With :math:`m` rolling origins the serie
 is :math:`m \times L` periods, so a whole-horizon block asks for :math:`m \geq 2`
 and a block of :math:`b` asks for :math:`m \geq 2L/b`.
 
+Short of that midpoint the same constraint costs spread instead of meaning, and
+the draw corrects for it. Since the centred series sums to zero its circular
+autocovariances do too, so a :math:`b`-block carries
+
+.. math::
+
+   \operatorname{Var}(S_b) = \sum_{|k|<b} (b-|k|)\,\hat\gamma_k
+                           = b\,v\left(1 - \frac{b-1}{n-1}\right),
+
+and the drawn totals come out narrow by :math:`\sqrt{(n-b)/(n-1)}` -- sixteen
+percent for a thirteen-period block drawn from forty-seven calibration periods.
+The draw multiplies by the inverse. The factor is exactly one at :math:`b = 1`, so
+the single-period construction and the reference parity pinned on it are
+unchanged, and it is exact for a horizon made of whole blocks, which the default
+:math:`b = L` always is.
+
+What the correction does not repair is the attenuation of the sample
+autocovariances themselves. A short calibration series understates persistence,
+and a scalar factor cannot recover it, so a band drawn from few windows still runs
+narrow on a strongly persistent panel. More rolling origins is the only remedy.
+
 Where the scores come from differs from Wheeler as well, and the difference has a
 direction. He calibrates on leave-one-out residuals: each is scored by a model
 that saw every pre-period point but one, so it measures interpolation. mlsynth
@@ -1335,7 +1356,10 @@ horizon one the band is a quantile of :math:`2m` discrete atoms and both
 implementations land exactly on one; the case records that those atoms are
 adjacent, so the difference there is discreteness and not disagreement. It also
 records the 1.4 width ratio above, and that a whole-horizon block widens the band
-by 1.31 on an AR(0.7) panel, which is the generalisation doing its work.
+by 1.58 on an AR(0.7) panel, which is the generalisation doing its work. The
+AR(1) closed form for those eight periods is 1.96; three rolling origins give a
+24-period calibration series, and the sample autocovariances of 24 points
+understate the persistence, so the drawn band does not reach it.
 
 ``hcw`` produces these same intervals, with one practical caveat: the bootstrap
 refits the entire selection on every draw, and HCW's refit re-runs the

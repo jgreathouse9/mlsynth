@@ -541,6 +541,24 @@ timeout = 600.0
   models = "the ranking tolerance relaxed past the point where the sweep can order its candidates, which is the shape a tolerance takes when it is widened for speed without checking what it costs. Every solve still returns a finite beta and the fit still looks ordinary; what breaks is the ordering, and with it the tau the caller is handed -- across the four Hong Kong windows it moves the winner on three and the validation errors by 0.32 to 4.99 relative, against 3.9e-3 at the shipped value"
 
 [[target]]
+name = "conformal-resample-draw"
+module-path = "mlsynth/utils/conformal/resample.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_resample_paths.py mlsynth/tests/test_pda_resample_band.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "centring-shrinkage-uncorrected"
+  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
+  replace = "    scale = 1.0"
+  models = "the pre-fix state: block sums drawn from a centred series come out narrow by sqrt((n-b)/(n-1)), because the centred series' circular autocovariances sum to zero. Sixteen percent at a thirteen-period block drawn from forty-seven calibration periods, and every band built on those draws is narrow by the same factor. The draw still returns finite, symmetric, right-shaped paths, so nothing about the band's appearance shows it"
+
+  [[target.mutant]]
+  id = "correction-applied-at-block-one"
+  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt(e.size / (e.size - b))"
+  models = "a correction that also folds in the sample-variance bias, which widens the single-period draw by sqrt(n/(n-1)) where the centring costs it nothing. Block one is Wheeler's construction exactly, and the reference parity benchmark is pinned on it, so a factor that is not exactly one there breaks the one comparison that certifies the port"
+
+[[target]]
 name = "conformal-cumulative-scores"
 module-path = "mlsynth/utils/conformal/scores.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"

@@ -204,25 +204,24 @@ def test_the_longest_admissible_block_still_draws():
 # length therefore stops meaning "how much serial correlation is carried" at
 # b = n/2 and reverses: past the midpoint a longer block draws a NARROWER total,
 # mirroring a shorter one, until at b = n it draws nothing at all.
-def test_the_spread_is_symmetric_about_half_the_series():
-    """The identity the guard is built on, measured."""
-    e = np.random.default_rng(0).normal(size=24)
-    def sd(b):
-        return block_error_paths(e, horizon=b, block=b, n_sim=100_000,
-                                 rng=np.random.default_rng(1)).sum(axis=1).std()
-    for b in (1, 2, 5):
-        assert sd(b) == pytest.approx(_complement_sd(e, b), rel=0.02), b
-
-
-def _complement_sd(e, b):
-    """The (n - b)-block spread, computed without the guard in the way."""
+def _raw_blocksum_sd(e, b):
+    """Circular b-block sums of the centred series, with no correction applied."""
     e = np.asarray(e, dtype=float)
     e = e - e.mean()
-    n, k = e.size, e.size - b
-    rng = np.random.default_rng(1)
-    s = rng.integers(0, n, size=100_000)
-    idx = (s[:, None] + np.arange(k)[None, :]) % n
-    return e[idx].sum(axis=1).std()
+    n = e.size
+    S = np.array([e[(np.arange(b) + s) % n].sum() for s in range(n)])
+    return float(S.std())
+
+
+def test_the_spread_is_symmetric_about_half_the_series():
+    """The identity the guard is built on. It is a property of the centred series
+    -- a b-block and its (n - b) complement sum to zero between them -- so it is
+    measured on the raw circular sums, not on the drawn output, which carries a
+    b-dependent correction for exactly this shrinkage."""
+    e = np.random.default_rng(0).normal(size=24)
+    for b in (1, 2, 5, 9):
+        assert _raw_blocksum_sd(e, b) == pytest.approx(
+            _raw_blocksum_sd(e, e.size - b), rel=1e-9), b
 
 
 @pytest.mark.parametrize("block", [7, 9, 11])
@@ -259,3 +258,61 @@ def test_a_single_calibration_error_says_what_is_wrong():
     msg = str(exc.value)
     assert "block <= 0" not in msg
     assert "single" in msg or "one" in msg
+
+
+# --------------------------------------------------------------------------- #
+# The spread the centring removes
+# --------------------------------------------------------------------------- #
+# Centring forces the series to sum to zero, which makes its circular
+# autocovariances sum to zero too. So for a b-block,
+#     Var(S_b) = sum_{|k|<b} (b - |k|) chat(k) = b * v * (1 - (b-1)/(n-1)),
+# and the drawn totals come out too narrow by sqrt((n-b)/(n-1)) -- 16 percent at
+# b = 13 drawn from n = 47. The draw multiplies by the inverse of that factor,
+# which is exactly 1 at b = 1 and so leaves the single-period construction, and
+# the reference parity pinned on it, untouched.
+def _blocksum_sd(series, block, horizon, n_sim=60_000, seed=0):
+    p = block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
+                          rng=np.random.default_rng(seed))
+    return float(p.sum(axis=1).std())
+
+
+@pytest.mark.parametrize("n,b", [(47, 13), (47, 5), (60, 6), (100, 13)])
+def test_block_sums_carry_the_spread_independent_periods_would_give(n, b):
+    """White noise: a b-period total has sd sqrt(b) * sd(x). Uncorrected the draw
+    lands about sqrt((n-b)/(n-1)) of that."""
+    rng = np.random.default_rng(4)
+    ratios = []
+    for _ in range(12):
+        x = rng.normal(size=n)
+        target = np.sqrt(b) * (x - x.mean()).std()
+        ratios.append(_blocksum_sd(x, b, b, n_sim=20_000) / target)
+    assert np.mean(ratios) == pytest.approx(1.0, abs=0.06), np.mean(ratios)
+
+
+def test_the_correction_is_exactly_one_at_block_one():
+    """b = 1 has no centring shrinkage, so the single-period draw -- the one the
+    Wheeler parity benchmark pins -- must be bit-for-bit what it always was."""
+    x = np.random.default_rng(5).normal(size=40)
+    paths = block_error_paths(x, horizon=6, block=1, n_sim=5000,
+                              rng=np.random.default_rng(0))
+    drawn = np.unique(np.round(np.abs(paths.ravel()), 12))
+    expected = np.unique(np.round(np.abs(x - x.mean()), 12))
+    # every drawn value is an element of the centred series, unscaled
+    assert np.isin(drawn, expected).all()
+
+
+def test_the_correction_holds_the_per_period_scale_across_block_lengths():
+    """Uncorrected, sd(S_b)/sqrt(b) falls away as b/n grows -- that is the
+    shrinkage. Corrected, it stays near sd(x) at every block length. Averaged over
+    series, since one realisation's sample autocovariances are noisy enough to
+    swamp the effect."""
+    rng = np.random.default_rng(6)
+    n, blocks = 48, (1, 4, 12, 24)
+    got = {b: [] for b in blocks}
+    for _ in range(10):
+        x = rng.normal(size=n)
+        target = (x - x.mean()).std()
+        for b in blocks:
+            got[b].append(_blocksum_sd(x, b, b, n_sim=20_000) / (np.sqrt(b) * target))
+    means = [float(np.mean(got[b])) for b in blocks]
+    assert all(abs(m - 1.0) < 0.08 for m in means), dict(zip(blocks, means))
