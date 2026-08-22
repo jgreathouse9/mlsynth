@@ -18,8 +18,9 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from mlsynth.utils.conformal import origin_schedule, rolling_origin_period_errors
-from mlsynth.utils.pda_helpers.resample import rolling_origin_counterfactual_errors
+from mlsynth.utils.conformal import (origin_schedule,
+                                     rolling_origin_counterfactual_errors,
+                                     rolling_origin_period_errors)
 
 _SETTINGS = settings(
     max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow]

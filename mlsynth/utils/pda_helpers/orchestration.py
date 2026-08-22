@@ -18,8 +18,7 @@ from .lasso import (
 from .fs import forward_select, fs_ate_inference
 from .hcw import fit_hcw, hcw_ate_inference
 from ..inferutils import pda_prediction_intervals
-from .resample import (block_error_paths,
-                       rolling_origin_counterfactual_errors)
+from ..conformal import resample_cumulative_paths
 from .inference import cumulative_supt_band
 
 # Map config method strings to internal keys.
@@ -186,13 +185,10 @@ def run_pda(
                 def refit_at(origin, _m=m):
                     return _build_refit(_m, X, origin, **refit_kw)(y)[0]
 
-                horizon = int(y.size - T0)
-                series = rolling_origin_counterfactual_errors(
-                    y, refit_at, T0, horizon)
-                paths = block_error_paths(
-                    series, horizon=horizon, block=cumulative_block,
-                    n_sim=cumulative_n_sim,
-                    rng=np.random.default_rng(pi_seed))
+                paths = resample_cumulative_paths(
+                    y, refit_at, T0, int(y.size - T0),
+                    block=cumulative_block, n_sim=cumulative_n_sim,
+                    seed=pi_seed)
                 cum_band = cumulative_supt_band(
                     (y - cf)[T0:], paths, alpha=alpha, method="resample")
             else:

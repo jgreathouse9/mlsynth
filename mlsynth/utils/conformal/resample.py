@@ -1,12 +1,19 @@
-"""Block-resampled post-period error paths for a PDA cumulative band.
+"""Turning a calibration error series into accumulable post-period paths.
 
-:func:`mlsynth.utils.pda_helpers.inference.cumulative_supt_band` takes an
-``(B, H)`` matrix of post-period prediction-error paths and builds the band from
-it, indifferent to where the rows came from. Today they come from
-:func:`mlsynth.utils.inferutils.pda_prediction_intervals`, whose dependent wild
-bootstrap refits the estimator once per replicate -- 999 times at the default.
-This module is a second producer of that matrix, costing one refit per
-rolling-origin calibration window instead of one per replicate.
+:mod:`.scores` produces out-of-sample errors; :mod:`.cumulative` reduces them to a
+split-conformal order statistic. This module takes the third route: it resamples
+the errors into whole paths, which a caller accumulates and reads a band off. That
+is what a band for a *running total* needs, because the total's spread depends on
+how the period errors move together and a per-period order statistic has already
+thrown that away.
+
+The output is an ``(n_sim, H)`` matrix, one post-period error path per row, which
+is the shape a simultaneous band already consumes:
+:func:`mlsynth.utils.pda_helpers.inference.cumulative_supt_band` and PPSCM's
+counterpart both accumulate such a matrix and take a standard error afterwards,
+indifferent to where the rows came from. A bootstrap produces them at one refit
+per replicate; this produces them at one refit per calibration origin, which on the
+panel lengths these estimators see is two orders of magnitude fewer.
 
 The construction is the one Andrew Wheeler uses in LassoSynth. He forms leave-one-out
 conformity scores, mirrors them into a symmetric pool (``np.concatenate([cs, -cs])``),
@@ -187,27 +194,25 @@ def block_error_paths(
     return (draws * signs).reshape(n_sim, n_blocks * b)[:, :h]
 
 
-def rolling_origin_counterfactual_errors(
+def resample_cumulative_paths(
     y,
     refit_at,
     pre_periods: int,
     horizon: int,
     *,
+    block: int = WHOLE_HORIZON,
+    n_sim: int = 2000,
+    seed=0,
     min_train_frac: float = 0.3,
-):
-    """Per-period out-of-sample errors from a PDA fit's own rolling-origin refits.
+) -> np.ndarray:
+    """From a fitted control to resampled cumulative error paths, in one call.
 
-    :func:`mlsynth.utils.conformal.rolling_origin_period_errors` reads the error as
-    ``y[block] - Y0[block] @ w``, which needs the fit to be a bare linear
-    combination of the donors. A PDA fit is not: LASSO carries an intercept, the
-    modified-BIC path standardizes the donors as ``glmnet`` does, and forward
-    selection and HCW return a counterfactual with no single weight vector to
-    multiply. So this asks the estimator for the counterfactual and subtracts.
-
-    The schedule is :func:`mlsynth.utils.conformal.origin_schedule`, shared with the
-    conformal readers, so a resampled band and a split-conformal band calibrate on
-    the same windows. Origins step by a whole horizon, so the windows do not
-    overlap and the concatenation is a contiguous stretch of out-of-sample periods.
+    The composition every estimator wanting a resampled band performs:
+    :func:`~mlsynth.utils.conformal.rolling_origin_counterfactual_errors` for the
+    calibration series, then :func:`block_error_paths` for the draw. Keeping it in
+    one place means an estimator adopting the band inherits the construction that
+    was cross-validated against Wheeler's LassoSynth, and a change to either half
+    cannot reach only some callers.
 
     Parameters
     ----------
@@ -216,71 +221,38 @@ def rolling_origin_counterfactual_errors(
     refit_at : callable
         ``refit_at(origin) -> counterfactual``, the estimator refit on the periods
         strictly before ``origin`` and evaluated over the whole sample.
-        ``orchestration._build_refit`` builds one per PDA variant: it closes over
-        the pre-period length, so passing an origin in place of ``T0`` gives
-        exactly this.
     pre_periods : int
-        Number of pre-treatment periods ``T0``; origins are drawn from within it.
+        Number of pre-treatment periods ``T0``.
     horizon : int
-        Window length ``L`` -- both the block length and the origin stride.
+        Post-period length ``L``; also the calibration window length and the
+        origin stride.
+    block : int, optional
+        Block length for the draw; ``0`` (default) means the horizon. See
+        :func:`resolve_block`.
+    n_sim : int, optional
+        Number of paths to draw (default 2000). These cost no refits.
+    seed : optional
+        Seed for the draw, so a band is reproducible. Passed to
+        :func:`numpy.random.default_rng`.
     min_train_frac : float, optional
-        Earliest origin as a fraction of ``T0`` (default ``0.3``), floored at
-        :data:`mlsynth.utils.conformal.MIN_TRAIN_PERIODS` absolute periods.
+        Earliest calibration origin as a fraction of ``T0`` (default ``0.3``).
 
     Returns
     -------
-    numpy.ndarray, shape ``(m * L,)``
-        The per-period errors in time order, ready for :func:`block_error_paths`.
-        Empty when the pre-period admits no origin.
+    numpy.ndarray, shape ``(n_sim, horizon)``
 
     Raises
     ------
     MlsynthConfigError
-        If ``horizon`` or ``pre_periods`` is not a positive integer, or
-        ``min_train_frac`` is not a number in ``[0, 1]``.
+        For a malformed ``horizon``, ``block``, ``n_sim`` or ``min_train_frac``.
     MlsynthDataError
-        If ``pre_periods`` exceeds the sample, or a refit returns a counterfactual
-        that does not span it or is not finite -- a failed refit is refused rather
-        than scored, since its error would be arbitrary.
+        If the pre-period admits no calibration window, or a refit fails. Either
+        way there is nothing to resample, and that is reported instead of an empty
+        band being returned.
     """
-    from ..conformal import origin_schedule
+    from .scores import rolling_origin_counterfactual_errors
 
-    h = _check_horizon(horizon)
-    if isinstance(min_train_frac, bool) \
-            or not isinstance(min_train_frac, (int, float, np.floating)) \
-            or not 0.0 <= float(min_train_frac) <= 1.0:
-        raise MlsynthConfigError(
-            f"min_train_frac must be a number in [0, 1]; got {min_train_frac!r}."
-        )
-    if isinstance(pre_periods, bool) or not isinstance(pre_periods, (int, np.integer)) \
-            or int(pre_periods) < 1:
-        raise MlsynthConfigError(
-            f"pre_periods must be an integer of at least 1; got {pre_periods!r}."
-        )
-
-    y = np.asarray(y, dtype=float).ravel()
-    if int(pre_periods) > y.size:
-        raise MlsynthDataError(
-            f"pre_periods ({int(pre_periods)}) exceeds the {y.size} periods "
-            "supplied; there is no pre-period to calibrate on."
-        )
-
-    blocks = []
-    for origin in origin_schedule(int(pre_periods), h, float(min_train_frac)):
-        cf = np.asarray(refit_at(origin), dtype=float).ravel()
-        if cf.size != y.size:
-            raise MlsynthDataError(
-                f"refit_at({origin}) returned a counterfactual of {cf.size} "
-                f"periods; it must span all {y.size}, since the window scored "
-                "lies after the periods it was trained on."
-            )
-        if not np.isfinite(cf).all():
-            raise MlsynthDataError(
-                f"refit_at({origin}) returned a counterfactual that is not "
-                "finite; a refit that failed is refused rather than scored."
-            )
-        blocks.append((y - cf)[origin:origin + h])
-
-    if not blocks:
-        return np.asarray([], dtype=float)
-    return np.concatenate(blocks)
+    series = rolling_origin_counterfactual_errors(
+        y, refit_at, pre_periods, horizon, min_train_frac=min_train_frac)
+    return block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
+                             rng=np.random.default_rng(seed))

@@ -22,8 +22,8 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.conformal import origin_schedule
-from mlsynth.utils.pda_helpers.resample import rolling_origin_counterfactual_errors
+from mlsynth.utils.conformal import (origin_schedule,
+                                     rolling_origin_counterfactual_errors)
 
 
 # --------------------------------------------------------------------------- #

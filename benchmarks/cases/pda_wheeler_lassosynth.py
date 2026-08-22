@@ -126,7 +126,7 @@ def _wheeler_band(scores, tau, seed=0):
 
 def _mlsynth_band_from_scores(scores, tau, block=1, seed=1):
     """The same accumulation, through mlsynth's block draw."""
-    from mlsynth.utils.pda_helpers.resample import block_error_paths
+    from mlsynth.utils.conformal import block_error_paths
 
     paths = block_error_paths(scores - scores.mean(), horizon=tau.size, block=block,
                               n_sim=_NSIM, rng=np.random.default_rng(seed))

@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.pda_helpers.resample import block_error_paths, resolve_block
+from mlsynth.utils.conformal import block_error_paths, resolve_block
 
 ALPHA = 0.10
 
