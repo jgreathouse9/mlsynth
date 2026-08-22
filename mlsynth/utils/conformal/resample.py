@@ -307,11 +307,24 @@ def _level_split(e, n_windows):
     panel = e[:used].reshape(m, width)
     mu = panel.mean(axis=1)
     mu = mu - mu.mean()
-    # m deviations summing to zero carry m-1 degrees of freedom; drawing from them
-    # as if they were m independent observations understates the spread.
-    if m > 1:
-        mu = mu * np.sqrt(m / (m - 1.0))
     resid = (panel - panel.mean(axis=1, keepdims=True)).ravel()
+
+    # The window means scatter even when every window shares a level, since each is
+    # an average of `width` noisy periods. Their variance estimates
+    #     sigma_level^2 + sigma_within^2 / width,
+    # so drawing from them whole charges the band for a level that may not be there.
+    # Subtract the noise floor -- the ANOVA estimator for a one-way random effect --
+    # and floor it at zero, since sampling can put s2_between below the floor.
+    # A strongly levelled series is left almost untouched; a flat one collapses to
+    # nothing and the draw returns to what it would have been without the split.
+    v0 = float(np.mean(mu ** 2))                       # variance of drawing from mu
+    if m > 1 and v0 > 0.0:
+        s2_between = v0 * m / (m - 1.0)                # unbiased, means sum to zero
+        s2_within = float(np.sum(resid ** 2) / max(m * (width - 1), 1))
+        s2_level = max(0.0, s2_between - s2_within / width)
+        mu = mu * np.sqrt(s2_level / v0)
+    else:
+        mu = np.zeros_like(mu)
     return mu, resid, width
 
 
