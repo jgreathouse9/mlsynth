@@ -22,6 +22,10 @@ Contents:
 * :mod:`.refit` -- :func:`conformal_refit_gaps`, the refit a test-inversion
   procedure performs under a candidate null, and the one place the choice
   between a simplex and a ridge-augmented control is made.
+* :mod:`.ensemble` -- a fourth route to out-of-sample errors:
+  :func:`bootstrap_loo_errors` fits an ensemble on bootstrap samples of the
+  training periods and scores each period from the members that did not sample
+  it, so a calibration series comes back without withholding periods to buy it.
 * :mod:`.structure` -- :class:`CumulativeConformalBand`.
 
 References
@@ -34,6 +38,8 @@ American Statistical Association, 116(536), 1849-1864.
 from __future__ import annotations
 
 from .cumulative import cumulative_conformal_from_refit, cumulative_conformal_interval
+from .ensemble import (AGGREGATIONS, DEFAULT_MEMBERS, EnsembleErrors,
+                       bootstrap_loo_errors)
 from .inversion import confidence_set_bounds
 from .quantile import split_conformal_quantile
 from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
@@ -41,10 +47,14 @@ from .scores import MIN_TRAIN_PERIODS, rolling_origin_block_sums
 from .structure import CumulativeConformalBand
 
 __all__ = [
+    "AGGREGATIONS",
     "CONFORMAL_REFIT_RULES",
+    "DEFAULT_MEMBERS",
+    "EnsembleErrors",
     "MIN_TRAIN_PERIODS",
     "CumulativeConformalBand",
     "confidence_set_bounds",
+    "bootstrap_loo_errors",
     "conformal_refit_gaps",
     "cumulative_conformal_from_refit",
     "cumulative_conformal_interval",
