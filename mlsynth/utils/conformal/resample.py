@@ -105,7 +105,7 @@ def resolve_block(block: Union[int, np.integer], horizon: int) -> int:
     MlsynthConfigError
         If ``block`` is not an integer, or is negative. Booleans and floats are
         refused outright: ``True`` is an ``int`` in Python and ``2.5`` has no
-        unambiguous reading, so neither is quietly reinterpreted.
+        unambiguous reading, so neither is reinterpreted.
     """
     h = _check_horizon(horizon)
     if isinstance(block, bool) or not isinstance(block, (int, np.integer)):
@@ -163,7 +163,10 @@ def block_error_paths(
         If ``horizon``, ``block`` or ``n_sim`` is not a positive integer of the
         right kind.
     MlsynthDataError
-        If ``series`` holds no finite value, since there is nothing to resample.
+        If ``series`` holds no finite value, since there is nothing to resample,
+        or if the resolved block is not shorter than the series, which would make
+        every drawn path sum to the same value and collapse the band to zero
+        width.
     """
     h = _check_horizon(horizon)
     b = resolve_block(block, h)
@@ -183,6 +186,25 @@ def block_error_paths(
             "cannot resample from an empty error series: no finite out-of-sample "
             "error was supplied. A calibration pass that produced no usable "
             "window cannot support a band."
+        )
+    # Blocks are circular, so a block of length b >= n wraps through whole cycles
+    # of the n-period series. A whole cycle of a centred series sums to exactly
+    # zero, so the effective block is b % n and not the b that was asked for. At
+    # b % n == 0 -- which b == n always is -- every block is a rotation of the
+    # whole series, every path sums to zero, and the quantile of those totals is
+    # zero: a band asserting perfect certainty about the accumulated effect, which
+    # is a worse answer than the infinite half-width this construction was reached
+    # for. Neither outcome is delivered under the requested block length.
+    if b >= e.size:
+        raise MlsynthDataError(
+            f"block length {b} is not shorter than the {e.size}-period "
+            f"calibration series. Blocks are circular, so such a block wraps "
+            f"through whole cycles of the series; a whole cycle of the centred "
+            f"series sums to zero, making the effective block {b % e.size} and not "
+            f"{b}, and at {b} % {e.size} == {b % e.size} every drawn path sums to "
+            f"the same value, so the band would have zero width. Use a shorter "
+            f"block (block <= {e.size - 1}, or block=1 to draw periods "
+            f"independently) or calibrate on a longer series."
         )
     e = e - e.mean()
 

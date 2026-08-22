@@ -151,3 +151,56 @@ def test_a_failed_refit_is_refused_rather_than_resampled():
     with pytest.raises(MlsynthDataError, match="finite"):
         resample_cumulative_paths(y, lambda o: np.full_like(y, np.nan), 48, 6,
                                   n_sim=100)
+
+
+# --------------------------------------------------------------------------- #
+# A block as long as the series it is drawn from
+# --------------------------------------------------------------------------- #
+# A circular block of length b over an n-period series wraps, so at b == n every
+# block is a rotation of the whole series and every path sums to the series total.
+# The series is centred first, so that total is exactly zero: every path sums to
+# zero, and the quantile of their magnitudes is zero. A zero-width band asserts
+# perfect certainty about the accumulated effect, which is a worse answer than the
+# infinite one it was reached for, so the draw refuses instead.
+def test_a_block_as_long_as_the_series_is_refused():
+    e = np.random.default_rng(0).normal(size=6)
+    with pytest.raises(MlsynthDataError, match="block"):
+        block_error_paths(e, horizon=6, block=6, n_sim=100,
+                          rng=np.random.default_rng(0))
+
+
+def test_a_block_longer_than_the_series_is_refused():
+    """``resolve_block`` clamps the request to the horizon, so a long horizon is
+    the way to reach this: the clamped block still exceeds the series."""
+    e = np.random.default_rng(0).normal(size=4)
+    with pytest.raises(MlsynthDataError, match="block"):
+        block_error_paths(e, horizon=10, block=0, n_sim=100,
+                          rng=np.random.default_rng(0))
+
+
+def test_the_refusal_names_both_lengths():
+    e = np.random.default_rng(0).normal(size=6)
+    with pytest.raises(MlsynthDataError) as exc:
+        block_error_paths(e, horizon=6, block=6, n_sim=100)
+    msg = str(exc.value)
+    assert "6" in msg and ("shorter block" in msg or "block" in msg)
+
+
+def test_the_longest_admissible_block_still_draws():
+    """One short of the series length is the boundary, and it must work: the
+    guard is against degeneracy, not against long blocks."""
+    e = np.random.default_rng(0).normal(size=6)
+    paths = block_error_paths(e, horizon=6, block=5, n_sim=500,
+                              rng=np.random.default_rng(0))
+    assert paths.shape == (500, 6)
+    assert np.abs(paths.sum(axis=1)).max() > 0.0
+
+
+def test_a_horizon_longer_than_the_series_draws_from_short_blocks():
+    """H > n is fine as long as the BLOCK fits: blocks are drawn and concatenated,
+    so a twelve-period path can come from a six-period calibration series."""
+    e = np.random.default_rng(0).normal(size=6)
+    paths = block_error_paths(e, horizon=12, block=2, n_sim=500,
+                              rng=np.random.default_rng(0))
+    assert paths.shape == (500, 12)
+    assert np.quantile(np.abs(paths.sum(axis=1)), 0.95) > 0.0

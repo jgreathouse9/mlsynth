@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import VanillaSC
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 
 
 def _panel(n_units=8, n_periods=40, t0=30, seed=0, effect=4.0, rho=0.0):
@@ -123,13 +123,30 @@ def test_it_counts_the_periods_it_drew_from_not_the_windows():
 # edge
 # --------------------------------------------------------------------------- #
 def test_it_is_finite_where_the_split_order_statistic_is_not():
-    """The practical gain, on a pre-period too short for the split band."""
+    """The practical gain, on a pre-period too short for the split band.
+
+    The block has to be short enough to draw from: one window supplies exactly
+    ``horizon`` periods, and a whole-horizon block over a series that length is
+    refused (see below). At ``block=1`` the m * L values are there and the band
+    is real."""
     df = _panel(n_periods=22, t0=16, seed=2)
     split = _details(df=df, alpha=0.05)
     assert not np.isfinite(split["conformal_q"])
     resampled = _details(df=df, alpha=0.05, conformal_method="resample",
-                         conformal_n_sim=400)
+                         conformal_block=1, conformal_n_sim=400)
     assert np.isfinite(resampled["conformal_q"])
+    assert resampled["conformal_q"] > 0.0
+
+
+def test_a_block_as_long_as_the_calibration_series_is_refused():
+    """One window supplies exactly ``horizon`` periods, so the default
+    whole-horizon block has nothing to slide over: every circular block is a
+    rotation of the whole series and every path sums to the same value. The band
+    would report zero width, so the draw raises instead of returning it."""
+    df = _panel(n_periods=22, t0=16, seed=2)
+    with pytest.raises(MlsynthDataError, match="zero width|shorter block"):
+        _details(df=df, alpha=0.05, conformal_method="resample",
+                 conformal_n_sim=400)
 
 
 # --------------------------------------------------------------------------- #

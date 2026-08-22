@@ -162,9 +162,21 @@ def test_a_block_longer_than_the_horizon_is_clamped_to_it():
     assert resolve_block(20, 6) == 6
 
 
-def test_a_series_shorter_than_the_block_still_draws_by_wrapping():
-    """Blocks are circular, so a short series wraps instead of running out."""
-    paths = block_error_paths(np.array([1.0, -1.0, 2.0]), horizon=8, block=5,
+def test_a_series_shorter_than_the_block_is_refused():
+    """Blocks are circular, so a block at least as long as the series wraps
+    through whole cycles of it. A whole cycle of a centred series contributes
+    exactly zero, so the effective block is ``b % n``, not the ``b`` that was
+    asked for -- and at ``b % n == 0`` every path sums to zero and the band has
+    no width. Neither is silently delivered."""
+    with pytest.raises(MlsynthDataError, match="shorter block|zero width"):
+        block_error_paths(np.array([1.0, -1.0, 2.0]), horizon=8, block=5,
+                          n_sim=100, rng=np.random.default_rng(0))
+
+
+def test_a_horizon_longer_than_the_series_draws_from_admissible_blocks():
+    """The horizon is free to exceed the series; only the BLOCK is constrained,
+    since a path is assembled from several blocks."""
+    paths = block_error_paths(np.array([1.0, -1.0, 2.0]), horizon=8, block=2,
                               n_sim=100, rng=np.random.default_rng(0))
     assert paths.shape == (100, 8)
     assert np.isfinite(paths).all()

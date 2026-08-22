@@ -269,8 +269,8 @@ def rolling_origin_counterfactual_errors(
         ``min_train_frac`` is not a number in ``[0, 1]``.
     MlsynthDataError
         If ``pre_periods`` exceeds the sample, or a refit returns a counterfactual
-        that does not span it or is not finite -- a failed refit is refused rather
-        than scored, since its error would be arbitrary.
+        that does not span it or is not finite -- a failed refit is refused, not
+        scored, since its error would be arbitrary.
     """
     from .resample import _check_horizon
 
@@ -306,7 +306,7 @@ def rolling_origin_counterfactual_errors(
         if not np.isfinite(cf).all():
             raise MlsynthDataError(
                 f"refit_at({origin}) returned a counterfactual that is not "
-                "finite; a refit that failed is refused rather than scored."
+                "finite; a refit that failed is refused, not scored."
             )
         blocks.append((y - cf)[origin:origin + h])
 

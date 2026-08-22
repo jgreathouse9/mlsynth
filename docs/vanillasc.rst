@@ -840,9 +840,8 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     instead of summing each window into a single score, so :math:`m` windows
     supply :math:`m \times L` values where the order statistic had :math:`m`. The
     half-width is then a quantile of totals accumulated from draws of those
-    values, which exists at any :math:`m \geq 1` -- the band is finite on
-    pre-periods that leave the split band at ``±inf``, which is the practical
-    reason to reach for it.
+    values, and it is finite on pre-periods that leave the split band at
+    ``±inf``, which is the practical reason to reach for it.
 
     The draw is a circular block bootstrap of the centred errors with each block's
     sign flipped at random. ``conformal_block`` sets the block length: ``0``, the
@@ -852,6 +851,17 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     no refits, since the refits are the calibration origins -- and
     ``conformal_seed`` fixes the draw. What comes back is the same object with the
     same fields; ``res.inference.method`` records which construction produced it.
+
+    The block must be shorter than the calibration series it is drawn from, and
+    that binds exactly where the pre-period is shortest. A circular block of length
+    :math:`L` over a series of length :math:`n` wraps, so at :math:`b \geq n` every
+    block is a rotation of the whole series and every drawn path sums to the same
+    value; the series is centred, so that value is zero and the half-width
+    collapses to zero. A band asserting perfect certainty about the accumulated
+    effect is a worse answer than the infinite one it was reached for, so the draw
+    raises instead. With :math:`m` windows the series is :math:`m \times L` periods,
+    so the default whole-horizon block needs :math:`m \geq 2`; at :math:`m = 1` the
+    remedy is a shorter block, and ``conformal_block=1`` always draws.
 
     The construction is Andrew Wheeler's ``LassoSynth`` band, generalised from a
     period to a block. :doc:`pda` develops it in full, including the

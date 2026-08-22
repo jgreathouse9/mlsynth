@@ -29,7 +29,7 @@ It is measured from horizon two, because horizon one is not yet a continuous
 distribution. With ``m`` scores the one-period band is a quantile of ``2m``
 discrete atoms, so both implementations land exactly on an atom and sampling noise
 decides which. ``parity_h1_atoms_apart`` records how far apart those atoms are, in
-atoms, and pins that the horizon-one difference is discreteness rather than
+atoms, and pins that the horizon-one difference is discreteness, not
 disagreement: adjacent atoms, not a shifted distribution. From horizon two the
 convolution smooths the pool and the gap collapses.
 
@@ -53,7 +53,7 @@ whole-horizon block must give a wider band than the independent draw, since that
 is the correlation the blocks exist to carry.
 
 Cross-validation (scenario: reference implementation available). Wheeler's
-construction is transcribed here rather than imported, since the post ships a
+construction is transcribed here instead of imported, since the post ships a
 script and not a package; the transcription is the four lines quoted above.
 """
 from __future__ import annotations
