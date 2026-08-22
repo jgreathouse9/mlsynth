@@ -187,29 +187,29 @@ def block_error_paths(
             "error was supplied. A calibration pass that produced no usable "
             "window cannot support a band."
         )
-    # Blocks are circular, so a block of length b >= n wraps through whole cycles
-    # of the n-period series. A whole cycle of a centred series sums to exactly
-    # zero, so the effective block is b % n and not the b that was asked for. At
-    # b % n == 0 -- which b == n always is -- every block is a rotation of the
-    # whole series, every path sums to zero, and the quantile of those totals is
-    # zero: a band asserting perfect certainty about the accumulated effect, which
-    # is a worse answer than the infinite half-width this construction was reached
-    # for. Neither outcome is delivered under the requested block length.
+    # The series is centred, so its circular sums carry an exact constraint: the
+    # sum over a b-block is minus the sum over the complementary (n - b)-block,
+    # since the two partition the series. Their spreads are therefore equal, and
+    # the drawn spread is symmetric about b = n / 2. Past that midpoint the block
+    # length stops meaning "how much serial correlation is carried" and reverses --
+    # a longer block draws a NARROWER total, mirroring a shorter one -- until at
+    # b = n every block is a rotation of the whole series, every path sums to zero,
+    # and the band has no width at all. A parameter that inverts its own meaning is
+    # not delivered silently, so the draw refuses past the midpoint.
     if e.size == 1:
         raise MlsynthDataError(
             "a single calibration error carries no spread: centring it leaves "
             "exactly zero, so every drawn path would sum to zero and the band "
             "would have no width. Calibrate on a series of at least two periods."
         )
-    if b >= e.size:
+    if 2 * b > e.size:
         raise MlsynthDataError(
-            f"block length {b} is not shorter than the {e.size}-period "
-            f"calibration series. Blocks are circular, so such a block wraps "
-            f"through whole cycles of the series; a whole cycle of the centred "
-            f"series sums to zero, making the effective block {b % e.size} and not "
-            f"{b}, and at {b} % {e.size} == {b % e.size} every drawn path sums to "
-            f"the same value, so the band would have zero width. Use a shorter "
-            f"block (block <= {e.size - 1}, or block=1 to draw periods "
+            f"block length {b} is more than half the {e.size}-period calibration "
+            f"series. The series is centred, so the circular sum of a {b}-block "
+            f"is minus the sum of the complementary {e.size - b}-block: the two "
+            f"have exactly equal spread, and past b = n / 2 a longer block draws "
+            f"a narrower total, until at b = n every path sums to zero and the "
+            f"band has no width. Use block <= {e.size // 2} (block=1 draws periods "
             f"independently) or calibrate on a longer series."
         )
     e = e - e.mean()

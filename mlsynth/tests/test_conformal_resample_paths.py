@@ -187,13 +187,57 @@ def test_the_refusal_names_both_lengths():
 
 
 def test_the_longest_admissible_block_still_draws():
-    """One short of the series length is the boundary, and it must work: the
-    guard is against degeneracy, not against long blocks."""
-    e = np.random.default_rng(0).normal(size=6)
-    paths = block_error_paths(e, horizon=6, block=5, n_sim=500,
+    """Half the series is the boundary, and it must work: the guard is against a
+    block whose length has stopped meaning what it says, not against long blocks."""
+    e = np.random.default_rng(0).normal(size=12)
+    paths = block_error_paths(e, horizon=12, block=6, n_sim=500,
                               rng=np.random.default_rng(0))
-    assert paths.shape == (500, 6)
+    assert paths.shape == (500, 12)
     assert np.abs(paths.sum(axis=1)).max() > 0.0
+
+
+# --------------------------------------------------------------------------- #
+# A block past half the series
+# --------------------------------------------------------------------------- #
+# Over a centred series the circular sum of a b-block is minus the circular sum of
+# the complementary (n - b)-block, so the two have exactly equal spread. Block
+# length therefore stops meaning "how much serial correlation is carried" at
+# b = n/2 and reverses: past the midpoint a longer block draws a NARROWER total,
+# mirroring a shorter one, until at b = n it draws nothing at all.
+def test_the_spread_is_symmetric_about_half_the_series():
+    """The identity the guard is built on, measured."""
+    e = np.random.default_rng(0).normal(size=24)
+    def sd(b):
+        return block_error_paths(e, horizon=b, block=b, n_sim=100_000,
+                                 rng=np.random.default_rng(1)).sum(axis=1).std()
+    for b in (1, 2, 5):
+        assert sd(b) == pytest.approx(_complement_sd(e, b), rel=0.02), b
+
+
+def _complement_sd(e, b):
+    """The (n - b)-block spread, computed without the guard in the way."""
+    e = np.asarray(e, dtype=float)
+    e = e - e.mean()
+    n, k = e.size, e.size - b
+    rng = np.random.default_rng(1)
+    s = rng.integers(0, n, size=100_000)
+    idx = (s[:, None] + np.arange(k)[None, :]) % n
+    return e[idx].sum(axis=1).std()
+
+
+@pytest.mark.parametrize("block", [7, 9, 11])
+def test_a_block_past_half_the_series_is_refused(block):
+    e = np.random.default_rng(0).normal(size=12)
+    with pytest.raises(MlsynthDataError, match="half"):
+        block_error_paths(e, horizon=12, block=block, n_sim=100,
+                          rng=np.random.default_rng(0))
+
+
+def test_the_refusal_names_the_admissible_block():
+    e = np.random.default_rng(0).normal(size=12)
+    with pytest.raises(MlsynthDataError) as exc:
+        block_error_paths(e, horizon=12, block=9, n_sim=100)
+    assert "6" in str(exc.value)
 
 
 def test_a_horizon_longer_than_the_series_draws_from_short_blocks():

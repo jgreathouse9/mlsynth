@@ -852,16 +852,23 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     ``conformal_seed`` fixes the draw. What comes back is the same object with the
     same fields; ``res.inference.method`` records which construction produced it.
 
-    The block must be shorter than the calibration series it is drawn from, and
-    that binds exactly where the pre-period is shortest. A circular block of length
-    :math:`L` over a series of length :math:`n` wraps, so at :math:`b \geq n` every
-    block is a rotation of the whole series and every drawn path sums to the same
-    value; the series is centred, so that value is zero and the half-width
-    collapses to zero. A band asserting perfect certainty about the accumulated
-    effect is a worse answer than the infinite one it was reached for, so the draw
-    raises instead. With :math:`m` windows the series is :math:`m \times L` periods,
-    so the default whole-horizon block needs :math:`m \geq 2`; at :math:`m = 1` the
-    remedy is a shorter block, and ``conformal_block=1`` always draws.
+    The block can be at most half the calibration series, and that binds exactly
+    where the pre-period is shortest. The series is centred, so the circular sum
+    over a :math:`b`-block is minus the sum over the complementary
+    :math:`(n-b)`-block that together with it partitions the series. The two have
+    exactly equal spread, so the drawn spread is symmetric about :math:`b = n/2`:
+    past the midpoint a longer block draws a narrower total, mirroring a shorter
+    one, and at :math:`b = n` every path sums to zero and the band has no width at
+    all. Block length has stopped meaning how much serial correlation is carried,
+    so the draw raises instead of honouring it.
+
+    With :math:`m` windows the series is :math:`m \times L` periods and the default
+    block is :math:`L`, which is half the series at :math:`m = 2` and past half at
+    :math:`m = 1`. So the whole-horizon default needs at least two windows; below
+    that, and whenever a longer horizon is wanted from a short calibration series,
+    the remedy is a shorter block, and ``conformal_block=1`` always draws. The same
+    arithmetic says what a given block costs: reading :math:`b \leq n/2` back as
+    :math:`m \geq 2L/b` windows is the pre-period a block of :math:`b` asks for.
 
     The construction is Andrew Wheeler's ``LassoSynth`` band, generalised from a
     period to a block. :doc:`pda` develops it in full, including the

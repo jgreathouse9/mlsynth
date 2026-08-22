@@ -138,13 +138,15 @@ def test_it_is_finite_where_the_split_order_statistic_is_not():
     assert resampled["conformal_q"] > 0.0
 
 
-def test_a_block_as_long_as_the_calibration_series_is_refused():
-    """One window supplies exactly ``horizon`` periods, so the default
-    whole-horizon block has nothing to slide over: every circular block is a
-    rotation of the whole series and every path sums to the same value. The band
-    would report zero width, so the draw raises instead of returning it."""
+def test_a_whole_horizon_block_needs_two_windows():
+    """The calibration series is ``m * L`` periods and the default block is the
+    horizon ``L``, so the block is half the series at ``m = 2`` and past half at
+    ``m = 1``. Over a centred series a block past half draws a narrower total than
+    a shorter one -- at ``m = 1`` it draws nothing at all, since every block is a
+    rotation of the whole series -- so the single-window case is refused and the
+    remedy is a shorter block."""
     df = _panel(n_periods=22, t0=16, seed=2)
-    with pytest.raises(MlsynthDataError, match="zero width|shorter block"):
+    with pytest.raises(MlsynthDataError, match="half"):
         _details(df=df, alpha=0.05, conformal_method="resample",
                  conformal_n_sim=400)
 

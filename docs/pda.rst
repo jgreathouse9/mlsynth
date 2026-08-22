@@ -1297,6 +1297,17 @@ generalised from a period to a block, and coincides with it exactly at
 horizon; ``cumulative_n_sim`` sets how many paths are drawn, and unlike
 ``pi_n_boot`` those cost no refits.
 
+How long a block the calibration series can support is settled by an identity, not
+by taste. The series is centred, so the circular sum over a :math:`b`-block is
+minus the sum over the complementary :math:`(n-b)`-block the two partition it into;
+their spreads are exactly equal, and the drawn spread is symmetric about
+:math:`b = n/2`. Past the midpoint a longer block draws a narrower total, mirroring
+a shorter one, and at :math:`b = n` every path sums to zero and the band has no
+width. The draw refuses past :math:`n/2`, since block length has stopped meaning
+how much serial correlation is carried. With :math:`m` rolling origins the series
+is :math:`m \times L` periods, so a whole-horizon block asks for :math:`m \geq 2`
+and a block of :math:`b` asks for :math:`m \geq 2L/b`.
+
 Where the scores come from differs from Wheeler as well, and the difference has a
 direction. He calibrates on leave-one-out residuals: each is scored by a model
 that saw every pre-period point but one, so it measures interpolation. mlsynth
