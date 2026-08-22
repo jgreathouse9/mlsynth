@@ -48,17 +48,25 @@ the harder question and gives the larger errors, so the mlsynth band is the wide
 of the two. The two calibration sets are not interchangeable for a cumulative
 horizon, and this records by how much.
 
-``block_widening`` is the generalisation working. On a persistent panel the
-whole-horizon block must give a wider band than the independent draw, since that
-is the correlation the blocks exist to carry. The AR(1) closed form says how much:
-over the eight post periods at rho = 0.7 the total's spread is
-sqrt((H + 2 sum_k (H-k) rho^k)/H) = 1.96 times the independent one. The case
-records 1.58, and the shortfall has a named cause. Three rolling origins fit in
-this pre-period, so the calibration series is 24 periods and an eight-period block
-is a third of it; the draw corrects the spread that centring such a short series
-removes, but the sample autocovariances of 24 points still understate AR(0.7)
-persistence, and no scalar correction recovers that. Before the centring
-correction this figure read 1.31.
+``block_widening`` measures how much the whole-horizon block widens the band over
+the independent draw, end to end. It reads 1.03, and the reason it is near one is
+the construction and not a defect. The draw now separates a horizon total into the
+calibration window's own level and the fluctuation about it, because a total is H
+times the mean error over the horizon and is therefore driven by the level. The
+block length governs the fluctuation only, so once the level is drawn separately it
+moves the total little. That the block still carries serial correlation into the
+fluctuation is certified where it can be isolated: ``test_pda_resample_band.py``
+checks the drawn spread against the AR(1) closed form
+sqrt((H + 2 sum_k (H-k) rho^k)/H) on a flat draw.
+
+This figure has moved twice and both moves are recorded here. It read 1.31 before
+the centring correction, 1.58 after it, and 1.03 once the level was separated out.
+
+``width_ratio`` moved with it, 1.43 to 1.92. Wheeler calibrates on leave-one-out
+residuals of a single fit and has no between-window level to draw, so separating
+one out is a divergence from his construction and not a closer approach to it. The
+two still coincide exactly at block one, where no level is drawn, which is what
+``parity_max_gap`` pins.
 
 Cross-validation (scenario: reference implementation available). Wheeler's
 construction is transcribed here instead of imported, since the post ships a
@@ -201,7 +209,8 @@ def run() -> dict:
 EXPECTED = {
     "parity_max_gap": (0.004, 0.012),        # the two constructions coincide at block=1
     "parity_h1_atoms_apart": (1.0, 1.0),     # horizon 1 differs by at most one pool atom
-    "width_ratio": (1.43, 0.35),             # rolling-origin scores exceed leave-one-out
-    "block_widening": (1.58, 0.20),          # blocks carry AR(0.7) persistence;
-                                             # closed form is 1.96, see above
+"width_ratio": (1.92, 0.35),             # rolling-origin scores exceed leave-one-out
+    "block_widening": (1.03, 0.20),          # the level dominates the total now;
+                                             # the block mechanism is pinned in
+                                             # test_pda_resample_band.py instead
 }

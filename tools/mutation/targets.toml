@@ -548,14 +548,32 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "centring-shrinkage-uncorrected"
-  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
   replace = "    scale = 1.0"
   models = "the pre-fix state: block sums drawn from a centred series come out narrow by sqrt((n-b)/(n-1)), because the centred series' circular autocovariances sum to zero. Sixteen percent at a thirteen-period block drawn from forty-seven calibration periods, and every band built on those draws is narrow by the same factor. The draw still returns finite, symmetric, right-shaped paths, so nothing about the band's appearance shows it"
 
   [[target.mutant]]
+  id = "level-never-drawn"
+  find = "        lvl = rng.choice(mu, size=(n_sim, 1))"
+  replace = "        lvl = np.zeros((n_sim, 1))"
+  models = "the pre-fix state with the window structure known but unused. A horizon total is H times the mean error over the horizon, so it is the between-window level and not the fluctuation that sizes it; drawing only the fluctuation gave 0.72 coverage on a blank-window design and 0.85 on a simplex fit, against a nominal 0.95, while the band stayed finite, symmetric and right-shaped throughout"
+
+  [[target.mutant]]
+  id = "level-degrees-of-freedom-ignored"
+  find = "        mu = mu * np.sqrt(m / (m - 1.0))"
+  replace = "        mu = mu"
+  models = "m window means that sum to zero treated as m independent observations. They carry m-1 degrees of freedom, so drawing from them unscaled understates the level's spread by sqrt((m-1)/m) -- ten percent at the five rolling origins a hundred-period pre-period supplies"
+
+  [[target.mutant]]
+  id = "block-capped-against-the-series-not-the-window"
+  find = "        b = min(b, max(1, width // 2))"
+  replace = "        b = min(b, max(1, e.size // 2))"
+  models = "the zero-sum constraint located at the wrong length. Once window means are removed each window's residuals sum to zero, so the constraint binds at the window length; capping against the whole concatenated series lets a block as long as a window through, and such a block sums to nearly zero, which silently narrows the fluctuation"
+
+  [[target.mutant]]
   id = "correction-applied-at-block-one"
-  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
-  replace = "    scale = np.sqrt(e.size / (e.size - b))"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt(span / (span - b))"
   models = "a correction that also folds in the sample-variance bias, which widens the single-period draw by sqrt(n/(n-1)) where the centring costs it nothing. Block one is Wheeler's construction exactly, and the reference parity benchmark is pinned on it, so a factor that is not exactly one there breaks the one comparison that certifies the port"
 
 [[target]]

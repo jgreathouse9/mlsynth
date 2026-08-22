@@ -19,6 +19,7 @@ import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.conformal import (
+    origin_schedule,
     block_error_paths,
     resample_cumulative_paths,
     resample_cumulative_paths_from_weights,
@@ -60,8 +61,12 @@ def test_it_is_exactly_the_two_step_composition(block):
     y, Y0 = panel()
     wf = ols_weight_fn(y, Y0)
     series = rolling_origin_period_errors(y, Y0, 48, 6, wf)
+    # The composer's only addition is deriving the window count from the schedule
+    # and handing it on, so the identity holds once the stepwise call is given it.
+    m = len(list(origin_schedule(48, 6, 0.3)))
     stepwise = block_error_paths(series, horizon=6, block=block, n_sim=800,
-                                 rng=np.random.default_rng(9))
+                                 rng=np.random.default_rng(9),
+                                 n_windows=m if m >= 2 else 0)
     one_call = resample_cumulative_paths_from_weights(
         y, Y0, 48, 6, wf, block=block, n_sim=800, seed=9)
     np.testing.assert_array_equal(one_call, stepwise)
@@ -82,8 +87,10 @@ def test_the_training_fraction_reaches_the_calibration_pass():
     y, Y0 = panel()
     wf = ols_weight_fn(y, Y0)
     series = rolling_origin_period_errors(y, Y0, 48, 6, wf, min_train_frac=0.6)
+    m = len(list(origin_schedule(48, 6, 0.6)))
     stepwise = block_error_paths(series, horizon=6, block=0, n_sim=300,
-                                 rng=np.random.default_rng(2))
+                                 rng=np.random.default_rng(2),
+                                 n_windows=m if m >= 2 else 0)
     one_call = resample_cumulative_paths_from_weights(
         y, Y0, 48, 6, wf, n_sim=300, seed=2, min_train_frac=0.6)
     np.testing.assert_array_equal(one_call, stepwise)
