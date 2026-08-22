@@ -199,6 +199,7 @@ CASES = {
     "vanillasc_xval_references": "benchmarks.cases.vanillasc_xval_references",  # cross-val vs Synth (uniform V) + tidysynth (ADH spec): placebo rank/p-value agreement, plus recorded solver-quality gaps
     "wiltshire_walmart": "benchmarks.cases.wiltshire_walmart",
     "conformal_inversion_prop99": "benchmarks.cases.conformal_inversion_prop99",  # cross-val vs Facure's "Conformal Inference for Synthetic Controls" notebook, transcribed: the CWZ block-permutation p-value agrees value-for-value on the Prop 99 panel, and the cumulative band that inverts it is pinned under both searches -- the accepted set is two islands, so the bisecting search excludes zero where the grid search (and the p-value itself) accepts it  # Path A (geometry, not cells): Wiltshire 2023 sec 4.2 stacked SCM on 566 Walmart counties -- the paper's prose claims (pre-fit, no effect at entry, decline from e=2, large negative at e=5) plus the base-period indexing identity; magnitudes not claimed, see docs/replications/stackedsc.rst
+    "conformal_window_count": "benchmarks.cases.conformal_window_count",  # design calibration (no external referent): the cumulative band's coverage is bounded by the number of calibration WINDOWS, not periods -- 0.86 at m=3, 0.94 at m=26, with exchangeability and normality granted throughout 
 }
 
 # Names whose case reads an external R/MATLAB reference *dump*. Cross-checks that

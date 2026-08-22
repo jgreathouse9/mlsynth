@@ -297,6 +297,8 @@ Path B — Monte Carlo / simulation
      - TASC vs SC state-space ablation (Rho et al.)
    * - ``tssc_figure2``
      - Figure 2 MSE-ratio grid
+   * - ``conformal_window_count``
+     - the cumulative conformal band's coverage is bounded by the number of calibration windows and not the number of periods: 0.86 at three windows, 0.94 at twenty-six, with exchangeability, stationarity and normality granted throughout. See :doc:`cumulative_calibration`
 
 Cross-validation against reference implementations
 --------------------------------------------------
