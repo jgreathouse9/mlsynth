@@ -249,6 +249,8 @@ Path B — Monte Carlo / simulation
      - Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
    * - ``pda_pi_coverage``
      - Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+   * - ``pda_wheeler_lassosynth``
+     - the resampled cumulative band reduces to Wheeler's LassoSynth at ``block=1``
    * - ``fspda_table1``
      - all 108 cells of Shi-Huang Table 1, vs the paper and their own code
    * - ``pda_table1``
