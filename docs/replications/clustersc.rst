@@ -213,6 +213,66 @@ in ``benchmarks/cases/rsc_shen_coverage.py``:
   ``python benchmarks/run_benchmarks.py --case rsc_shen_coverage`` (skips if the
   repo cannot be cloned).
 
+Coverage of the intervals the estimator returns
+-----------------------------------------------
+
+The case above validates the variance algebra: it calls ``_var_homo`` and
+``_var_jack`` directly, on coefficients from ``sklearn``, and needs the authors'
+repository, so it skips offline. ``benchmarks/cases/pcr_shen_estimator_coverage.py``
+runs the same data-generating process through
+:func:`~mlsynth.utils.clustersc_helpers.pcr.inference.shen_inference`, the
+function a ``CLUSTERSC`` fit reaches, so the rank truncation, the PCR weights and
+the interval assembly are inside what is measured. It needs no network: the West
+Germany panel ships in ``basedata``.
+
+Per period, the shipped path is calibrated. All nine pairings of variance
+estimator and estimand land between 0.926 and 0.952 against a nominal 0.95 over
+2000 replications. The three variance estimators are not separable at this
+design, and the case makes no claim about their ordering: a 300-replication run
+appeared to show the jackknife covering highest, as the online appendix's Lemma 8
+would predict, and at 2000 replications that ordering reverses. Separating them
+needs heteroskedastic errors, which this homoskedastic DGP cannot supply.
+
+The ATT interval is where the construction fails. ``shen_inference`` forms it as
+:math:`\sqrt{\overline{v}/T_1}`, which the paper does not derive -- there is no
+multi-period closed form in it, so the aggregation is mlsynth's own. It holds
+under the horizontal model and fails under the vertical one, because ``w_vt`` is
+computed once from the treated unit's pre-period and reused at every post-period:
+the vertical gaps carry a single estimated weight vector and do not average.
+
+.. list-table:: ATT-interval coverage against post-period length (2000 reps)
+   :header-rows: 1
+   :widths: 22 16 16 16
+
+   * - Post-periods
+     - HZ
+     - VT
+     - DR
+   * - 1
+     - 0.93
+     - 0.95
+     - 0.93
+   * - 5
+     - 0.94
+     - 0.61
+     - 0.87
+   * - 10
+     - 0.95
+     - 0.46
+     - 0.74
+
+The diagnosis is quantitative: the ratio of the true spread of the ATT error to
+the reported standard error is 1.01 and 0.98 times :math:`\sqrt{T_1}` at five and
+ten post-periods under VT, and 1.01 and 0.99 under HZ. So the vertical standard
+error is understated by almost exactly the averaging factor it assumes, and the
+horizontal one is correctly sized. The doubly robust interval, mixing the two,
+sits between them.
+
+Until this is corrected, read the per-period intervals, which are calibrated.
+Correcting the aggregation is a separate change; the measurement is pinned so
+that change has a target. Run with ``python benchmarks/run_benchmarks.py --case
+pcr_shen_estimator_coverage``.
+
 RPCA-SC: West German reunification (Bayani 2021)
 ------------------------------------------------
 

@@ -273,6 +273,17 @@ class ShenInference:
         Nominal level used to form the CIs.
     att : float
         Point estimate of the ATT (average gap over the post-period).
+
+        Its intervals below assume the post-period gaps are independent, which
+        the paper does not derive and which does not hold under the vertical
+        model: ``w_vt`` is computed once and reused at every post-period, so the
+        vertical gaps carry one estimated weight vector and do not average.
+        ``benchmarks/cases/pcr_shen_estimator_coverage.py`` measures the cost --
+        ``att_ci_vt`` covers at 0.95 with one post-period, 0.61 with five and
+        0.46 with ten, its standard error understated by almost exactly the
+        ``sqrt(T1)`` the aggregation claims. ``att_ci_hz`` is unaffected, since
+        ``w_hz`` varies by period; ``att_ci_dr`` mixes the two. Read the
+        per-period intervals, which are calibrated, until this is corrected.
     per_period_gap : np.ndarray
         Per-period treatment effect estimates, shape ``(T1,)``.
     per_period_se_{hz,vt,dr} : np.ndarray
@@ -405,8 +416,12 @@ def shen_inference(
     per_ci_dr = np.column_stack([gaps - z * se_dr, gaps + z * se_dr])
 
     att = float(gaps.mean())
-    # ATT variance under independence-across-post-periods (first-pass
-    # standard; the paper does not derive a multi-period closed form).
+    # ATT variance under independence-across-post-periods. The paper derives no
+    # multi-period closed form, so this is the library's own construction, and
+    # pcr_shen_estimator_coverage measures it failing under the vertical model:
+    # w_vt is period-invariant, so the vertical gaps do not average and the
+    # sqrt(T1) below is unearned. Correcting it is a separate change; the
+    # measurement is pinned so the correction has a target.
     se_att_hz = float(np.sqrt(v_hz.mean() / T1))
     se_att_vt = float(np.sqrt(v_vt.mean() / T1))
     se_att_dr = float(np.sqrt(v_dr.mean() / T1))
