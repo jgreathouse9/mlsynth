@@ -309,6 +309,8 @@ Cross-validation against reference implementations
    :header-rows: 1
    :widths: 26 74
 
+   * - ``pcr_shen_estimator_coverage``
+     - coverage of the intervals PCR actually returns, measured through ``shen_inference`` on the Shen et al. (2023) data-generating process. Per period the shipped path is calibrated for all three variance estimators; the multi-period ATT interval is mlsynth's own construction and its vertical arm falls from 0.95 at one post-period to 0.46 at ten, its standard error understated by almost exactly the :math:`\sqrt{T_1}` the aggregation assumes. See :doc:`replications/clustersc`
    * - Case
      - Validates
    * - ``ascm_kansas``
