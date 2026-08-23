@@ -164,9 +164,24 @@ compared at :math:`10^{-6}` relative: six orders above the floating-point
 movement a different platform introduces, and three orders below the shift a
 cyclical solver truncated to 200 iterations produces.
 
-The captured reference bundle, the golden fixture, and the provenance
+The handover application is pinned the same way. Its bundle captured only what
+``Synth::synth`` produces — the ATT, the cyclical sum of squares, the weights —
+so the detrending that feeds them was checked against a second Python reading of
+the authors' design and not against R at all.
+``benchmarks/reference/sbc_hongkong/golden_steps.R`` now captures that step from
+the authors' ``lsq`` and ``trend_predict`` (base R, no CRAN package needed), and
+``mlsynth/tests/test_sbc_hongkong_reference.py`` pins mlsynth's trend
+coefficients, pre-handover cycle, donor cycles and trend forecast against it.
+The two sides agree to :math:`2.6\times10^{-14}` of each series' scale. Two
+panels of different length, scale and donor pool landing within a factor of two
+of each other is what identifies that residual as the least-squares kernels and
+not the method.
+
+The captured reference bundles, the golden fixtures, and the provenance
 (R and package versions, data checksums) are under
-``benchmarks/reference/sbc_germany/``; its ``NOTICE`` records the full finding.
+``benchmarks/reference/sbc_germany/`` and
+``benchmarks/reference/sbc_hongkong/``; their ``NOTICE`` files record the full
+finding.
 A separate Path-B Monte Carlo (``sbc_mc``) reproduces the paper's simulation
 evidence that SBC stays competitive under cointegration, on panels drawn in R by
 the authors' own ``simulation_nonnegative.R`` and estimated by mlsynth, so the

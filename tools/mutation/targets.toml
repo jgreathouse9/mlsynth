@@ -1511,7 +1511,7 @@ timeout = 300.0
 [[target]]
 name = "sbc-hamilton-filter"
 module-path = "mlsynth/utils/sbc_helpers/hamilton.py"
-test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py mlsynth/tests/test_sbc_hongkong_reference.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]

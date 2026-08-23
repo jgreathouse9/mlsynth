@@ -11,28 +11,16 @@ so no R toolchain is needed at test time.
 How tight the comparison is, and why
 ------------------------------------
 
-Two things bound it, and both are measured instead of chosen.
-
-The first is the fixture. It is decimal text, so a comparison against it can
-never be tighter than the precision the text carries. ``golden_steps.R`` emits
-every compared quantity twice -- the legacy eight-decimal form and a
-full-precision ``hi:`` form at ``%.17g`` -- and each recorded number is compared
-at one unit in its own last recorded place (:func:`_ulp_of`). The eight-decimal
-form resolves 1e-8 on values of order 1e2 to 1e4, three orders coarser than the
-difference below, so on its own it reports a 5e-9 agreement that is the decimal
-grid of ``sprintf("%.8f")`` and not a measurement of anything.
-:func:`test_golden_fixture_resolves_eight_significant_digits` keeps that floor
-from getting coarser still.
-
-The second is the two implementations. Against the full-precision capture they
-differ by 1.7e-14 of each series' scale -- about 1e-11 in absolute terms, uniform
-across the trend coefficients, both sets of cycles and the forecast. That is the
-distance between R's ``lm`` QR (LINPACK ``dqrls``) and numpy's ``lstsq``
-(LAPACK ``gelsd``) on the same design, so the steps agree as closely as two
-least-squares kernels can be expected to, and exact equality is not available at
-any capture precision. ``CROSS_IMPL_FLOOR`` sets the comparison at 1e-12 of
-scale, fifty-eight times the measured difference and four orders tighter than
-what the eight-decimal capture could support.
+Two things bound it, and both are measured instead of chosen: the fixture's own
+precision, and the distance between numpy's and R's least-squares kernels
+(1.7e-14 of each series' scale on this panel). Both live in
+``mlsynth/tests/_golden_steps.py``, which reads the capture and decides the
+tolerance from it. ``golden_steps.R`` emits every compared quantity twice, the
+readable ``%.8f`` line and a ``hi:`` line at ``%.17g``; the eight-decimal form
+resolves 1e-8, three orders coarser than that difference, so on its own it
+reports a 5e-9 agreement that is a decimal grid and not a measurement.
+:func:`test_golden_fixture_resolves_eight_significant_digits` keeps the capture
+from getting coarser.
 
 Findings this harness locks in (see docs/replications/sbc.rst):
 
@@ -54,7 +42,6 @@ Findings this harness locks in (see docs/replications/sbc.rst):
 """
 from __future__ import annotations
 
-import math
 import warnings
 from pathlib import Path
 
@@ -65,6 +52,9 @@ import pytest
 from mlsynth.utils.sbc_helpers.hamilton import fit_hamilton_filter
 from mlsynth.utils.sbc_helpers.trend_forecast import forecast_treated_trend
 from mlsynth.utils.bilevel.simplex import simplex_lstsq
+
+from _golden_steps import (assert_reproduces, assert_resolves_enough_digits,
+                           load as load_golden, scalar)
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "benchmarks" / "reference" / "sbc_germany" / "golden_steps.txt"
@@ -78,86 +68,11 @@ H, P = 4, 2
 COMPARED_KEYS = ("treated_trend_coef", "treated_cycle_pre", "trend_forecast",
                  "donor_cycle_full:Netherlands", "donor_cycle_full:Greece",
                  "donor_cycle_full:Italy")
-MIN_SIGNIFICANT_DIGITS = 8
-
-# mlsynth against R on the same design, measured against the full-precision
-# capture: 1.7e-14 of each series' scale (~1e-11 absolute), uniform across the
-# trend coefficients, the treated and donor cycles and the forecast. It is the
-# difference between R's lm QR (LINPACK dqrls) and numpy's lstsq (LAPACK gelsd),
-# so no capture precision makes the two exactly equal. The comparison is set
-# fifty-eight times above it, which leaves room for a different BLAS while still
-# failing on a defect three orders smaller than the old 1e-5 band could see.
-CROSS_IMPL_FLOOR = 1e-12
-
-
-def _ulp_of(token: str) -> float:
-    """One unit in ``token``'s last recorded place.
-
-    ``"610.16314485"`` gives 1e-8; ``"1.2661625755613e+06"`` gives 1e-7. This is
-    the tightest tolerance the recorded text can support: a value written to
-    eight decimals says nothing about the ninth, so asserting past it would be
-    asserting against rounding noise.
-    """
-    mantissa, _, exponent = token.strip().lower().partition("e")
-    decimals = len(mantissa.partition(".")[2])
-    return 10.0 ** (int(exponent or 0) - decimals)
-
-
-def _load_golden() -> dict:
-    """Parse the fixture into ``{key: (values, tolerances)}``.
-
-    ``golden_steps.R`` emits every compared quantity twice: once in the legacy
-    eight-decimal form and once under a ``hi:`` prefix at full double precision.
-    The ``hi:`` capture wins where it exists, so regenerating the fixture
-    tightens every test here without touching this file.
-    """
-    if not GOLDEN.exists():
-        pytest.skip(f"golden fixture missing: {GOLDEN}")
-    parsed: dict = {}
-    for line in GOLDEN.read_text().splitlines():
-        if "\t" not in line:
-            continue
-        key, val = line.split("\t", 1)
-        tokens = [t for t in val.split(",") if t.strip()]
-        values = np.array([float(t) for t in tokens])
-        tols = np.array([_ulp_of(t) for t in tokens])
-        if key.startswith("hi:"):
-            parsed[key[3:]] = (values, tols)
-        elif key not in parsed:
-            parsed[key] = (values, tols)
-    return parsed
-
-
-def _values(golden: dict, key: str) -> np.ndarray:
-    return golden[key][0]
-
-
-def _scalar(golden: dict, key: str) -> float:
-    return float(golden[key][0][0])
-
-
-def _assert_reproduces(ours: np.ndarray, golden: dict, key: str) -> None:
-    """mlsynth matches R on ``key``, at whichever bound is the real one.
-
-    Either the fixture's own resolution or the distance between the two
-    least-squares kernels, whichever is coarser -- asserting past the first
-    would test rounding noise, and asserting past the second would test which
-    LAPACK driver is installed.
-    """
-    ref, tol = golden[key]
-    tol = np.maximum(tol, CROSS_IMPL_FLOOR * np.max(np.abs(ref)))
-    ours = np.asarray(ours, dtype=float)[: len(ref)]
-    delta = np.abs(ours - ref)
-    worst = int(np.argmax(delta - tol))
-    assert np.all(delta <= tol), (
-        f"{key}[{worst}]: mlsynth {ours[worst]!r} vs R {ref[worst]!r}; "
-        f"delta {delta[worst]:.3e} exceeds {tol[worst]:.1e}"
-    )
 
 
 @pytest.fixture(scope="module")
 def golden() -> dict:
-    return _load_golden()
+    return load_golden(GOLDEN)
 
 
 @pytest.fixture(scope="module")
@@ -191,37 +106,22 @@ def cyclical(panel, treated_fit):
 def test_golden_fixture_resolves_eight_significant_digits(golden):
     """The fixture's own precision is the ceiling on every comparison here.
 
-    Each compared value is asserted at one unit in its last recorded place, so a
-    capture written with fewer digits would silently loosen every test in this
-    file while all of them still passed. That is the failure this test exists to
-    make impossible: it fails when the fixture stops resolving eight significant
-    digits, before any comparison against it can go slack.
-
     ``synth_loose_*`` is exempt: those record the authors' solver output for the
     inequality below, and are never compared elementwise.
     """
-    for key in COMPARED_KEYS:
-        values, tols = golden[key]
-        digits = np.array([
-            math.floor(math.log10(abs(v))) + 1 - math.floor(math.log10(t))
-            for v, t in zip(values, tols) if v != 0.0
-        ])
-        assert digits.min() >= MIN_SIGNIFICANT_DIGITS, (
-            f"{key} resolves only {digits.min()} significant digits; "
-            f"comparisons against it cannot be tighter than that"
-        )
+    assert_resolves_enough_digits(golden, COMPARED_KEYS)
 
 
 def test_hamilton_treated_trend_coefficients(golden, treated_fit):
     """Step 1: the treated unit's Hamilton AR coefficients match R's ``lsq``."""
     fit, _ = treated_fit
-    _assert_reproduces(fit.coefficients, golden, "treated_trend_coef")
+    assert_reproduces(fit.coefficients, golden, "treated_trend_coef")
 
 
 def test_hamilton_treated_cycle(golden, treated_fit):
     """Step 1: the treated pre-treatment cyclical component matches R's ``lsq``."""
     fit, _ = treated_fit
-    _assert_reproduces(fit.cycle_pre[~np.isnan(fit.cycle_pre)],
+    assert_reproduces(fit.cycle_pre[~np.isnan(fit.cycle_pre)],
                        golden, "treated_cycle_pre")
 
 
@@ -229,7 +129,7 @@ def test_hamilton_treated_cycle(golden, treated_fit):
 def test_hamilton_donor_cycle_full_sample(golden, panel, donor):
     """Step 1: donor cycles are detrended on the FULL sample, matching R."""
     cyc = fit_hamilton_filter(panel[donor].to_numpy(), h=H, p=P).cycle_pre
-    _assert_reproduces(cyc[~np.isnan(cyc)], golden, f"donor_cycle_full:{donor}")
+    assert_reproduces(cyc[~np.isnan(cyc)], golden, f"donor_cycle_full:{donor}")
 
 
 def test_trend_forecast(golden, panel, treated_fit):
@@ -237,7 +137,7 @@ def test_trend_forecast(golden, panel, treated_fit):
     fit, T0 = treated_fit
     y = panel["West Germany"].to_numpy()
     fc = forecast_treated_trend(y_target=y, treated_fit=fit, T0=T0, horizon=H)
-    _assert_reproduces(fc, golden, "trend_forecast")
+    assert_reproduces(fc, golden, "trend_forecast")
 
 
 # mlsynth's attained cyclical sum of squares on this panel, at full precision.
@@ -325,7 +225,7 @@ def test_simplex_solve_beats_the_authors_synth(golden, cyclical):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         w = simplex_lstsq(c0, c1)
-    assert float(np.sum((c1 - c0 @ w) ** 2)) < _scalar(golden, "synth_loose_sse")
+    assert float(np.sum((c1 - c0 @ w) ** 2)) < scalar(golden, "synth_loose_sse")
 
 
 # mlsynth's deterministic SBC output on the German panel, at full precision.

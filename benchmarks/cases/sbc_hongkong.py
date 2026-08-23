@@ -20,15 +20,17 @@ full sample, exactly as ``SBC_HK.R`` does.
 
 Two independent checks (matching the German-reunification finding)
 ------------------------------------------------------------------
-1. Detrending is shared and exact. mlsynth's Hamilton filter and an independent
-   base-numpy build of the authors' ``lsq`` design agree bit for bit on this
-   panel -- ``detrend_max_abs_diff`` is 0.0, pinned as 0.0 -- so the two
-   readings of "detrend at horizon h with p lags" are the same computation, not
-   two computations that happen to land close. The R side of the detrending is
-   cross-validated separately and at full precision on the German panel
-   (``mlsynth/tests/test_sbc_reference.py``, agreement 1.7e-14 of the series
-   scale); this bundle's R capture records the ATT, the cyclical SSE and the
-   weights, so nothing here compares a cycle against R.
+1. Detrending is shared. Two checks say so, and they say different things.
+   ``detrend_max_abs_diff`` compares mlsynth's Hamilton filter to an independent
+   base-numpy build of the authors' ``lsq`` design and is bit for bit zero,
+   pinned as 0.0: the two Python readings of "detrend at horizon h with p lags"
+   are one computation. Against R, ``mlsynth/tests/test_sbc_hongkong_reference.py``
+   pins each step -- the trend coefficients, the pre-handover cycle, four donor
+   cycles and the trend forecast -- to the authors' own ``lsq`` and
+   ``trend_predict``, captured at full precision in
+   ``benchmarks/reference/sbc_hongkong/golden_steps.R``. The two sides agree to
+   2.6e-14 of each series' scale, the same order as the German panel's 1.7e-14
+   and for the same reason: R's ``lm`` QR against numpy's ``lstsq``.
 
 2. On the synthetic-control step the two diverge, and mlsynth is the more
    accurate one -- the same result the German case documents. The cyclical
