@@ -548,14 +548,14 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "overlapping-calibration-origins"
-  find = "for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):"
-  replace = "for origin in range(start, int(pre_periods) - int(horizon) + 1, 1):"
+  find = "    return range(start, int(pre_periods) - int(horizon) + 1, int(horizon))"
+  replace = "    return range(start, int(pre_periods) - int(horizon) + 1, 1)"
   models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive blocks share periods; the scores stop being exchangeable and the band is calibrated on a correlated, artificially large calibration set"
 
   [[target.mutant]]
   id = "scores-average-instead-of-accumulate"
-  find = "scores.append(float(np.sum(y[block] - Y0[block] @ w)))"
-  replace = "scores.append(float(np.mean(y[block] - Y0[block] @ w)))"
+  find = "    return np.asarray([float(np.sum(b)) for b in blocks], dtype=float)"
+  replace = "    return np.asarray([float(np.mean(b)) for b in blocks], dtype=float)"
   models = "scoring the per-period average error rather than the accumulated error, so the band is calibrated for the wrong estimand -- the defect that makes a per-period interval rescaled by the horizon look like a cumulative one"
 
   [[target.mutant]]
@@ -1403,3 +1403,182 @@ timeout = 300.0
   replace = "        errs.append(abs(y[t] - Y[t, idx] @ w))\n    return float(np.mean(errs))"
   models = "a CV score that averages absolute errors instead of squared ones, so a donor set that is occasionally very wrong scores the same as one that is uniformly slightly wrong"
 
+[[target]]
+name = "conformal-ensemble-loo"
+module-path = "mlsynth/utils/conformal/ensemble.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_ensemble.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scores-every-member-not-the-excluded-ones"
+  find = "        excluded = ~sampled[:, t]"
+  replace = "        excluded = np.ones(n_members, dtype=bool)"
+  models = "the leave-one-out condition dropped, so a period is scored by the members that fitted on it. That is an in-sample residual wearing an out-of-sample name: the series stays finite, the right length and the right sign, and it is uniformly too small, so every band calibrated on it is too narrow with nothing in its appearance to show it"
+
+  [[target.mutant]]
+  id = "excluded-and-included-swapped"
+  find = "        excluded = ~sampled[:, t]"
+  replace = "        excluded = sampled[:, t]"
+  models = "the mask inverted, which is the same in-sample defect as above but drawn from the complementary members. At a few dozen members almost every period is sampled by almost all of them, so the series stays finite and dense and reads as a successful ensemble"
+
+  [[target.mutant]]
+  id = "unscorable-period-returned-as-zero"
+  find = "    errors = np.full(n_train, np.nan)"
+  replace = "    errors = np.zeros(n_train)"
+  models = "a period no member excluded reported as a zero error instead of as missing. Zero is the most favourable value it could take, so a short ensemble looks like a perfectly fitting one, n_dropped falls to zero and the caller loses the signal that would have told it to fit more members"
+
+  [[target.mutant]]
+  id = "counterfactual-is-one-member"
+  find = "        counterfactual=combine(predictions[:, n_train:], axis=0),"
+  replace = "        counterfactual=predictions[0, n_train:],"
+  models = "the post-period path taken from the first member instead of the aggregate. The errors still describe the aggregate, so the band and the point it is laid around come from different estimators -- the one mismatch that makes an otherwise valid band invalid, and it shows up nowhere in the shapes"
+
+  [[target.mutant]]
+  id = "members-share-one-resample"
+  find = "        idx = rng.integers(0, n_train, size=n_train)"
+  replace = "        idx = np.arange(n_train)"
+  models = "the bootstrap removed, so every member fits on all the training periods and is identical to every other. Nothing is ever excluded, so nothing is scored; the ensemble costs B fits and returns a series of nan"
+
+  [[target.mutant]]
+  id = "resample-drawn-over-the-whole-series"
+  find = "        idx = rng.integers(0, n_train, size=n_train)"
+  replace = "        idx = rng.integers(0, donors.shape[1], size=n_train)"
+  models = "members fitted on periods drawn from the whole series, post periods included. The counterfactual is then fitted on the outcomes it is meant to predict, which is the leak the construction exists to avoid, and the training errors shrink because the fit had more data than it was entitled to"
+
+[[target]]
+name = "conformal-export-surface"
+module-path = "mlsynth/utils/conformal/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_exports.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "export-list-entry-dropped"
+  find = "    \"bootstrap_loo_errors\",\n"
+  replace = "    # bootstrap_loo_errors: lost to a merge resolution\n"
+  models = "the half of a botched merge resolution that nothing used to catch. Every module in this package edits the same two regions of __init__.py, so two branches adding modules conflict there by construction; dropping the import line raises immediately because nine test modules import from the package, but dropping the matching __all__ entry left the direct import working and the declared surface silently smaller"
+
+  [[target.mutant]]
+  id = "export-list-entry-duplicated"
+  find = "    \"bootstrap_loo_errors\",\n"
+  replace = "    \"bootstrap_loo_errors\",\n    \"bootstrap_loo_errors\",\n"
+  models = "the other signature of a resolution that kept both sides of a conflicting region. A duplicated name changes nothing at import time, so it survives review and accumulates"
+
+[[target]]
+name = "conformal-block-reference-gather"
+module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_reference_vectorise.py mlsynth/tests/test_conformal_reference_vectorise_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "gather-guard-widened-past-q-one"
+  find = "        if q == 1.0:"
+  replace = "        if q > 0.0:"
+  models = "the exponent guard removed, so a fractional power runs over the (T, |post|) block instead of a row. The values stay right to fifteen digits and differ in the last bit at q = 1.5, which is enough to move a reference statistic across a tie with the observed one and change the p-value's rank -- the same ULP that made the SPSC band 13 percent wide"
+
+  [[target.mutant]]
+  id = "gather-never-taken"
+  find = "        if q == 1.0:"
+  replace = "        if False:"
+  models = "the fast path switched off, which is the pre-change behaviour wearing the new code's name. Every value is identical and only the 70x is gone, so nothing that checks numbers can see it and only a count of np.roll calls can"
+
+  [[target.mutant]]
+  id = "shift-direction-reversed"
+  find = "            shifts = resids[(post[None, :] - np.arange(n)[:, None]) % n]"
+  replace = "            shifts = resids[(post[None, :] + np.arange(n)[:, None]) % n]"
+  models = "the rotation taken the other way. The reference set is the orbit of the path under rotation, so as a multiset it is unchanged and the p-value is unchanged with it -- but entry s is no longer the statistic of shift s, and shift zero is no longer first, which is what the block p-value's floor of 1/T depends on"
+
+  [[target.mutant]]
+  id = "normalised-by-the-path-not-the-block"
+  find = "            return np.sum(np.abs(shifts), axis=1) / np.sqrt(post.size)"
+  replace = "            return np.sum(np.abs(shifts), axis=1) / np.sqrt(n)"
+  models = "the statistic divided by the length of the whole path instead of the post block. Every reference statistic shrinks by the same factor and so does the observed one, so the p-value survives -- but the returned magnitudes no longer match the loop's, and any caller comparing them against a statistic computed by _stat is comparing different scales"
+
+[[target]]
+name = "conformal-sweep-warm-start"
+module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_sweep_warm_start.py mlsynth/tests/test_conformal_sweep_warm_start_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "sweep-walks-the-callers-order"
+  find = "    for i in np.argsort(grid_arr, kind=\"stable\"):"
+  replace = "    for i in range(grid_arr.size):"
+  models = "the chain following the caller's ordering instead of the grid's. Consecutive solves are then no longer neighbouring problems, so the seed is a stale point from elsewhere on the grid and the active set rebuilds anyway. Every p-value is still exactly right, because a seed cannot move the optimum -- only the saving disappears, which is why nothing but a work assertion can see it"
+
+  [[target.mutant]]
+  id = "sweep-never-chains"
+  find = "        out[i], base = conformal_pvalue(shifted, Y0, pre, warm_start=base,"
+  replace = "        out[i], base = conformal_pvalue(shifted, Y0, pre, warm_start=None,"
+  models = "the seed dropped, so every candidate solves cold. This is the pre-change behaviour wearing the new entry point's name: identical answers, none of the speed, and no test that only checks values can tell the difference"
+
+  [[target.mutant]]
+  id = "sweep-misaligns-its-output"
+  find = "        out[i], base = conformal_pvalue(shifted, Y0, pre, warm_start=base,"
+  replace = "        out[int(np.argsort(grid_arr, kind=\"stable\")[0])], base = conformal_pvalue(shifted, Y0, pre, warm_start=base,"
+  models = "results written to one slot instead of the candidate's own, which is the failure mode a sorted walk invites: the sweep visits in grid order but must report in the caller's order, and getting that wrong pairs every p-value with the wrong effect"
+
+  [[target.mutant]]
+  id = "seed-of-the-wrong-size-accepted"
+  find = "        if warm_start.size != Y0.shape[1]:"
+  replace = "        if False:"
+  models = "a seed sized for a different donor pool passed through to the solver, which drops it as infeasible and solves cold. The answer stays correct, so the caller's mix-up -- weights from another panel -- is hidden behind a right-looking number instead of being named"
+
+[[target]]
+name = "conformal-grid-chains-refits"
+module-path = "mlsynth/utils/conformal/cumulative_inversion.py"
+test-command = "python -m pytest mlsynth/tests/test_cumulative_inversion_chained_grid.py mlsynth/tests/test_conformal_cumulative_inversion.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "grid-route-solves-each-candidate-cold"
+  find = "        pvalues = conformal_pvalue_sweep(y_w, Y0_w, pre, grid, refit=refit,"
+  replace = "        pvalues = [conformal_pvalue_sweep(y_w, Y0_w, pre, [t], refit=refit,"
+  models = "the sweep called once per candidate instead of once for the grid, which is the pre-wiring behaviour wearing the new call's name. Each single-candidate sweep starts with no seed, so every solve is cold again and the whole saving disappears while every p-value, every endpoint and every reported gap stays exactly right"
+
+  [[target.mutant]]
+  id = "grid-bounds-read-the-wrong-level"
+  find = "        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha)"
+  replace = "        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha / 2.0)"
+  models = "the accepted set read off at half the requested level, so fewer candidates are rejected and the band is wider than the caller asked for. A wider band still covers, so no coverage check catches it; only comparing the endpoints against the p-values they are supposed to invert does"
+
+[[target]]
+name = "conformal-resample-draw"
+module-path = "mlsynth/utils/conformal/resample.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_resample_paths.py mlsynth/tests/test_conformal_resample_paths_properties.py mlsynth/tests/test_pda_resample_band.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "series-not-centred"
+  find = "    e = e - e.mean()"
+  replace = "    e = e * 1.0"
+  models = "the centring dropped. A fit sitting a little high shifts every one of its errors by the same amount, and an uncentred draw charges the band for that shift once per period it accumulates, so a biased fit buys itself a wider band. The paths stay finite and the right shape, and on a well-centred calibration series nothing shows at all"
+
+  [[target.mutant]]
+  id = "blocks-never-sign-flipped"
+  find = "    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_sim, n_blocks, 1))"
+  replace = "    signs = np.ones((n_sim, n_blocks, 1))"
+  models = "Wheeler's symmetrisation removed. The pool is then the series itself instead of the series and its reflection, so a calibration series that happens to lean one way draws paths that lean the same way, and the band is displaced instead of symmetric about zero"
+
+  [[target.mutant]]
+  id = "sign-flipped-per-period-not-per-block"
+  find = "    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_sim, n_blocks, 1))"
+  replace = "    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_sim, n_blocks, b))"
+  models = "the sign drawn per period rather than per block, which destroys the very correlation the blocks were drawn to keep. A total accumulated from positively autocorrelated periods is more variable than independent draws imply, and this makes every block behave as if its periods were independent -- the defect the block length exists to prevent, invisible in the shape and the finiteness of the output"
+
+  [[target.mutant]]
+  id = "blocks-drawn-non-circularly"
+  find = "    idx = (starts[:, :, None] + np.arange(b)[None, None, :]) % e.size"
+  replace = "    idx = np.minimum(starts[:, :, None] + np.arange(b)[None, None, :], e.size - 1)"
+  models = "the circular wrap replaced by clamping at the last period. Blocks that would have wrapped instead repeat the final error b times, so the last period of the calibration series is over-represented and a large final error is duplicated into many paths. Every value drawn is still a real entry of the series, so a membership check passes"
+
+  [[target.mutant]]
+  id = "failed-refit-zeroed-not-dropped"
+  find = "    e = e[np.isfinite(e)]"
+  replace = "    e = np.nan_to_num(e, nan=0.0, posinf=0.0, neginf=0.0)"
+  models = "an origin whose refit failed contributed as a zero instead of being dropped. A zero is the smallest error the series could hold, so every failure drags the drawn spread down and the band narrows in proportion to how often the estimator could not fit -- the band is most confident exactly where the fit was least able. The series stays finite and the right length, and nothing about the paths shows it"
+
+  [[target.mutant]]
+  id = "block-count-rounds-down"
+  find = "    n_blocks = int(np.ceil(h / b))"
+  replace = "    n_blocks = max(1, int(h // b))"
+  models = "the block count floored, so a horizon that is not a multiple of the block assembles too few periods and the reshape yields a path shorter than the horizon. The failure is a shape error at the caller rather than a wrong number, which is the best case, but only because the truncation would otherwise be silent"

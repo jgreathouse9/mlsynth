@@ -119,6 +119,7 @@ CASES = {
     "pda_ppi": "benchmarks.cases.pda_ppi",                    # Path A: Shi-Wang China PPI L2-relaxation (real-estate policy)
     "pda_brexit": "benchmarks.cases.pda_brexit",              # Path A: Shi-Wang Brexit multi-treated-units L2-relaxation
     "pda_pi_coverage": "benchmarks.cases.pda_pi_coverage",    # Path B: Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+    "pda_wheeler_lassosynth": "benchmarks.cases.pda_wheeler_lassosynth",  # cross-val vs Wheeler's LassoSynth: the resampled cumulative band reduces to his construction at block=1
     "mlsc_bottmer": "benchmarks.cases.mlsc_bottmer",          # cross-val vs Bottmer's mlSC_estimator (skips if absent)
     "proximal_panic1907": "benchmarks.cases.proximal_panic1907",  # cross-val vs freshtaste/proximal (Panic 1907 Table 3)
     "proximal_germany_oid": "benchmarks.cases.proximal_germany_oid",  # cross-val vs authors' manuscript code (Shi et al. 2026 JASA): over-identified PI (PIOID) on German reunification, ATT + GMM CI value-for-value
@@ -196,7 +197,8 @@ CASES = {
     "fsc_okano": "benchmarks.cases.fsc_okano",  # Path A (reference port): Okano-Kurisu 2026 functional SC -- all three applications, both fits each, and Tables 1-3 reproduced exactly from the authors' data
     "fsc_estimator": "benchmarks.cases.fsc_estimator",  # Path A: mlsynth.FSC itself on the same three applications -- fertility exact, and the mortality/service divergences measured and pinned
     "vanillasc_xval_references": "benchmarks.cases.vanillasc_xval_references",  # cross-val vs Synth (uniform V) + tidysynth (ADH spec): placebo rank/p-value agreement, plus recorded solver-quality gaps
-    "wiltshire_walmart": "benchmarks.cases.wiltshire_walmart",  # Path A (geometry, not cells): Wiltshire 2023 sec 4.2 stacked SCM on 566 Walmart counties -- the paper's prose claims (pre-fit, no effect at entry, decline from e=2, large negative at e=5) plus the base-period indexing identity; magnitudes not claimed, see docs/replications/stackedsc.rst
+    "wiltshire_walmart": "benchmarks.cases.wiltshire_walmart",
+    "conformal_inversion_prop99": "benchmarks.cases.conformal_inversion_prop99",  # cross-val vs Facure's "Conformal Inference for Synthetic Controls" notebook, transcribed: the CWZ block-permutation p-value agrees value-for-value on the Prop 99 panel, and the cumulative band that inverts it is pinned under both searches -- the accepted set is two islands, so the bisecting search excludes zero where the grid search (and the p-value itself) accepts it  # Path A (geometry, not cells): Wiltshire 2023 sec 4.2 stacked SCM on 566 Walmart counties -- the paper's prose claims (pre-fit, no effect at entry, decline from e=2, large negative at e=5) plus the base-period indexing identity; magnitudes not claimed, see docs/replications/stackedsc.rst
 }
 
 # Names whose case reads an external R/MATLAB reference *dump*. Cross-checks that

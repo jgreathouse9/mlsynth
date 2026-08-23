@@ -1254,14 +1254,88 @@ its nominal level. One shared critical value
 Plagborg-Moller) restores the level for the path as a whole; on the Oregon panel
 it is 2.54 where the pointwise normal quantile would be 1.96.
 
-The band reuses the replicate paths the prediction-interval bootstrap already
-produced, so it costs no extra refits, and it therefore requires
+By default the band reuses the replicate paths the prediction-interval bootstrap
+already produced, so it costs no extra refits, and on that setting it requires
 ``prediction_intervals=True``. Asking for it without the bootstrap raises rather
 than returning an empty field, since a caller reading a missing band as an
 absent effect is the one failure worth ruling out. PPSCM's ``cumulative_band``
 is the same object built the same way, sharing
 :mod:`mlsynth.utils.supt`, so the two estimators cannot drift apart in what the
 phrase means.
+
+Resampling the calibration errors
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Reusing the bootstrap's paths is free only once the bootstrap has run, and the
+bootstrap is the expensive part: ``pi_n_boot`` refits of the whole selection,
+999 at the default. ``cumulative_method="resample"`` builds the same band from a
+rolling-origin calibration pass instead -- one refit per origin, roughly ten at
+the panel lengths PDA is used on -- and needs no bootstrap at all:
+
+.. code-block:: python
+
+   res = PDA({..., "cumulative_band": True, "cumulative_method": "resample"}).fit()
+   band = res.fits["lasso"].cumulative_band
+   band.method            # "resample"
+
+The construction is Andrew Wheeler's, from his ``LassoSynth`` post: take
+out-of-sample conformity scores, draw from them, accumulate the draws, and read
+the band off the accumulated paths. mlsynth generalises it in one respect. Wheeler
+draws one score per post period independently, which assumes the period errors are
+uncorrelated. The variance of an :math:`L`-period total is
+
+.. math::
+
+   L\gamma_0 + 2\sum_{k=1}^{L-1} (L-k)\gamma_k,
+
+so positive autocorrelation makes the total more variable than :math:`L`
+independent draws imply, and an independent draw is too narrow by a factor that
+grows with the horizon. mlsynth therefore draws whole blocks of consecutive errors,
+flipping each block's sign to symmetrise -- which is Wheeler's mirrored pool
+generalised from a period to a block, and coincides with it exactly at
+``cumulative_block=1``. ``cumulative_block=0``, the default, uses the whole
+horizon; ``cumulative_n_sim`` sets how many paths are drawn, and unlike
+``pi_n_boot`` those cost no refits.
+
+How long a block the calibration series can support is settled by an identity, not
+by taste. The series is centred, so the circular sum over a :math:`b`-block is
+minus the sum over the complementary :math:`(n-b)`-block the two partition it into;
+their spreads are exactly equal, and the drawn spread is symmetric about
+:math:`b = n/2`. Past the midpoint a longer block draws a narrower total, mirroring
+a shorter one, and at :math:`b = n` every path sums to zero and the band has no
+width. The draw refuses past :math:`n/2`, since block length has stopped meaning
+how much serial correlation is carried. With :math:`m` rolling origins the series
+is :math:`m \times L` periods, so a whole-horizon block asks for :math:`m \geq 2`
+and a block of :math:`b` asks for :math:`m \geq 2L/b`.
+
+Where the scores come from differs from Wheeler as well, and the difference has a
+direction. He calibrates on leave-one-out residuals: each is scored by a model
+that saw every pre-period point but one, so it measures interpolation. mlsynth
+calibrates on rolling origins, each scored by a model trained only on what came
+before it, over a window of exactly the reported horizon. That is the harder
+question and gives the larger errors, so the resampled band runs wider than his --
+about 1.4 times on the benchmark panel. The two calibration sets are not
+interchangeable for a cumulative horizon.
+
+The choice does not change what comes back. The same
+:class:`~mlsynth.utils.pda_helpers.structures.PDACumulativeBand` is returned,
+built by the same simultaneous machinery, with only its ``method`` field recording
+which construction produced it. One reader serves all four PDA variants, since it
+asks the estimator for its counterfactual instead of a weight vector, which
+LASSO's intercept and the modified-BIC path's donor scaling would otherwise
+complicate and which forward selection and HCW do not expose at all.
+
+Verification (reference implementation). The durable case
+`benchmarks/cases/pda_wheeler_lassosynth.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pda_wheeler_lassosynth.py>`__
+runs Wheeler's construction and mlsynth's on one shared score vector and pins that
+they agree at ``block=1`` to four tenths of a percent of band width, which is
+Monte Carlo noise on 200,000 draws. It measures that from horizon two, because at
+horizon one the band is a quantile of :math:`2m` discrete atoms and both
+implementations land exactly on one; the case records that those atoms are
+adjacent, so the difference there is discreteness and not disagreement. It also
+records the 1.4 width ratio above, and that a whole-horizon block widens the band
+by 1.31 on an AR(0.7) panel, which is the generalisation doing its work.
 
 ``hcw`` produces these same intervals, with one practical caveat: the bootstrap
 refits the entire selection on every draw, and HCW's refit re-runs the

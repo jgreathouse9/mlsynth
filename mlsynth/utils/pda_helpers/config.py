@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import Field, field_validator, model_validator
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError
@@ -31,14 +31,20 @@ class PDAConfig(BaseEstimatorConfig):
     pi_seed: Optional[int] = Field(default=0, description="Seed for the prediction-interval bootstrap RNG (reproducible by default; set None for a fresh draw).")
     pi_dependent: bool = Field(default=True, description="Resample the pre-period prediction error with the dependent wild bootstrap of Jiang et al. (2025) Algorithm 2.1 -- Bartlett-correlated multipliers whose dependence range is a bandwidth in T0, so a persistent error is resampled as a persistent error. False uses the ordinary i.i.d. standard-normal multipliers of their Remark 2.2, which is cheaper and valid only when the errors are already independent. The choice compounds in the cumulative band, which accumulates the period errors, so drawing persistent errors as independent understates how fast the running total's uncertainty grows. True (the paper's algorithm) by default.")
     cumulative_band: bool = Field(default=False, description="Attach a simultaneous (sup-t) band for the CUMULATIVE effect path -- the running total over post-periods, with one shared critical value so the whole path is covered at 1 - alpha at once, which is how a cumulative path is read. Built from the replicate paths the prediction-interval bootstrap already produces, so it costs no extra refits. Its growth is measured rather than assumed: the replicates are accumulated before the standard error is taken, so independent period errors widen it like sqrt(L) and perfectly correlated ones like L, where adding up per-period interval endpoints would always give the latter. Needs prediction_intervals. Off by default.")
+    cumulative_method: Literal["bootstrap", "resample"] = Field(default="bootstrap", description="How the cumulative band is built. 'bootstrap' (default) accumulates the replicate paths the Jiang et al. (2025) prediction-interval bootstrap already produced, so it needs prediction_intervals and costs pi_n_boot refits. 'resample' calibrates on a rolling-origin pass instead -- one refit per origin, roughly a tenth of the cost -- and block-resamples those out-of-sample per-period errors into paths, which is Wheeler's LassoSynth construction generalised to serially correlated periods. It needs no bootstrap, so it does not need prediction_intervals.")
+    cumulative_block: int = Field(default=0, ge=0, description="resample only: block length in periods for the circular block bootstrap. 0 (default) means the whole horizon, the longest block the accumulated total is sensitive to. 1 draws periods independently, which is Wheeler's original and is too narrow whenever the period errors are positively autocorrelated. A block longer than the horizon is clamped to it.")
+    cumulative_n_sim: int = Field(default=2000, ge=2, description="resample only: number of error paths to draw. Unlike pi_n_boot these cost no refits -- the refits are the rolling origins -- so this buys quantile precision cheaply.")
 
     @model_validator(mode="after")
     def _check_cumulative_band(self):
-        if self.cumulative_band and not self.prediction_intervals:
+        if (self.cumulative_band and not self.prediction_intervals
+                and self.cumulative_method == "bootstrap"):
             raise MlsynthConfigError(
                 "cumulative_band needs prediction_intervals=True: the band is "
                 "built from the replicate paths the Jiang et al. (2025) bootstrap "
-                "produces, and with the bootstrap off there are none."
+                "produces, and with the bootstrap off there are none. Set "
+                "cumulative_method='resample' to calibrate on a rolling-origin "
+                "pass instead, which needs no bootstrap."
             )
         return self
 
@@ -51,5 +57,37 @@ class PDAConfig(BaseEstimatorConfig):
                 f"{info.field_name} must be True or False; got {v!r}. Pydantic "
                 "would otherwise coerce a string or a number into a boolean, so "
                 "a typo becomes a silent choice about how inference is run."
+            )
+        return v
+
+    @field_validator("cumulative_method", mode="before")
+    @classmethod
+    def _known_cumulative_method(cls, v):
+        """Refuse an unknown construction by name.
+
+        Pydantic would report a ``Literal`` mismatch, but the band is the number a
+        reader quotes, so the message names the two constructions and what each
+        costs.
+        """
+        if v not in ("bootstrap", "resample"):
+            raise MlsynthConfigError(
+                f"cumulative_method must be 'bootstrap' or 'resample'; got {v!r}. "
+                "'bootstrap' accumulates the prediction-interval replicates and "
+                "needs prediction_intervals; 'resample' calibrates on a "
+                "rolling-origin pass and needs no bootstrap."
+            )
+        return v
+
+    @field_validator("cumulative_block", "cumulative_n_sim", mode="before")
+    @classmethod
+    def _strict_int(cls, v, info):
+        """Refuse a non-integer outright.
+
+        Pydantic would coerce ``2.5`` or ``"3"``, and a silently rounded block
+        length is a silent change to how much serial correlation the band carries.
+        """
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise MlsynthConfigError(
+                f"{info.field_name} must be an integer; got {v!r}."
             )
         return v
