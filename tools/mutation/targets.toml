@@ -1477,3 +1477,21 @@ timeout = 300.0
   find = "        if warm_start.size != Y0.shape[1]:"
   replace = "        if False:"
   models = "a seed sized for a different donor pool passed through to the solver, which drops it as infeasible and solves cold. The answer stays correct, so the caller's mix-up -- weights from another panel -- is hidden behind a right-looking number instead of being named"
+
+[[target]]
+name = "conformal-grid-chains-refits"
+module-path = "mlsynth/utils/conformal/cumulative_inversion.py"
+test-command = "python -m pytest mlsynth/tests/test_cumulative_inversion_chained_grid.py mlsynth/tests/test_conformal_cumulative_inversion.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "grid-route-solves-each-candidate-cold"
+  find = "        pvalues = conformal_pvalue_sweep(y_w, Y0_w, pre, grid, refit=refit,"
+  replace = "        pvalues = [conformal_pvalue_sweep(y_w, Y0_w, pre, [t], refit=refit,"
+  models = "the sweep called once per candidate instead of once for the grid, which is the pre-wiring behaviour wearing the new call's name. Each single-candidate sweep starts with no seed, so every solve is cold again and the whole saving disappears while every p-value, every endpoint and every reported gap stays exactly right"
+
+  [[target.mutant]]
+  id = "grid-bounds-read-the-wrong-level"
+  find = "        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha)"
+  replace = "        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha / 2.0)"
+  models = "the accepted set read off at half the requested level, so fewer candidates are rejected and the band is wider than the caller asked for. A wider band still covers, so no coverage check catches it; only comparing the endpoints against the p-values they are supposed to invert does"
