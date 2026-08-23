@@ -9,7 +9,7 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **83 cross-validation checks** against original
+Coverage: **84 cross-validation checks** against original
 implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
 within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
@@ -146,8 +146,8 @@ Summary
      - 1 exact
      - 0
    * - :ref:`SBC <val-sbc>`
-     - 1
-     - 1 close
+     - 2
+     - 1 close · 1 documented
      - 1e+06
    * - :ref:`SCD <val-scd>`
      - 1
@@ -955,12 +955,22 @@ SBC
      - max \|Δ\|
      - Verdict
      - Case
+   * - authors' Germany.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
+     - ``german_reunification.csv`` (f431666efbf3…)
+     - 15
+     - 3.3e+04
+     - documented — see notes
+     - `sbc_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sbc_germany.py>`__
    * - authors' SBC_HK.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
      - ``hong_kong_handover.csv`` (4f3fea9b93ba…)
-     - 6
+     - 11
      - 1e+06
      - close
      - `sbc_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sbc_hongkong.py>`__
+
+Notes (sbc_germany): The deviation is the reference solver's, and it is in one place: the cyclical weight solve. The detrending and trend-forecast rows agree to 1.7e-14 of each series' scale (R's lm QR against numpy's lstsq). On the weight solve the program is strictly convex with a unique optimum, mlsynth attains it -- certified to 1.4e-6 by the convexity of the objective, and a cyclical sum of squares 2.6% lower than the authors' Synth::synth ipop reaches at any tolerance -- so the ATT and weight rows differ because the reference does not converge to the optimum. See docs/replications/sbc.rst.
+
+Notes (sbc_hongkong): Same shape as the German panel. The detrending rows agree to 2.6e-14 of each series' scale; the ATT, objective and weight rows differ because the authors' Synth::synth ipop converges to a point about 6% worse in cyclical SSE on the identical strictly-convex program, where mlsynth attains the optimum (certified to 9.8e-8). See docs/replications/sbc.rst.
 
 .. _val-scd:
 
@@ -1255,6 +1265,8 @@ TSSC
      - 0.0004
      - tight
      - `ferman_demeaned_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_demeaned_basque.py>`__
+
+Notes (ferman_demeaned_basque): MSCa (TSSC's simplex+intercept variant) IS Ferman-Pinto's demeaned SC. Treatment 1975 is the identified regime (20 pre-periods > 16 donors); at 1970 (C>n) the demeaned-SC weights are non-unique and the two implementations legitimately diverge -- see docs.
 
 .. _val-vanillasc:
 

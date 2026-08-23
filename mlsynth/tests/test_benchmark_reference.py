@@ -253,6 +253,32 @@ def test_comparison_csv_is_self_consistent():
             assert rf == pytest.approx(ref["values"]["synth_pre_ssr"], abs=1e-6)
 
 
+class TestTheSbcMonteCarloPanelsAreCommitted:
+    """``sbc_mc`` estimates on R-drawn panels, and they ship with the repo.
+
+    The panels are captured from the authors' own DGP (``reference.R``, base R)
+    so that the simulator sits on the reference side of the comparison. That
+    only holds while the case can find them: a broken path would make the case
+    fall back to a skip, and ``--all`` reports a skip as success. Same failure
+    mode the Brabander cases hit below, asserted the same way.
+    """
+
+    def test_the_panels_are_reachable_from_the_case(self):
+        from benchmarks import registry
+        from benchmarks.cases.sbc_mc import PANELS
+
+        assert os.path.exists(PANELS), (
+            f"sbc_mc reads committed panels that are not where it looks for "
+            f"them ({PANELS}); the case would skip, not fail.")
+        assert "sbc_mc" in registry.CASES
+
+    def test_the_capture_script_ships_with_the_panels(self):
+        """A fixture nobody can regenerate is a number with no provenance."""
+        bundle = _ROOT / "benchmarks" / "reference" / "sbc_mc"
+        assert (bundle / "reference.R").exists()
+        assert (bundle / "versions.txt").exists()
+
+
 class TestTheBrabanderCasesActuallyRun:
     """A case whose data is committed must not skip.
 

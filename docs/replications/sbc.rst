@@ -48,14 +48,38 @@ tests in ``mlsynth/tests/test_sbc_reference.py`` pin mlsynth against.
 Step-by-step agreement
 ----------------------
 
-The Hamilton detrending and the trend forecast match the authors' functions to
-machine precision. mlsynth's :func:`~mlsynth.utils.sbc_helpers.hamilton.fit_hamilton_filter`
+mlsynth's :func:`~mlsynth.utils.sbc_helpers.hamilton.fit_hamilton_filter`
 reproduces ``lsq``'s AR coefficients and cyclical residuals, for both the
 treated unit (detrended on the pre-treatment window) and the donors (detrended
-on the full sample, since the donors are untreated), to about
-:math:`10^{-8}`; :func:`~mlsynth.utils.sbc_helpers.trend_forecast.forecast_treated_trend`
-reproduces ``trend_predict`` to the same precision. These steps are, for
-practical purposes, the same computation written twice.
+on the full sample, since the donors are untreated), and
+:func:`~mlsynth.utils.sbc_helpers.trend_forecast.forecast_treated_trend`
+reproduces ``trend_predict``. The two sides differ by
+:math:`1.7\times10^{-14}` of each series' scale — about :math:`10^{-11}` in
+absolute terms, and the same size for the trend coefficients, both sets of
+cycles and the forecast.
+
+That number is a property of the arithmetic, not of the method: it is the
+distance between R's ``lm`` QR (LINPACK's ``dqrls``) and numpy's ``lstsq``
+(LAPACK's ``gelsd``) on the same design. Two least-squares kernels do not
+produce bit-identical answers, so these steps agree as closely as two
+implementations of them can, and exact equality is not available at any
+recording precision.
+
+How the fixture bounds that claim
+---------------------------------
+
+The captured values are decimal text, so a comparison against them can never be
+tighter than the digits the text carries. The original capture printed with
+``sprintf("%.8f")``, which resolves :math:`5\times10^{-9}` on values of this
+size — three orders coarser than the difference above. Every deviation it
+reported was therefore its own decimal grid, and the "agreement to about
+:math:`10^{-8}`" this page used to claim was the format's resolution described
+as a result. ``golden_steps.R`` now emits each compared quantity a second time
+at ``%.17g`` under a ``hi:`` prefix, the tests compare at one unit in the last
+recorded place, and the :math:`1.7\times10^{-14}` above is what that capture
+measures. The comparison is set at :math:`10^{-12}` of the series scale, fifty
+times the measured difference, so it fails on a defect while staying indifferent
+to which BLAS is installed.
 
 Where the two diverge — and why mlsynth is the accurate one
 -----------------------------------------------------------
@@ -76,10 +100,20 @@ where :math:`c_1` is the treated cycle and :math:`C` the donor cycles over the
 effective pre-treatment window. On the German panel this program is strictly
 convex and well conditioned (the donor cycle matrix has full column rank, and
 the Gram matrix's condition number is about :math:`3.8\times10^{3}`), so its
-optimum is unique. Four independent solvers agree on that optimum to solver
-precision — mlsynth's in-house projected-gradient routine and cvxpy's ECOS,
-OSQP and SCS all attain a cyclical sum of squares of about
-:math:`1.266\times10^{6}`.
+optimum is unique. mlsynth's in-house projected-gradient routine and cvxpy's
+ECOS and CLARABEL all attain a cyclical sum of squares of
+:math:`1266162.58`, agreeing to :math:`2.7\times10^{-6}` in the weights. OSQP
+reaches the same point once its answer is projected back onto the simplex; at
+its default tolerance it returns a slightly infeasible one (a weight of
+:math:`-9\times10^{-7}`). SCS at its default tolerance returns a point that
+violates the constraints more substantially — a weight of :math:`-4.5\times
+10^{-3}` — and so reports a lower objective than the optimum; projected back
+onto the simplex it is :math:`0.7\%` worse. An infeasible point's objective is
+not a solution, which is why the check that matters is not a poll of solvers but
+a certificate: linearising the convex objective at mlsynth's weights bounds
+every feasible point from below, and mlsynth's answer sits within
+:math:`1.4\times10^{-6}` (relative) of that bound. The test asserts the
+certificate, so it holds without trusting any solver, mlsynth's included.
 
 The authors' ``Synth::synth`` (the kernlab ``ipop`` interior-point solver)
 instead converges to a point about :math:`2.6\%` worse, a sum of squares of
@@ -94,9 +128,16 @@ reaches the optimum and the other does not.
 The donor labels
 ----------------
 
-The authors' shipped wide CSV permutes its donor column labels: its
-``Japan`` and ``Portugal`` columns actually hold the Netherlands' and Greece's
-series (verified against the canonical ``repgermany.dta``). So the paper's prose
+The authors' shipped wide CSV permutes its donor column labels, and not in one
+or two columns: of the sixteen donors, fifteen sit under another country's name.
+Only Italy is where its label says. Column by column, against the canonical
+``repgermany.dta``, the shipped ``Australia`` holds the USA's series,
+``Austria`` the UK's, ``Belgium`` Austria's, ``Denmark`` Belgium's, ``France``
+Denmark's, ``Greece`` France's, ``Japan`` the Netherlands', ``Netherlands``
+Norway's, ``New Zealand`` Switzerland's, ``Norway`` Japan's, ``Portugal``
+Greece's, ``Spain`` Portugal's, ``Switzerland`` Spain's, ``UK`` Australia's and
+``US`` New Zealand's. The values themselves are the Abadie panel's, to the last
+digit; only the names move. So the paper's prose
 naming the cycle donors as "Italy, Japan, Portugal" refers, by the correct
 labels, to Italy, the Netherlands and Greece — which is exactly the donor set
 mlsynth recovers on the correctly labelled panel. Running the reference
@@ -107,14 +148,41 @@ Verification
 
 The durable check lives in ``benchmarks/cases/sbc_germany.py`` (the cycle
 weights and the 1991–1994 effect), and the per-step cross-validation in
-``mlsynth/tests/test_sbc_reference.py`` (eight tests pinning each stage to the
-authors' captured output)::
+``mlsynth/tests/test_sbc_reference.py`` (twelve tests: each stage against the
+authors' captured output, the capture's own precision, the feasibility of the
+weights, and the optimality certificate)::
 
    python benchmarks/run_benchmarks.py --case sbc_germany
    python -m pytest mlsynth/tests/test_sbc_reference.py
 
-The captured reference bundle, the golden fixture, and the provenance
+Sec. 5.1 publishes this application as figures and prose, with no printed
+weights or effect size, so the benchmark pins the paper's two checkable claims
+exactly — the cyclical mass falls on Greece, the Netherlands and Italy, and the
+effect is negative — and pins mlsynth's own output as values. The estimator is
+deterministic here, reproducing its ATT and weights bit for bit, so each is
+compared at :math:`10^{-6}` relative: six orders above the floating-point
+movement a different platform introduces, and three orders below the shift a
+cyclical solver truncated to 200 iterations produces.
+
+The handover application is pinned the same way. Its bundle captured only what
+``Synth::synth`` produces — the ATT, the cyclical sum of squares, the weights —
+so the detrending that feeds them was checked against a second Python reading of
+the authors' design and not against R at all.
+``benchmarks/reference/sbc_hongkong/golden_steps.R`` now captures that step from
+the authors' ``lsq`` and ``trend_predict`` (base R, no CRAN package needed), and
+``mlsynth/tests/test_sbc_hongkong_reference.py`` pins mlsynth's trend
+coefficients, pre-handover cycle, donor cycles and trend forecast against it.
+The two sides agree to :math:`2.6\times10^{-14}` of each series' scale. Two
+panels of different length, scale and donor pool landing within a factor of two
+of each other is what identifies that residual as the least-squares kernels and
+not the method.
+
+The captured reference bundles, the golden fixtures, and the provenance
 (R and package versions, data checksums) are under
-``benchmarks/reference/sbc_germany/``; its ``NOTICE`` records the full finding.
+``benchmarks/reference/sbc_germany/`` and
+``benchmarks/reference/sbc_hongkong/``; their ``NOTICE`` files record the full
+finding.
 A separate Path-B Monte Carlo (``sbc_mc``) reproduces the paper's simulation
-evidence that SBC stays competitive under cointegration.
+evidence that SBC stays competitive under cointegration, on panels drawn in R by
+the authors' own ``simulation_nonnegative.R`` and estimated by mlsynth, so the
+simulator sits on the reference side of that comparison.

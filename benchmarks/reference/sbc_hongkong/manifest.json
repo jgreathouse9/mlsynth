@@ -5,5 +5,8 @@
   "reference_impl": "Independent R reproduction of the authors' SBC_HK.R (Hamilton lsq detrending + trend_predict + Synth::synth ipop)",
   "path_type": "cross-validation",
   "command": "Rscript benchmarks/reference/sbc_hongkong/reference.R",
-  "data": ["basedata/hong_kong_handover.csv"]
+  "data": [
+    "basedata/hong_kong_handover.csv"
+  ],
+  "note": "Same shape as the German panel. The detrending rows agree to 2.6e-14 of each series' scale; the ATT, objective and weight rows differ because the authors' Synth::synth ipop converges to a point about 6% worse in cyclical SSE on the identical strictly-convex program, where mlsynth attains the optimum (certified to 9.8e-8). See docs/replications/sbc.rst."
 }

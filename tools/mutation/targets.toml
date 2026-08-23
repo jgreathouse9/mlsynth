@@ -1537,3 +1537,39 @@ timeout = 300.0
   find = "    n_blocks = int(np.ceil(h / b))"
   replace = "    n_blocks = max(1, int(h // b))"
   models = "the block count floored, so a horizon that is not a multiple of the block assembles too few periods and the reshape yields a path shorter than the horizon. The failure is a shape error at the caller rather than a wrong number, which is the best case, but only because the truncation would otherwise be silent"
+
+[[target]]
+name = "sbc-cyclical-solve"
+module-path = "mlsynth/utils/bilevel/simplex.py"
+test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "cyclical-solve-stops-before-it-converges"
+  find = "    max_iter: int = 2000,"
+  replace = "    max_iter: int = 200,"
+  models = "a simplex solve that returns a point it has not converged to. This is the defect the SBC benchmark's tolerances were said to absorb, and at 200 iterations it moves the German cycle weights by 1.2e-3 and the ATT by 0.38 -- through the old +/-0.06 weight band and +/-25 ATT band without a mark, and through the old |SSE - 1266162.6| < 5 pin too, since the objective is flat near its optimum. What sees it is the attained objective pinned at the precision it is written, and the optimality certificate, which reads the gradient and so does not flatten out"
+
+[[target]]
+name = "sbc-hamilton-filter"
+module-path = "mlsynth/utils/sbc_helpers/hamilton.py"
+test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py mlsynth/tests/test_sbc_hongkong_reference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "detrending-drifts-in-the-eleventh-digit"
+  find = "    coefs, *_ = np.linalg.lstsq(X, target, rcond=None)"
+  replace = "    coefs, *_ = np.linalg.lstsq(X, target * (1.0 + 1e-12), rcond=None)"
+  models = "a relative perturbation of 1e-12 in the detrending regression, standing for any arithmetic change that is not a difference between least-squares kernels. The old 1e-5 band could not see a defect three orders larger than this; the full-precision capture and the 1e-12-of-scale floor put the comparison where the two implementations actually sit, so a drift of this size fails"
+
+[[target]]
+name = "sbc-optimality-certificate"
+module-path = "benchmarks/cases/sbc_hongkong.py"
+test-command = "python benchmarks/run_benchmarks.py --case sbc_hongkong"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "certificate-reads-the-largest-gradient"
+  find = "    lower_bound = attained + float(gradient.min() - gradient @ w)"
+  replace = "    lower_bound = attained + float(gradient.max() - gradient @ w)"
+  models = "the convexity bound minimised over the wrong vertex of the simplex, which turns a lower bound into a quantity above the attained objective. The certificate then reports a negative gap, and an assertion that only bounds it from above would accept a solve that never converged as optimal"
