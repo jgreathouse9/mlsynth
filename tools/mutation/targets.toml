@@ -1417,3 +1417,33 @@ timeout = 120.0
   find = "    \"bootstrap_loo_errors\",\n"
   replace = "    \"bootstrap_loo_errors\",\n    \"bootstrap_loo_errors\",\n"
   models = "the other signature of a resolution that kept both sides of a conflicting region. A duplicated name changes nothing at import time, so it survives review and accumulates"
+
+[[target]]
+name = "conformal-block-reference-gather"
+module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_reference_vectorise.py mlsynth/tests/test_conformal_reference_vectorise_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "gather-guard-widened-past-q-one"
+  find = "        if q == 1.0:"
+  replace = "        if q > 0.0:"
+  models = "the exponent guard removed, so a fractional power runs over the (T, |post|) block instead of a row. The values stay right to fifteen digits and differ in the last bit at q = 1.5, which is enough to move a reference statistic across a tie with the observed one and change the p-value's rank -- the same ULP that made the SPSC band 13 percent wide"
+
+  [[target.mutant]]
+  id = "gather-never-taken"
+  find = "        if q == 1.0:"
+  replace = "        if False:"
+  models = "the fast path switched off, which is the pre-change behaviour wearing the new code's name. Every value is identical and only the 70x is gone, so nothing that checks numbers can see it and only a count of np.roll calls can"
+
+  [[target.mutant]]
+  id = "shift-direction-reversed"
+  find = "            shifts = resids[(post[None, :] - np.arange(n)[:, None]) % n]"
+  replace = "            shifts = resids[(post[None, :] + np.arange(n)[:, None]) % n]"
+  models = "the rotation taken the other way. The reference set is the orbit of the path under rotation, so as a multiset it is unchanged and the p-value is unchanged with it -- but entry s is no longer the statistic of shift s, and shift zero is no longer first, which is what the block p-value's floor of 1/T depends on"
+
+  [[target.mutant]]
+  id = "normalised-by-the-path-not-the-block"
+  find = "            return np.sum(np.abs(shifts), axis=1) / np.sqrt(post.size)"
+  replace = "            return np.sum(np.abs(shifts), axis=1) / np.sqrt(n)"
+  models = "the statistic divided by the length of the whole path instead of the post block. Every reference statistic shrinks by the same factor and so does the observed one, so the p-value survives -- but the returned magnitudes no longer match the loop's, and any caller comparing them against a statistic computed by _stat is comparing different scales"
