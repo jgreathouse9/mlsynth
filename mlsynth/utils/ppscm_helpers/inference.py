@@ -277,6 +277,16 @@ def jackknife_inference(
     # NaN on would trip ``run_multisynth``'s finiteness guard on every replicate.
     nu_refit = float(nu_used) if np.isfinite(nu_used) else None
 
+    # Which replicates removed a treated unit, as opposed to a control. The two
+    # are different quantities: deleting a control moves the synthetic
+    # counterfactual a little, deleting a treated unit removes one of the few
+    # draws the effect is averaged over, and only the second is the sampling
+    # variability of the pooled estimand. This is recorded from the loop and not
+    # derived from ``trt`` afterwards, because a treated refit can also raise and
+    # be skipped -- which rows are present is not which units are treated.
+    treated_loo = np.zeros(n, dtype=bool)
+    was_treated = np.isfinite(trt)
+
     for i in range(n):
         keep = np.ones(n, dtype=bool); keep[i] = False
         trt_i = trt[keep]
@@ -291,6 +301,7 @@ def jackknife_inference(
         except Exception:
             continue
         att_loo[i] = fit_i["att"]
+        treated_loo[i] = bool(was_treated[i])
         pt = fit_i["per_time"]
         pt_loo[i, : len(pt)] = pt
 
@@ -308,6 +319,20 @@ def jackknife_inference(
             f"out of {n} units; at least 2 are needed for a standard error. Every "
             "leave-one-out refit raised, so there is no inference to report -- "
             "returning NaN here is what hid #467.")
+    n_treated_loo = int(treated_loo.sum())
+    if n_treated_loo == 0:
+        n_treated = int(was_treated.sum())
+        raise MlsynthEstimationError(
+            f"the delete-one jackknife admitted {usable} replicate(s), and none of "
+            f"them removed a treated unit; the panel has "
+            f"{n_treated} treated unit{'' if n_treated == 1 else 's'}. Every "
+            "replicate is a control deletion, so the spread being measured is "
+            "donor substitution and not the sampling variability of the effect -- "
+            "the treated unit's own outcomes cannot move the standard error at "
+            "all. With a single treated unit its deletion leaves no treated unit "
+            "and is skipped, which is why counting usable replicates does not "
+            "catch this. Use an inference method that does not rest on deleting "
+            "treated units, or report the point estimate without an interval.")
     se = _se(att_loo)
     per_time_se = np.array([_se(pt_loo[:, h]) for h in range(H)])
     z = float(norm.ppf(1.0 - alpha / 2.0))

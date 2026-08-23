@@ -1693,3 +1693,27 @@ timeout = 900.0
   find = "        pre = _resid(full, k)[:t0]"
   replace = "        pre = _resid(full, k)"
   models = "the grid half-width sized from residuals that include the treated window. A real effect inflates that spread, so the grid widens exactly when there is something to detect and the band widens with the effect it is measuring -- an interval whose width reports the treatment"
+
+[[target]]
+name = "ppscm-jackknife-treated-deletions"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_jackknife_treated_deletions.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "treated-deletions-never-counted"
+  find = "        treated_loo[i] = bool(was_treated[i])"
+  replace = "        treated_loo[i] = True"
+  models = "every admitted replicate counted as a treated deletion, which is the pre-fix state wearing the new guard's clothes. The count is then the survivor count the old guard already used, so a single-treated panel passes again and reports a standard error its treated unit cannot move. Nothing about the number looks wrong -- it is finite, positive, and brackets the point estimate"
+
+  [[target.mutant]]
+  id = "treated-mask-read-from-trt-not-the-loop"
+  find = "        treated_loo[i] = bool(was_treated[i])"
+  replace = "        pass"
+  models = "the mask left empty in the loop, so the guard fires on every panel including ones with many treated units. A refusal that never lifts is at least visible, unlike the defect it replaces, but it removes jackknife inference from PPSCM entirely"
+
+  [[target.mutant]]
+  id = "guard-accepts-a-single-treated-deletion-as-none"
+  find = "    if n_treated_loo == 0:"
+  replace = "    if n_treated_loo < 0:"
+  models = "the guard made unreachable while still appearing to exist. Two treated units, the thinnest ensemble that is not vacuous, still work either way, so only a single-treated panel distinguishes this from the fix -- which is exactly the case the guard was written for"
