@@ -1495,3 +1495,45 @@ timeout = 300.0
   find = "        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha)"
   replace = "        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha / 2.0)"
   models = "the accepted set read off at half the requested level, so fewer candidates are rejected and the band is wider than the caller asked for. A wider band still covers, so no coverage check catches it; only comparing the endpoints against the p-values they are supposed to invert does"
+
+[[target]]
+name = "conformal-resample-draw"
+module-path = "mlsynth/utils/conformal/resample.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_resample_paths.py mlsynth/tests/test_conformal_resample_paths_properties.py mlsynth/tests/test_pda_resample_band.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "series-not-centred"
+  find = "    e = e - e.mean()"
+  replace = "    e = e * 1.0"
+  models = "the centring dropped. A fit sitting a little high shifts every one of its errors by the same amount, and an uncentred draw charges the band for that shift once per period it accumulates, so a biased fit buys itself a wider band. The paths stay finite and the right shape, and on a well-centred calibration series nothing shows at all"
+
+  [[target.mutant]]
+  id = "blocks-never-sign-flipped"
+  find = "    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_sim, n_blocks, 1))"
+  replace = "    signs = np.ones((n_sim, n_blocks, 1))"
+  models = "Wheeler's symmetrisation removed. The pool is then the series itself instead of the series and its reflection, so a calibration series that happens to lean one way draws paths that lean the same way, and the band is displaced instead of symmetric about zero"
+
+  [[target.mutant]]
+  id = "sign-flipped-per-period-not-per-block"
+  find = "    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_sim, n_blocks, 1))"
+  replace = "    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_sim, n_blocks, b))"
+  models = "the sign drawn per period rather than per block, which destroys the very correlation the blocks were drawn to keep. A total accumulated from positively autocorrelated periods is more variable than independent draws imply, and this makes every block behave as if its periods were independent -- the defect the block length exists to prevent, invisible in the shape and the finiteness of the output"
+
+  [[target.mutant]]
+  id = "blocks-drawn-non-circularly"
+  find = "    idx = (starts[:, :, None] + np.arange(b)[None, None, :]) % e.size"
+  replace = "    idx = np.minimum(starts[:, :, None] + np.arange(b)[None, None, :], e.size - 1)"
+  models = "the circular wrap replaced by clamping at the last period. Blocks that would have wrapped instead repeat the final error b times, so the last period of the calibration series is over-represented and a large final error is duplicated into many paths. Every value drawn is still a real entry of the series, so a membership check passes"
+
+  [[target.mutant]]
+  id = "failed-refit-zeroed-not-dropped"
+  find = "    e = e[np.isfinite(e)]"
+  replace = "    e = np.nan_to_num(e, nan=0.0, posinf=0.0, neginf=0.0)"
+  models = "an origin whose refit failed contributed as a zero instead of being dropped. A zero is the smallest error the series could hold, so every failure drags the drawn spread down and the band narrows in proportion to how often the estimator could not fit -- the band is most confident exactly where the fit was least able. The series stays finite and the right length, and nothing about the paths shows it"
+
+  [[target.mutant]]
+  id = "block-count-rounds-down"
+  find = "    n_blocks = int(np.ceil(h / b))"
+  replace = "    n_blocks = max(1, int(h // b))"
+  models = "the block count floored, so a horizon that is not a multiple of the block assembles too few periods and the reshape yields a path shorter than the horizon. The failure is a shape error at the caller rather than a wrong number, which is the best case, but only because the truncation would otherwise be silent"
