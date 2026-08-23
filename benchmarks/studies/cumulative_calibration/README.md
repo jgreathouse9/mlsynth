@@ -19,21 +19,40 @@ The self-contained part of the study is the durable benchmark case
 `benchmarks/cases/conformal_window_count.py`, run by
 `python benchmarks/run_benchmarks.py --case conformal_window_count`.
 
-## Configuring the panel
+## Which panel the arms use
 
-The panel measured here was 211 media markets by 128 weeks of retail sales. It is
-proprietary and is not shipped, so the scripts read whatever panel the
-environment points them at:
+The panel these arms were measured on is proprietary and is not shipped. With
+nothing configured they build a stand-in instead — `synthetic_geo_panel.py` —
+so every arm runs anywhere, out of the box:
+
+```bash
+python burstiness.py 100 0 results/burstiness.jsonl     # no configuration needed
+```
+
+The stand-in is drawn to behave like the panel it replaces, not to copy it. One
+dominant factor carrying trend and seasonality, mildly persistent idiosyncratic
+errors once that factor is removed, market sizes spread over orders of magnitude,
+and a small correlation shared inside a region. Every constant in it is a design
+parameter with a round value; markets and weeks are integers, log-levels are
+centred at zero, and no observation, label, date or magnitude from any real panel
+appears in it. `benchmarks/tests/test_synthetic_geo_panel.py` holds it to those
+behaviours.
+
+To run against a real panel instead, point the scripts at one:
 
 | variable | meaning | default |
 | --- | --- | --- |
-| `MLSYNTH_CAL_PANEL` | path to a CSV; required by the real-data arms | — |
+| `MLSYNTH_CAL_PANEL` | path to a CSV | the stand-in |
 | `MLSYNTH_CAL_TIME` | column holding the period | `start_date` |
 | `MLSYNTH_CAL_UNIT` | column holding the unit | `dma` |
 | `MLSYNTH_CAL_VALUE` | column holding the outcome | `total` |
 
-The panel needs at least `T0 + H = 117` periods and enough units to draw `J = 20`
-from. Outcomes are logged, so they must be positive.
+A configured path is never replaced by the stand-in: if it cannot be read, the
+error stands. Each result row carries a `panel` field naming its source, so a
+results file cannot be read as real-panel numbers that a substitution produced.
+
+A real panel needs at least `T0 + H = 117` periods and enough units to draw
+`J = 20` from. Outcomes are logged, so they must be positive.
 
 ## Running
 

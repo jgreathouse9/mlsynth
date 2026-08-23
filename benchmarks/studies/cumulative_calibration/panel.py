@@ -1,11 +1,18 @@
 """The panel the calibration study was measured on, and the DGP built from it.
 
-The study's real-data arms need a wide panel of positive outcomes -- the one used
-was 211 US media markets by 128 weeks of retail sales. That panel is proprietary
-and is not shipped, so this module reads whatever panel the environment points it
-at and rebuilds the same structure from it:
+The study's arms need a wide panel of positive outcomes. The one they were
+measured on is proprietary and is not shipped, so by default this module builds a
+synthetic stand-in -- see :mod:`synthetic_geo_panel` -- drawn to behave the same
+way: one dominant factor, mildly persistent idiosyncratic errors, market sizes
+spread over orders of magnitude, and a small correlation shared inside a region.
+Every arm therefore runs with nothing configured.
 
-  ``MLSYNTH_CAL_PANEL``   path to a CSV (required for the real-data arms)
+Point ``MLSYNTH_CAL_PANEL`` at a CSV to use a real panel instead. A configured
+path is never replaced by the stand-in: if it cannot be read, the error stands,
+so a results file cannot report real-panel numbers that a substitution produced.
+Call :func:`source` to record which panel an arm actually used.
+
+  ``MLSYNTH_CAL_PANEL``   path to a CSV (optional; the stand-in is the default)
   ``MLSYNTH_CAL_TIME``    column holding the period      (default ``start_date``)
   ``MLSYNTH_CAL_UNIT``    column holding the unit         (default ``dma``)
   ``MLSYNTH_CAL_VALUE``   column holding the outcome      (default ``total``)
@@ -44,9 +51,14 @@ class PanelUnavailable(RuntimeError):
     """Raised when the study panel is not configured; arms skip on it."""
 
 
+def source() -> str:
+    """``"synthetic"``, or the path of the panel the environment points at."""
+    return os.environ.get("MLSYNTH_CAL_PANEL") or "synthetic"
+
+
 def _path() -> str:
     p = os.environ.get("MLSYNTH_CAL_PANEL")
-    if not p:
+    if not p:                                   # pragma: no cover - source() gates it
         raise PanelUnavailable(
             "set MLSYNTH_CAL_PANEL to a CSV with unit / period / outcome columns; "
             "see the module docstring for the column-name variables.")
@@ -55,29 +67,60 @@ def _path() -> str:
     return p
 
 
-def load():
-    """Factor paths, loadings, unit means and residuals of the configured panel."""
-    d = pd.read_csv(_path())
-    tcol = os.environ.get("MLSYNTH_CAL_TIME", "start_date")
-    ucol = os.environ.get("MLSYNTH_CAL_UNIT", "dma")
-    vcol = os.environ.get("MLSYNTH_CAL_VALUE", "total")
-    wide = d.pivot_table(index=tcol, columns=ucol, values=vcol).sort_index()
-    values = np.log(wide.values)
+def _decompose(values: np.ndarray):
+    """Split a log panel into unit means, ``K`` factors, loadings and residuals."""
     mean = values.mean(axis=0)
     centred = values - mean[None, :]
     U, S, Vt = np.linalg.svd(centred, full_matrices=False)
     factors = U[:, :K] * S[:K]
     loadings = Vt[:K].T
-    residuals = centred - factors @ loadings.T
-    return mean, factors, loadings, residuals
+    return mean, factors, loadings, centred - factors @ loadings.T
+
+
+def _synthetic():
+    """The stand-in panel, decomposed by the same code path as a real one.
+
+    A panel drawn to behave like the one the study was measured on: dominated by
+    a single factor, mildly persistent once that factor is out, with a small
+    correlation shared inside a regional block. Running the same decomposition
+    over it means the arms cannot tell the two apart by their interface.
+    """
+    try:                                     # imported as a package member
+        from . import synthetic_geo_panel as sgp
+    except ImportError:                      # imported as a script module, as the
+        import synthetic_geo_panel as sgp    # arms do via sys.path
+    n_weeks = max(sgp.N_WEEKS, T)
+    values, _ = sgp.make_panel(np.random.default_rng(20240101),
+                               n_markets=sgp.N_MARKETS, n_weeks=n_weeks)
+    return _decompose(values)
+
+
+def load():
+    """Factor paths, loadings, unit means and residuals of the configured panel.
+
+    Falls back to :func:`_synthetic` when nothing is configured, so every arm runs
+    without the panel the study was measured on. A configured path is never
+    replaced: if it cannot be read, the error stands.
+    """
+    if source() == "synthetic":
+        return _synthetic()
+    d = pd.read_csv(_path())
+    tcol = os.environ.get("MLSYNTH_CAL_TIME", "start_date")
+    ucol = os.environ.get("MLSYNTH_CAL_UNIT", "dma")
+    vcol = os.environ.get("MLSYNTH_CAL_VALUE", "total")
+    wide = d.pivot_table(index=tcol, columns=ucol, values=vcol).sort_index()
+    return _decompose(np.log(wide.values))
 
 
 _CACHE: dict = {}
 
 
 def _components():
-    if "v" not in _CACHE:
-        _CACHE["v"] = load()
+    """Cached components, keyed by source so a reconfigured panel is re-read."""
+    key = source()
+    if _CACHE.get("key") != key:
+        _CACHE.clear()
+        _CACHE["key"], _CACHE["v"] = key, load()
     return _CACHE["v"]
 
 

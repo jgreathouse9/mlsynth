@@ -49,6 +49,7 @@ import numpy as np
 from mlsynth import MAREX
 from mlsynth.utils.bilevel.simplex import simplex_lstsq
 from mlsynth.utils.conformal import block_error_paths
+import panel
 from panel import ALPHA, DELTA, H, T0, TB, TE, draw, frame
 
 B = 200
@@ -193,6 +194,8 @@ if __name__ == "__main__":
         n, start, path = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
         with open(path, "a") as fh:
             for s in range(start, start + n):
-                fh.write(json.dumps(one(s)) + "\n")
+                # Stamp which panel produced the row, so a results file cannot be
+                # read as real-panel numbers when the stand-in supplied them.
+                fh.write(json.dumps({**one(s), "panel": panel.source()}) + "\n")
                 fh.flush()
                 print(f"seed {s}", flush=True)
