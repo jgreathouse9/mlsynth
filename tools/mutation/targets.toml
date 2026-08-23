@@ -1409,7 +1409,7 @@ timeout = 120.0
   [[target.mutant]]
   id = "export-list-entry-dropped"
   find = "    \"bootstrap_loo_errors\",\n"
-  replace = ""
+  replace = "    # bootstrap_loo_errors: lost to a merge resolution\n"
   models = "the half of a botched merge resolution that nothing used to catch. Every module in this package edits the same two regions of __init__.py, so two branches adding modules conflict there by construction; dropping the import line raises immediately because nine test modules import from the package, but dropping the matching __all__ entry left the direct import working and the declared surface silently smaller"
 
   [[target.mutant]]
