@@ -194,5 +194,11 @@ EXPECTED = {
     "parity_max_gap": (0.004, 0.012),        # the two constructions coincide at block=1
     "parity_h1_atoms_apart": (1.0, 1.0),     # horizon 1 differs by at most one pool atom
     "width_ratio": (1.43, 0.35),             # rolling-origin scores exceed leave-one-out
-    "block_widening": (1.31, 0.20),          # blocks carry AR(0.7) persistence
+    # Blocks carry AR(0.7) persistence. Moved 1.31 -> 1.57 when the draw began
+    # correcting the spread centring removes: an 8-block of a 24-period series is
+    # scaled by sqrt(23 / 16) = 1.199 and the single-period draw by exactly 1, so
+    # the ratio grows by that factor and by nothing else. 1.31 * 1.199 = 1.571
+    # predicted against 1.576 observed, agreeing to 0.4 percent -- the number the
+    # arithmetic gives, not the number the new output happened to produce.
+    "block_widening": (1.57, 0.20),
 }

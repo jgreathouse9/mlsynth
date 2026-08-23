@@ -205,13 +205,30 @@ def test_the_longest_admissible_block_still_draws():
 # b = n/2 and reverses: past the midpoint a longer block draws a NARROWER total,
 # mirroring a shorter one, until at b = n it draws nothing at all.
 def test_the_spread_is_symmetric_about_half_the_series():
-    """The identity the guard is built on, measured."""
+    """The identity the guard is built on, measured -- on the raw block sums.
+
+    A centred series partitions into a b-block and its (n - b) complement, whose
+    sums are exact negatives, so the two carry identical spread. That symmetry is
+    why a block past n / 2 stops meaning "how much serial correlation is carried"
+    and reverses, and it is what the guard refuses on.
+
+    The drawn paths no longer show it, and that is deliberate: the draw now
+    scales by sqrt((n - 1) / (n - b)) to give back the spread centring removed,
+    and b and n - b are scaled by different factors precisely so each carries its
+    own spread instead of the shared, shrunken one. Dividing the factor back out
+    recovers the identity, which is the quantity the guard is about.
+    """
     e = np.random.default_rng(0).normal(size=24)
-    def sd(b):
-        return block_error_paths(e, horizon=b, block=b, n_sim=100_000,
-                                 rng=np.random.default_rng(1)).sum(axis=1).std()
+    n = e.size
+
+    def raw_sd(b):
+        drawn = block_error_paths(e, horizon=b, block=b, n_sim=100_000,
+                                  rng=np.random.default_rng(1)).sum(axis=1).std()
+        factor = np.sqrt((n - 1) / (n - b)) if b > 1 else 1.0
+        return drawn / factor
+
     for b in (1, 2, 5):
-        assert sd(b) == pytest.approx(_complement_sd(e, b), rel=0.02), b
+        assert raw_sd(b) == pytest.approx(_complement_sd(e, b), rel=0.02), b
 
 
 def _complement_sd(e, b):
