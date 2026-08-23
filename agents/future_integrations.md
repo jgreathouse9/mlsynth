@@ -2206,6 +2206,223 @@ outcomes that plausibly diffuse.
 
 ---
 
+## 21. The FSCM forward scan -- a performance hunt that turned out to be a bug
+
+**Status: the scan solves each candidate exactly with the active-set QP,
+warm-started along the chain (`scan_candidates`,
+`rolling_origin_rmspe_exact`). Prop 99 runs in 0.155s against 43.5s, 280x, with
+ATT and every donor weight unchanged. Three earlier attempts are recorded below
+because each was rejected on measurement and each would otherwise be proposed
+again: Frank-Wolfe screening, batched FISTA, and an objective-based stopping
+rule. The batched FISTA shipped first and was then removed -- it was superseded
+by a primitive that is both exact and faster, and dead machinery is worse than
+a revert.**
+
+### What it turned out to be
+
+Not a performance problem. FISTA exhausts its 2000-iteration budget on these
+designs and returns an optimum up to 9.3e-05 too high in RMSPE, which is
+invisible while the fit is still improving and becomes visible the moment it
+saturates: on Prop 99 the reported path *rose* by 3.5e-05 at steps 8 to 10.
+The true optimum cannot rise, because the k-donor simplex is the face of the
+(k+1)-donor simplex where the new weight is zero. So the scan was reporting
+fits it had not achieved, and the speed work was chasing the symptom.
+
+The RCA ladder is in the commit history; two things from it are general.
+
+Hypothesis found a far simpler counterexample than the hand-built one. Hunting
+by hand produced a violation only at `collinearity = 0.999`; the search shrank
+straight past that to `N=8, T0=5`, no collinearity, no noise -- a panel fitted
+exactly, where the path still rose by 1.4e-08. The conditioning story was not
+the boundary, and would have been written into the docstring as if it were.
+
+It also found a second defect, introduced by the batching and not inherited:
+the Gram form `y'y - 2 w'A'y + w'A'A w` cancels catastrophically once the fit is
+close, and the `max(sse, 0)` clamp hid the negative it produced. The scan now
+forms the residual directly.
+
+### The ladder
+
+Run after the exact QP exposed the discrepancy, on Prop 99. Rung 0 passing is
+the normal shape: the quantity a reader checks first is the one the defect does
+not move.
+
+| Rung | Question | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 0 | Which reported quantity looks wrong? | pass | ATT bit-identical under every solver tried, 0.00e+00. Final donor set and weights unchanged. |
+| 1 | Which other outputs moved with it? | fail | The selection order from step 7 on, and `train_rmspe` in the selection path. The final answer survives only because the rolling CV stops at three donors. |
+| 2 | Which step produced them? | fail | `simplex_lstsq` exhausts its 2000-iteration cap from k=3 onward; excess SSE over the exact optimum runs 1.8e-09 at k=2 to 3.7e-03 at k=10, tracking `cond(A)` as it grows 1 -> 384. Rank is full at every step, so the first guess -- rank deficiency -- was wrong. |
+| 3 | Which invariant does it violate? | fail | Admitting a donor cannot raise the optimum. Prop 99 rises 3.5e-05 at steps 8-10 and sits 9.3e-05 above the exact path, which is flat to 6.7e-16. Stated per solve as dominance, `simplex_lstsq` breaks it on 25 of 300 random designs and `solve_simplex_qp` on 0. |
+| 4 | Which contract was never enforced? | fail | `simplex_lstsq` has no accuracy contract: `warn=False` by default and no returned convergence flag, so five of its six call sites cannot distinguish a converged answer from one truncated at `max_iter`. |
+| 5 | Would the suite have caught it? | fail | The monotonicity property existed and asserted the right thing at `<= 1e-9`. Its generator drew donors independently with more pre-periods than factors, so the path fell whatever the solver did -- max rise 8.2e-15 on the panel it used. |
+
+Both confirmation questions answer no for FSCM. With the dominance invariant
+searched over a family that can saturate, the FISTA scan fails at authoring
+time; with the exact solver in place and that property kept, the class of defect
+does not recur. For the other callers of `simplex_lstsq` the second answer is
+yes, which is why the blast radius below is scoped out and not fixed.
+
+### Blast radius
+
+`simplex_lstsq` is called by FSCM, `sbc_helpers/synthetic.py`,
+`spillsynth_helpers/iscm/weights.py`, `spillsynth_helpers/grossi/inference.py`,
+`bilevel/penalized.py` and `bilevel/regression_v.py`. Only FSCM was moved off
+it. The same inaccuracy is present for the others, but each carries pinned
+numbers that a solver change would move, so that is a shared-helper change on
+its own branch per `CLAUDE.md` -- not something to fold into a fix for one
+estimator. What would make it tractable there is the contract rung 4 names: a
+convergence flag, so a caller can at least tell.
+
+### The question
+
+FDID and fsPDA both scan every remaining donor at every step and both are fast,
+because their inner problem has a closed form. FDID's counterfactual is an
+unweighted mean, so admitting a donor is a rank-1 running-sum update; fsPDA
+fits OLS, so the gain is `(x_j'r)^2 / ||x_j||^2` exactly, and it screens on that
+before refitting. FSCM has neither: every candidate needs a simplex-constrained
+solve, so the released scan spent N solver calls per step and ~N^2/2 over the
+path -- 43s on Prop 99's 38 donors, 314s at 100 donors.
+
+Measured first: the cost per `simplex_lstsq` call is nearly flat in `T0` and in
+the number of donors, so it is per-call Python overhead, not flops. That points
+at the number of calls, and at two ways to cut it.
+
+### A. Batching FISTA -- shipped, then removed
+
+At step `k` every candidate design `[X_S, x_j]` shares its first `k` columns, so
+every candidate Gram is a `(k+1) x (k+1)` submatrix of the one donor Gram
+`X'X`. FISTA runs on `(A'A, A'b)` and never refers to the design, so all
+candidates advance under one Python loop with each frozen at its own stopping
+iterate.
+
+| N | released scan | batched scan | speedup |
+| --- | --- | --- | --- |
+| 38 (Prop 99) | 9.48s | 1.31s | 7.2x |
+| 150 | 74.29s | 3.48s | 21.4x |
+| 300 | 158.18s | 5.50s | 28.7x |
+| 600 | 303.20s | 9.21s | 32.9x |
+
+End to end the scan alone gave 2.1x and exposed the rolling-origin CV as the
+next cost. Its designs `Y[:t]` are nested, so their Grams are a running row sum
+and the whole family solves together too: Prop 99 43.5s -> 11.3s, Basque 11.5s
+-> 4.0s, ATT and every donor weight bit-identical.
+
+Removed once the exact QP landed. Bit-identity with FISTA was the wrong
+contract to have chased -- it made the change provably faithful to a reference
+that was itself wrong.
+
+### B. Frank-Wolfe screening (heuristic) -- rejected
+
+At the incumbent `w*` the first-order decrease from admitting donor `j` is
+proportional to `r*'(x_j - X_S w*)`. Rank on that, solve exactly for a
+shortlist, and the scan stops depending on `N` at all -- measured 1.5s at every
+size from 38 to 600 donors, against the batched scan's 9.2s at 600.
+
+It does not reproduce the selection. Over 60 random panels with `N` in
+[30, 200]:
+
+| shortlist | full path same | first 4 same | max dRMSPE |
+| --- | --- | --- | --- |
+| 1 | 0% | 0% | 1.5e-1 |
+| 5 | 2% | 15% | 1.0e-1 |
+| 10 | 25% | 33% | 7.3e-2 |
+
+The reason is the difference between an exact gain and a first-order one. For
+OLS, `(x_j'r)^2 / ||x_j||^2` *is* the residual reduction, so fsPDA's shortlist
+ranks on the same quantity it would compute exactly. On the simplex,
+`r*'(x_j - X_S w*)` is only the initial slope: it prices the descent direction
+and ignores how far the incumbent weights re-allocate once the new donor is
+admitted, and under a sum-to-one constraint that re-allocation is large. The
+screen ranks by where the objective starts moving; the criterion is where it
+stops.
+
+### C. Objective-based stopping (faster, less accurate) -- rejected
+
+After the batching landed, profiling showed 99.4 percent of FSCM's remaining
+runtime still inside `simplex_lstsq_gram_many`, not elsewhere in the estimator:
+73 of 74 solver invocations run to the `max_iter = 2000` cap and 93 percent of
+individual problems never meet the step-norm tolerance. `simplex_lstsq_batch`
+already switched to an objective test for what looks like the same reason, so
+the obvious move was to follow it -- 13 to 27 times fewer iterations, and Prop
+99 5.4s against 11.2s.
+
+It does not survive measurement. Over 80 random panels the objective stop picks
+a different donor on 5.6 percent of steps, and tightening does not touch that:
+
+| tol | check every | patience | flips | max dRMSPE | mean iters |
+| --- | --- | --- | --- | --- | --- |
+| 1e-11 | 25 | 1 | 5.62% | 1.34e-04 | 523 |
+| 1e-13 | 10 | 2 | 5.00% | 1.47e-05 | 763 |
+| 1e-15 | 5 | 3 | 6.25% | 1.14e-04 | 894 |
+| 0 | 10 | 2 | 6.25% | 1.47e-05 | 1548 |
+
+Against the exact active-set QP (`bilevel/active_set.solve_simplex_qp`) as
+ground truth, over 300 steps:
+
+| | wrong donor | max \|reported RMSPE - exact\| |
+| --- | --- | --- |
+| scalar FISTA loop | 12 (4.00%) | 6.9e-10 |
+| batched, objective stop | 14 (4.67%) | 2.8e-05 |
+
+The objective stop costs four orders of magnitude of accuracy to buy 2x, and
+its wrong picks are a superset of the scalar's -- the same twelve, plus two.
+The shared 4 percent is genuine near-ties, where two candidates differ by less
+than 1e-9 and the exact solver's tie-break decides.
+
+### The correction this produced
+
+The step-norm rule never firing looked like evidence the scalar solver was not
+converging, and it is not. Along a flat optimal face the *iterate* keeps
+drifting after the *objective* has settled, so the test cannot fire even though
+the answer is accurate to 6.9e-10. Two thousand iterations buy that accuracy
+instead of wasting it, and the shipped batched scan inherits it exactly by
+being bit-identical.
+
+So "identical to the reference" and "correct" happened to coincide here, but
+they are different claims and the first was asserted before the second was
+checked. What established it was an independent exact solver, not agreement
+between two runs of the same algorithm.
+
+### D. The exact active-set QP -- shipped
+
+A forward scan is a chain of neighbouring problems, so each candidate starts
+from the incumbent weights padded with a zero for the new donor: feasible by
+construction, and the pattern `test_simplex_active_set_perf` reports the active
+set collapsing on. Per call it is 12 to 33 times faster than the FISTA
+primitive; end to end Prop 99 goes 43.5s -> 0.155s and Basque 11.5s -> 0.138s,
+with the pinned ATT and weights unchanged because the rolling CV selects three
+donors, well before the saturated region where the paths diverge.
+
+Being exact, it cannot be tested against the loop it replaced, and testing it
+against itself would be circular. The oracle is cvxpy, and the tolerance is set
+by cvxpy's accuracy, not the code's: across 40 designs the active set
+attains the strictly lower objective 25 times to cvxpy's 11, so asserting
+tighter than about 1e-07 would pin the oracle's error.
+
+### Learnings (keep these)
+
+* **Prop 99 alone would have sold the heuristic.** On that panel screening
+  matched the first nine steps and diverged only in the flat tail, where the
+  RMSPE agrees to five decimals and the rolling-CV size rule never reaches.
+  Random panels killed it. A single real dataset is not a validation set for a
+  selection rule -- the same trap as reading one of a package's four copies of
+  a file and taking it for the others.
+* **An OLS acceleration does not transfer to a constrained fit just because the
+  loop shape matches.** Check whether the reference trick computes the exact
+  objective change or a first-order proxy before porting it.
+* **Fix the top cost and measure again.** Batching the scan alone gave 2.1x
+  end-to-end, not the 7x the isolated scan showed, because the rolling-origin
+  CV was next. Each fix reveals the following one, so quote the end-to-end
+  number and not the isolated one.
+* **Predictor mode is untouched.** Its lower-level problem carries the
+  predictor block and is not a plain simplex least squares, so it keeps the
+  per-candidate loop; anyone batching it needs a different factorisation.
+* **A stopping rule that never fires is not the same as a solver that never
+  converges.** Check the objective against an independent exact solve before
+  concluding an iteration budget is being wasted.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
